@@ -1,0 +1,274 @@
+{{/*
+Three separate Deployments for ingestion, detection, and baseline Celery workers.
+They share the same worker image but differ in: queue, concurrency, resources, and env.
+*/}}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Ingestion worker
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "audit-log-analyzer.fullname" . }}-worker-ingestion
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "audit-log-analyzer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker-ingestion
+spec:
+  replicas: {{ .Values.worker.ingestion.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "audit-log-analyzer.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker-ingestion
+  template:
+    metadata:
+      labels:
+        {{- include "audit-log-analyzer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker-ingestion
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "audit-log-analyzer.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: {{ .Values.worker.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.worker.securityContext.runAsUser }}
+        fsGroup: {{ .Values.worker.securityContext.runAsUser }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker-ingestion
+          image: {{ include "audit-log-analyzer.workerImage" . }}
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - app.celery_app
+            - worker
+            - -Q
+            - ingestion
+            - -c
+            - {{ .Values.worker.ingestion.concurrency | quote }}
+            - --loglevel
+            - INFO
+          resources:
+            {{- toYaml .Values.worker.ingestion.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: {{ .Values.worker.securityContext.readOnlyRootFilesystem }}
+            allowPrivilegeEscalation: {{ .Values.worker.securityContext.allowPrivilegeEscalation }}
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: {{ include "audit-log-analyzer.configMapName" . }}
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: secret-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: database-url
+            - name: VALKEY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: valkey-url
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: app-data
+              mountPath: /app/data
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: app-data
+          emptyDir: {}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+# ──────────────────────────────────────────────────────────────────────────────
+# Detection worker
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "audit-log-analyzer.fullname" . }}-worker-detection
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "audit-log-analyzer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker-detection
+spec:
+  replicas: {{ .Values.worker.detection.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "audit-log-analyzer.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker-detection
+  template:
+    metadata:
+      labels:
+        {{- include "audit-log-analyzer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker-detection
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "audit-log-analyzer.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: {{ .Values.worker.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.worker.securityContext.runAsUser }}
+        fsGroup: {{ .Values.worker.securityContext.runAsUser }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker-detection
+          image: {{ include "audit-log-analyzer.workerImage" . }}
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - app.celery_app
+            - worker
+            - -Q
+            - detection
+            - -c
+            - {{ .Values.worker.detection.concurrency | quote }}
+            - --loglevel
+            - INFO
+          resources:
+            {{- toYaml .Values.worker.detection.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: {{ .Values.worker.securityContext.readOnlyRootFilesystem }}
+            allowPrivilegeEscalation: {{ .Values.worker.securityContext.allowPrivilegeEscalation }}
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: {{ include "audit-log-analyzer.configMapName" . }}
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: secret-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: database-url
+            - name: VALKEY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: valkey-url
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: app-data
+              mountPath: /app/data
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: app-data
+          emptyDir: {}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+# ──────────────────────────────────────────────────────────────────────────────
+# Baseline worker
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "audit-log-analyzer.fullname" . }}-worker-baseline
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "audit-log-analyzer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker-baseline
+spec:
+  replicas: {{ .Values.worker.baseline.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "audit-log-analyzer.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker-baseline
+  template:
+    metadata:
+      labels:
+        {{- include "audit-log-analyzer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker-baseline
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "audit-log-analyzer.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: {{ .Values.worker.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.worker.securityContext.runAsUser }}
+        fsGroup: {{ .Values.worker.securityContext.runAsUser }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker-baseline
+          image: {{ include "audit-log-analyzer.workerImage" . }}
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - app.celery_app
+            - worker
+            - -Q
+            - baseline
+            - -c
+            - {{ .Values.worker.baseline.concurrency | quote }}
+            - --loglevel
+            - INFO
+          resources:
+            {{- toYaml .Values.worker.baseline.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: {{ .Values.worker.securityContext.readOnlyRootFilesystem }}
+            allowPrivilegeEscalation: {{ .Values.worker.securityContext.allowPrivilegeEscalation }}
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: {{ include "audit-log-analyzer.configMapName" . }}
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: secret-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: database-url
+            - name: VALKEY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: valkey-url
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: app-data
+              mountPath: /app/data
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: app-data
+          emptyDir: {}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,127 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "audit-log-analyzer.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "audit-log-analyzer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.api.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "audit-log-analyzer.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        {{- include "audit-log-analyzer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+      annotations:
+        # Roll pods when config or secrets change
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "audit-log-analyzer.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: {{ .Values.api.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.api.securityContext.runAsUser }}
+        fsGroup: {{ .Values.api.securityContext.runAsUser }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: {{ include "audit-log-analyzer.apiImage" . }}
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          # ── Probes ──────────────────────────────────────────────────────
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.api.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.api.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.api.livenessProbe.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: {{ .Values.api.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.api.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.api.readinessProbe.failureThreshold }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            failureThreshold: {{ .Values.api.startupProbe.failureThreshold }}
+            periodSeconds: {{ .Values.api.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.api.startupProbe.timeoutSeconds }}
+          # ── Resources ───────────────────────────────────────────────────
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          # ── Security Context ────────────────────────────────────────────
+          securityContext:
+            readOnlyRootFilesystem: {{ .Values.api.securityContext.readOnlyRootFilesystem }}
+            allowPrivilegeEscalation: {{ .Values.api.securityContext.allowPrivilegeEscalation }}
+            runAsNonRoot: {{ .Values.api.securityContext.runAsNonRoot }}
+            runAsUser: {{ .Values.api.securityContext.runAsUser }}
+            capabilities:
+              drop:
+                - ALL
+          # ── Environment — non-secret values from ConfigMap ──────────────
+          envFrom:
+            - configMapRef:
+                name: {{ include "audit-log-analyzer.configMapName" . }}
+          # ── Environment — secret values ──────────────────────────────────
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: secret-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: database-url
+            - name: VALKEY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: valkey-url
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: github-client-id
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: github-client-secret
+            - name: GITHUB_RULES_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: github-rules-token
+                  optional: true
+          # ── Volume mounts — tmp needed for ReadOnlyRootFilesystem ────────
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: app-data
+              mountPath: /app/data
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: app-data
+          emptyDir: {}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

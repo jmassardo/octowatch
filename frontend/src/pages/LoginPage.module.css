@@ -1,0 +1,92 @@
+.page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--canvas);
+}
+
+.box {
+  width: 360px;
+  padding: 40px 32px;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  margin-bottom: 4px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0;
+}
+
+.sub {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0 0 8px;
+}
+
+.githubBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 16px;
+  background: #238636;
+  border: 1px solid rgba(240, 246, 252, 0.1);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.githubBtn:hover {
+  background: #2ea043;
+  text-decoration: none;
+}
+
+.divider {
+  font-size: 12px;
+  color: var(--fg-subtle);
+  width: 100%;
+  text-align: center;
+}
+
+.samlBtn {
+  width: 100%;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-muted);
+  font-size: 13px;
+  text-decoration: none;
+  text-align: center;
+  display: block;
+}
+
+.samlBtn:hover {
+  background: rgba(177, 186, 196, 0.08);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.footer {
+  font-size: 12px;
+  color: var(--fg-subtle);
+  margin: 4px 0 0;
+  line-height: 1.5;
+}

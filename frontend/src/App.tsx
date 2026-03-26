@@ -1,0 +1,40 @@
+import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { AppShell } from './components/layout/AppShell';
+import { AuthGuard } from './components/auth/AuthGuard';
+import { LoginPage } from './pages/LoginPage';
+import { DashboardPage } from './pages/Dashboard';
+import { ThreatsPage } from './pages/Threats';
+import { EventsPage } from './pages/Events';
+import { VelocityPage } from './pages/Velocity';
+import { DevActivityPage } from './pages/DevActivity';
+import { CopilotPage } from './pages/Copilot';
+import { ReportsPage } from './pages/Reports';
+import { QueryPage } from './pages/Query';
+import { RulesPage } from './pages/Rules';
+import { UsersPage } from './pages/Users';
+import { IntegrationsPage } from './pages/Integrations';
+
+export const router = createBrowserRouter([
+  { path: '/', element: <Navigate to="/dashboard" replace /> },
+  { path: '/login', element: <LoginPage /> },
+  {
+    element: (
+      <AuthGuard>
+        <AppShell />
+      </AuthGuard>
+    ),
+    children: [
+      { path: '/dashboard', element: <DashboardPage /> },
+      { path: '/threats', element: <ThreatsPage /> },
+      { path: '/events', element: <EventsPage /> },
+      { path: '/velocity', element: <VelocityPage /> },
+      { path: '/devactivity', element: <DevActivityPage /> },
+      { path: '/copilot', element: <CopilotPage /> },
+      { path: '/reports', element: <ReportsPage /> },
+      { path: '/query', element: <QueryPage /> },
+      { path: '/rules', element: <RulesPage /> },
+      { path: '/users', element: <UsersPage /> },
+      { path: '/integrations', element: <IntegrationsPage /> },
+    ],
+  },
+]);

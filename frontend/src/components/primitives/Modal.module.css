@@ -1,0 +1,49 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(1, 4, 9, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog {
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 0;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.close {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.close:hover {
+  color: var(--fg);
+}
+
+.body {
+  padding: 16px 20px 20px;
+}

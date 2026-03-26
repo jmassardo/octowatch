@@ -1,0 +1,156 @@
+.page {
+  padding: 24px;
+}
+
+.pageTitle {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.pageSub {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-bottom: 16px;
+}
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.searchBar input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-size: 13px;
+  flex: 1;
+  font-family: inherit;
+}
+
+.searchBar input::placeholder {
+  color: var(--fg-subtle);
+}
+
+.filterChips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(88, 166, 255, 0.15);
+  border: 1px solid rgba(88, 166, 255, 0.3);
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+.chipX {
+  cursor: pointer;
+  color: var(--fg-muted);
+  font-size: 14px;
+  margin-left: 2px;
+}
+
+.chipX:hover { color: var(--fg); }
+
+.tableHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.resultCount {
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.tableActions {
+  display: flex;
+  gap: 6px;
+}
+
+.tableWrap {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tableWrap thead th {
+  background: var(--canvas-subtle);
+  color: var(--fg-muted);
+  font-weight: 500;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tableWrap tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-muted);
+  vertical-align: middle;
+}
+
+.tableWrap tbody tr:hover td {
+  background: rgba(177, 186, 196, 0.04);
+}
+
+.tableWrap tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ts {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.mention {
+  color: var(--done);
+  font-weight: 500;
+}
+
+.country {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-left: 4px;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.pageInfo {
+  font-size: 13px;
+  color: var(--fg-muted);
+}

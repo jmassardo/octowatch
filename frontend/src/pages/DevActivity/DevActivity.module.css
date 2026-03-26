@@ -1,0 +1,135 @@
+.page { padding: 24px; }
+.pageTitle { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+.pageSub { font-size: 13px; color: var(--fg-muted); margin-bottom: 16px; }
+
+.teamFilters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.workNote {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-bottom: 16px;
+}
+
+.workGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.barList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.barHandle {
+  width: 76px;
+  font-size: 12px;
+  color: var(--done);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.barHandle.muted {
+  color: var(--fg-subtle);
+  font-weight: 400;
+}
+
+.barTrack {
+  flex: 1;
+  height: 8px;
+  background: var(--canvas-inset);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.barPct {
+  color: var(--fg-muted);
+  width: 32px;
+  text-align: right;
+  font-size: 12px;
+}
+
+.busWarning {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.devGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.devCard {
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  cursor: pointer;
+}
+
+.devCard:hover { border-color: var(--accent); }
+.devCard.flagged { border-color: rgba(248, 81, 73, 0.4); }
+
+.devTop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.devName {
+  font-weight: 500;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.flagLabel {
+  font-size: 10px !important;
+  height: 16px !important;
+}
+
+.devHandle { font-size: 12px; color: var(--fg-muted); }
+
+.mention { color: var(--done); font-weight: 500; }
+
+.devStats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 8px;
+}
+
+.devStats span strong {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "audit-log-analyzer.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "audit-log-analyzer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "audit-log-analyzer.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api

@@ -1,0 +1,67 @@
+Audit Log Analyzer has been deployed!
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart version: {{ .Chart.Version }}
+App version: {{ .Chart.AppVersion }}
+Image tag: {{ .Values.global.image.tag }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌐 Access
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{{- if .Values.ingress.enabled }}
+  Application: https://{{ .Values.ingress.host }}/
+  API docs:    https://{{ .Values.ingress.host }}/api/docs
+{{- else }}
+  Ingress is disabled. To access the API locally:
+
+  kubectl port-forward -n {{ .Release.Namespace }} \
+    svc/{{ include "audit-log-analyzer.fullname" . }}-api 8000:8000
+
+  Then open: http://localhost:8000/api/docs
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 Health Checks
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Liveness:   GET /health  → 200 {"status": "ok"}
+  Readiness:  GET /ready   → 200 {"status": "ready"} or 503 if deps are down
+
+  Watch pod status:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -w
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  IMPORTANT: Secrets
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  If you used the default placeholder secret.yaml, the application WILL NOT
+  start correctly. Provide real secrets before deploying to production:
+
+  kubectl create secret generic {{ include "audit-log-analyzer.secretName" . }} \
+    --namespace {{ .Release.Namespace }} \
+    --from-literal=secret-key=$(openssl rand -hex 32) \
+    --from-literal=database-url='postgresql+asyncpg://...' \
+    --from-literal=valkey-url='redis://:password@valkey:6379/0' \
+    --from-literal=github-client-id='...' \
+    --from-literal=github-client-secret='...' \
+    --from-literal=github-rules-token=''  # optional — leave empty to disable rule sync \
+    --from-literal=minio-root-user='...' \
+    --from-literal=minio-root-password='...' \
+    --from-literal=minio-ingest-user='...' \
+    --from-literal=minio-ingest-password='...' \
+    --dry-run=client -o yaml | kubectl apply -f -
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 Logs
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  kubectl logs -n {{ .Release.Namespace }} -f deploy/{{ include "audit-log-analyzer.fullname" . }}-api
+  kubectl logs -n {{ .Release.Namespace }} -f deploy/{{ include "audit-log-analyzer.fullname" . }}-worker-detection
+  kubectl logs -n {{ .Release.Namespace }} -f deploy/{{ include "audit-log-analyzer.fullname" . }}-beat
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📖 Runbook
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  See docs/runbook.md for operational procedures including:
+  - Rollback:           helm rollback {{ .Release.Name }} -n {{ .Release.Namespace }}
+  - Scale workers:      kubectl scale deploy/...-worker-detection --replicas=N -n {{ .Release.Namespace }}
+  - SECRET_KEY rotation and rolling restart procedure
+  - TimescaleDB backup and restore

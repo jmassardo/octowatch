@@ -1,0 +1,46 @@
+.topbar {
+  height: 48px;
+  min-height: 48px;
+  background: var(--canvas-subtle);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+}
+
+.orgTabs {
+  display: flex;
+}
+
+.orgTab {
+  padding: 6px 14px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-right: none;
+  background: transparent;
+  font-family: inherit;
+}
+
+.orgTab:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.orgTab:last-child {
+  border-right: 1px solid var(--border);
+  border-radius: 0 6px 6px 0;
+}
+
+.orgTab.active {
+  background: var(--canvas-inset);
+  color: var(--fg);
+}
+
+.right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

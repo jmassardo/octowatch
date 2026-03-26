@@ -1,0 +1,202 @@
+.splitLayout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: 100%;
+}
+
+.splitMain {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.pageTitle {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.pageSub {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-bottom: 16px;
+}
+
+.topActions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* Issue List */
+.issueList {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ilFilters {
+  background: var(--canvas-subtle);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  padding: 0 12px;
+}
+
+.ilTab {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  font-family: inherit;
+}
+
+.ilTab.active {
+  color: var(--fg);
+  border-bottom-color: var(--severe);
+}
+
+.ilRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-muted);
+  cursor: pointer;
+}
+
+.ilRow:last-child {
+  border-bottom: none;
+}
+
+.ilRow:hover {
+  background: rgba(177, 186, 196, 0.04);
+}
+
+.ilRow.selected {
+  background: rgba(88, 166, 255, 0.06);
+}
+
+.ilMeta {
+  flex: 1;
+  min-width: 0;
+}
+
+.ilTitle {
+  font-weight: 500;
+  color: var(--fg);
+  font-size: 13px;
+}
+
+.ilSub {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ilTime {
+  font-size: 12px;
+  color: var(--fg-subtle);
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding-top: 2px;
+}
+
+.mention {
+  color: var(--done);
+  font-weight: 500;
+}
+
+.loadingRow {
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.emptyRow {
+  padding: 24px;
+  text-align: center;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+
+/* Split Panel */
+.splitPanel {
+  width: 480px;
+  min-width: 480px;
+  background: var(--canvas-subtle);
+  border-left: 1px solid var(--border);
+  padding: 20px;
+  overflow-y: auto;
+  display: none;
+}
+
+.splitPanel.open {
+  display: block;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.panelClose {
+  cursor: pointer;
+  color: var(--fg-muted);
+  font-size: 20px;
+  line-height: 1;
+  background: none;
+  border: none;
+  font-family: inherit;
+}
+
+.panelClose:hover {
+  color: var(--fg);
+}
+
+.panelLabels {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.panelDesc {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+.evidenceLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--fg-subtle);
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+.evidence {
+  margin-bottom: 14px;
+  font-size: 11px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.panelActions {
+  display: flex;
+  gap: 8px;
+}

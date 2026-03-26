@@ -1,0 +1,30 @@
+# Non-secret application configuration.
+# All secret values (DATABASE_URL, SECRET_KEY, etc.) live in secret.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "audit-log-analyzer.configMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "audit-log-analyzer.labels" . | nindent 4 }}
+data:
+  # Logging
+  LOG_LEVEL: "INFO"
+
+  # Ingestion backend: "minio" | "s3" | "azure_blob"
+  INGESTION_MODE: "minio"
+
+  # MinIO endpoint (internal service name when minio.enabled=true)
+  MINIO_ENDPOINT_URL: "http://{{ include "audit-log-analyzer.fullname" . }}-minio:9000"
+  MINIO_AUDIT_BUCKET: {{ .Values.minio.bucketName | default "audit-logs" | quote }}
+
+  # GitHub Rules integration (optional — leave empty to disable rule sync)
+  GITHUB_RULES_BRANCH: {{ .Values.githubRules.branch | default "main" | quote }}
+
+  # GeoIP database location (mounted as an emptyDir; fetched at runtime if MAXMIND_LICENSE_KEY is set)
+  GEOIP_DB_PATH: "/app/data/GeoLite2-City.mmdb"
+
+  # Query engine limits
+  DETECTION_CONFIDENCE_THRESHOLD: "0.7"
+  QUERY_MAX_ROWS: "100000"
+  QUERY_TIMEOUT_SECONDS: "30"

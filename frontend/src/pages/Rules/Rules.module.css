@@ -1,0 +1,122 @@
+.page { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pageTitle { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+.pageSub { font-size: 13px; color: var(--fg-muted); margin: 0; }
+
+.tableWrap {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table thead th {
+  background: var(--canvas-subtle);
+  color: var(--fg-muted);
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 8px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-muted);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td { border-bottom: none; }
+
+.table tbody tr:hover td { background: rgba(177, 186, 196, 0.04); }
+
+.ruleName { font-weight: 500; }
+.ruleSlug {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  margin-top: 2px;
+}
+
+.muted { color: var(--fg-muted); font-size: 12px; }
+.empty { text-align: center; color: var(--fg-muted); padding: 40px !important; }
+
+.rowActions { display: flex; gap: 8px; }
+
+/* Toggle */
+.toggle {
+  width: 32px;
+  height: 18px;
+  background: var(--border);
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s;
+  padding: 0;
+}
+.toggleOn { background: var(--success); }
+.toggleThumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.15s;
+}
+.toggleOn .toggleThumb { transform: translateX(14px); }
+
+/* Form */
+.ruleForm { display: flex; flex-direction: column; gap: 16px; }
+
+.formRow { display: flex; flex-direction: column; gap: 4px; }
+
+.formRowGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.formLabel { font-size: 12px; font-weight: 600; color: var(--fg-muted); }
+
+.formInput,
+.formSelect,
+.formTextarea {
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.formInput:focus,
+.formSelect:focus,
+.formTextarea:focus { border-color: var(--accent); }
+
+.formTextarea { resize: vertical; }
+
+.formRowCheck { display: flex; align-items: center; }
+.checkLabel { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+
+.formActions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; border-top: 1px solid var(--border-muted); }

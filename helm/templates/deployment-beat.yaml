@@ -1,0 +1,91 @@
+# CRITICAL: replicaCount is NOT configurable — always exactly 1.
+# Multiple beat instances cause duplicate task scheduling (double ingestion,
+# double baseline recomputation). This is enforced here and in values.yaml.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "audit-log-analyzer.fullname" . }}-beat
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "audit-log-analyzer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: beat
+spec:
+  replicas: 1  # DO NOT CHANGE — see note above
+  strategy:
+    type: Recreate  # Recreate (not RollingUpdate) to prevent two beat pods from coexisting
+  selector:
+    matchLabels:
+      {{- include "audit-log-analyzer.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: beat
+  template:
+    metadata:
+      labels:
+        {{- include "audit-log-analyzer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: beat
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "audit-log-analyzer.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: {{ .Values.worker.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.worker.securityContext.runAsUser }}
+        fsGroup: {{ .Values.worker.securityContext.runAsUser }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: beat
+          image: {{ include "audit-log-analyzer.workerImage" . }}
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - app.celery_app
+            - beat
+            - --scheduler
+            - celery.beat:PersistentScheduler
+            - --loglevel
+            - INFO
+          resources:
+            {{- toYaml .Values.beat.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: false  # PersistentScheduler writes celerybeat-schedule file
+            allowPrivilegeEscalation: {{ .Values.worker.securityContext.allowPrivilegeEscalation }}
+            runAsNonRoot: {{ .Values.worker.securityContext.runAsNonRoot }}
+            runAsUser: {{ .Values.worker.securityContext.runAsUser }}
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: {{ include "audit-log-analyzer.configMapName" . }}
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: secret-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: database-url
+            - name: VALKEY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  key: valkey-url
+          volumeMounts:
+            - name: beat-schedule
+              mountPath: /app/celerybeat-schedule
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: beat-schedule
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,18 @@
+:root {
+  --canvas: #0d1117;
+  --canvas-subtle: #161b22;
+  --canvas-inset: #010409;
+  --border: #30363d;
+  --border-muted: #21262d;
+  --fg: #e6edf3;
+  --fg-muted: #8b949e;
+  --fg-subtle: #6e7681;
+  --accent: #58a6ff;
+  --accent-bg: #1f6feb;
+  --success: #3fb950;
+  --danger: #f85149;
+  --attention: #d29922;
+  --severe: #db6d28;
+  --done: #bc8cff;
+  --sidebar-w: 240px;
+}

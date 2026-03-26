@@ -1,0 +1,66 @@
+version: 2
+updates:
+  # Python backend dependencies
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 10
+    groups:
+      production-deps:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "pytest*"
+          - "ruff"
+          - "mypy"
+          - "coverage*"
+          - "httpx"   # httpx is used in tests too; review carefully
+      dev-deps:
+        patterns:
+          - "pytest*"
+          - "ruff"
+          - "mypy"
+          - "coverage*"
+    labels:
+      - "dependencies"
+      - "python"
+
+  # Docker base image updates (docker-compose.yml)
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    labels:
+      - "dependencies"
+      - "docker"
+
+  # Docker base image updates for backend Dockerfile
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    labels:
+      - "dependencies"
+      - "docker"
+
+  # GitHub Actions dependency updates
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    labels:
+      - "dependencies"
+      - "github-actions"

@@ -1,0 +1,33 @@
+.metric {
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+
+.accented {
+  border-color: rgba(248, 81, 73, 0.4);
+}
+
+.val {
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  line-height: 1.2;
+}
+
+.lbl {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+}
+
+.delta {
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.up { color: var(--success); }
+.down { color: var(--danger); }
+.neutral { color: var(--fg-muted); }

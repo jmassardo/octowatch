@@ -1,0 +1,372 @@
+# audit-log-analyzer Helm Chart — Values
+# See docs/security-and-deployment.md for full environment variable reference
+# and security architecture details.
+
+# ---------------------------------------------------------------------------
+# Global settings — shared across all chart subcharts and templates
+# ---------------------------------------------------------------------------
+global:
+  image:
+    # Container registry prefix, e.g. "ghcr.io/your-org" or "registry.example.com"
+    registry: ghcr.io/your-org
+    # Application image tag; override per environment (CI sets this to git SHA)
+    tag: "latest"
+
+# ---------------------------------------------------------------------------
+# API service
+# ---------------------------------------------------------------------------
+api:
+  replicaCount: 2  # Increase for high availability; requires shared session via Valkey
+
+  image:
+    repository: audit-log-analyzer-api
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+  # Pod-level security context — applied to all containers in the API pod
+  securityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 1001
+    capabilities:
+      drop: ["ALL"]
+
+  service:
+    type: ClusterIP
+    port: 8000
+
+  # See docs/security-and-deployment.md §3 for full probe definitions
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+  startupProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    failureThreshold: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+
+# ---------------------------------------------------------------------------
+# Celery workers
+# ---------------------------------------------------------------------------
+worker:
+  image:
+    repository: audit-log-analyzer-worker
+    pullPolicy: IfNotPresent
+
+  securityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 1001
+    capabilities:
+      drop: ["ALL"]
+
+  ingestion:
+    replicaCount: 1   # Scale up when ingesting multiple concurrent sources
+    concurrency: 4    # Celery worker processes per replica (-c flag)
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "512Mi"
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"  # Extra memory headroom for gzip decompression of large audit files
+
+  detection:
+    replicaCount: 2   # Scale out for high event volume; detection is stateless
+    concurrency: 8    # CPU-bound rule evaluation; tune to (vCPUs * 2)
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+
+  baseline:
+    replicaCount: 1   # Baseline recomputation is idempotent; single replica is fine
+    concurrency: 2    # I/O-bound; low concurrency avoids DB pressure
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+
+# ---------------------------------------------------------------------------
+# Celery Beat scheduler
+# CRITICAL: replicaCount is fixed at 1 and must not be changed.
+# Multiple beat instances cause duplicate task scheduling.
+# ---------------------------------------------------------------------------
+beat:
+  # replicaCount is intentionally not exposed — always 1; see worker comment above
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+# ---------------------------------------------------------------------------
+# Frontend (React SPA)
+# ---------------------------------------------------------------------------
+frontend:
+  replicaCount: 2
+
+  image:
+    repository: audit-log-analyzer-frontend
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+
+  service:
+    type: ClusterIP
+    port: 3001
+
+# ---------------------------------------------------------------------------
+# PostgreSQL — Bitnami PostgreSQL subchart
+# For production, consider TimescaleDB-managed chart or external RDS.
+# See docs/security-and-deployment.md §1.2 for DB TLS requirements.
+# ---------------------------------------------------------------------------
+postgresql:
+  enabled: true  # Set to false to use an external PostgreSQL instance
+
+  auth:
+    username: app_rw
+    database: auditlogs
+    # Password is injected via existingSecret; see secrets management below
+    # See docs/security-and-deployment.md for env var details
+    existingSecret: audit-log-analyzer-db-secret
+    secretKeys:
+      adminPasswordKey: postgres-password
+      userPasswordKey: app-password
+
+  primary:
+    persistence:
+      enabled: true
+      size: 50Gi  # Adjust based on event volume; TimescaleDB compression yields ~90% reduction
+
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "2000m"
+        memory: "4Gi"
+
+    # Enable TimescaleDB extension (requires timescale/timescaledb image override)
+    initdb:
+      scripts:
+        enable_timescaledb.sql: |
+          CREATE EXTENSION IF NOT EXISTS timescaledb;
+
+  # sslmode=require enforced in DATABASE_URL env var — not configurable here
+  tls:
+    enabled: true
+    autoGenerated: true
+
+# ---------------------------------------------------------------------------
+# Valkey — community Valkey subchart (or Redis-compatible subchart)
+# See docs/security-and-deployment.md for env var details
+# ---------------------------------------------------------------------------
+valkey:
+  enabled: true  # Set to false to use an external Valkey/Redis instance
+
+  auth:
+    enabled: true
+    # Password injected via existingSecret
+    existingSecret: audit-log-analyzer-valkey-secret
+    existingSecretPasswordKey: valkey-password
+
+  master:
+    persistence:
+      enabled: true
+      size: 2Gi  # Valkey stores sessions, dedup keys, and Celery results
+
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+
+    # Append-only file persistence for durability (session loss on restart is acceptable
+    # but dedup state loss would cause re-ingestion of duplicate events)
+    extraFlags:
+      - "--appendonly yes"
+
+# ---------------------------------------------------------------------------
+# MinIO — MinIO operator or standalone deployment
+# See docs/security-and-deployment.md §1.2 for credential scoping details
+# ---------------------------------------------------------------------------
+minio:
+  enabled: true  # Set to false to use an external MinIO or AWS S3 endpoint
+
+  rootUser: ""        # Injected via existingSecret; see secrets management
+  rootPassword: ""    # Injected via existingSecret
+
+  # See docs/security-and-deployment.md for env var details
+  existingSecret: audit-log-analyzer-minio-secret
+
+  persistence:
+    enabled: true
+    size: 100Gi  # Raw storage for .json.gz audit log files before ingestion
+
+  bucketName: audit-logs  # Created automatically by post-install job
+
+  # Bucket event notifications → Valkey pub/sub for near-real-time ingestion
+  notifyRedis:
+    enabled: true
+    # Address and password injected from Valkey service at deploy time
+
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+
+# ---------------------------------------------------------------------------
+# Ingress — routes external traffic to nginx / api / frontend
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx  # Ingress controller class; change to "traefik" etc. as needed
+
+  host: audit-log-analyzer.example.com  # Replace with your actual FQDN
+
+  tls:
+    enabled: true
+    secretName: audit-log-analyzer-tls  # TLS certificate secret (cert-manager or manual)
+
+  # Annotations for cert-manager automatic TLS certificate provisioning
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"  # Allow large audit log uploads
+
+# ---------------------------------------------------------------------------
+# GitHub-backed detection rule storage (optional)
+# Leave repo empty to disable rule sync — rules still fully work in the DB.
+# ---------------------------------------------------------------------------
+githubRules:
+  repo: ""          # e.g. my-org/audit-detection-rules
+  branch: main      # Branch to commit rule YAML files to
+  # Token injected via secret key "github-rules-token" (optional)
+
+# ---------------------------------------------------------------------------
+# Ingestion mode and storage backend configuration
+# ---------------------------------------------------------------------------
+ingestion:
+  # Active backend: minio | s3 | azure_blob
+  mode: minio
+
+  # AWS S3 settings — only used when mode=s3
+  s3:
+    bucket: ""          # Name of the S3 bucket containing GitHub audit logs
+    region: us-east-1   # AWS region of the S3 bucket
+    # Credentials injected via existingSecret (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)
+    existingSecret: audit-log-analyzer-s3-secret
+
+  # Azure Blob settings — only used when mode=azure_blob
+  azureBlob:
+    containerName: ""   # Azure Blob container name
+    # Connection string injected via existingSecret (AZURE_STORAGE_CONNECTION_STRING)
+    existingSecret: audit-log-analyzer-azure-secret
+
+# ---------------------------------------------------------------------------
+# Detection engine tuning
+# ---------------------------------------------------------------------------
+detection:
+  impossibleTravel:
+    # Speed threshold in km/h above which two consecutive logins from different
+    # locations are flagged as impossible travel. Default: 900 km/h (roughly
+    # commercial aircraft cruising speed, allowing legitimate air travelers).
+    thresholdKmh: 900
+
+  behavioralBaseline:
+    # Rolling window in days used by the baseline recomputation job.
+    # Longer windows produce more stable baselines but respond more slowly
+    # to legitimate behaviour changes (e.g., new team members).
+    windowDays: 30
+
+  # Minimum confidence score (0.0–1.0) for a detection to be persisted
+  # and trigger downstream notifications / ticket creation.
+  confidenceThreshold: 0.7
+
+# ---------------------------------------------------------------------------
+# Security settings
+# ---------------------------------------------------------------------------
+security:
+  # JWT session TTL in seconds. Default: 3600 (1 hour).
+  # Valkey session key TTL is synchronized to this value.
+  # Shorter TTLs reduce the impact of token theft.
+  jwtTtlSeconds: 3600
+
+  # Rate limit for authentication endpoints (login, SAML ACS) per IP per minute.
+  # Mitigates brute-force and credential stuffing against the OAuth flow.
+  rateLimitAuthPerMinute: 10
+
+  # Rate limit for read API endpoints per authenticated user per minute.
+  rateLimitReadPerMinute: 60
+
+  # Rate limit for write API endpoints per authenticated user per minute.
+  rateLimitWritePerMinute: 10
+
+  # Maximum number of rows the self-service SQL query engine may return per query.
+  queryMaxRows: 100000
+
+  # Server-side timeout in seconds for self-service SQL queries.
+  queryTimeoutSeconds: 30
+
+# ---------------------------------------------------------------------------
+# Observability
+# ---------------------------------------------------------------------------
+observability:
+  logLevel: INFO  # DEBUG | INFO | WARNING | ERROR
+
+  # Prometheus metrics scraping
+  metrics:
+    enabled: true
+    port: 9090
+    path: /metrics
+
+  # OpenTelemetry trace export (optional)
+  tracing:
+    enabled: false
+    endpoint: ""  # OTLP gRPC endpoint, e.g. "http://otel-collector:4317"

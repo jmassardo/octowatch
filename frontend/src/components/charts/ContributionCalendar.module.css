@@ -1,0 +1,65 @@
+.wrap {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.months {
+  display: grid;
+  grid-template-columns: repeat(14, 14px);
+  gap: 3px;
+  margin-bottom: 4px;
+  padding-left: 36px;
+}
+
+.monthLabel {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  grid-row: 1;
+}
+
+.body {
+  display: flex;
+  gap: 3px;
+  align-items: flex-start;
+}
+
+.dayLabels {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-right: 4px;
+  padding-top: 1px;
+}
+
+.dayLabel {
+  font-size: 10px;
+  color: var(--fg-subtle);
+  height: 11px;
+  line-height: 11px;
+  width: 24px;
+  text-align: right;
+}
+
+.cols {
+  display: flex;
+  gap: 3px;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cell {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+}
+
+.cell[data-level="0"] { background: #161b22; }
+.cell[data-level="1"] { background: #0e4429; }
+.cell[data-level="2"] { background: #006d32; }
+.cell[data-level="3"] { background: #26a641; }
+.cell[data-level="4"] { background: #39d353; }
+.cell[data-alert] { background: rgba(248, 81, 73, 0.8); }

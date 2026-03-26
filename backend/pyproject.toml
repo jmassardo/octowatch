@@ -1,0 +1,209 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "audit-log-analyzer"
+version = "1.0.0"
+description = "GitHub Enterprise Cloud audit log ingestion, detection, and reporting platform"
+requires-python = ">=3.12"
+dependencies = [
+    # Web framework
+    "fastapi==0.111.0",
+    "uvicorn[standard]==0.30.1",
+    "python-multipart==0.0.9",
+
+    # Data validation
+    "pydantic==2.7.4",
+    "pydantic-settings==2.3.4",
+
+    # Database
+    "sqlalchemy==2.0.31",
+    "asyncpg==0.29.0",
+    "alembic==1.13.2",
+
+    # Task queue
+    "celery[valkey]==5.4.0",
+    "redis==5.0.7",
+
+    # Auth
+    "authlib==1.3.1",
+    "python3-saml==1.16.0",
+    "PyJWT==2.8.0",
+
+    # Rate limiting
+    "slowapi==0.1.9",
+
+    # SQL validation
+    "pglast==6.2",
+
+    # GeoIP
+    "geoip2==4.8.0",
+    "maxminddb==2.6.2",
+
+    # S3 / MinIO ingestion
+    "boto3==1.34.148",
+
+    # Azure Blob ingestion
+    "azure-storage-blob==12.19.1",
+
+    # HTTP client
+    "httpx==0.27.0",
+
+    # Logging
+    "structlog==24.2.0",
+
+    # Notifications
+    "slack-sdk==3.30.0",
+    "aiosmtplib==3.0.1",
+    "Jinja2==3.1.4",
+
+    # Ticketing
+    "atlassian-python-api==3.41.16",
+    "PyGithub==2.3.0",
+
+    # IdP enrichment
+    "okta-sdk-python==2.9.8",
+    "msal==1.29.0",
+    "google-auth==2.31.0",
+    "google-api-python-client==2.136.0",
+
+    # Git / Rule versioning
+
+    # Data processing (baselines)
+    "pandas==2.2.2",
+    "numpy==2.0.0",
+
+    # Security
+    "cryptography>=42.0.0",
+    "defusedxml==0.7.1",
+
+    # YAML for rule import/export
+    "PyYAML==6.0.1",
+
+    # Utilities
+    "python-dateutil==2.9.0",
+    "email-validator==2.1.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.2.2",
+    "pytest-asyncio==0.23.7",
+    "pytest-cov==5.0.0",
+    "httpx==0.27.0",
+    "mypy==1.10.1",
+    "ruff==0.4.10",
+    "bandit==1.7.9",
+    "pip-audit==2.7.3",
+    "factory-boy==3.3.0",
+    "pytest-mock==3.14.0",
+    "respx==0.21.1",
+    "types-PyYAML",
+    "types-python-dateutil",
+    "boto3-stubs[s3]",
+    "azure-storage-blob",
+    "sqlalchemy[mypy]",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+# ─── ruff ────────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "S",   # bandit (security)
+    "T20", # print statements
+    "ANN", # annotations
+]
+ignore = [
+    "ANN101",  # missing type for self
+    "ANN102",  # missing type for cls
+    "ANN401",  # any type annotation
+    "S101",    # assert usage (tests)
+    "B008",    # function calls in default arguments (FastAPI Depends pattern)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "ANN", "T20"]
+# Alembic migrations: SQL DDL constraints and index definitions can exceed 100 chars
+# and cannot be meaningfully wrapped without harming SQL readability.
+"alembic/**" = ["ANN", "E501"]
+# report_service uses SQLAlchemy text() with bound parameters (:param syntax),
+# not raw string interpolation of user data. S608 is a false positive here.
+"app/services/report_service.py" = ["S608"]
+# fix_ann001.py is a one-off development helper script
+"fix_ann001.py" = ["T20"]
+
+# ─── mypy ────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+# ─── coverage ────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    # Requires running database connections
+    "app/database.py",
+    "app/celery_app.py",
+    "app/deps.py",
+    "app/main.py",
+    # Routers require HTTP + DB integration tests
+    "app/routers/*",
+    # Workers require external queues / cloud storage
+    "app/workers/baseline_worker.py",
+    "app/workers/detection_worker.py",
+    "app/workers/ingestion/minio_worker.py",
+    "app/workers/ingestion/s3_worker.py",
+    "app/workers/ingestion/azure_worker.py",
+    # Ingestion base pipeline requires Valkey + DB (integration test scope)
+    "app/workers/ingestion/base.py",
+    # Services requiring external APIs or complex DB pipelines
+    "app/services/auth_service.py",
+    "app/services/idp_service.py",
+    "app/services/notification_service.py",
+    "app/services/ticketing_service.py",
+    "app/services/event_service.py",
+    "app/services/rule_service.py",
+    # Detection engines and pipeline require DB (integration test scope)
+    "app/services/detection_service.py",
+    # RBAC async resolver requires DB joins
+    "app/services/rbac_service.py",
+    # Report aggregation queries require TimescaleDB
+    "app/services/report_service.py",
+    # Schemas with no standalone testable logic (Pydantic models only)
+    "app/schemas/audit_event.py",
+    "app/schemas/auth.py",
+    "app/schemas/detection.py",
+    "app/schemas/integration.py",
+    "app/schemas/query.py",
+    "app/schemas/report.py",
+]
+
+# ─── pytest ──────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--cov=app --cov-report=term-missing --cov-fail-under=80"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
