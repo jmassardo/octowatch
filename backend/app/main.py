@@ -22,7 +22,18 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
 from app.database import dispose_pool, warm_up_pool
-from app.routers import admin, auth, detections, events, health, integrations, query, reports, rules
+from app.routers import (
+    admin,
+    auth,
+    detections,
+    events,
+    health,
+    health_signals,
+    integrations,
+    query,
+    reports,
+    rules,
+)
 from app.services.geoip_service import close_geoip_db, load_geoip_db
 
 logger = structlog.get_logger(__name__)
@@ -334,6 +345,7 @@ def create_app() -> FastAPI:
     app.include_router(rules.router, prefix=API_PREFIX)
     app.include_router(admin.router, prefix=API_PREFIX)
     app.include_router(integrations.router, prefix=API_PREFIX)
+    app.include_router(health_signals.router, prefix=API_PREFIX)
 
     return app
 

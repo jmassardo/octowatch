@@ -1,0 +1,579 @@
+.page {
+  padding: 24px;
+}
+
+.pageTitle {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.pageSub {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-bottom: 20px;
+}
+
+.dataSourceNote {
+  padding: 12px;
+  background: color-mix(in srgb, var(--attention) 12%, transparent);
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.metricStrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+/* ---- Tab bar ---- */
+
+.healthTabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+  gap: 0;
+}
+
+.healthTab {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  background: none;
+  font-family: inherit;
+}
+
+.healthTab:hover {
+  color: var(--fg);
+}
+
+.healthTabActive {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+
+.tabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--danger);
+  border-radius: 9px;
+}
+
+.tabContent {
+  min-height: 200px;
+}
+
+.placeholder {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--fg-muted);
+  font-size: 14px;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.placeholderTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 4px;
+}
+
+/* ---- Shared pane styles ---- */
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tableWrap {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tableWrap thead th {
+  background: var(--canvas-subtle);
+  color: var(--fg-muted);
+  font-weight: 500;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tableWrap tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-muted);
+  vertical-align: middle;
+}
+
+.tableWrap tbody tr:hover td {
+  background: rgba(177, 186, 196, 0.04);
+}
+
+.tableWrap tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.sourceNote {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-top: 8px;
+  margin-bottom: 20px;
+}
+
+.sourceCode {
+  font-size: 10px;
+  background: var(--canvas-inset);
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+/* ---- License Pane ---- */
+
+.gaugeTrack {
+  margin-top: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--canvas-inset);
+  overflow: hidden;
+}
+
+.gaugeBar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.cardTitle {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.cardValue {
+  font-size: 32px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cardSub {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 6px;
+}
+
+.copilotCrossRef {
+  background: rgba(248, 81, 73, 0.06);
+  border: 1px solid rgba(248, 81, 73, 0.2);
+  border-radius: 6px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-bottom: 8px;
+}
+
+/* ---- Maintenance Pane ---- */
+
+.stalePrItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.stalePrItem:last-child {
+  border-bottom: none;
+}
+
+.stalePrTitle {
+  font-size: 11px;
+  color: var(--fg-subtle);
+}
+
+.webhookItem {
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.webhookItemDanger {
+  background: rgba(248, 81, 73, 0.06);
+  border: 1px solid rgba(248, 81, 73, 0.2);
+}
+
+.webhookItemWarn {
+  background: rgba(210, 153, 34, 0.06);
+  border: 1px solid rgba(210, 153, 34, 0.2);
+}
+
+.webhookItemMuted {
+  background: rgba(110, 118, 129, 0.08);
+  border: 1px solid rgba(110, 118, 129, 0.2);
+}
+
+.webhookName {
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.webhookDetail {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+}
+
+/* ---- WAF Insights Pane ---- */
+
+.wafHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.wafHeaderNote {
+  flex: 1;
+}
+
+.pillarGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.pillarCard {
+  padding: 12px;
+}
+
+.pillarLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.pillarCount {
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pillarSummary {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-top: 2px;
+}
+
+.pillarSectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  margin-top: 8px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.pillarSectionDesc {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--fg-muted);
+}
+
+.pillarTag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.pillarGovernance {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+}
+
+.pillarAppsec {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+}
+
+.pillarArchitecture {
+  background: color-mix(in srgb, var(--attention) 15%, transparent);
+  color: var(--attention);
+}
+
+.pillarCollaboration {
+  background: color-mix(in srgb, var(--done) 15%, transparent);
+  color: var(--done);
+}
+
+.pillarProductivity {
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
+}
+
+.wafFinding {
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+}
+
+.wafFindingCritical {
+  background: rgba(248, 81, 73, 0.04);
+  border: 1px solid rgba(248, 81, 73, 0.2);
+}
+
+.wafFindingWarning {
+  background: rgba(210, 153, 34, 0.04);
+  border: 1px solid rgba(210, 153, 34, 0.2);
+}
+
+.wafFindingHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sevDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.sevDotCritical {
+  background: var(--danger);
+}
+
+.sevDotWarning {
+  background: var(--attention);
+}
+
+.wafFindingTitle {
+  flex: 1;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.wafFindingBody {
+  font-size: 13px;
+  color: var(--fg-muted);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+
+.wafFindingMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-muted);
+}
+
+.wafSource {
+  background: var(--canvas-inset);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.wafNa {
+  background: rgba(210, 153, 34, 0.1);
+  color: var(--attention);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.wafRef {
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.wafRef:hover {
+  text-decoration: underline;
+}
+
+.productivityOk {
+  background: rgba(63, 185, 80, 0.06);
+  border: 1px solid rgba(63, 185, 80, 0.2);
+  border-radius: 6px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-bottom: 12px;
+}
+
+.unevaluatedSection {
+  margin-top: 8px;
+}
+
+.unevaluatedTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.wafBaselineNote {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-bottom: 4px;
+}
+
+.thresholdBadges {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.thresholdBadge {
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 11px;
+  border-width: 1px;
+  border-style: solid;
+}
+
+.thresholdSuccess {
+  background: rgba(63, 185, 80, 0.08);
+  border-color: rgba(63, 185, 80, 0.2);
+  color: var(--success);
+}
+
+.thresholdWarn {
+  background: rgba(210, 153, 34, 0.08);
+  border-color: rgba(210, 153, 34, 0.2);
+  color: var(--attention);
+}
+
+.thresholdDanger {
+  background: rgba(248, 81, 73, 0.08);
+  border-color: rgba(248, 81, 73, 0.2);
+  color: var(--danger);
+}
+
+.thresholdSevere {
+  background: rgba(248, 81, 73, 0.15);
+  border-color: rgba(248, 81, 73, 0.4);
+  color: var(--danger);
+}
+
+.bypassTable {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.bypassTable table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.bypassTable thead th {
+  background: var(--canvas-subtle);
+  padding: 6px 10px;
+  text-align: left;
+  font-weight: 500;
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.bypassTable tbody td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.bypassTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.mention {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.affectedList {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.inlineCode {
+  font-size: 11px;
+  background: var(--canvas-inset);
+  padding: 1px 4px;
+  border-radius: 3px;
+}

@@ -8,6 +8,7 @@ filters only and can never expand the RBAC scope.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import structlog
 from sqlalchemy import select, text
@@ -15,10 +16,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import RbacRole, UserRoleAssignment
 
+if TYPE_CHECKING:
+    pass
+
 logger = structlog.get_logger(__name__)
 
 # Role names that can be derived from GitHub team memberships
 ROLE_NAMES = ("analyst", "report_admin", "rule_author", "sys_admin")
+
+
+@runtime_checkable
+class _ScopedUser(Protocol):
+    """Structural type for any object carrying RBAC scope attributes."""
+
+    github_login: str
+    roles: list[str]
+    scoped_orgs: list[str]
+    scope_type: str
 
 
 @dataclass
@@ -150,6 +164,49 @@ def inject_scope_predicate(
         )
 
     return stmt
+
+
+async def get_scoped_orgs(
+    session: AsyncSession,
+    user: _ScopedUser,
+) -> list[str]:
+    """Return the explicit list of orgs the user may query.
+
+    For scoped users the list comes from their role assignments.  For
+    ``sys_admin`` / global-scope users the function queries all distinct
+    orgs present in the ``events`` table so that downstream SQL can
+    always use ``org = ANY(:scoped_orgs)`` without a wildcard.
+
+    Parameters
+    ----------
+    session:
+        An async SQLAlchemy session.
+    user:
+        An ``AuthenticatedUser`` instance (or any object exposing
+        ``github_login``, ``roles``, ``scoped_orgs`` and ``scope_type``).
+
+    Returns
+    -------
+    A (possibly empty) list of org name strings.
+    """
+    # Fast path: scoped users already carry org names from session data
+    if user.scope_type != "global" and user.scoped_orgs:
+        return list(user.scoped_orgs)
+
+    # Resolve scope from DB for correctness
+    scope = await get_user_scope(
+        session,
+        user.github_login,
+        user.roles,
+    )
+
+    if scope.is_global:
+        result = await session.execute(
+            text("SELECT DISTINCT org FROM events WHERE org IS NOT NULL LIMIT 1000")
+        )
+        return [row[0] for row in result.fetchall()]
+
+    return scope.scoped_orgs
 
 
 def apply_client_filters(

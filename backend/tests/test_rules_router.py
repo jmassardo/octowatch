@@ -312,6 +312,114 @@ class TestCreateRule:
         )
         assert resp.status_code == 422
 
+    def test_invalid_distinct_count_field_returns_422(self):
+        """§1.7: Creating a rule with invalid distinct_count_field → 422."""
+        token = _make_jwt()
+        app, _, _ = _build_rules_app(valkey_session=_make_session(roles=["rule_author"]))
+        client = TestClient(app, raise_server_exceptions=False)
+        payload = {
+            **VALID_RULE_PAYLOAD,
+            "slug": "test-distinct-bad",
+            "logic_config": {
+                **VALID_RULE_PAYLOAD["logic_config"],
+                "distinct_count_field": "password_hash",
+            },
+        }
+        resp = client.post(
+            "/api/v1/rules",
+            json=payload,
+            cookies={"access_token": token},
+        )
+        assert resp.status_code == 422
+        assert "distinct_count_field" in resp.json()["detail"]
+        assert "password_hash" in resp.json()["detail"]
+
+    def test_valid_distinct_count_field_accepted(self):
+        """§1.7: Creating a rule with valid distinct_count_field → proceeds normally."""
+        token = _make_jwt()
+        app, _, _ = _build_rules_app(valkey_session=_make_session(roles=["rule_author"]))
+        fake_rule = FakeRuleModel()
+        payload = {
+            **VALID_RULE_PAYLOAD,
+            "slug": "test-distinct-good",
+            "logic_config": {
+                **VALID_RULE_PAYLOAD["logic_config"],
+                "distinct_count_field": "repo",
+            },
+        }
+        with patch(
+            "app.routers.rules.rule_service.get_rule_by_slug",
+            AsyncMock(return_value=None),
+        ):
+            with patch(
+                "app.routers.rules.rule_service.create_rule",
+                AsyncMock(return_value=fake_rule),
+            ):
+                client = TestClient(app, raise_server_exceptions=True)
+                resp = client.post(
+                    "/api/v1/rules",
+                    json=payload,
+                    cookies={"access_token": token},
+                )
+        assert resp.status_code == 201
+
+
+# ─── Update rule validation ──────────────────────────────────────────────────
+
+
+class TestUpdateRuleValidation:
+    """Tests for distinct_count_field validation on PUT /rules/{id} (§1.7)."""
+
+    def test_update_invalid_distinct_count_field_returns_422(self):
+        token = _make_jwt()
+        app, _, _ = _build_rules_app(valkey_session=_make_session(roles=["rule_author"]))
+        client = TestClient(app, raise_server_exceptions=False)
+        payload = {
+            **VALID_RULE_PAYLOAD,
+            "logic_config": {
+                **VALID_RULE_PAYLOAD["logic_config"],
+                "distinct_count_field": "secret_key",
+            },
+        }
+        resp = client.put(
+            "/api/v1/rules/1",
+            json=payload,
+            cookies={"access_token": token},
+        )
+        assert resp.status_code == 422
+        assert "distinct_count_field" in resp.json()["detail"]
+
+    def test_update_valid_distinct_count_field_proceeds(self):
+        token = _make_jwt()
+        app, _, _ = _build_rules_app(valkey_session=_make_session(roles=["rule_author"]))
+        fake_rule = FakeRuleModel()
+        payload = {
+            **VALID_RULE_PAYLOAD,
+            "logic_config": {
+                **VALID_RULE_PAYLOAD["logic_config"],
+                "distinct_count_field": "action",
+            },
+        }
+        with patch(
+            "app.routers.rules.rule_service.get_rule_by_id",
+            AsyncMock(return_value=fake_rule),
+        ):
+            with patch(
+                "app.routers.rules.rule_service.update_rule",
+                AsyncMock(return_value=fake_rule),
+            ):
+                with patch(
+                    "app.routers.rules.invalidate_rule_cache",
+                    AsyncMock(),
+                ):
+                    client = TestClient(app, raise_server_exceptions=True)
+                    resp = client.put(
+                        "/api/v1/rules/1",
+                        json=payload,
+                        cookies={"access_token": token},
+                    )
+        assert resp.status_code == 200
+
 
 # ─── Get single rule ─────────────────────────────────────────────────────────
 

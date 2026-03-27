@@ -12,9 +12,52 @@ import { Label } from '../../components/primitives/Label';
 import { Modal } from '../../components/primitives/Modal';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import type { ActionsVolumeBucket } from '../../types/reports';
 import styles from './Velocity.module.css';
 
+interface FailingWorkflow {
+  readonly workflow: string;
+  readonly repository: string;
+  readonly failureRate: number;
+  readonly lastFailed: string;
+  readonly p50Duration: string;
+}
+
+interface ActiveRepo {
+  readonly name: string;
+  readonly commits: number;
+  readonly prsMerged: number;
+  readonly cfr: number;
+  readonly mttr: string;
+  readonly contributors: number;
+}
+
+const SAMPLE_FAILING_WORKFLOWS: readonly FailingWorkflow[] = [
+  { workflow: 'deploy-production.yml', repository: 'acme/infra-deploy', failureRate: 60, lastFailed: '14 min ago', p50Duration: '4m 22s' },
+  { workflow: 'e2e-tests.yml', repository: 'acme/checkout-service', failureRate: 28, lastFailed: '2h ago', p50Duration: '12m 08s' },
+  { workflow: 'integration-tests.yml', repository: 'globex/auth-service', failureRate: 15, lastFailed: '5h ago', p50Duration: '8m 41s' },
+];
+
+const SAMPLE_ACTIVE_REPOS: readonly ActiveRepo[] = [
+  { name: 'acme/payments-api', commits: 847, prsMerged: 214, cfr: 2.1, mttr: '38m', contributors: 28 },
+  { name: 'acme/checkout-service', commits: 623, prsMerged: 187, cfr: 1.8, mttr: '22m', contributors: 19 },
+  { name: 'acme/infra-deploy', commits: 412, prsMerged: 98, cfr: 14.3, mttr: '1h 12m', contributors: 12 },
+  { name: 'globex/auth-service', commits: 318, prsMerged: 76, cfr: 6.2, mttr: '45m', contributors: 9 },
+  { name: 'globex/api-gateway', commits: 275, prsMerged: 61, cfr: 0, mttr: '—', contributors: 8 },
+];
+
+function getFailureRateVariant(rate: number): 'danger' | 'attention' | 'success' {
+  if (rate > 20) return 'danger';
+  if (rate > 10) return 'attention';
+  return 'success';
+}
+
+function getCfrVariant(cfr: number): 'danger' | 'attention' | 'success' {
+  if (cfr > 10) return 'danger';
+  if (cfr > 5) return 'attention';
+  return 'success';
+}
 
 export function VelocityPage() {
   const navigate = useNavigate();
@@ -69,10 +112,11 @@ export function VelocityPage() {
   const chartDaysLabel = buckets.length > 0 ? `${buckets.length} days` : '—';
 
   // Derive active repos from events data
-  const activeRepos = (() => {
-    if (!repoEvents?.items.length) return [];
+  const hasRealRepoData = (repoEvents?.items.length ?? 0) > 0;
+  const realRepoNames = (() => {
+    if (!hasRealRepoData) return [];
     const repoMap = new Map<string, { events: number; actors: Set<string> }>();
-    for (const e of repoEvents.items) {
+    for (const e of repoEvents!.items) {
       if (!e.repo) continue;
       const existing = repoMap.get(e.repo) ?? { events: 0, actors: new Set<string>() };
       existing.events++;
@@ -82,11 +126,7 @@ export function VelocityPage() {
     return [...repoMap.entries()]
       .sort(([, a], [, b]) => b.events - a.events)
       .slice(0, 5)
-      .map(([name, { events, actors }]) => ({
-        name,
-        events,
-        contributors: actors.size,
-      }));
+      .map(([name]) => name);
   })();
 
   const metrics = [
@@ -280,41 +320,88 @@ export function VelocityPage() {
         </div>
       )}
 
+      <div className={styles.sectionTitle}>Top failing workflows</div>
+      <SampleDataBanner message="Top failing workflows display sample data. Per-workflow failure metrics require GitHub Actions API integration for individual run data." />
+      <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Workflow</th>
+              <th>Repository</th>
+              <th>Failure rate</th>
+              <th>Last failed</th>
+              <th>P50 duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            {SAMPLE_FAILING_WORKFLOWS.map((wf) => (
+              <tr key={`${wf.repository}/${wf.workflow}`}>
+                <td className={styles.workflowName}>{wf.workflow}</td>
+                <td>{wf.repository}</td>
+                <td><Label variant={getFailureRateVariant(wf.failureRate)}>{wf.failureRate}%</Label></td>
+                <td style={{ color: 'var(--fg-muted)' }}>{wf.lastFailed}</td>
+                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.p50Duration}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       <div ref={reposRef} className={styles.sectionTitle}>Most active repositories — last 30 days</div>
+      {!hasRealRepoData && (
+        <SampleDataBanner message="Most active repositories display sample data. Commits, PRs merged, CFR, and MTTR require GitHub API integration." />
+      )}
       <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
         <table>
           <thead>
             <tr>
               <th>Repository</th>
-              <th>Events</th>
+              <th>Commits</th>
+              <th>PRs merged</th>
+              <th>Change failure rate</th>
+              <th>MTTR</th>
               <th>Contributors</th>
             </tr>
           </thead>
           <tbody>
-            {activeRepos.length > 0 ? (
-              activeRepos.map((r) => (
+            {hasRealRepoData ? (
+              realRepoNames.map((name) => (
                 <tr
-                  key={r.name}
+                  key={name}
                   className={styles.clickableRow}
                   role="button"
                   tabIndex={0}
-                  aria-label={`View events for ${r.name}`}
-                  onClick={() => navigate(`/events?repo=${encodeURIComponent(r.name)}`)}
+                  aria-label={`View events for ${name}`}
+                  onClick={() => navigate(`/events?repo=${encodeURIComponent(name)}`)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      navigate(`/events?repo=${encodeURIComponent(r.name)}`);
+                      navigate(`/events?repo=${encodeURIComponent(name)}`);
                     }
                   }}
                 >
-                  <td style={{ fontWeight: 500, color: 'var(--accent)', cursor: 'pointer' }}>{r.name}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--accent)', cursor: 'pointer' }}>{r.events}</td>
+                  <td style={{ fontWeight: 500, color: 'var(--accent)', cursor: 'pointer' }}>{name}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>—</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>—</td>
+                </tr>
+              ))
+            ) : SAMPLE_ACTIVE_REPOS.length > 0 ? (
+              SAMPLE_ACTIVE_REPOS.map((r) => (
+                <tr key={r.name}>
+                  <td style={{ fontWeight: 500 }}>{r.name}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.commits.toLocaleString()}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.prsMerged}</td>
+                  <td><Label variant={getCfrVariant(r.cfr)}>{r.cfr}%</Label></td>
+                  <td>{r.mttr}</td>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.contributors}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={3} style={{ color: 'var(--fg-muted)', textAlign: 'center' }}>
+                <td colSpan={6} style={{ color: 'var(--fg-muted)', textAlign: 'center' }}>
                   No repository activity data available
                 </td>
               </tr>

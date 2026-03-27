@@ -90,7 +90,7 @@ describe('VelocityPage', () => {
     // "Lead time for changes" also appears in chart title; verify at least the metric card
     expect(screen.getAllByText(/Lead time for changes/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('PR cycle time (median)')).toBeInTheDocument();
-    // "Change failure rate" also appears in chart title
+    // "Change failure rate" also appears in chart title and table header
     expect(screen.getAllByText(/Change failure rate/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Deployments (30d)')).toBeInTheDocument();
     expect(screen.getByText('Workflow success')).toBeInTheDocument();
@@ -176,6 +176,78 @@ describe('VelocityPage', () => {
   });
 
   /* ---------------------------------------------------------------- */
+  /*  Top failing workflows table                                       */
+  /* ---------------------------------------------------------------- */
+
+  it('renders the top failing workflows section title', () => {
+    renderWithProviders(<VelocityPage />);
+
+    expect(screen.getByText('Top failing workflows')).toBeInTheDocument();
+  });
+
+  it('renders the top failing workflows table with correct column headers', () => {
+    renderWithProviders(<VelocityPage />);
+
+    const sectionTitle = screen.getByText('Top failing workflows');
+    const tableWrap = sectionTitle.nextElementSibling?.nextElementSibling;
+    const table = tableWrap?.querySelector('table');
+    expect(table).toBeTruthy();
+    const headers = within(table!).getAllByRole('columnheader');
+    const headerTexts = headers.map((h) => h.textContent);
+
+    expect(headerTexts).toEqual([
+      'Workflow',
+      'Repository',
+      'Failure rate',
+      'Last failed',
+      'P50 duration',
+    ]);
+  });
+
+  it('renders sample failing workflow rows', () => {
+    renderWithProviders(<VelocityPage />);
+
+    expect(screen.getByText('deploy-production.yml')).toBeInTheDocument();
+    expect(screen.getByText('e2e-tests.yml')).toBeInTheDocument();
+    expect(screen.getByText('integration-tests.yml')).toBeInTheDocument();
+  });
+
+  it('renders failure rate badges with correct values', () => {
+    renderWithProviders(<VelocityPage />);
+
+    // 60% → danger, 28% → danger (>20), 15% → attention (>10)
+    expect(screen.getByText('60%')).toBeInTheDocument();
+    expect(screen.getByText('28%')).toBeInTheDocument();
+    expect(screen.getByText('15%')).toBeInTheDocument();
+  });
+
+  it('renders repository names in the failing workflows table', () => {
+    renderWithProviders(<VelocityPage />);
+
+    // These repos appear in both failing workflows and active repos tables
+    expect(screen.getAllByText('acme/infra-deploy').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('acme/checkout-service').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('globex/auth-service').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders last failed and P50 duration for failing workflows', () => {
+    renderWithProviders(<VelocityPage />);
+
+    expect(screen.getByText('14 min ago')).toBeInTheDocument();
+    expect(screen.getByText('2h ago')).toBeInTheDocument();
+    expect(screen.getByText('4m 22s')).toBeInTheDocument();
+    expect(screen.getByText('12m 08s')).toBeInTheDocument();
+  });
+
+  it('shows sample data banner for top failing workflows', () => {
+    renderWithProviders(<VelocityPage />);
+
+    expect(
+      screen.getByText(/Top failing workflows display sample data/),
+    ).toBeInTheDocument();
+  });
+
+  /* ---------------------------------------------------------------- */
   /*  Most active repositories table                                    */
   /* ---------------------------------------------------------------- */
 
@@ -187,9 +259,10 @@ describe('VelocityPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the repos table with correct column headers', () => {
+  it('renders the repos table with enhanced column headers', () => {
     renderWithProviders(<VelocityPage />);
 
+    // Find the most active repos table (last table on the page when no failure data)
     const tables = screen.getAllByRole('table');
     const repoTable = tables[tables.length - 1];
     const headers = within(repoTable).getAllByRole('columnheader');
@@ -197,16 +270,39 @@ describe('VelocityPage', () => {
 
     expect(headerTexts).toEqual([
       'Repository',
-      'Events',
+      'Commits',
+      'PRs merged',
+      'Change failure rate',
+      'MTTR',
       'Contributors',
     ]);
   });
 
-  it('renders empty state when no repository data is available', () => {
+  it('renders sample active repos when no real data is available', () => {
+    renderWithProviders(<VelocityPage />);
+
+    // Sample data includes acme/payments-api
+    expect(screen.getByText('acme/payments-api')).toBeInTheDocument();
+    expect(screen.getByText('847')).toBeInTheDocument();
+    expect(screen.getByText('214')).toBeInTheDocument();
+  });
+
+  it('renders CFR labels with correct variants for sample repos', () => {
+    renderWithProviders(<VelocityPage />);
+
+    // acme/infra-deploy has 14.3% CFR → danger
+    expect(screen.getByText('14.3%')).toBeInTheDocument();
+    // globex/auth-service has 6.2% CFR → attention
+    expect(screen.getByText('6.2%')).toBeInTheDocument();
+    // acme/payments-api has 2.1% CFR → success
+    expect(screen.getByText('2.1%')).toBeInTheDocument();
+  });
+
+  it('shows sample data banner for most active repos when no real data', () => {
     renderWithProviders(<VelocityPage />);
 
     expect(
-      screen.getByText('No repository activity data available'),
+      screen.getByText(/Most active repositories display sample data/),
     ).toBeInTheDocument();
   });
 
@@ -310,7 +406,7 @@ describe('VelocityPage with data', () => {
     expect(periodLabels).toHaveLength(3);
   });
 
-  it('renders active repos derived from events', async () => {
+  it('renders active repos derived from events with enhanced columns', async () => {
     renderWithProviders(<VelocityPage />);
 
     await screen.findByText('92.8%');
@@ -318,6 +414,26 @@ describe('VelocityPage with data', () => {
     // Repos derived from mock events
     expect(screen.getByText('myorg/api-service')).toBeInTheDocument();
     expect(screen.getByText('myorg/web-app')).toBeInTheDocument();
+
+    // When real data exists, new columns show dashes (no commits/PRs/MTTR data from events API)
+    const repoTable = screen.getByText('myorg/api-service').closest('table');
+    expect(repoTable).toBeTruthy();
+    const headers = within(repoTable!).getAllByRole('columnheader');
+    const headerTexts = headers.map((h) => h.textContent);
+    expect(headerTexts).toContain('Commits');
+    expect(headerTexts).toContain('PRs merged');
+    expect(headerTexts).toContain('MTTR');
+  });
+
+  it('does not show sample data banner for repos when real data exists', async () => {
+    renderWithProviders(<VelocityPage />);
+
+    await screen.findByText('92.8%');
+
+    // The failing workflows banner still exists, but repos banner should not
+    expect(
+      screen.queryByText(/Most active repositories display sample data/),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -482,5 +598,54 @@ describe('VelocityPage failure row modal', () => {
 
     // Modal-specific content should be gone (check for "Succeeded" which only appears in modal)
     expect(screen.queryByText('Succeeded')).not.toBeInTheDocument();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Helper function tests                                              */
+/* ------------------------------------------------------------------ */
+
+describe('Failing workflow failure rate variants', () => {
+  it('renders 60% failure rate with danger variant', () => {
+    renderWithProviders(<VelocityPage />);
+
+    // 60% should appear (danger variant, >20%)
+    const badge60 = screen.getByText('60%');
+    expect(badge60).toBeInTheDocument();
+  });
+
+  it('renders 28% failure rate as a badge', () => {
+    renderWithProviders(<VelocityPage />);
+
+    // 28% should appear (danger variant, >20%)
+    const badge28 = screen.getByText('28%');
+    expect(badge28).toBeInTheDocument();
+  });
+
+  it('renders 15% failure rate as a badge', () => {
+    renderWithProviders(<VelocityPage />);
+
+    // 15% should appear (attention variant, >10% and ≤20%)
+    const badge15 = screen.getByText('15%');
+    expect(badge15).toBeInTheDocument();
+  });
+});
+
+describe('Active repos CFR variants', () => {
+  it('renders sample repo MTTR values', () => {
+    renderWithProviders(<VelocityPage />);
+
+    expect(screen.getByText('38m')).toBeInTheDocument();
+    expect(screen.getByText('22m')).toBeInTheDocument();
+    expect(screen.getByText('1h 12m')).toBeInTheDocument();
+    expect(screen.getByText('45m')).toBeInTheDocument();
+  });
+
+  it('renders sample repo contributor counts', () => {
+    renderWithProviders(<VelocityPage />);
+
+    expect(screen.getByText('28')).toBeInTheDocument();
+    expect(screen.getByText('19')).toBeInTheDocument();
+    expect(screen.getByText('12')).toBeInTheDocument();
   });
 });

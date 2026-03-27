@@ -1,0 +1,115 @@
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tableWrap {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tableWrap thead th {
+  background: var(--canvas-subtle);
+  color: var(--fg-muted);
+  font-weight: 500;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tableWrap tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-muted);
+  vertical-align: middle;
+}
+
+.tableWrap tbody tr:hover td {
+  background: rgba(177, 186, 196, 0.04);
+}
+
+.tableWrap tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.sourceNote {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-top: 8px;
+  margin-bottom: 20px;
+}
+
+.sourceCode {
+  font-size: 10px;
+  background: var(--canvas-inset);
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+.stalePrItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.stalePrItem:last-child {
+  border-bottom: none;
+}
+
+.stalePrTitle {
+  font-size: 11px;
+  color: var(--fg-subtle);
+}
+
+.webhookItem {
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.webhookItemDanger {
+  background: rgba(248, 81, 73, 0.06);
+  border: 1px solid rgba(248, 81, 73, 0.2);
+}
+
+.webhookItemWarn {
+  background: rgba(210, 153, 34, 0.06);
+  border: 1px solid rgba(210, 153, 34, 0.2);
+}
+
+.webhookItemMuted {
+  background: rgba(110, 118, 129, 0.08);
+  border: 1px solid rgba(110, 118, 129, 0.2);
+}
+
+.webhookName {
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.webhookDetail {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+}

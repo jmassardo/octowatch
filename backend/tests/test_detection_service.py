@@ -192,6 +192,57 @@ class TestEvaluateFieldCondition:
             ev, {"field": "action", "operator": "UNKNOWN_OP", "value": "x"}
         )
 
+    # ── scope_contains operator ──────────────────────────────────────────
+
+    def test_scope_contains_comma_separated(self):
+        """scope_contains matches a whole token in comma-separated values."""
+        ev = FakeEvent(data={"scope": "repo,workflow,admin:org"})
+        assert evaluate_field_condition(
+            ev, {"field": "data.scope", "operator": "scope_contains", "value": "repo"}
+        )
+
+    def test_scope_contains_space_separated(self):
+        """scope_contains matches a whole token in space-separated values."""
+        ev = FakeEvent(data={"scope": "repo workflow admin:org"})
+        assert evaluate_field_condition(
+            ev, {"field": "data.scope", "operator": "scope_contains", "value": "workflow"}
+        )
+
+    def test_scope_contains_mixed_separators(self):
+        """scope_contains handles mixed commas and spaces."""
+        ev = FakeEvent(data={"scope": "repo, workflow, admin:org"})
+        assert evaluate_field_condition(
+            ev, {"field": "data.scope", "operator": "scope_contains", "value": "admin:org"}
+        )
+
+    def test_scope_contains_no_prefix_match(self):
+        """scope_contains must NOT match prefixes — 'repo' should NOT match 'repo:status'."""
+        ev = FakeEvent(data={"scope": "repo:status,workflow"})
+        assert not evaluate_field_condition(
+            ev, {"field": "data.scope", "operator": "scope_contains", "value": "repo"}
+        )
+
+    def test_scope_contains_none_returns_false(self):
+        """scope_contains on a None value returns False."""
+        ev = FakeEvent(data={})
+        assert not evaluate_field_condition(
+            ev, {"field": "data.scope", "operator": "scope_contains", "value": "repo"}
+        )
+
+    def test_scope_contains_single_value(self):
+        """scope_contains matches when the scope is a single word."""
+        ev = FakeEvent(data={"scope": "repo"})
+        assert evaluate_field_condition(
+            ev, {"field": "data.scope", "operator": "scope_contains", "value": "repo"}
+        )
+
+    def test_scope_contains_no_match(self):
+        """scope_contains returns False when the token is not present."""
+        ev = FakeEvent(data={"scope": "workflow,admin:org"})
+        assert not evaluate_field_condition(
+            ev, {"field": "data.scope", "operator": "scope_contains", "value": "repo"}
+        )
+
 
 # ─── event_matches_rule ───────────────────────────────────────────────────────
 
@@ -335,3 +386,276 @@ class TestComputeConfidenceScoreEdgeCases:
         score_base, _ = compute_confidence_score(0.6)
         score_seq, _ = compute_confidence_score(0.6, is_sequence_complete=True)
         assert score_seq > score_base
+
+
+# ─── _SAFE_DISTINCT_COLUMNS whitelist ─────────────────────────────────────────
+
+
+class TestSafeDistinctColumns:
+    """Tests for the _SAFE_DISTINCT_COLUMNS constant (§1.1)."""
+
+    from app.services.detection_service import _SAFE_DISTINCT_COLUMNS
+
+    def test_contains_required_columns(self):
+        expected = {"actor", "org", "repo", "source_ip", "user_agent", "geo_country_code", "action"}
+        assert expected == self._SAFE_DISTINCT_COLUMNS
+
+    def test_is_frozenset(self):
+        assert isinstance(self._SAFE_DISTINCT_COLUMNS, frozenset)
+
+    def test_does_not_contain_unsafe_columns(self):
+        unsafe = {"password", "secret", "token", "data", "id"}
+        assert not unsafe & self._SAFE_DISTINCT_COLUMNS
+
+
+# ─── evaluate_threshold_rule validation ───────────────────────────────────────
+
+
+class TestEvaluateThresholdRuleValidation:
+    """Tests for validation logic in evaluate_threshold_rule (§1.2–§1.6).
+
+    These tests exercise early-exit paths that do NOT require a real DB session.
+    """
+
+    import pytest as _pytest
+
+    @_pytest.mark.anyio
+    async def test_empty_action_filters_returns_empty(self):
+        """§1.4: Empty action_filters → return [] immediately."""
+        from app.services.detection_service import evaluate_threshold_rule
+
+        rule = FakeRule(
+            {
+                "action_filters": [],
+                "threshold": 1,
+                "time_window_minutes": 60,
+                "aggregation_key": "actor",
+            }
+        )
+        ev = FakeEvent(action="repos.create", actor="alice")
+        result = await evaluate_threshold_rule(None, rule, [ev], ["my-org"])  # type: ignore[arg-type]
+        assert result == []
+
+    @_pytest.mark.anyio
+    async def test_wildcard_only_action_filters_returns_empty(self):
+        """§1.4: action_filters=['*'] → treated as empty → return []."""
+        from app.services.detection_service import evaluate_threshold_rule
+
+        rule = FakeRule(
+            {
+                "action_filters": ["*"],
+                "threshold": 1,
+                "time_window_minutes": 60,
+                "aggregation_key": "actor",
+            }
+        )
+        ev = FakeEvent(action="repos.create", actor="alice")
+        result = await evaluate_threshold_rule(None, rule, [ev], ["my-org"])  # type: ignore[arg-type]
+        assert result == []
+
+    @_pytest.mark.anyio
+    async def test_invalid_agg_key_raises_value_error(self):
+        """§1.6: Invalid aggregation_key not in whitelist → ValueError."""
+        from app.services.detection_service import evaluate_threshold_rule
+
+        rule = FakeRule(
+            {
+                "action_filters": ["repos.create"],
+                "threshold": 1,
+                "time_window_minutes": 60,
+                "aggregation_key": "drop_table",
+            }
+        )
+        ev = FakeEvent(action="repos.create", actor="alice")
+        with self._pytest.raises(
+            ValueError, match="aggregation_key 'drop_table' is not a permitted column"
+        ):
+            await evaluate_threshold_rule(None, rule, [ev], ["my-org"])  # type: ignore[arg-type]
+
+    @_pytest.mark.anyio
+    async def test_valid_agg_key_from_whitelist_does_not_raise(self):
+        """§1.6: 'source_ip' is in _SAFE_DISTINCT_COLUMNS → no ValueError."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import evaluate_threshold_rule
+
+        rule = FakeRule(
+            {
+                "action_filters": ["repos.create"],
+                "threshold": 100,
+                "time_window_minutes": 60,
+                "aggregation_key": "source_ip",
+            }
+        )
+        ev = FakeEvent(action="repos.create", actor="alice")
+        ev.source_ip = "1.2.3.4"
+
+        # Mock session — threshold is high so no hits expected
+        mock_row = MagicMock()
+        mock_row.__getitem__ = MagicMock(return_value=0)
+        mock_result = MagicMock()
+        mock_result.fetchone.return_value = mock_row
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        # Should not raise
+        result = await evaluate_threshold_rule(mock_session, rule, [ev], ["my-org"])  # type: ignore[arg-type]
+        assert result == []
+
+    @_pytest.mark.anyio
+    async def test_invalid_distinct_count_field_raises_value_error(self):
+        """§1.3: Invalid distinct_count_field not in whitelist → ValueError."""
+        from app.services.detection_service import evaluate_threshold_rule
+
+        rule = FakeRule(
+            {
+                "action_filters": ["repos.create"],
+                "threshold": 1,
+                "time_window_minutes": 60,
+                "aggregation_key": "actor",
+                "distinct_count_field": "password_hash",
+            }
+        )
+        ev = FakeEvent(action="repos.create", actor="alice")
+        with self._pytest.raises(
+            ValueError, match="distinct_count_field 'password_hash' is not a permitted"
+        ):
+            await evaluate_threshold_rule(None, rule, [ev], ["my-org"])  # type: ignore[arg-type]
+
+    @_pytest.mark.anyio
+    async def test_valid_distinct_count_field_does_not_raise(self):
+        """§1.3: 'repo' is in _SAFE_DISTINCT_COLUMNS → no ValueError."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import evaluate_threshold_rule
+
+        rule = FakeRule(
+            {
+                "action_filters": ["repos.create"],
+                "threshold": 100,
+                "time_window_minutes": 60,
+                "aggregation_key": "actor",
+                "distinct_count_field": "repo",
+            }
+        )
+        ev = FakeEvent(action="repos.create", actor="alice")
+
+        mock_row = MagicMock()
+        mock_row.__getitem__ = MagicMock(return_value=0)
+        mock_result = MagicMock()
+        mock_result.fetchone.return_value = mock_row
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        result = await evaluate_threshold_rule(mock_session, rule, [ev], ["my-org"])  # type: ignore[arg-type]
+        assert result == []
+
+    @_pytest.mark.anyio
+    async def test_agg_key_filter_appears_in_sql(self):
+        """§1.2: The SQL query must include AND {agg_key} = :agg_value."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import evaluate_threshold_rule
+
+        rule = FakeRule(
+            {
+                "action_filters": ["repos.create"],
+                "threshold": 1,
+                "time_window_minutes": 60,
+                "aggregation_key": "actor",
+            }
+        )
+        ev = FakeEvent(action="repos.create", actor="alice")
+        ev.id = 42
+
+        mock_row = MagicMock()
+        mock_row.__getitem__ = MagicMock(return_value=5)
+        mock_result = MagicMock()
+        mock_result.fetchone.return_value = mock_row
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        await evaluate_threshold_rule(mock_session, rule, [ev], ["my-org"])  # type: ignore[arg-type]
+
+        # Verify the SQL query was called with the agg_key filter
+        call_args = mock_session.execute.call_args
+        sql_text = str(call_args[0][0])
+        assert "AND actor = :agg_value" in sql_text
+        # Verify agg_value param was passed
+        params = call_args[0][1]
+        assert params["agg_value"] == "alice"
+
+    @_pytest.mark.anyio
+    async def test_distinct_count_field_in_sql(self):
+        """§1.3: When distinct_count_field is set, SQL uses COUNT(DISTINCT col)."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import evaluate_threshold_rule
+
+        rule = FakeRule(
+            {
+                "action_filters": ["repos.create"],
+                "threshold": 100,
+                "time_window_minutes": 60,
+                "aggregation_key": "actor",
+                "distinct_count_field": "repo",
+            }
+        )
+        ev = FakeEvent(action="repos.create", actor="alice")
+
+        mock_row = MagicMock()
+        mock_row.__getitem__ = MagicMock(return_value=0)
+        mock_result = MagicMock()
+        mock_result.fetchone.return_value = mock_row
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        await evaluate_threshold_rule(mock_session, rule, [ev], ["my-org"])  # type: ignore[arg-type]
+
+        sql_text = str(mock_session.execute.call_args[0][0])
+        assert "COUNT(DISTINCT repo)" in sql_text
+
+    @_pytest.mark.anyio
+    async def test_no_matching_events_returns_empty(self):
+        """When no events match the rule, return []."""
+        from app.services.detection_service import evaluate_threshold_rule
+
+        rule = FakeRule(
+            {
+                "action_filters": ["member.add"],
+                "threshold": 1,
+                "time_window_minutes": 60,
+                "aggregation_key": "actor",
+            }
+        )
+        ev = FakeEvent(action="repos.create", actor="alice")
+        result = await evaluate_threshold_rule(None, rule, [ev], ["my-org"])  # type: ignore[arg-type]
+        assert result == []
+
+    @_pytest.mark.anyio
+    async def test_data_dot_agg_key_allowed(self):
+        """data.* aggregation keys bypass the whitelist but get regex-validated."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import evaluate_threshold_rule
+
+        rule = FakeRule(
+            {
+                "action_filters": ["repos.create"],
+                "threshold": 100,
+                "time_window_minutes": 60,
+                "aggregation_key": "data.visibility",
+            }
+        )
+        ev = FakeEvent(action="repos.create", actor="alice", data={"visibility": "private"})
+
+        mock_row = MagicMock()
+        mock_row.__getitem__ = MagicMock(return_value=0)
+        mock_result = MagicMock()
+        mock_result.fetchone.return_value = mock_row
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        # Should not raise — data.* keys are allowed
+        result = await evaluate_threshold_rule(mock_session, rule, [ev], ["my-org"])  # type: ignore[arg-type]
+        assert result == []

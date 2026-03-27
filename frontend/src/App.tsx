@@ -13,6 +13,8 @@ import { QueryPage } from './pages/Query';
 import { RulesPage } from './pages/Rules';
 import { UsersPage } from './pages/Users';
 import { IntegrationsPage } from './pages/Integrations';
+import { HealthPage } from './pages/Health';
+import { HealthSettingsPage } from './pages/Health/HealthSettings';
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
@@ -30,6 +32,8 @@ export const router = createBrowserRouter([
       { path: '/velocity', element: <VelocityPage /> },
       { path: '/devactivity', element: <DevActivityPage /> },
       { path: '/copilot', element: <CopilotPage /> },
+      { path: '/health', element: <HealthPage /> },
+      { path: '/health/settings', element: <HealthSettingsPage /> },
       { path: '/reports', element: <ReportsPage /> },
       { path: '/query', element: <QueryPage /> },
       { path: '/rules', element: <RulesPage /> },

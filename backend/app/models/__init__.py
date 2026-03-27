@@ -10,6 +10,7 @@ from app.models.detection import (
     RuleVersion,
     SeverityConfig,
 )
+from app.models.external_collaborator import ExternalCollaborator
 from app.models.ingestion import IngestionCursor
 from app.models.integration import (
     IdpActorEnrichment,
@@ -27,6 +28,7 @@ __all__ = [
     "BehavioralBaseline",
     "Detection",
     "DetectionSuppression",
+    "ExternalCollaborator",
     "RuleDefinition",
     "RuleVersion",
     "SeverityConfig",

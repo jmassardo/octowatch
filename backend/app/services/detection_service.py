@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fnmatch
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -218,7 +219,7 @@ def evaluate_field_condition(event: AuditEvent, condition: dict[str, Any]) -> bo
     """Evaluate a single field_condition against an event.
 
     Supports: eq, ne, gt, gte, lt, lte, in, not_in, contains, not_contains,
-    exists, not_exists, matches_glob operators.
+    exists, not_exists, matches_glob, scope_contains operators.
     """
     field_path: str = condition["field"]
     operator: str = condition["operator"]
@@ -259,6 +260,11 @@ def evaluate_field_condition(event: AuditEvent, condition: dict[str, Any]) -> bo
             return actual is None
         case "matches_glob":
             return fnmatch.fnmatch(str(actual or ""), str(expected or ""))
+        case "scope_contains":
+            if actual is None:
+                return False
+            tokens = {t.strip() for t in str(actual).replace(",", " ").split()}
+            return str(expected) in tokens
         case _:
             logger.warning("detection.unknown_operator", operator=operator)
             return False
@@ -282,6 +288,23 @@ def event_matches_rule(event: AuditEvent, rule: RuleDefinition) -> bool:
     return True
 
 
+# Columns safe to embed in aggregation-scope SQL filters (from trusted rule config)
+_SAFE_AGG_COLUMNS: frozenset[str] = frozenset({"actor", "repo", "org"})
+
+# Extended whitelist for distinct-count and aggregation-key validation (§2.1)
+_SAFE_DISTINCT_COLUMNS: frozenset[str] = frozenset(
+    {
+        "actor",
+        "org",
+        "repo",
+        "source_ip",
+        "user_agent",
+        "geo_country_code",
+        "action",
+    }
+)
+
+
 async def evaluate_threshold_rule(
     session: AsyncSession,
     rule: RuleDefinition,
@@ -294,6 +317,22 @@ async def evaluate_threshold_rule(
     window_minutes: int = config.get("time_window_minutes", 60)
     agg_key: str = config.get("aggregation_key", "actor")
     action_filters: list[str] = config.get("action_filters", [])
+
+    # §1.6: Validate aggregation_key against whitelist
+    if not agg_key.startswith("data.") and agg_key not in _SAFE_DISTINCT_COLUMNS:
+        raise ValueError(f"aggregation_key '{agg_key}' is not a permitted column.")
+
+    # §1.3: Validate distinct_count_field against whitelist
+    distinct_count_field: str | None = config.get("distinct_count_field")
+    if distinct_count_field is not None and distinct_count_field not in _SAFE_DISTINCT_COLUMNS:
+        raise ValueError(
+            f"distinct_count_field '{distinct_count_field}' is not a permitted column."
+        )
+
+    # §1.4: When action_filters is empty, skip evaluation entirely
+    cleaned_actions = [a for a in action_filters if a != "*"]
+    if not cleaned_actions:
+        return []
 
     # Get distinct aggregation key values from matching events
     matching = [e for e in events if event_matches_rule(e, rule)]
@@ -314,19 +353,40 @@ async def evaluate_threshold_rule(
     window_start = datetime.now(UTC) - timedelta(minutes=window_minutes)
 
     for agg_value in agg_values:
-        # For high-accuracy counting, use a direct parameterized query
-        # avoiding any string interpolation with user data
+        # §1.2: Build aggregation key filter clause for SQL
+        # Column names are validated against a whitelist to prevent SQL injection
+        if agg_key in _SAFE_DISTINCT_COLUMNS:
+            agg_filter_clause = "AND " + agg_key + " = :agg_value "
+        elif agg_key.startswith("data."):
+            sub_key = agg_key[5:]
+            if not re.match(r"^[a-zA-Z0-9_]+$", sub_key):
+                logger.warning("detection.invalid_agg_key", agg_key=agg_key)
+                continue
+            agg_filter_clause = "AND data->>'" + sub_key + "' = :agg_value "
+        else:
+            # Should not reach here due to early validation, but guard anyway
+            logger.warning("detection.unsupported_agg_key", agg_key=agg_key)
+            continue
+
+        # §1.3: Count expression — raw count or distinct column values
+        count_expr = (
+            "COUNT(DISTINCT " + distinct_count_field + ")" if distinct_count_field else "COUNT(*)"
+        )
+
+        # Build SQL query — column names are from _SAFE_DISTINCT_COLUMNS whitelist
+        query_sql = (
+            "SELECT " + count_expr + " AS cnt "
+            "FROM events "
+            "WHERE created_at >= :window_start " + agg_filter_clause + " AND action = ANY(:actions)"
+            " AND org = ANY(:scoped_orgs)"
+        )
+
         result = await session.execute(
-            text("""
-                SELECT COUNT(*) AS cnt
-                FROM events
-                WHERE created_at >= :window_start
-                  AND action = ANY(:actions)
-                  AND org = ANY(:scoped_orgs)
-            """),
+            text(query_sql),
             {
                 "window_start": window_start,
-                "actions": action_filters or ["*"],
+                "agg_value": agg_value,
+                "actions": cleaned_actions,
                 "scoped_orgs": scoped_orgs if scoped_orgs else [""],
             },
         )
@@ -341,7 +401,7 @@ async def evaluate_threshold_rule(
                     "threshold": threshold,
                     "window_start": window_start,
                     "window_end": datetime.now(UTC),
-                    "event_ids": [e.id for e in matching if count > 0],
+                    "event_ids": [e.id for e in matching],
                 }
             )
 

@@ -202,6 +202,12 @@
   gap: 12px;
 }
 
+/* Workflow name monospace */
+.workflowName {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+}
+
 .modalMetric {
   text-align: center;
   background: var(--canvas-inset);

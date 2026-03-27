@@ -150,12 +150,141 @@ class AbstractIngestWorker(ABC):
                 await self._mark_bloom(dedup_hash)
                 inserted += 1
 
+                # WS-4: Upsert external_collaborators for lifecycle events
+                await self._upsert_external_collaborator(
+                    session, normalized, event_id
+                )
+
             await session.commit()
 
         if inserted:
             logger.info("ingest.batch_complete", inserted=inserted, total=len(raw_events))
 
         return inserted
+
+    # External collaborator lifecycle actions
+    _COLLAB_ADD_ACTIONS = frozenset({
+        "org.add_outside_collaborator",
+        "repo.add_member",
+    })
+    _COLLAB_REMOVE_ACTIONS = frozenset({
+        "org.remove_outside_collaborator",
+        "repo.remove_member",
+    })
+
+    async def _upsert_external_collaborator(
+        self,
+        session: Any,
+        normalized: dict[str, Any],
+        event_id: int,
+    ) -> None:
+        """Upsert external_collaborators table for collaborator lifecycle events."""
+        from sqlalchemy import text as sql_text
+
+        action = normalized.get("action", "")
+        org = normalized.get("org")
+        if not org:
+            return
+
+        data = normalized.get("data")
+        if isinstance(data, str):
+            import json as _json
+            try:
+                data = _json.loads(data)
+            except (ValueError, TypeError):
+                data = {}
+        data = data or {}
+
+        if action in self._COLLAB_ADD_ACTIONS:
+            role = data.get("role", data.get("permission", "outside_collaborator"))
+            # Only track outside collaborators, not internal members
+            member_type = data.get("member_type", "")
+            if action == "repo.add_member" and member_type not in (
+                "outside_collaborator", "guest_collaborator", "guest",
+            ):
+                return
+
+            collaborator = data.get("user", data.get("collaborator", normalized.get("actor")))
+            if not collaborator:
+                return
+
+            repo = normalized.get("repo") if action == "repo.add_member" else None
+
+            await session.execute(
+                sql_text("""
+                    INSERT INTO external_collaborators
+                        (org, repo, github_login, role, granted_at, granted_by,
+                         is_active, source_event_id)
+                    VALUES
+                        (:org, :repo, :login, :role, :granted_at, :granted_by,
+                         TRUE, :event_id)
+                    ON CONFLICT (org, repo, github_login)
+                    DO UPDATE SET
+                        role = EXCLUDED.role,
+                        granted_at = EXCLUDED.granted_at,
+                        granted_by = EXCLUDED.granted_by,
+                        is_active = TRUE,
+                        removed_at = NULL,
+                        removed_by = NULL,
+                        source_event_id = EXCLUDED.source_event_id,
+                        updated_at = NOW()
+                """),
+                {
+                    "org": org,
+                    "repo": repo,
+                    "login": collaborator,
+                    "role": role,
+                    "granted_at": normalized.get("created_at"),
+                    "granted_by": normalized.get("actor"),
+                    "event_id": event_id,
+                },
+            )
+
+        elif action in self._COLLAB_REMOVE_ACTIONS:
+            collaborator = data.get("user", data.get("collaborator"))
+            if not collaborator:
+                return
+            repo = normalized.get("repo") if action == "repo.remove_member" else None
+
+            await session.execute(
+                sql_text("""
+                    UPDATE external_collaborators
+                    SET is_active = FALSE,
+                        removed_at = :removed_at,
+                        removed_by = :removed_by,
+                        source_event_id = :event_id,
+                        updated_at = NOW()
+                    WHERE org = :org
+                      AND github_login = :login
+                      AND is_active = TRUE
+                """),
+                {
+                    "org": org,
+                    "login": collaborator,
+                    "removed_at": normalized.get("created_at"),
+                    "removed_by": normalized.get("actor"),
+                    "event_id": event_id,
+                },
+            )
+
+        # Update last_event_at for any event from a known collaborator
+        actor = normalized.get("actor")
+        if actor and org:
+            await session.execute(
+                sql_text("""
+                    UPDATE external_collaborators
+                    SET last_event_at = :event_time, updated_at = NOW()
+                    WHERE github_login = :actor
+                      AND org = :org
+                      AND is_active = TRUE
+                      AND (last_event_at IS NULL OR last_event_at < :event_time)
+                """),
+                {
+                    "actor": actor,
+                    "org": org,
+                    "event_time": normalized.get("created_at"),
+                },
+            )
 
     def _normalize_event(
         self,

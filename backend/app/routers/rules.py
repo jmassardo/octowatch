@@ -18,6 +18,7 @@ from app.schemas.detection import (
     SuppressionResponse,
 )
 from app.services import rule_service
+from app.services.detection_service import _SAFE_DISTINCT_COLUMNS
 from app.services.rule_service import invalidate_rule_cache
 
 router = APIRouter(prefix="/rules", tags=["rules"])
@@ -60,6 +61,14 @@ async def create_rule(
     valkey: Redis = Depends(get_valkey),
 ) -> RuleResponse:
     """Create a new detection rule."""
+    # Validate distinct_count_field if present in logic_config (§1.7)
+    if (distinct_field := payload.logic_config.get("distinct_count_field")) is not None:
+        if distinct_field not in _SAFE_DISTINCT_COLUMNS:
+            raise HTTPException(
+                status_code=422,
+                detail=f"distinct_count_field '{distinct_field}' is not a permitted column.",
+            )
+
     # Check slug uniqueness
     existing = await rule_service.get_rule_by_slug(db, payload.slug)
     if existing:
@@ -95,6 +104,14 @@ async def update_rule(
     valkey: Redis = Depends(get_valkey),
 ) -> RuleResponse:
     """Update a rule (creates a new version if logic changes)."""
+    # Validate distinct_count_field if present in logic_config (§1.7)
+    if (distinct_field := payload.logic_config.get("distinct_count_field")) is not None:
+        if distinct_field not in _SAFE_DISTINCT_COLUMNS:
+            raise HTTPException(
+                status_code=422,
+                detail=f"distinct_count_field '{distinct_field}' is not a permitted column.",
+            )
+
     rule = await rule_service.get_rule_by_id(db, rule_id)
     if not rule:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
