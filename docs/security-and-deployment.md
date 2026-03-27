@@ -604,6 +604,8 @@ CREATE TABLE audit_trail (
 
 `before_state` and `after_state` store full JSONB snapshots so investigators can reconstruct what changed without a separate diff tool.
 
+> **Clarification:** The audit trail middleware only logs mutating HTTP methods (`POST`, `PUT`, `PATCH`, `DELETE`), and only when an authenticated actor can be extracted from the JWT cookie. Read-only `GET`/`HEAD`/`OPTIONS` requests are handled by the separate request logging middleware and are not written to the `audit_trail` table.
+
 #### Logged Security Events
 
 | Event | Log destination | Severity |

@@ -44,3 +44,101 @@
   align-items: center;
   gap: 8px;
 }
+
+.themeToggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--fg-muted);
+  display: flex;
+  align-items: center;
+  transition: border-color 0.15s;
+}
+
+.themeToggle:hover {
+  border-color: var(--fg-muted);
+}
+
+.avatarWrap {
+  position: relative;
+}
+
+.avatarBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border-radius: 50%;
+  outline-offset: 2px;
+}
+
+.menuBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: var(--canvas-overlay, #1c1c1e);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.menuHeader {
+  padding: 10px 14px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.menuLogin {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.menuRole {
+  font-size: 11px;
+  color: var(--fg-muted);
+  text-transform: capitalize;
+}
+
+.menuDivider {
+  height: 1px;
+  background: var(--border);
+  margin: 0;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+
+.menuItem:hover {
+  background: var(--canvas-subtle);
+  color: var(--fg);
+}

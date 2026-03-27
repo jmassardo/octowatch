@@ -57,6 +57,8 @@ None right now
 Let's start with S3 and Azure Blob.
 ```
 
+> **Implementation note (v0.1.0):** S3 and Azure Blob polling was chosen for v1 to maximize reliability and simplify initial deployment. Webhook-based push ingestion is planned for a future release.
+
 **A2. Is audit log streaming already configured, or does setting it up fall within scope of this project?**
 ```
 It will need to be set up before this project will work. We should direct the users to GitHub documentation to set that piece up.

@@ -9,8 +9,11 @@ from typing import Any
 
 import structlog
 from fastapi import FastAPI, Request, Response
+from fastapi import HTTPException as FastAPIHTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -31,6 +34,21 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 
 # ─── Custom middleware ──────────────────────────────────────────────────────────
+
+
+class CsrfEchoMiddleware(BaseHTTPMiddleware):
+    """Echo the csrf_token cookie value as the X-CSRF-Token response header.
+
+    The frontend captures this header on every response so it always has a
+    fresh CSRF token to use on state-changing requests (double-submit pattern).
+    """
+
+    async def dispatch(self, request: Request, call_next: Any) -> Response:
+        response: Response = await call_next(request)
+        csrf_token = request.cookies.get("csrf_token")
+        if csrf_token:
+            response.headers["X-CSRF-Token"] = csrf_token
+        return response
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -124,6 +142,7 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         import uuid
 
         request_id = str(uuid.uuid4())
+        request.state.request_id = request_id
         structlog.contextvars.bind_contextvars(request_id=request_id)
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
@@ -181,6 +200,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 # ─── Application factory ────────────────────────────────────────────────────────
 
 
+def _status_to_code(status_code: int) -> str:
+    """Map HTTP status codes to error code strings."""
+    mapping = {
+        400: "bad_request",
+        401: "unauthorized",
+        403: "forbidden",
+        404: "not_found",
+        405: "method_not_allowed",
+        409: "conflict",
+        422: "validation_error",
+        429: "rate_limited",
+        500: "internal_error",
+        503: "service_unavailable",
+    }
+    return mapping.get(status_code, f"error_{status_code}")
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
@@ -210,6 +246,9 @@ def create_app() -> FastAPI:
     # Security headers
     app.add_middleware(SecurityHeadersMiddleware)
 
+    # CSRF token echo (sets X-CSRF-Token response header from cookie for frontend capture)
+    app.add_middleware(CsrfEchoMiddleware)
+
     # Audit trail
     app.add_middleware(AuditTrailMiddleware)
 
@@ -220,6 +259,68 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
+
+    # ── Exception handlers ────────────────────────────────────────────────────
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        """Catch-all for unhandled exceptions. Never leak stack traces."""
+        request_id = getattr(request.state, "request_id", "unknown")
+        logger.error(
+            "unhandled_exception",
+            request_id=request_id,
+            path=request.url.path,
+            method=request.method,
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": {
+                    "code": "internal_error",
+                    "message": "An unexpected error occurred. Please try again later.",
+                    "request_id": request_id,
+                }
+            },
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        """Format validation errors consistently."""
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": {
+                    "code": "validation_error",
+                    "message": "Request validation failed.",
+                    "details": [
+                        {
+                            "field": ".".join(str(loc) for loc in err.get("loc", [])),
+                            "message": err.get("msg", ""),
+                            "type": err.get("type", ""),
+                        }
+                        for err in exc.errors()
+                    ],
+                }
+            },
+        )
+
+    @app.exception_handler(FastAPIHTTPException)
+    async def http_exception_handler(request: Request, exc: FastAPIHTTPException) -> JSONResponse:
+        """Wrap HTTP exceptions in consistent error envelope."""
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "error": {
+                    "code": _status_to_code(exc.status_code),
+                    "message": exc.detail if isinstance(exc.detail, str) else str(exc.detail),
+                }
+            },
+            headers=getattr(exc, "headers", None),
+        )
 
     # ── Routers ───────────────────────────────────────────────────────────────
     API_PREFIX = "/api/v1"

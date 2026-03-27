@@ -40,7 +40,7 @@ export function Sidebar() {
   const threatCount = detections?.total ?? 0;
 
   return (
-    <nav className={styles.sidebar}>
+    <nav className={styles.sidebar} aria-label="Main navigation">
       <div className={styles.logo}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
           <circle cx="12" cy="12" r="3.5" fill="#bc8cff" />
