@@ -16,9 +16,11 @@ def _window_start(window_days: int) -> datetime:
 
 
 def _bucket_interval(granularity: str) -> timedelta:
-    return {"daily": timedelta(days=1), "weekly": timedelta(days=7), "monthly": timedelta(days=30)}.get(
-        granularity, timedelta(days=1)
-    )
+    return {
+        "daily": timedelta(days=1),
+        "weekly": timedelta(days=7),
+        "monthly": timedelta(days=30),
+    }.get(granularity, timedelta(days=1))
 
 
 async def get_mau_report(
@@ -67,11 +69,42 @@ async def get_seat_utilization_report(
     granularity: str = "daily",
     org: str | None = None,
 ) -> list[dict]:
-    """Seat utilization: active actors / licensed seat count per org per bucket."""
+    """Seat utilization: active actors / licensed seat count per bucket.
+
+    Returns ``active_seat_count`` (distinct actors per bucket),
+    ``provisioned_seat_count`` (max active count across the window as a proxy
+    for the licence ceiling) and ``utilization_pct``.
+    """
     interval = _bucket_interval(granularity)
     start = _window_start(window_days)
 
     org_filter = "AND org = :org" if org else ""
+    params: dict = {"interval": interval, "start": start}
+    if org:
+        params["org"] = org
+
+    # ------------------------------------------------------------------
+    # 1. Proxy for provisioned_seat_count: max active actors in any bucket
+    # ------------------------------------------------------------------
+    max_stmt = text(f"""
+        SELECT COALESCE(MAX(active_count), 0) AS max_active
+        FROM (
+            SELECT COUNT(DISTINCT actor) AS active_count
+            FROM events
+            WHERE created_at >= :start
+              {org_filter}
+              AND actor IS NOT NULL
+            GROUP BY time_bucket(:interval, created_at)
+        ) sub
+    """)
+
+    max_result = await session.execute(max_stmt, params)
+    max_row = max_result.fetchone()
+    provisioned_seat_count: int = max_row.max_active if max_row and max_row.max_active else 0
+
+    # ------------------------------------------------------------------
+    # 2. Per-bucket active seat counts
+    # ------------------------------------------------------------------
     stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at)  AS bucket,
@@ -84,16 +117,18 @@ async def get_seat_utilization_report(
         GROUP BY 1, 2
         ORDER BY 1 ASC, 2
     """)
-    params: dict = {"interval": interval, "start": start}
-    if org:
-        params["org"] = org
 
     result = await session.execute(stmt, params)
     return [
         {
             "bucket": row.bucket.isoformat(),
-            "org": row.org,
-            "active_seats": row.active_seats,
+            "active_seat_count": row.active_seats,
+            "provisioned_seat_count": provisioned_seat_count,
+            "utilization_pct": (
+                round(row.active_seats / provisioned_seat_count * 100, 1)
+                if provisioned_seat_count > 0
+                else 0.0
+            ),
         }
         for row in result.fetchall()
     ]
@@ -222,13 +257,50 @@ async def get_copilot_seats_report(
     result = await session.execute(stmt, params)
     rows = result.fetchall()
 
-    # Pivot into per-bucket summaries
+    # Action categories matching the frontend CopilotSeatsBucket type
+    _ASSIGN_ACTIONS = frozenset(
+        {
+            "copilot.add_seats",
+            "copilot.seat_allotment_added",
+            "copilot.enable_organization",
+        }
+    )
+    _REVOKE_ACTIONS = frozenset(
+        {
+            "copilot.remove_seats",
+            "copilot.seat_allotment_removed",
+            "copilot.disable_organization",
+        }
+    )
+    _POLICY_ACTIONS = frozenset(
+        {
+            "copilot.enable_organization",
+            "copilot.disable_organization",
+        }
+    )
+
+    # Pivot into per-bucket summaries with frontend-expected field names
     buckets: dict[str, dict] = {}
     for row in rows:
         key = row.bucket.isoformat()
         if key not in buckets:
-            buckets[key] = {"bucket": key, "org": row.org, "events": {}}
-        buckets[key]["events"][row.action] = row.seat_events
+            buckets[key] = {
+                "bucket": key,
+                "seats_assigned": 0,
+                "seats_revoked": 0,
+                "seats_net": 0,
+                "policy_change_count": 0,
+            }
+        count: int = row.seat_events
+        if row.action in _ASSIGN_ACTIONS:
+            buckets[key]["seats_assigned"] += count
+        if row.action in _REVOKE_ACTIONS:
+            buckets[key]["seats_revoked"] += count
+        if row.action in _POLICY_ACTIONS:
+            buckets[key]["policy_change_count"] += count
+
+    for bucket_data in buckets.values():
+        bucket_data["seats_net"] = bucket_data["seats_assigned"] - bucket_data["seats_revoked"]
 
     return list(buckets.values())
 

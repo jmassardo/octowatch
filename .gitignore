@@ -47,3 +47,5 @@ playwright-report/
 
 # Exports
 *.json.gz
+backend/import_copilot_usage.py
+*.ndjson
