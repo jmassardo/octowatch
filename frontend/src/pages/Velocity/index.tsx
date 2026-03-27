@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getActionsVolumeReport } from '../../api/reports';
 import { listEvents } from '../../api/events';
@@ -14,6 +15,13 @@ import styles from './Velocity.module.css';
 
 
 export function VelocityPage() {
+  const changeFailureRef = useRef<HTMLDivElement>(null);
+  const workflowSuccessRef = useRef<HTMLDivElement>(null);
+  const dailyRunsRef = useRef<HTMLDivElement>(null);
+  const reposRef = useRef<HTMLDivElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+  const failuresRef = useRef<HTMLDivElement>(null);
+
   const { data: actionsData, isLoading, isError, refetch } = useQuery({
     queryKey: ['reports', 'actions-volume'],
     queryFn: () => getActionsVolumeReport({ window_days: 30, granularity: 'daily' }),
@@ -77,15 +85,24 @@ export function VelocityPage() {
   })();
 
   const metrics = [
-    { value: prMerged != null ? prMerged.toLocaleString() : '—', label: 'PRs merged (30d)', delta: 'last 30 days', dir: 'neutral' as const },
-    { value: '—', label: 'Lead time for changes', delta: 'Requires GitHub API integration', dir: 'neutral' as const },
-    { value: '—', label: 'PR cycle time (median)', delta: 'Requires GitHub API integration', dir: 'neutral' as const },
-    { value: changeFailureRate != null ? `${changeFailureRate}%` : '—', label: 'Change failure rate', delta: changeFailureRate != null ? (parseFloat(changeFailureRate) < 5 ? '< 5% target ✓' : '≥ 5% target') : '—', dir: changeFailureRate != null && parseFloat(changeFailureRate) < 5 ? 'up' as const : 'down' as const },
-    { value: '—', label: 'Deployments (30d)', delta: 'Requires GitHub API integration', dir: 'neutral' as const },
-    { value: overallSuccessRate != null ? `${overallSuccessRate}%` : '—', label: 'Workflow success', delta: '30-day average', dir: overallSuccessRate != null && parseFloat(overallSuccessRate) >= 90 ? 'up' as const : 'down' as const },
-    { value: '—', label: 'WIP (items in flight)', delta: 'Requires GitHub API integration', dir: 'neutral' as const },
-    { value: '—', label: 'Planned work ratio', delta: 'Requires GitHub API integration', dir: 'neutral' as const },
+    { value: prMerged != null ? prMerged.toLocaleString() : '—', label: 'PRs merged (30d)', delta: 'last 30 days', dir: 'neutral' as const, scrollRef: 'calendar' as const },
+    { value: '—', label: 'Lead time for changes', delta: 'Requires GitHub API integration', dir: 'neutral' as const, scrollRef: null },
+    { value: '—', label: 'PR cycle time (median)', delta: 'Requires GitHub API integration', dir: 'neutral' as const, scrollRef: null },
+    { value: changeFailureRate != null ? `${changeFailureRate}%` : '—', label: 'Change failure rate', delta: changeFailureRate != null ? (parseFloat(changeFailureRate) < 5 ? '< 5% target ✓' : '≥ 5% target') : '—', dir: changeFailureRate != null && parseFloat(changeFailureRate) < 5 ? 'up' as const : 'down' as const, scrollRef: 'changeFailure' as const },
+    { value: '—', label: 'Deployments (30d)', delta: 'Requires GitHub API integration', dir: 'neutral' as const, scrollRef: null },
+    { value: overallSuccessRate != null ? `${overallSuccessRate}%` : '—', label: 'Workflow success', delta: '30-day average', dir: overallSuccessRate != null && parseFloat(overallSuccessRate) >= 90 ? 'up' as const : 'down' as const, scrollRef: 'workflowSuccess' as const },
+    { value: '—', label: 'WIP (items in flight)', delta: 'Requires GitHub API integration', dir: 'neutral' as const, scrollRef: null },
+    { value: '—', label: 'Planned work ratio', delta: 'Requires GitHub API integration', dir: 'neutral' as const, scrollRef: null },
   ];
+
+  const refMap = {
+    calendar: calendarRef,
+    changeFailure: changeFailureRef,
+    workflowSuccess: workflowSuccessRef,
+    dailyRuns: dailyRunsRef,
+    repos: reposRef,
+    failures: failuresRef,
+  } as const;
 
   // Most recent failing buckets (last 7 days of failed runs > 0)
   const recentFailingBuckets = buckets
@@ -120,18 +137,27 @@ export function VelocityPage() {
 
       <div className={styles.metricStrip}>
         {metrics.map((m, i) => (
-          <MetricCard key={i} value={m.value} label={m.label} delta={m.delta} deltaDir={m.dir} />
+          <MetricCard
+            key={i}
+            value={m.value}
+            label={m.label}
+            delta={m.delta}
+            deltaDir={m.dir}
+            onClick={m.scrollRef ? () => { refMap[m.scrollRef].current?.scrollIntoView({ behavior: 'smooth' }); } : undefined}
+          />
         ))}
       </div>
 
       {isLoading && <Spinner />}
 
-      <Card style={{ marginBottom: 20 }}>
-        <CardHeader actions={<span style={{ fontWeight: 400 }}>commit + PR + deploy activity</span>}>
-          Team contribution calendar — last 13 weeks
-        </CardHeader>
-        <ContributionCalendar />
-      </Card>
+      <div ref={calendarRef}>
+        <Card style={{ marginBottom: 20 }}>
+          <CardHeader actions={<span style={{ fontWeight: 400 }}>commit + PR + deploy activity</span>}>
+            Team contribution calendar — last 13 weeks
+          </CardHeader>
+          <ContributionCalendar />
+        </Card>
+      </div>
 
       <div className={styles.chartsGrid}>
         <div className={styles.chartWrap}>
@@ -143,7 +169,7 @@ export function VelocityPage() {
           </div>
         </div>
 
-        <div className={styles.chartWrap}>
+        <div ref={changeFailureRef} className={styles.chartWrap}>
           <div className={styles.chartTitle}>
             Change failure rate <span className={styles.chartSub}>— {chartDaysLabel}</span>
           </div>
@@ -163,7 +189,7 @@ export function VelocityPage() {
           )}
         </div>
 
-        <div className={styles.chartWrap}>
+        <div ref={workflowSuccessRef} className={styles.chartWrap}>
           <div className={styles.chartTitle}>
             Workflow success rate <span className={styles.chartSub}>— {chartDaysLabel}</span>
           </div>
@@ -182,7 +208,7 @@ export function VelocityPage() {
           )}
         </div>
 
-        <div className={styles.chartWrap}>
+        <div ref={dailyRunsRef} className={styles.chartWrap}>
           <div className={styles.chartTitle}>
             Daily workflow runs <span className={styles.chartSub}>— {chartDaysLabel}</span>
           </div>
@@ -202,7 +228,7 @@ export function VelocityPage() {
       </div>
 
       {recentFailingBuckets.length > 0 && (
-        <>
+        <div ref={failuresRef}>
           <div className={styles.sectionTitle}>Recent workflow failures — last 30 days</div>
           <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
             <table>
@@ -219,10 +245,10 @@ export function VelocityPage() {
               </tbody>
             </table>
           </div>
-        </>
+        </div>
       )}
 
-      <div className={styles.sectionTitle}>Most active repositories — last 30 days</div>
+      <div ref={reposRef} className={styles.sectionTitle}>Most active repositories — last 30 days</div>
       <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
         <table>
           <thead>

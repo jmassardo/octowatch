@@ -39,6 +39,22 @@
   font-variant-numeric: tabular-nums;
 }
 
+.pillClickable {
+  cursor: pointer;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.pillClickable:hover {
+  opacity: 0.85;
+  border-color: var(--accent);
+}
+
+.pillArrow {
+  font-size: 10px;
+  color: var(--fg-subtle);
+  margin-left: 2px;
+}
+
 .danger .pillVal { color: var(--danger); }
 .success .pillVal { color: var(--success); }
 .accent .pillVal { color: var(--accent); }

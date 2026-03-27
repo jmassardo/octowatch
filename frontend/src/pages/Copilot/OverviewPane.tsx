@@ -1,5 +1,7 @@
+import { useRef, useState } from 'react';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { MetricCard } from '../../components/primitives/MetricCard';
+import { Modal } from '../../components/primitives/Modal';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
@@ -14,6 +16,8 @@ import {
   COST_PER_SEAT,
 } from './copilotData';
 import styles from './Copilot.module.css';
+
+type DrillDownType = 'active-seats' | 'assigned' | 'revoked' | 'net' | null;
 
 interface OverviewPaneProps {
   seatBuckets: SeatUtilizationBucket[];
@@ -30,6 +34,9 @@ export function OverviewPane({
   isError,
   onRetry,
 }: OverviewPaneProps) {
+  const [drillDown, setDrillDown] = useState<DrillDownType>(null);
+  const seatTableRef = useRef<HTMLDivElement>(null);
+
   const latestSeatBucket = seatBuckets[seatBuckets.length - 1];
   const avgUtilPct =
     seatBuckets.length > 0
@@ -48,6 +55,27 @@ export function OverviewPane({
   // Derive waste metrics from real API data
   const inactiveSeats = (provisionedSeats ?? 0) - (activeSeats ?? 0);
   const monthlyWaste = inactiveSeats * COST_PER_SEAT;
+
+  function handleActiveSeatsClick() {
+    if (seatTableRef.current) {
+      seatTableRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }
+
+  function drillDownTitle(): string {
+    switch (drillDown) {
+      case 'active-seats':
+        return 'Active / total seats — all data';
+      case 'assigned':
+        return 'Seats assigned — 30-day history';
+      case 'revoked':
+        return 'Seats revoked — 30-day history';
+      case 'net':
+        return 'Net seat change — 30-day history';
+      default:
+        return '';
+    }
+  }
 
   function handleExportInactive() {
     const rows = [
@@ -110,26 +138,112 @@ export function OverviewPane({
           label="Active / total seats (latest)"
           delta={avgUtilPct != null ? `${avgUtilPct}% avg utilization` : '—'}
           deltaDir="neutral"
+          onClick={handleActiveSeatsClick}
         />
         <MetricCard
           value={totalAssigned > 0 ? String(totalAssigned) : '—'}
           label="Seats assigned (30d)"
           delta="cumulative"
           deltaDir="up"
+          onClick={() => setDrillDown('assigned')}
         />
         <MetricCard
           value={totalRevoked > 0 ? String(totalRevoked) : '—'}
           label="Seats revoked (30d)"
           delta="cumulative"
           deltaDir={totalRevoked > 0 ? 'down' : 'neutral'}
+          onClick={() => setDrillDown('revoked')}
         />
         <MetricCard
           value={netSeats !== 0 ? `${netSeats > 0 ? '+' : ''}${netSeats}` : '—'}
           label="Net seat change (30d)"
           delta="assigned minus revoked"
           deltaDir={netSeats > 0 ? 'up' : netSeats < 0 ? 'down' : 'neutral'}
+          onClick={() => setDrillDown('net')}
         />
       </div>
+
+      {/* Drill-down modal */}
+      <Modal open={drillDown !== null} onClose={() => setDrillDown(null)} title={drillDownTitle()} width={640}>
+        {drillDown === 'active-seats' && (
+          <div className={styles.tableWrap}>
+            <table>
+              <thead>
+                <tr><th>Date</th><th>Active</th><th>Provisioned</th><th>Utilization %</th></tr>
+              </thead>
+              <tbody>
+                {seatBuckets.map((b, i) => (
+                  <tr key={i}>
+                    <td style={{ color: 'var(--fg-muted)' }}>{new Date(b.bucket).toLocaleDateString()}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count ?? '—'}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count ?? '—'}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {drillDown === 'assigned' && (
+          <div className={styles.tableWrap}>
+            <table>
+              <thead>
+                <tr><th>Date</th><th>Assigned</th></tr>
+              </thead>
+              <tbody>
+                {copilotBuckets.map((b, i) => (
+                  <tr key={i}>
+                    <td style={{ color: 'var(--fg-muted)' }}>{new Date(b.bucket).toLocaleDateString()}</td>
+                    <td style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>+{b.seats_assigned ?? 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {drillDown === 'revoked' && (
+          <div className={styles.tableWrap}>
+            <table>
+              <thead>
+                <tr><th>Date</th><th>Revoked</th></tr>
+              </thead>
+              <tbody>
+                {copilotBuckets.map((b, i) => (
+                  <tr key={i}>
+                    <td style={{ color: 'var(--fg-muted)' }}>{new Date(b.bucket).toLocaleDateString()}</td>
+                    <td style={{ color: b.seats_revoked > 0 ? 'var(--danger)' : undefined, fontVariantNumeric: 'tabular-nums' }}>
+                      {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {drillDown === 'net' && (
+          <div className={styles.tableWrap}>
+            <table>
+              <thead>
+                <tr><th>Date</th><th>Assigned</th><th>Revoked</th><th>Net</th></tr>
+              </thead>
+              <tbody>
+                {copilotBuckets.map((b, i) => (
+                  <tr key={i}>
+                    <td style={{ color: 'var(--fg-muted)' }}>{new Date(b.bucket).toLocaleDateString()}</td>
+                    <td style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>+{b.seats_assigned ?? 0}</td>
+                    <td style={{ color: b.seats_revoked > 0 ? 'var(--danger)' : undefined, fontVariantNumeric: 'tabular-nums' }}>
+                      {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
+                    </td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {b.seats_net > 0 ? `+${b.seats_net}` : b.seats_net}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Modal>
 
       {/* Charts row */}
       <div className={styles.grid2}>
@@ -170,7 +284,7 @@ export function OverviewPane({
 
       {/* Seat utilization table */}
       {seatBuckets.length > 0 && (
-        <>
+        <div ref={seatTableRef}>
           <div className={styles.sectionTitle}>Seat utilization — last 30 days</div>
           <Card style={{ marginBottom: 20 }}>
             <CardHeader>Active seats / provisioned seats over time</CardHeader>
@@ -205,7 +319,7 @@ export function OverviewPane({
               </table>
             </div>
           </Card>
-        </>
+        </div>
       )}
 
       {seatBuckets.length === 0 && !isLoading && (

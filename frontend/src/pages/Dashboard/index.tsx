@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { listDetections } from '../../api/detections';
 import { listEvents } from '../../api/events';
 import { getActionsVolumeReport } from '../../api/reports';
@@ -13,14 +14,24 @@ function StatPill({
   value,
   label,
   variant,
+  onClick,
 }: {
   value: string;
   label: string;
   variant?: 'danger' | 'success' | 'accent' | 'done';
+  onClick?: () => void;
 }) {
   return (
-    <div className={[styles.pill, variant && styles[variant]].filter(Boolean).join(' ')}>
+    <div
+      className={[styles.pill, variant && styles[variant], onClick && styles.pillClickable].filter(Boolean).join(' ')}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      aria-label={onClick ? `${value} ${label}` : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+    >
       <span className={styles.pillVal}>{value}</span>&nbsp;{label}
+      {onClick && <span className={styles.pillArrow} aria-hidden="true">→</span>}
     </div>
   );
 }
@@ -68,6 +79,8 @@ function formatCount(n: number): string {
 }
 
 export function DashboardPage() {
+  const navigate = useNavigate();
+
   const { data: detections, isLoading: loadingThreats, refetch: refetchThreats, isError: threatError } = useQuery({
     queryKey: ['detections', 'open'],
     queryFn: () => listDetections({ status: 'investigating', page_size: 100 }),
@@ -145,15 +158,16 @@ export function DashboardPage() {
       </div>
 
       <div className={styles.pills}>
-        <StatPill value={eventCountLabel || '—'} label="events today" />
-        <StatPill value={String(openThreats)} label="open threats" variant={openThreats > 0 ? 'danger' : undefined} />
+        <StatPill value={eventCountLabel || '—'} label="events today" onClick={() => navigate('/events')} />
+        <StatPill value={String(openThreats)} label="open threats" variant={openThreats > 0 ? 'danger' : undefined} onClick={() => navigate('/threats')} />
         <StatPill
           value={workflowSuccessRate != null ? `${workflowSuccessRate}%` : '—'}
           label="pipeline success"
           variant={workflowSuccessRate != null && parseFloat(workflowSuccessRate) >= 90 ? 'success' : undefined}
+          onClick={() => navigate('/velocity')}
         />
-        <StatPill value={String(uniqueActors || '—')} label="active devs" variant="done" />
-        <StatPill value={formatCount(calendarEvents?.total ?? 0)} label="total events" variant="accent" />
+        <StatPill value={String(uniqueActors || '—')} label="active devs" variant="done" onClick={() => navigate('/devactivity')} />
+        <StatPill value={formatCount(calendarEvents?.total ?? 0)} label="total events" variant="accent" onClick={() => navigate('/events')} />
       </div>
 
       {threatError && <ErrorBanner message="Could not load threat data" onRetry={refetchThreats} />}

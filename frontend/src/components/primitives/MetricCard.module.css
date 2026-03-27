@@ -1,4 +1,5 @@
 .metric {
+  position: relative;
   background: var(--canvas-subtle);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -7,6 +8,23 @@
 
 .accented {
   border-color: rgba(248, 81, 73, 0.4);
+}
+
+.clickable {
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.clickable:hover {
+  border-color: var(--accent);
+}
+
+.arrow {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 11px;
+  color: var(--fg-subtle);
 }
 
 .val {
