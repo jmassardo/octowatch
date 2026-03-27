@@ -15,8 +15,10 @@ def _window_start(window_days: int) -> datetime:
     return datetime.now(UTC) - timedelta(days=window_days)
 
 
-def _bucket_interval(granularity: str) -> str:
-    return {"daily": "1 day", "weekly": "7 days", "monthly": "1 month"}.get(granularity, "1 day")
+def _bucket_interval(granularity: str) -> timedelta:
+    return {"daily": timedelta(days=1), "weekly": timedelta(days=7), "monthly": timedelta(days=30)}.get(
+        granularity, timedelta(days=1)
+    )
 
 
 async def get_mau_report(

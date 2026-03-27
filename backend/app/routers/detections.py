@@ -51,18 +51,16 @@ async def list_detections(
         stmt = stmt.where(Detection.status == params.status)
     if params.severity:
         stmt = stmt.where(Detection.severity == params.severity)
-    if params.confidence:
-        stmt = stmt.where(Detection.confidence == params.confidence)
     if params.rule_id:
         stmt = stmt.where(Detection.rule_id == params.rule_id)
     if params.actor:
         stmt = stmt.where(Detection.actor == params.actor)
     if params.org:
         stmt = stmt.where(Detection.org == params.org)
-    if params.from_date:
-        stmt = stmt.where(Detection.triggered_at >= params.from_date)
-    if params.to_date:
-        stmt = stmt.where(Detection.triggered_at <= params.to_date)
+    if params.since:
+        stmt = stmt.where(Detection.triggered_at >= params.since)
+    if params.until:
+        stmt = stmt.where(Detection.triggered_at <= params.until)
 
     # Scope enforcement: inject org allowlist
     if scope.scoped_orgs:
