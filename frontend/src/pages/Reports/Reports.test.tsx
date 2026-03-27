@@ -4,6 +4,12 @@ import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { ReportsPage } from './index';
 
+vi.mock('../../hooks/useOrg');
+
+import { useOrg } from '../../hooks/useOrg';
+
+const mockUseOrg = vi.mocked(useOrg);
+
 vi.mock('../../api/reports', () => ({
   getMauReport: vi.fn().mockResolvedValue({
     report_type: 'mau',
@@ -46,6 +52,7 @@ vi.mock('../../api/reports', () => ({
 describe('ReportsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseOrg.mockReturnValue({ selectedOrg: '', setSelectedOrg: vi.fn() });
   });
 
   it('renders page title and subtitle', () => {
@@ -171,10 +178,16 @@ describe('ReportsPage', () => {
     expect(screen.getByText('Copilot seat buckets')).toBeInTheDocument();
   });
 
-  it('renders org-scoped tags on report cards', () => {
+  it('renders org-scoped tags showing "All orgs" when no org is selected', () => {
     renderWithProviders(<ReportsPage />);
-    const acmeCorpLabels = screen.getAllByText('acme-corp');
-    expect(acmeCorpLabels).toHaveLength(2);
-    expect(screen.getByText('globex')).toBeInTheDocument();
+    const allOrgLabels = screen.getAllByText('All orgs');
+    expect(allOrgLabels).toHaveLength(4);
+  });
+
+  it('renders org-scoped tags showing selected org name', () => {
+    mockUseOrg.mockReturnValue({ selectedOrg: 'my-org', setSelectedOrg: vi.fn() });
+    renderWithProviders(<ReportsPage />);
+    const orgLabels = screen.getAllByText('my-org');
+    expect(orgLabels).toHaveLength(4);
   });
 });

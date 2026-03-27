@@ -298,6 +298,27 @@ tbody tr:last-child td{border-bottom:none}
 
 /* Data source annotation box */
 .data-source-note{background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.18);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--fg-muted);display:flex;gap:8px;align-items:flex-start;margin-bottom:20px}
+
+/* WAF INSIGHTS */
+.waf-pillar{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;height:20px;border-radius:10px;font-size:11px;font-weight:600;border:1px solid transparent;white-space:nowrap}
+.waf-governance{background:rgba(210,153,34,0.12);color:var(--attention);border-color:rgba(210,153,34,0.3)}
+.waf-appsec{background:rgba(248,81,73,0.12);color:var(--danger);border-color:rgba(248,81,73,0.3)}
+.waf-architecture{background:rgba(219,109,40,0.12);color:var(--severe);border-color:rgba(219,109,40,0.3)}
+.waf-collaboration{background:rgba(188,140,255,0.12);color:var(--done);border-color:rgba(188,140,255,0.3)}
+.waf-productivity{background:rgba(88,166,255,0.12);color:var(--accent);border-color:rgba(88,166,255,0.3)}
+.waf-finding{background:var(--canvas-subtle);border:1px solid var(--border);border-radius:6px;padding:14px 16px;margin-bottom:10px}
+.waf-finding.critical-finding{border-color:rgba(248,81,73,0.3);background:rgba(248,81,73,0.03)}
+.waf-finding.attention-finding{border-color:rgba(210,153,34,0.3);background:rgba(210,153,34,0.02)}
+.waf-finding.info-finding{border-color:rgba(88,166,255,0.2)}
+.waf-finding-header{display:flex;align-items:flex-start;gap:10px;margin-bottom:6px}
+.waf-finding-title{font-weight:500;font-size:13px;color:var(--fg);flex:1}
+.waf-finding-body{font-size:12px;color:var(--fg-muted);line-height:1.6;margin-bottom:8px}
+.waf-finding-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--fg-subtle)}
+.waf-source{display:inline-flex;align-items:center;gap:3px;background:var(--canvas-inset);border:1px solid var(--border-muted);border-radius:4px;padding:1px 6px;font-family:ui-monospace,SFMono-Regular,monospace;font-size:10px;color:var(--fg-muted)}
+.waf-na{display:inline-flex;align-items:center;gap:3px;background:rgba(110,118,129,0.1);border:1px solid rgba(110,118,129,0.2);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--fg-subtle)}
+.waf-ref{color:var(--accent);font-size:11px;text-decoration:none;margin-left:auto;white-space:nowrap;flex-shrink:0}
+.waf-ref:hover{text-decoration:underline}
+.pillar-section-title{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;letter-spacing:.05em;padding:12px 0 8px;border-bottom:1px solid var(--border);margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -1102,6 +1123,7 @@ tbody tr:last-child td{border-bottom:none}
           <div class="health-tab" onclick="healthTab('access',this)">Access &amp; Identity <span style="background:var(--attention);color:var(--canvas);border-radius:10px;padding:0 5px;font-size:10px;font-weight:600;margin-left:4px">5</span></div>
           <div class="health-tab" onclick="healthTab('license',this)">License Health <span style="background:var(--attention);color:var(--canvas);border-radius:10px;padding:0 5px;font-size:10px;font-weight:600;margin-left:4px">2</span></div>
           <div class="health-tab" onclick="healthTab('maintenance',this)">Maintenance Signals</div>
+          <div class="health-tab" onclick="healthTab('waf',this)">WAF Insights <span style="background:var(--danger);color:#fff;border-radius:10px;padding:0 5px;font-size:10px;font-weight:600;margin-left:4px">9</span></div>
         </div>
 
         <!-- ===== REPOS TAB ===== -->
@@ -1486,6 +1508,309 @@ tbody tr:last-child td{border-bottom:none}
             </table>
           </div>
           <div style="font-size:11px;color:var(--fg-subtle);margin-top:8px;margin-bottom:20px">&#9432; Derived from <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">workflows.disabled_intentionally</code>, <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">workflow_run</code> conclusion = <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">skipped</code> events</div>
+        </div>
+
+        <!-- ===== WAF INSIGHTS TAB ===== -->
+        <div id="ht-waf" class="health-pane">
+
+          <!-- Header attribution -->
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px">
+            <div class="data-source-note" style="margin-bottom:0;flex:1">
+              <svg width="14" height="14" fill="var(--accent)" viewBox="0 0 16 16" style="flex-shrink:0;margin-top:1px"><path d="M0 8a8 8 0 1116 0A8 8 0 010 8zm8-6.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 7.75A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 110-2 1 1 0 010 2z"/></svg>
+              <span>Signals are aligned to the <strong>GitHub Well-Architected Framework</strong> (5 pillars: Governance, Application Security, Architecture, Collaboration, Productivity). Coverage is partial — OctoWatch only surfaces what is detectable from audit log events or a baseline import. Findings marked <span class="waf-na">API only</span> cannot be evaluated without active polling and are shown as informational gaps.</span>
+            </div>
+            <a href="https://wellarchitected.github.com/library/scenarios/anti-patterns/" target="_blank" class="btn btn-sm" style="flex-shrink:0;white-space:nowrap">WAF Library &#8599;</a>
+          </div>
+
+          <!-- Summary strip by pillar -->
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:24px">
+            <div class="card" style="border-color:rgba(210,153,34,0.4);padding:12px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--attention);margin-bottom:6px">📜 Governance</div>
+              <div style="font-size:26px;font-weight:600;color:var(--attention);font-variant-numeric:tabular-nums">4</div>
+              <div style="font-size:11px;color:var(--fg-subtle);margin-top:2px">2 critical · 2 warn</div>
+            </div>
+            <div class="card" style="border-color:rgba(248,81,73,0.4);padding:12px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--danger);margin-bottom:6px">🔒 App Security</div>
+              <div style="font-size:26px;font-weight:600;color:var(--danger);font-variant-numeric:tabular-nums">3</div>
+              <div style="font-size:11px;color:var(--fg-subtle);margin-top:2px">2 critical · 1 warn</div>
+            </div>
+            <div class="card" style="border-color:rgba(219,109,40,0.4);padding:12px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--severe);margin-bottom:6px">📐 Architecture</div>
+              <div style="font-size:26px;font-weight:600;color:var(--severe);font-variant-numeric:tabular-nums">1</div>
+              <div style="font-size:11px;color:var(--fg-subtle);margin-top:2px">1 warn</div>
+            </div>
+            <div class="card" style="border-color:rgba(188,140,255,0.35);padding:12px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--done);margin-bottom:6px">👥 Collaboration</div>
+              <div style="font-size:26px;font-weight:600;color:var(--done);font-variant-numeric:tabular-nums">1</div>
+              <div style="font-size:11px;color:var(--fg-subtle);margin-top:2px">1 warn</div>
+            </div>
+            <div class="card" style="padding:12px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);margin-bottom:6px">⚙️ Productivity</div>
+              <div style="font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--fg-muted)">0</div>
+              <div style="font-size:11px;color:var(--fg-subtle);margin-top:2px">no issues detected</div>
+            </div>
+          </div>
+
+          <!-- ── GOVERNANCE ── -->
+          <div class="pillar-section-title">
+            <span class="waf-pillar waf-governance">📜 Governance</span>
+            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--fg-muted)">Platform structure, policy enforcement, token hygiene</span>
+            <a href="https://wellarchitected.github.com/library/governance/" target="_blank" class="waf-ref">View pillar &#8599;</a>
+          </div>
+
+          <div class="waf-finding critical-finding">
+            <div class="waf-finding-header">
+              <div class="sev-dot critical" style="margin-top:3px;flex-shrink:0"></div>
+              <div class="waf-finding-title">Fragmented organization structure — 2 orgs currently managed</div>
+              <span class="waf-pillar waf-governance">📜 Governance</span>
+            </div>
+            <div class="waf-finding-body">
+              OctoWatch is currently monitoring <strong>2 orgs</strong> (acme-corp, globex). The WAF flags enterprises with <strong>&gt;10 orgs</strong> as fragmented — this creates overhead across permissions, integrations, SSO, and policy enforcement and siloes collaboration. Enterprises with <strong>&gt;50 orgs</strong> are considered a significant anti-pattern; <strong>&gt;200 orgs</strong> is a systemic architecture problem requiring consolidation planning.
+              <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+                <div style="background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.2);border-radius:4px;padding:4px 10px;font-size:11px;color:var(--success)">&#10003; 2 orgs — healthy</div>
+                <div style="background:rgba(210,153,34,0.08);border:1px solid rgba(210,153,34,0.2);border-radius:4px;padding:4px 10px;font-size:11px;color:var(--attention)">&gt;10 orgs — warning</div>
+                <div style="background:rgba(248,81,73,0.08);border:1px solid rgba(248,81,73,0.2);border-radius:4px;padding:4px 10px;font-size:11px;color:var(--danger)">&gt;50 orgs — critical</div>
+                <div style="background:rgba(248,81,73,0.15);border:1px solid rgba(248,81,73,0.4);border-radius:4px;padding:4px 10px;font-size:11px;color:var(--danger)">&gt;200 orgs — systemic</div>
+              </div>
+            </div>
+            <div class="waf-finding-meta">
+              <span class="waf-source">org.create</span>
+              <span class="waf-source">org.delete</span>
+              <span style="color:var(--fg-subtle)">+ baseline import (org count)</span>
+              <a href="https://wellarchitected.github.com/library/scenarios/anti-patterns/#fragmented-organization-structure" target="_blank" class="waf-ref">WAF: Fragmented Org Structure &#8599;</a>
+            </div>
+          </div>
+
+          <div class="waf-finding critical-finding">
+            <div class="waf-finding-header">
+              <div class="sev-dot critical" style="margin-top:3px;flex-shrink:0"></div>
+              <div class="waf-finding-title">Push protection bypasses recorded — 4 events in last 90 days</div>
+              <span class="waf-pillar waf-governance">📜 Governance</span>
+            </div>
+            <div class="waf-finding-body">
+              Secret push protection was bypassed <strong>4 times</strong> in the last 90 days. The WAF recommends restricting bypass capability to specific roles/teams only — the default "anyone with write access" is too permissive given the criticality of leaked secrets. These bypasses should be individually reviewed.
+              <div style="margin-top:8px;border:1px solid var(--border);border-radius:6px;overflow:hidden;font-size:12px">
+                <table style="font-size:12px">
+                  <thead><tr><th>Actor</th><th>Repo</th><th>Reason given</th><th>Date</th></tr></thead>
+                  <tbody>
+                    <tr><td><span class="mention">@bob</span></td><td>acme/tools-old</td><td style="color:var(--fg-muted)">false positive</td><td style="color:var(--fg-muted)">Mar 12, 2026</td></tr>
+                    <tr><td><span class="mention">@eremin</span></td><td>globex/auth-service</td><td style="color:var(--danger)">no reason given</td><td style="color:var(--fg-muted)">Mar 3, 2026</td></tr>
+                    <tr><td><span class="mention">@svc-scanner</span></td><td>acme/legacy-payments</td><td style="color:var(--fg-muted)">used in tests only</td><td style="color:var(--fg-muted)">Feb 22, 2026</td></tr>
+                    <tr><td><span class="mention">@contractor2</span></td><td>acme/infra-deploy</td><td style="color:var(--danger)">no reason given</td><td style="color:var(--fg-muted)">Jan 31, 2026</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="waf-finding-meta">
+              <span class="waf-source">secret_scanning.push_protection.bypass</span>
+              <a href="https://wellarchitected.github.com/library/governance/recommendations/governance-policies-best-practices/" target="_blank" class="waf-ref">WAF: Governance Policies &#8599;</a>
+            </div>
+          </div>
+
+          <div class="waf-finding attention-finding">
+            <div class="waf-finding-header">
+              <div class="sev-dot medium" style="margin-top:3px;flex-shrink:0"></div>
+              <div class="waf-finding-title">Webhooks without secrets — 3 webhooks configured without a secret token</div>
+              <span class="waf-pillar waf-governance">📜 Governance</span>
+            </div>
+            <div class="waf-finding-body">
+              The WAF states: <em>"Webhooks should always be configured with a secret. Not using a secret will mislead the receiving entity on the authenticity of the payload received."</em> These webhooks cannot verify that payloads originate from GitHub, making them vulnerable to spoofed requests.
+              <div style="margin-top:8px;font-size:12px;color:var(--fg-muted)">Affected: <code style="font-size:11px;background:var(--canvas-inset);padding:1px 4px;border-radius:3px">acme-corp</code> × 2, <code style="font-size:11px;background:var(--canvas-inset);padding:1px 4px;border-radius:3px">globex</code> × 1</div>
+            </div>
+            <div class="waf-finding-meta">
+              <span class="waf-source">hook.create</span>
+              <span class="waf-source">hook.config_changed</span>
+              <span style="color:var(--fg-subtle)">secret field absent in event payload</span>
+              <a href="https://wellarchitected.github.com/library/governance/recommendations/governance-policies-best-practices/" target="_blank" class="waf-ref">WAF: Governance Policies &#8599;</a>
+            </div>
+          </div>
+
+          <div class="waf-finding attention-finding">
+            <div class="waf-finding-header">
+              <div class="sev-dot medium" style="margin-top:3px;flex-shrink:0"></div>
+              <div class="waf-finding-title">Classic PAT proliferation — no fine-grained PAT approval policy detected</div>
+              <span class="waf-pillar waf-governance">📜 Governance</span>
+            </div>
+            <div class="waf-finding-body">
+              The WAF recommends implementing an approval flow for fine-grained PATs so that organization owners can review which users are accessing what resources with what permissions. OctoWatch has seen <strong>47 classic PAT creation events</strong> this quarter with no corresponding fine-grained PAT approval events, suggesting the approval policy is not enforced.
+            </div>
+            <div class="waf-finding-meta">
+              <span class="waf-source">personal_access_token.create</span>
+              <span class="waf-source">personal_access_token.access_denied</span>
+              <span class="waf-na">API only — policy enforcement state</span>
+              <a href="https://wellarchitected.github.com/library/governance/recommendations/governance-policies-best-practices/" target="_blank" class="waf-ref">WAF: Governance Policies &#8599;</a>
+            </div>
+          </div>
+
+          <!-- ── APPLICATION SECURITY ── -->
+          <div class="pillar-section-title" style="margin-top:8px">
+            <span class="waf-pillar waf-appsec">🔒 Application Security</span>
+            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--fg-muted)">Signing, CODEOWNERS, ruleset bypass, supply chain</span>
+            <a href="https://wellarchitected.github.com/library/application-security/" target="_blank" class="waf-ref">View pillar &#8599;</a>
+          </div>
+
+          <div class="waf-finding critical-finding">
+            <div class="waf-finding-header">
+              <div class="sev-dot critical" style="margin-top:3px;flex-shrink:0"></div>
+              <div class="waf-finding-title">Direct pushes to default branch without a pull request — 14 events</div>
+              <span class="waf-pillar waf-appsec">🔒 App Security</span>
+            </div>
+            <div class="waf-finding-body">
+              The WAF classifies "working directly on the main branch" as a <strong>Development Anti-Pattern</strong> that leads to unstable default branches and deployment issues. <strong>14 direct pushes to main/master</strong> were detected by non-bot actors in the last 30 days — these bypassed PR review entirely.
+              <div style="margin-top:8px;border:1px solid var(--border);border-radius:6px;overflow:hidden;font-size:12px">
+                <table style="font-size:12px">
+                  <thead><tr><th>Actor</th><th>Repo</th><th>Branch</th><th>Time</th></tr></thead>
+                  <tbody>
+                    <tr><td><span class="mention">@eremin</span></td><td>globex/auth-service</td><td><code>main</code></td><td style="color:var(--fg-muted)">Mar 14, 2026</td></tr>
+                    <tr><td><span class="mention">@bob</span></td><td>acme/legacy-payments</td><td><code>main</code></td><td style="color:var(--fg-muted)">Mar 9, 2026</td></tr>
+                    <tr><td><span class="mention">@carol</span></td><td>acme/tools-old</td><td><code>master</code></td><td style="color:var(--fg-muted)">Feb 28, 2026</td></tr>
+                    <tr><td style="color:var(--fg-subtle)" colspan="4">+ 11 more events &mdash; <span style="color:var(--accent);cursor:pointer">View in Events Explorer</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="waf-finding-meta">
+              <span class="waf-source">git.push</span>
+              <span style="color:var(--fg-subtle)">push to default branch with no linked pull_request.merged event</span>
+              <a href="https://wellarchitected.github.com/library/scenarios/anti-patterns/#inconsistent-branching-strategy" target="_blank" class="waf-ref">WAF: Branching Strategy &#8599;</a>
+            </div>
+          </div>
+
+          <div class="waf-finding critical-finding">
+            <div class="waf-finding-header">
+              <div class="sev-dot critical" style="margin-top:3px;flex-shrink:0"></div>
+              <div class="waf-finding-title">CODEOWNERS file missing from 8 repositories</div>
+              <span class="waf-pillar waf-appsec">🔒 App Security</span>
+            </div>
+            <div class="waf-finding-body">
+              The WAF states: <em>"To protect a repository against unauthorized changes, you need to define owners using a CODEOWNERS file."</em> Without CODEOWNERS, there is no automatic assignment of reviewers and no ownership accountability for critical code paths. Repos without CODEOWNERS: <strong>acme/legacy-payments</strong>, <strong>acme/tools-old</strong>, <strong>globex/api-v1</strong>, and 5 others.
+            </div>
+            <div class="waf-finding-meta">
+              <span class="waf-na">baseline import</span>
+              <span style="color:var(--fg-subtle)">absence of CODEOWNERS file in default branch at time of import</span>
+              <a href="https://wellarchitected.github.com/library/governance/recommendations/governance-policies-best-practices/" target="_blank" class="waf-ref">WAF: Governance Policies &#8599;</a>
+            </div>
+          </div>
+
+          <div class="waf-finding attention-finding">
+            <div class="waf-finding-header">
+              <div class="sev-dot medium" style="margin-top:3px;flex-shrink:0"></div>
+              <div class="waf-finding-title">Commit signing not required on 12 repositories</div>
+              <span class="waf-pillar waf-appsec">🔒 App Security</span>
+            </div>
+            <div class="waf-finding-body">
+              The WAF recommends: <em>"Initiate and impose commit signing whenever possible — this deters malicious actors from creating a commit with malicious code and helps prevent supply chain attacks."</em> No <code style="font-size:11px;background:var(--canvas-inset);padding:1px 4px;border-radius:3px">required_signatures</code> branch protection rule was detected on the default branch of 12 repos.
+            </div>
+            <div class="waf-finding-meta">
+              <span class="waf-source">protected_branch.create</span>
+              <span style="color:var(--fg-subtle)">protected_branch event missing required_signatures constraint</span>
+              <span class="waf-na">baseline — full coverage requires import</span>
+              <a href="https://wellarchitected.github.com/library/application-security/recommendations/actions-security/" target="_blank" class="waf-ref">WAF: App Security &#8599;</a>
+            </div>
+          </div>
+
+          <!-- ── ARCHITECTURE ── -->
+          <div class="pillar-section-title" style="margin-top:8px">
+            <span class="waf-pillar waf-architecture">📐 Architecture</span>
+            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--fg-muted)">Repo structure, reusability, runner topology</span>
+            <a href="https://wellarchitected.github.com/library/architecture/" target="_blank" class="waf-ref">View pillar &#8599;</a>
+          </div>
+
+          <div class="waf-finding attention-finding">
+            <div class="waf-finding-header">
+              <div class="sev-dot medium" style="margin-top:3px;flex-shrink:0"></div>
+              <div class="waf-finding-title">No reusable workflow patterns detected — every repo duplicates CI definitions</div>
+              <span class="waf-pillar waf-architecture">📐 Architecture</span>
+            </div>
+            <div class="waf-finding-body">
+              The WAF Architecture pillar and <em>"Scaling GitHub Actions Reusability in the Enterprise"</em> guidance recommend centralizing shared workflow logic into reusable workflows called via <code style="font-size:11px;background:var(--canvas-inset);padding:1px 4px;border-radius:3px">workflow_call</code>. OctoWatch detected <strong>0 workflow_call trigger events</strong> across all repos in the last 90 days — all repos are running fully self-contained CI pipelines which creates maintenance burden and policy drift at scale.
+            </div>
+            <div class="waf-finding-meta">
+              <span class="waf-source">workflow_run</span>
+              <span style="color:var(--fg-subtle)">no workflow_call trigger type observed in any workflow_run event</span>
+              <a href="https://wellarchitected.github.com/library/collaboration/recommendations/scaling-actions-reusability/" target="_blank" class="waf-ref">WAF: Actions Reusability &#8599;</a>
+            </div>
+          </div>
+
+          <!-- ── COLLABORATION ── -->
+          <div class="pillar-section-title" style="margin-top:8px">
+            <span class="waf-pillar waf-collaboration">👥 Collaboration</span>
+            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--fg-muted)">Code review velocity, feedback cycles, PR hygiene</span>
+            <a href="https://wellarchitected.github.com/library/collaboration/" target="_blank" class="waf-ref">View pillar &#8599;</a>
+          </div>
+
+          <div class="waf-finding attention-finding">
+            <div class="waf-finding-header">
+              <div class="sev-dot medium" style="margin-top:3px;flex-shrink:0"></div>
+              <div class="waf-finding-title">PRs merged without code review — 6 events (bypassing code review anti-pattern)</div>
+              <span class="waf-pillar waf-collaboration">👥 Collaboration</span>
+            </div>
+            <div class="waf-finding-body">
+              The WAF identifies "Bypassing Code Reviews" as a Collaboration Anti-Pattern that <em>"increases the risk of introducing bugs and security vulnerabilities and misses opportunities for knowledge sharing."</em>
+              OctoWatch detected <strong>6 pull_request.closed (merged) events</strong> in the last 30 days where no <code style="font-size:11px;background:var(--canvas-inset);padding:1px 4px;border-radius:3px">pull_request_review</code> event was recorded before merge. The WAF also flags "Delayed Feedback Cycles" — these PRs had an average open-to-merge time of <strong>4 minutes</strong>, indicating auto-merge or self-merge without meaningful review.
+            </div>
+            <div class="waf-finding-meta">
+              <span class="waf-source">pull_request.closed</span>
+              <span class="waf-source">pull_request_review.submitted</span>
+              <span style="color:var(--fg-subtle)">merged with no preceding review event within PR lifecycle</span>
+              <a href="https://wellarchitected.github.com/library/scenarios/anti-patterns/#bypassing-code-reviews" target="_blank" class="waf-ref">WAF: Bypassing Code Reviews &#8599;</a>
+            </div>
+          </div>
+
+          <!-- ── PRODUCTIVITY ── -->
+          <div class="pillar-section-title" style="margin-top:8px">
+            <span class="waf-pillar waf-productivity">⚙️ Productivity</span>
+            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--fg-muted)">Automation, Copilot adoption, engineering metrics</span>
+            <a href="https://wellarchitected.github.com/library/productivity/" target="_blank" class="waf-ref">View pillar &#8599;</a>
+          </div>
+          <div style="background:rgba(63,185,80,0.06);border:1px solid rgba(63,185,80,0.2);border-radius:6px;padding:12px 16px;font-size:13px;color:var(--fg-muted);margin-bottom:12px">
+            <strong style="color:var(--success)">&#10003; No productivity anti-patterns detected</strong> &mdash; Copilot adoption is active (see Copilot Insights), CI pipelines are running, and automated deployment is in place. Monitor Copilot acceptance rate on the <span style="color:var(--accent);cursor:pointer" onclick="nav('copilot',null)">Copilot Insights</span> page.
+          </div>
+
+          <!-- Gaps / not evaluatable -->
+          <div class="pillar-section-title" style="margin-top:8px">
+            <span style="color:var(--fg-subtle)">&#9634;</span>
+            <span style="color:var(--fg-muted)">Signals that require active API polling (not evaluated)</span>
+          </div>
+          <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:8px">
+            <table>
+              <thead><tr><th>Signal</th><th>Pillar</th><th>Why not available</th><th>WAF Reference</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>Default workflow token permission = read-only</td>
+                  <td><span class="waf-pillar waf-governance">📜 Governance</span></td>
+                  <td style="color:var(--fg-muted);font-size:12px">Org/enterprise policy state — not emitted as an audit event</td>
+                  <td><a href="https://wellarchitected.github.com/library/governance/recommendations/governance-policies-best-practices/" target="_blank" style="font-size:12px">Governance Policies &#8599;</a></td>
+                </tr>
+                <tr>
+                  <td>Actions restricted to verified creators only</td>
+                  <td><span class="waf-pillar waf-governance">📜 Governance</span></td>
+                  <td style="color:var(--fg-muted);font-size:12px">Actions allowed-list policy — requires API check of org settings</td>
+                  <td><a href="https://wellarchitected.github.com/library/governance/recommendations/governance-policies-best-practices/" target="_blank" style="font-size:12px">Governance Policies &#8599;</a></td>
+                </tr>
+                <tr>
+                  <td>Forking disabled for private repos</td>
+                  <td><span class="waf-pillar waf-governance">📜 Governance</span></td>
+                  <td style="color:var(--fg-muted);font-size:12px">Fork policy state — fork events visible but policy enforcement status requires API</td>
+                  <td><a href="https://wellarchitected.github.com/library/governance/recommendations/governance-policies-best-practices/" target="_blank" style="font-size:12px">Governance Policies &#8599;</a></td>
+                </tr>
+                <tr>
+                  <td>Runner groups scoped (not all-repos)</td>
+                  <td><span class="waf-pillar waf-architecture">📐 Architecture</span></td>
+                  <td style="color:var(--fg-muted);font-size:12px">Runner group configuration — requires REST API access to runner group settings</td>
+                  <td><a href="https://wellarchitected.github.com/library/architecture/recommendations/deploying-actions-runner-controller/" target="_blank" style="font-size:12px">Runner Controller &#8599;</a></td>
+                </tr>
+                <tr>
+                  <td>Audit log streaming fully enabled</td>
+                  <td><span class="waf-pillar waf-governance">📜 Governance</span></td>
+                  <td style="color:var(--fg-muted);font-size:12px">Streaming is active (OctoWatch receives events), but completeness and gap detection require API verification</td>
+                  <td><a href="https://wellarchitected.github.com/library/governance/recommendations/governance-policies-best-practices/" target="_blank" style="font-size:12px">Governance Policies &#8599;</a></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="font-size:11px;color:var(--fg-subtle);margin-bottom:4px">&#9432; To evaluate these signals, perform a one-time baseline import from <strong>Settings → Integrations → Baseline Import</strong>. Continuous polling of GitHub APIs is not supported by design.</div>
+
         </div>
       </div>
 

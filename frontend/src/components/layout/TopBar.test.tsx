@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -70,75 +70,153 @@ describe('TopBar', () => {
     expect(screen.getByRole('banner')).toBeInTheDocument();
   });
 
-  // ----- Org tabs -----
+  // ----- Org dropdown -----
 
-  it('renders user scoped_orgs as tab buttons', () => {
+  it('renders dropdown trigger with "All organizations" when no org selected', () => {
     renderTopBar();
-    expect(screen.getByText('my-org')).toBeInTheDocument();
-    expect(screen.getByText('other-org')).toBeInTheDocument();
+    const trigger = screen.getByLabelText('Select organization');
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveTextContent('All organizations');
   });
 
-  it('renders fallback orgs when user has empty scoped_orgs', () => {
+  it('renders dropdown trigger with selected org name', () => {
+    mockUseOrg.mockReturnValue({ selectedOrg: 'my-org', setSelectedOrg });
+    renderTopBar();
+    const trigger = screen.getByLabelText('Select organization');
+    expect(trigger).toHaveTextContent('my-org');
+  });
+
+  it('opens dropdown on click and shows filter input', async () => {
+    const user = userEvent.setup();
+    renderTopBar();
+
+    await user.click(screen.getByLabelText('Select organization'));
+
+    expect(screen.getByLabelText('Filter organizations')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Filter organizations...'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows all orgs in the dropdown', async () => {
+    const user = userEvent.setup();
+    renderTopBar();
+
+    await user.click(screen.getByLabelText('Select organization'));
+
+    expect(
+      screen.getByRole('option', { name: /All organizations/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: 'my-org' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: 'other-org' }),
+    ).toBeInTheDocument();
+  });
+
+  it('filters orgs when typing in search', async () => {
+    const user = userEvent.setup();
+    renderTopBar();
+
+    await user.click(screen.getByLabelText('Select organization'));
+    await user.type(screen.getByLabelText('Filter organizations'), 'my');
+
+    expect(
+      screen.getByRole('option', { name: 'my-org' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('option', { name: 'other-org' }),
+    ).not.toBeInTheDocument();
+    // "All organizations" stays visible
+    expect(
+      screen.getByRole('option', { name: /All organizations/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('selects org on click and closes dropdown', async () => {
+    const user = userEvent.setup();
+    renderTopBar();
+
+    await user.click(screen.getByLabelText('Select organization'));
+    await user.click(screen.getByRole('option', { name: 'my-org' }));
+
+    expect(setSelectedOrg).toHaveBeenCalledWith('my-org');
+    expect(
+      screen.queryByLabelText('Filter organizations'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('selects "All organizations" and closes dropdown', async () => {
+    mockUseOrg.mockReturnValue({ selectedOrg: 'my-org', setSelectedOrg });
+    const user = userEvent.setup();
+    renderTopBar();
+
+    await user.click(screen.getByLabelText('Select organization'));
+    await user.click(
+      screen.getByRole('option', { name: /All organizations/ }),
+    );
+
+    expect(setSelectedOrg).toHaveBeenCalledWith('');
+    expect(
+      screen.queryByLabelText('Filter organizations'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('closes dropdown when clicking outside', async () => {
+    const user = userEvent.setup();
+    renderTopBar();
+
+    await user.click(screen.getByLabelText('Select organization'));
+    expect(screen.getByLabelText('Filter organizations')).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+
+    expect(
+      screen.queryByLabelText('Filter organizations'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows "No organizations" when user has no scoped_orgs', async () => {
     mockUseCurrentUser.mockReturnValue({
       data: { ...DEFAULT_USER, scoped_orgs: [] },
       isLoading: false,
       isError: false,
     } as unknown as ReturnType<typeof useCurrentUser>);
 
+    const user = userEvent.setup();
     renderTopBar();
-    expect(screen.getByText('acme-corp')).toBeInTheDocument();
-    expect(screen.getByText('globex')).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('Select organization'));
+    expect(screen.getByText('No organizations')).toBeInTheDocument();
   });
 
-  it('renders fallback orgs when user data is not yet loaded', () => {
+  it('shows "No organizations" when user data is not yet loaded', async () => {
     mockUseCurrentUser.mockReturnValue({
       data: undefined,
       isLoading: true,
       isError: false,
     } as unknown as ReturnType<typeof useCurrentUser>);
 
-    renderTopBar();
-    expect(screen.getByText('acme-corp')).toBeInTheDocument();
-    expect(screen.getByText('globex')).toBeInTheDocument();
-  });
-
-  it('applies active class only to the selected org tab', () => {
-    mockUseOrg.mockReturnValue({ selectedOrg: 'my-org', setSelectedOrg });
-
-    renderTopBar();
-    expect(screen.getByText('my-org').className).toContain('active');
-    expect(screen.getByText('other-org').className).not.toContain('active');
-  });
-
-  it('calls setSelectedOrg when an org tab is clicked', async () => {
     const user = userEvent.setup();
     renderTopBar();
 
-    await user.click(screen.getByText('other-org'));
-    expect(setSelectedOrg).toHaveBeenCalledWith('other-org');
+    await user.click(screen.getByLabelText('Select organization'));
+    expect(screen.getByText('No organizations')).toBeInTheDocument();
   });
 
-  // ----- "+ Add org" tab -----
-
-  it('always renders the "+ Add org" tab', () => {
+  it('shows checkmark on selected org', async () => {
+    mockUseOrg.mockReturnValue({ selectedOrg: 'my-org', setSelectedOrg });
+    const user = userEvent.setup();
     renderTopBar();
-    const addBtn = screen.getByText('+ Add org');
-    expect(addBtn).toBeInTheDocument();
-    expect(addBtn).toHaveAttribute('aria-label', 'Add organization');
-  });
 
-  it('applies add class to the "+ Add org" tab', () => {
-    renderTopBar();
-    expect(screen.getByText('+ Add org').className).toContain('add');
-  });
+    await user.click(screen.getByLabelText('Select organization'));
 
-  it('renders "+ Add org" as the last tab (after org tabs)', () => {
-    renderTopBar();
-    const tabs = screen.getAllByRole('button').filter((btn) =>
-      btn.className.includes('orgTab'),
-    );
-    const lastTab = tabs[tabs.length - 1];
-    expect(lastTab).toHaveTextContent('+ Add org');
+    const myOrgOption = screen.getByRole('option', { name: 'my-org' });
+    expect(myOrgOption).toHaveTextContent('✓');
+
+    const otherOrgOption = screen.getByRole('option', { name: 'other-org' });
+    expect(otherOrgOption).not.toHaveTextContent('✓');
   });
 
   // ----- "New report" button -----

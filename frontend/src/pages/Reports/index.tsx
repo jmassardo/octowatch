@@ -7,6 +7,7 @@ import {
   getCopilotSeatsReport,
   exportReport,
 } from '../../api/reports';
+import { useOrg } from '../../hooks/useOrg';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
 import { Card, CardHeader } from '../../components/primitives/Card';
@@ -24,8 +25,6 @@ const REPORT_CATALOG = [
       { label: '14 critical findings', variant: 'danger' as const },
       { label: '8 medium', variant: 'attention' as const },
       { label: 'automated', variant: 'success' as const },
-      { label: 'acme-corp', variant: 'muted' as const },
-      { label: 'globex', variant: 'muted' as const },
     ],
   },
   {
@@ -55,12 +54,12 @@ const REPORT_CATALOG = [
     tags: [
       { label: 'Elite performer', variant: 'success' as const },
       { label: 'DORA', variant: 'accent' as const },
-      { label: 'acme-corp', variant: 'muted' as const },
     ],
   },
 ];
 
 export function ReportsPage() {
+  const { selectedOrg } = useOrg();
   const [windowDays, setWindowDays] = useState<30 | 60 | 90>(30);
   const params: ReportParams = { window_days: windowDays, granularity: 'daily' };
 
@@ -139,6 +138,7 @@ export function ReportsPage() {
                 {r.tags.map((t) => (
                   <Label key={t.label} variant={t.variant}>{t.label}</Label>
                 ))}
+                <Label variant="muted">{selectedOrg || 'All orgs'}</Label>
               </div>
             </div>
             <div className={styles.reportActions}>

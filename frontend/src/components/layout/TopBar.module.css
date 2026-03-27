@@ -9,37 +9,119 @@
   gap: 12px;
 }
 
-.orgTabs {
+/* ---- Org dropdown ---- */
+
+.orgDropdownWrap {
+  position: relative;
+}
+
+.orgDropdownTrigger {
   display: flex;
-}
-
-.orgTab {
-  padding: 6px 14px;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
   font-size: 13px;
-  color: var(--fg-muted);
-  cursor: pointer;
-  border: 1px solid var(--border);
-  border-right: none;
-  background: transparent;
   font-family: inherit;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s;
 }
 
-.orgTab:first-child {
-  border-radius: 6px 0 0 6px;
+.orgDropdownTrigger:hover {
+  border-color: var(--fg-muted);
 }
 
-.orgTab:last-child {
-  border-right: 1px solid var(--border);
-  border-radius: 0 6px 6px 0;
+.orgDropdownLabel {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
-.orgTab.active {
-  background: var(--canvas-inset);
+.orgDropdownChevron {
+  font-size: 10px;
+  color: var(--fg-muted);
+  flex-shrink: 0;
+}
+
+.orgDropdownPanel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  background: var(--canvas-overlay, #1c1c1e);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.orgDropdownFilter {
+  width: 100%;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--fg);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.orgDropdownFilter::placeholder {
+  color: var(--fg-muted);
+}
+
+.orgDropdownList {
+  overflow-y: auto;
+  max-height: 252px;
+}
+
+.orgDropdownItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--fg-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+
+.orgDropdownItem:hover {
+  background: var(--canvas-subtle);
   color: var(--fg);
 }
 
-.orgTab.add {
+.orgDropdownItemSelected {
+  color: var(--fg);
+}
+
+.orgDropdownCheck {
   color: var(--accent);
+  font-size: 13px;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.orgDropdownEmpty {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  cursor: default;
 }
 
 .right {

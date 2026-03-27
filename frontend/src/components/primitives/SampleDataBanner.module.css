@@ -3,11 +3,11 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  background: var(--bg-warning, #fff8e1);
-  border: 1px solid var(--border-warning, #ffe082);
+  background: color-mix(in srgb, var(--attention) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--attention) 40%, transparent);
   border-radius: 6px;
   font-size: 0.85rem;
-  color: var(--text-secondary);
+  color: var(--fg-muted);
   margin-bottom: 1rem;
 }
 

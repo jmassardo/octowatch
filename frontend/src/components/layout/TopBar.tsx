@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOrg } from '../../hooks/useOrg';
@@ -9,8 +9,6 @@ import { Button } from '../primitives/Button';
 import { logout } from '../../api/auth';
 import styles from './TopBar.module.css';
 
-const FALLBACK_ORGS: readonly string[] = ['acme-corp', 'globex'];
-
 export function TopBar() {
   const { selectedOrg, setSelectedOrg } = useOrg();
   const { data: user } = useCurrentUser();
@@ -19,12 +17,46 @@ export function TopBar() {
   const avatarRef = useRef<HTMLButtonElement>(null);
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const [extraOrgs, setExtraOrgs] = useState<string[]>([]);
 
-  const orgs = [
-    ...(user?.scoped_orgs?.length ? user.scoped_orgs : FALLBACK_ORGS),
-    ...extraOrgs,
-  ];
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [filterText, setFilterText] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const filterInputRef = useRef<HTMLInputElement>(null);
+
+  const orgs: readonly string[] = user?.scoped_orgs ?? [];
+
+  const filteredOrgs = orgs.filter((org) =>
+    org.toLowerCase().includes(filterText.toLowerCase()),
+  );
+
+  const handleClickOutside = useCallback(
+    (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setDropdownOpen(false);
+        setFilterText('');
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      filterInputRef.current?.focus();
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [dropdownOpen, handleClickOutside]);
+
+  function selectOrg(org: string) {
+    setSelectedOrg(org);
+    setDropdownOpen(false);
+    setFilterText('');
+  }
 
   const themeIcon = theme === 'light' ? '☀️' : theme === 'dark' ? '🌙' : '💻';
   const themeLabel = theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System';
@@ -41,31 +73,86 @@ export function TopBar() {
 
   return (
     <header className={styles.topbar} role="banner">
-      <div className={styles.orgTabs}>
-        {orgs.map((org) => (
-          <button
-            key={org}
-            className={[styles.orgTab, org === selectedOrg && styles.active].filter(Boolean).join(' ')}
-            onClick={() => setSelectedOrg(org)}
-          >
-            {org}
-          </button>
-        ))}
+      <div className={styles.orgDropdownWrap} ref={dropdownRef}>
         <button
-          className={[styles.orgTab, styles.add].filter(Boolean).join(' ')}
-          aria-label="Add organization"
-          onClick={() => {
-            const slug = window.prompt('Enter GitHub org slug');
-            if (slug?.trim()) {
-              setExtraOrgs((prev) =>
-                prev.includes(slug.trim()) ? prev : [...prev, slug.trim()],
-              );
-            }
-          }}
+          className={styles.orgDropdownTrigger}
+          onClick={() => setDropdownOpen((prev) => !prev)}
+          aria-expanded={dropdownOpen}
+          aria-haspopup="listbox"
+          aria-label="Select organization"
         >
-          + Add org
+          <span className={styles.orgDropdownLabel}>
+            {selectedOrg || 'All organizations'}
+          </span>
+          <span className={styles.orgDropdownChevron} aria-hidden="true">
+            ▾
+          </span>
         </button>
+
+        {dropdownOpen && (
+          <div
+            className={styles.orgDropdownPanel}
+            role="listbox"
+            aria-label="Organizations"
+          >
+            <input
+              ref={filterInputRef}
+              className={styles.orgDropdownFilter}
+              type="text"
+              placeholder="Filter organizations..."
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              aria-label="Filter organizations"
+            />
+            <div className={styles.orgDropdownList}>
+              <button
+                className={`${styles.orgDropdownItem}${selectedOrg === '' ? ` ${styles.orgDropdownItemSelected}` : ''}`}
+                role="option"
+                aria-selected={selectedOrg === ''}
+                onClick={() => selectOrg('')}
+              >
+                All organizations
+                {selectedOrg === '' && (
+                  <span className={styles.orgDropdownCheck} aria-hidden="true">
+                    ✓
+                  </span>
+                )}
+              </button>
+
+              {orgs.length === 0 ? (
+                <div
+                  className={styles.orgDropdownEmpty}
+                  role="option"
+                  aria-disabled="true"
+                >
+                  No organizations
+                </div>
+              ) : (
+                filteredOrgs.map((org) => (
+                  <button
+                    key={org}
+                    className={`${styles.orgDropdownItem}${org === selectedOrg ? ` ${styles.orgDropdownItemSelected}` : ''}`}
+                    role="option"
+                    aria-selected={org === selectedOrg}
+                    onClick={() => selectOrg(org)}
+                  >
+                    {org}
+                    {org === selectedOrg && (
+                      <span
+                        className={styles.orgDropdownCheck}
+                        aria-hidden="true"
+                      >
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
+
       <div className={styles.right}>
         <button
           className={styles.themeToggle}
