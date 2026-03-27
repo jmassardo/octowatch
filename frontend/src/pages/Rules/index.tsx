@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { listRules, createRule, updateRule, updateRuleStatus, deleteRule } from '../../api/rules';
-import type { RuleResponse, RuleCreate, RuleCategory, DetectionSeverity } from '../../types/detections';
+import type { RuleResponse, RuleCreate, RuleCategory } from '../../types/detections';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
 import { Modal } from '../../components/primitives/Modal';
@@ -15,7 +15,9 @@ const CATEGORIES: RuleCategory[] = [
   'supply_chain', 'branch_protection_bypass', 'pat_abuse', 'impossible_travel',
   'off_hours_anomaly', 'other',
 ];
-const SEVERITIES: DetectionSeverity[] = ['critical', 'high', 'medium', 'low'];
+const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'] as const;
+const CONFIDENCES = ['high', 'medium', 'low'] as const;
+const LOGIC_TYPES = ['threshold', 'pattern', 'sequence', 'statistical'] as const;
 
 const SEVERITY_VARIANT: Record<string, 'danger' | 'attention' | 'success' | 'muted'> = {
   critical: 'danger',
@@ -37,12 +39,19 @@ function RuleForm({
   const [slug, setSlug] = useState(initial?.slug ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [category, setCategory] = useState<RuleCategory>(initial?.category ?? 'other');
-  const [severity, setSeverity] = useState<DetectionSeverity>(initial?.severity ?? 'medium');
+  const [severity, setSeverity] = useState(initial?.default_severity ?? 'medium');
+  const [confidence, setConfidence] = useState(initial?.default_confidence ?? 'medium');
+  const [logicType, setLogicType] = useState(initial?.logic_type ?? 'threshold');
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    onSave({ name, slug, description: description || undefined, category, severity, enabled });
+    onSave({
+      name, slug, description: description || undefined, category,
+      default_severity: severity, default_confidence: confidence,
+      logic_type: logicType, logic_config: initial?.logic_config ?? {},
+      enabled,
+    });
   }
 
   return (
@@ -94,10 +103,34 @@ function RuleForm({
           <select
             className={styles.formSelect}
             value={severity}
-            onChange={(e) => setSeverity(e.target.value as DetectionSeverity)}
+            onChange={(e) => setSeverity(e.target.value)}
           >
             {SEVERITIES.map((s) => (
               <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+        <div className={styles.formRow}>
+          <label className={styles.formLabel}>Confidence</label>
+          <select
+            className={styles.formSelect}
+            value={confidence}
+            onChange={(e) => setConfidence(e.target.value)}
+          >
+            {CONFIDENCES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+        <div className={styles.formRow}>
+          <label className={styles.formLabel}>Logic type</label>
+          <select
+            className={styles.formSelect}
+            value={logicType}
+            onChange={(e) => setLogicType(e.target.value)}
+          >
+            {LOGIC_TYPES.map((t) => (
+              <option key={t} value={t}>{t}</option>
             ))}
           </select>
         </div>
@@ -142,7 +175,8 @@ export function RulesPage() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) => updateRuleStatus(id, enabled),
+    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
+      updateRuleStatus(id, enabled ? 'active' : 'draft', enabled),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['rules'] }),
   });
 
@@ -179,14 +213,14 @@ export function RulesPage() {
               </tr>
             </thead>
             <tbody>
-              {(rules ?? []).map((rule) => (
+              {(rules?.items ?? []).map((rule) => (
                 <tr key={rule.id}>
                   <td>
                     <div className={styles.ruleName}>{rule.name}</div>
                     <div className={styles.ruleSlug}>{rule.slug}</div>
                   </td>
                   <td><Label variant="muted">{rule.category.replace(/_/g, ' ')}</Label></td>
-                  <td><Label variant={SEVERITY_VARIANT[rule.severity] ?? 'muted'}>{rule.severity}</Label></td>
+                  <td><Label variant={SEVERITY_VARIANT[rule.default_severity] ?? 'muted'}>{rule.default_severity}</Label></td>
                   <td>
                     <button
                       className={[styles.toggle, rule.enabled ? styles.toggleOn : ''].join(' ')}
@@ -205,7 +239,7 @@ export function RulesPage() {
                   </td>
                 </tr>
               ))}
-              {(rules ?? []).length === 0 && (
+              {(rules?.items ?? []).length === 0 && (
                 <tr><td colSpan={6} className={styles.empty}>No rules configured</td></tr>
               )}
             </tbody>

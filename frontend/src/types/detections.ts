@@ -70,11 +70,25 @@ export interface RuleResponse {
   readonly slug: string;
   readonly description: string | null;
   readonly category: RuleCategory;
-  readonly severity: DetectionSeverity;
+  readonly default_severity: string;
+  readonly default_confidence: string;
+  readonly logic_type: string;
+  readonly logic_config: Record<string, unknown>;
   readonly enabled: boolean;
+  readonly status: string;
   readonly version: number;
+  readonly git_commit_sha: string | null;
+  readonly created_by: string;
+  readonly updated_by: string | null;
   readonly created_at: string;
   readonly updated_at: string;
+}
+
+export interface RuleListResponse {
+  readonly items: readonly RuleResponse[];
+  readonly total: number;
+  readonly limit: number;
+  readonly offset: number;
 }
 
 export interface RuleCreate {
@@ -82,6 +96,11 @@ export interface RuleCreate {
   slug: string;
   description?: string;
   category: RuleCategory;
-  severity: DetectionSeverity;
+  default_severity: string;
+  default_confidence: string;
+  logic_type: string;
+  logic_config: Record<string, unknown>;
   enabled?: boolean;
+  status?: string;
+  change_summary?: string;
 }
