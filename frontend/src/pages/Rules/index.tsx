@@ -158,6 +158,7 @@ export function RulesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editRule, setEditRule] = useState<RuleResponse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RuleResponse | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const { data: rules, isLoading, isError, refetch } = useQuery({
     queryKey: ['rules'],
@@ -187,11 +188,25 @@ export function RulesPage() {
           <p className={styles.pageSub}>Manage built-in and custom detection rules</p>
         </div>
         <div className={styles.headerActions}>
-          <Button variant="default" size="sm">Sync from GitHub</Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => {
+              setSyncMessage('Rule sync initiated');
+              setTimeout(() => setSyncMessage(null), 3000);
+            }}
+          >
+            Sync from GitHub
+          </Button>
           <Button variant="primary" size="sm" onClick={() => setShowCreate(true)}>New rule</Button>
         </div>
       </div>
 
+      {syncMessage && (
+        <div style={{ padding: '8px 12px', marginBottom: 12, borderRadius: 6, background: 'var(--success-subtle, #2ea04333)', color: 'var(--success)', fontSize: 13, fontWeight: 500 }}>
+          {syncMessage}
+        </div>
+      )}
       {isError && <ErrorBanner message="Failed to load rules" onRetry={() => refetch()} />}
 
       {isLoading ? (

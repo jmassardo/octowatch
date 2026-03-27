@@ -1,0 +1,2051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OctoWatch v2</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --canvas:#0d1117;
+  --canvas-subtle:#161b22;
+  --canvas-inset:#010409;
+  --border:#30363d;
+  --border-muted:#21262d;
+  --fg:#e6edf3;
+  --fg-muted:#8b949e;
+  --fg-subtle:#6e7681;
+  --accent:#58a6ff;
+  --accent-bg:#1f6feb;
+  --success:#3fb950;
+  --danger:#f85149;
+  --attention:#d29922;
+  --severe:#db6d28;
+  --done:#bc8cff;
+  --sidebar-w:240px;
+}
+html,body{height:100%;background:var(--canvas);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5}
+a{color:var(--accent);text-decoration:none}
+
+/* LAYOUT */
+.layout{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:var(--sidebar-w);min-width:var(--sidebar-w);background:var(--canvas-subtle);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:48px;min-height:48px;background:var(--canvas-subtle);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px}
+.content{flex:1;overflow-y:auto;padding:24px}
+
+/* SIDEBAR */
+.sidebar-logo{padding:16px;display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;border-bottom:1px solid var(--border)}
+.nav-section{padding:8px 0}
+.nav-label{padding:4px 16px;font-size:11px;font-weight:600;color:var(--fg-subtle);text-transform:uppercase;letter-spacing:.04em}
+.nav-item{display:flex;align-items:center;gap:8px;padding:6px 16px;color:var(--fg-muted);cursor:pointer;border-radius:6px;margin:1px 8px;font-size:13px}
+.nav-item:hover{background:rgba(177,186,196,0.08);color:var(--fg)}
+.nav-item.active{background:rgba(177,186,196,0.12);color:var(--fg)}
+.nav-count{margin-left:auto;font-size:11px;background:var(--danger);color:#fff;border-radius:10px;padding:0 6px;font-weight:600}
+
+/* TOPBAR */
+.org-tabs{display:flex}
+.org-tab{padding:6px 14px;font-size:13px;color:var(--fg-muted);cursor:pointer;border:1px solid var(--border);border-right:none;background:transparent;color:var(--fg-muted)}
+.org-tab:first-child{border-radius:6px 0 0 6px}
+.org-tab:last-child{border-right:1px solid var(--border);border-radius:0 6px 6px 0}
+.org-tab.active{background:var(--canvas-inset);color:var(--fg)}
+.org-tab.add{color:var(--accent)}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.avatar-sm{width:28px;height:28px;border-radius:50%;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;flex-shrink:0}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;font-size:13px;font-weight:500;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--fg);line-height:20px}
+.btn:hover{background:rgba(177,186,196,0.08)}
+.btn-primary{background:#238636;border-color:rgba(240,246,252,0.1);color:#fff}
+.btn-primary:hover{background:#2ea043}
+.btn-danger{background:var(--danger);border-color:rgba(240,246,252,0.1);color:#fff}
+.btn-sm{padding:3px 8px;font-size:12px}
+
+/* CARDS */
+.card{background:var(--canvas-subtle);border:1px solid var(--border);border-radius:6px;padding:16px}
+.card-header{font-weight:600;font-size:14px;color:var(--fg);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+
+/* STAT PILLS */
+.stat-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+.pill{background:var(--canvas-subtle);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px;color:var(--fg-muted);display:flex;align-items:center;gap:5px}
+.pill-val{font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums}
+.pill.danger .pill-val{color:var(--danger)}
+.pill.success .pill-val{color:var(--success)}
+.pill.accent .pill-val{color:var(--accent)}
+.pill.done .pill-val{color:var(--done)}
+
+/* METRIC STRIP */
+.metric-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.metric{background:var(--canvas-subtle);border:1px solid var(--border);border-radius:6px;padding:14px 16px}
+.metric-val{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--fg);line-height:1.2}
+.metric-lbl{font-size:12px;color:var(--fg-muted);margin-top:2px}
+.metric-delta{font-size:11px;margin-top:4px}
+.metric-delta.up{color:var(--success)}
+.metric-delta.down{color:var(--danger)}
+.metric-delta.neutral{color:var(--fg-muted)}
+
+/* LABELS */
+.label{display:inline-flex;align-items:center;padding:0 7px;height:20px;border-radius:10px;font-size:12px;font-weight:500;border:1px solid transparent}
+.label-danger{background:rgba(248,81,73,0.15);color:var(--danger);border-color:rgba(248,81,73,0.3)}
+.label-attention{background:rgba(210,153,34,0.15);color:var(--attention);border-color:rgba(210,153,34,0.3)}
+.label-success{background:rgba(63,185,80,0.15);color:var(--success);border-color:rgba(63,185,80,0.3)}
+.label-done{background:rgba(188,140,255,0.15);color:var(--done);border-color:rgba(188,140,255,0.3)}
+.label-muted{background:rgba(110,118,129,0.2);color:var(--fg-muted);border-color:rgba(110,118,129,0.3)}
+.label-accent{background:rgba(88,166,255,0.15);color:var(--accent);border-color:rgba(88,166,255,0.3)}
+.label-severe{background:rgba(219,109,40,0.15);color:var(--severe);border-color:rgba(219,109,40,0.3)}
+
+/* MENTION */
+.mention{color:var(--done);font-weight:500}
+
+/* TIMELINE FEED */
+.timeline{position:relative;padding-left:32px}
+.timeline::before{content:'';position:absolute;left:10px;top:0;bottom:0;width:2px;background:var(--border-muted)}
+.tl-item{position:relative;margin-bottom:16px}
+.tl-node{position:absolute;left:-26px;top:2px;width:14px;height:14px;border-radius:50%;border:2px solid var(--canvas-subtle)}
+.tl-node.security{background:var(--danger)}
+.tl-node.platform{background:var(--success)}
+.tl-node.info{background:var(--accent)}
+.tl-node.warning{background:var(--attention)}
+.tl-body{font-size:13px;color:var(--fg-muted);line-height:1.5}
+.tl-body strong{color:var(--fg)}
+.tl-time{font-size:11px;color:var(--fg-subtle);margin-top:2px}
+
+/* TABLES */
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:var(--canvas-subtle);color:var(--fg-muted);font-weight:500;text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--border-muted);vertical-align:middle}
+tbody tr:hover td{background:rgba(177,186,196,0.04)}
+tbody tr:last-child td{border-bottom:none}
+
+/* ISSUE LIST */
+.issue-list{border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.il-filters{background:var(--canvas-subtle);border-bottom:1px solid var(--border);display:flex;gap:0;padding:0 12px}
+.il-tab{padding:10px 14px;font-size:13px;color:var(--fg-muted);cursor:pointer;border-bottom:2px solid transparent}
+.il-tab.active{color:var(--fg);border-bottom-color:var(--severe)}
+.il-row{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border-muted);cursor:pointer}
+.il-row:last-child{border-bottom:none}
+.il-row:hover{background:rgba(177,186,196,0.04)}
+.il-row.selected{background:rgba(88,166,255,0.06)}
+.sev-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.sev-dot.critical{background:var(--danger)}
+.sev-dot.high{background:var(--severe)}
+.sev-dot.medium{background:var(--attention)}
+.sev-dot.low{background:var(--success)}
+.il-meta{flex:1}
+.il-title{font-weight:500;color:var(--fg);font-size:13px}
+.il-sub{font-size:12px;color:var(--fg-muted);margin-top:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.il-time{font-size:12px;color:var(--fg-subtle);flex-shrink:0;white-space:nowrap}
+
+/* SPLIT PANEL */
+.split-layout{display:flex;gap:0;flex:1;overflow:hidden}
+.split-main{flex:1;min-width:0;overflow-y:auto;padding:24px}
+.split-panel{width:480px;min-width:480px;background:var(--canvas-subtle);border-left:1px solid var(--border);padding:20px;overflow-y:auto;display:none}
+.split-panel.open{display:block}
+.panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.panel-close{cursor:pointer;color:var(--fg-muted);font-size:20px;line-height:1}
+.panel-close:hover{color:var(--fg)}
+
+/* CODE BLOCK */
+.code-block{background:var(--canvas-inset);border:1px solid var(--border);border-radius:6px;padding:12px;font-family:ui-monospace,SFMono-Regular,"SF Mono",Consolas,monospace;font-size:12px;line-height:1.6;overflow-x:auto}
+.code-key{color:#79c0ff}
+.code-str{color:#a5d6ff}
+.code-num{color:#79c0ff}
+.code-bool{color:#ff7b72}
+
+/* CONTRIBUTION CALENDAR */
+.cal-wrap{overflow-x:auto;padding-bottom:4px}
+.cal-months{display:flex;margin-bottom:4px;padding-left:32px}
+.cal-month{font-size:11px;color:var(--fg-subtle)}
+.cal-body{display:flex;gap:3px;align-items:flex-start}
+.cal-days{display:flex;flex-direction:column;gap:3px;margin-right:4px;padding-top:1px}
+.cal-day-lbl{font-size:10px;color:var(--fg-subtle);height:11px;line-height:11px;width:24px;text-align:right}
+.cal-cols{display:flex;gap:3px}
+.cal-col{display:flex;flex-direction:column;gap:3px}
+.cal-cell{width:11px;height:11px;border-radius:2px}
+.cal-cell[data-level="0"]{background:#161b22}
+.cal-cell[data-level="1"]{background:#0e4429}
+.cal-cell[data-level="2"]{background:#006d32}
+.cal-cell[data-level="3"]{background:#26a641}
+.cal-cell[data-level="4"]{background:#39d353}
+.cal-cell[data-alert]{background:rgba(248,81,73,0.8)}
+
+/* SVG CHARTS */
+.chart-wrap{background:var(--canvas-inset);border:1px solid var(--border);border-radius:6px;padding:12px;overflow:hidden}
+.chart-title{font-size:12px;color:var(--fg-muted);margin-bottom:8px;font-weight:500}
+
+/* SEARCH */
+.search-bar{display:flex;align-items:center;gap:8px;background:var(--canvas-inset);border:1px solid var(--border);border-radius:6px;padding:8px 12px}
+.search-bar input{background:transparent;border:none;outline:none;color:var(--fg);font-size:13px;flex:1;font-family:inherit}
+.search-bar input::placeholder{color:var(--fg-subtle)}
+.filter-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{display:inline-flex;align-items:center;gap:4px;background:rgba(88,166,255,0.15);border:1px solid rgba(88,166,255,0.3);border-radius:12px;padding:2px 10px;font-size:12px;color:var(--accent);font-family:ui-monospace,SFMono-Regular,monospace}
+.chip-x{cursor:pointer;color:var(--fg-muted);font-size:14px;margin-left:2px}
+.chip-x:hover{color:var(--fg)}
+
+/* DEV CARDS */
+.dev-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.dev-card{background:var(--canvas-subtle);border:1px solid var(--border);border-radius:6px;padding:16px;cursor:pointer}
+.dev-card:hover{border-color:var(--accent)}
+.dev-card.flagged{border-color:rgba(248,81,73,0.4)}
+.dev-top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:#fff;flex-shrink:0}
+.dev-name{font-weight:500;font-size:13px}
+.dev-handle{font-size:12px;color:var(--fg-muted)}
+.mini-bars{display:flex;align-items:flex-end;gap:2px;height:24px;margin-bottom:8px}
+.mini-bar{width:10px;border-radius:2px;background:var(--success)}
+.dev-stats{display:flex;gap:12px;font-size:12px;color:var(--fg-muted)}
+.dev-stats span strong{color:var(--fg);font-variant-numeric:tabular-nums}
+
+/* COPILOT SUB-TABS */
+.copilot-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:20px;gap:0}
+.copilot-tab{padding:8px 16px;font-size:13px;color:var(--fg-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.copilot-tab:hover{color:var(--fg)}
+.copilot-tab.active{color:var(--fg);border-bottom-color:var(--accent)}
+.copilot-pane{display:none}
+.copilot-pane.active{display:block}
+
+/* ADOPTION TIER CARDS */
+.adoption-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:24px}
+.adoption-card{background:var(--canvas-subtle);border:1px solid var(--border);border-radius:6px;padding:12px 14px;text-align:center}
+.adoption-card .tier-count{font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2}
+.adoption-card .tier-name{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-top:4px}
+.adoption-card .tier-desc{font-size:11px;color:var(--fg-subtle);margin-top:2px}
+
+/* DATA IMPORT */
+.import-drop{border:2px dashed var(--border);border-radius:6px;padding:32px;text-align:center;background:var(--canvas-inset);cursor:pointer;transition:border-color .15s}
+.import-drop:hover{border-color:var(--accent)}
+
+/* REPORTS */
+.release-list{display:flex;flex-direction:column;gap:12px}
+.release-item{background:var(--canvas-subtle);border:1px solid var(--border);border-radius:6px;padding:20px;display:flex;justify-content:space-between;align-items:flex-start}
+.release-title{font-weight:600;font-size:15px;margin-bottom:4px}
+.release-date{font-size:12px;color:var(--fg-muted);margin-bottom:8px}
+.release-tags{display:flex;gap:6px;flex-wrap:wrap}
+.release-actions{display:flex;gap:8px;flex-shrink:0;margin-left:16px}
+
+/* QUERY EDITOR */
+.query-layout{display:flex;gap:16px}
+.schema-tree{width:220px;min-width:220px;background:var(--canvas-subtle);border:1px solid var(--border);border-radius:6px;padding:12px;overflow-y:auto}
+.schema-title{font-size:12px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
+.schema-table{font-size:13px;font-weight:600;color:var(--accent);padding:4px 0;cursor:pointer}
+.schema-col{font-size:12px;color:var(--fg-muted);padding:2px 0 2px 12px;display:flex;align-items:center;gap:4px}
+.schema-type{font-size:10px;color:var(--fg-subtle);font-family:ui-monospace,SFMono-Regular,monospace}
+.editor-wrap{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+.editor-file{background:var(--canvas-subtle);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.editor-toolbar{background:var(--canvas-inset);border-bottom:1px solid var(--border);padding:8px 12px;display:flex;align-items:center;gap:8px}
+.editor-filename{font-size:13px;font-family:ui-monospace,SFMono-Regular,monospace;color:var(--fg-muted)}
+.editor-body{display:flex;font-family:ui-monospace,SFMono-Regular,monospace;font-size:13px;line-height:1.7}
+.editor-gutter{padding:8px 12px;color:var(--fg-subtle);text-align:right;background:var(--canvas-inset);border-right:1px solid var(--border);user-select:none;font-size:12px;min-width:36px}
+.editor-code{padding:8px 16px;flex:1;color:var(--fg);white-space:pre}
+.sql-kw{color:#ff7b72}
+.sql-fn{color:#d2a8ff}
+.sql-col{color:#79c0ff}
+.sql-lit{color:#a5d6ff}
+.sql-cmt{color:var(--fg-subtle)}
+
+/* INTEGRATIONS */
+.mkt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.mkt-card{background:var(--canvas-subtle);border:1px solid var(--border);border-radius:6px;padding:20px;display:flex;flex-direction:column;gap:10px}
+.mkt-icon{width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px}
+.mkt-name{font-weight:600;font-size:15px}
+.mkt-desc{font-size:13px;color:var(--fg-muted);flex:1}
+.mkt-footer{display:flex;align-items:center;justify-content:space-between}
+
+/* PAGE STRUCTURE */
+.page-title{font-size:20px;font-weight:600;margin-bottom:4px}
+.page-sub{font-size:13px;color:var(--fg-muted);margin-bottom:20px}
+.section-title{font-size:14px;font-weight:600;color:var(--fg);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.flex-gap{display:flex;gap:16px}
+.flex-1{flex:1;min-width:0}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+/* SCREENS */
+.screen{display:none;flex:1;flex-direction:column;overflow:hidden}
+.screen.active{display:flex}
+.screen-scroll{flex:1;overflow-y:auto;padding:24px}
+
+/* HEALTH SCREEN */
+.health-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:20px}
+.health-tab{padding:8px 16px;font-size:13px;color:var(--fg-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.health-tab:hover{color:var(--fg)}
+.health-tab.active{color:var(--fg);border-bottom-color:var(--accent)}
+.health-pane{display:none}
+.health-pane.active{display:block}
+
+/* Health score ring / summary pill */
+.health-score{display:inline-flex;align-items:center;gap:6px;background:var(--canvas-subtle);border:1px solid var(--border);border-radius:20px;padding:4px 14px;font-size:13px}
+.hs-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+/* Repo drilldown table highlight */
+.repo-row{cursor:pointer}
+.repo-row:hover td{background:rgba(88,166,255,0.05)}
+.repo-row.selected td{background:rgba(88,166,255,0.06)}
+
+/* Admin settings sub-section */
+.settings-group{background:var(--canvas-subtle);border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:16px}
+.settings-group-title{font-size:12px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px}
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-muted);font-size:13px}
+.settings-row:last-child{border-bottom:none;padding-bottom:0}
+.settings-label{color:var(--fg)}
+.settings-hint{font-size:11px;color:var(--fg-subtle);margin-top:2px}
+.input-sm{background:var(--canvas-inset);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:13px;color:var(--fg);font-family:ui-monospace,SFMono-Regular,monospace;width:72px;text-align:right}
+.input-sm:focus{outline:none;border-color:var(--accent)}
+.toggle{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px}
+.toggle-track{width:32px;height:18px;border-radius:9px;background:var(--border);position:relative;transition:background .15s;flex-shrink:0}
+.toggle-track.on{background:var(--accent-bg)}
+.toggle-thumb{width:14px;height:14px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left .15s}
+.toggle-track.on .toggle-thumb{left:16px}
+
+/* Data source annotation box */
+.data-source-note{background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.18);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--fg-muted);display:flex;gap:8px;align-items:flex-start;margin-bottom:20px}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
+      <circle cx="12" cy="12" r="3.5" fill="#bc8cff"/>
+      <ellipse cx="12" cy="12" rx="9" ry="5.5" stroke="#bc8cff" stroke-width="1.5" fill="none"/>
+      <line x1="12" y1="2" x2="12" y2="5" stroke="#bc8cff" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="12" y1="19" x2="12" y2="22" stroke="#bc8cff" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="2" y1="12" x2="5" y2="12" stroke="#bc8cff" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="19" y1="12" x2="22" y2="12" stroke="#bc8cff" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    OctoWatch
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-item active" onclick="nav('dashboard',this)">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M1 1.75A.75.75 0 011.75 1h12.5a.75.75 0 010 1.5H1.75A.75.75 0 011 1.75zm0 5A.75.75 0 011.75 6h12.5a.75.75 0 010 1.5H1.75A.75.75 0 011 6.75zm0 5a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H1.75a.75.75 0 01-.75-.75z"/></svg>
+      Dashboard
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Security</div>
+    <div class="nav-item" onclick="nav('threats',this)">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M7.467.133a1.748 1.748 0 011.066 0l5.25 1.68A1.75 1.75 0 0115 3.48V7c0 1.566-.32 3.182-1.303 4.682-.983 1.498-2.585 2.813-5.032 3.855a1.697 1.697 0 01-1.33 0c-2.447-1.042-4.049-2.357-5.032-3.855C1.32 10.182 1 8.566 1 7V3.48a1.75 1.75 0 011.217-1.667z"/></svg>
+      Threat Detections
+      <span class="nav-count">23</span>
+    </div>
+    <div class="nav-item" onclick="nav('events',this)">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M2 2.75C2 1.784 2.784 1 3.75 1h8.5c.966 0 1.75.784 1.75 1.75v11.5A1.75 1.75 0 0112.25 16h-8.5A1.75 1.75 0 012 14.25zm1.75-.25a.25.25 0 00-.25.25v11.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25V2.75a.25.25 0 00-.25-.25z"/></svg>
+      Events Explorer
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Platform Intelligence</div>
+    <div class="nav-item" onclick="nav('velocity',this)">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8.75 1.75a.75.75 0 00-1.5 0v5.268L5.78 5.543a.75.75 0 10-1.06 1.06l2.72 2.72.707-.707-.707.707a.75.75 0 001.06 0l2.72-2.72a.75.75 0 10-1.06-1.06L8.75 7.018z"/><path d="M2 8a6 6 0 1012 0A6 6 0 002 8zm-.5 0a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0z"/></svg>
+      Engineering Velocity
+    </div>
+    <div class="nav-item" onclick="nav('devactivity',this)">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M10.5 5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm.061 3.073a4 4 0 10-5.123 0 6.004 6.004 0 00-3.431 5.142.75.75 0 001.498.07 4.5 4.5 0 018.99 0 .75.75 0 101.498-.07 6.005 6.005 0 00-3.432-5.142z"/></svg>
+      Developer Activity
+    </div>
+    <div class="nav-item" onclick="nav('copilot',this)">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M0 1.75A.75.75 0 01.75 1h4.253c1.227 0 2.317.59 3 1.5A3.744 3.744 0 0111.006 1h4.245a.75.75 0 01.75.75v10.5a.75.75 0 01-.75.75h-4.507a2.25 2.25 0 00-1.591.659l-.622.621a.75.75 0 01-1.06 0l-.622-.621A2.25 2.25 0 005.258 13H.75a.75.75 0 01-.75-.75zm8.5 9.5a3.75 3.75 0 013-3.75V4.75A2.25 2.25 0 009.253 2.5H7.5A.25.25 0 007.25 2.75v8.29a4.74 4.74 0 011.25-.79zm-1 0a4.74 4.74 0 011.25.79V2.75A.25.25 0 008.5 2.5H6.747A2.25 2.25 0 004.5 4.75v2.25A3.75 3.75 0 017.5 10.75z"/></svg>
+      Copilot Insights
+    </div>
+    <div class="nav-item" onclick="nav('health',this)">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM0 8a8 8 0 1116 0A8 8 0 010 8zm8-3.5a.75.75 0 01.75.75v2.69l1.28-1.28a.75.75 0 011.06 1.06l-2.5 2.5a.75.75 0 01-1.06 0l-2.5-2.5a.75.75 0 011.06-1.06L7.25 9.19V5.25A.75.75 0 018 4.5z"/></svg>
+      Org Health
+      <span class="nav-count" style="background:var(--attention)">14</span>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Analytics</div>
+    <div class="nav-item" onclick="nav('reports',this)">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0114.25 13H8.06l-2.573 2.573A1.458 1.458 0 013 14.543V13H1.75A1.75 1.75 0 010 11.25z"/></svg>
+      Reports
+    </div>
+    <div class="nav-item" onclick="nav('query',this)">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M10.68 11.74a6 6 0 01-7.922-8.982 6 6 0 018.982 7.922l3.04 3.04a.749.749 0 11-1.06 1.06zm-3.18.26a4.5 4.5 0 100-9 4.5 4.5 0 000 9z"/></svg>
+      Query Explorer
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Settings</div>
+    <div class="nav-item" onclick="nav('rules',this)">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M3.72 3.72a.75.75 0 011.06 1.06L2.56 7h10.88l-2.22-2.22a.75.75 0 011.06-1.06l3.5 3.5a.75.75 0 010 1.06l-3.5 3.5a.75.75 0 11-1.06-1.06L13.44 9H2.56l2.22 2.22a.75.75 0 11-1.06 1.06l-3.5-3.5a.75.75 0 010-1.06z"/></svg>
+      Detection Rules
+    </div>
+    <div class="nav-item" onclick="nav('users',this)">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M10.5 5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm4.5 12.25a.75.75 0 01-.75.75H1.75a.75.75 0 010-1.5A6.25 6.25 0 0114.25 12.5a.75.75 0 01.75.75z"/></svg>
+      Users &amp; Roles
+    </div>
+    <div class="nav-item" onclick="nav('integrations',this)">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 110-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5z"/></svg>
+      Integrations
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="org-tabs">
+      <div class="org-tab active">acme-corp</div>
+      <div class="org-tab">globex</div>
+      <div class="org-tab add">+ Add org</div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-sm">
+        <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/></svg>
+        New report
+      </button>
+      <div class="avatar-sm">JM</div>
+    </div>
+  </div>
+
+  <!-- ===== DASHBOARD ===== -->
+  <div id="s-dashboard" class="screen active">
+    <div class="screen-scroll">
+      <div class="page-title">Dashboard</div>
+      <div class="page-sub">Activity across 2 organizations &middot; Updated just now</div>
+      <div class="stat-pills">
+        <div class="pill"><span class="pill-val">847K</span>&nbsp;events today</div>
+        <div class="pill danger"><span class="pill-val">23</span>&nbsp;open threats</div>
+        <div class="pill success"><span class="pill-val">94.2%</span>&nbsp;pipeline success</div>
+        <div class="pill done"><span class="pill-val">312</span>&nbsp;active devs</div>
+        <div class="pill accent"><span class="pill-val">1.8M</span>&nbsp;API calls (24h)</div>
+      </div>
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header">
+          Activity heatmap &mdash; last 13 weeks
+          <span style="display:flex;gap:8px;align-items:center;font-size:11px;color:var(--fg-muted);font-weight:400">
+            <span style="width:10px;height:10px;background:rgba(248,81,73,0.8);border-radius:2px;display:inline-block"></span>Security&nbsp;
+            <span style="width:10px;height:10px;background:#39d353;border-radius:2px;display:inline-block"></span>Platform
+          </span>
+        </div>
+        <div class="cal-wrap" id="cal-dashboard"></div>
+      </div>
+      <div class="flex-gap">
+        <div class="flex-1">
+          <div class="section-title">Activity feed</div>
+          <div class="timeline">
+            <div class="tl-item"><div class="tl-node security"></div><div class="tl-body"><strong>Impossible travel detected</strong> &mdash; <span class="mention">@mal-user99</span> authenticated from <span class="label label-danger">US-East</span> then <span class="label label-danger">CN-Beijing</span> within 4&nbsp;min</div><div class="tl-time">2 minutes ago &middot; acme-corp</div></div>
+            <div class="tl-item"><div class="tl-node platform"></div><div class="tl-body"><span class="mention">@alice</span> merged PR <strong>#4821</strong> into <code>main</code> on <strong>acme/payments-api</strong> &middot; 3&nbsp;workflows triggered</div><div class="tl-time">7 minutes ago &middot; acme-corp</div></div>
+            <div class="tl-item"><div class="tl-node warning"></div><div class="tl-body">Workflow failure spike on <strong>acme/infra-deploy</strong> &mdash; 6/10 runs failed <span class="label label-attention">degraded</span></div><div class="tl-time">14 minutes ago &middot; acme-corp</div></div>
+            <div class="tl-item"><div class="tl-node security"></div><div class="tl-body">Repo visibility changed to <span class="label label-danger">public</span> &mdash; <strong>globex/internal-tools</strong> by <span class="mention">@bob</span> <span class="label label-attention">review required</span></div><div class="tl-time">31 minutes ago &middot; globex</div></div>
+            <div class="tl-item"><div class="tl-node platform"></div><div class="tl-body">Deploy to <span class="label label-success">production</span> &mdash; <strong>acme/checkout-service v2.14.1</strong> by <span class="mention">@carol</span></div><div class="tl-time">45 minutes ago &middot; acme-corp</div></div>
+            <div class="tl-item"><div class="tl-node security"></div><div class="tl-body">Branch protection rule deleted on <span class="label label-danger">main</span> &mdash; <strong>globex/auth-service</strong> by <span class="mention">@eremin</span></div><div class="tl-time">2 hours ago &middot; globex</div></div>
+            <div class="tl-item"><div class="tl-node info"></div><div class="tl-body">New SAML SSO bypass token issued for <span class="mention">@david</span> &mdash; IP <code>203.0.113.42</code> <span class="label label-muted">off-hours</span></div><div class="tl-time">3 hours ago &middot; acme-corp</div></div>
+            <div class="tl-item"><div class="tl-node platform"></div><div class="tl-body"><strong>47 contributors</strong> pushed to acme-corp repos today &middot; peak at 10:30&nbsp;UTC</div><div class="tl-time">Today · 10:30 UTC</div></div>
+          </div>
+        </div>
+        <div style="width:300px;min-width:300px;display:flex;flex-direction:column;gap:14px">
+          <div class="card">
+            <div class="card-header">Open threats by severity</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px;font-size:13px"><div class="sev-dot critical"></div><span style="flex:1;color:var(--fg-muted)">Critical</span><div style="height:7px;background:var(--danger);border-radius:4px;width:40%"></div><span style="color:var(--fg-muted);width:20px;text-align:right;font-variant-numeric:tabular-nums">8</span></div>
+              <div style="display:flex;align-items:center;gap:8px;font-size:13px"><div class="sev-dot high"></div><span style="flex:1;color:var(--fg-muted)">High</span><div style="height:7px;background:var(--severe);border-radius:4px;width:30%"></div><span style="color:var(--fg-muted);width:20px;text-align:right;font-variant-numeric:tabular-nums">6</span></div>
+              <div style="display:flex;align-items:center;gap:8px;font-size:13px"><div class="sev-dot medium"></div><span style="flex:1;color:var(--fg-muted)">Medium</span><div style="height:7px;background:var(--attention);border-radius:4px;width:22%"></div><span style="color:var(--fg-muted);width:20px;text-align:right;font-variant-numeric:tabular-nums">5</span></div>
+              <div style="display:flex;align-items:center;gap:8px;font-size:13px"><div class="sev-dot low"></div><span style="flex:1;color:var(--fg-muted)">Low</span><div style="height:7px;background:var(--success);border-radius:4px;width:18%"></div><span style="color:var(--fg-muted);width:20px;text-align:right;font-variant-numeric:tabular-nums">4</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">Platform alerts</div>
+            <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+              <div style="display:flex;gap:8px"><span style="color:var(--danger);font-size:15px">&#8679;</span><div>Workflow failure rate <strong>+12%</strong> vs last week &mdash; <strong>infra-deploy</strong></div></div>
+              <div style="display:flex;gap:8px;padding-top:8px;border-top:1px solid var(--border-muted)"><span style="color:var(--attention);font-size:15px">&#9889;</span><div>PR cycle time for <strong>platform-team</strong> up to <strong>4.1h avg</strong></div></div>
+              <div style="display:flex;gap:8px;padding-top:8px;border-top:1px solid var(--border-muted)"><span style="color:var(--success);font-size:15px">&#8679;</span><div>Deploy frequency <strong>+28%</strong> this sprint &mdash; checkout-service</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== THREAT DETECTIONS ===== -->
+  <div id="s-threats" class="screen">
+    <div class="split-layout">
+      <div class="split-main">
+        <div class="page-title">Threat Detections</div>
+        <div class="page-sub">Rule-based and ML-powered detections from audit log analysis</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button class="btn btn-sm">Filter</button>
+          <button class="btn btn-sm btn-primary">New rule</button>
+        </div>
+        <div class="issue-list">
+          <div class="il-filters">
+            <div class="il-tab active">Open <span style="color:var(--fg-subtle)">(23)</span></div>
+            <div class="il-tab">Closed</div>
+            <div class="il-tab">Acknowledged</div>
+            <div class="il-tab">All</div>
+          </div>
+          <div class="il-row selected" onclick="openPanel('threat-panel')">
+            <div class="sev-dot critical"></div>
+            <div class="il-meta">
+              <div class="il-title">Impossible travel &mdash; account access from 2 countries in 4 minutes</div>
+              <div class="il-sub"><span class="label label-danger">critical</span><span class="label label-muted">impossible-travel</span>actor: <span class="mention">@mal-user99</span> &middot; acme-corp</div>
+            </div>
+            <div class="il-time">2 min ago</div>
+          </div>
+          <div class="il-row" onclick="openPanel('threat-panel')">
+            <div class="sev-dot critical"></div>
+            <div class="il-meta">
+              <div class="il-title">Branch protection deleted on protected repository main branch</div>
+              <div class="il-sub"><span class="label label-danger">critical</span><span class="label label-muted">branch-protection</span>actor: <span class="mention">@eremin</span> &middot; globex/auth-service</div>
+            </div>
+            <div class="il-time">2h ago</div>
+          </div>
+          <div class="il-row" onclick="openPanel('threat-panel')">
+            <div class="sev-dot high"></div>
+            <div class="il-meta">
+              <div class="il-title">Repository visibility changed from private to public</div>
+              <div class="il-sub"><span class="label label-severe">high</span><span class="label label-muted">data-exposure</span>actor: <span class="mention">@bob</span> &middot; globex/internal-tools</div>
+            </div>
+            <div class="il-time">31 min ago</div>
+          </div>
+          <div class="il-row" onclick="openPanel('threat-panel')">
+            <div class="sev-dot high"></div>
+            <div class="il-meta">
+              <div class="il-title">SSO bypass PAT created after multiple failed authentications</div>
+              <div class="il-sub"><span class="label label-severe">high</span><span class="label label-muted">token-anomaly</span>actor: <span class="mention">@david</span> &middot; acme-corp</div>
+            </div>
+            <div class="il-time">1h ago</div>
+          </div>
+          <div class="il-row" onclick="openPanel('threat-panel')">
+            <div class="sev-dot medium"></div>
+            <div class="il-meta">
+              <div class="il-title">Unusual bulk repository clone (47 repos, off-hours)</div>
+              <div class="il-sub"><span class="label label-attention">medium</span><span class="label label-muted">bulk-action</span>actor: <span class="mention">@svc-scanner</span> &middot; acme-corp</div>
+            </div>
+            <div class="il-time">6h ago</div>
+          </div>
+        </div>
+      </div>
+      <div id="threat-panel" class="split-panel">
+        <div class="panel-header">
+          <div style="font-weight:600">Impossible travel detection</div>
+          <div class="panel-close" onclick="closePanel('threat-panel')">&#215;</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:14px"><span class="label label-danger">critical</span><span class="label label-muted">impossible-travel</span><span class="label label-done">ml-assisted</span></div>
+        <div style="font-size:13px;color:var(--fg-muted);margin-bottom:14px">Actor <span class="mention">@mal-user99</span> authenticated from <strong>US-East (98.12.34.56)</strong> at 14:03:22&nbsp;UTC, then from <strong>CN-Beijing (61.220.19.3)</strong> at 14:07:41&nbsp;UTC &mdash; physical travel impossible in 4m&nbsp;19s.</div>
+        <div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--fg-subtle);letter-spacing:.06em;margin-bottom:6px">Evidence</div>
+        <div class="code-block" style="margin-bottom:14px;font-size:11px"><span class="code-key">"action"</span>: <span class="code-str">"user.login"</span>,
+<span class="code-key">"actor"</span>: <span class="code-str">"mal-user99"</span>,
+<span class="code-key">"created_at"</span>: <span class="code-str">"2024-01-15T14:03:22Z"</span>,
+<span class="code-key">"actor_ip"</span>: <span class="code-str">"98.12.34.56"</span>,
+<span class="code-key">"actor_location"</span>: { <span class="code-key">"country_code"</span>: <span class="code-str">"US"</span> }
+<span style="color:var(--fg-subtle)">&#9472;&#9472; 4 minutes 19 seconds later &#9472;&#9472;</span>
+<span class="code-key">"actor_ip"</span>: <span class="code-str">"61.220.19.3"</span>,
+<span class="code-key">"actor_location"</span>: { <span class="code-key">"country_code"</span>: <span class="code-str">"CN"</span> }</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-danger">Suspend user</button>
+          <button class="btn btn-sm">Acknowledge</button>
+          <button class="btn btn-sm">Assign</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== EVENTS EXPLORER ===== -->
+  <div id="s-events" class="screen">
+    <div class="screen-scroll">
+      <div class="page-title">Events Explorer</div>
+      <div class="page-sub">Search and explore raw audit log events across all organizations</div>
+      <div class="search-bar" style="margin-bottom:8px">
+        <svg width="16" height="16" fill="var(--fg-subtle)" viewBox="0 0 16 16"><path d="M10.68 11.74a6 6 0 01-7.922-8.982 6 6 0 018.982 7.922l3.04 3.04a.749.749 0 11-1.06 1.06zm-3.18.26a4.5 4.5 0 100-9 4.5 4.5 0 000 9z"/></svg>
+        <input type="text" placeholder="Search events... e.g. action:repo.create actor:@suspicious.*" value="org:acme-corp action:repo.*">
+      </div>
+      <div class="filter-chips" style="margin-bottom:16px">
+        <div class="chip">org:acme-corp<span class="chip-x">&#215;</span></div>
+        <div class="chip">action:repo.*<span class="chip-x">&#215;</span></div>
+        <div class="chip">after:2024-01-14<span class="chip-x">&#215;</span></div>
+        <button class="btn btn-sm" style="border-radius:12px">+ Add filter</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:13px;color:var(--fg-muted)">2,847 events matching filters</span>
+        <div style="display:flex;gap:6px"><button class="btn btn-sm">Export CSV</button><button class="btn btn-sm">Save query</button></div>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+        <table>
+          <thead><tr><th>Timestamp</th><th>Action</th><th>Actor</th><th>Repository</th><th>IP / Location</th><th></th></tr></thead>
+          <tbody>
+            <tr><td style="font-family:ui-monospace,monospace;font-size:12px;color:var(--fg-muted)">2024-01-15 14:07:41</td><td><span class="label label-danger">repo.destroy</span></td><td><span class="mention">@mal-user99</span></td><td>acme/legacy-backup</td><td><code style="font-size:11px">61.220.19.3</code> <span style="font-size:11px;color:var(--fg-subtle)">CN</span></td><td><button class="btn btn-sm">Details</button></td></tr>
+            <tr><td style="font-family:ui-monospace,monospace;font-size:12px;color:var(--fg-muted)">2024-01-15 14:03:22</td><td><span class="label label-muted">repo.create</span></td><td><span class="mention">@alice</span></td><td>acme/new-service</td><td><code style="font-size:11px">192.168.1.10</code> <span style="font-size:11px;color:var(--fg-subtle)">US</span></td><td><button class="btn btn-sm">Details</button></td></tr>
+            <tr><td style="font-family:ui-monospace,monospace;font-size:12px;color:var(--fg-muted)">2024-01-15 13:45:11</td><td><span class="label label-attention">repo.access</span></td><td><span class="mention">@svc-scanner</span></td><td>acme/payments-api</td><td><code style="font-size:11px">10.0.0.5</code> <span style="font-size:11px;color:var(--fg-subtle)">internal</span></td><td><button class="btn btn-sm">Details</button></td></tr>
+            <tr><td style="font-family:ui-monospace,monospace;font-size:12px;color:var(--fg-muted)">2024-01-15 13:21:08</td><td><span class="label label-muted">repo.rename</span></td><td><span class="mention">@bob</span></td><td>acme/api-gateway</td><td><code style="font-size:11px">172.16.0.22</code> <span style="font-size:11px;color:var(--fg-subtle)">UK</span></td><td><button class="btn btn-sm">Details</button></td></tr>
+            <tr><td style="font-family:ui-monospace,monospace;font-size:12px;color:var(--fg-muted)">2024-01-15 12:58:33</td><td><span class="label label-danger">repo.visibility_change</span></td><td><span class="mention">@bob</span></td><td>globex/internal-tools</td><td><code style="font-size:11px">172.16.0.22</code> <span style="font-size:11px;color:var(--fg-subtle)">UK</span></td><td><button class="btn btn-sm">Details</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ENGINEERING VELOCITY ===== -->
+  <div id="s-velocity" class="screen">
+    <div class="screen-scroll">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">
+        <div class="page-title" style="margin-bottom:0">Engineering Velocity</div>
+        <div style="display:flex;align-items:center;gap:8px;padding-top:4px">
+          <span style="font-size:11px;color:var(--fg-muted)">DORA tier</span>
+          <span style="background:rgba(63,185,80,0.15);border:1px solid rgba(63,185,80,0.4);color:var(--success);border-radius:6px;padding:3px 10px;font-size:12px;font-weight:600">&#9733; Elite</span>
+        </div>
+      </div>
+      <div class="page-sub">Flow metrics, DORA indicators, and delivery throughput &mdash; use as conversation starters, not scorecards</div>
+      <div style="background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.2);border-radius:6px;padding:10px 14px;margin-bottom:20px;font-size:12px;color:var(--fg-muted);display:flex;gap:10px;align-items:flex-start">
+        <svg width="14" height="14" fill="var(--accent)" viewBox="0 0 16 16" style="flex-shrink:0;margin-top:1px"><path d="M0 8a8 8 0 1116 0A8 8 0 010 8zm8-6.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 7.75A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 110-2 1 1 0 010 2z"/></svg>
+        <span>Metrics here measure <strong>system behavior</strong>, not individual performance. A metric moving in an unexpected direction is a question to investigate, not a judgment to make. High deploy frequency alone doesn&rsquo;t indicate maturity&mdash;track alongside change failure rate.</span>
+      </div>
+      <div class="metric-strip">
+        <div class="metric"><div class="metric-val">1,247</div><div class="metric-lbl">PRs merged (30d)</div><div class="metric-delta up">&#8679; 8% vs prev period</div></div>
+        <div class="metric" style="border-color:rgba(210,153,34,0.4)"><div class="metric-val" style="color:var(--attention)">18h</div><div class="metric-lbl">Lead time for changes</div><div class="metric-delta neutral">idea &#8594; production</div></div>
+        <div class="metric"><div class="metric-val">3.2h</div><div class="metric-lbl">PR cycle time (median)</div><div class="metric-delta down">&#8679; 0.4h slower</div></div>
+        <div class="metric"><div class="metric-val">4.1%</div><div class="metric-lbl">Change failure rate</div><div class="metric-delta up">&#8681; 0.8pp vs last week</div></div>
+        <div class="metric"><div class="metric-val">847</div><div class="metric-lbl">Deployments (30d)</div><div class="metric-delta up">&#8679; 28% vs prev period</div></div>
+        <div class="metric"><div class="metric-val">94.2%</div><div class="metric-lbl">Workflow success</div><div class="metric-delta down">&#8681; 1.2% vs last week</div></div>
+        <div class="metric"><div class="metric-val">23</div><div class="metric-lbl">WIP (items in flight)</div><div class="metric-delta down">&#8679; 4 vs last week</div></div>
+        <div class="metric"><div class="metric-val">68%</div><div class="metric-lbl">Planned work ratio</div><div class="metric-delta neutral">32% unplanned</div></div>
+      </div>
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header">Team contribution calendar &mdash; last 13 weeks<span style="font-size:12px;color:var(--fg-muted);font-weight:400">commit + PR + deploy activity</span></div>
+        <div class="cal-wrap" id="cal-velocity"></div>
+      </div>
+      <div class="grid-2" style="margin-bottom:20px">
+        <div class="chart-wrap">
+          <div class="chart-title">Lead time for changes &mdash; 14 days <span style="color:var(--fg-subtle);font-weight:400">(median + P90)</span></div>
+          <svg width="100%" height="110" viewBox="0 0 400 90" preserveAspectRatio="none">
+            <defs><linearGradient id="gr-lead" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#58a6ff" stop-opacity=".15"/><stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/></linearGradient></defs>
+            <polyline points="0,42 28,38 56,35 84,50 112,30 140,25 168,36 196,28 224,44 252,20 280,16 308,38 336,30 364,42 400,26" fill="none" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="4,3" opacity=".5"/>
+            <polygon points="0,58 28,54 56,48 84,64 112,42 140,35 168,50 196,44 224,58 252,35 280,28 308,52 336,44 364,56 400,40 400,90 0,90" fill="url(#gr-lead)"/>
+            <polyline points="0,58 28,54 56,48 84,64 112,42 140,35 168,50 196,44 224,58 252,35 280,28 308,52 336,44 364,56 400,40" fill="none" stroke="#58a6ff" stroke-width="2"/>
+            <text x="2" y="88" font-size="9" fill="#6e7681">Jan 1</text><text x="355" y="88" font-size="9" fill="#6e7681">Jan 14</text>
+            <text x="300" y="12" font-size="9" fill="#58a6ff" opacity=".6">P90</text>
+            <text x="300" y="26" font-size="9" fill="#58a6ff">median</text>
+          </svg>
+        </div>
+        <div class="chart-wrap">
+          <div class="chart-title">Change failure rate &mdash; 14 days</div>
+          <svg width="100%" height="110" viewBox="0 0 400 90" preserveAspectRatio="none">
+            <defs><linearGradient id="gr-cfr" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f85149" stop-opacity=".2"/><stop offset="100%" stop-color="#f85149" stop-opacity="0"/></linearGradient></defs>
+            <polygon points="0,75 28,72 56,70 84,78 112,65 140,60 168,72 196,68 224,75 252,58 280,55 308,70 336,66 364,74 400,62 400,90 0,90" fill="url(#gr-cfr)"/>
+            <polyline points="0,75 28,72 56,70 84,78 112,65 140,60 168,72 196,68 224,75 252,58 280,55 308,70 336,66 364,74 400,62" fill="none" stroke="#f85149" stroke-width="2"/>
+            <line x1="0" y1="54" x2="400" y2="54" stroke="#d29922" stroke-width="1" stroke-dasharray="6,3" opacity=".6"/>
+            <text x="2" y="52" font-size="9" fill="#d29922">5% threshold</text>
+            <text x="2" y="88" font-size="9" fill="#6e7681">Jan 1</text><text x="355" y="88" font-size="9" fill="#6e7681">Jan 14</text>
+          </svg>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom:20px">
+        <div class="chart-wrap">
+          <div class="chart-title">Workflow success rate &mdash; 14 days</div>
+          <svg width="100%" height="110" viewBox="0 0 400 90" preserveAspectRatio="none">
+            <defs><linearGradient id="gr-success" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3fb950" stop-opacity=".25"/><stop offset="100%" stop-color="#3fb950" stop-opacity="0"/></linearGradient></defs>
+            <polygon points="0,55 28,48 56,38 84,60 112,28 140,18 168,40 196,32 224,52 252,22 280,14 308,44 336,36 364,50 400,32 400,90 0,90" fill="url(#gr-success)"/>
+            <polyline points="0,55 28,48 56,38 84,60 112,28 140,18 168,40 196,32 224,52 252,22 280,14 308,44 336,36 364,50 400,32" fill="none" stroke="#3fb950" stroke-width="2"/>
+            <text x="2" y="88" font-size="9" fill="#6e7681">Jan 1</text><text x="355" y="88" font-size="9" fill="#6e7681">Jan 14</text>
+          </svg>
+        </div>
+        <div class="chart-wrap">
+          <div class="chart-title">Daily deployments &mdash; 14 days</div>
+          <svg width="100%" height="110" viewBox="0 0 400 90" preserveAspectRatio="none">
+            <rect x="4" y="55" width="22" height="35" fill="#58a6ff" rx="2" opacity=".7"/>
+            <rect x="32" y="40" width="22" height="50" fill="#58a6ff" rx="2" opacity=".7"/>
+            <rect x="60" y="45" width="22" height="45" fill="#58a6ff" rx="2" opacity=".7"/>
+            <rect x="88" y="26" width="22" height="64" fill="#58a6ff" rx="2" opacity=".7"/>
+            <rect x="116" y="35" width="22" height="55" fill="#58a6ff" rx="2" opacity=".7"/>
+            <rect x="144" y="22" width="22" height="68" fill="#58a6ff" rx="2" opacity=".7"/>
+            <rect x="172" y="30" width="22" height="60" fill="#58a6ff" rx="2" opacity=".7"/>
+            <rect x="200" y="17" width="22" height="73" fill="#1f6feb" rx="2"/>
+            <rect x="228" y="28" width="22" height="62" fill="#58a6ff" rx="2" opacity=".7"/>
+            <rect x="256" y="12" width="22" height="78" fill="#58a6ff" rx="2" opacity=".7"/>
+            <rect x="284" y="22" width="22" height="68" fill="#58a6ff" rx="2" opacity=".7"/>
+            <rect x="312" y="36" width="22" height="54" fill="#58a6ff" rx="2" opacity=".7"/>
+            <rect x="340" y="18" width="22" height="72" fill="#58a6ff" rx="2" opacity=".7"/>
+            <rect x="368" y="8" width="22" height="82" fill="#3fb950" rx="2"/>
+            <text x="2" y="100" font-size="9" fill="#6e7681">Jan 1</text><text x="355" y="100" font-size="9" fill="#6e7681">Jan 14</text>
+          </svg>
+        </div>
+      </div>
+      <div class="section-title">Top failing workflows</div>
+      <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:20px">
+        <table>
+          <thead><tr><th>Workflow</th><th>Repository</th><th>Failure rate</th><th>Last failed</th><th>P50 duration</th></tr></thead>
+          <tbody>
+            <tr><td>deploy-production.yml</td><td>acme/infra-deploy</td><td><span class="label label-danger">60%</span></td><td style="color:var(--fg-muted)">14 min ago</td><td style="font-variant-numeric:tabular-nums">4m 22s</td></tr>
+            <tr><td>e2e-tests.yml</td><td>acme/checkout-service</td><td><span class="label label-attention">28%</span></td><td style="color:var(--fg-muted)">2h ago</td><td style="font-variant-numeric:tabular-nums">12m 08s</td></tr>
+            <tr><td>integration-tests.yml</td><td>globex/auth-service</td><td><span class="label label-attention">15%</span></td><td style="color:var(--fg-muted)">5h ago</td><td style="font-variant-numeric:tabular-nums">8m 41s</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="section-title">Most active repositories &mdash; last 30 days</div>
+      <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+        <table>
+          <thead><tr><th>Repository</th><th>Commits</th><th>PRs merged</th><th>Change failure rate</th><th>MTTR</th><th>Contributors</th></tr></thead>
+          <tbody>
+            <tr><td>acme/payments-api</td><td style="font-variant-numeric:tabular-nums">847</td><td>214</td><td><span class="label label-success">2.1%</span></td><td>38m</td><td>28</td></tr>
+            <tr><td>acme/checkout-service</td><td style="font-variant-numeric:tabular-nums">623</td><td>187</td><td><span class="label label-success">1.8%</span></td><td>22m</td><td>19</td></tr>
+            <tr><td>acme/infra-deploy</td><td style="font-variant-numeric:tabular-nums">412</td><td>98</td><td><span class="label label-danger">14.3%</span></td><td>1h 12m</td><td>12</td></tr>
+            <tr><td>globex/auth-service</td><td style="font-variant-numeric:tabular-nums">318</td><td>76</td><td><span class="label label-attention">6.2%</span></td><td>45m</td><td>9</td></tr>
+            <tr><td>globex/api-gateway</td><td style="font-variant-numeric:tabular-nums">275</td><td>61</td><td><span class="label label-success">0%</span></td><td>&mdash;</td><td>8</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DEVELOPER ACTIVITY ===== -->
+  <div id="s-devactivity" class="screen">
+    <div class="screen-scroll">
+      <div class="page-title">Developer Activity</div>
+      <div class="page-sub">Per-developer contribution metrics and security posture</div>
+      <div style="display:flex;gap:8px;margin-bottom:20px">
+        <button class="btn btn-sm">All teams</button>
+        <button class="btn btn-sm" style="border-color:var(--accent);color:var(--accent)">platform-team</button>
+        <button class="btn btn-sm">security-team</button>
+        <button class="btn btn-sm">frontend-team</button>
+      </div>
+
+      <!-- Work distribution -->
+      <div class="section-title" style="margin-bottom:4px">Work distribution &mdash; last 30 days</div>
+      <div style="font-size:12px;color:var(--fg-muted);margin-bottom:16px">Uneven distribution can indicate bus factor risk, burnout, or knowledge silos. Use to start conversations, not assign blame.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+        <div class="card">
+          <div class="card-header">PR authorship share</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+            <div style="display:flex;align-items:center;gap:8px"><span class="mention" style="width:76px;font-size:12px">@alice</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:31%;height:100%;background:#1f6feb;border-radius:4px"></div></div><span style="color:var(--fg-muted);width:32px;text-align:right">31%</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="mention" style="width:76px;font-size:12px">@david</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:24%;height:100%;background:#1f6feb;border-radius:4px"></div></div><span style="color:var(--fg-muted);width:32px;text-align:right">24%</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="mention" style="width:76px;font-size:12px">@carol</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:20%;height:100%;background:#238636;border-radius:4px"></div></div><span style="color:var(--fg-muted);width:32px;text-align:right">20%</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="mention" style="width:76px;font-size:12px">@bob</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:16%;height:100%;background:#238636;border-radius:4px"></div></div><span style="color:var(--fg-muted);width:32px;text-align:right">16%</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="mention" style="width:76px;font-size:12px">@eremin</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:8%;height:100%;background:#58a6ff;border-radius:4px"></div></div><span style="color:var(--fg-muted);width:32px;text-align:right">8%</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span style="color:var(--fg-subtle);width:76px;font-size:12px">others (7)</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:1%;height:100%;background:var(--border);border-radius:4px"></div></div><span style="color:var(--fg-subtle);width:32px;text-align:right">1%</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">Review concentration</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+            <div style="display:flex;align-items:center;gap:8px"><span class="mention" style="width:76px;font-size:12px">@alice</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:44%;height:100%;background:var(--danger);border-radius:4px"></div></div><span style="color:var(--danger);width:32px;text-align:right">44%</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="mention" style="width:76px;font-size:12px">@carol</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:28%;height:100%;background:var(--attention);border-radius:4px"></div></div><span style="color:var(--attention);width:32px;text-align:right">28%</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="mention" style="width:76px;font-size:12px">@david</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:18%;height:100%;background:#238636;border-radius:4px"></div></div><span style="color:var(--fg-muted);width:32px;text-align:right">18%</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="mention" style="width:76px;font-size:12px">@bob</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:10%;height:100%;background:#238636;border-radius:4px"></div></div><span style="color:var(--fg-muted);width:32px;text-align:right">10%</span></div>
+          </div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--danger)">&#9888; <strong>@alice</strong> performs 44% of all reviews &mdash; consider a review rotation to reduce bus factor risk</div>
+        </div>
+      </div>
+
+      <div class="section-title" style="margin-bottom:16px">Developer cards</div>
+      <div class="dev-grid">
+        <div class="dev-card flagged">
+          <div class="dev-top">
+            <div class="avatar" style="background:#8b5cf6">MU</div>
+            <div><div class="dev-name">mal-user99 <span class="label label-danger" style="font-size:10px;height:16px">flagged</span></div><div class="dev-handle"><span class="mention">@mal-user99</span> &middot; external</div></div>
+          </div>
+          <div class="mini-bars"><div class="mini-bar" style="height:8px;background:var(--danger)"></div><div class="mini-bar" style="height:14px;background:var(--danger)"></div><div class="mini-bar" style="height:6px;background:var(--danger)"></div><div class="mini-bar" style="height:20px;background:var(--danger)"></div><div class="mini-bar" style="height:18px;background:var(--danger)"></div><div class="mini-bar" style="height:22px;background:var(--danger)"></div><div class="mini-bar" style="height:10px;background:var(--danger)"></div></div>
+          <div class="dev-stats"><span><strong>3</strong> repos</span><span><strong>0</strong> PRs</span><span style="color:var(--danger)"><strong>2</strong> detections</span></div>
+        </div>
+        <div class="dev-card">
+          <div class="dev-top"><div class="avatar" style="background:#1f6feb">AL</div><div><div class="dev-name">Alice Lund</div><div class="dev-handle"><span class="mention">@alice</span> &middot; platform-team</div></div></div>
+          <div class="mini-bars"><div class="mini-bar" style="height:14px"></div><div class="mini-bar" style="height:20px"></div><div class="mini-bar" style="height:18px"></div><div class="mini-bar" style="height:22px"></div><div class="mini-bar" style="height:16px"></div><div class="mini-bar" style="height:20px"></div><div class="mini-bar" style="height:24px"></div></div>
+          <div class="dev-stats"><span><strong>12</strong> repos</span><span><strong>47</strong> PRs</span><span><strong>0</strong> flags</span></div>
+        </div>
+        <div class="dev-card">
+          <div class="dev-top"><div class="avatar" style="background:#238636">CA</div><div><div class="dev-name">Carol Asuquo</div><div class="dev-handle"><span class="mention">@carol</span> &middot; platform-team</div></div></div>
+          <div class="mini-bars"><div class="mini-bar" style="height:20px"></div><div class="mini-bar" style="height:16px"></div><div class="mini-bar" style="height:22px"></div><div class="mini-bar" style="height:18px"></div><div class="mini-bar" style="height:24px"></div><div class="mini-bar" style="height:14px"></div><div class="mini-bar" style="height:20px"></div></div>
+          <div class="dev-stats"><span><strong>8</strong> repos</span><span><strong>31</strong> PRs</span><span><strong>0</strong> flags</span></div>
+        </div>
+        <div class="dev-card">
+          <div class="dev-top"><div class="avatar" style="background:#db6d28">ER</div><div><div class="dev-name">Emil Remin <span class="label label-attention" style="font-size:10px;height:16px">review</span></div><div class="dev-handle"><span class="mention">@eremin</span> &middot; security-team</div></div></div>
+          <div class="mini-bars"><div class="mini-bar" style="height:18px;background:var(--attention)"></div><div class="mini-bar" style="height:22px;background:var(--attention)"></div><div class="mini-bar" style="height:16px;background:var(--attention)"></div><div class="mini-bar" style="height:20px;background:var(--attention)"></div><div class="mini-bar" style="height:14px;background:var(--attention)"></div><div class="mini-bar" style="height:22px;background:var(--attention)"></div><div class="mini-bar" style="height:18px;background:var(--attention)"></div></div>
+          <div class="dev-stats"><span><strong>5</strong> repos</span><span><strong>12</strong> PRs</span><span style="color:var(--attention)"><strong>1</strong> review</span></div>
+        </div>
+        <div class="dev-card">
+          <div class="dev-top"><div class="avatar" style="background:#bc8cff">BD</div><div><div class="dev-name">Bob Davies</div><div class="dev-handle"><span class="mention">@bob</span> &middot; frontend-team</div></div></div>
+          <div class="mini-bars"><div class="mini-bar" style="height:12px"></div><div class="mini-bar" style="height:18px"></div><div class="mini-bar" style="height:14px"></div><div class="mini-bar" style="height:20px"></div><div class="mini-bar" style="height:16px"></div><div class="mini-bar" style="height:18px"></div><div class="mini-bar" style="height:22px"></div></div>
+          <div class="dev-stats"><span><strong>6</strong> repos</span><span><strong>24</strong> PRs</span><span><strong>0</strong> flags</span></div>
+        </div>
+        <div class="dev-card">
+          <div class="dev-top"><div class="avatar" style="background:#1f6feb">DW</div><div><div class="dev-name">David Wu</div><div class="dev-handle"><span class="mention">@david</span> &middot; platform-team</div></div></div>
+          <div class="mini-bars"><div class="mini-bar" style="height:16px"></div><div class="mini-bar" style="height:20px"></div><div class="mini-bar" style="height:18px"></div><div class="mini-bar" style="height:14px"></div><div class="mini-bar" style="height:22px"></div><div class="mini-bar" style="height:18px"></div><div class="mini-bar" style="height:16px"></div></div>
+          <div class="dev-stats"><span><strong>9</strong> repos</span><span><strong>38</strong> PRs</span><span><strong>0</strong> flags</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== COPILOT INSIGHTS ===== -->
+  <div id="s-copilot" class="screen">
+    <div class="screen-scroll">
+      <div class="page-title">Copilot Insights</div>
+      <div class="page-sub">GitHub Copilot adoption, seat utilization, model &amp; feature spread, and license optimization</div>
+
+      <!-- Sub-navigation -->
+      <div class="copilot-tabs">
+        <div class="copilot-tab active" onclick="copilotTab('overview',this)">Overview</div>
+        <div class="copilot-tab" onclick="copilotTab('adoption',this)">Adoption</div>
+        <div class="copilot-tab" onclick="copilotTab('models',this)">Models &amp; Features</div>
+        <div class="copilot-tab" onclick="copilotTab('license',this)">License Optimization</div>
+        <div class="copilot-tab" onclick="copilotTab('anomalies',this)">Anomalies <span style="background:var(--danger);color:#fff;border-radius:10px;padding:0 5px;font-size:10px;font-weight:600;margin-left:4px">3</span></div>
+      </div>
+
+      <!-- OVERVIEW -->
+      <div id="ct-overview" class="copilot-pane active">
+        <div style="background:rgba(248,81,73,0.08);border:1px solid rgba(248,81,73,0.3);border-radius:6px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:12px">
+          <svg width="16" height="16" fill="var(--danger)" viewBox="0 0 16 16" style="flex-shrink:0;margin-top:2px"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0114.082 15H1.918a1.75 1.75 0 01-1.543-2.575zm1.763.707a.25.25 0 00-.44 0L1.698 13.132a.25.25 0 00.22.368h12.164a.25.25 0 00.22-.368zM9 11a1 1 0 11-2 0 1 1 0 012 0zM8 5.25a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0V6A.75.75 0 018 5.25z"/></svg>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:13px;color:var(--danger);margin-bottom:4px">Seat waste detected &mdash; $1,178/month in unused licenses</div>
+            <div style="font-size:12px;color:var(--fg-muted)"><strong style="color:var(--fg)">38 inactive seats</strong> (30+ days no activity) + <strong style="color:var(--fg)">24 never-used seats</strong> = <strong style="color:var(--danger)">62 of 200 seats</strong> producing no value. At $19/seat/month: <strong style="color:var(--danger)">$1,178/month ($14,136/year)</strong>.</div>
+          </div>
+          <button class="btn btn-sm btn-danger" style="flex-shrink:0">Export inactive list</button>
+        </div>
+        <div class="metric-strip">
+          <div class="metric"><div class="metric-val">28.5%</div><div class="metric-lbl">Acceptance rate (7d avg)</div><div class="metric-delta up">&#8679; 1.2pp vs prev 7d</div></div>
+          <div class="metric"><div class="metric-val">142 / 200</div><div class="metric-lbl">Active / total seats</div><div class="metric-delta neutral">71% utilization</div></div>
+          <div class="metric" style="border-color:rgba(248,81,73,0.4)"><div class="metric-val" style="color:var(--danger)">62</div><div class="metric-lbl">Inactive + never used</div><div class="metric-delta down">$1,178/mo cost</div></div>
+          <div class="metric"><div class="metric-val">4,821</div><div class="metric-lbl">Lines accepted (today)</div><div class="metric-delta up">&#8679; 12% vs 7d avg</div></div>
+          <div class="metric"><div class="metric-val">312</div><div class="metric-lbl">Chat turns (today)</div><div class="metric-delta neutral">&#8212; steady</div></div>
+          <div class="metric"><div class="metric-val">44</div><div class="metric-lbl">PR summaries (today)</div><div class="metric-delta up">&#8679; 8 vs 7d avg</div></div>
+        </div>
+        <div class="grid-2" style="margin-bottom:20px">
+          <div class="chart-wrap">
+            <div class="chart-title">Acceptance rate &mdash; 7-day rolling avg <span style="color:var(--fg-subtle);font-weight:400">(smooths weekends &amp; holidays)</span></div>
+            <svg width="100%" height="110" viewBox="0 0 400 90" preserveAspectRatio="none">
+              <defs><linearGradient id="gr-acc" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#bc8cff" stop-opacity=".25"/><stop offset="100%" stop-color="#bc8cff" stop-opacity="0"/></linearGradient></defs>
+              <polygon points="0,65 28,60 56,55 84,62 112,50 140,42 168,46 196,40 224,52 252,36 280,32 308,44 336,38 364,42 400,36 400,90 0,90" fill="url(#gr-acc)"/>
+              <polyline points="0,65 28,60 56,55 84,62 112,50 140,42 168,46 196,40 224,52 252,36 280,32 308,44 336,38 364,42 400,36" fill="none" stroke="#bc8cff" stroke-width="2"/>
+              <line x1="0" y1="45" x2="400" y2="45" stroke="#3fb950" stroke-width="1" stroke-dasharray="6,3" opacity=".5"/>
+              <text x="2" y="43" font-size="9" fill="#3fb950">25% good</text>
+              <text x="2" y="88" font-size="9" fill="#6e7681">Jan 1</text><text x="355" y="88" font-size="9" fill="#6e7681">Mar 10</text>
+            </svg>
+          </div>
+          <div class="chart-wrap">
+            <div class="chart-title">Seat utilization trend</div>
+            <svg width="100%" height="110" viewBox="0 0 400 90" preserveAspectRatio="none">
+              <polyline points="0,50 50,48 100,44 150,40 200,36 250,30 300,26 350,22 400,20" fill="none" stroke="#58a6ff" stroke-width="2"/>
+              <polyline points="0,28 50,30 100,33 150,36 200,42 250,46 300,50 350,52 400,54" fill="none" stroke="#d29922" stroke-width="1.5"/>
+              <polyline points="0,60 50,62 100,62 150,64 200,66 250,64 300,62 350,60 400,58" fill="none" stroke="#f85149" stroke-width="1.5"/>
+              <text x="5" y="88" font-size="9" fill="#6e7681">Oct</text><text x="185" y="88" font-size="9" fill="#6e7681">Jan</text><text x="370" y="88" font-size="9" fill="#6e7681">Mar</text>
+            </svg>
+            <div style="display:flex;gap:12px;margin-top:6px;font-size:11px;color:var(--fg-muted)"><span><span style="color:#58a6ff">&#9644;</span> Active</span><span><span style="color:#d29922">&#9644;</span> Inactive 30d+</span><span><span style="color:#f85149">&#9644;</span> Never used</span></div>
+          </div>
+        </div>
+        <div class="grid-2" style="margin-bottom:20px">
+          <div class="card">
+            <div class="card-header">Acceptance rate by language</div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:88px;color:var(--fg-muted)">TypeScript</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:38%;height:100%;background:#3fb950;border-radius:4px"></div></div><span style="color:var(--fg-muted);width:32px;text-align:right">38%</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:88px;color:var(--fg-muted)">Python</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:34%;height:100%;background:#3fb950;border-radius:4px"></div></div><span style="color:var(--fg-muted);width:32px;text-align:right">34%</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:88px;color:var(--fg-muted)">Go</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:29%;height:100%;background:#26a641;border-radius:4px"></div></div><span style="color:var(--fg-muted);width:32px;text-align:right">29%</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:88px;color:var(--fg-muted)">Java</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:21%;height:100%;background:#d29922;border-radius:4px"></div></div><span style="color:var(--fg-muted);width:32px;text-align:right">21%</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:88px;color:var(--fg-muted)">C++</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:14%;height:100%;background:#f85149;border-radius:4px"></div></div><span style="color:var(--fg-muted);width:32px;text-align:right">14%</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:88px;color:var(--fg-muted)">Rust</span><div style="flex:1;height:8px;background:var(--canvas-inset);border-radius:4px;overflow:hidden"><div style="width:11%;height:100%;background:#f85149;border-radius:4px"></div></div><span style="color:var(--fg-muted);width:32px;text-align:right">11%</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">Correlation insight</div>
+            <div style="font-size:12px;color:var(--fg-muted);margin-bottom:12px">Copilot adoption vs. delivery outcomes &mdash; correlation, not causation</div>
+            <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+              <div style="display:flex;align-items:flex-start;gap:10px;padding:10px;background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.2);border-radius:6px"><span style="font-size:16px;line-height:1">&#8679;</span><div><div style="color:var(--success);font-weight:500">Acceptance rate &#8679; + PR cycle time &#8681;</div><div style="font-size:11px;color:var(--fg-muted);margin-top:2px">7d acceptance rate rose 18%&#8594;28%, median PR cycle time dropped 4.8h&#8594;3.2h.</div></div></div>
+              <div style="display:flex;align-items:flex-start;gap:10px;padding:10px;background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.15);border-radius:6px"><span style="font-size:14px;line-height:1">&#9432;</span><div><div style="color:var(--accent);font-weight:500">Active &#8800; effective</div><div style="font-size:11px;color:var(--fg-muted);margin-top:2px">Track acceptance rate + lines accepted for real value signal.</div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="section-title">Inactive seats &mdash; action required (30+ days)</div>
+        <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+          <table>
+            <thead><tr><th>User</th><th>Seat assigned</th><th>Last activity</th><th>Last editor</th><th>Days inactive</th><th>Monthly cost</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><span class="mention">@contractor-exit1</span></td><td style="color:var(--fg-muted)">Sep 12, 2025</td><td style="color:var(--fg-muted)">Nov 3, 2025</td><td style="color:var(--fg-subtle)">vscode</td><td><span class="label label-danger">128 days</span></td><td style="color:var(--danger);font-variant-numeric:tabular-nums">$19</td><td><button class="btn btn-sm">Revoke</button></td></tr>
+              <tr><td><span class="mention">@former-intern</span></td><td style="color:var(--fg-muted)">Jun 1, 2025</td><td style="color:var(--fg-muted)">Aug 31, 2025</td><td style="color:var(--fg-subtle)">jetbrains</td><td><span class="label label-danger">191 days</span></td><td style="color:var(--danger);font-variant-numeric:tabular-nums">$19</td><td><button class="btn btn-sm">Revoke</button></td></tr>
+              <tr><td><span class="mention">@rarely-uses</span></td><td style="color:var(--fg-muted)">Jan 15, 2025</td><td style="color:var(--fg-muted)">Feb 8, 2026</td><td style="color:var(--fg-subtle)">vscode</td><td><span class="label label-attention">30 days</span></td><td style="color:var(--danger);font-variant-numeric:tabular-nums">$19</td><td><button class="btn btn-sm">Review</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ADOPTION -->
+      <div id="ct-adoption" class="copilot-pane">
+        <div class="adoption-grid">
+          <div class="adoption-card" style="border-color:rgba(63,185,80,0.4)"><div class="tier-count" style="color:var(--success)">34</div><div class="tier-name" style="color:var(--success)">Power Users</div><div class="tier-desc">Active every day</div></div>
+          <div class="adoption-card" style="border-color:rgba(88,166,255,0.4)"><div class="tier-count" style="color:var(--accent)">68</div><div class="tier-name" style="color:var(--accent)">Regular</div><div class="tier-desc">3&ndash;4 days/week</div></div>
+          <div class="adoption-card" style="border-color:rgba(210,153,34,0.4)"><div class="tier-count" style="color:var(--attention)">22</div><div class="tier-name" style="color:var(--attention)">Minimal</div><div class="tier-desc">1&ndash;2 uses in 30d</div></div>
+          <div class="adoption-card" style="border-color:rgba(248,81,73,0.4)"><div class="tier-count" style="color:var(--danger)">38</div><div class="tier-name" style="color:var(--danger)">Inactive</div><div class="tier-desc">Cold 30d+ (was active)</div></div>
+          <div class="adoption-card" style="border-color:rgba(110,118,129,0.4)"><div class="tier-count" style="color:var(--fg-subtle)">24</div><div class="tier-name" style="color:var(--fg-subtle)">Never Used</div><div class="tier-desc">Seat assigned, zero activity</div></div>
+        </div>
+        <div style="height:14px;border-radius:7px;overflow:hidden;display:flex;margin-bottom:8px">
+          <div style="width:17%;background:#3fb950"></div><div style="width:34%;background:#58a6ff"></div><div style="width:11%;background:#d29922"></div><div style="width:19%;background:#f85149"></div><div style="width:12%;background:#6e7681"></div><div style="flex:1;background:var(--border-muted)"></div>
+        </div>
+        <div style="display:flex;gap:12px;font-size:11px;color:var(--fg-muted);margin-bottom:24px">
+          <span><span style="color:#3fb950">&#9644;</span> Power 34</span><span><span style="color:#58a6ff">&#9644;</span> Regular 68</span><span><span style="color:#d29922">&#9644;</span> Minimal 22</span><span><span style="color:#f85149">&#9644;</span> Inactive 38</span><span><span style="color:#6e7681">&#9644;</span> Never 24</span>
+        </div>
+        <div class="grid-2" style="margin-bottom:24px">
+          <div class="card">
+            <div class="card-header">Daily power users <span style="font-size:11px;color:var(--fg-muted);font-weight:400">&#8212; champion candidates</span></div>
+            <div style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-muted)"><span class="mention" style="width:80px;font-size:12px">@alice</span><span style="color:var(--fg-muted);font-size:12px;flex:1">platform-team</span><span style="color:var(--success);font-size:12px">31d streak</span><span style="color:var(--fg-muted);font-size:12px">42% accept</span></div>
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-muted)"><span class="mention" style="width:80px;font-size:12px">@carol</span><span style="color:var(--fg-muted);font-size:12px;flex:1">platform-team</span><span style="color:var(--success);font-size:12px">28d streak</span><span style="color:var(--fg-muted);font-size:12px">37% accept</span></div>
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-muted)"><span class="mention" style="width:80px;font-size:12px">@david</span><span style="color:var(--fg-muted);font-size:12px;flex:1">platform-team</span><span style="color:var(--success);font-size:12px">21d streak</span><span style="color:var(--fg-muted);font-size:12px">35% accept</span></div>
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 0"><span class="mention" style="width:80px;font-size:12px">@tanaka</span><span style="color:var(--fg-muted);font-size:12px;flex:1">security-team</span><span style="color:var(--success);font-size:12px">19d streak</span><span style="color:var(--fg-muted);font-size:12px">29% accept</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">Feature adoption gaps <span style="font-size:11px;color:var(--fg-muted);font-weight:400">among active users</span></div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>IDE completions</span><span style="color:var(--success)">142</span></div><div style="height:6px;background:var(--canvas-inset);border-radius:3px;overflow:hidden"><div style="width:100%;height:100%;background:#3fb950;border-radius:3px"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>IDE chat</span><span style="color:var(--accent)">98</span></div><div style="height:6px;background:var(--canvas-inset);border-radius:3px;overflow:hidden"><div style="width:69%;height:100%;background:#58a6ff;border-radius:3px"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>github.com chat</span><span style="color:var(--accent)">61</span></div><div style="height:6px;background:var(--canvas-inset);border-radius:3px;overflow:hidden"><div style="width:43%;height:100%;background:#58a6ff;border-radius:3px"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>PR summaries (CCR) <span class="label label-attention" style="font-size:10px;height:15px">low</span></span><span style="color:var(--attention)">44</span></div><div style="height:6px;background:var(--canvas-inset);border-radius:3px;overflow:hidden"><div style="width:31%;height:100%;background:#d29922;border-radius:3px"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>CLI <span class="label label-attention" style="font-size:10px;height:15px">low</span></span><span style="color:var(--attention)">18</span></div><div style="height:6px;background:var(--canvas-inset);border-radius:3px;overflow:hidden"><div style="width:13%;height:100%;background:#d29922;border-radius:3px"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>Knowledge bases <span class="label label-done" style="font-size:10px;height:15px">Enterprise</span></span><span style="color:var(--done)">12</span></div><div style="height:6px;background:var(--canvas-inset);border-radius:3px;overflow:hidden"><div style="width:8%;height:100%;background:#bc8cff;border-radius:3px"></div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="section-title">CCR impact on PR review time</div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:0;margin-bottom:20px;align-items:stretch">
+          <div style="background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.25);border-radius:6px 0 0 6px;padding:20px;text-align:center">
+            <div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--success);letter-spacing:.05em;margin-bottom:8px">Repos WITH CCR enabled</div>
+            <div style="font-size:36px;font-weight:600;color:var(--success);font-variant-numeric:tabular-nums">2.8h</div>
+            <div style="font-size:12px;color:var(--fg-muted);margin-top:4px">median PR review time</div>
+            <div style="font-size:11px;color:var(--fg-muted);margin-top:2px">14 repos &middot; 847 PRs</div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;padding:0 16px;background:var(--canvas-subtle);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+            <div style="text-align:center"><div style="font-size:20px;font-weight:600;color:var(--success)">&#8681; 41%</div><div style="font-size:11px;color:var(--fg-muted)">faster</div></div>
+          </div>
+          <div style="background:rgba(110,118,129,0.08);border:1px solid var(--border);border-radius:0 6px 6px 0;padding:20px;text-align:center">
+            <div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--fg-muted);letter-spacing:.05em;margin-bottom:8px">Repos WITHOUT CCR</div>
+            <div style="font-size:36px;font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums">4.7h</div>
+            <div style="font-size:12px;color:var(--fg-muted);margin-top:4px">median PR review time</div>
+            <div style="font-size:11px;color:var(--fg-muted);margin-top:2px">32 repos &middot; 1,203 PRs</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--fg-muted);margin-bottom:24px">&#9432; Correlation only. Repos with CCR may already have more senior reviewers or simpler PRs.</div>
+        <div class="section-title">Minimal users &mdash; license-keeper risk</div>
+        <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+          <table>
+            <thead><tr><th>User</th><th>Team</th><th>Uses (30d)</th><th>Accepted</th><th>Last feature</th><th>Action</th></tr></thead>
+            <tbody>
+              <tr><td><span class="mention">@perf-test-user</span></td><td style="color:var(--fg-muted)">platform-team</td><td>3</td><td>1</td><td style="color:var(--fg-muted)">IDE completions</td><td><button class="btn btn-sm">Schedule onboarding</button></td></tr>
+              <tr><td><span class="mention">@qa-lead</span></td><td style="color:var(--fg-muted)">security-team</td><td>2</td><td>0</td><td style="color:var(--fg-muted)">IDE completions</td><td><button class="btn btn-sm">Schedule onboarding</button></td></tr>
+              <tr><td><span class="mention">@part-timer</span></td><td style="color:var(--fg-muted)">frontend-team</td><td>1</td><td>0</td><td style="color:var(--fg-muted)">Web chat</td><td><button class="btn btn-sm">Review seat need</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- MODELS & FEATURES -->
+      <div id="ct-models" class="copilot-pane">
+        <div class="grid-2" style="margin-bottom:20px">
+          <div class="card">
+            <div class="card-header">Model usage spread <span style="font-size:11px;color:var(--fg-muted);font-weight:400">interactions this month</span></div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:140px;color:var(--fg-muted);font-size:12px">GPT-4o</span><div style="flex:1;height:10px;background:var(--canvas-inset);border-radius:5px;overflow:hidden"><div style="width:42%;height:100%;background:#58a6ff;border-radius:5px"></div></div><span style="color:var(--fg-muted);width:36px;text-align:right">42%</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:140px;color:var(--fg-muted);font-size:12px">Claude 3.7 Sonnet</span><div style="flex:1;height:10px;background:var(--canvas-inset);border-radius:5px;overflow:hidden"><div style="width:31%;height:100%;background:#bc8cff;border-radius:5px"></div></div><span style="color:var(--fg-muted);width:36px;text-align:right">31%</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:140px;color:var(--fg-muted);font-size:12px">o3-mini</span><div style="flex:1;height:10px;background:var(--canvas-inset);border-radius:5px;overflow:hidden"><div style="width:15%;height:100%;background:#26a641;border-radius:5px"></div></div><span style="color:var(--fg-muted);width:36px;text-align:right">15%</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:140px;color:var(--fg-muted);font-size:12px">acme-base <span class="label label-done" style="font-size:10px;height:15px">custom</span></span><div style="flex:1;height:10px;background:var(--canvas-inset);border-radius:5px;overflow:hidden"><div style="width:8%;height:100%;background:#d29922;border-radius:5px"></div></div><span style="color:var(--fg-muted);width:36px;text-align:right">8%</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:140px;color:var(--fg-muted);font-size:12px">GPT-4o-mini</span><div style="flex:1;height:10px;background:var(--canvas-inset);border-radius:5px;overflow:hidden"><div style="width:4%;height:100%;background:#6e7681;border-radius:5px"></div></div><span style="color:var(--fg-muted);width:36px;text-align:right">4%</span></div>
+            </div>
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--fg-muted)">Custom model <strong>acme-base</strong> at 8%&mdash;consider promoting to teams doing code review and test generation</div>
+          </div>
+          <div class="card">
+            <div class="card-header">Feature usage spread <span style="font-size:11px;color:var(--fg-muted);font-weight:400">unique engaged users</span></div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:140px;color:var(--fg-muted);font-size:12px">IDE completions</span><div style="flex:1;height:10px;background:var(--canvas-inset);border-radius:5px;overflow:hidden"><div style="width:100%;height:100%;background:#3fb950;border-radius:5px"></div></div><span style="color:var(--success);width:36px;text-align:right">142</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:140px;color:var(--fg-muted);font-size:12px">IDE chat</span><div style="flex:1;height:10px;background:var(--canvas-inset);border-radius:5px;overflow:hidden"><div style="width:69%;height:100%;background:#58a6ff;border-radius:5px"></div></div><span style="color:var(--accent);width:36px;text-align:right">98</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:140px;color:var(--fg-muted);font-size:12px">github.com chat</span><div style="flex:1;height:10px;background:var(--canvas-inset);border-radius:5px;overflow:hidden"><div style="width:43%;height:100%;background:#58a6ff;border-radius:5px"></div></div><span style="color:var(--accent);width:36px;text-align:right">61</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:140px;color:var(--fg-muted);font-size:12px">PR summaries (CCR)</span><div style="flex:1;height:10px;background:var(--canvas-inset);border-radius:5px;overflow:hidden"><div style="width:31%;height:100%;background:#d29922;border-radius:5px"></div></div><span style="color:var(--attention);width:36px;text-align:right">44</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:140px;color:var(--fg-muted);font-size:12px">Copilot CLI</span><div style="flex:1;height:10px;background:var(--canvas-inset);border-radius:5px;overflow:hidden"><div style="width:13%;height:100%;background:#d29922;border-radius:5px"></div></div><span style="color:var(--attention);width:36px;text-align:right">18</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:140px;color:var(--fg-muted);font-size:12px">Knowledge bases <span class="label label-done" style="font-size:10px;height:15px">Ent</span></span><div style="flex:1;height:10px;background:var(--canvas-inset);border-radius:5px;overflow:hidden"><div style="width:8%;height:100%;background:#bc8cff;border-radius:5px"></div></div><span style="color:var(--done);width:36px;text-align:right">12</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="section-title">Editor breakdown</div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px">
+          <div class="card" style="text-align:center;padding:14px 10px"><div style="font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent)">112</div><div style="font-size:12px;color:var(--fg-muted);margin-top:4px">VS Code</div><div style="font-size:11px;color:var(--fg-subtle)">79% of active</div></div>
+          <div class="card" style="text-align:center;padding:14px 10px"><div style="font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent)">38</div><div style="font-size:12px;color:var(--fg-muted);margin-top:4px">JetBrains</div><div style="font-size:11px;color:var(--fg-subtle)">27% of active</div></div>
+          <div class="card" style="text-align:center;padding:14px 10px"><div style="font-size:26px;font-weight:600;font-variant-numeric:tabular-nums">8</div><div style="font-size:12px;color:var(--fg-muted);margin-top:4px">Neovim</div><div style="font-size:11px;color:var(--fg-subtle)">6% of active</div></div>
+          <div class="card" style="text-align:center;padding:14px 10px"><div style="font-size:26px;font-weight:600;font-variant-numeric:tabular-nums">4</div><div style="font-size:12px;color:var(--fg-muted);margin-top:4px">Visual Studio</div><div style="font-size:11px;color:var(--fg-subtle)">3% of active</div></div>
+          <div class="card" style="text-align:center;padding:14px 10px"><div style="font-size:26px;font-weight:600;font-variant-numeric:tabular-nums">61</div><div style="font-size:12px;color:var(--fg-muted);margin-top:4px">github.com</div><div style="font-size:11px;color:var(--fg-subtle)">chat &amp; PR</div></div>
+        </div>
+        <div class="section-title">PR summary usage by repository (CCR)</div>
+        <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+          <table>
+            <thead><tr><th>Repository</th><th>Engaged users</th><th>Summaries</th><th>Model</th><th>Avg review time</th></tr></thead>
+            <tbody>
+              <tr><td>acme/payments-api</td><td>18</td><td>214</td><td style="color:var(--fg-muted)">GPT-4o</td><td><span class="label label-success">2.1h</span></td></tr>
+              <tr><td>acme/checkout-service</td><td>12</td><td>187</td><td style="color:var(--fg-muted)">Claude 3.7</td><td><span class="label label-success">2.4h</span></td></tr>
+              <tr><td>acme/infra-deploy</td><td>4</td><td>43</td><td style="color:var(--fg-muted)">GPT-4o</td><td><span class="label label-attention">3.9h</span></td></tr>
+              <tr><td>globex/auth-service</td><td>0</td><td>0</td><td style="color:var(--fg-subtle)">&#8212;</td><td><span class="label label-danger">5.8h</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- LICENSE OPTIMIZATION -->
+      <div id="ct-license" class="copilot-pane">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px">
+          <div class="card" style="border-color:rgba(63,185,80,0.3)"><div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--success);letter-spacing:.04em;margin-bottom:8px">Upgrade candidates</div><div style="font-size:28px;font-weight:600;font-variant-numeric:tabular-nums">5</div><div style="font-size:12px;color:var(--fg-muted);margin-top:4px">Business &#8594; Enterprise</div><div style="font-size:12px;color:var(--attention);margin-top:2px">+$100/month</div></div>
+          <div class="card" style="border-color:rgba(248,81,73,0.3)"><div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--danger);letter-spacing:.04em;margin-bottom:8px">Downgrade candidates</div><div style="font-size:28px;font-weight:600;font-variant-numeric:tabular-nums">8</div><div style="font-size:12px;color:var(--fg-muted);margin-top:4px">Enterprise &#8594; Business</div><div style="font-size:12px;color:var(--success);margin-top:2px">&#8681; $160/month saved</div></div>
+          <div class="card"><div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--fg-subtle);letter-spacing:.04em;margin-bottom:8px">Net opportunity</div><div style="font-size:28px;font-weight:600;color:var(--success);font-variant-numeric:tabular-nums">&#8681;$60</div><div style="font-size:12px;color:var(--fg-muted);margin-top:4px">per month after optimization</div><div style="font-size:12px;color:var(--fg-subtle);margin-top:2px">$720/year</div></div>
+        </div>
+        <div class="section-title" style="margin-bottom:12px">Upgrade candidates &mdash; Business &#8594; Enterprise ($19 &#8594; $39/seat)</div>
+        <div style="font-size:12px;color:var(--fg-muted);margin-bottom:12px">These users consistently use Enterprise-only features but are on Business plan. Upgrading gives better access and proper API limits.</div>
+        <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:24px">
+          <table>
+            <thead><tr><th>User</th><th>Plan</th><th>Signal</th><th>Enterprise features</th><th>Delta</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><span class="mention">@alice</span></td><td><span class="label label-muted">Business</span></td><td>8.2 PR summaries/wk + custom model</td><td><span class="label label-done">PR summaries</span> <span class="label label-done">custom model</span></td><td style="color:var(--attention)">+$20/mo</td><td><button class="btn btn-sm btn-primary">Upgrade</button></td></tr>
+              <tr><td><span class="mention">@david</span></td><td><span class="label label-muted">Business</span></td><td>Knowledge base daily</td><td><span class="label label-done">knowledge bases</span></td><td style="color:var(--attention)">+$20/mo</td><td><button class="btn btn-sm btn-primary">Upgrade</button></td></tr>
+              <tr><td><span class="mention">@tanaka</span></td><td><span class="label label-muted">Business</span></td><td>6.1 PR summaries/wk</td><td><span class="label label-done">PR summaries</span></td><td style="color:var(--attention)">+$20/mo</td><td><button class="btn btn-sm btn-primary">Upgrade</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="section-title" style="margin-bottom:12px">Downgrade candidates &mdash; Enterprise &#8594; Business ($39 &#8594; $19/seat)</div>
+        <div style="font-size:12px;color:var(--fg-muted);margin-bottom:12px">Enterprise users with no Enterprise-only feature usage in 90 days. Downgrading saves cost without impacting their workflow.</div>
+        <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+          <table>
+            <thead><tr><th>User</th><th>Plan</th><th>Enterprise features (90d)</th><th>Last enterprise use</th><th>Saving</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><span class="mention">@contractor2</span></td><td><span class="label label-done">Enterprise</span></td><td><span style="color:var(--fg-subtle)">none</span></td><td style="color:var(--fg-subtle)">Never</td><td style="color:var(--success)">&#8681; $20/mo</td><td><button class="btn btn-sm">Downgrade</button></td></tr>
+              <tr><td><span class="mention">@legacy-admin</span></td><td><span class="label label-done">Enterprise</span></td><td><span style="color:var(--fg-subtle)">none</span></td><td style="color:var(--fg-subtle)">Jan 2 (once)</td><td style="color:var(--success)">&#8681; $20/mo</td><td><button class="btn btn-sm">Downgrade</button></td></tr>
+              <tr><td><span class="mention">@new-hire-mar</span></td><td><span class="label label-done">Enterprise</span></td><td><span style="color:var(--fg-subtle)">none</span></td><td style="color:var(--fg-subtle)">Never</td><td style="color:var(--success)">&#8681; $20/mo</td><td><button class="btn btn-sm">Downgrade</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ANOMALIES -->
+      <div id="ct-anomalies" class="copilot-pane">
+        <div style="background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.2);border-radius:6px;padding:10px 14px;margin-bottom:20px;font-size:12px;color:var(--fg-muted)">
+          <strong style="color:var(--fg)">3 anomalies detected</strong> from the latest Copilot metrics scrape. Investigate before taking action.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px">
+          <div style="background:var(--canvas-subtle);border:1px solid rgba(248,81,73,0.3);border-radius:6px;padding:14px 16px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+              <div style="display:flex;align-items:flex-start;gap:10px">
+                <span class="label label-danger" style="flex-shrink:0;margin-top:1px">no telemetry</span>
+                <div><div style="font-weight:500;font-size:13px"><span class="mention">@eremin</span> &mdash; PR summary activity, zero IDE telemetry</div><div style="font-size:12px;color:var(--fg-muted);margin-top:4px">14 PR summaries via github.com this month but zero IDE suggestions or acceptances. Possible causes: old IDE plugin, telemetry disabled, or org policy blocking telemetry.</div></div>
+              </div>
+              <button class="btn btn-sm" style="flex-shrink:0">Investigate</button>
+            </div>
+          </div>
+          <div style="background:var(--canvas-subtle);border:1px solid rgba(210,153,34,0.3);border-radius:6px;padding:14px 16px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+              <div style="display:flex;align-items:flex-start;gap:10px">
+                <span class="label label-attention" style="flex-shrink:0;margin-top:1px">accept drop</span>
+                <div><div style="font-weight:500;font-size:13px"><span class="mention">@bob</span> &mdash; acceptance rate dropped 17pp week-over-week</div><div style="font-size:12px;color:var(--fg-muted);margin-top:4px">7d rate: <strong style="color:var(--attention)">14%</strong> (was 31% prior week, &minus;17pp). Could indicate model change, shift to complex code domains, or unfamiliar language.</div></div>
+              </div>
+              <button class="btn btn-sm" style="flex-shrink:0">View detail</button>
+            </div>
+          </div>
+          <div style="background:var(--canvas-subtle);border:1px solid rgba(210,153,34,0.3);border-radius:6px;padding:14px 16px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+              <div style="display:flex;align-items:flex-start;gap:10px">
+                <span class="label label-attention" style="flex-shrink:0;margin-top:1px">telemetry off</span>
+                <div><div style="font-weight:500;font-size:13px"><span class="mention">@perf-test-user</span> &mdash; editor recorded, zero suggestions received</div><div style="font-size:12px;color:var(--fg-muted);margin-top:4px">Last activity editor: vscode/1.87.0. No suggestions or chat turns in 30 days despite active seat status. Telemetry may be disabled.</div></div>
+              </div>
+              <button class="btn btn-sm" style="flex-shrink:0">View detail</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-title">All detected anomalies</div>
+        <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+          <table>
+            <thead><tr><th>User</th><th>Flag</th><th>Detected</th><th>Details</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td><span class="mention">@eremin</span></td><td><span class="label label-danger">no_telemetry</span></td><td style="color:var(--fg-muted)">Mar 25, 2026</td><td style="color:var(--fg-muted)">PRU activity, zero IDE telemetry</td><td><span class="label label-muted">open</span></td></tr>
+              <tr><td><span class="mention">@bob</span></td><td><span class="label label-attention">acceptance_drop</span></td><td style="color:var(--fg-muted)">Mar 24, 2026</td><td style="color:var(--fg-muted)">&minus;17pp week-over-week</td><td><span class="label label-muted">open</span></td></tr>
+              <tr><td><span class="mention">@perf-test-user</span></td><td><span class="label label-attention">telemetry_disabled</span></td><td style="color:var(--fg-muted)">Mar 22, 2026</td><td style="color:var(--fg-muted)">Editor recorded, 0 suggestions</td><td><span class="label label-muted">open</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== ORG HEALTH ===== -->
+  <div id="s-health" class="screen">
+    <div class="split-layout">
+      <div class="split-main" id="health-main">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">
+          <div>
+            <div class="page-title" style="margin-bottom:0">Org Health</div>
+            <div class="page-sub" style="margin:0">Drift-based hygiene signals derived from audit log events &mdash; informational only</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding-top:4px">
+            <span style="font-size:11px;color:var(--fg-muted)">Baseline</span>
+            <span style="background:rgba(210,153,34,0.12);border:1px solid rgba(210,153,34,0.4);color:var(--attention);border-radius:6px;padding:3px 10px;font-size:12px;font-weight:600">&#9651; Needs Attention</span>
+            <button class="btn btn-sm" onclick="nav('healthsettings',this)">
+              <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0a8.2 8.2 0 01.701.031C9.444.095 9.99.645 10.16 1.29l.288 1.107c.018.066.079.158.212.224.231.114.454.243.668.386.123.082.233.09.299.071l1.103-.303c.644-.176 1.392.021 1.82.63.27.385.506.792.704 1.218.315.675.111 1.422-.364 1.891l-.814.806c-.049.048-.098.147-.088.294.016.257.016.515 0 .772-.01.147.038.246.088.294l.814.806c.475.469.679 1.216.364 1.891a7.977 7.977 0 01-.704 1.217c-.428.61-1.176.807-1.82.63l-1.103-.303c-.066-.019-.176-.011-.299.071a5.909 5.909 0 01-.668.386c-.133.066-.194.158-.211.224l-.29 1.106c-.168.646-.715 1.196-1.458 1.26a8.006 8.006 0 01-1.402 0c-.743-.064-1.289-.614-1.458-1.26l-.289-1.106c-.018-.066-.079-.158-.212-.224a5.738 5.738 0 01-.668-.386c-.123-.082-.233-.09-.299-.071l-1.103.303c-.644.176-1.392-.021-1.82-.63a8.012 8.012 0 01-.704-1.218c-.315-.675-.111-1.422.363-1.891l.815-.806c.05-.048.098-.147.088-.294a6.214 6.214 0 010-.772c.01-.147-.038-.246-.088-.294l-.815-.806C.635 6.594.463 5.873.396 5.227a8.089 8.089 0 01.087-1.65C.596 2.799 1.321 2.358 2.04 2.19l.292-.07.86-.22.33-.087c.098-.026.194-.107.255-.26.066-.162.141-.32.224-.474.096-.181.083-.3.046-.37L3.506 1.53c-.427-.61-.223-1.356.222-1.825A7.97 7.97 0 014.438.29C5.024.11 5.607.228 6.017.526l.84.6.048.034c.095.068.199.076.275.047.202-.077.41-.143.622-.196.2-.05.28-.15.305-.24L8.303.22A.25.25 0 018 0zm.165 1.5h-.33l-.232.895c-.077.295-.342.537-.694.617a4.29 4.29 0 00-.468.147 1.076 1.076 0 01-.962-.1l-.755-.539A6.467 6.467 0 004.29 3.14l.424.756c.153.274.148.59-.017.87a4.26 4.26 0 00-.268.523c-.128.296-.386.472-.655.51l-.96.235-.064.016-.064.016A6.55 6.55 0 002.5 8a6.55 6.55 0 00.185 1.534l.129.007.96.234c.27.038.527.214.655.51.082.19.172.37.268.524.165.28.17.595.017.87l-.424.755c.255.334.541.641.854.914l.755-.539c.276-.197.637-.238.962-.1.149.058.307.107.468.146.352.08.617.323.694.618l.232.895h.33l.232-.895c.077-.295.342-.537.694-.617.161-.04.319-.088.468-.147.325-.138.686-.097.962.1l.755.539c.313-.273.599-.58.854-.914l-.424-.755a.976.976 0 01.017-.87c.096-.154.186-.334.268-.524.128-.296.386-.472.655-.51l.96-.234.129-.007A6.55 6.55 0 0013.5 8a6.55 6.55 0 00-.185-1.534l-.929-.242a1.132 1.132 0 01-.655-.51 4.26 4.26 0 00-.268-.523.976.976 0 01-.017-.87l.424-.756a6.467 6.467 0 00-.854-.914l-.755.539a1.076 1.076 0 01-.962.1 4.29 4.29 0 00-.468-.147 1.134 1.134 0 01-.694-.617L8.165 1.5zM8 5.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z"/></svg>
+              Settings
+            </button>
+          </div>
+        </div>
+
+        <!-- Data source note -->
+        <div class="data-source-note" style="margin-top:16px">
+          <svg width="14" height="14" fill="var(--accent)" viewBox="0 0 16 16" style="flex-shrink:0;margin-top:1px"><path d="M0 8a8 8 0 1116 0A8 8 0 010 8zm8-6.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 7.75A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 110-2 1 1 0 010 2z"/></svg>
+          <span>All signals are <strong>derived from ingested audit log events</strong> only &mdash; OctoWatch does not poll the GitHub API continuously. A one-time baseline import is used to seed repo and member lists; drift is detected as new audit events arrive. Signals marked <span class="label label-muted" style="font-size:11px">baseline</span> require a full import to be accurate.</span>
+        </div>
+
+        <!-- Summary stat strip -->
+        <div class="metric-strip" style="margin-bottom:20px">
+          <div class="metric" style="border-color:rgba(248,81,73,0.35)"><div class="metric-val" style="color:var(--danger)">7</div><div class="metric-lbl">Critical signals</div><div class="metric-delta down">Needs immediate review</div></div>
+          <div class="metric" style="border-color:rgba(210,153,34,0.35)"><div class="metric-val" style="color:var(--attention)">14</div><div class="metric-lbl">Needs attention</div><div class="metric-delta neutral">4 new since last week</div></div>
+          <div class="metric"><div class="metric-val">31</div><div class="metric-lbl">Repos monitored</div><div class="metric-delta neutral">across 2 orgs</div></div>
+          <div class="metric"><div class="metric-val" style="color:var(--success)">84</div><div class="metric-lbl">Members tracked</div><div class="metric-delta up">6 new this month</div></div>
+          <div class="metric"><div class="metric-val">247 / 300</div><div class="metric-lbl">License seats used</div><div class="metric-delta neutral">82% utilization</div></div>
+          <div class="metric" style="border-color:rgba(88,166,255,0.3)"><div class="metric-val" style="color:var(--accent)">Mar 20</div><div class="metric-lbl">Last baseline import</div><div class="metric-delta neutral">7 days ago</div></div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="health-tabs">
+          <div class="health-tab active" onclick="healthTab('repos',this)">Repository Health <span style="background:var(--danger);color:#fff;border-radius:10px;padding:0 5px;font-size:10px;font-weight:600;margin-left:4px">7</span></div>
+          <div class="health-tab" onclick="healthTab('access',this)">Access &amp; Identity <span style="background:var(--attention);color:var(--canvas);border-radius:10px;padding:0 5px;font-size:10px;font-weight:600;margin-left:4px">5</span></div>
+          <div class="health-tab" onclick="healthTab('license',this)">License Health <span style="background:var(--attention);color:var(--canvas);border-radius:10px;padding:0 5px;font-size:10px;font-weight:600;margin-left:4px">2</span></div>
+          <div class="health-tab" onclick="healthTab('maintenance',this)">Maintenance Signals</div>
+        </div>
+
+        <!-- ===== REPOS TAB ===== -->
+        <div id="ht-repos" class="health-pane active">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <span style="font-size:13px;color:var(--fg-muted)">31 repos &middot; showing signals with issues</span>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-sm">Export CSV</button>
+              <select style="background:var(--canvas-inset);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer">
+                <option>All orgs</option>
+                <option>acme-corp</option>
+                <option>globex</option>
+              </select>
+            </div>
+          </div>
+          <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:24px">
+            <table>
+              <thead>
+                <tr>
+                  <th>Repository</th>
+                  <th>Branch protection</th>
+                  <th>Last push</th>
+                  <th>Secret scanning</th>
+                  <th>Dependabot alerts</th>
+                  <th>CI health</th>
+                  <th>Overall</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="repo-row selected" onclick="openRepoPanel('acme/legacy-payments')">
+                  <td><strong>acme/legacy-payments</strong><br><span style="font-size:11px;color:var(--fg-subtle)">acme-corp &middot; private</span></td>
+                  <td><span class="label label-danger">none on main</span></td>
+                  <td><span class="label label-danger">389 days</span></td>
+                  <td><span class="label label-danger">disabled</span></td>
+                  <td><span class="label label-danger">18 open</span></td>
+                  <td><span class="label label-danger">no workflows</span></td>
+                  <td><span class="label label-danger">&#9888; critical</span></td>
+                </tr>
+                <tr class="repo-row" onclick="openRepoPanel('acme/infra-deploy')">
+                  <td><strong>acme/infra-deploy</strong><br><span style="font-size:11px;color:var(--fg-subtle)">acme-corp &middot; private</span></td>
+                  <td><span class="label label-success">enabled</span></td>
+                  <td><span class="label label-success">2 days</span></td>
+                  <td><span class="label label-success">enabled</span></td>
+                  <td><span class="label label-danger">6 open &gt;60d</span></td>
+                  <td><span class="label label-danger">60% fail rate</span></td>
+                  <td><span class="label label-danger">&#9888; critical</span></td>
+                </tr>
+                <tr class="repo-row" onclick="openRepoPanel('globex/internal-tools')">
+                  <td><strong>globex/internal-tools</strong><br><span style="font-size:11px;color:var(--fg-subtle)">globex &middot; <span style="color:var(--danger)">public &#9888;</span></span></td>
+                  <td><span class="label label-danger">force-push allowed</span></td>
+                  <td><span class="label label-attention">47 days</span></td>
+                  <td><span class="label label-success">enabled</span></td>
+                  <td><span class="label label-attention">3 open</span></td>
+                  <td><span class="label label-success">passing</span></td>
+                  <td><span class="label label-danger">&#9888; critical</span></td>
+                </tr>
+                <tr class="repo-row" onclick="openRepoPanel('acme/auth-service')">
+                  <td><strong>acme/auth-service</strong><br><span style="font-size:11px;color:var(--fg-subtle)">acme-corp &middot; private</span></td>
+                  <td><span class="label label-attention">no required reviews</span></td>
+                  <td><span class="label label-success">1 day</span></td>
+                  <td><span class="label label-success">enabled</span></td>
+                  <td><span class="label label-attention">2 open</span></td>
+                  <td><span class="label label-success">passing</span></td>
+                  <td><span class="label label-attention">needs attention</span></td>
+                </tr>
+                <tr class="repo-row" onclick="openRepoPanel('globex/api-gateway')">
+                  <td><strong>globex/api-gateway</strong><br><span style="font-size:11px;color:var(--fg-subtle)">globex &middot; private</span></td>
+                  <td><span class="label label-success">enabled</span></td>
+                  <td><span class="label label-success">3 days</span></td>
+                  <td><span class="label label-attention">not enrolled</span> <span class="label label-muted">baseline</span></td>
+                  <td><span class="label label-success">0 open</span></td>
+                  <td><span class="label label-success">passing</span></td>
+                  <td><span class="label label-attention">needs attention</span></td>
+                </tr>
+                <tr class="repo-row" onclick="openRepoPanel('acme/payments-api')">
+                  <td><strong>acme/payments-api</strong><br><span style="font-size:11px;color:var(--fg-subtle)">acme-corp &middot; private</span></td>
+                  <td><span class="label label-success">enabled</span></td>
+                  <td><span class="label label-success">Today</span></td>
+                  <td><span class="label label-success">enabled</span></td>
+                  <td><span class="label label-success">0 open</span></td>
+                  <td><span class="label label-success">97% pass</span></td>
+                  <td><span class="label label-success">healthy</span></td>
+                </tr>
+                <tr class="repo-row" onclick="openRepoPanel('acme/checkout-service')">
+                  <td><strong>acme/checkout-service</strong><br><span style="font-size:11px;color:var(--fg-subtle)">acme-corp &middot; private</span></td>
+                  <td><span class="label label-success">enabled</span></td>
+                  <td><span class="label label-success">Today</span></td>
+                  <td><span class="label label-success">enabled</span></td>
+                  <td><span class="label label-success">1 open</span></td>
+                  <td><span class="label label-attention">72% pass rate</span></td>
+                  <td><span class="label label-success">healthy</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Trend chart: stale repos over time -->
+          <div class="section-title">Stale repository trend &mdash; last 90 days</div>
+          <div style="font-size:12px;color:var(--fg-muted);margin-bottom:10px">Repos with no push activity beyond the configured staleness threshold (default: 90 days). Derived from <code style="font-size:11px;background:var(--canvas-inset);padding:1px 4px;border-radius:3px">git.push</code> and <code style="font-size:11px;background:var(--canvas-inset);padding:1px 4px;border-radius:3px">repo.create</code> audit events.</div>
+          <div class="chart-wrap" style="margin-bottom:20px">
+            <svg width="100%" height="80" viewBox="0 0 600 70" preserveAspectRatio="none">
+              <rect x="0" y="20" width="38" height="50" fill="var(--border-muted)" rx="2" opacity=".6"/>
+              <rect x="44" y="22" width="38" height="48" fill="var(--border-muted)" rx="2" opacity=".6"/>
+              <rect x="88" y="25" width="38" height="45" fill="var(--border-muted)" rx="2" opacity=".6"/>
+              <rect x="132" y="18" width="38" height="52" fill="var(--border-muted)" rx="2" opacity=".6"/>
+              <rect x="176" y="20" width="38" height="50" fill="var(--border-muted)" rx="2" opacity=".6"/>
+              <rect x="220" y="16" width="38" height="54" fill="var(--border-muted)" rx="2" opacity=".6"/>
+              <rect x="264" y="14" width="38" height="56" fill="var(--attention)" rx="2" opacity=".5"/>
+              <rect x="308" y="12" width="38" height="58" fill="var(--attention)" rx="2" opacity=".5"/>
+              <rect x="352" y="10" width="38" height="60" fill="var(--attention)" rx="2" opacity=".6"/>
+              <rect x="396" y="8" width="38" height="62" fill="var(--danger)" rx="2" opacity=".5"/>
+              <rect x="440" y="6" width="38" height="64" fill="var(--danger)" rx="2" opacity=".6"/>
+              <rect x="484" y="4" width="38" height="66" fill="var(--danger)" rx="2" opacity=".7"/>
+              <rect x="528" y="2" width="38" height="68" fill="#f85149" rx="2"/>
+              <text x="2" y="68" font-size="9" fill="#6e7681">Jan 1</text>
+              <text x="270" y="10" font-size="9" fill="#d29922">threshold</text>
+              <text x="540" y="68" font-size="9" fill="#6e7681">Mar 27</text>
+            </svg>
+          </div>
+
+          <!-- Unhealthy repos summary cards -->
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header">Repos with no branch protection on default branch</div>
+              <div style="font-size:28px;font-weight:600;color:var(--danger);font-variant-numeric:tabular-nums;margin-bottom:6px">4</div>
+              <div style="font-size:12px;color:var(--fg-muted);margin-bottom:10px">acme/legacy-payments, globex/sandbox, acme/tools-old, globex/api-v1</div>
+              <div style="font-size:11px;color:var(--fg-subtle);padding-top:8px;border-top:1px solid var(--border-muted)">&#9432; Detected via <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">protected_branch.destroy</code> events + missing corresponding create events in baseline</div>
+            </div>
+            <div class="card">
+              <div class="card-header">Repos with secret scanning disabled</div>
+              <div style="font-size:28px;font-weight:600;color:var(--danger);font-variant-numeric:tabular-nums;margin-bottom:6px">6</div>
+              <div style="font-size:12px;color:var(--fg-muted);margin-bottom:10px">3 opted-out, 3 not enrolled per baseline import</div>
+              <div style="font-size:11px;color:var(--fg-subtle);padding-top:8px;border-top:1px solid var(--border-muted)">&#9432; Detected via <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">repository.enable_secret_scanning</code> / <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">disable_secret_scanning</code> events</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== ACCESS TAB ===== -->
+        <div id="ht-access" class="health-pane">
+          <div class="grid-2" style="margin-bottom:20px">
+            <div class="card">
+              <div class="card-header">Member activity overview</div>
+              <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+                <div style="display:flex;align-items:center;gap:10px;padding:8px;background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.2);border-radius:6px">
+                  <span class="label label-danger">dormant</span>
+                  <div style="flex:1"><strong>12 members</strong> no activity in 90+ days</div>
+                  <span style="color:var(--fg-muted);font-size:12px">still licensed</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:8px;background:rgba(210,153,34,0.06);border:1px solid rgba(210,153,34,0.2);border-radius:6px">
+                  <span class="label label-attention">at risk</span>
+                  <div style="flex:1"><strong>8 members</strong> no activity in 60–90 days</div>
+                  <span style="color:var(--fg-muted);font-size:12px">trending dormant</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:8px;background:rgba(63,185,80,0.06);border:1px solid rgba(63,185,80,0.2);border-radius:6px">
+                  <span class="label label-success">new</span>
+                  <div style="flex:1"><strong>6 members</strong> joined in last 30 days</div>
+                  <span style="color:var(--fg-muted);font-size:12px">onboarding period</span>
+                </div>
+              </div>
+              <div style="font-size:11px;color:var(--fg-subtle);padding-top:8px;margin-top:8px;border-top:1px solid var(--border-muted)">&#9432; Derived from <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">org.add_member</code>, <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">user.login</code>, and per-actor event timestamps</div>
+            </div>
+            <div class="card">
+              <div class="card-header">PAT health snapshot</div>
+              <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+                <div style="display:flex;align-items:center;gap:10px;padding:8px;background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.2);border-radius:6px">
+                  <span class="label label-danger">no expiry</span>
+                  <div style="flex:1"><strong>24 tokens</strong> with no expiration date</div>
+                  <span style="color:var(--fg-muted);font-size:12px">never rotate</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:8px;background:rgba(219,109,40,0.06);border:1px solid rgba(219,109,40,0.2);border-radius:6px">
+                  <span class="label label-severe">expiring soon</span>
+                  <div style="flex:1"><strong>12 tokens</strong> expire within 30 days</div>
+                  <span style="color:var(--fg-muted);font-size:12px">may break automations</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:8px;background:rgba(110,118,129,0.08);border:1px solid rgba(110,118,129,0.2);border-radius:6px">
+                  <span class="label label-muted">stale</span>
+                  <div style="flex:1"><strong>7 tokens</strong> not used in 90+ days</div>
+                  <span style="color:var(--fg-muted);font-size:12px">candidates for revocation</span>
+                </div>
+              </div>
+              <div style="font-size:11px;color:var(--fg-subtle);padding-top:8px;margin-top:8px;border-top:1px solid var(--border-muted)">&#9432; Derived from <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">personal_access_token.*</code> events and <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">authentication.token</code> usage in audit log</div>
+            </div>
+          </div>
+
+          <div class="section-title">Dormant members (90+ days inactive)</div>
+          <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:20px">
+            <table>
+              <thead><tr><th>Member</th><th>Org</th><th>Role</th><th>Last seen</th><th>Days inactive</th><th>Licenses held</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="mention">@contractor-exit1</span></td>
+                  <td style="color:var(--fg-muted)">acme-corp</td>
+                  <td><span class="label label-muted">member</span></td>
+                  <td style="color:var(--fg-muted)">Nov 3, 2025</td>
+                  <td><span class="label label-danger">144 days</span></td>
+                  <td style="color:var(--fg-muted)">GitHub + Copilot</td>
+                  <td><span class="label label-danger">dormant</span></td>
+                </tr>
+                <tr>
+                  <td><span class="mention">@former-intern</span></td>
+                  <td style="color:var(--fg-muted)">globex</td>
+                  <td><span class="label label-muted">member</span></td>
+                  <td style="color:var(--fg-muted)">Sep 1, 2025</td>
+                  <td><span class="label label-danger">207 days</span></td>
+                  <td style="color:var(--fg-muted)">GitHub only</td>
+                  <td><span class="label label-danger">dormant</span></td>
+                </tr>
+                <tr>
+                  <td><span class="mention">@old-vendor</span></td>
+                  <td style="color:var(--fg-muted)">acme-corp</td>
+                  <td><span class="label label-severe">outside collaborator</span></td>
+                  <td style="color:var(--fg-muted)">Oct 14, 2025</td>
+                  <td><span class="label label-danger">163 days</span></td>
+                  <td style="color:var(--fg-muted) ">write on 4 repos</td>
+                  <td><span class="label label-danger">dormant</span></td>
+                </tr>
+                <tr>
+                  <td><span class="mention">@legacy-bot</span></td>
+                  <td style="color:var(--fg-muted)">acme-corp</td>
+                  <td><span class="label label-muted">member</span></td>
+                  <td style="color:var(--fg-muted)">Dec 20, 2025</td>
+                  <td><span class="label label-attention">97 days</span></td>
+                  <td style="color:var(--fg-muted)">GitHub + Copilot</td>
+                  <td><span class="label label-attention">at risk</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="section-title">Outside collaborators with write/admin access</div>
+          <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+            <table>
+              <thead><tr><th>Collaborator</th><th>Repo</th><th>Permission</th><th>Added</th><th>Last active</th><th>Risk</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="mention">@old-vendor</span></td>
+                  <td>acme/legacy-payments <em>+3 more</em></td>
+                  <td><span class="label label-severe">write</span></td>
+                  <td style="color:var(--fg-muted)">Jan 4, 2024</td>
+                  <td style="color:var(--fg-muted)">163 days ago</td>
+                  <td><span class="label label-danger">stale &amp; dormant</span></td>
+                </tr>
+                <tr>
+                  <td><span class="mention">@ext-consultant</span></td>
+                  <td>globex/api-gateway</td>
+                  <td><span class="label label-severe">write</span></td>
+                  <td style="color:var(--fg-muted)">Mar 1, 2026</td>
+                  <td style="color:var(--fg-muted)">9 days ago</td>
+                  <td><span class="label label-attention">active, unreviewed</span></td>
+                </tr>
+                <tr>
+                  <td><span class="mention">@auditor-firm</span></td>
+                  <td>acme/infra-deploy</td>
+                  <td><span class="label label-danger">admin</span></td>
+                  <td style="color:var(--fg-muted)">Feb 10, 2026</td>
+                  <td style="color:var(--fg-muted)">45 days ago</td>
+                  <td><span class="label label-danger">admin, review required</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ===== LICENSE TAB ===== -->
+        <div id="ht-license" class="health-pane">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px">
+            <div class="card">
+              <div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--fg-muted);letter-spacing:.04em;margin-bottom:8px">Total seats (GitHub)</div>
+              <div style="font-size:32px;font-weight:600;font-variant-numeric:tabular-nums">247<span style="font-size:16px;color:var(--fg-muted)"> / 300</span></div>
+              <div style="margin-top:8px;height:8px;border-radius:4px;background:var(--canvas-inset);overflow:hidden"><div style="width:82%;height:100%;background:var(--attention);border-radius:4px"></div></div>
+              <div style="font-size:12px;color:var(--fg-muted);margin-top:6px">82% utilized &middot; <span style="color:var(--attention)">53 seats until limit</span></div>
+            </div>
+            <div class="card" style="border-color:rgba(248,81,73,0.3)">
+              <div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--danger);letter-spacing:.04em;margin-bottom:8px">Ghost members</div>
+              <div style="font-size:32px;font-weight:600;color:var(--danger);font-variant-numeric:tabular-nums">12</div>
+              <div style="font-size:12px;color:var(--fg-muted);margin-top:6px">Dormant 90d+ still consuming a seat</div>
+              <div style="font-size:12px;color:var(--danger);margin-top:2px">&#8776; $228/month recoverable</div>
+            </div>
+            <div class="card">
+              <div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--fg-muted);letter-spacing:.04em;margin-bottom:8px">Growth forecast</div>
+              <div style="font-size:32px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--attention)">~74d</div>
+              <div style="font-size:12px;color:var(--fg-muted);margin-top:6px">Until license limit at current +3.2/month rate</div>
+              <div style="font-size:12px;color:var(--fg-subtle);margin-top:2px">Based on <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">org.add_member</code> event frequency</div>
+            </div>
+          </div>
+
+          <!-- Seat trend chart -->
+          <div class="section-title">License seat utilization trend &mdash; last 6 months</div>
+          <div class="chart-wrap" style="margin-bottom:24px">
+            <svg width="100%" height="110" viewBox="0 0 500 90" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="gr-seats" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#58a6ff" stop-opacity=".2"/><stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/></linearGradient>
+              </defs>
+              <!-- Limit line at 300 seats → y=10 in this scale -->
+              <line x1="0" y1="10" x2="500" y2="10" stroke="#f85149" stroke-width="1" stroke-dasharray="6,3" opacity=".6"/>
+              <text x="4" y="8" font-size="9" fill="#f85149">300 seat limit</text>
+              <!-- Active seats trend -->
+              <polygon points="0,72 83,68 166,62 250,56 333,50 416,44 500,40 500,90 0,90" fill="url(#gr-seats)"/>
+              <polyline points="0,72 83,68 166,62 250,56 333,50 416,44 500,40" fill="none" stroke="#58a6ff" stroke-width="2"/>
+              <!-- Ghost member overlay -->
+              <polyline points="0,20 83,20 166,19 250,19 333,18 416,18 500,18" fill="none" stroke="#f85149" stroke-width="1.5" stroke-dasharray="4,2" opacity=".7"/>
+              <text x="4" y="88" font-size="9" fill="#6e7681">Oct 2025</text>
+              <text x="440" y="88" font-size="9" fill="#6e7681">Mar 2026</text>
+              <text x="440" y="38" font-size="9" fill="#58a6ff">active</text>
+              <text x="440" y="16" font-size="9" fill="#f85149" opacity=".8">dormant</text>
+            </svg>
+          </div>
+
+          <!-- Copilot seat summary (cross ref) -->
+          <div class="section-title">Copilot seat waste for reference</div>
+          <div style="background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.2);border-radius:6px;padding:12px 16px;font-size:13px;color:var(--fg-muted);margin-bottom:8px">
+            <strong style="color:var(--fg)">62 of 200 Copilot seats</strong> are inactive or never-used &mdash; see <span style="color:var(--accent);cursor:pointer" onclick="nav('copilot',document.querySelector('[onclick*=nav_copilot]'))">Copilot Insights → License Optimization</span> for full detail.
+          </div>
+          <div style="font-size:11px;color:var(--fg-subtle);margin-bottom:20px">&#9432; License seat data is derived from <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">org.add_member</code>, <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">org.remove_member</code>, and the one-time baseline import for seat counts.</div>
+        </div>
+
+        <!-- ===== MAINTENANCE TAB ===== -->
+        <div id="ht-maintenance" class="health-pane">
+          <div class="grid-2" style="margin-bottom:20px">
+            <div class="card">
+              <div class="card-header">Stale PRs <span style="font-size:11px;color:var(--fg-muted);font-weight:400">open &gt; configured threshold</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-muted)">
+                  <div><strong>acme/legacy-payments</strong><div style="font-size:11px;color:var(--fg-subtle)">#48 &middot; "Update billing logic"</div></div>
+                  <span class="label label-danger">127 days open</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-muted)">
+                  <div><strong>globex/api-v1</strong><div style="font-size:11px;color:var(--fg-subtle)">#91 &middot; "Migrate to v2 endpoints"</div></div>
+                  <span class="label label-danger">84 days open</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
+                  <div><strong>acme/tools-old</strong><div style="font-size:11px;color:var(--fg-subtle)">#12 &middot; "Dependency upgrades"</div></div>
+                  <span class="label label-attention">62 days open</span>
+                </div>
+              </div>
+              <div style="font-size:11px;color:var(--fg-subtle);padding-top:8px;margin-top:8px;border-top:1px solid var(--border-muted)">&#9432; Derived from <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">pull_request.open</code> / <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">close</code> events; no-activity staleness from event gaps</div>
+            </div>
+            <div class="card">
+              <div class="card-header">Unhealthy webhooks &amp; apps</div>
+              <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+                <div style="padding:8px;background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.2);border-radius:6px">
+                  <div style="font-weight:500;color:var(--fg)">Webhook → api.external-partner.io</div>
+                  <div style="font-size:12px;color:var(--fg-muted);margin-top:2px">Non-org endpoint &middot; <span style="color:var(--danger)">returning 4xx for 14 days</span></div>
+                </div>
+                <div style="padding:8px;background:rgba(210,153,34,0.06);border:1px solid rgba(210,153,34,0.2);border-radius:6px">
+                  <div style="font-weight:500;color:var(--fg)">GitHub App: "old-ci-bot"</div>
+                  <div style="font-size:12px;color:var(--fg-muted);margin-top:2px">Scopes: <span style="color:var(--danger)">admin:org, write:packages</span> &middot; last used 194 days ago</div>
+                </div>
+                <div style="padding:8px;background:rgba(110,118,129,0.08);border:1px solid rgba(110,118,129,0.2);border-radius:6px">
+                  <div style="font-weight:500;color:var(--fg)">OAuth App: "legacy-deploy-tool"</div>
+                  <div style="font-size:12px;color:var(--fg-muted);margin-top:2px">Broad repo scope &middot; last activity 88 days ago</div>
+                </div>
+              </div>
+              <div style="font-size:11px;color:var(--fg-subtle);padding-top:8px;margin-top:8px;border-top:1px solid var(--border-muted)">&#9432; Derived from <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">hook.*</code>, <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">integration.*</code>, and <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">oauth_access.*</code> audit events</div>
+            </div>
+          </div>
+
+          <div class="section-title">Disabled / consistently-skipped workflows</div>
+          <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+            <table>
+              <thead><tr><th>Workflow</th><th>Repository</th><th>Status</th><th>Last run</th><th>Consecutive skips</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>security-scan.yml</td><td>acme/legacy-payments</td>
+                  <td><span class="label label-danger">disabled</span></td>
+                  <td style="color:var(--fg-muted)">Feb 2, 2026</td>
+                  <td style="color:var(--fg-muted)">—</td>
+                </tr>
+                <tr>
+                  <td>dependency-review.yml</td><td>acme/tools-old</td>
+                  <td><span class="label label-attention">skipped</span></td>
+                  <td style="color:var(--fg-muted)">Mar 1, 2026</td>
+                  <td><span class="label label-attention">18 consecutive</span></td>
+                </tr>
+                <tr>
+                  <td>codeql-analysis.yml</td><td>globex/api-v1</td>
+                  <td><span class="label label-attention">skipped</span></td>
+                  <td style="color:var(--fg-muted)">Feb 14, 2026</td>
+                  <td><span class="label label-danger">41 consecutive</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="font-size:11px;color:var(--fg-subtle);margin-top:8px;margin-bottom:20px">&#9432; Derived from <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">workflows.disabled_intentionally</code>, <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">workflow_run</code> conclusion = <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">skipped</code> events</div>
+        </div>
+      </div>
+
+      <!-- ===== REPO DRILL-DOWN PANEL ===== -->
+      <div id="repo-panel" class="split-panel">
+        <div class="panel-header">
+          <div style="font-weight:600" id="repo-panel-title">acme/legacy-payments</div>
+          <div class="panel-close" onclick="closePanel('repo-panel')">&#215;</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+          <span class="label label-danger">critical</span>
+          <span class="label label-muted">private</span>
+          <span class="label label-muted">acme-corp</span>
+          <span class="label label-muted">last push: 389d ago</span>
+        </div>
+        <div style="font-size:13px;color:var(--fg-muted);margin-bottom:16px">This repository scores <strong style="color:var(--danger)">critical</strong> across 4 of 6 health signals. It has had no push activity in over a year, has no branch protection, secret scanning is disabled, and 18 Dependabot alerts are open &mdash; 6 of which are <strong style="color:var(--danger)">high or critical severity</strong>.</div>
+
+        <!-- Signal breakdown -->
+        <div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--fg-subtle);letter-spacing:.06em;margin-bottom:8px">Signal Breakdown</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;font-size:13px">
+          <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;border:1px solid rgba(248,81,73,0.2);background:rgba(248,81,73,0.04)">
+            <div class="sev-dot critical" style="flex-shrink:0"></div>
+            <div style="flex:1"><strong>No branch protection on main</strong><div style="font-size:11px;color:var(--fg-muted)">Force-push possible, no required reviews. Detected via absence of <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">protected_branch.create</code> event in baseline.</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;border:1px solid rgba(248,81,73,0.2);background:rgba(248,81,73,0.04)">
+            <div class="sev-dot critical" style="flex-shrink:0"></div>
+            <div style="flex:1"><strong>Stale — no push in 389 days</strong><div style="font-size:11px;color:var(--fg-muted)">Last <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">git.push</code> event: Mar 3, 2025. Threshold: 90 days (configurable).</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;border:1px solid rgba(248,81,73,0.2);background:rgba(248,81,73,0.04)">
+            <div class="sev-dot critical" style="flex-shrink:0"></div>
+            <div style="flex:1"><strong>Secret scanning disabled</strong><div style="font-size:11px;color:var(--fg-muted)">No <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">repository.enable_secret_scanning</code> event found. Confirmed via baseline import.</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;border:1px solid rgba(248,81,73,0.2);background:rgba(248,81,73,0.04)">
+            <div class="sev-dot critical" style="flex-shrink:0"></div>
+            <div style="flex:1"><strong>18 open Dependabot alerts (6 critical/high)</strong><div style="font-size:11px;color:var(--fg-muted)">Oldest alert: 112 days. Derived from <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">repository_vulnerability_alert.create</code> events with no corresponding dismissal.</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;border:1px solid rgba(110,118,129,0.2);background:rgba(110,118,129,0.04)">
+            <div class="sev-dot low" style="flex-shrink:0"></div>
+            <div style="flex:1"><strong>No CI workflows</strong><div style="font-size:11px;color:var(--fg-muted)">No <code style="font-size:10px;background:var(--canvas-inset);padding:1px 3px;border-radius:2px">workflow_run</code> events in 390 days. Possible archive candidate.</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;border:1px solid rgba(63,185,80,0.2);background:rgba(63,185,80,0.04)">
+            <div class="sev-dot low" style="flex-shrink:0"></div>
+            <div style="flex:1"><strong>No outside collaborators</strong><div style="font-size:11px;color:var(--fg-muted)">No active outside collaborators with write/admin access. Good.</div></div>
+          </div>
+        </div>
+
+        <!-- Recent relevant events -->
+        <div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--fg-subtle);letter-spacing:.06em;margin-bottom:8px">Recent Relevant Events</div>
+        <div class="timeline" style="margin-bottom:16px">
+          <div class="tl-item"><div class="tl-node warning"></div><div class="tl-body"><strong>protected_branch.destroy</strong> on <strong>main</strong> by <span class="mention">@eremin</span></div><div class="tl-time">Jan 14, 2026 &middot; acme-corp</div></div>
+          <div class="tl-item"><div class="tl-node security"></div><div class="tl-body"><strong>repository_vulnerability_alert.create</strong> &mdash; <code>lodash</code> high severity</div><div class="tl-time">Jan 3, 2026 &middot; acme-corp</div></div>
+          <div class="tl-item"><div class="tl-node security"></div><div class="tl-body"><strong>repository.disable_secret_scanning</strong> by <span class="mention">@eremin</span></div><div class="tl-time">Nov 2, 2025 &middot; acme-corp</div></div>
+          <div class="tl-item"><div class="tl-node info"></div><div class="tl-body">Last <strong>git.push</strong> by <span class="mention">@bob</span> to <code>feat/billing-v2</code></div><div class="tl-time">Mar 3, 2025 &middot; acme-corp</div></div>
+        </div>
+
+        <!-- Alerting note -->
+        <div class="data-source-note">
+          <svg width="13" height="13" fill="var(--accent)" viewBox="0 0 16 16" style="flex-shrink:0;margin-top:1px"><path d="M0 8a8 8 0 1116 0A8 8 0 010 8zm8-6.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 7.75A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 110-2 1 1 0 010 2z"/></svg>
+          <span>This signal will be escalated to the alerting pipeline when age exceeds the <strong>critical escalation threshold</strong> configured in Health Settings (currently: 180 days stale or critical severity alerts unactioned for 60+ days).</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== HEALTH SETTINGS ===== -->
+  <div id="s-healthsettings" class="screen">
+    <div class="screen-scroll">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <button class="btn btn-sm" onclick="nav('health', document.querySelector('[onclick*=health]'))" style="padding:3px 8px">&#8592; Back</button>
+        <div class="page-title" style="margin-bottom:0">Health Settings</div>
+      </div>
+      <div class="page-sub">Configure thresholds, escalation behavior, and data source options. Admin role required.</div>
+
+      <!-- Repository health thresholds -->
+      <div class="settings-group">
+        <div class="settings-group-title">Repository Health Thresholds</div>
+        <div class="settings-row">
+          <div><div class="settings-label">Stale repo threshold</div><div class="settings-hint">Repos with no push activity beyond this age are flagged stale</div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input class="input-sm" type="number" value="90"> <span style="font-size:12px;color:var(--fg-muted)">days</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Stale PR threshold</div><div class="settings-hint">Open PRs with no activity beyond this age are flagged</div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input class="input-sm" type="number" value="30"> <span style="font-size:12px;color:var(--fg-muted)">days</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Unreviewed Dependabot alerts threshold</div><div class="settings-hint">Alerts open beyond this age without dismissal/fix</div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input class="input-sm" type="number" value="60"> <span style="font-size:12px;color:var(--fg-muted)">days</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">CI skipped workflow signal</div><div class="settings-hint">Flag workflows with this many consecutive skip/cancelled conclusions</div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input class="input-sm" type="number" value="10"> <span style="font-size:12px;color:var(--fg-muted)">consecutive</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Access & identity thresholds -->
+      <div class="settings-group">
+        <div class="settings-group-title">Access &amp; Identity Thresholds</div>
+        <div class="settings-row">
+          <div><div class="settings-label">Dormant member threshold</div><div class="settings-hint">Members with no audit activity beyond this age are flagged dormant</div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input class="input-sm" type="number" value="90"> <span style="font-size:12px;color:var(--fg-muted)">days</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">PAT no-expiry flag</div><div class="settings-hint">Flag personal access tokens created without an expiration date</div></div>
+          <div>
+            <label class="toggle"><div class="toggle-track on"><div class="toggle-thumb"></div></div></label>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">PAT stale threshold</div><div class="settings-hint">Flag PATs not used beyond this age</div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input class="input-sm" type="number" value="90"> <span style="font-size:12px;color:var(--fg-muted)">days</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Outside collaborator write/admin flag</div><div class="settings-hint">Always flag outside collaborators with write or admin permission</div></div>
+          <div>
+            <label class="toggle"><div class="toggle-track on"><div class="toggle-thumb"></div></div></label>
+          </div>
+        </div>
+      </div>
+
+      <!-- License thresholds -->
+      <div class="settings-group">
+        <div class="settings-group-title">License Health</div>
+        <div class="settings-row">
+          <div><div class="settings-label">License utilization warning threshold</div><div class="settings-hint">Show warning when seat utilization exceeds this percentage</div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input class="input-sm" type="number" value="80"> <span style="font-size:12px;color:var(--fg-muted)">%</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Ghost member cost attribution</div><div class="settings-hint">Monthly cost per seat used to estimate recoverable spend from dormant members</div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:12px;color:var(--fg-muted)">$</span><input class="input-sm" type="number" value="19">
+          </div>
+        </div>
+      </div>
+
+      <!-- Alerting escalation -->
+      <div class="settings-group">
+        <div class="settings-group-title">Alerting Escalation (Future)</div>
+        <div style="font-size:12px;color:var(--fg-muted);margin-bottom:12px;padding:8px;background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.15);border-radius:6px">Health signals are <strong>informational only</strong> at this time. The settings below define when signals will be automatically escalated to the detection/alerting pipeline in a future release.</div>
+        <div class="settings-row">
+          <div><div class="settings-label">Escalate critical signals after</div><div class="settings-hint">Unactioned critical signals older than this are promoted to detections</div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input class="input-sm" type="number" value="60"> <span style="font-size:12px;color:var(--fg-muted)">days</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Escalate stale repos after</div><div class="settings-hint">Stale repos idle beyond this age escalate to a detection-grade alert</div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input class="input-sm" type="number" value="180"> <span style="font-size:12px;color:var(--fg-muted)">days</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Escalate dormant members after</div><div class="settings-hint">Dormant members still consuming licenses beyond this age escalate</div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input class="input-sm" type="number" value="180"> <span style="font-size:12px;color:var(--fg-muted)">days</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Escalation destination</div><div class="settings-hint">Where promoted health signals are sent when threshold is exceeded</div></div>
+          <div>
+            <select style="background:var(--canvas-inset);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:4px 8px;font-size:12px">
+              <option>Detection queue (internal)</option>
+              <option>Slack — #security-alerts</option>
+              <option>PagerDuty</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Baseline import reminder -->
+      <div class="settings-group">
+        <div class="settings-group-title">Baseline &amp; Data Sources</div>
+        <div class="settings-row">
+          <div><div class="settings-label">Last baseline import</div><div class="settings-hint">Used to seed repo list, member list, secret scanning enrollment, and branch protection state</div></div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;color:var(--fg-muted)">Mar 20, 2026</span>
+            <button class="btn btn-sm" onclick="nav('integrations',null)">&#8594; Integrations</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Ongoing signals from audit log</div><div class="settings-hint">All event-derived signals update automatically as new audit events are ingested — no GitHub API polling required</div></div>
+          <span class="label label-success">active</span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary">Save settings</button>
+        <button class="btn">Reset to defaults</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== REPORTS ===== -->
+  <div id="s-reports" class="screen">
+    <div class="screen-scroll">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+        <div><div class="page-title">Reports</div><div class="page-sub" style="margin:0">Scheduled and on-demand intelligence reports</div></div>
+        <button class="btn btn-primary">Generate report</button>
+      </div>
+      <div class="release-list">
+        <div class="release-item">
+          <div><div class="release-title">Monthly Security Posture &mdash; January 2024</div><div class="release-date">Generated Jan 15, 2024 &middot; 47 pages</div><div class="release-tags"><span class="label label-danger">14 critical findings</span><span class="label label-attention">8 medium</span><span class="label label-success">automated</span><span class="label label-muted">acme-corp + globex</span></div></div>
+          <div class="release-actions"><button class="btn btn-sm">PDF</button><button class="btn btn-sm">CSV</button></div>
+        </div>
+        <div class="release-item">
+          <div><div class="release-title">Engineering Velocity Q4 2023 &mdash; Executive Summary</div><div class="release-date">Generated Jan 1, 2024 &middot; 12 pages</div><div class="release-tags"><span class="label label-accent">velocity</span><span class="label label-success">847 deploys</span><span class="label label-success">94.2% pipeline health</span></div></div>
+          <div class="release-actions"><button class="btn btn-sm">PDF</button><button class="btn btn-sm">CSV</button></div>
+        </div>
+        <div class="release-item">
+          <div><div class="release-title">Access Review &mdash; Outside Collaborators and PAT Inventory</div><div class="release-date">Generated Dec 28, 2023 &middot; 23 pages</div><div class="release-tags"><span class="label label-attention">47 collaborators</span><span class="label label-danger">12 expiring tokens</span><span class="label label-muted">quarterly</span></div></div>
+          <div class="release-actions"><button class="btn btn-sm">PDF</button><button class="btn btn-sm">CSV</button></div>
+        </div>
+        <div class="release-item">
+          <div><div class="release-title">DORA Metrics &mdash; December 2023</div><div class="release-date">Generated Jan 2, 2024 &middot; 8 pages</div><div class="release-tags"><span class="label label-success">Elite performer</span><span class="label label-accent">DORA</span><span class="label label-muted">acme-corp</span></div></div>
+          <div class="release-actions"><button class="btn btn-sm">PDF</button><button class="btn btn-sm">CSV</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== QUERY EXPLORER ===== -->
+  <div id="s-query" class="screen">
+    <div class="screen-scroll" style="height:100%;display:flex;flex-direction:column">
+      <div class="page-title">Query Explorer</div>
+      <div class="page-sub">Write SQL against the audit events database</div>
+      <div class="query-layout" style="flex:1;min-height:0">
+        <div class="schema-tree">
+          <div class="schema-title">Schema</div>
+          <div class="schema-table">&#9660; audit_events</div>
+          <div class="schema-col"><span class="schema-type">uuid</span>&nbsp;id</div>
+          <div class="schema-col"><span class="schema-type">text</span>&nbsp;action</div>
+          <div class="schema-col"><span class="schema-type">text</span>&nbsp;actor</div>
+          <div class="schema-col"><span class="schema-type">text</span>&nbsp;org</div>
+          <div class="schema-col"><span class="schema-type">text</span>&nbsp;repo</div>
+          <div class="schema-col"><span class="schema-type">inet</span>&nbsp;actor_ip</div>
+          <div class="schema-col"><span class="schema-type">jsonb</span>&nbsp;location</div>
+          <div class="schema-col"><span class="schema-type">tstz</span>&nbsp;created_at</div>
+          <div class="schema-col"><span class="schema-type">jsonb</span>&nbsp;data</div>
+          <div class="schema-table" style="margin-top:10px">&#9660; detections</div>
+          <div class="schema-col"><span class="schema-type">uuid</span>&nbsp;id</div>
+          <div class="schema-col"><span class="schema-type">text</span>&nbsp;rule_name</div>
+          <div class="schema-col"><span class="schema-type">text</span>&nbsp;severity</div>
+          <div class="schema-col"><span class="schema-type">tstz</span>&nbsp;detected_at</div>
+          <div class="schema-table" style="margin-top:10px">&#9660; workflow_runs</div>
+          <div class="schema-col"><span class="schema-type">bigint</span>&nbsp;run_id</div>
+          <div class="schema-col"><span class="schema-type">text</span>&nbsp;workflow</div>
+          <div class="schema-col"><span class="schema-type">text</span>&nbsp;conclusion</div>
+          <div class="schema-col"><span class="schema-type">int4</span>&nbsp;duration_s</div>
+        </div>
+        <div class="editor-wrap">
+          <div class="editor-file">
+            <div class="editor-toolbar">
+              <span class="editor-filename">query.sql</span>
+              <div style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-sm btn-primary">&#9654; Run</button><button class="btn btn-sm">Save</button><button class="btn btn-sm">History</button></div>
+            </div>
+            <div class="editor-body">
+              <div class="editor-gutter">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12</div>
+              <div class="editor-code"><span class="sql-cmt">-- Actors with logins from 2+ countries in a single day</span>
+<span class="sql-kw">SELECT</span>
+  <span class="sql-col">actor</span>,
+  <span class="sql-fn">COUNT</span>(<span class="sql-kw">DISTINCT</span> <span class="sql-col">location</span>-&gt;&gt;<span class="sql-lit">'country_code'</span>) <span class="sql-kw">AS</span> country_count,
+  <span class="sql-fn">array_agg</span>(<span class="sql-kw">DISTINCT</span> <span class="sql-col">location</span>-&gt;&gt;<span class="sql-lit">'country_code'</span>) <span class="sql-kw">AS</span> countries,
+  <span class="sql-fn">MIN</span>(<span class="sql-col">created_at</span>) <span class="sql-kw">AS</span> first_seen,
+  <span class="sql-fn">MAX</span>(<span class="sql-col">created_at</span>) <span class="sql-kw">AS</span> last_seen
+<span class="sql-kw">FROM</span> <span class="sql-col">audit_events</span>
+<span class="sql-kw">WHERE</span> <span class="sql-col">action</span> = <span class="sql-lit">'user.login'</span>
+  <span class="sql-kw">AND</span> <span class="sql-col">created_at</span> &gt;= <span class="sql-fn">NOW</span>() - <span class="sql-lit">INTERVAL '1 day'</span>
+<span class="sql-kw">GROUP BY</span> <span class="sql-col">actor</span>
+<span class="sql-kw">HAVING</span> <span class="sql-fn">COUNT</span>(<span class="sql-kw">DISTINCT</span> <span class="sql-col">location</span>-&gt;&gt;<span class="sql-lit">'country_code'</span>) &gt; <span class="sql-lit">1</span>;</div>
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--fg-muted);margin:0 0 6px">3 rows &middot; 12ms</div>
+          <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+            <table>
+              <thead><tr><th>actor</th><th>country_count</th><th>countries</th><th>first_seen</th><th>last_seen</th></tr></thead>
+              <tbody>
+                <tr><td><span class="mention">@mal-user99</span></td><td>2</td><td><code>{US,CN}</code></td><td style="font-family:ui-monospace,monospace;font-size:12px">2024-01-15 14:03:22</td><td style="font-family:ui-monospace,monospace;font-size:12px">2024-01-15 14:07:41</td></tr>
+                <tr><td><span class="mention">@contractor4</span></td><td>2</td><td><code>{UK,DE}</code></td><td style="font-family:ui-monospace,monospace;font-size:12px">2024-01-15 08:12:04</td><td style="font-family:ui-monospace,monospace;font-size:12px">2024-01-15 14:22:11</td></tr>
+                <tr><td><span class="mention">@traveler</span></td><td>2</td><td><code>{US,CA}</code></td><td style="font-family:ui-monospace,monospace;font-size:12px">2024-01-15 11:04:31</td><td style="font-family:ui-monospace,monospace;font-size:12px">2024-01-15 18:55:09</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DETECTION RULES ===== -->
+  <div id="s-rules" class="screen">
+    <div class="screen-scroll">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+        <div><div class="page-title">Detection Rules</div><div class="page-sub" style="margin:0">Manage built-in and custom detection rules</div></div>
+        <div style="display:flex;gap:8px"><button class="btn btn-sm">Sync from GitHub</button><button class="btn btn-sm btn-primary">New rule</button></div>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+        <table>
+          <thead><tr><th>Status</th><th>Rule name</th><th>Logic</th><th>Severity</th><th>Detections (30d)</th><th>Version</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><span class="label label-success">active</span></td><td><strong>impossible-travel</strong></td><td><span class="label label-muted">threshold</span></td><td><span class="label label-danger">critical</span></td><td style="font-variant-numeric:tabular-nums">8</td><td style="font-family:ui-monospace,monospace;font-size:12px;color:var(--fg-muted)">v1.3.0</td><td><button class="btn btn-sm">Edit</button></td></tr>
+            <tr><td><span class="label label-success">active</span></td><td><strong>branch-protection-deleted</strong></td><td><span class="label label-muted">exact-match</span></td><td><span class="label label-danger">critical</span></td><td style="font-variant-numeric:tabular-nums">3</td><td style="font-family:ui-monospace,monospace;font-size:12px;color:var(--fg-muted)">v2.0.1</td><td><button class="btn btn-sm">Edit</button></td></tr>
+            <tr><td><span class="label label-success">active</span></td><td><strong>repo-visibility-public</strong></td><td><span class="label label-muted">exact-match</span></td><td><span class="label label-severe">high</span></td><td style="font-variant-numeric:tabular-nums">1</td><td style="font-family:ui-monospace,monospace;font-size:12px;color:var(--fg-muted)">v1.0.2</td><td><button class="btn btn-sm">Edit</button></td></tr>
+            <tr><td><span class="label label-success">active</span></td><td><strong>bulk-clone-off-hours</strong></td><td><span class="label label-done">ml-assisted</span></td><td><span class="label label-attention">medium</span></td><td style="font-variant-numeric:tabular-nums">2</td><td style="font-family:ui-monospace,monospace;font-size:12px;color:var(--fg-muted)">v1.1.0</td><td><button class="btn btn-sm">Edit</button></td></tr>
+            <tr><td><span class="label label-muted">draft</span></td><td><strong>sso-bypass-anomaly</strong></td><td><span class="label label-done">ml-assisted</span></td><td><span class="label label-severe">high</span></td><td style="font-variant-numeric:tabular-nums">&#8212;</td><td style="font-family:ui-monospace,monospace;font-size:12px;color:var(--fg-muted)">v0.2.0</td><td><button class="btn btn-sm">Edit</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== USERS & ROLES ===== -->
+  <div id="s-users" class="screen">
+    <div class="screen-scroll">
+      <div class="page-title">Users &amp; Roles</div>
+      <div class="page-sub">RBAC managed via GitHub teams</div>
+      <div class="section-title">Team mappings</div>
+      <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:24px">
+        <table>
+          <thead><tr><th>GitHub team</th><th>OctoWatch role</th><th>Mapped by</th><th>Last synced</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><span style="color:var(--done);font-family:ui-monospace,monospace;font-size:12px">@acme-corp/security-team</span></td><td><span class="label label-danger">Admin</span></td><td><span class="mention">@jmassardo</span></td><td style="color:var(--fg-muted)">2 min ago</td><td><button class="btn btn-sm">Edit</button></td></tr>
+            <tr><td><span style="color:var(--done);font-family:ui-monospace,monospace;font-size:12px">@acme-corp/platform-team</span></td><td><span class="label label-accent">Write</span></td><td><span class="mention">@jmassardo</span></td><td style="color:var(--fg-muted)">2 min ago</td><td><button class="btn btn-sm">Edit</button></td></tr>
+            <tr><td><span style="color:var(--done);font-family:ui-monospace,monospace;font-size:12px">@acme-corp/engineering</span></td><td><span class="label label-muted">Read</span></td><td><span class="mention">@jmassardo</span></td><td style="color:var(--fg-muted)">2 min ago</td><td><button class="btn btn-sm">Edit</button></td></tr>
+            <tr><td><span style="color:var(--done);font-family:ui-monospace,monospace;font-size:12px">@globex/security</span></td><td><span class="label label-accent">Write</span></td><td><span class="mention">@carol</span></td><td style="color:var(--fg-muted)">1h ago</td><td><button class="btn btn-sm">Edit</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="section-title">Active users</div>
+      <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+        <table>
+          <thead><tr><th>User</th><th>Role</th><th>Last active</th><th>MFA</th><th>Sessions</th></tr></thead>
+          <tbody>
+            <tr><td><span class="mention">@jmassardo</span></td><td><span class="label label-danger">Admin</span></td><td style="color:var(--fg-muted)">Just now</td><td><span class="label label-success">enabled</span></td><td>2</td></tr>
+            <tr><td><span class="mention">@alice</span></td><td><span class="label label-accent">Write</span></td><td style="color:var(--fg-muted)">12 min ago</td><td><span class="label label-success">enabled</span></td><td>1</td></tr>
+            <tr><td><span class="mention">@carol</span></td><td><span class="label label-accent">Write</span></td><td style="color:var(--fg-muted)">2h ago</td><td><span class="label label-success">enabled</span></td><td>1</td></tr>
+            <tr><td><span class="mention">@bob</span></td><td><span class="label label-muted">Read</span></td><td style="color:var(--fg-muted)">Yesterday</td><td><span class="label label-attention">pending</span></td><td>0</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== INTEGRATIONS ===== -->
+  <div id="s-integrations" class="screen">
+    <div class="screen-scroll">
+      <div class="page-title">Integrations</div>
+      <div class="page-sub">Connect OctoWatch with your existing tools and notification channels</div>
+      <div class="mkt-grid">
+        <div class="mkt-card">
+          <div class="mkt-icon" style="background:#24292f"><svg width="28" height="28" viewBox="0 0 24 24" fill="#e6edf3"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg></div>
+          <div class="mkt-name">GitHub Enterprise</div>
+          <div class="mkt-desc">Primary audit log source. Streaming, OAuth SSO, and team-based RBAC.</div>
+          <div class="mkt-footer"><span class="label label-success">Connected</span><button class="btn btn-sm">Configure</button></div>
+        </div>
+        <div class="mkt-card">
+          <div class="mkt-icon" style="background:#4a154b"><svg width="28" height="28" viewBox="0 0 24 24" fill="#e01e5a"><path d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312z"/></svg></div>
+          <div class="mkt-name">Slack</div>
+          <div class="mkt-desc">Real-time threat alerts and daily digests. Configurable per severity and channel.</div>
+          <div class="mkt-footer"><span class="label label-success">Connected</span><button class="btn btn-sm">Configure</button></div>
+        </div>
+        <div class="mkt-card">
+          <div class="mkt-icon" style="background:#0078d4"><svg width="28" height="28" viewBox="0 0 32 32" fill="white"><path d="M17.5 3L4 18.5h10L11.5 29 28 13.5H18L21.5 3z"/></svg></div>
+          <div class="mkt-name">Microsoft Sentinel</div>
+          <div class="mkt-desc">Forward detections and raw events as security incidents via CEF/Syslog.</div>
+          <div class="mkt-footer"><span class="label label-muted">Not installed</span><button class="btn btn-sm btn-primary">Install</button></div>
+        </div>
+        <div class="mkt-card">
+          <div class="mkt-icon" style="background:#1a1a1a"><svg width="28" height="28" viewBox="0 0 32 32" fill="#ff444f"><path d="M16 2L2 28h28L16 2zm0 6l10 18H6L16 8z"/></svg></div>
+          <div class="mkt-name">Splunk</div>
+          <div class="mkt-desc">Stream events to Splunk HEC. Includes pre-built dashboards and saved searches.</div>
+          <div class="mkt-footer"><span class="label label-muted">Not installed</span><button class="btn btn-sm btn-primary">Install</button></div>
+        </div>
+        <div class="mkt-card">
+          <div class="mkt-icon" style="background:#06ac38"><svg width="28" height="28" viewBox="0 0 32 32" fill="white"><circle cx="16" cy="16" r="10" fill="none" stroke="white" stroke-width="3"/><circle cx="16" cy="16" r="4" fill="white"/><line x1="16" y1="2" x2="16" y2="8" stroke="white" stroke-width="2.5"/><line x1="16" y1="24" x2="16" y2="30" stroke="white" stroke-width="2.5"/><line x1="2" y1="16" x2="8" y2="16" stroke="white" stroke-width="2.5"/><line x1="24" y1="16" x2="30" y2="16" stroke="white" stroke-width="2.5"/></svg></div>
+          <div class="mkt-name">PagerDuty</div>
+          <div class="mkt-desc">Route critical/high detections to incidents with automatic escalation policies.</div>
+          <div class="mkt-footer"><span class="label label-attention">Configured</span><button class="btn btn-sm">Configure</button></div>
+        </div>
+        <div class="mkt-card">
+          <div class="mkt-icon" style="background:#0052CC"><svg width="28" height="28" viewBox="0 0 32 32" fill="white"><path d="M4 16L12 24L28 8" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="mkt-name">Jira</div>
+          <div class="mkt-desc">Automatically create Jira issues for security findings with customizable field mappings.</div>
+          <div class="mkt-footer"><span class="label label-muted">Not installed</span><button class="btn btn-sm btn-primary">Install</button></div>
+        </div>
+      </div>
+
+      <!-- Data Import -->
+      <div class="section-title" style="margin-top:24px">Data Import</div>
+      <div style="font-size:12px;color:var(--fg-muted);margin-bottom:16px">
+        Import exported data files to analyze without live API access &mdash; great for evaluating OctoWatch before full deployment or filling historical gaps.
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+        <!-- Audit Log Import -->
+        <div class="card">
+          <div class="card-header" style="margin-bottom:12px">
+            <span style="display:flex;align-items:center;gap:8px">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="var(--fg-muted)"><path d="M1.75 2.5a.25.25 0 000 .5h12.5a.25.25 0 000-.5H1.75zM1.5 6.75A.75.75 0 012.25 6h11.5a.75.75 0 010 1.5H2.25A.75.75 0 011.5 6.75zm0 4.5a.75.75 0 01.75-.75h5.5a.75.75 0 010 1.5h-5.5a.75.75 0 01-.75-.75z"/></svg>
+              Audit Log Import
+            </span>
+          </div>
+          <div class="import-drop" onclick="this.nextElementSibling.click()">
+            <svg width="24" height="24" viewBox="0 0 16 16" fill="var(--fg-subtle)" style="margin-bottom:8px"><path d="M7.47 1.47a.75.75 0 011.06 0l3.5 3.5a.75.75 0 01-1.06 1.06L8.75 3.81V9.5a.75.75 0 01-1.5 0V3.81L5.03 6.03a.75.75 0 01-1.06-1.06l3.5-3.5zm-3.97 9.5a.75.75 0 010-1.5h1.99a.75.75 0 010 1.5H3.5zm8.01 0a.75.75 0 010-1.5H13.5a.75.75 0 010 1.5h-1.99zM1.75 13.5a.25.25 0 00-.25.25V14a.25.25 0 00.25.25h12.5A.25.25 0 0014.5 14v-.25a.25.25 0 00-.25-.25H1.75z"/></svg>
+            <div style="font-size:13px;color:var(--fg-muted)">Drop file here or <span style="color:var(--accent)">browse</span></div>
+            <div style="font-size:11px;color:var(--fg-subtle);margin-top:4px">Accepts .csv or .json &middot; max 500 MB</div>
+          </div>
+          <input type="file" accept=".csv,.json" style="display:none">
+          <div style="margin-top:10px;font-size:12px;color:var(--fg-muted)">
+            Export from GitHub Enterprise: <code style="font-size:11px;background:var(--canvas-inset);padding:1px 4px;border-radius:3px">Settings &rarr; Audit log &rarr; Export CSV</code>
+          </div>
+        </div>
+        <!-- Copilot Metrics Import -->
+        <div class="card">
+          <div class="card-header" style="margin-bottom:12px">
+            <span style="display:flex;align-items:center;gap:8px">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="var(--fg-muted)"><path d="M0 2.75A2.75 2.75 0 012.75 0h10.5A2.75 2.75 0 0116 2.75v10.5A2.75 2.75 0 0113.25 16H2.75A2.75 2.75 0 010 13.25zM2.75 1.5c-.69 0-1.25.56-1.25 1.25v10.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25V2.75c0-.69-.56-1.25-1.25-1.25zM8 4a.75.75 0 01.75.75v3.69l1.47-1.47a.75.75 0 011.06 1.06l-2.75 2.75a.75.75 0 01-1.06 0L4.72 8.03a.75.75 0 011.06-1.06L7.25 8.46V4.75A.75.75 0 018 4z"/></svg>
+              Copilot Metrics Import
+            </span>
+          </div>
+          <div class="import-drop" onclick="this.nextElementSibling.click()">
+            <svg width="24" height="24" viewBox="0 0 16 16" fill="var(--fg-subtle)" style="margin-bottom:8px"><path d="M7.47 1.47a.75.75 0 011.06 0l3.5 3.5a.75.75 0 01-1.06 1.06L8.75 3.81V9.5a.75.75 0 01-1.5 0V3.81L5.03 6.03a.75.75 0 01-1.06-1.06l3.5-3.5zm-3.97 9.5a.75.75 0 010-1.5h1.99a.75.75 0 010 1.5H3.5zm8.01 0a.75.75 0 010-1.5H13.5a.75.75 0 010 1.5h-1.99zM1.75 13.5a.25.25 0 00-.25.25V14a.25.25 0 00.25.25h12.5A.25.25 0 0014.5 14v-.25a.25.25 0 00-.25-.25H1.75z"/></svg>
+            <div style="font-size:13px;color:var(--fg-muted)">Drop file here or <span style="color:var(--accent)">browse</span></div>
+            <div style="font-size:11px;color:var(--fg-subtle);margin-top:4px">Accepts .json &middot; GitHub Copilot Metrics API format</div>
+          </div>
+          <input type="file" accept=".json" style="display:none">
+          <div style="margin-top:10px;font-size:12px;color:var(--fg-muted)">
+            Fetch via: <code style="font-size:11px;background:var(--canvas-inset);padding:1px 4px;border-radius:3px">GET /orgs/{org}/copilot/metrics</code>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent imports -->
+      <div class="section-title" style="margin-bottom:10px">Recent imports</div>
+      <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+        <table>
+          <thead><tr><th>File</th><th>Type</th><th>Size</th><th>Imported at</th><th>Records</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td style="color:var(--fg-muted);font-variant-numeric:tabular-nums">audit-log-jan-2026.json</td><td><span class="label label-muted">audit_log</span></td><td style="color:var(--fg-muted)">48.2 MB</td><td style="color:var(--fg-muted)">Mar 20, 2026 09:14</td><td style="font-variant-numeric:tabular-nums">124,832</td><td><span class="label label-success">complete</span></td></tr>
+            <tr><td style="color:var(--fg-muted)">copilot-metrics-q1.json</td><td><span class="label label-muted">copilot</span></td><td style="color:var(--fg-muted)">2.1 MB</td><td style="color:var(--fg-muted)">Mar 18, 2026 14:02</td><td style="font-variant-numeric:tabular-nums">8,640</td><td><span class="label label-success">complete</span></td></tr>
+            <tr><td style="color:var(--fg-muted)">audit-log-dec-2025.csv</td><td><span class="label label-muted">audit_log</span></td><td style="color:var(--fg-muted)">31.7 MB</td><td style="color:var(--fg-muted)">Jan 5, 2026 11:47</td><td style="font-variant-numeric:tabular-nums">89,441</td><td><span class="label label-success">complete</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /layout -->
+
+<script>
+function copilotTab(id, el) {
+  document.querySelectorAll('.copilot-pane').forEach(p => { p.style.display=''; p.classList.remove('active'); });
+  const pane = document.getElementById('ct-' + id);
+  if (pane) pane.classList.add('active');
+  document.querySelectorAll('.copilot-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+function healthTab(id, el) {
+  document.querySelectorAll('.health-pane').forEach(p => { p.style.display=''; p.classList.remove('active'); });
+  const pane = document.getElementById('ht-' + id);
+  if (pane) pane.classList.add('active');
+  document.querySelectorAll('.health-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+function openRepoPanel(repoName) {
+  document.getElementById('repo-panel-title').textContent = repoName;
+  document.getElementById('repo-panel').classList.add('open');
+  document.querySelectorAll('.repo-row').forEach(r => r.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+
+function nav(id, el) {
+  document.querySelectorAll('.screen').forEach(s => { s.style.display = 'none'; s.classList.remove('active'); });
+  const screen = document.getElementById('s-' + id);
+  if (screen) { screen.style.display = 'flex'; screen.classList.add('active'); }
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+function openPanel(id) {
+  document.getElementById(id).classList.add('open');
+}
+function closePanel(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// Build contribution calendar helper
+function buildCal(containerId, alertSet) {
+  const weeks = 13, days = 7;
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  const monthNames = ['Oct','','Nov','','','','Dec','','','Jan','','',''];
+  const ml = document.createElement('div');
+  ml.className = 'cal-months';
+  ml.style.cssText = 'display:flex;gap:0;padding-left:32px';
+  monthNames.forEach(m => {
+    const s = document.createElement('span');
+    s.className = 'cal-month';
+    s.style.cssText = 'font-size:11px;color:var(--fg-subtle);flex:1;min-width:0';
+    s.textContent = m;
+    ml.appendChild(s);
+  });
+
+  const body = document.createElement('div');
+  body.className = 'cal-body';
+
+  const dayLabels = document.createElement('div');
+  dayLabels.className = 'cal-days';
+  ['','Mon','','Wed','','Fri',''].forEach(d => {
+    const lbl = document.createElement('div');
+    lbl.className = 'cal-day-lbl';
+    lbl.textContent = d;
+    lbl.style.cssText = 'font-size:10px;color:var(--fg-subtle);height:11px;line-height:11px;width:24px;text-align:right';
+    dayLabels.appendChild(lbl);
+  });
+
+  const cols = document.createElement('div');
+  cols.className = 'cal-cols';
+
+  for (let w = 0; w < weeks; w++) {
+    const col = document.createElement('div');
+    col.className = 'cal-col';
+    for (let d = 0; d < days; d++) {
+      const cell = document.createElement('div');
+      cell.className = 'cal-cell';
+      const key = w + ',' + d;
+      if (alertSet && alertSet.has(key)) {
+        cell.setAttribute('data-alert', '1');
+      } else {
+        const r = Math.random();
+        const level = r < 0.35 ? 0 : r < 0.55 ? 1 : r < 0.72 ? 2 : r < 0.87 ? 3 : 4;
+        cell.setAttribute('data-level', level);
+      }
+      col.appendChild(cell);
+    }
+    cols.appendChild(col);
+  }
+
+  body.appendChild(dayLabels);
+  body.appendChild(cols);
+  el.appendChild(ml);
+  el.appendChild(body);
+}
+
+buildCal('cal-dashboard', new Set(['2,3','5,1','7,5','10,2','12,4']));
+buildCal('cal-velocity', new Set());
+</script>
+</body>
+</html>

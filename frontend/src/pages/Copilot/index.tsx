@@ -57,7 +57,7 @@ export function CopilotPage() {
       )}
       {activeTab === 'adoption' && <AdoptionPane />}
       {activeTab === 'models' && <ModelsPane />}
-      {activeTab === 'license' && <LicensePane />}
+      {activeTab === 'license' && <LicensePane seatBuckets={seatBuckets} />}
       {activeTab === 'anomalies' && <AnomaliesPane />}
     </div>
   );

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Button } from '../../components/primitives/Button';
+import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import {
   ADOPTION_TIERS,
   TOTAL_ADOPTION,
@@ -10,8 +12,12 @@ import {
 import styles from './Copilot.module.css';
 
 export function AdoptionPane() {
+  const [scheduledUsers, setScheduledUsers] = useState<Record<string, boolean>>({});
+
   return (
     <>
+      <SampleDataBanner message="Adoption data below is illustrative. Requires Copilot Metrics API integration for live data." />
+
       {/* Adoption tier cards */}
       <div className={styles.sectionTitle}>Adoption tiers</div>
       <div className={styles.tierGrid}>
@@ -162,7 +168,24 @@ export function AdoptionPane() {
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>{u.accepted}</td>
                   <td style={{ color: 'var(--fg-muted)' }}>{u.lastFeature}</td>
                   <td>
-                    <Button size="sm">Schedule onboarding</Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const confirmed = window.prompt(`Schedule onboarding for @${u.user}?`);
+                        if (confirmed !== null) {
+                          setScheduledUsers((prev) => ({ ...prev, [u.user]: true }));
+                          setTimeout(() => {
+                            setScheduledUsers((prev) => {
+                              const next = { ...prev };
+                              delete next[u.user];
+                              return next;
+                            });
+                          }, 3000);
+                        }
+                      }}
+                    >
+                      {scheduledUsers[u.user] ? 'Scheduled ✓' : 'Schedule onboarding'}
+                    </Button>
                   </td>
                 </tr>
               ))}

@@ -121,12 +121,68 @@ function AddMappingForm({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Edit-mapping form                                                 */
+/* ------------------------------------------------------------------ */
+
+function EditMappingForm({
+  assignment,
+  roles,
+  onSave,
+  onCancel,
+}: {
+  assignment: RoleAssignment;
+  roles: string[];
+  onSave: (v: RoleAssignmentCreate) => void;
+  onCancel: () => void;
+}) {
+  const roleMap: Record<number, string> = { 1: 'admin', 2: 'analyst' };
+  const [login, setLogin] = useState(assignment.github_login);
+  const [role, setRole] = useState(roleMap[assignment.role_id] ?? roles[0] ?? 'viewer');
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    onSave({ github_login: login, role_name: role, scope_type: 'global' });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className={styles.addForm}>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel}>GitHub login</label>
+        <input
+          className={styles.formInput}
+          value={login}
+          onChange={(e) => setLogin(e.target.value)}
+          required
+          placeholder="octocat"
+          autoFocus
+        />
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel}>Role</label>
+        <select
+          className={styles.formSelect}
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+        >
+          {roles.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+      </div>
+      <div className={styles.formActions}>
+        <Button variant="default" onClick={onCancel} type="button">Cancel</Button>
+        <Button variant="primary" type="submit">Save</Button>
+      </div>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Page                                                              */
 /* ------------------------------------------------------------------ */
 
 export function UsersPage() {
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
+  const [editTarget, setEditTarget] = useState<RoleAssignment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RoleAssignment | null>(null);
 
   const { data: assignments, isLoading, isError, refetch } = useQuery({
@@ -149,6 +205,14 @@ export function UsersPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteRoleAssignment(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['role-assignments'] }); setDeleteTarget(null); },
+  });
+
+  const editMutation = useMutation({
+    mutationFn: async ({ oldId, data }: { oldId: number; data: RoleAssignmentCreate }) => {
+      await deleteRoleAssignment(oldId);
+      return createRoleAssignment(data);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['role-assignments'] }); setEditTarget(null); },
   });
 
   return (
@@ -195,8 +259,15 @@ export function UsersPage() {
                         <span className={styles.mention}>@{a.granted_by}</span>
                       </td>
                       <td className={styles.muted}>{formatRelativeTime(a.granted_at)}</td>
-                      <td>
-                        <Button size="sm" onClick={() => setDeleteTarget(a)}>Edit</Button>
+                      <td style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        <Button size="sm" onClick={() => setEditTarget(a)}>Edit</Button>
+                        <button
+                          onClick={() => setDeleteTarget(a)}
+                          aria-label={`Remove mapping for ${a.github_login}`}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', fontSize: 16, padding: '2px 6px', borderRadius: 4 }}
+                        >
+                          ×
+                        </button>
                       </td>
                     </tr>
                   );
@@ -251,6 +322,17 @@ export function UsersPage() {
           onSave={(v) => createMutation.mutate(v)}
           onCancel={() => setShowAdd(false)}
         />
+      </Modal>
+
+      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title="Edit role mapping">
+        {editTarget && (
+          <EditMappingForm
+            assignment={editTarget}
+            roles={roles}
+            onSave={(v) => editMutation.mutate({ oldId: editTarget.id, data: v })}
+            onCancel={() => setEditTarget(null)}
+          />
+        )}
       </Modal>
 
       <ConfirmDialog

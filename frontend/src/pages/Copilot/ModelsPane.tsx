@@ -1,4 +1,5 @@
 import { Card, CardHeader } from '../../components/primitives/Card';
+import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { MODEL_USAGE, FEATURE_USAGE, EDITORS } from './copilotData';
 import styles from './Copilot.module.css';
 
@@ -7,6 +8,8 @@ export function ModelsPane() {
 
   return (
     <>
+      <SampleDataBanner message="Model and feature usage data below is illustrative. Requires Copilot Metrics API integration for live data." />
+
       <div className={styles.grid2}>
         {/* Model usage spread */}
         <Card>

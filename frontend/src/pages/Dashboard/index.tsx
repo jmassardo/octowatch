@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { listDetections } from '../../api/detections';
 import { listEvents } from '../../api/events';
+import { getActionsVolumeReport } from '../../api/reports';
 import { ContributionCalendar } from '../../components/charts/ContributionCalendar';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import type { EventResponse } from '../../types/events';
+import type { ActionsVolumeBucket } from '../../types/reports';
 import styles from './Dashboard.module.css';
 function StatPill({
   value,
@@ -59,6 +61,12 @@ function EventFeedItem({ event }: { event: EventResponse }) {
   );
 }
 
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
 export function DashboardPage() {
   const { data: detections, isLoading: loadingThreats, refetch: refetchThreats, isError: threatError } = useQuery({
     queryKey: ['detections', 'open'],
@@ -75,6 +83,21 @@ export function DashboardPage() {
     queryKey: ['events', 'calendar'],
     queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc' }),
   });
+
+  // Fetch actions volume data for workflow success metrics
+  const { data: actionsReport } = useQuery({
+    queryKey: ['reports', 'actions-volume-dashboard'],
+    queryFn: () => getActionsVolumeReport({ window_days: 7, granularity: 'daily' }),
+  });
+
+  // Derive workflow metrics from actions volume data
+  const actionsBuckets = (actionsReport?.data ?? []) as unknown as ActionsVolumeBucket[];
+  const totalWorkflowRuns = actionsBuckets.reduce((sum, b) => sum + (b.workflow_runs_total ?? 0), 0);
+  const succeededWorkflowRuns = actionsBuckets.reduce((sum, b) => sum + (b.workflow_runs_succeeded ?? 0), 0);
+  const failedWorkflowRuns = actionsBuckets.reduce((sum, b) => sum + (b.workflow_runs_failed ?? 0), 0);
+  const workflowSuccessRate = totalWorkflowRuns > 0
+    ? ((succeededWorkflowRuns / totalWorkflowRuns) * 100).toFixed(1)
+    : null;
 
   // Bucket calendar events by day
   const calendarData = (() => {
@@ -124,9 +147,13 @@ export function DashboardPage() {
       <div className={styles.pills}>
         <StatPill value={eventCountLabel || '—'} label="events today" />
         <StatPill value={String(openThreats)} label="open threats" variant={openThreats > 0 ? 'danger' : undefined} />
-        <StatPill value="94.2%" label="pipeline success" variant="success" />
+        <StatPill
+          value={workflowSuccessRate != null ? `${workflowSuccessRate}%` : '—'}
+          label="pipeline success"
+          variant={workflowSuccessRate != null && parseFloat(workflowSuccessRate) >= 90 ? 'success' : undefined}
+        />
         <StatPill value={String(uniqueActors || '—')} label="active devs" variant="done" />
-        <StatPill value="1.8M" label="API calls (24h)" variant="accent" />
+        <StatPill value={formatCount(calendarEvents?.total ?? 0)} label="total events" variant="accent" />
       </div>
 
       {threatError && <ErrorBanner message="Could not load threat data" onRetry={refetchThreats} />}
@@ -195,16 +222,23 @@ export function DashboardPage() {
             <CardHeader>Platform alerts</CardHeader>
             <div className={styles.alerts}>
               <div className={styles.alertRow}>
-                <span className={styles.alertIcon} style={{ color: 'var(--danger)' }}>⇧</span>
-                <div>Workflow failure rate <strong>+12%</strong> vs last week — <strong>infra-deploy</strong></div>
+                <span className={styles.alertIcon} style={{ color: failedWorkflowRuns > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                  {failedWorkflowRuns > 0 ? '⚠' : '✓'}
+                </span>
+                <div>
+                  Workflow runs: <strong>{succeededWorkflowRuns} succeeded</strong>, <strong>{failedWorkflowRuns} failed</strong>
+                  {totalWorkflowRuns > 0 ? ` (${workflowSuccessRate}% success)` : ''}
+                </div>
               </div>
               <div className={`${styles.alertRow} ${styles.alertBorder}`}>
                 <span className={styles.alertIcon} style={{ color: 'var(--attention)' }}>⚡</span>
-                <div>PR cycle time for <strong>platform-team</strong> up to <strong>4.1h avg</strong></div>
+                <div>Events volume: <strong>{formatCount(calendarEvents?.total ?? 0)} events</strong> tracked</div>
               </div>
               <div className={`${styles.alertRow} ${styles.alertBorder}`}>
-                <span className={styles.alertIcon} style={{ color: 'var(--success)' }}>⇧</span>
-                <div>Deploy frequency <strong>+28%</strong> this sprint — checkout-service</div>
+                <span className={styles.alertIcon} style={{ color: openThreats > 0 ? 'var(--attention)' : 'var(--success)' }}>
+                  {openThreats > 0 ? '⚠' : '✓'}
+                </span>
+                <div>Active detections: <strong>{openThreats} investigating</strong></div>
               </div>
             </div>
           </Card>

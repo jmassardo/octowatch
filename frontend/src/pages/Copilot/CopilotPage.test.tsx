@@ -9,7 +9,16 @@ vi.mock('echarts-for-react', () => ({
 }));
 
 vi.mock('../../api/reports', () => ({
-  getSeatUtilizationReport: vi.fn().mockResolvedValue({ data: [] }),
+  getSeatUtilizationReport: vi.fn().mockResolvedValue({
+    data: [
+      {
+        bucket: '2024-01-15',
+        active_seat_count: 124,
+        provisioned_seat_count: 186,
+        utilization_pct: 66.7,
+      },
+    ],
+  }),
   getCopilotSeatsReport: vi.fn().mockResolvedValue({ data: [] }),
 }));
 
@@ -49,9 +58,9 @@ describe('CopilotPage', () => {
     expect(anomaliesTab).toHaveTextContent('3');
   });
 
-  it('shows overview content by default', () => {
+  it('shows overview content by default', async () => {
     renderPage();
-    expect(screen.getByText(/Seat waste detected/)).toBeInTheDocument();
+    expect(await screen.findByText(/Seat waste detected/)).toBeInTheDocument();
     expect(screen.getByText('Export inactive list')).toBeInTheDocument();
   });
 
@@ -84,7 +93,7 @@ describe('CopilotPage', () => {
     await user.click(screen.getByRole('tab', { name: /License/ }));
     expect(screen.getByText('Cost optimization summary')).toBeInTheDocument();
     expect(screen.getByText('Recommendations')).toBeInTheDocument();
-    expect(screen.getByText(/Enable just-in-time provisioning/)).toBeInTheDocument();
+    expect(screen.getByText(/Consider just-in-time provisioning/)).toBeInTheDocument();
     expect(screen.queryByText(/Seat waste detected/)).not.toBeInTheDocument();
   });
 
@@ -108,7 +117,7 @@ describe('CopilotPage', () => {
     expect(screen.getByText('Adoption tiers')).toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: /Overview/ }));
-    expect(screen.getByText(/Seat waste detected/)).toBeInTheDocument();
+    expect(await screen.findByText(/Seat waste detected/)).toBeInTheDocument();
     expect(screen.queryByText('Adoption tiers')).not.toBeInTheDocument();
   });
 });

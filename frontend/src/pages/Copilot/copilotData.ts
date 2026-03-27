@@ -1,14 +1,9 @@
 /** Static / placeholder data for Copilot Insights sub-tabs. */
 
-/* ---- Seat costs & utilization ---- */
+/* ---- Seat cost config ---- */
 export const COST_PER_SEAT = 19;
-export const TOTAL_SEATS = 186;
-export const ACTIVE_SEATS = 124;
-export const INACTIVE_SEATS = 38;
-export const NEVER_USED_SEATS = 24;
-export const WASTED_SEATS = INACTIVE_SEATS + NEVER_USED_SEATS;
-export const MONTHLY_WASTE = WASTED_SEATS * COST_PER_SEAT;
 
+// Static: requires Copilot Metrics API integration
 /* ---- Acceptance rate chart (7-day rolling) ---- */
 export const ACCEPTANCE_RATE_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 export const ACCEPTANCE_RATE_VALUES = [24, 26, 27, 25, 28, 31, 29];
@@ -18,12 +13,7 @@ export const ACCEPTANCE_THRESHOLD_LINE = Array.from(
   () => ACCEPTANCE_THRESHOLD,
 );
 
-/* ---- Seat utilization trend (7-day) ---- */
-export const SEAT_TREND_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-export const SEAT_TREND_ACTIVE = [112, 115, 118, 114, 120, 108, 116];
-export const SEAT_TREND_INACTIVE = [34, 36, 38, 38, 35, 40, 38];
-export const SEAT_TREND_NEVER = [22, 23, 24, 24, 24, 24, 24];
-
+// Static: requires Copilot Metrics API integration
 /* ---- Acceptance rate by language ---- */
 export const LANGUAGES = [
   { lang: 'TypeScript', pct: 38, color: '#3fb950' },
@@ -34,6 +24,7 @@ export const LANGUAGES = [
   { lang: 'Rust', pct: 11, color: '#f85149' },
 ];
 
+// Static: requires Copilot Metrics API integration
 /* ---- Adoption tiers ---- */
 export const ADOPTION_TIERS = [
   { id: 'power', label: 'Power Users', count: 34, color: '#3fb950', desc: 'Active every day' },
@@ -45,6 +36,7 @@ export const ADOPTION_TIERS = [
 
 export const TOTAL_ADOPTION = ADOPTION_TIERS.reduce((s, t) => s + t.count, 0);
 
+// Static: requires Copilot Metrics API integration
 /* ---- Power users table ---- */
 export const POWER_USERS = [
   { user: 'sarah.chen', team: 'Platform', streak: 45, acceptRate: 42 },
@@ -54,6 +46,7 @@ export const POWER_USERS = [
   { user: 'priya.patel', team: 'DevOps', streak: 27, acceptRate: 31 },
 ];
 
+// Static: requires Copilot Metrics API integration
 /* ---- Feature adoption ---- */
 export const FEATURE_ADOPTION = [
   { feature: 'IDE completions', pct: 87, color: '#3fb950' },
@@ -63,6 +56,7 @@ export const FEATURE_ADOPTION = [
   { feature: 'Knowledge bases', pct: 12, color: '#8b949e' },
 ];
 
+// Static: requires Copilot Metrics API integration
 /* ---- Minimal users table ---- */
 export const MINIMAL_USERS = [
   { user: 'tom.jones', team: 'QA', uses: 2, accepted: 1, lastFeature: 'IDE chat' },
@@ -70,6 +64,7 @@ export const MINIMAL_USERS = [
   { user: 'raj.kumar', team: 'Backend', uses: 2, accepted: 1, lastFeature: 'PR summary' },
 ];
 
+// Static: requires Copilot Metrics API integration
 /* ---- Model usage ---- */
 export const MODEL_USAGE = [
   { model: 'GPT-4o', pct: 42, color: '#58a6ff' },
@@ -79,6 +74,7 @@ export const MODEL_USAGE = [
   { model: 'GPT-4o-mini', pct: 4, color: '#8b949e' },
 ];
 
+// Static: requires Copilot Metrics API integration
 /* ---- Feature usage (by count) ---- */
 export const FEATURE_USAGE = [
   { feature: 'IDE completions', count: 142, color: '#58a6ff' },
@@ -89,6 +85,7 @@ export const FEATURE_USAGE = [
   { feature: 'Knowledge bases', count: 12, color: '#8b949e' },
 ];
 
+// Static: requires Copilot Metrics API integration
 /* ---- Editor breakdown ---- */
 export const EDITORS = [
   { name: 'VS Code', count: 112, pct: 79 },
@@ -98,6 +95,7 @@ export const EDITORS = [
   { name: 'Other', count: 2, pct: 1 },
 ];
 
+// Static: requires Copilot Metrics API integration
 /* ---- Anomalies ---- */
 export const ANOMALIES = [
   {

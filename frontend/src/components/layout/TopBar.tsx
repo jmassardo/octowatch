@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOrg } from '../../hooks/useOrg';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
@@ -17,8 +18,13 @@ export function TopBar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const avatarRef = useRef<HTMLButtonElement>(null);
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+  const [extraOrgs, setExtraOrgs] = useState<string[]>([]);
 
-  const orgs = user?.scoped_orgs?.length ? user.scoped_orgs : FALLBACK_ORGS;
+  const orgs = [
+    ...(user?.scoped_orgs?.length ? user.scoped_orgs : FALLBACK_ORGS),
+    ...extraOrgs,
+  ];
 
   const themeIcon = theme === 'light' ? '☀️' : theme === 'dark' ? '🌙' : '💻';
   const themeLabel = theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System';
@@ -48,6 +54,14 @@ export function TopBar() {
         <button
           className={[styles.orgTab, styles.add].filter(Boolean).join(' ')}
           aria-label="Add organization"
+          onClick={() => {
+            const slug = window.prompt('Enter GitHub org slug');
+            if (slug?.trim()) {
+              setExtraOrgs((prev) =>
+                prev.includes(slug.trim()) ? prev : [...prev, slug.trim()],
+              );
+            }
+          }}
         >
           + Add org
         </button>
@@ -61,7 +75,7 @@ export function TopBar() {
         >
           {themeIcon}
         </button>
-        <Button size="sm">
+        <Button size="sm" onClick={() => navigate('/reports')}>
           <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
             <path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z" />
           </svg>

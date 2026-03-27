@@ -1,4 +1,5 @@
 import { Label } from '../../components/primitives/Label';
+import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { ANOMALIES } from './copilotData';
 import styles from './Copilot.module.css';
 
@@ -11,6 +12,8 @@ const SEVERITY_VARIANT = {
 export function AnomaliesPane() {
   return (
     <>
+      <SampleDataBanner message="Anomaly data below is illustrative. Requires Copilot Metrics API integration for live data." />
+
       <div className={styles.insightNote}>
         {ANOMALIES.length} anomalies detected in the last 7 days based on usage pattern analysis
       </div>

@@ -62,5 +62,5 @@ export type ReportGranularity = 'daily' | 'weekly' | 'monthly';
 export interface ReportParams {
   org?: string;
   granularity?: ReportGranularity;
-  window_days?: 30 | 60 | 90;
+  window_days?: 7 | 30 | 60 | 90;
 }

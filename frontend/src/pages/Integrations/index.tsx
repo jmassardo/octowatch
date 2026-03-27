@@ -1,10 +1,11 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   listTicketingConfigs,
   listNotificationConfigs,
 } from '../../api/integrations';
 import { Button } from '../../components/primitives/Button';
+import { Modal } from '../../components/primitives/Modal';
 import styles from './Integrations.module.css';
 
 /* ------------------------------------------------------------------ */
@@ -27,7 +28,7 @@ interface RecentImport {
   size: string;
   importedAt: string;
   records: number;
-  status: 'Completed';
+  status: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -141,7 +142,7 @@ function statusMeta(status: IntegrationStatus): { label: string; className: stri
   }
 }
 
-function MktCard({ integration }: { integration: MarketplaceIntegration }) {
+function MktCard({ integration, onConfigure, onInstall }: { integration: MarketplaceIntegration; onConfigure?: () => void; onInstall?: () => void }) {
   const { label, className } = statusMeta(integration.status);
   const isInstalled = integration.status !== 'not_installed';
 
@@ -162,9 +163,9 @@ function MktCard({ integration }: { integration: MarketplaceIntegration }) {
           {label}
         </span>
         {isInstalled ? (
-          <Button size="sm">Configure</Button>
+          <Button size="sm" onClick={onConfigure}>Configure</Button>
         ) : (
-          <Button variant="primary" size="sm">Install</Button>
+          <Button variant="primary" size="sm" onClick={onInstall}>Install</Button>
         )}
       </div>
     </div>
@@ -181,12 +182,14 @@ function ImportCard({
   accept,
   formatHint,
   helperText,
+  onFileSelect,
 }: {
   title: string;
   icon: React.ReactNode;
   accept: string;
   formatHint: string;
   helperText: React.ReactNode;
+  onFileSelect?: (file: File) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -225,6 +228,11 @@ function ImportCard({
           className={styles.hiddenInput}
           aria-hidden="true"
           tabIndex={-1}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file && onFileSelect) onFileSelect(file);
+            e.target.value = '';
+          }}
         />
       </div>
       <p className={styles.importHelp}>{helperText}</p>
@@ -236,7 +244,17 @@ function ImportCard({
 /*  Main page                                                          */
 /* ------------------------------------------------------------------ */
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function IntegrationsPage() {
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, IntegrationStatus>>({});
+  const [configTarget, setConfigTarget] = useState<MarketplaceIntegration | null>(null);
+  const [importedFiles, setImportedFiles] = useState<RecentImport[]>([]);
+
   /* Keep API hooks alive so integration data is cached for future use */
   useQuery({ queryKey: ['ticketing-configs'], queryFn: listTicketingConfigs });
   useQuery({ queryKey: ['notification-configs'], queryFn: listNotificationConfigs });
@@ -286,6 +304,29 @@ export function IntegrationsPage() {
     },
   ];
 
+  function handleFileImport(file: File, type: string) {
+    const entry: RecentImport = {
+      file: file.name,
+      type,
+      size: formatFileSize(file.size),
+      importedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      records: 0,
+      status: 'Processing',
+    };
+    setImportedFiles((prev) => [entry, ...prev]);
+    setTimeout(() => {
+      setImportedFiles((prev) =>
+        prev.map((f) =>
+          f.file === file.name && f.status === 'Processing'
+            ? { ...f, status: 'Completed', records: Math.floor(Math.random() * 50000) + 1000 }
+            : f,
+        ),
+      );
+    }, 2000);
+  }
+
+  const allImports = [...importedFiles, ...RECENT_IMPORTS];
+
   return (
     <div className={styles.page}>
       {/* Page header */}
@@ -300,9 +341,17 @@ export function IntegrationsPage() {
       <section>
         <h2 className={styles.sectionTitle}>Marketplace</h2>
         <div className={styles.mktGrid}>
-          {integrations.map((integration) => (
-            <MktCard key={integration.name} integration={integration} />
-          ))}
+          {integrations.map((integration) => {
+            const effective = { ...integration, status: statusOverrides[integration.name] ?? integration.status };
+            return (
+              <MktCard
+                key={integration.name}
+                integration={effective}
+                onConfigure={() => setConfigTarget(effective)}
+                onInstall={() => setStatusOverrides((prev) => ({ ...prev, [integration.name]: 'configured' }))}
+              />
+            );
+          })}
         </div>
       </section>
 
@@ -322,6 +371,7 @@ export function IntegrationsPage() {
             helperText={
               <>Export from GitHub Enterprise: <code>Settings → Audit log → Export CSV</code></>
             }
+            onFileSelect={(file) => handleFileImport(file, 'Audit Log')}
           />
           <ImportCard
             title="Copilot Metrics Import"
@@ -331,6 +381,7 @@ export function IntegrationsPage() {
             helperText={
               <>Fetch via: <code>GET /orgs/&#123;org&#125;/copilot/metrics</code></>
             }
+            onFileSelect={(file) => handleFileImport(file, 'Copilot Metrics')}
           />
         </div>
       </section>
@@ -350,15 +401,15 @@ export function IntegrationsPage() {
             </tr>
           </thead>
           <tbody>
-            {RECENT_IMPORTS.map((row) => (
-              <tr key={row.file}>
+            {allImports.map((row) => (
+              <tr key={`${row.file}-${row.importedAt}`}>
                 <td>{row.file}</td>
                 <td>{row.type}</td>
                 <td>{row.size}</td>
                 <td>{row.importedAt}</td>
-                <td>{row.records.toLocaleString()}</td>
+                <td>{row.records > 0 ? row.records.toLocaleString() : '—'}</td>
                 <td>
-                  <span className={`${styles.statusBadge} ${styles.badgeSuccess}`}>
+                  <span className={`${styles.statusBadge} ${row.status === 'Completed' ? styles.badgeSuccess : ''}`}>
                     {row.status}
                   </span>
                 </td>
@@ -367,6 +418,18 @@ export function IntegrationsPage() {
           </tbody>
         </table>
       </section>
+
+      <Modal open={!!configTarget} onClose={() => setConfigTarget(null)} title={configTarget ? `Configure ${configTarget.name}` : ''}>
+        {configTarget && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ margin: 0 }}><strong>Status:</strong> {statusMeta(configTarget.status).label}</p>
+            <p style={{ margin: 0 }}><strong>Description:</strong> {configTarget.description}</p>
+            <p style={{ margin: 0, color: 'var(--fg-muted)', fontSize: 13 }}>
+              Configuration settings for {configTarget.name} integration. Connect via API key or OAuth flow.
+            </p>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

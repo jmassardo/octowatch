@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { listEvents } from '../../api/events';
 import { listDetections } from '../../api/detections';
@@ -16,26 +16,19 @@ interface ActorStats {
   eventCount: number;
   repoSet: Set<string>;
   prCount: number;
+  reviewCount: number;
   weeklyCounts: number[];
 }
 
-/* Static placeholder data for work distribution cards */
-const PR_AUTHORSHIP_DATA = [
-  { handle: 'alice', pct: 31, color: '#1f6feb' },
-  { handle: 'david', pct: 24, color: '#1f6feb' },
-  { handle: 'carol', pct: 20, color: '#238636' },
-  { handle: 'bob', pct: 16, color: '#238636' },
-  { handle: 'eremin', pct: 8, color: '#58a6ff' },
-] as const;
-
-const REVIEW_CONCENTRATION_DATA: readonly { handle: string; pct: number; color: string; textColor?: string }[] = [
-  { handle: 'alice', pct: 44, color: 'var(--danger)', textColor: 'var(--danger)' },
-  { handle: 'carol', pct: 28, color: 'var(--attention)', textColor: 'var(--attention)' },
-  { handle: 'david', pct: 18, color: '#238636' },
-  { handle: 'bob', pct: 10, color: '#238636' },
-];
+const TEAM_MEMBERS: Record<string, readonly string[]> = {
+  'platform-team': ['alice', 'david', 'sarah.chen', 'priya.patel'],
+  'backend-team': ['bob', 'mike.ross', 'raj.kumar'],
+  'frontend-team': ['carol', 'ana.silva', 'eremin', 'lisa.park'],
+};
+const TEAM_NAMES = Object.keys(TEAM_MEMBERS);
 
 export function DevActivityPage() {
+  const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const { data: eventData, isLoading: loadingEvents, isError: eventsError, refetch } = useQuery({
     queryKey: ['events', 'dev-activity'],
     queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc' }),
@@ -62,6 +55,7 @@ export function DevActivityPage() {
           eventCount: 0,
           repoSet: new Set(),
           prCount: 0,
+          reviewCount: 0,
           weeklyCounts: [0, 0, 0, 0, 0, 0, 0],
         });
       }
@@ -69,6 +63,7 @@ export function DevActivityPage() {
       stats.eventCount++;
       if (event.repo) stats.repoSet.add(event.repo);
       if (event.action.includes('pull_request')) stats.prCount++;
+      if (event.action.includes('pull_request_review')) stats.reviewCount++;
 
       // Assign to weekly bucket (0 = oldest, 6 = most recent)
       const age = refTime - new Date(event.created_at).getTime();
@@ -87,8 +82,87 @@ export function DevActivityPage() {
     return { actorMap: map, actorDetections: detMap };
   }, [eventData?.items, detectionData?.items]);
 
+  // Compute work distribution from real event data
+  const { prAuthorshipData, activityConcentrationData, topActorWarning, othersInfo, isReviewData } =
+    useMemo(() => {
+      const actors = [...actorMap.values()];
+      const totalEvents = actors.reduce((s, a) => s + a.eventCount, 0);
+
+      if (totalEvents === 0) {
+        return {
+          prAuthorshipData: [] as { handle: string; pct: number; color: string }[],
+          activityConcentrationData: [] as {
+            handle: string;
+            pct: number;
+            color: string;
+            textColor?: string;
+          }[],
+          topActorWarning: null as { actor: string; pct: number } | null,
+          othersInfo: null as { count: number; pct: number } | null,
+          isReviewData: false,
+        };
+      }
+
+      // PR authorship share — top 5 + others
+      const sorted = [...actors].sort((a, b) => b.eventCount - a.eventCount);
+      const top5 = sorted.slice(0, 5);
+      const othersEventCount = sorted.slice(5).reduce((s, a) => s + a.eventCount, 0);
+      const othersActorCount = Math.max(0, sorted.length - 5);
+      const othersPct =
+        totalEvents > 0 ? Math.round((othersEventCount / totalEvents) * 100) : 0;
+
+      const colors = ['#1f6feb', '#1f6feb', '#238636', '#238636', '#58a6ff'];
+      const prAuthorship = top5.map((actor, i) => ({
+        handle: actor.handle,
+        pct: Math.round((actor.eventCount / totalEvents) * 100),
+        color: colors[i] ?? '#58a6ff',
+      }));
+
+      // Review / activity concentration
+      const totalReviewEvents = actors.reduce((s, a) => s + a.reviewCount, 0);
+      const hasReviewData = totalReviewEvents > 0;
+
+      const concentrationSorted = hasReviewData
+        ? [...actors]
+            .sort((a, b) => b.reviewCount - a.reviewCount)
+            .filter((a) => a.reviewCount > 0)
+        : sorted;
+      const concentrationTotal = hasReviewData ? totalReviewEvents : totalEvents;
+      const concentrationTop = concentrationSorted.slice(0, 5);
+
+      const concentration = concentrationTop.map((actor) => {
+        const count = hasReviewData ? actor.reviewCount : actor.eventCount;
+        const pct = Math.round((count / concentrationTotal) * 100);
+        const color =
+          pct >= 40 ? 'var(--danger)' : pct >= 25 ? 'var(--attention)' : '#238636';
+        const textColor =
+          pct >= 40 ? 'var(--danger)' : pct >= 25 ? 'var(--attention)' : undefined;
+        return { handle: actor.handle, pct, color, textColor };
+      });
+
+      const topActor = concentration[0];
+      const warning =
+        topActor && topActor.pct > 40
+          ? { actor: topActor.handle, pct: topActor.pct }
+          : null;
+
+      return {
+        prAuthorshipData: prAuthorship,
+        activityConcentrationData: concentration,
+        topActorWarning: warning,
+        othersInfo:
+          othersActorCount > 0 ? { count: othersActorCount, pct: othersPct } : null,
+        isReviewData: hasReviewData,
+      };
+    }, [actorMap]);
+
   // Sort by event count descending, take top 12
   const topActors = [...actorMap.values()]
+    .filter((a) => {
+      if (!selectedTeam) return true;
+      const members = TEAM_MEMBERS[selectedTeam];
+      return members ? members.includes(a.handle) : true;
+    })
     .sort((a, b) => b.eventCount - a.eventCount)
     .slice(0, 12);
 
@@ -100,10 +174,21 @@ export function DevActivityPage() {
       <div className={styles.teamFilters}>
         <Button
           size="sm"
-          style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+          style={!selectedTeam ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+          onClick={() => setSelectedTeam(null)}
         >
           All teams
         </Button>
+        {TEAM_NAMES.map((team) => (
+          <Button
+            key={team}
+            size="sm"
+            style={selectedTeam === team ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+            onClick={() => setSelectedTeam(team)}
+          >
+            {team}
+          </Button>
+        ))}
       </div>
 
       {eventsError && <ErrorBanner message="Failed to load developer activity" onRetry={refetch} />}
@@ -118,7 +203,7 @@ export function DevActivityPage() {
         <Card>
           <CardHeader>PR authorship share</CardHeader>
           <div className={styles.barList}>
-            {PR_AUTHORSHIP_DATA.map((d) => (
+            {prAuthorshipData.map((d) => (
               <div key={d.handle} className={styles.barRow}>
                 <span className={styles.barHandle}>@{d.handle}</span>
                 <div className={styles.barTrack}>
@@ -127,20 +212,22 @@ export function DevActivityPage() {
                 <span className={styles.barPct}>{d.pct}%</span>
               </div>
             ))}
-            <div className={styles.barRow}>
-              <span className={styles.barHandle} style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}>others (7)</span>
-              <div className={styles.barTrack}>
-                <div style={{ width: '1%', height: '100%', background: 'var(--border)', borderRadius: 4 }} />
+            {othersInfo && (
+              <div className={styles.barRow}>
+                <span className={styles.barHandle} style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}>others ({othersInfo.count})</span>
+                <div className={styles.barTrack}>
+                  <div style={{ width: `${Math.max(1, othersInfo.pct)}%`, height: '100%', background: 'var(--border)', borderRadius: 4 }} />
+                </div>
+                <span className={styles.barPct} style={{ color: 'var(--fg-subtle)' }}>{othersInfo.pct}%</span>
               </div>
-              <span className={styles.barPct} style={{ color: 'var(--fg-subtle)' }}>1%</span>
-            </div>
+            )}
           </div>
         </Card>
 
         <Card>
-          <CardHeader>Review concentration</CardHeader>
+          <CardHeader>{isReviewData ? 'Review concentration' : 'Event activity share'}</CardHeader>
           <div className={styles.barList}>
-            {REVIEW_CONCENTRATION_DATA.map((d) => (
+            {activityConcentrationData.map((d) => (
               <div key={d.handle} className={styles.barRow}>
                 <span className={styles.barHandle}>@{d.handle}</span>
                 <div className={styles.barTrack}>
@@ -150,9 +237,15 @@ export function DevActivityPage() {
               </div>
             ))}
           </div>
-          <div className={styles.busWarning}>
-            ⚠ <strong>@alice</strong> performs 44% of all reviews — consider a review rotation to reduce bus factor risk
-          </div>
+          {topActorWarning ? (
+            <div className={styles.busWarning}>
+              ⚠ <strong>@{topActorWarning.actor}</strong> accounts for {topActorWarning.pct}% of activity — consider distributing work to reduce bus factor risk
+            </div>
+          ) : (
+            <div className={styles.busWarning} style={{ color: 'var(--success)' }}>
+              ✅ Activity is well distributed — no single contributor exceeds 40%
+            </div>
+          )}
         </Card>
       </div>
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listDetections, updateDetectionStatus, deleteDetection } from '../../api/detections';
+import { listDetections, updateDetectionStatus, deleteDetection, assignDetection } from '../../api/detections';
 import type { DetectionResponse } from '../../types/detections';
 import { SeverityDot } from '../../components/primitives/SeverityDot';
 import { Label } from '../../components/primitives/Label';
@@ -24,7 +25,10 @@ type TabFilter = 'open' | 'closed' | 'acknowledged' | 'all';
 export function ThreatsPage() {
   const [tab, setTab] = useState<TabFilter>('open');
   const [selected, setSelected] = useState<DetectionResponse | null>(null);
+  const [filtersVisible, setFiltersVisible] = useState(false);
+  const [severityFilter, setSeverityFilter] = useState('');
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   const statusMap: Record<TabFilter, string | undefined> = {
     open: 'investigating',
@@ -34,12 +38,18 @@ export function ThreatsPage() {
   };
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['detections', tab],
-    queryFn: () => listDetections({ status: statusMap[tab] }),
+    queryKey: ['detections', tab, severityFilter],
+    queryFn: () => listDetections({ status: statusMap[tab], severity: severityFilter || undefined }),
   });
 
   const acknowledgeMutation = useMutation({
     mutationFn: (id: number) => updateDetectionStatus(id, { status: 'false_positive' }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['detections'] }); },
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: ({ id, assignee }: { id: number; assignee: string }) =>
+      assignDetection(id, { assigned_to: assignee }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['detections'] }); },
   });
 
@@ -66,9 +76,24 @@ export function ThreatsPage() {
         <div className={styles.pageTitle}>Threat Detections</div>
         <div className={styles.pageSub}>Rule-based and ML-powered detections from audit log analysis</div>
         <div className={styles.topActions}>
-          <Button size="sm">Filter</Button>
-          <Button size="sm" variant="primary">New rule</Button>
+          <Button size="sm" onClick={() => setFiltersVisible((v) => !v)}>Filter</Button>
+          <Button size="sm" variant="primary" onClick={() => navigate('/rules')}>New rule</Button>
         </div>
+        {filtersVisible && (
+          <div className={styles.topActions} style={{ gap: 8 }}>
+            <select
+              value={severityFilter}
+              onChange={(e) => setSeverityFilter(e.target.value)}
+              style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--canvas-subtle)', color: 'var(--fg)', fontSize: 13 }}
+            >
+              <option value="">All severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+        )}
 
         <div className={styles.issueList}>
           <div className={styles.ilFilters}>
@@ -162,7 +187,18 @@ export function ThreatsPage() {
               >
                 Acknowledge
               </Button>
-              <Button size="sm">Assign</Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const user = window.prompt('Assign to username:');
+                  if (user?.trim()) {
+                    assignMutation.mutate({ id: selected.id, assignee: user.trim() });
+                  }
+                }}
+                disabled={assignMutation.isPending}
+              >
+                {assignMutation.isPending ? 'Assigning…' : 'Assign'}
+              </Button>
             </div>
           </>
         )}

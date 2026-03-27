@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { TopBar } from './TopBar';
 
 vi.mock('../../hooks/useOrg');
@@ -36,7 +37,9 @@ function renderTopBar() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <TopBar />
+      <MemoryRouter>
+        <TopBar />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }

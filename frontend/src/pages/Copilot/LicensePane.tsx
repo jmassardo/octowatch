@@ -1,69 +1,63 @@
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { MetricCard } from '../../components/primitives/MetricCard';
-import {
-  TOTAL_SEATS,
-  ACTIVE_SEATS,
-  WASTED_SEATS,
-  MONTHLY_WASTE,
-  INACTIVE_SEATS,
-  NEVER_USED_SEATS,
-  COST_PER_SEAT,
-} from './copilotData';
+import type { SeatUtilizationBucket } from '../../types/reports';
+import { COST_PER_SEAT } from './copilotData';
 import styles from './Copilot.module.css';
 
-const ANNUAL_SAVINGS = MONTHLY_WASTE * 12;
+interface LicensePaneProps {
+  seatBuckets: SeatUtilizationBucket[];
+}
 
-const RECOMMENDATIONS = [
-  {
-    icon: '🔴',
-    title: `Revoke ${NEVER_USED_SEATS} never-used seats`,
-    description: `Save $${(NEVER_USED_SEATS * COST_PER_SEAT).toLocaleString()}/month — these seats have never generated a single suggestion.`,
-  },
-  {
-    icon: '🟡',
-    title: `Review ${INACTIVE_SEATS} inactive seats`,
-    description: 'Send reactivation campaign or revoke after 14-day grace period.',
-  },
-  {
+export function LicensePane({ seatBuckets }: LicensePaneProps) {
+  // Derive seat metrics from real API data
+  const latestBucket = seatBuckets[seatBuckets.length - 1];
+  const totalSeats = latestBucket?.provisioned_seat_count ?? 0;
+  const activeSeats = latestBucket?.active_seat_count ?? 0;
+  const inactiveSeats = totalSeats - activeSeats;
+  const monthlyWaste = inactiveSeats * COST_PER_SEAT;
+  const annualSavings = monthlyWaste * 12;
+
+  // Generate recommendations dynamically based on real data
+  const recommendations: { icon: string; title: string; description: string }[] = [];
+  if (inactiveSeats > 0) {
+    recommendations.push({
+      icon: '🔴',
+      title: `Revoke ${inactiveSeats} inactive seats to save $${(inactiveSeats * COST_PER_SEAT).toLocaleString()}/month`,
+      description: 'These seats have shown no activity in the last 30 days.',
+    });
+  }
+  recommendations.push({
     icon: '🟢',
-    title: 'Enable just-in-time provisioning',
+    title: 'Consider just-in-time provisioning',
     description: 'Auto-assign seats on first IDE open, auto-revoke after 30d of inactivity.',
-  },
-  {
-    icon: '🔵',
-    title: 'Consolidate model usage',
-    description: 'Route low-complexity completions to GPT-4o-mini to reduce per-seat cost overhead.',
-  },
-];
-
-export function LicensePane() {
+  });
   return (
     <>
       {/* Summary metrics */}
       <div className={styles.metricStrip}>
         <MetricCard
-          value={String(TOTAL_SEATS)}
+          value={totalSeats > 0 ? String(totalSeats) : '—'}
           label="Total seats"
           delta="provisioned"
           deltaDir="neutral"
         />
         <MetricCard
-          value={String(ACTIVE_SEATS)}
+          value={activeSeats > 0 ? String(activeSeats) : '—'}
           label="Active seats"
-          delta={`${Math.round((ACTIVE_SEATS / TOTAL_SEATS) * 100)}% utilization`}
+          delta={totalSeats > 0 ? `${Math.round((activeSeats / totalSeats) * 100)}% utilization` : '—'}
           deltaDir="neutral"
         />
         <MetricCard
-          value={String(WASTED_SEATS)}
-          label="Unused seats"
-          delta={`${INACTIVE_SEATS} inactive + ${NEVER_USED_SEATS} never used`}
-          deltaDir="down"
+          value={inactiveSeats > 0 ? String(inactiveSeats) : '—'}
+          label="Inactive seats"
+          delta="provisioned but not active in 30d"
+          deltaDir={inactiveSeats > 0 ? 'down' : 'neutral'}
         />
         <MetricCard
-          value={`$${MONTHLY_WASTE.toLocaleString()}`}
+          value={monthlyWaste > 0 ? `$${monthlyWaste.toLocaleString()}` : '—'}
           label="Monthly waste"
-          delta={`$${ANNUAL_SAVINGS.toLocaleString()}/year potential savings`}
-          deltaDir="down"
+          delta={annualSavings > 0 ? `$${annualSavings.toLocaleString()}/year potential savings` : '—'}
+          deltaDir={monthlyWaste > 0 ? 'down' : 'neutral'}
           accent
         />
       </div>
@@ -75,19 +69,19 @@ export function LicensePane() {
           <div className={styles.costRow}>
             <span className={styles.costLabel}>Current monthly spend</span>
             <span className={styles.costValue}>
-              ${(TOTAL_SEATS * COST_PER_SEAT).toLocaleString()}
+              ${(totalSeats * COST_PER_SEAT).toLocaleString()}
             </span>
           </div>
           <div className={styles.costRow}>
             <span className={styles.costLabel}>Optimized monthly spend</span>
             <span className={styles.costValue} style={{ color: 'var(--success)' }}>
-              ${((TOTAL_SEATS - WASTED_SEATS) * COST_PER_SEAT).toLocaleString()}
+              ${(activeSeats * COST_PER_SEAT).toLocaleString()}
             </span>
           </div>
           <div className={[styles.costRow, styles.costRowHighlight].join(' ')}>
             <span className={styles.costLabel}>Potential monthly savings</span>
             <span className={styles.costValue} style={{ color: 'var(--success)', fontWeight: 600 }}>
-              ${MONTHLY_WASTE.toLocaleString()}
+              ${monthlyWaste.toLocaleString()}
             </span>
           </div>
         </div>
@@ -96,7 +90,7 @@ export function LicensePane() {
       {/* Recommendations */}
       <div className={styles.sectionTitle}>Recommendations</div>
       <div className={styles.recList}>
-        {RECOMMENDATIONS.map((rec) => (
+        {recommendations.map((rec) => (
           <div key={rec.title} className={styles.recItem}>
             <span className={styles.recIcon}>{rec.icon}</span>
             <div className={styles.recContent}>

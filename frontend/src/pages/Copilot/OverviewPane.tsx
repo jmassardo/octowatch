@@ -11,14 +11,6 @@ import {
   ACCEPTANCE_RATE_DAYS,
   ACCEPTANCE_RATE_VALUES,
   ACCEPTANCE_THRESHOLD_LINE,
-  SEAT_TREND_DAYS,
-  SEAT_TREND_ACTIVE,
-  SEAT_TREND_INACTIVE,
-  SEAT_TREND_NEVER,
-  WASTED_SEATS,
-  MONTHLY_WASTE,
-  INACTIVE_SEATS,
-  NEVER_USED_SEATS,
   COST_PER_SEAT,
 } from './copilotData';
 import styles from './Copilot.module.css';
@@ -53,26 +45,60 @@ export function OverviewPane({
   const seatLabel =
     activeSeats != null && provisionedSeats != null ? `${activeSeats} / ${provisionedSeats}` : '—';
 
+  // Derive waste metrics from real API data
+  const inactiveSeats = (provisionedSeats ?? 0) - (activeSeats ?? 0);
+  const monthlyWaste = inactiveSeats * COST_PER_SEAT;
+
+  function handleExportInactive() {
+    const rows = [
+      'Category,Seats,Cost Per Seat ($/mo),Monthly Cost ($)',
+      `Inactive (provisioned - active),${inactiveSeats},${COST_PER_SEAT},${monthlyWaste}`,
+      `Active seats,${activeSeats ?? 0},${COST_PER_SEAT},${(activeSeats ?? 0) * COST_PER_SEAT}`,
+      `Provisioned seats,${provisionedSeats ?? 0},${COST_PER_SEAT},${(provisionedSeats ?? 0) * COST_PER_SEAT}`,
+    ];
+    const csv = rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'inactive-seats.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Derive seat utilization trend from real API data
+  const seatTrendDays = seatBuckets.slice(-7).map((b) =>
+    new Date(b.bucket).toLocaleDateString('en-US', { weekday: 'short' }),
+  );
+  const seatTrendActive = seatBuckets.slice(-7).map((b) => b.active_seat_count);
+  const seatTrendInactive = seatBuckets.slice(-7).map((b) =>
+    b.provisioned_seat_count - b.active_seat_count,
+  );
+
   return (
     <>
-      <SampleDataBanner />
+      <SampleDataBanner message="Acceptance rate, language breakdown, and correlation insights display sample data requiring Copilot Metrics API integration." />
 
-      {/* Seat waste alert banner */}
-      <div className={styles.wasteAlert}>
-        <span style={{ fontSize: 18, lineHeight: 1 }}>⚠️</span>
-        <div className={styles.wasteBody}>
-          <div className={styles.wasteTitle}>
-            Seat waste detected — ${MONTHLY_WASTE.toLocaleString()}/month in unused licenses
+      {/* Seat waste alert banner — derived from real API data */}
+      {latestSeatBucket && inactiveSeats > 0 && (
+        <div className={styles.wasteAlert}>
+          <span style={{ fontSize: 18, lineHeight: 1 }}>⚠️</span>
+          <div className={styles.wasteBody}>
+            <div className={styles.wasteTitle}>
+              Seat waste detected — ${monthlyWaste.toLocaleString()}/month in unused licenses
+            </div>
+            <div className={styles.wasteDesc}>
+              {inactiveSeats} seats inactive (provisioned but not active in last 30 days) at $
+              {COST_PER_SEAT}/seat/month
+            </div>
           </div>
-          <div className={styles.wasteDesc}>
-            {WASTED_SEATS} seats unused ({INACTIVE_SEATS} inactive 30d+ and {NEVER_USED_SEATS} never
-            used) at ${COST_PER_SEAT}/seat/month
-          </div>
+          <Button size="sm" variant="danger" onClick={handleExportInactive}>
+            Export inactive list
+          </Button>
         </div>
-        <Button size="sm" variant="danger">
-          Export inactive list
-        </Button>
-      </div>
+      )}
 
       {isError && <ErrorBanner message="Failed to load Copilot data" onRetry={onRetry} />}
       {isLoading && <Spinner />}
@@ -132,11 +158,10 @@ export function OverviewPane({
         <Card>
           <CardHeader>Seat utilization trend</CardHeader>
           <LineAreaChart
-            xAxisData={SEAT_TREND_DAYS}
+            xAxisData={seatTrendDays}
             series={[
-              { name: 'Active', data: SEAT_TREND_ACTIVE, color: '#58a6ff', areaOpacity: 0.1 },
-              { name: 'Inactive 30d', data: SEAT_TREND_INACTIVE, color: '#d29922' },
-              { name: 'Never used', data: SEAT_TREND_NEVER, color: '#f85149' },
+              { name: 'Active', data: seatTrendActive, color: '#58a6ff', areaOpacity: 0.1 },
+              { name: 'Inactive', data: seatTrendInactive, color: '#d29922' },
             ]}
             height={200}
           />

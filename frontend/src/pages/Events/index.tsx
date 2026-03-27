@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useRef, useState } from 'react';import { useQuery } from '@tanstack/react-query';
 import { listEvents } from '../../api/events';
 import type { EventResponse } from '../../types/events';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -30,6 +29,7 @@ export function EventsPage() {
   const [chips, setChips] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [detailEvent, setDetailEvent] = useState<EventResponse | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const debouncedSearch = useDebounce(search, 400);
 
@@ -80,6 +80,7 @@ export function EventsPage() {
           <path d="M10.68 11.74a6 6 0 01-7.922-8.982 6 6 0 018.982 7.922l3.04 3.04a.749.749 0 11-1.06 1.06zm-3.18.26a4.5 4.5 0 100-9 4.5 4.5 0 000 9z" />
         </svg>
         <input
+          ref={searchInputRef}
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -95,14 +96,28 @@ export function EventsPage() {
             <span className={styles.chipX} onClick={() => removeChip(c)}>&#215;</span>
           </span>
         ))}
-        <Button size="sm" style={{ borderRadius: 12 }}>+ Add filter</Button>
+        <Button size="sm" style={{ borderRadius: 12 }} onClick={() => searchInputRef.current?.focus()}>+ Add filter</Button>
       </div>
 
       <div className={styles.tableHeader}>
         <span className={styles.resultCount}>{total.toLocaleString()} events matching filters</span>
         <div className={styles.tableActions}>
           <Button size="sm" onClick={() => downloadCsv(items)} disabled={items.length === 0}>Export CSV</Button>
-          <Button size="sm">Save query</Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              const name = window.prompt('Query name');
+              if (name?.trim()) {
+                const saved = JSON.parse(
+                  localStorage.getItem('octowatch-saved-queries') ?? '[]',
+                ) as { name: string; chips: string[] }[];
+                saved.push({ name: name.trim(), chips });
+                localStorage.setItem('octowatch-saved-queries', JSON.stringify(saved));
+              }
+            }}
+          >
+            Save query
+          </Button>
         </div>
       </div>
 
