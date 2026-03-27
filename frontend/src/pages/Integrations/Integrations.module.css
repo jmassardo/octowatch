@@ -1,26 +1,36 @@
+/* ===== Page layout ===== */
 .page { padding: 24px; display: flex; flex-direction: column; gap: 28px; }
 .pageTitle { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
 .pageSub { font-size: 13px; color: var(--fg-muted); margin: 0; }
 
+/* ===== Section headings ===== */
 .sectionTitle {
   font-size: 14px;
   font-weight: 600;
   color: var(--fg-muted);
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
+.sectionDesc {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+/* ===== Marketplace integration grid ===== */
 .mktGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
 }
 
-.intCard {
+/* ===== Marketplace card ===== */
+.mktCard {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column;
   background: var(--canvas-subtle);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -28,20 +38,206 @@
   transition: border-color 0.15s;
 }
 
-.intCardConnected {
-  border-color: var(--success);
-  box-shadow: 0 0 0 1px rgba(63, 185, 80, 0.2);
+.mktCard:hover {
+  border-color: var(--fg-subtle);
 }
 
-.intCardIcon { flex-shrink: 0; }
+.mktCardHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+}
 
-.intCardBody { flex: 1; min-width: 0; }
-.intCardName { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
-.intCardDesc { font-size: 12px; color: var(--fg-muted); line-height: 1.4; }
+.mktCardIcon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-.intCardAction { flex-shrink: 0; }
+.mktCardInfo {
+  flex: 1;
+  min-width: 0;
+}
 
-/* Form */
+.mktCardName {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 2px;
+  color: var(--fg);
+}
+
+.mktCardDesc {
+  font-size: 13px;
+  color: var(--fg-muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.mktCardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-muted);
+}
+
+/* ===== Status labels ===== */
+.statusLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.statusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.statusConnected .statusDot { background: var(--success); }
+.statusConnected { color: var(--success); }
+
+.statusConfigured .statusDot { background: var(--attention); }
+.statusConfigured { color: var(--attention); }
+
+.statusNotInstalled .statusDot { background: var(--fg-subtle); }
+.statusNotInstalled { color: var(--fg-muted); }
+
+/* ===== Data import section ===== */
+.importGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 16px;
+}
+
+.importCard {
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.importCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.importCardHeaderIcon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+}
+
+/* ===== Drop zone ===== */
+.importDrop {
+  border: 2px dashed var(--border);
+  border-radius: 6px;
+  padding: 32px;
+  text-align: center;
+  background: var(--canvas-inset);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.importDrop:hover {
+  border-color: var(--accent);
+}
+
+.importDropIcon {
+  color: var(--fg-subtle);
+  margin-bottom: 8px;
+}
+
+.importDropText {
+  font-size: 14px;
+  color: var(--fg);
+  margin: 0 0 4px;
+}
+
+.importDropHint {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin: 0;
+}
+
+.importHelp {
+  font-size: 12px;
+  color: var(--fg-subtle);
+  margin: 12px 0 0;
+  line-height: 1.4;
+}
+
+.importHelp code {
+  background: var(--canvas-inset);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.hiddenInput {
+  display: none;
+}
+
+/* ===== Recent imports table ===== */
+.recentTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.recentTable th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.recentTable td {
+  padding: 10px 12px;
+  color: var(--fg);
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.recentTable tbody tr:hover {
+  background: rgba(177, 186, 196, 0.04);
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badgeSuccess {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--success);
+}
+
+/* ===== Form styles (kept for modals) ===== */
 .intForm { display: flex; flex-direction: column; gap: 16px; }
 .formRow { display: flex; flex-direction: column; gap: 4px; }
 .formLabel { font-size: 12px; font-weight: 600; color: var(--fg-muted); }

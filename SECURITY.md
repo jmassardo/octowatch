@@ -2,42 +2,60 @@
 
 ## Reporting a Vulnerability
 
-**Please do not open public GitHub issues for security vulnerabilities.**
+**Please do not open public issues for security vulnerabilities.**
 
-If you discover a security vulnerability in OctoWatch, please report it through one of the following channels:
+If you discover a security vulnerability in OctoWatch, we appreciate your help in disclosing it responsibly.
 
-1. **GitHub Security Advisories** (preferred): [Report a vulnerability](https://github.com/octowatch/octowatch/security/advisories/new)
-2. **Email**: security@octowatch.dev
+### Preferred: GitHub Security Advisories
 
-### What to Include
+Report vulnerabilities through [GitHub Security Advisories](https://github.com/octowatch/octowatch/security/advisories/new). This allows us to collaborate on a fix privately before public disclosure.
 
-- Description of the vulnerability
-- Steps to reproduce
-- Affected versions
-- Potential impact
-- Suggested fix (if any)
+### Alternative: Email
 
-### Response Timeline
+If you prefer, you can email **security@octowatch.dev** with details of the vulnerability. Please include:
 
-- **Acknowledgment**: Within 48 hours
-- **Initial assessment**: Within 1 week
-- **Fix target**: Within 90 days (severity-dependent)
+- A description of the vulnerability
+- Steps to reproduce the issue
+- The potential impact
+- Any suggested fixes (if applicable)
 
 ## Supported Versions
 
-| Version | Supported          |
-|---------|--------------------|
-| 0.1.x   | :white_check_mark: |
+| Version | Supported |
+|---------|-----------|
+| 0.x (latest) | :white_check_mark: |
+| Older releases | :x: |
+
+Only the latest release receives security updates. We recommend always running the most recent version.
+
+## Disclosure Timeline
+
+- **Acknowledgment:** We will acknowledge receipt of your report within **48 hours**.
+- **Assessment:** We will assess the severity and impact and provide an initial response within **5 business days**.
+- **Fix Target:** We aim to develop and release a fix within **90 days** of the initial report, depending on complexity.
+- **Disclosure:** We will coordinate public disclosure with you after the fix is released. If you do not hear back within 48 hours, please follow up.
 
 ## Security Update Policy
 
-Security patches are released as soon as possible after a fix is verified. Critical vulnerabilities may trigger an out-of-band release.
+Security fixes are released as patch versions (e.g., 0.1.1) and announced through:
 
-## Security Best Practices for Deployers
+- GitHub Releases with security advisory references
+- The [CHANGELOG.md](CHANGELOG.md)
 
-- Always use TLS in production (never disable HTTPS redirect)
-- Rotate `SECRET_KEY` periodically
-- Use External Secrets Operator or Sealed Secrets for Kubernetes deployments
-- Restrict database access to application service accounts only
-- Enable audit trail logging and review regularly
-- Keep dependencies updated (Dependabot is configured for this repository)
+We recommend subscribing to GitHub release notifications to stay informed about security updates.
+
+## Scope
+
+The following are in scope for security reports:
+
+- The OctoWatch backend API (FastAPI application)
+- The OctoWatch frontend (React application)
+- Docker and Helm deployment configurations
+- Authentication and authorization logic (OAuth, SAML, RBAC)
+- Data handling and storage (audit events, credentials)
+
+The following are **out of scope**:
+
+- Vulnerabilities in upstream dependencies (report these to the respective projects)
+- Issues in user-managed infrastructure (your database, your network)
+- Social engineering attacks against OctoWatch maintainers

@@ -8,6 +8,8 @@ import { Button } from '../primitives/Button';
 import { logout } from '../../api/auth';
 import styles from './TopBar.module.css';
 
+const FALLBACK_ORGS: readonly string[] = ['acme-corp', 'globex'];
+
 export function TopBar() {
   const { selectedOrg, setSelectedOrg } = useOrg();
   const { data: user } = useCurrentUser();
@@ -16,7 +18,7 @@ export function TopBar() {
   const avatarRef = useRef<HTMLButtonElement>(null);
   const { theme, toggleTheme } = useTheme();
 
-  const orgs = user?.scoped_orgs ?? [];
+  const orgs = user?.scoped_orgs?.length ? user.scoped_orgs : FALLBACK_ORGS;
 
   const themeIcon = theme === 'light' ? '☀️' : theme === 'dark' ? '🌙' : '💻';
   const themeLabel = theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System';
@@ -43,11 +45,12 @@ export function TopBar() {
             {org}
           </button>
         ))}
-        {orgs.length === 0 && (
-          <button className={[styles.orgTab, styles.active].filter(Boolean).join(' ')}>
-            All orgs
-          </button>
-        )}
+        <button
+          className={[styles.orgTab, styles.add].filter(Boolean).join(' ')}
+          aria-label="Add organization"
+        >
+          + Add org
+        </button>
       </div>
       <div className={styles.right}>
         <button

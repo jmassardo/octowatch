@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { listEvents } from '../../api/events';
+import type { EventResponse } from '../../types/events';
 import { useDebounce } from '../../hooks/useDebounce';
 import { Label } from '../../components/primitives/Label';
 import { Button } from '../../components/primitives/Button';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { Modal } from '../../components/primitives/Modal';
+import { SEARCH_KEY_MAP, parseSearchFilters, downloadCsv } from './utils';
 import styles from './Events.module.css';
 
 function actionVariant(action: string) {
@@ -24,28 +27,32 @@ function formatTs(iso: string): string {
 
 export function EventsPage() {
   const [search, setSearch] = useState('');
-  const [chips, setChips] = useState<string[]>(['org:acme-corp', 'action:repo.*', 'after:2024-01-14']);
+  const [chips, setChips] = useState<string[]>([]);
   const [page, setPage] = useState(1);
+  const [detailEvent, setDetailEvent] = useState<EventResponse | null>(null);
 
   const debouncedSearch = useDebounce(search, 400);
 
-  // Parse chips into params
-  const params = Object.fromEntries(
+  // Parse chips into params (split only on first colon to preserve values like timestamps)
+  const chipParams = Object.fromEntries(
     chips.flatMap((c) => {
-      const [k, v] = c.split(':');
+      const idx = c.indexOf(':');
+      if (idx === -1) return [];
+      const k = c.slice(0, idx);
+      const v = c.slice(idx + 1);
       if (!k || !v) return [];
-      if (k === 'org') return [['org', v]];
-      if (k === 'actor') return [['actor', v]];
-      if (k === 'action') return [['action', v]];
-      if (k === 'after') return [['since', v]];
-      if (k === 'before') return [['until', v]];
+      const paramKey = SEARCH_KEY_MAP[k];
+      if (paramKey) return [[paramKey, v]];
       return [];
     }),
   );
 
+  // Parse real-time search input for key:value filters
+  const searchFilters = parseSearchFilters(debouncedSearch);
+
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['events', chips, debouncedSearch, page],
-    queryFn: () => listEvents({ ...params, page, page_size: 20 }),
+    queryFn: () => listEvents({ ...chipParams, ...searchFilters, page, page_size: 20 }),
   });
 
   const items = data?.items ?? [];
@@ -94,7 +101,7 @@ export function EventsPage() {
       <div className={styles.tableHeader}>
         <span className={styles.resultCount}>{total.toLocaleString()} events matching filters</span>
         <div className={styles.tableActions}>
-          <Button size="sm">Export CSV</Button>
+          <Button size="sm" onClick={() => downloadCsv(items)} disabled={items.length === 0}>Export CSV</Button>
           <Button size="sm">Save query</Button>
         </div>
       </div>
@@ -130,7 +137,7 @@ export function EventsPage() {
                   {e.source_ip && <code style={{ fontSize: 11 }}>{e.source_ip}</code>}
                   {e.geo_country_code && <span className={styles.country}>{e.geo_country_code}</span>}
                 </td>
-                <td><Button size="sm">Details</Button></td>
+                <td><Button size="sm" onClick={() => setDetailEvent(e)}>Details</Button></td>
               </tr>
             ))}
           </tbody>
@@ -144,6 +151,19 @@ export function EventsPage() {
           <Button size="sm" disabled={!data.has_next} onClick={() => setPage((p) => p + 1)}>Next →</Button>
         </div>
       )}
+
+      <Modal
+        open={detailEvent !== null}
+        onClose={() => setDetailEvent(null)}
+        title={detailEvent ? `Event: ${detailEvent.action}` : ''}
+        width={640}
+      >
+        {detailEvent && (
+          <pre className={styles.eventJson}>
+            {JSON.stringify(detailEvent, null, 2)}
+          </pre>
+        )}
+      </Modal>
     </div>
   );
 }

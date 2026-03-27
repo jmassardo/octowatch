@@ -585,7 +585,7 @@ Bucket event notification payloads from `minio:events` Valkey channel are HMAC-S
 
 #### audit_trail Table
 
-Every state-changing operation writes a row to `audit_trail`:
+Every state-changing operation writes a row to `audit_trail`. The audit trail middleware intercepts mutating HTTP methods only (`POST`, `PUT`, `PATCH`, `DELETE`) and records an entry only when an authenticated actor can be extracted from the JWT session cookie. Read-only requests (`GET`, `HEAD`, `OPTIONS`) are not recorded in the audit trail — they are captured by the separate request logging middleware instead.
 
 ```sql
 CREATE TABLE audit_trail (

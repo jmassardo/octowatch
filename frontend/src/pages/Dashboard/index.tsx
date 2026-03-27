@@ -3,11 +3,10 @@ import { listDetections } from '../../api/detections';
 import { listEvents } from '../../api/events';
 import { ContributionCalendar } from '../../components/charts/ContributionCalendar';
 import { Card, CardHeader } from '../../components/primitives/Card';
-import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import type { EventResponse } from '../../types/events';
 import styles from './Dashboard.module.css';
-
 function StatPill({
   value,
   label,
@@ -24,69 +23,41 @@ function StatPill({
   );
 }
 
-const FEED = [
-  {
-    type: 'security',
-    body: (
-      <>
-        <strong>Impossible travel detected</strong> — <span className={styles.mention}>@mal-user99</span> authenticated from{' '}
-        <Label variant="danger">US-East</Label> then <Label variant="danger">CN-Beijing</Label> within 4&nbsp;min
-      </>
-    ),
-    time: '2 minutes ago · acme-corp',
-  },
-  {
-    type: 'platform',
-    body: (
-      <>
-        <span className={styles.mention}>@alice</span> merged PR <strong>#4821</strong> into <code>main</code> on{' '}
-        <strong>acme/payments-api</strong> · 3&nbsp;workflows triggered
-      </>
-    ),
-    time: '7 minutes ago · acme-corp',
-  },
-  {
-    type: 'warning',
-    body: (
-      <>
-        Workflow failure spike on <strong>acme/infra-deploy</strong> — 6/10 runs failed{' '}
-        <Label variant="attention">degraded</Label>
-      </>
-    ),
-    time: '14 minutes ago · acme-corp',
-  },
-  {
-    type: 'security',
-    body: (
-      <>
-        Repo visibility changed to <Label variant="danger">public</Label> —{' '}
-        <strong>globex/internal-tools</strong> by <span className={styles.mention}>@bob</span>{' '}
-        <Label variant="attention">review required</Label>
-      </>
-    ),
-    time: '31 minutes ago · globex',
-  },
-  {
-    type: 'platform',
-    body: (
-      <>
-        Deploy to <Label variant="success">production</Label> — <strong>acme/checkout-service v2.14.1</strong> by{' '}
-        <span className={styles.mention}>@carol</span>
-      </>
-    ),
-    time: '45 minutes ago · acme-corp',
-  },
-  {
-    type: 'security',
-    body: (
-      <>
-        Branch protection rule deleted on <Label variant="danger">main</Label> —{' '}
-        <strong>globex/auth-service</strong> by <span className={styles.mention}>@eremin</span>
-      </>
-    ),
-    time: '2 hours ago · globex',
-  },
-];
+function eventTypeClass(action: string): 'security' | 'platform' | 'warning' | 'info' {
+  const a = action.toLowerCase();
+  if (a.includes('delete') || a.includes('destroy') || a.includes('visibility') ||
+      a.includes('branch_protection') || a.includes('pat') || a.includes('deploy_key') ||
+      a.includes('outside_collaborator')) return 'security';
+  if (a.includes('workflow') || a.includes('push') || a.includes('deploy')) return 'platform';
+  if (a.includes('failed') || a.includes('error')) return 'warning';
+  return 'info';
+}
+
+function formatRelative(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  return `${Math.floor(hours / 24)} days ago`;
+}
+
+function EventFeedItem({ event }: { event: EventResponse }) {
+  const typeClass = eventTypeClass(event.action);
+  const context = event.org ? ` · ${event.org}` : '';
+  return (
+    <div className={styles.tlItem}>
+      <div className={[styles.tlNode, styles[typeClass]].join(' ')} />
+      <div className={styles.tlBody}>
+        {event.actor && <span className={styles.mention}>@{event.actor}</span>}{event.actor ? ' · ' : ''}
+        <strong>{event.action}</strong>
+        {event.repo && <> on <strong>{event.repo}</strong></>}
+      </div>
+      <div className={styles.tlTime}>{formatRelative(event.created_at)}{context}</div>
+    </div>
+  );
+}
 
 export function DashboardPage() {
   const { data: detections, isLoading: loadingThreats, refetch: refetchThreats, isError: threatError } = useQuery({
@@ -94,10 +65,38 @@ export function DashboardPage() {
     queryFn: () => listDetections({ status: 'investigating', page_size: 100 }),
   });
 
-  const { data: events } = useQuery({
+  const { data: events, isLoading: loadingEvents } = useQuery({
     queryKey: ['events', 'recent'],
-    queryFn: () => listEvents({ page_size: 5, sort: 'created_at_desc' }),
+    queryFn: () => listEvents({ page_size: 10, sort: 'created_at_desc' }),
   });
+
+  // Fetch a larger page of events for the heatmap (up to 500 most recent)
+  const { data: calendarEvents } = useQuery({
+    queryKey: ['events', 'calendar'],
+    queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc' }),
+  });
+
+  // Bucket calendar events by day
+  const calendarData = (() => {
+    if (!calendarEvents?.items.length) return undefined;
+    const dayMap = new Map<string, { count: number; hasAlert: boolean }>();
+    for (const e of calendarEvents.items) {
+      const day = e.created_at.slice(0, 10);
+      const existing = dayMap.get(day) ?? { count: 0, hasAlert: false };
+      dayMap.set(day, {
+        count: existing.count + 1,
+        hasAlert: existing.hasAlert || eventTypeClass(e.action) === 'security',
+      });
+    }
+    const maxCount = Math.max(...[...dayMap.values()].map((v) => v.count), 1);
+    return [...dayMap.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, { count, hasAlert }]) => ({
+        date,
+        level: Math.min(4, Math.ceil((count / maxCount) * 4)) as 0 | 1 | 2 | 3 | 4,
+        alert: hasAlert,
+      }));
+  })();
 
   const openThreats = detections?.total ?? 0;
 
@@ -108,7 +107,12 @@ export function DashboardPage() {
     low: detections?.items.filter((d) => d.severity === 'low').length ?? 0,
   };
 
-  const eventCount = events?.total ?? 0;
+  const eventTotal = events?.total ?? 0;
+  const eventCountLabel = eventTotal >= 1000 ? `${(eventTotal / 1000).toFixed(0)}K` : String(eventTotal);
+
+  const uniqueActors = new Set(
+    (events?.items ?? []).map((e) => e.actor).filter(Boolean)
+  ).size;
 
   return (
     <div className={styles.page}>
@@ -118,10 +122,10 @@ export function DashboardPage() {
       </div>
 
       <div className={styles.pills}>
-        <StatPill value={eventCount > 0 ? `${Math.round(eventCount / 1000)}K` : '847K'} label="events today" />
-        <StatPill value={String(openThreats || 23)} label="open threats" variant="danger" />
+        <StatPill value={eventCountLabel || '—'} label="events today" />
+        <StatPill value={String(openThreats)} label="open threats" variant={openThreats > 0 ? 'danger' : undefined} />
         <StatPill value="94.2%" label="pipeline success" variant="success" />
-        <StatPill value="312" label="active devs" variant="done" />
+        <StatPill value={String(uniqueActors || '—')} label="active devs" variant="done" />
         <StatPill value="1.8M" label="API calls (24h)" variant="accent" />
       </div>
 
@@ -140,20 +144,20 @@ export function DashboardPage() {
         >
           Activity heatmap — last 13 weeks
         </CardHeader>
-        <ContributionCalendar />
+        <ContributionCalendar data={calendarData} />
       </Card>
 
       <div className={styles.grid}>
         <div className={styles.flex1}>
           <div className={styles.sectionTitle}>Activity feed</div>
           <div className={styles.timeline}>
-            {FEED.map((item, i) => (
-              <div key={i} className={styles.tlItem}>
-                <div className={[styles.tlNode, styles[item.type as 'security' | 'platform' | 'warning' | 'info']].join(' ')} />
-                <div className={styles.tlBody}>{item.body}</div>
-                <div className={styles.tlTime}>{item.time}</div>
-              </div>
+            {loadingEvents && <Spinner />}
+            {(events?.items ?? []).map((event) => (
+              <EventFeedItem key={event.id} event={event} />
             ))}
+            {!loadingEvents && (events?.items ?? []).length === 0 && (
+              <div style={{ color: 'var(--fg-muted)', padding: '12px 0' }}>No recent events</div>
+            )}
           </div>
         </div>
 
@@ -165,20 +169,24 @@ export function DashboardPage() {
             ) : (
               <div className={styles.sevBars}>
                 {[
-                  { sev: 'Critical', key: 'critical', color: 'var(--danger)', count: severityCounts.critical, w: '40%' },
-                  { sev: 'High', key: 'high', color: 'var(--severe)', count: severityCounts.high, w: '30%' },
-                  { sev: 'Medium', key: 'medium', color: 'var(--attention)', count: severityCounts.medium, w: '22%' },
-                  { sev: 'Low', key: 'low', color: 'var(--success)', count: severityCounts.low, w: '18%' },
-                ].map(({ sev, key, color, count, w }) => (
-                  <div key={key} className={styles.sevRow}>
-                    <div className={[styles.sevDot, styles[key as 'critical' | 'high' | 'medium' | 'low']].join(' ')} />
-                    <span className={styles.sevLbl}>{sev}</span>
-                    <div className={styles.sevTrack}>
-                      <div style={{ height: '100%', background: color, borderRadius: 4, width: count > 0 ? w : '2px' }} />
+                  { sev: 'Critical', key: 'critical', color: 'var(--danger)', count: severityCounts.critical },
+                  { sev: 'High', key: 'high', color: 'var(--severe)', count: severityCounts.high },
+                  { sev: 'Medium', key: 'medium', color: 'var(--attention)', count: severityCounts.medium },
+                  { sev: 'Low', key: 'low', color: 'var(--success)', count: severityCounts.low },
+                ].map(({ sev, key, color, count }) => {
+                  const maxCount = Math.max(severityCounts.critical, severityCounts.high, severityCounts.medium, severityCounts.low, 1);
+                  const w = count > 0 ? `${Math.max(8, Math.round((count / maxCount) * 100))}%` : '2px';
+                  return (
+                    <div key={key} className={styles.sevRow}>
+                      <div className={[styles.sevDot, styles[key as 'critical' | 'high' | 'medium' | 'low']].join(' ')} />
+                      <span className={styles.sevLbl}>{sev}</span>
+                      <div className={styles.sevTrack}>
+                        <div style={{ height: '100%', background: color, borderRadius: 4, width: w }} />
+                      </div>
+                      <span className={styles.sevCount}>{count}</span>
                     </div>
-                    <span className={styles.sevCount}>{count}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>
@@ -187,15 +195,15 @@ export function DashboardPage() {
             <CardHeader>Platform alerts</CardHeader>
             <div className={styles.alerts}>
               <div className={styles.alertRow}>
-                <span className={styles.alertIcon} style={{ color: 'var(--danger)' }}>↑</span>
+                <span className={styles.alertIcon} style={{ color: 'var(--danger)' }}>⇧</span>
                 <div>Workflow failure rate <strong>+12%</strong> vs last week — <strong>infra-deploy</strong></div>
               </div>
-              <div className={[styles.alertRow, styles.alertBorder].join(' ')}>
+              <div className={`${styles.alertRow} ${styles.alertBorder}`}>
                 <span className={styles.alertIcon} style={{ color: 'var(--attention)' }}>⚡</span>
                 <div>PR cycle time for <strong>platform-team</strong> up to <strong>4.1h avg</strong></div>
               </div>
-              <div className={[styles.alertRow, styles.alertBorder].join(' ')}>
-                <span className={styles.alertIcon} style={{ color: 'var(--success)' }}>↑</span>
+              <div className={`${styles.alertRow} ${styles.alertBorder}`}>
+                <span className={styles.alertIcon} style={{ color: 'var(--success)' }}>⇧</span>
                 <div>Deploy frequency <strong>+28%</strong> this sprint — checkout-service</div>
               </div>
             </div>
@@ -205,3 +213,7 @@ export function DashboardPage() {
     </div>
   );
 }
+
+
+
+

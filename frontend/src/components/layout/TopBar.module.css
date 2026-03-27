@@ -38,6 +38,10 @@
   color: var(--fg);
 }
 
+.orgTab.add {
+  color: var(--accent);
+}
+
 .right {
   margin-left: auto;
   display: flex;

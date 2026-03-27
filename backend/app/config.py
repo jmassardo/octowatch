@@ -133,7 +133,9 @@ class S3Settings(BaseSettings):
     def validate_region(cls, v: str | None) -> str | None:
         import re
 
-        if v is not None and not re.fullmatch(r"[a-z0-9-]+", v):
+        if not v:
+            return None
+        if not re.fullmatch(r"[a-z0-9-]+", v):
             raise ValueError("AWS_DEFAULT_REGION must match [a-z0-9-]+")
         return v
 
@@ -142,7 +144,9 @@ class S3Settings(BaseSettings):
     def validate_bucket(cls, v: str | None) -> str | None:
         import re
 
-        if v is not None and not re.fullmatch(r"[a-z0-9\-\.]{3,63}", v):
+        if not v:
+            return None
+        if not re.fullmatch(r"[a-z0-9\-\.]{3,63}", v):
             raise ValueError("S3_AUDIT_BUCKET must be a valid S3 bucket name")
         return v
 
@@ -159,8 +163,8 @@ class AzureBlobSettings(BaseSettings):
     @field_validator("AZURE_STORAGE_CONNECTION_STRING")
     @classmethod
     def validate_azure_conn(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
+        if not v:
+            return None
         # SSRF protection: validate hostname ends in .blob.core.windows.net
         # Connection strings may not contain AccountName explicitly; just allow it
         # if the format looks like a standard Azure connection string.
@@ -246,8 +250,8 @@ class IntegrationSettings(BaseSettings):
     @field_validator("OKTA_ORG_URL")
     @classmethod
     def validate_okta_url(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
+        if not v:
+            return None
         parsed = urlparse(v)
         if not (parsed.hostname or "").endswith(".okta.com"):
             raise ValueError("SSRF protection: OKTA_ORG_URL must end in .okta.com")
@@ -256,8 +260,8 @@ class IntegrationSettings(BaseSettings):
     @field_validator("JIRA_URL")
     @classmethod
     def validate_jira_url(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
+        if not v:
+            return None
         parsed = urlparse(v)
         if parsed.scheme not in ("https",):
             raise ValueError("JIRA_URL must use HTTPS")
@@ -281,6 +285,13 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"]
     )
     INGESTION_MODE: Literal["minio", "s3", "azure_blob"] = "minio"
+    # Comma-separated GitHub logins that are unconditionally granted sys_admin.
+    # Used to bootstrap the first admin before any DB role assignment exists.
+    # Example: INITIAL_ADMIN_LOGINS=alice,bob
+    INITIAL_ADMIN_LOGINS: str = Field(
+        default="",
+        description="Comma-separated GitHub logins that always have sys_admin (bootstrap).",
+    )
     QUERY_MAX_ROWS: int = Field(default=100_000, ge=1, le=1_000_000)
     QUERY_TIMEOUT_SECONDS: int = Field(default=30, ge=5, le=300)
     DETECTION_CONFIDENCE_THRESHOLD: float = Field(default=0.7, ge=0.0, le=1.0)
@@ -296,7 +307,15 @@ class Settings(BaseSettings):
     GIT: GitHubRulesSettings = Field(default_factory=GitHubRulesSettings)
     INTEGRATIONS: IntegrationSettings = Field(default_factory=IntegrationSettings)
 
-    # Convenience proxies (read directly from env for Celery and Alembic access)
+    @property
+    def initial_admin_logins(self) -> set[str]:
+        """Return the set of GitHub logins that always have sys_admin."""
+        return {
+            login.strip().lower()
+            for login in self.INITIAL_ADMIN_LOGINS.split(",")
+            if login.strip()
+        }
+
     @property
     def DATABASE_URL(self) -> str:
         return self.DB.DATABASE_URL

@@ -54,6 +54,7 @@ COPY --from=builder /install /usr/local
 COPY --chown=appuser:root app/ ./app/
 COPY --chown=appuser:root alembic/ ./alembic/
 COPY --chown=appuser:root alembic.ini .
+COPY --chown=appuser:root import_local.py .
 
 # GeoIP DB mount point (read-only volume in production)
 RUN mkdir -p /app/data && chown appuser:root /app/data

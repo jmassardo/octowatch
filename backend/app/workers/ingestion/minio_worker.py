@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import hmac
 import json
@@ -16,14 +17,10 @@ logger = structlog.get_logger(__name__)
 
 
 class MinioIngestWorker(AbstractIngestWorker):
-    """Processes audit log objects pushed to a MinIO bucket via webhook notifications.
-
-    MinIO publishes a JSON notification to a Valkey channel when a new object
-    is created. The worker subscribes, verifies the HMAC-SHA256 signature,
-    downloads the object, and ingests the NDJSON payload.
-    """
+    """Processes audit log objects pushed to a MinIO bucket via webhook notifications."""
 
     CHANNEL = "minio:events"
+    ingestion_source = "minio"
 
     async def run(self) -> None:
         """Subscribe to the MinIO events channel and process notifications."""
@@ -69,7 +66,7 @@ class MinioIngestWorker(AbstractIngestWorker):
 
             events = await self._download_and_parse(bucket_name, object_key)
             if events:
-                inserted = await self.ingest_batch(events)
+                inserted = await self.ingest_batch(events, source_file_path=object_key)
                 logger.info(
                     "minio_worker.ingested",
                     bucket=bucket_name,
@@ -99,10 +96,20 @@ class MinioIngestWorker(AbstractIngestWorker):
 
         try:
             response = s3_client.get_object(Bucket=bucket, Key=key)
-            content = response["Body"].read().decode("utf-8")
+            raw_bytes = response["Body"].read()
         except Exception as exc:
             logger.error("minio_worker.download_failed", bucket=bucket, key=key, error=str(exc))
             return []
+
+        # Decompress gzip if needed (detect by magic bytes or .gz extension)
+        if raw_bytes[:2] == b"\x1f\x8b" or key.endswith(".gz"):
+            try:
+                raw_bytes = gzip.decompress(raw_bytes)
+            except Exception as exc:
+                logger.error("minio_worker.gzip_error", key=key, error=str(exc))
+                return []
+
+        content = raw_bytes.decode("utf-8")
 
         events: list[dict[str, Any]] = []
         for line in content.splitlines():

@@ -124,16 +124,26 @@ def build_github_authorize_url(state: str) -> str:
 async def exchange_github_code(code: str) -> dict[str, Any]:
     """Exchange OAuth authorization code for an access token."""
     async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.post(
-            GITHUB_OAUTH_ACCESS_URL,
-            data={
-                "client_id": settings.AUTH.GITHUB_CLIENT_ID,
-                "client_secret": settings.AUTH.GITHUB_CLIENT_SECRET,
-                "code": code,
-            },
-            headers={"Accept": "application/json"},
-        )
-    resp.raise_for_status()
+        try:
+            resp = await client.post(
+                GITHUB_OAUTH_ACCESS_URL,
+                data={
+                    "client_id": settings.AUTH.GITHUB_CLIENT_ID,
+                    "client_secret": settings.AUTH.GITHUB_CLIENT_SECRET,
+                    "code": code,
+                    # Must match the redirect_uri used in the authorization request
+                    "redirect_uri": f"{settings.AUTH.APP_BASE_URL}/api/v1/auth/github/callback",
+                },
+                headers={"Accept": "application/json"},
+            )
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            logger.error("github_token_exchange_failed", status=exc.response.status_code)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="GitHub token exchange failed. Ensure your OAuth App callback URL is set to "
+                       f"{settings.AUTH.APP_BASE_URL}/api/v1/auth/github/callback",
+            ) from exc
     data = resp.json()
     if "error" in data:
         raise HTTPException(

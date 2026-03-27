@@ -1,50 +1,83 @@
 import { useQuery } from '@tanstack/react-query';
 import { getActionsVolumeReport } from '../../api/reports';
+import { listEvents } from '../../api/events';
 import { ContributionCalendar } from '../../components/charts/ContributionCalendar';
+import { LineAreaChart } from '../../components/charts/LineAreaChart';
+import { BarChart } from '../../components/charts/BarChart';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import type { ActionsVolumeBucket } from '../../types/reports';
 import styles from './Velocity.module.css';
 
-const METRICS = [
-  { value: '1,247', label: 'PRs merged (30d)', delta: '↑ 8% vs prev period', dir: 'up' as const },
-  { value: '18h', label: 'Lead time for changes', delta: 'idea → production', dir: 'neutral' as const, accent: true },
-  { value: '3.2h', label: 'PR cycle time (median)', delta: '↑ 0.4h slower', dir: 'down' as const },
-  { value: '4.1%', label: 'Change failure rate', delta: '↓ 0.8pp vs last week', dir: 'up' as const },
-  { value: '847', label: 'Deployments (30d)', delta: '↑ 28% vs prev period', dir: 'up' as const },
-  { value: '94.2%', label: 'Workflow success', delta: '↓ 1.2% vs last week', dir: 'down' as const },
-  { value: '23', label: 'WIP (items in flight)', delta: '↑ 4 vs last week', dir: 'down' as const },
-  { value: '68%', label: 'Planned work ratio', delta: '32% unplanned', dir: 'neutral' as const },
-];
+/* ── Static demo / placeholder data for velocity charts ─────────────── */
 
-const FAILING_WORKFLOWS = [
-  { name: 'deploy-production.yml', repo: 'acme/infra-deploy', rate: '60%', rateVariant: 'danger', lastFailed: '14 min ago', p50: '4m 22s' },
-  { name: 'e2e-tests.yml', repo: 'acme/checkout-service', rate: '28%', rateVariant: 'attention', lastFailed: '2h ago', p50: '12m 08s' },
-  { name: 'integration-tests.yml', repo: 'globex/auth-service', rate: '15%', rateVariant: 'attention', lastFailed: '5h ago', p50: '8m 41s' },
-];
+const CHART_LABELS = Array.from({ length: 14 }, (_, i) => {
+  const d = new Date();
+  d.setDate(d.getDate() - 13 + i);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+});
+
+const LEAD_TIME_MEDIAN = [4.2, 3.8, 5.1, 3.5, 4.0, 6.2, 5.5, 3.9, 4.8, 3.6, 4.1, 3.3, 5.0, 4.4];
+const LEAD_TIME_P90 = [8.1, 7.5, 9.3, 6.8, 7.2, 11.4, 10.1, 7.0, 8.9, 6.5, 7.8, 6.1, 9.2, 8.0];
+const CHANGE_FAILURE = [3.2, 2.8, 4.1, 5.5, 3.0, 2.1, 6.3, 4.8, 3.5, 2.9, 1.8, 3.4, 2.5, 3.1];
+const WORKFLOW_SUCCESS_DEMO = [96.2, 95.8, 97.1, 94.5, 96.0, 93.8, 95.5, 97.9, 96.8, 98.1, 97.4, 95.3, 96.0, 97.5];
+const DAILY_DEPLOYS = [5, 8, 3, 7, 12, 6, 4, 9, 11, 7, 5, 8, 10, 6];
 
 const ACTIVE_REPOS = [
-  { repo: 'acme/payments-api', commits: 847, prs: 214, cfr: '2.1%', cfrVariant: 'success', mttr: '38m', contrib: 28 },
-  { repo: 'acme/checkout-service', commits: 623, prs: 187, cfr: '1.8%', cfrVariant: 'success', mttr: '22m', contrib: 19 },
-  { repo: 'acme/infra-deploy', commits: 412, prs: 98, cfr: '14.3%', cfrVariant: 'danger', mttr: '1h 12m', contrib: 12 },
-  { repo: 'globex/auth-service', commits: 318, prs: 76, cfr: '6.2%', cfrVariant: 'attention', mttr: '45m', contrib: 9 },
-  { repo: 'globex/api-gateway', commits: 275, prs: 61, cfr: '0%', cfrVariant: 'success', mttr: '—', contrib: 8 },
+  { name: 'octowatch/frontend', commits: 142, prs: 28, cfr: '2.1%', mttr: '0.8 h', contributors: 6 },
+  { name: 'octowatch/backend', commits: 118, prs: 22, cfr: '3.4%', mttr: '1.2 h', contributors: 5 },
+  { name: 'octowatch/infra', commits: 67, prs: 14, cfr: '1.5%', mttr: '0.5 h', contributors: 3 },
+  { name: 'octowatch/docs', commits: 45, prs: 11, cfr: '0.0%', mttr: '—', contributors: 4 },
+  { name: 'octowatch/cli', commits: 38, prs: 9, cfr: '5.2%', mttr: '2.1 h', contributors: 2 },
 ];
 
 export function VelocityPage() {
-  const { isLoading, isError, refetch } = useQuery({
+  const { data: actionsData, isLoading, isError, refetch } = useQuery({
     queryKey: ['reports', 'actions-volume'],
-    queryFn: () => getActionsVolumeReport({ window: '30d', granularity: 'daily' }),
+    queryFn: () => getActionsVolumeReport({ window_days: 30, granularity: 'daily' }),
   });
+
+  const { data: prEvents } = useQuery({
+    queryKey: ['events', 'pr-events'],
+    queryFn: () => listEvents({ action: 'pull_request', page_size: 500, sort: 'created_at_desc' }),
+  });
+
+  const buckets = (actionsData?.data ?? []) as unknown as ActionsVolumeBucket[];
+
+  // Aggregate totals from actions volume data
+  const totalRuns = buckets.reduce((sum, b) => sum + (b.workflow_runs_total ?? 0), 0);
+  const totalSucceeded = buckets.reduce((sum, b) => sum + (b.workflow_runs_succeeded ?? 0), 0);
+  const overallSuccessRate = totalRuns > 0 ? ((totalSucceeded / totalRuns) * 100).toFixed(1) : null;
+
+  const prMerged = prEvents?.total ?? null;
+
+  const metrics = [
+    { value: prMerged != null ? prMerged.toLocaleString() : '—', label: 'PRs merged (30d)', delta: 'last 30 days', dir: 'neutral' as const },
+    { value: '4.2 h', label: 'Lead time for changes', delta: '↓ 12% vs prior', dir: 'up' as const },
+    { value: '2.8 h', label: 'PR cycle time (median)', delta: 'last 30 days', dir: 'neutral' as const },
+    { value: '3.1%', label: 'Change failure rate', delta: '< 5% target', dir: 'up' as const },
+    { value: '6.4 / d', label: 'Deployments (30d)', delta: '↑ 8% vs prior', dir: 'up' as const },
+    { value: overallSuccessRate != null ? `${overallSuccessRate}%` : '—', label: 'Workflow success', delta: '30-day average', dir: overallSuccessRate != null && parseFloat(overallSuccessRate) >= 90 ? 'up' as const : 'down' as const },
+    { value: '12', label: 'WIP (items in flight)', delta: 'across all repos', dir: 'neutral' as const },
+    { value: '74%', label: 'Planned work ratio', delta: 'vs unplanned', dir: 'neutral' as const },
+  ];
+
+  // Most recent failing buckets (last 7 days of failed runs > 0)
+  const recentFailingBuckets = buckets
+    .filter((b) => (b.workflow_runs_failed ?? 0) > 0)
+    .slice(-7)
+    .reverse();
 
   return (
     <div className={styles.page}>
       <div className={styles.titleRow}>
         <div className={styles.pageTitle}>Engineering Velocity</div>
-        <div className={styles.doraBadge}>
-          ★ Elite
+        <div className={styles.doraGroup}>
+          <span className={styles.doraLabel}>DORA tier</span>
+          <span className={styles.doraBadge}>★ Elite</span>
         </div>
       </div>
       <div className={styles.pageSub}>
@@ -64,8 +97,8 @@ export function VelocityPage() {
       {isError && <ErrorBanner message="Failed to load metrics" onRetry={refetch} />}
 
       <div className={styles.metricStrip}>
-        {METRICS.map((m, i) => (
-          <MetricCard key={i} value={m.value} label={m.label} delta={m.delta} deltaDir={m.dir} accent={m.accent} />
+        {metrics.map((m, i) => (
+          <MetricCard key={i} value={m.value} label={m.label} delta={m.delta} deltaDir={m.dir} />
         ))}
       </div>
 
@@ -80,64 +113,111 @@ export function VelocityPage() {
 
       <div className={styles.chartsGrid}>
         <div className={styles.chartWrap}>
-          <div className={styles.chartTitle}>Lead time for changes — 14 days <span className={styles.chartSub}>(median + P90)</span></div>
-          <svg width="100%" height="110" viewBox="0 0 400 90" preserveAspectRatio="none">
-            <defs><linearGradient id="gr-lead" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#58a6ff" stopOpacity=".15"/><stop offset="100%" stopColor="#58a6ff" stopOpacity="0"/></linearGradient></defs>
-            <polyline points="0,42 28,38 56,35 84,50 112,30 140,25 168,36 196,28 224,44 252,20 280,16 308,38 336,30 364,42 400,26" fill="none" stroke="#58a6ff" strokeWidth="1.5" strokeDasharray="4,3" opacity=".5"/>
-            <polygon points="0,58 28,54 56,48 84,64 112,42 140,35 168,50 196,44 224,58 252,35 280,28 308,52 336,44 364,56 400,40 400,90 0,90" fill="url(#gr-lead)"/>
-            <polyline points="0,58 28,54 56,48 84,64 112,42 140,35 168,50 196,44 224,58 252,35 280,28 308,52 336,44 364,56 400,40" fill="none" stroke="#58a6ff" strokeWidth="2"/>
-            <text x="2" y="88" fontSize="9" fill="#6e7681">Jan 1</text><text x="355" y="88" fontSize="9" fill="#6e7681">Jan 14</text>
-          </svg>
+          <div className={styles.chartTitle}>
+            Lead time for changes <span className={styles.chartSub}>— 14 days</span>
+          </div>
+          <LineAreaChart
+            xAxisData={CHART_LABELS}
+            series={[
+              { name: 'Median', data: LEAD_TIME_MEDIAN, color: 'rgb(88, 166, 255)', areaOpacity: 0.15 },
+              { name: 'P90', data: LEAD_TIME_P90, color: 'rgb(88, 166, 255)', dashed: true },
+            ]}
+            yAxisFormatter={(v: number) => `${v}h`}
+          />
         </div>
+
         <div className={styles.chartWrap}>
-          <div className={styles.chartTitle}>Change failure rate — 14 days</div>
-          <svg width="100%" height="110" viewBox="0 0 400 90" preserveAspectRatio="none">
-            <defs><linearGradient id="gr-cfr" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f85149" stopOpacity=".2"/><stop offset="100%" stopColor="#f85149" stopOpacity="0"/></linearGradient></defs>
-            <polygon points="0,75 28,72 56,70 84,78 112,65 140,60 168,72 196,68 224,75 252,58 280,55 308,70 336,66 364,74 400,62 400,90 0,90" fill="url(#gr-cfr)"/>
-            <polyline points="0,75 28,72 56,70 84,78 112,65 140,60 168,72 196,68 224,75 252,58 280,55 308,70 336,66 364,74 400,62" fill="none" stroke="#f85149" strokeWidth="2"/>
-            <line x1="0" y1="54" x2="400" y2="54" stroke="#d29922" strokeWidth="1" strokeDasharray="6,3" opacity=".6"/>
-            <text x="2" y="52" fontSize="9" fill="#d29922">5% threshold</text>
-            <text x="2" y="88" fontSize="9" fill="#6e7681">Jan 1</text><text x="355" y="88" fontSize="9" fill="#6e7681">Jan 14</text>
-          </svg>
+          <div className={styles.chartTitle}>
+            Change failure rate <span className={styles.chartSub}>— 14 days</span>
+          </div>
+          <LineAreaChart
+            xAxisData={CHART_LABELS}
+            series={[
+              { name: 'CFR', data: CHANGE_FAILURE, color: 'rgb(248, 81, 73)', areaOpacity: 0.15 },
+              { name: 'Threshold (5%)', data: Array.from({ length: 14 }, () => 5), color: 'rgb(248, 81, 73)', dashed: true },
+            ]}
+            yAxisFormatter={(v: number) => `${v}%`}
+          />
+        </div>
+
+        <div className={styles.chartWrap}>
+          <div className={styles.chartTitle}>
+            Workflow success rate <span className={styles.chartSub}>— 14 days</span>
+          </div>
+          <LineAreaChart
+            xAxisData={CHART_LABELS}
+            series={[
+              { name: 'Success rate', data: WORKFLOW_SUCCESS_DEMO, color: 'rgb(63, 185, 80)', areaOpacity: 0.15 },
+            ]}
+            yAxisFormatter={(v: number) => `${v}%`}
+          />
+        </div>
+
+        <div className={styles.chartWrap}>
+          <div className={styles.chartTitle}>
+            Daily deployments <span className={styles.chartSub}>— 14 days</span>
+          </div>
+          <BarChart
+            xAxisData={CHART_LABELS}
+            series={[
+              { name: 'Deployments', data: DAILY_DEPLOYS, color: '#58a6ff' },
+            ]}
+          />
         </div>
       </div>
 
-      <div className={styles.sectionTitle}>Top failing workflows</div>
-      <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
-        <table>
-          <thead><tr><th>Workflow</th><th>Repository</th><th>Failure rate</th><th>Last failed</th><th>P50 duration</th></tr></thead>
-          <tbody>
-            {FAILING_WORKFLOWS.map((w) => (
-              <tr key={w.name}>
-                <td>{w.name}</td>
-                <td>{w.repo}</td>
-                <td><Label variant={w.rateVariant as 'danger' | 'attention'}>{w.rate}</Label></td>
-                <td style={{ color: 'var(--fg-muted)' }}>{w.lastFailed}</td>
-                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{w.p50}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {recentFailingBuckets.length > 0 && (
+        <>
+          <div className={styles.sectionTitle}>Recent workflow failures — last 30 days</div>
+          <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
+            <table>
+              <thead><tr><th>Date bucket</th><th>Total runs</th><th>Failed</th><th>Success rate</th></tr></thead>
+              <tbody>
+                {recentFailingBuckets.map((b, i) => (
+                  <tr key={i}>
+                    <td>{new Date(b.bucket).toLocaleDateString()}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.workflow_runs_total ?? 0}</td>
+                    <td><Label variant={(b.workflow_runs_failed ?? 0) > 10 ? 'danger' : 'attention'}>{b.workflow_runs_failed ?? 0}</Label></td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.success_rate_pct != null ? `${Math.round(b.success_rate_pct)}%` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       <div className={styles.sectionTitle}>Most active repositories — last 30 days</div>
-      <div className={styles.tableWrap}>
+      <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
         <table>
-          <thead><tr><th>Repository</th><th>Commits</th><th>PRs merged</th><th>Change failure rate</th><th>MTTR</th><th>Contributors</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Repository</th>
+              <th>Commits</th>
+              <th>PRs merged</th>
+              <th>Change failure rate</th>
+              <th>MTTR</th>
+              <th>Contributors</th>
+            </tr>
+          </thead>
           <tbody>
             {ACTIVE_REPOS.map((r) => (
-              <tr key={r.repo}>
-                <td>{r.repo}</td>
-                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.commits.toLocaleString()}</td>
-                <td>{r.prs}</td>
-                <td><Label variant={r.cfrVariant as 'success' | 'danger' | 'attention'}>{r.cfr}</Label></td>
+              <tr key={r.name}>
+                <td style={{ fontWeight: 500 }}>{r.name}</td>
+                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.commits}</td>
+                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.prs}</td>
+                <td>{r.cfr}</td>
                 <td>{r.mttr}</td>
-                <td>{r.contrib}</td>
+                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.contributors}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {buckets.length === 0 && !isLoading && (
+        <div style={{ color: 'var(--fg-muted)', padding: '16px 0' }}>No workflow run data for the selected period.</div>
+      )}
     </div>
   );
 }

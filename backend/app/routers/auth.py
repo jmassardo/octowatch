@@ -6,7 +6,7 @@ import secrets
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -93,7 +93,17 @@ async def github_callback(
         scope_type=scope_type,
     )
 
-    final_response = Response(content='{"status":"authenticated"}', media_type="application/json")
+    # Return a 200 HTML page that does a client-side redirect.
+    # A 302 RedirectResponse causes browsers to drop SameSite=Strict cookies
+    # because the incoming request is a cross-site redirect from github.com.
+    # With a 200 response, the browser stores the cookies normally, then the
+    # meta-refresh causes a same-site top-level navigation where cookies are sent.
+    html = (
+        "<!doctype html><html><head>"
+        '<meta http-equiv="refresh" content="0;url=/">'
+        "</head><body>Authenticated, redirecting&hellip;</body></html>"
+    )
+    final_response = HTMLResponse(content=html, status_code=200)
     set_auth_cookies(final_response, jwt_token, csrf_token)
     final_response.delete_cookie("oauth_state")
     return final_response

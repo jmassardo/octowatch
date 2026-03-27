@@ -1,12 +1,12 @@
 # OctoWatch Roadmap
 
-This document outlines planned features and improvements. Community input is welcome — open an issue or discussion to share your priorities.
+This document outlines planned features and improvements. Community input is welcome — feel free to open an issue or discussion to share your priorities.
 
 ## Near-Term
 
 - **Webhook Ingestion** — Receive GitHub audit log events via webhook push for real-time ingestion
 - **Alerting System** — Wire the detection engine to real-time Slack and email alerts on threat detection
-- **E2E Test Suite** — Playwright tests for critical user journeys
+- **E2E Test Suite** — Playwright tests for critical user journeys (login → dashboard → query → results)
 - **Container Image Scanning** — Add Trivy scanning of built Docker images in CI
 
 ## Medium-Term

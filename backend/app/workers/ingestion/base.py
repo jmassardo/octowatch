@@ -25,6 +25,9 @@ class AbstractIngestWorker(ABC):
     write-to-DB.
     """
 
+    # Subclasses set this to 's3', 'azure_blob', or 'minio'
+    ingestion_source: str = "minio"
+
     def __init__(self, valkey_client: Any, db_session_factory: Any) -> None:
         self._valkey = valkey_client
         self._make_session = db_session_factory
@@ -63,7 +66,9 @@ class AbstractIngestWorker(ABC):
         pipe.expire(_BLOOM_KEY, _BLOOM_TTL)
         await pipe.execute()
 
-    async def ingest_batch(self, raw_events: list[dict[str, Any]]) -> int:
+    async def ingest_batch(
+        self, raw_events: list[dict[str, Any]], source_file_path: str = "unknown"
+    ) -> int:
         """Process a batch of raw events: dedup + bulk insert. Returns count inserted."""
         if not raw_events:
             return 0
@@ -88,45 +93,57 @@ class AbstractIngestWorker(ABC):
             from sqlalchemy import text
 
             for event, dedup_hash in zip(to_insert, dedup_hashes, strict=False):
-                # Tier 2: DB-level dedup check
+                # Tier 2: DB-level dedup check (document_id is the stable dedup key)
                 existing = await session.execute(
-                    text("SELECT 1 FROM event_dedup WHERE dedup_hash = :h"),
-                    {"h": dedup_hash},
+                    text("SELECT 1 FROM event_dedup WHERE document_id = :doc_id"),
+                    {"doc_id": dedup_hash},
                 )
                 if existing.fetchone():
                     continue
 
                 # Parse and enrich event
-                normalized = self._normalize_event(event)
+                normalized = self._normalize_event(
+                    event,
+                    dedup_hash=dedup_hash,
+                    source_file_path=source_file_path,
+                )
                 if not normalized:
                     continue
 
-                # Insert event (ON CONFLICT DO NOTHING for per-chunk uniqueness)
-                await session.execute(
+                # Insert event; return the generated id for the dedup record
+                result = await session.execute(
                     text("""
                         INSERT INTO events (
-                            action, actor, actor_id, actor_is_bot,
+                            document_id, action, actor, actor_id, actor_is_bot,
                             org, repo, source_ip, created_at, data,
-                            geo_country, geo_city, geo_latitude, geo_longitude, geo_is_proxy,
-                            user_agent
+                            geo_country_code, geo_city, geo_latitude, geo_longitude, geo_is_proxy,
+                            user_agent, ingestion_source, source_file_path
                         ) VALUES (
-                            :action, :actor, :actor_id, :actor_is_bot,
-                            :org, :repo, :source_ip, :created_at, :data::jsonb,
-                            :geo_country, :geo_city, :geo_latitude, :geo_longitude, :geo_is_proxy,
-                            :user_agent
+                            :document_id, :action, :actor, :actor_id, :actor_is_bot,
+                            :org, :repo, :source_ip, :created_at, CAST(:data AS jsonb),
+                            :geo_country_code, :geo_city, :geo_latitude, :geo_longitude, :geo_is_proxy,
+                            :user_agent, :ingestion_source, :source_file_path
                         )
-                        ON CONFLICT DO NOTHING
+                        RETURNING id
                     """),
                     normalized,
                 )
+                row = result.fetchone()
+                if not row:
+                    continue  # duplicate document_id race condition
+                event_id = row[0]
 
                 # Insert dedup record
                 await session.execute(
                     text(
-                        "INSERT INTO event_dedup (dedup_hash, created_at) "
-                        "VALUES (:h, :ts) ON CONFLICT DO NOTHING"
+                        "INSERT INTO event_dedup (document_id, event_id, created_at) "
+                        "VALUES (:doc_id, :event_id, :ts) ON CONFLICT DO NOTHING"
                     ),
-                    {"h": dedup_hash, "ts": normalized["created_at"]},
+                    {
+                        "doc_id": normalized["document_id"],
+                        "event_id": event_id,
+                        "ts": normalized["created_at"],
+                    },
                 )
 
                 # Mark bloom filter
@@ -140,7 +157,13 @@ class AbstractIngestWorker(ABC):
 
         return inserted
 
-    def _normalize_event(self, raw: dict[str, Any]) -> dict[str, Any] | None:
+    def _normalize_event(
+        self,
+        raw: dict[str, Any],
+        *,
+        dedup_hash: str,
+        source_file_path: str = "unknown",
+    ) -> dict[str, Any] | None:
         """Convert a raw GitHub audit log entry to DB row parameters."""
         action = raw.get("action")
         if not action:
@@ -162,7 +185,7 @@ class AbstractIngestWorker(ABC):
         source_ip = raw.get("@ip") or raw.get("actor_ip")
 
         # GeoIP enrichment (best-effort; doesn't block insert on failure)
-        geo_country = geo_city = geo_latitude = geo_longitude = None
+        geo_country_code = geo_city = geo_latitude = geo_longitude = None
         geo_is_proxy = False
         if source_ip:
             try:
@@ -170,7 +193,7 @@ class AbstractIngestWorker(ABC):
 
                 geo = get_geoip_location(source_ip)
                 if geo:
-                    geo_country = geo.country_code
+                    geo_country_code = geo.country_code
                     geo_city = geo.city
                     geo_latitude = geo.latitude
                     geo_longitude = geo.longitude
@@ -181,7 +204,11 @@ class AbstractIngestWorker(ABC):
         # Strip large/sensitive fields from data blob
         data = {k: v for k, v in raw.items() if not k.startswith("@")}
 
+        # Use GitHub's _document_id if present, otherwise the computed dedup hash
+        document_id = raw.get("_document_id") or dedup_hash
+
         return {
+            "document_id": document_id,
             "action": action,
             "actor": raw.get("actor"),
             "actor_id": raw.get("actor_id"),
@@ -191,12 +218,14 @@ class AbstractIngestWorker(ABC):
             "source_ip": source_ip,
             "created_at": created_at,
             "data": json.dumps(data),
-            "geo_country": geo_country,
+            "geo_country_code": geo_country_code,
             "geo_city": geo_city,
             "geo_latitude": geo_latitude,
             "geo_longitude": geo_longitude,
             "geo_is_proxy": geo_is_proxy,
             "user_agent": raw.get("user_agent"),
+            "ingestion_source": self.ingestion_source,
+            "source_file_path": source_file_path,
         }
 
     @abstractmethod

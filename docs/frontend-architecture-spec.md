@@ -28,17 +28,17 @@
 
 | Role | Package | Exact Version | Rationale |
 |------|---------|---------------|-----------|
-| Build tool | `vite` | `5.4.8` | Fast HMR, first-class TypeScript, Vite proxy for dev API |
-| UI framework | `react` | `18.3.1` | Established stack |
-| DOM renderer | `react-dom` | `18.3.1` | Pair with React |
+| Build tool | `vite` | `8.0.3` | Fast HMR, first-class TypeScript, Vite proxy for dev API |
+| UI framework | `react` | `19.2.4` | Established stack |
+| DOM renderer | `react-dom` | `19.2.4` | Pair with React |
 | Language | `typescript` | `5.5.4` | Strict mode throughout |
 | Routing | `react-router-dom` | `6.26.2` | v6 data router, declarative route guard |
 | Server state | `@tanstack/react-query` | `5.56.2` | Cache-first fetching, automatic background refresh |
 | Charts | `echarts` | `5.5.1` | Established stack; used for line/bar/area; **not** a UI component library |
 | React ECharts | `echarts-for-react` | `3.0.2` | Thin React wrapper with resize observer |
-| Vite React plugin | `@vitejs/plugin-react` | `4.3.1` | Babel fast refresh |
-| Types — React | `@types/react` | `18.3.5` | |
-| Types — ReactDOM | `@types/react-dom` | `18.3.0` | |
+| Vite React plugin | `@vitejs/plugin-react` | `6.0.1` | Babel fast refresh |
+| Types — React | `@types/react` | `19.2.14` | |
+| Types — ReactDOM | `@types/react-dom` | `19.2.3` | |
 
 **Explicitly excluded:**
 - No TailwindCSS (use CSS Modules + global design tokens instead)
@@ -1659,21 +1659,21 @@ The backend already sets CSP headers. The frontend must not break them:
     "@tanstack/react-query": "5.56.2",
     "echarts": "5.5.1",
     "echarts-for-react": "3.0.2",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
     "react-router-dom": "6.26.2"
   },
   "devDependencies": {
-    "@types/react": "18.3.5",
-    "@types/react-dom": "18.3.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
     "@typescript-eslint/eslint-plugin": "8.4.0",
     "@typescript-eslint/parser": "8.4.0",
-    "@vitejs/plugin-react": "4.3.1",
+    "@vitejs/plugin-react": "6.0.1",
     "eslint": "9.9.1",
     "eslint-plugin-react-hooks": "5.1.0-rc.0",
     "eslint-plugin-react-refresh": "0.4.11",
     "typescript": "5.5.4",
-    "vite": "5.4.8"
+    "vite": "8.0.3"
   }
 }
 ```

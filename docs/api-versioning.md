@@ -6,8 +6,7 @@ The OctoWatch API is currently at **v1**, accessible at `/api/v1/`.
 
 ## Versioning Strategy
 
-OctoWatch uses **URL path prefix versioning** (e.g., `/api/v1/`, `/api/v2/`). This approach provides:
-
+OctoWatch uses **URL path prefix versioning** (e.g., `/api/v1/`, `/api/v2/`). This approach was chosen for:
 - Clear, explicit version identification in every request
 - Easy routing at the reverse proxy layer
 - Simple client configuration
@@ -15,7 +14,6 @@ OctoWatch uses **URL path prefix versioning** (e.g., `/api/v1/`, `/api/v2/`). Th
 ## Backwards Compatibility
 
 Within a major API version:
-
 - **No breaking changes** to existing endpoint request/response schemas
 - New optional fields may be added to responses
 - New optional query parameters may be added to requests
@@ -24,7 +22,6 @@ Within a major API version:
 ## Deprecation Policy
 
 When a new API version is released:
-
 1. The previous version will be supported for a minimum of **6 months**
 2. Deprecation warnings will be communicated via:
    - `Sunset` and `Deprecation` HTTP headers on deprecated endpoints
@@ -34,6 +31,6 @@ When a new API version is released:
 
 ## Version History
 
-| Version | Status | Released   | Sunset |
-|---------|--------|------------|--------|
-| v1      | Active | 2026-03-27 | —      |
+| Version | Status | Released | Sunset |
+|---------|--------|----------|--------|
+| v1      | Active | 2026-03-27 | — |

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { runQuery, listTemplates } from '../../api/query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { runQuery, listTemplates, createTemplate } from '../../api/query';
 import type { QueryRunResponse } from '../../types/query';
 import { Button } from '../../components/primitives/Button';
 import { Spinner } from '../../components/primitives/Spinner';
@@ -55,11 +55,158 @@ WHERE action = 'user.login'
 GROUP BY actor
 HAVING COUNT(DISTINCT location->>'country_code') > 1;`;
 
+// --- SQL Syntax Highlighting ---
+
+const SQL_KEYWORDS = new Set([
+  'SELECT', 'FROM', 'WHERE', 'GROUP', 'BY', 'HAVING', 'AND', 'OR', 'AS',
+  'DISTINCT', 'ORDER', 'LIMIT', 'OFFSET', 'INSERT', 'INTO', 'VALUES',
+  'UPDATE', 'SET', 'DELETE', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER',
+  'ON', 'IN', 'NOT', 'NULL', 'IS', 'LIKE', 'BETWEEN', 'CASE', 'WHEN',
+  'THEN', 'ELSE', 'END', 'INTERVAL', 'TRUE', 'FALSE', 'ASC', 'DESC',
+  'UNION', 'ALL', 'EXISTS', 'WITH', 'OVER', 'PARTITION',
+]);
+
+const SQL_FUNCTIONS = new Set([
+  'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'ARRAY_AGG', 'STRING_AGG',
+  'COALESCE', 'NULLIF', 'CAST', 'NOW', 'DATE_TRUNC', 'EXTRACT',
+  'LOWER', 'UPPER', 'TRIM', 'SUBSTRING', 'LENGTH', 'CONCAT',
+  'ROW_NUMBER', 'RANK', 'DENSE_RANK',
+]);
+
+const COLUMN_NAMES = new Set(SCHEMA.flatMap((s) => s.cols.map((c) => c.name)));
+
+type TokenType = 'keyword' | 'function' | 'column' | 'string' | 'comment' | 'plain';
+
+interface SqlToken {
+  type: TokenType;
+  value: string;
+}
+
+function tokenizeSql(sql: string): SqlToken[] {
+  const tokens: SqlToken[] = [];
+  let i = 0;
+
+  while (i < sql.length) {
+    // Comments: -- to end of line
+    if (sql[i] === '-' && i + 1 < sql.length && sql[i + 1] === '-') {
+      const end = sql.indexOf('\n', i);
+      const value = end === -1 ? sql.slice(i) : sql.slice(i, end);
+      tokens.push({ type: 'comment', value });
+      i += value.length;
+      continue;
+    }
+
+    // String literals: '...' (with '' escape handling)
+    if (sql[i] === "'") {
+      let j = i + 1;
+      while (j < sql.length) {
+        if (sql[j] === "'") {
+          if (j + 1 < sql.length && sql[j + 1] === "'") {
+            j += 2;
+          } else {
+            break;
+          }
+        } else {
+          j++;
+        }
+      }
+      tokens.push({ type: 'string', value: sql.slice(i, j + 1) });
+      i = j + 1;
+      continue;
+    }
+
+    // Words: identifiers, keywords, functions
+    if (/[a-zA-Z_]/.test(sql[i])) {
+      let j = i;
+      while (j < sql.length && /[a-zA-Z0-9_]/.test(sql[j])) j++;
+      const word = sql.slice(i, j);
+      const upper = word.toUpperCase();
+
+      if (SQL_KEYWORDS.has(upper)) {
+        tokens.push({ type: 'keyword', value: word });
+      } else if (SQL_FUNCTIONS.has(upper)) {
+        tokens.push({ type: 'function', value: word });
+      } else if (COLUMN_NAMES.has(word)) {
+        tokens.push({ type: 'column', value: word });
+      } else {
+        tokens.push({ type: 'plain', value: word });
+      }
+      i = j;
+      continue;
+    }
+
+    // Other characters (operators, whitespace, punctuation)
+    let j = i;
+    while (j < sql.length && !/[a-zA-Z_'-]/.test(sql[j])) {
+      j++;
+    }
+    if (j === i) {
+      tokens.push({ type: 'plain', value: sql[i] });
+      i++;
+    } else {
+      tokens.push({ type: 'plain', value: sql.slice(i, j) });
+      i = j;
+    }
+  }
+
+  return tokens;
+}
+
+const TOKEN_STYLES: Record<TokenType, string | undefined> = {
+  keyword: styles.sqlKw,
+  function: styles.sqlFn,
+  column: styles.sqlCol,
+  string: styles.sqlLit,
+  comment: styles.sqlCmt,
+  plain: undefined,
+};
+
+function renderHighlightedSql(sqlText: string) {
+  return tokenizeSql(sqlText).map((token, i) => {
+    const cls = TOKEN_STYLES[token.type];
+    if (cls) {
+      return (
+        <span key={i} className={cls}>
+          {token.value}
+        </span>
+      );
+    }
+    return token.value;
+  });
+}
+
+// --- Query History ---
+
+const HISTORY_KEY = 'octowatch:query-history';
+const MAX_HISTORY = 20;
+
+interface HistoryEntry {
+  sql: string;
+  timestamp: string;
+}
+
+function loadHistory(): HistoryEntry[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? (JSON.parse(raw) as HistoryEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory(entries: HistoryEntry[]): void {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, MAX_HISTORY)));
+}
+
 export function QueryPage() {
   const [sql, setSql] = useState(DEFAULT_SQL);
   const [results, setResults] = useState<QueryRunResponse | null>(null);
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set(['audit_events', 'detections', 'workflow_runs']));
+  const [history, setHistory] = useState<HistoryEntry[]>(loadHistory);
+  const [showHistory, setShowHistory] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLPreElement>(null);
+  const queryClient = useQueryClient();
 
   const { data: templates } = useQuery({
     queryKey: ['query-templates'],
@@ -67,11 +214,45 @@ export function QueryPage() {
   });
 
   const runMutation = useMutation({
-    mutationFn: () => runQuery({ sql }),
-    onSuccess: (data) => setResults(data),
+    mutationFn: (runSql: string) => runQuery({ sql: runSql }),
+    onSuccess: (data, runSql) => {
+      setResults(data);
+      setHistory((prev) => {
+        const entry: HistoryEntry = { sql: runSql, timestamp: new Date().toISOString() };
+        const updated = [entry, ...prev.filter((h) => h.sql !== runSql)].slice(0, MAX_HISTORY);
+        saveHistory(updated);
+        return updated;
+      });
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (name: string) => createTemplate({ name, sql }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['query-templates'] });
+    },
   });
 
   const lines = sql.split('\n');
+
+  function handleSave() {
+    const name = window.prompt('Query name:', 'Untitled query');
+    if (name) {
+      saveMutation.mutate(name);
+    }
+  }
+
+  function handleHistorySelect(entry: HistoryEntry) {
+    setSql(entry.sql);
+    setShowHistory(false);
+  }
+
+  function handleEditorScroll(e: React.UIEvent<HTMLTextAreaElement>) {
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = e.currentTarget.scrollTop;
+      highlightRef.current.scrollLeft = e.currentTarget.scrollLeft;
+    }
+  }
 
   function toggleTable(name: string) {
     setExpandedTables((prev) => {
@@ -126,12 +307,40 @@ export function QueryPage() {
           <div className={styles.editorFile}>
             <div className={styles.editorToolbar}>
               <span className={styles.editorFilename}>query.sql</span>
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-                <Button size="sm" variant="primary" onClick={() => runMutation.mutate()} disabled={runMutation.isPending}>
+              <div className={styles.toolbarActions}>
+                <Button size="sm" variant="primary" onClick={() => runMutation.mutate(sql)} disabled={runMutation.isPending}>
                   {runMutation.isPending ? '…' : '▶ Run'}
                 </Button>
-                <Button size="sm">Save</Button>
-                <Button size="sm">History</Button>
+                <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
+                  {saveMutation.isPending ? '…' : 'Save'}
+                </Button>
+                <div className={styles.historyWrap}>
+                  <Button size="sm" onClick={() => setShowHistory((v) => !v)}>
+                    History
+                  </Button>
+                  {showHistory && (
+                    <>
+                      <div className={styles.historyBackdrop} onClick={() => setShowHistory(false)} />
+                      <div className={styles.historyDropdown}>
+                        {history.length === 0 ? (
+                          <div className={styles.historyEmpty}>No queries run yet</div>
+                        ) : (
+                          history.map((entry, i) => (
+                            <div key={i} className={styles.historyItem} onClick={() => handleHistorySelect(entry)}>
+                              <div className={styles.historySql}>
+                                {entry.sql.slice(0, 80)}
+                                {entry.sql.length > 80 ? '…' : ''}
+                              </div>
+                              <div className={styles.historyTime}>
+                                {new Date(entry.timestamp).toLocaleString()}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
             <div className={styles.editorBody}>
@@ -140,19 +349,29 @@ export function QueryPage() {
                   <div key={i}>{i + 1}</div>
                 ))}
               </div>
-              <textarea
-                ref={textareaRef}
-                className={styles.editorCode}
-                value={sql}
-                onChange={(e) => setSql(e.target.value)}
-                spellCheck={false}
-                rows={lines.length}
-              />
+              <div className={styles.editorCodeWrap}>
+                <pre
+                  ref={highlightRef}
+                  className={styles.editorHighlight}
+                  aria-hidden="true"
+                >
+                  {renderHighlightedSql(sql)}
+                </pre>
+                <textarea
+                  ref={textareaRef}
+                  className={styles.editorCode}
+                  value={sql}
+                  onChange={(e) => setSql(e.target.value)}
+                  onScroll={handleEditorScroll}
+                  spellCheck={false}
+                  rows={lines.length}
+                />
+              </div>
             </div>
           </div>
 
           {runMutation.isError && (
-            <ErrorBanner message="Query failed" onRetry={() => runMutation.mutate()} />
+            <ErrorBanner message="Query failed" onRetry={() => runMutation.mutate(sql)} />
           )}
 
           {runMutation.isPending && <Spinner />}

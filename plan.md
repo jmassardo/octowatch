@@ -1,463 +1,245 @@
-# OctoWatch — Open Source Launch Plan
+# OctoWatch — Mockup-to-App Gap Fix Plan
 
-> Comprehensive implementation plan for preparing OctoWatch for open-source release.
-> Generated from a full codebase audit on 2026-03-27.
-
----
-
-## Workstream 1: Repository Hygiene (Critical)
-
-These items **must** be completed before the repo goes public.
-
-### 1.1 Add root `.gitignore`
-
-Create `/.gitignore` covering:
-
-```
-# Environment
-.env
-.env.*
-!.env.example
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-dist/
-build/
-.venv/
-venv/
-.mypy_cache/
-.ruff_cache/
-.pytest_cache/
-htmlcov/
-.coverage
-
-# Node / Frontend
-node_modules/
-frontend/dist/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# TLS / Secrets
-nginx/ssl/*.pem
-nginx/ssl/*.key
-nginx/ssl/*.crt
-
-# Misc
-*.log
-```
-
-### 1.2 Remove SSL certificates from repo
-
-- Delete `nginx/ssl/cert.pem` and `nginx/ssl/key.pem` from git tracking
-- Run: `git rm --cached nginx/ssl/cert.pem nginx/ssl/key.pem`
-- Add a `nginx/ssl/.gitkeep` placeholder
-- Add a `nginx/ssl/README.md` explaining how to generate self-signed certs:
-  ```
-  openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout key.pem -out cert.pem \
-    -subj "/CN=localhost"
-  ```
-
-### 1.3 Remove dead development files
-
-- Delete `backend/debug_test.py`
-- Delete `backend/fix_ann001.py`
-
-### 1.4 Add LICENSE
-
-- Choose license (recommend Apache 2.0 for enterprise-friendly OSS)
-- Create `/LICENSE` at repo root
-
-### 1.5 Scrub git history (optional but recommended)
-
-- Verify no secrets exist in git history (the `.env` file appears untracked, but SSL certs may have been committed)
-- If certs were committed, consider using `git filter-repo` to remove them from history
+> Systematic comparison of mockup/index.html against live app.
+> Every screen, control, chart, and interaction catalogued.
+> Generated 2026-03-27.
 
 ---
 
-## Workstream 2: Documentation (Critical)
+## Executive Summary
 
-### 2.1 Create root README.md
-
-Structure:
-- **Project name, tagline, badges** (CI, license, version)
-- **Screenshot / demo GIF** (use mockup or running instance)
-- **What is OctoWatch?** — 2-3 paragraph description
-- **Key features** — bullet list
-- **Architecture overview** — diagram or brief description
-- **Quickstart** — Docker Compose setup in ≤5 commands
-- **Configuration** — link to `.env.example` and docs
-- **Documentation** — links to `docs/` files
-- **Contributing** — link to `CONTRIBUTING.md`
-- **License** — link to `LICENSE`
-
-### 2.2 Create CONTRIBUTING.md
-
-Cover:
-- Development environment setup (Docker Compose, Python venv, Node)
-- Code style (ruff for Python, ESLint for TypeScript)
-- Branch naming and PR process
-- Commit message conventions
-- Testing requirements (backend: pytest ≥80% coverage; frontend: TBD)
-- How to run linters, tests, and builds locally
-- Issue and PR templates reference
-- Code of conduct reference
-
-### 2.3 Create CODE_OF_CONDUCT.md
-
-- Adopt Contributor Covenant v2.1 (industry standard)
-
-### 2.4 Create SECURITY.md
-
-Cover:
-- How to report security vulnerabilities (email or GitHub Security Advisories)
-- Supported versions
-- Security update policy
-- Disclosure timeline
-
-### 2.5 Create CHANGELOG.md
-
-- Initialize with current state as v0.1.0
-- Document major features implemented so far
-- Establish Keep a Changelog format
-
-### 2.6 Fix stale documentation
-
-| File | Issue | Fix |
-|------|-------|-----|
-| `docs/frontend-architecture-spec.md` | References React 18 / Vite 5.4 | Update to React 19 / Vite 8 |
-| `requirements-questionnaire.md` | Says "no polling" | Add note that S3/Azure polling was chosen for v1 reliability |
-| `docs/security-and-deployment.md` | Says audit trail logs "every request" | Clarify: mutating methods only, when actor is extractable |
-| `docs/architecture.md` | May have version drift | Review against actual implementation |
+The mockup defines 11 screens with rich data visualizations, marketplace-style integrations, 
+5-tab Copilot insights, DORA metrics with SVG charts, a SQL query explorer, and data import 
+drop-zones. The current app has all 11 routes but significant gaps in visual fidelity, 
+missing UI elements, incomplete interactivity, and non-functional controls.
 
 ---
 
-## Workstream 3: GitHub Community Infrastructure (High)
+## WS-1: TopBar — Org Tabs & Controls
 
-### 3.1 Add issue templates
+**Mockup**: Org segmented-button tabs (acme-corp | globex | + Add org), "New report" button, avatar "JM"  
+**Current**: Dark mode toggle, user dropdown menu, no org tabs, no "New report" button
 
-Create `.github/ISSUE_TEMPLATE/`:
-- `bug_report.yml` — structured bug report (steps to reproduce, expected/actual, environment)
-- `feature_request.yml` — feature proposal (problem, solution, alternatives)
-- `config.yml` — template chooser config
-
-### 3.2 Add PR template
-
-Create `.github/pull_request_template.md`:
-- Description of changes
-- Related issue(s)
-- Type of change (bug fix, feature, breaking change, docs)
-- Checklist (tests, docs, lint, changelog)
-
-### 3.3 Add GitHub repository metadata
-
-Prepare for when the repo is created/configured:
-- Description, topics, homepage URL
-- Enable Discussions
-- Branch protection rules for `main`
-- Required status checks
+- [ ] 1.1 Add org-tab segmented control component to TopBar
+- [ ] 1.2 Wire org-tab selection to global state/context (active org filter)
+- [ ] 1.3 Add "+ Add org" tab trigger
+- [ ] 1.4 Add "New report" button with + icon
+- [ ] 1.5 Show user initials avatar (from auth context)
 
 ---
 
-## Workstream 4: CI/CD Pipeline Updates (High)
+## WS-2: Dashboard — Missing Elements
 
-### 4.1 Update `ci.yml` for frontend
+**Mockup has 5 stat pills**: events today, open threats, pipeline success %, active devs, API calls (24h)  
+**Current has 3 stat pills**: events (recent), open threats, active actors
 
-Add frontend CI jobs:
-- `frontend-lint`: `cd frontend && npm ci && npm run lint`
-- `frontend-typecheck`: `cd frontend && npm ci && npx tsc --noEmit`
-- `frontend-build`: `cd frontend && npm ci && npm run build`
-- `frontend-test`: `cd frontend && npm ci && npm test` (after tests are added)
+**Mockup has**: Activity heatmap, Activity feed, Open threats by severity, **Platform alerts** card  
+**Current**: Has heatmap + feed + severity bars + Recent detections card (not Platform alerts)
 
-Remove stale comments about "frontend source is absent."
-
-### 4.2 Update `release.yml`
-
-- Ensure frontend image build is no longer conditional
-- Verify frontend Dockerfile is included in the build
-
-### 4.3 Add CI for plan validation (optional)
-
-- Markdown link checking
-- YAML validation for Helm charts
+- [ ] 2.1 Add "pipeline success" stat pill (needs backend data or derive from events)
+- [ ] 2.2 Add "API calls (24h)" stat pill
+- [ ] 2.3 Replace "Recent detections" card with "Platform alerts" card per mockup (workflow failure rate ↑, PR cycle time, deploy frequency)
+- [ ] 2.4 Ensure severity bar styling matches mockup (dot + label + bar + count layout)
 
 ---
 
-## Workstream 5: Frontend Testing (High)
+## WS-3: Threats — Detail Panel & Interactions
 
-### 5.1 Set up testing infrastructure
+**Mockup**: Split layout with detail panel showing evidence code block, labels, description, action buttons  
+**Current**: Has split layout — verify detail panel completeness
 
-Install and configure:
-- `vitest` — test runner (Vite-native)
-- `@testing-library/react` — component testing
-- `@testing-library/jest-dom` — DOM matchers
-- `@testing-library/user-event` — user interaction simulation
-- `jsdom` — DOM environment
-- `msw` (Mock Service Worker) — API mocking
-
-Add to `frontend/package.json`:
-```json
-{
-  "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
-  }
-}
-```
-
-Create `frontend/vitest.config.ts` and `frontend/src/test/setup.ts`.
-
-### 5.2 Write priority component tests
-
-Minimum coverage targets for launch:
-- `AuthGuard` — redirect logic
-- `AppShell` — renders sidebar, topbar, outlet
-- `Sidebar` — navigation links, active state, threat badge
-- `Modal` — open/close, escape key, click outside
-- `ErrorBanner` — renders error, retry button
-- `api/client.ts` — fetch wrapper, CSRF handling, 401 redirect
-
-### 5.3 Write priority page tests
-
-- `Login` — renders, redirects when authenticated
-- `Dashboard` — renders metrics, handles loading/error states
-- `Events` — renders table, filters work
-- `Query` — SQL input, execution, results display
+- [ ] 3.1 Verify evidence code block renders correctly in detail panel
+- [ ] 3.2 Verify action buttons: Suspend user, Acknowledge, Assign 
+- [ ] 3.3 Verify severity labels + rule category labels render in detail panel header
+- [ ] 3.4 Verify tabs (Open/Closed/Acknowledged/All) work correctly
+- [ ] 3.5 Ensure "Filter" and "New rule" buttons exist and match mockup placement
 
 ---
 
-## Workstream 6: Code Quality Tooling (High)
+## WS-4: Events Explorer — Search, Filters, Table
 
-### 6.1 Add pre-commit hooks
+**Mockup**: Search bar with filter chips (org:acme-corp, action:repo.*, after:2024-01-14), results count, Export CSV / Save query buttons, table with Timestamp/Action/Actor/Repository/IP-Location/Details columns  
+**Current**: Has search and chips but free-text search doesn't filter, Export CSV and Save query are not wired
 
-Create `.pre-commit-config.yaml`:
-```yaml
-repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
-  - repo: https://github.com/pre-commit/mirrors-eslint
-    hooks:
-      - id: eslint
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-yaml
-      - id: check-added-large-files
-      - id: no-commit-to-branch
-        args: [--branch, main]
-```
-
-Document in CONTRIBUTING.md: `pre-commit install`
-
-### 6.2 Add `.editorconfig`
-
-```ini
-root = true
-
-[*]
-indent_style = space
-indent_size = 4
-end_of_line = lf
-charset = utf-8
-trim_trailing_whitespace = true
-insert_final_newline = true
-
-[*.{ts,tsx,js,jsx,json,css,yml,yaml,md}]
-indent_size = 2
-
-[Makefile]
-indent_style = tab
-```
-
-### 6.3 Add Prettier for frontend
-
-Install `prettier` as dev dependency. Create `.prettierrc`:
-```json
-{
-  "semi": true,
-  "singleQuote": true,
-  "trailingComma": "all",
-  "printWidth": 100,
-  "tabWidth": 2
-}
-```
-
-Add `format` and `format:check` scripts to `frontend/package.json`.
+- [ ] 4.1 Wire search bar to actually filter events (parse key:value syntax, send to API)
+- [ ] 4.2 Add "+ Add filter" chip button per mockup
+- [ ] 4.3 Wire "Export CSV" button to call export endpoint 
+- [ ] 4.4 Add IP/Location column to events table (source_ip + geo_country_code)
+- [ ] 4.5 Add "Details" button per row that shows raw event
 
 ---
 
-## Workstream 7: Backend Improvements (Medium)
+## WS-5: Engineering Velocity — Charts & Tables
 
-### 7.1 Add global exception handler
+**Mockup has**:
+- DORA tier badge ("★ Elite") top-right
+- Info banner about metrics being system behavior
+- 8 metric cards (PRs merged, Lead time, PR cycle time, Change failure rate, Deployments, Workflow success, WIP, Planned work ratio)
+- Team contribution calendar
+- 2×2 chart grid: Lead time chart (median+P90), Change failure rate chart, Workflow success rate chart, Daily deployments bar chart
+- "Top failing workflows" table
+- "Most active repositories" table
 
-In `backend/app/main.py`, register a global exception handler:
-- Catch unhandled exceptions
-- Return consistent JSON error envelope: `{ "error": { "code": "...", "message": "..." } }`
-- Log structured error with request ID
-- Never leak stack traces in production
+**Current**: Has metric cards, contribution calendar, table of recent workflow failures. Missing: DORA badge, info banner, SVG line/area/bar charts, "Most active repositories" table, some metric cards.
 
-### 7.2 Review and harden error responses
-
-Audit all routers for consistent error response format:
-- Ensure all `HTTPException` uses follow the same envelope pattern
-- Add validation error formatting for Pydantic errors
-
-### 7.3 Add API versioning documentation
-
-Create `docs/api-versioning.md`:
-- Current version: v1
-- Versioning strategy (URL path prefix)
-- Deprecation policy
-- Backwards compatibility guarantees
-
----
-
-## Workstream 8: Frontend Improvements (Medium)
-
-### 8.1 Accessibility pass
-
-Priority fixes:
-- `AppShell.tsx` — use `<header>`, `<main>`, `<aside>` instead of `<div>`
-- `Sidebar.tsx` — add `role="navigation"`, `aria-current="page"` for active links
-- `TopBar.tsx` — use `<header>` element
-- Add skip-navigation link at top of `AppShell`
-- Add `scope="col"` to all table header cells across pages
-- Ensure all interactive elements are keyboard-focusable
-- Add `aria-live="polite"` to dynamic content areas (threat count badge, loading states)
-
-### 8.2 Remove static/demo content
-
-Audit these pages for hardcoded demo data and either:
-- Replace with empty states showing helpful messages
-- Wire to real API calls
-- Clearly mark as "sample data" with a banner
-
-Pages to audit:
-- Dashboard
-- Velocity
-- Dev Activity
-- Copilot
-- Reports
-
-### 8.3 Add dark mode toggle
-
-- Add a theme toggle button to `TopBar`
-- Store preference in `localStorage`
-- Use `data-theme` attribute on `<html>` element
-- Update `tokens.css` to use `[data-theme="dark"]` selector alongside `prefers-color-scheme`
-
-### 8.4 Add loading skeletons
-
-Replace spinner-only loading states with skeleton placeholders for better perceived performance on:
-- Dashboard metric cards
-- Event tables
-- Detection lists
+- [ ] 5.1 Add DORA tier badge component (top-right of page header)
+- [ ] 5.2 Add info banner about metrics being system behavior (blue info box)
+- [ ] 5.3 Ensure all 8 metric cards are present with correct labels and deltas
+- [ ] 5.4 Add 2×2 chart grid using LineAreaChart/BarChart components:
+  - Lead time for changes (median + P90 dashed line)
+  - Change failure rate (area chart with threshold line)
+  - Workflow success rate (area chart)
+  - Daily deployments (bar chart)
+- [ ] 5.5 Add "Most active repositories" table (repo, commits, PRs merged, CFR, MTTR, contributors)
 
 ---
 
-## Workstream 9: Infrastructure & DevEx (Medium)
+## WS-6: Developer Activity — Work Distribution
 
-### 9.1 Add Makefile
+**Mockup has**:
+- Team filter buttons (All teams, platform-team, security-team, frontend-team)
+- "Work distribution — last 30 days" section with context text about bus factor
+- PR authorship share card (horizontal bars per developer)
+- Review concentration card (with warning: "@alice performs 44% of all reviews")
+- Developer cards grid
 
-```makefile
-.PHONY: help dev build test lint clean
+**Current**: Has team filter buttons, developer cards grid. Need to verify PR authorship/review concentration cards.
 
-help:           ## Show this help
-dev:            ## Start full dev stack
-build:          ## Build all Docker images
-test:           ## Run all tests
-test-backend:   ## Run backend tests
-test-frontend:  ## Run frontend tests
-lint:           ## Run all linters
-lint-backend:   ## Run backend linters
-lint-frontend:  ## Run frontend linters
-migrate:        ## Run database migrations
-gen-env:        ## Generate .env from template
-clean:          ## Stop and remove containers
-```
-
-### 9.2 Improve `scripts/gen_env.py`
-
-- Add interactive mode (prompt for GitHub OAuth credentials)
-- Add `--non-interactive` flag for CI
-- Add SSL cert generation step
-- Print next-steps instructions after generation
-
-### 9.3 Add Docker healthcheck for frontend
-
-The frontend `Dockerfile` exists but verify it has:
-- `HEALTHCHECK` instruction
-- Proper multi-stage build (build → nginx/serve)
-
-### 9.4 Document Helm secret management
-
-Add to `docs/security-and-deployment.md`:
-- External Secrets Operator integration example
-- Sealed Secrets alternative
-- Step-by-step for each approach
+- [ ] 6.1 Add "Work distribution" section title with context text
+- [ ] 6.2 Add PR authorship share card with per-developer horizontal bars
+- [ ] 6.3 Add Review concentration card with warning threshold highlighting
+- [ ] 6.4 Verify developer cards match mockup (avatar, name, handle, team, mini-bars, stats with flag badge)
 
 ---
 
-## Workstream 10: Future Roadmap (Low / Post-Launch)
+## WS-7: Copilot Insights — 5 Sub-tabs (MAJOR)
 
-These items should be documented in a `ROADMAP.md` or in GitHub Discussions, but are **not blockers** for launch:
+**Mockup has 5 tabs**: Overview, Adoption, Models & Features, License Optimization, Anomalies (with badge "3")  
+**Current**: Has a single page with some metrics. Missing most sub-tab content.
 
-- [ ] **Webhook ingestion** — receive GitHub audit log events via webhook push
-- [ ] **Alerting system** — wire detection engine to real-time Slack/email alerts
-- [ ] **E2E tests** — Playwright test suite for critical user journeys
-- [ ] **Internationalization** — extract strings, add react-intl
-- [ ] **User preferences** — timezone, default org, notification settings
-- [ ] **Container image scanning** — add Trivy scan of built images in CI
-- [ ] **Load testing** — k6 or Locust scripts for API performance benchmarks
-- [ ] **Query cost estimation** — preview query cost before execution
-- [ ] **Multi-tenancy** — support multiple isolated tenants
-- [ ] **Plugin system** — extensible detection rules and integrations
+### 7a — Overview tab
+- [ ] 7a.1 Seat waste alert banner (red, shows $ waste, inactive + never-used count)
+- [ ] 7a.2 6 metric cards: acceptance rate, active/total seats, inactive+never, lines accepted, chat turns, PR summaries
+- [ ] 7a.3 Acceptance rate chart (7-day rolling avg with "25% good" threshold line)
+- [ ] 7a.4 Seat utilization trend chart (3 series: active, inactive 30d+, never used)
+- [ ] 7a.5 Acceptance rate by language card (horizontal bars: TypeScript, Python, Go, Java, C++, Rust)
+- [ ] 7a.6 Correlation insight card (acceptance ↑ + cycle time ↓, active ≠ effective)
+- [ ] 7a.7 Inactive seats table (user, seat assigned, last activity, last editor, days inactive, monthly cost, Revoke button)
+
+### 7b — Adoption tab
+- [ ] 7b.1 5-tier adoption cards (Power Users, Regular, Minimal, Inactive, Never Used) with counts
+- [ ] 7b.2 Stacked horizontal progress bar showing tier proportions
+- [ ] 7b.3 Daily power users table (champion candidates: user, team, streak, accept rate)
+- [ ] 7b.4 Feature adoption gaps card (IDE completions, IDE chat, github.com chat, PR summaries, CLI, Knowledge bases)
+- [ ] 7b.5 CCR impact comparison panel (Repos WITH vs WITHOUT CCR — median PR review time, % faster)
+- [ ] 7b.6 Minimal users table (user, team, uses 30d, accepted, last feature, Schedule onboarding button)
+
+### 7c — Models & Features tab
+- [ ] 7c.1 Model usage spread card (GPT-4o, Claude 3.7, o3-mini, custom model, GPT-4o-mini)
+- [ ] 7c.2 Feature usage spread card (IDE completions, IDE chat, github.com chat, PR summaries, CLI, Knowledge bases)
+- [ ] 7c.3 Editor breakdown cards (VS Code, JetBrains, Neovim, Xcode, Other — 5-column grid)
+
+### 7d — License Optimization tab
+- [ ] 7d.1 License optimization dashboard content (cost analysis, recommendations)
+
+### 7e — Anomalies tab
+- [ ] 7e.1 Anomalies list/dashboard with badge count
+- [ ] 7e.2 Tab navigation with active state and red badge
+
+---
+
+## WS-8: Reports — Catalog Styling
+
+**Mockup**: Report catalog as "release-item" cards with title, date/pages, tag labels, PDF/CSV buttons  
+**Current**: Has reports list — verify styling matches mockup
+
+- [ ] 8.1 Style report items as release cards (title, generated date, page count)
+- [ ] 8.2 Add finding-count labels (e.g., "14 critical findings", "8 medium")
+- [ ] 8.3 Ensure PDF/CSV export buttons work
+
+---
+
+## WS-9: Query Explorer — Styling & Behavior
+
+**Mockup**: Schema tree, SQL editor with syntax highlighting (keyword/function/column/literal/comment colors), line numbers, Run/Save/History toolbar, results table  
+**Current**: Has these elements — verify Save and History work
+
+- [ ] 9.1 Add SQL syntax highlighting in editor (color-code keywords, functions, strings, comments)
+- [ ] 9.2 Wire "Save" button to create template
+- [ ] 9.3 Wire "History" button to show recent queries
+- [ ] 9.4 Verify schema tree lists correct tables (audit_events, detections, workflow_runs)
+
+---
+
+## WS-10: Detection Rules — Table Columns
+
+**Mockup**: Table columns: Status, Rule name, Logic, Severity, Detections (30d), Version, Edit  
+**Mockup also has**: "Sync from GitHub" button next to "New rule"  
+**Current**: Table has Name, Category, Severity, Enabled toggle, Created, Edit/Delete buttons
+
+- [ ] 10.1 Add Status column (active/draft label)
+- [ ] 10.2 Add Logic column (threshold/exact-match/ml-assisted label)
+- [ ] 10.3 Add "Detections (30d)" column with count
+- [ ] 10.4 Add Version column (e.g., v1.3.0)
+- [ ] 10.5 Add "Sync from GitHub" button
+
+---
+
+## WS-11: Users & Roles — Table Structure
+
+**Mockup has 2 tables**:
+1. Team mappings: GitHub team, OctoWatch role, Mapped by, Last synced, Edit
+2. Active users: User, Role, Last active, MFA status, Sessions
+
+**Current**: Has role assignments table and add-mapping modal
+
+- [ ] 11.1 Style team mappings table per mockup (monospace team names, role labels)
+- [ ] 11.2 Add "Active users" section/table below team mappings
+- [ ] 11.3 Add MFA status column with enabled/pending labels
+- [ ] 11.4 Add Sessions count column
+
+---
+
+## WS-12: Integrations — Marketplace Cards & Data Import
+
+**Mockup has**:
+- Marketplace-style cards: GitHub Enterprise (connected), Slack (connected), Microsoft Sentinel (not installed), Splunk (not installed), PagerDuty (configured), Jira (not installed)
+- Each with icon, name, description, status label, Configure/Install button
+- Data Import section with Audit Log Import + Copilot Metrics Import drop zones
+- Recent imports table
+
+**Current**: Has Jira/GitHub Issues/Slack/Email cards but NOT marketplace-style. Missing Sentinel, Splunk, PagerDuty. Missing data import section entirely.
+
+- [ ] 12.1 Redesign integration cards to marketplace-style with SVG icons
+- [ ] 12.2 Add Microsoft Sentinel, Splunk, PagerDuty cards
+- [ ] 12.3 Add GitHub Enterprise as primary integration card
+- [ ] 12.4 Add "Data Import" section with drag-and-drop file upload areas
+- [ ] 12.5 Add Audit Log Import drop zone (accepts .csv, .json, max 500MB)
+- [ ] 12.6 Add Copilot Metrics Import drop zone (accepts .json)
+- [ ] 12.7 Add "Recent imports" table (file, type, size, imported at, records, status)
+- [ ] 12.8 Wire file uploads to backend ingestion endpoints
+
+---
+
+## WS-13: Playwright E2E Tests
+
+- [ ] 13.1 Set up Playwright config (playwright.config.ts)
+- [ ] 13.2 Write smoke tests for all 11 routes (navigate + verify page title)
+- [ ] 13.3 Write visual regression tests comparing each screen to mockup layout
+- [ ] 13.4 Test all interactive controls: sidebar nav, org tabs, buttons, modals
+- [ ] 13.5 Test Copilot sub-tab switching
+- [ ] 13.6 Test Threats detail panel open/close
+- [ ] 13.7 Test Events search and filter chips
+- [ ] 13.8 Test Rules CRUD (create, edit, toggle, delete)
+- [ ] 13.9 Test Query editor run
+- [ ] 13.10 Test responsive layout (sidebar + main)
 
 ---
 
 ## Execution Order
 
-Recommended order for implementation (dependencies noted):
-
-| Phase | Workstreams | Rationale |
-|-------|------------|-----------|
-| **Phase A** | WS1 (Repo Hygiene) | Foundation — must be done first |
-| **Phase B** | WS2 (Docs) + WS3 (GitHub Infra) | Can be done in parallel |
-| **Phase C** | WS4 (CI/CD) + WS6 (Code Quality) | Enable quality gates for subsequent work |
-| **Phase D** | WS5 (Frontend Tests) + WS7 (Backend Improvements) | Code quality improvements |
-| **Phase E** | WS8 (Frontend Improvements) + WS9 (DevEx) | Polish and developer experience |
-| **Phase F** | WS10 (Roadmap doc only) | Document future direction |
-
----
-
-## Success Criteria
-
-The repo is ready for open-source launch when:
-
-1. ✅ All critical items (WS1) are resolved
-2. ✅ LICENSE, README, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY exist
-3. ✅ CI passes for both backend and frontend
-4. ✅ Frontend has ≥60% test coverage on critical components
-5. ✅ Backend maintains ≥80% test coverage
-6. ✅ No secrets in git history
-7. ✅ All docs are accurate and current
-8. ✅ Pre-commit hooks are configured
-9. ✅ Accessibility basics are addressed
-10. ✅ Static/demo content is removed or clearly labeled
+1. **Phase A** (Foundation): WS-1 TopBar, WS-13 Playwright setup — parallel
+2. **Phase B** (Core screens): WS-2 Dashboard, WS-3 Threats, WS-4 Events, WS-5 Velocity — parallel
+3. **Phase C** (Detail screens): WS-6 DevActivity, WS-7 Copilot, WS-8 Reports — parallel
+4. **Phase D** (Settings screens): WS-9 Query, WS-10 Rules, WS-11 Users, WS-12 Integrations — parallel
+5. **Phase E** (Validation): WS-13 full E2E test suite, fix regressions

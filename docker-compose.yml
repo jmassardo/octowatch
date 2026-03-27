@@ -16,6 +16,8 @@ x-app-env: &app-env
   GITHUB_RULES_BRANCH: ${GITHUB_RULES_BRANCH:-main}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   GEOIP_DB_PATH: ${GEOIP_DB_PATH:-/app/data/GeoLite2-City.mmdb}
+  APP_BASE_URL: ${APP_BASE_URL:-https://localhost}
+  INITIAL_ADMIN_LOGINS: ${INITIAL_ADMIN_LOGINS:-}
 
 networks:
   # Single internal bridge network. Only nginx exposes ports to the host.
@@ -116,7 +118,7 @@ services:
       valkey:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "mc", "ready", "local"]
       interval: 30s
       timeout: 20s
       retries: 3
@@ -254,7 +256,7 @@ services:
   # ---------------------------------------------------------------------------
   worker-ingestion:
     image: audit-log-analyzer-worker:latest
-    command: ["celery", "-A", "app.celery", "worker", "-Q", "ingestion", "-c", "4", "--loglevel", "${LOG_LEVEL:-INFO}"]
+    command: ["celery", "-A", "app.celery_app", "worker", "-Q", "ingestion", "-c", "4", "--loglevel", "${LOG_LEVEL:-INFO}"]
     environment:
       <<: *app-env
       INGESTION_MODE: ${INGESTION_MODE:-minio}
@@ -291,7 +293,7 @@ services:
   # ---------------------------------------------------------------------------
   worker-detection:
     image: audit-log-analyzer-worker:latest
-    command: ["celery", "-A", "app.celery", "worker", "-Q", "detection", "-c", "8", "--loglevel", "${LOG_LEVEL:-INFO}"]
+    command: ["celery", "-A", "app.celery_app", "worker", "-Q", "detection", "-c", "8", "--loglevel", "${LOG_LEVEL:-INFO}"]
     environment:
       <<: *app-env
       DETECTION_CONFIDENCE_THRESHOLD: ${DETECTION_CONFIDENCE_THRESHOLD:-0.7}
@@ -332,7 +334,7 @@ services:
   # ---------------------------------------------------------------------------
   worker-baseline:
     image: audit-log-analyzer-worker:latest
-    command: ["celery", "-A", "app.celery", "worker", "-Q", "baseline", "-c", "2", "--loglevel", "${LOG_LEVEL:-INFO}"]
+    command: ["celery", "-A", "app.celery_app", "worker", "-Q", "baseline", "-c", "2", "--loglevel", "${LOG_LEVEL:-INFO}"]
     environment:
       <<: *app-env
     networks:
@@ -352,7 +354,7 @@ services:
   # ---------------------------------------------------------------------------
   beat:
     image: audit-log-analyzer-worker:latest
-    command: ["celery", "-A", "app.celery", "beat", "--scheduler", "celery.beat:PersistentScheduler", "--loglevel", "${LOG_LEVEL:-INFO}"]
+    command: ["celery", "-A", "app.celery_app", "beat", "--scheduler", "celery.beat:PersistentScheduler", "--loglevel", "${LOG_LEVEL:-INFO}"]
     environment:
       <<: *app-env
     networks:

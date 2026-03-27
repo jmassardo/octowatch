@@ -102,10 +102,34 @@
   line-height: 1.7;
 }
 
-.editorCode {
-  padding: 8px 16px;
+.editorCodeWrap {
+  display: grid;
   flex: 1;
+  min-width: 0;
+}
+
+.editorHighlight {
+  grid-row: 1;
+  grid-column: 1;
+  padding: 8px 16px;
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  pointer-events: none;
+  overflow: hidden;
   color: var(--fg);
+}
+
+.editorCode {
+  grid-row: 1;
+  grid-column: 1;
+  padding: 8px 16px;
+  width: 100%;
+  color: transparent;
+  caret-color: var(--fg);
   background: transparent;
   border: none;
   outline: none;
@@ -157,4 +181,81 @@
 
 .resultsTable tbody tr:hover td {
   background: rgba(177, 186, 196, 0.04);
+}
+
+/* SQL Syntax Highlighting */
+
+.sqlKw { color: #ff7b72; }
+.sqlFn { color: #d2a8ff; }
+.sqlCol { color: #79c0ff; }
+.sqlLit { color: #a5d6ff; }
+.sqlCmt { color: var(--fg-subtle); }
+
+/* Toolbar actions */
+
+.toolbarActions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.historyWrap {
+  position: relative;
+}
+
+.historyBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+}
+
+.historyDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 10;
+  width: 400px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.historyItem {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.historyItem:hover {
+  background: rgba(177, 186, 196, 0.08);
+}
+
+.historyItem:last-child {
+  border-bottom: none;
+}
+
+.historySql {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.historyTime {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-top: 2px;
+}
+
+.historyEmpty {
+  padding: 12px;
+  color: var(--fg-subtle);
+  font-size: 12px;
+  text-align: center;
 }

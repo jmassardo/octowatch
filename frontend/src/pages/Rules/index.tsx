@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { listRules, createRule, updateRule, updateRuleStatus, deleteRule } from '../../api/rules';
+import { listRules, createRule, updateRule, deleteRule } from '../../api/rules';
 import type { RuleResponse, RuleCreate, RuleCategory } from '../../types/detections';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
@@ -174,12 +174,6 @@ export function RulesPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['rules'] }); setEditRule(null); },
   });
 
-  const statusMutation = useMutation({
-    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
-      updateRuleStatus(id, enabled ? 'active' : 'draft', enabled),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['rules'] }),
-  });
-
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteRule(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['rules'] }); setDeleteTarget(null); },
@@ -189,10 +183,13 @@ export function RulesPage() {
     <div className={styles.page}>
       <div className={styles.pageHeader}>
         <div>
-          <h1 className={styles.pageTitle}>Detection rules</h1>
-          <p className={styles.pageSub}>Configure what patterns trigger security alerts</p>
+          <h1 className={styles.pageTitle}>Detection Rules</h1>
+          <p className={styles.pageSub}>Manage built-in and custom detection rules</p>
         </div>
-        <Button variant="primary" onClick={() => setShowCreate(true)}>Create rule</Button>
+        <div className={styles.headerActions}>
+          <Button variant="default" size="sm">Sync from GitHub</Button>
+          <Button variant="primary" size="sm" onClick={() => setShowCreate(true)}>New rule</Button>
+        </div>
       </div>
 
       {isError && <ErrorBanner message="Failed to load rules" onRetry={() => refetch()} />}
@@ -204,11 +201,12 @@ export function RulesPage() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Category</th>
+                <th>Status</th>
+                <th>Rule name</th>
+                <th>Logic</th>
                 <th>Severity</th>
-                <th>Enabled</th>
-                <th>Created</th>
+                <th>Detections (30d)</th>
+                <th>Version</th>
                 <th></th>
               </tr>
             </thead>
@@ -216,31 +214,24 @@ export function RulesPage() {
               {(rules?.items ?? []).map((rule) => (
                 <tr key={rule.id}>
                   <td>
+                    <Label variant={rule.status === 'active' ? 'success' : 'muted'}>
+                      {rule.status === 'active' ? 'active' : 'draft'}
+                    </Label>
+                  </td>
+                  <td>
                     <div className={styles.ruleName}>{rule.name}</div>
-                    <div className={styles.ruleSlug}>{rule.slug}</div>
                   </td>
-                  <td><Label variant="muted">{rule.category.replace(/_/g, ' ')}</Label></td>
+                  <td><Label variant="muted">{rule.logic_type}</Label></td>
                   <td><Label variant={SEVERITY_VARIANT[rule.default_severity] ?? 'muted'}>{rule.default_severity}</Label></td>
+                  <td className={styles.muted}>{rule.status === 'active' ? '0' : '—'}</td>
+                  <td><span className={styles.versionMono}>v{rule.version}.0.0</span></td>
                   <td>
-                    <button
-                      className={[styles.toggle, rule.enabled ? styles.toggleOn : ''].join(' ')}
-                      onClick={() => statusMutation.mutate({ id: rule.id, enabled: !rule.enabled })}
-                      aria-label={rule.enabled ? 'Disable rule' : 'Enable rule'}
-                    >
-                      <span className={styles.toggleThumb} />
-                    </button>
-                  </td>
-                  <td className={styles.muted}>{new Date(rule.created_at).toLocaleDateString()}</td>
-                  <td>
-                    <div className={styles.rowActions}>
-                      <Button size="sm" variant="default" onClick={() => setEditRule(rule)}>Edit</Button>
-                      <Button size="sm" variant="danger" onClick={() => setDeleteTarget(rule)}>Delete</Button>
-                    </div>
+                    <Button size="sm" variant="default" onClick={() => setEditRule(rule)}>Edit</Button>
                   </td>
                 </tr>
               ))}
               {(rules?.items ?? []).length === 0 && (
-                <tr><td colSpan={6} className={styles.empty}>No rules configured</td></tr>
+                <tr><td colSpan={7} className={styles.empty}>No rules configured</td></tr>
               )}
             </tbody>
           </table>

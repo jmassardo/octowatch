@@ -1,34 +1,27 @@
-import { api, apiFetch } from './client';
+import { api } from './client';
 import type { ReportEnvelope, ReportParams } from '../types/reports';
 
+function toQueryParams(params: ReportParams): Record<string, string | number | boolean | undefined> {
+  const { window_days, granularity, org } = params;
+  return { window_days, granularity, org } as Record<string, string | number | boolean | undefined>;
+}
+
 export function getMauReport(params: ReportParams = {}): Promise<ReportEnvelope> {
-  return api.get<ReportEnvelope>('/reports/mau', params as Record<string, string | number | boolean | undefined>);
+  return api.get<ReportEnvelope>('/reports/mau', toQueryParams(params));
 }
 
 export function getSeatUtilizationReport(params: ReportParams = {}): Promise<ReportEnvelope> {
-  return api.get<ReportEnvelope>('/reports/seat-utilization', params as Record<string, string | number | boolean | undefined>);
+  return api.get<ReportEnvelope>('/reports/seat-utilization', toQueryParams(params));
 }
 
 export function getCopilotSeatsReport(params: ReportParams = {}): Promise<ReportEnvelope> {
-  return api.get<ReportEnvelope>('/reports/copilot-seats', params as Record<string, string | number | boolean | undefined>);
+  return api.get<ReportEnvelope>('/reports/copilot-seats', toQueryParams(params));
 }
 
 export function getActionsVolumeReport(params: ReportParams = {}): Promise<ReportEnvelope> {
-  return api.get<ReportEnvelope>('/reports/actions-volume', params as Record<string, string | number | boolean | undefined>);
+  return api.get<ReportEnvelope>('/reports/actions-volume', toQueryParams(params));
 }
 
-export async function exportReport(reportType: string, format: 'csv' | 'pdf' = 'csv'): Promise<void> {
-  const response = await apiFetch<Response>(`/reports/export/${reportType}?format=${format}`, {
-    method: 'GET',
-  });
-  // Trigger download
-  const blob = response instanceof Blob ? response : new Blob([JSON.stringify(response)]);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${reportType}.${format}`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+export function exportReport(reportType: string, format: 'csv' | 'pdf' = 'csv'): void {
+  window.open(`/api/v1/reports/export/${reportType}?format=${format}`, '_blank');
 }

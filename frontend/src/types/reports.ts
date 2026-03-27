@@ -1,7 +1,8 @@
 export interface ReportEnvelope {
+  readonly report_type: string;
   readonly org: string | null;
   readonly granularity: string;
-  readonly window: string;
+  readonly window_days: number;
   readonly generated_at: string;
   readonly data: readonly Record<string, unknown>[];
 }
@@ -56,11 +57,10 @@ export interface WebhookCountsBucket {
   readonly unique_webhook_targets: number;
 }
 
-export type ReportWindow = '30d' | '60d' | '90d';
 export type ReportGranularity = 'daily' | 'weekly' | 'monthly';
 
 export interface ReportParams {
   org?: string;
   granularity?: ReportGranularity;
-  window?: ReportWindow;
+  window_days?: 30 | 60 | 90;
 }

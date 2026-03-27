@@ -43,6 +43,7 @@ body:
     id: version
     attributes:
       label: OctoWatch Version
+      description: What version are you running?
       placeholder: "0.1.0"
   - type: dropdown
     id: component
@@ -53,7 +54,7 @@ body:
         - Backend API
         - Ingestion Workers
         - Detection Engine
-        - Helm / Deployment
+        - Helm/Deployment
         - Other
   - type: textarea
     id: logs

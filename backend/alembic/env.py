@@ -13,7 +13,7 @@ from logging.config import fileConfig
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import async_engine_from_config, create_async_engine
 
 from alembic import context
 
@@ -30,11 +30,12 @@ from app.models import *  # noqa: F401, F403, E402
 
 target_metadata = None  # We use op.execute() for initial migration
 
-# Override sqlalchemy.url from DATABASE_URL env var (strips +asyncpg for sync
-# alembic operations — alembic uses sync engine internally)
+# Override sqlalchemy.url from DATABASE_URL env var (strips +asyncpg for
+# offline mode — alembic offline uses the sync URL in generated SQL scripts)
 _raw_url = os.environ.get("DATABASE_URL", "")
+_async_url = _raw_url  # keep asyncpg driver for online async migrations
 if _raw_url:
-    # Alembic needs the synchronous driver for its own operations
+    # Offline mode needs sync URL
     _sync_url = _raw_url.replace("postgresql+asyncpg://", "postgresql://").replace(
         "?sslmode=require", ""
     )
@@ -69,9 +70,8 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     """Run migrations using an async engine (for asyncpg)."""
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    connectable = create_async_engine(
+        _async_url,
         poolclass=pool.NullPool,
     )
 

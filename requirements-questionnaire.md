@@ -84,6 +84,8 @@ I believe github manages dedupes so the blob should only have 1 event for each a
 None. We do not want to support polling.
 ```
 
+> **Implementation note (v0.1.0):** S3 and Azure Blob polling was chosen for v1 to maximize reliability and simplify initial deployment. Webhook-based push ingestion is planned for a future release.
+
 **A7. For object storage (S3/GCS/Blob) ingestion: does the tool need to track its own read cursor, or is there an existing notification mechanism (e.g., SQS, Event Grid)?**
 ```
 Assume all we have is read access to the bucket/blob.

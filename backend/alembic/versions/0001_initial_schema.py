@@ -212,9 +212,14 @@ def upgrade() -> None:
             CONSTRAINT chk_scope_value CHECK (
                 (scope_type = 'global' AND scope_value IS NULL)
                 OR (scope_type IN ('org', 'repo') AND scope_value IS NOT NULL)
-            ),
-            UNIQUE (github_login, role_id, scope_type, COALESCE(scope_value, ''))
+            )
         )
+    """)
+
+    # Expression-based uniqueness requires a unique index, not a constraint
+    op.execute("""
+        CREATE UNIQUE INDEX uq_role_assignments
+        ON user_role_assignments (github_login, role_id, scope_type, COALESCE(scope_value, ''))
     """)
 
     op.execute("CREATE INDEX idx_role_assign_login ON user_role_assignments (github_login, active)")
@@ -361,12 +366,11 @@ def upgrade() -> None:
     """)
     op.execute("CREATE INDEX idx_detections_rule ON detections (rule_id, triggered_at DESC)")
 
-    # ─── 3.6 detection_suppressions continuous aggregate (detections_daily) ──
+    # ─── 3.6 detections daily summary (regular materialized view) ────────────
     op.execute("""
-        CREATE MATERIALIZED VIEW detections_daily
-        WITH (timescaledb.continuous) AS
+        CREATE MATERIALIZED VIEW detections_daily AS
             SELECT
-                time_bucket('1 day', triggered_at) AS bucket_day,
+                date_trunc('day', triggered_at) AS bucket_day,
                 severity,
                 status,
                 COUNT(*) AS detection_count
@@ -574,7 +578,7 @@ def upgrade() -> None:
 
     op.execute("""
         SELECT add_continuous_aggregate_policy('events_hourly',
-            start_offset => INTERVAL '3 hours',
+            start_offset => INTERVAL '6 hours',
             end_offset   => INTERVAL '1 hour',
             schedule_interval => INTERVAL '1 hour')
     """)
@@ -596,7 +600,7 @@ def upgrade() -> None:
 
     op.execute("""
         SELECT add_continuous_aggregate_policy('events_daily_actor',
-            start_offset => INTERVAL '2 days',
+            start_offset => INTERVAL '3 days',
             end_offset   => INTERVAL '1 hour',
             schedule_interval => INTERVAL '1 hour')
     """)

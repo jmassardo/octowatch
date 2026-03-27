@@ -200,3 +200,332 @@
 .tableWrap tbody tr:last-child td {
   border-bottom: none;
 }
+
+/* ---- Tab bar ---- */
+
+.copilotTabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+  gap: 0;
+}
+
+.copilotTab {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  background: none;
+  font-family: inherit;
+}
+
+.copilotTab:hover {
+  color: var(--fg);
+}
+
+.copilotTabActive {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+
+.tabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--danger);
+  border-radius: 9px;
+}
+
+/* ---- Adoption tier grid ---- */
+
+.tierGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.tierCard {
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-top: 3px solid;
+  border-radius: 6px;
+  padding: 16px;
+  text-align: center;
+}
+
+.tierCount {
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 4px;
+}
+
+.tierLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 2px;
+}
+
+.tierDesc {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+/* ---- Stacked progress bar ---- */
+
+.stackedBarContainer {
+  margin-bottom: 24px;
+}
+
+.stackedBar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.stackedSegment {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.stackedLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.stackedLegendItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stackedLegendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ---- CCR impact comparison ---- */
+
+.ccrGrid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 20px 0;
+}
+
+.ccrBox {
+  text-align: center;
+  flex: 1;
+}
+
+.ccrValue {
+  font-size: 32px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 4px;
+}
+
+.ccrLabel {
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.ccrSub {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.ccrDivider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+}
+
+.ccrDelta {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--success);
+  white-space: nowrap;
+}
+
+/* ---- Editor breakdown ---- */
+
+.editorGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.editorCard {
+  text-align: center;
+}
+
+.editorCount {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.editorName {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+  margin: 4px 0 2px;
+}
+
+.editorPct {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+/* ---- License cost summary ---- */
+
+.costSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.costRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-muted);
+  font-size: 13px;
+}
+
+.costRow:last-child {
+  border-bottom: none;
+}
+
+.costRowHighlight {
+  background: rgba(63, 185, 80, 0.06);
+  border-radius: 4px;
+  padding: 10px 8px;
+  margin-top: 4px;
+  border-bottom: none;
+}
+
+.costLabel {
+  color: var(--fg-muted);
+}
+
+.costValue {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Recommendations ---- */
+
+.recList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.recItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.recIcon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.recContent {
+  flex: 1;
+}
+
+.recTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 4px;
+}
+
+.recDesc {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+/* ---- Anomalies ---- */
+
+.anomalyList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.anomalyCard {
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.anomalyHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.anomalyTime {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.anomalyTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 6px;
+}
+
+.anomalyDesc {
+  font-size: 12px;
+  color: var(--fg-muted);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.anomalyMeta {
+  font-size: 11px;
+  color: var(--fg-muted);
+  padding-top: 8px;
+  border-top: 1px solid var(--border-muted);
+}

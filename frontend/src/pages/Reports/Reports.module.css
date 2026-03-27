@@ -10,6 +10,46 @@
 .pageTitle { font-size: 20px; font-weight: 600; }
 .pageSub { font-size: 13px; color: var(--fg-muted); margin: 0; }
 
+/* Window selector button group */
+.windowSelector {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.windowLabel {
+  color: var(--fg-muted);
+  font-size: 0.85em;
+}
+
+.windowBtnActive {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Summary card grid */
+.summaryGrid {
+  display: flex;
+  gap: 24px;
+  padding: 8px 0;
+  flex-wrap: wrap;
+}
+
+.summaryItem {
+  text-align: center;
+}
+
+.summaryValue {
+  font-size: 1.4em;
+  font-weight: 600;
+}
+
+.summaryLabel {
+  color: var(--fg-muted);
+  font-size: 0.8em;
+}
+
+/* Release-style report cards */
 .reportList {
   display: flex;
   flex-direction: column;

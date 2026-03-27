@@ -22,10 +22,11 @@ class ReportParams(BaseModel):
 class ReportEnvelope(BaseModel):
     """Standard report response envelope."""
 
-    org: str | None
+    report_type: str
+    org: str | None = None
     granularity: str
-    window: str
-    generated_at: datetime
+    window_days: int
+    generated_at: datetime = Field(default_factory=datetime.utcnow)
     data: list[dict[str, Any]]
 
 

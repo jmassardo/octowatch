@@ -154,3 +154,17 @@
   font-size: 13px;
   color: var(--fg-muted);
 }
+
+.eventJson {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px;
+  overflow: auto;
+  max-height: 60vh;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}

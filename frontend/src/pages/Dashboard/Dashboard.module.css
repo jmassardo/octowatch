@@ -162,9 +162,8 @@
 }
 
 .sevTrack {
-  width: 45%;
+  width: 40%;
   height: 7px;
-  background: var(--canvas-inset);
   border-radius: 4px;
   overflow: hidden;
 }

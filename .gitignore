@@ -41,5 +41,9 @@ nginx/ssl/*.crt
 # Misc
 *.log
 
+# Playwright
+test-results/
+playwright-report/
+
 # Exports
 *.json.gz

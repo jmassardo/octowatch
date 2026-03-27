@@ -158,13 +158,24 @@ async def get_current_user(
 
     session_data = json.loads(session_data_raw)
 
+    github_login = session_data["github_login"]
+    roles: list[str] = list(session_data.get("roles", []))
+
+    # Bootstrap: always grant sys_admin at request time for logins in INITIAL_ADMIN_LOGINS.
+    # This means existing sessions get the role without needing to re-login.
+    if github_login.lower() in settings.initial_admin_logins:
+        if "sys_admin" not in roles:
+            roles.append("sys_admin")
+
+    scope_type = "global" if "sys_admin" in roles else session_data.get("scope_type", "scoped")
+
     return AuthenticatedUser(
-        github_login=session_data["github_login"],
+        github_login=github_login,
         github_id=session_data.get("github_id", 0),
-        roles=session_data.get("roles", []),
+        roles=roles,
         scoped_orgs=session_data.get("scoped_orgs", []),
         scoped_repos=session_data.get("scoped_repos", []),
-        scope_type=session_data.get("scope_type", "global"),
+        scope_type=scope_type,
         jti=jti,
         session_expires_at=session_data.get("session_expires_at", ""),
         display_name=session_data.get("display_name"),
