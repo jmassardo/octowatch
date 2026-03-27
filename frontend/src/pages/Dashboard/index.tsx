@@ -9,7 +9,36 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import type { EventResponse } from '../../types/events';
 import type { ActionsVolumeBucket } from '../../types/reports';
+import type { DetectionSeverity } from '../../types/detections';
 import styles from './Dashboard.module.css';
+
+function ClickableValue({
+  children,
+  onClick,
+  label,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      aria-label={label}
+      className={styles.clickableValue}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
+      {children}
+    </span>
+  );
+}
 function StatPill({
   value,
   label,
@@ -210,21 +239,35 @@ export function DashboardPage() {
             ) : (
               <div className={styles.sevBars}>
                 {[
-                  { sev: 'Critical', key: 'critical', color: 'var(--danger)', count: severityCounts.critical },
-                  { sev: 'High', key: 'high', color: 'var(--severe)', count: severityCounts.high },
-                  { sev: 'Medium', key: 'medium', color: 'var(--attention)', count: severityCounts.medium },
-                  { sev: 'Low', key: 'low', color: 'var(--success)', count: severityCounts.low },
+                  { sev: 'Critical', key: 'critical' as DetectionSeverity, color: 'var(--danger)', count: severityCounts.critical },
+                  { sev: 'High', key: 'high' as DetectionSeverity, color: 'var(--severe)', count: severityCounts.high },
+                  { sev: 'Medium', key: 'medium' as DetectionSeverity, color: 'var(--attention)', count: severityCounts.medium },
+                  { sev: 'Low', key: 'low' as DetectionSeverity, color: 'var(--success)', count: severityCounts.low },
                 ].map(({ sev, key, color, count }) => {
                   const maxCount = Math.max(severityCounts.critical, severityCounts.high, severityCounts.medium, severityCounts.low, 1);
                   const w = count > 0 ? `${Math.max(8, Math.round((count / maxCount) * 100))}%` : '2px';
                   return (
-                    <div key={key} className={styles.sevRow}>
-                      <div className={[styles.sevDot, styles[key as 'critical' | 'high' | 'medium' | 'low']].join(' ')} />
+                    <div
+                      key={key}
+                      className={[styles.sevRow, styles.sevRowClickable].join(' ')}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${count} ${sev} threats — click to filter`}
+                      onClick={() => navigate(`/threats?severity=${key}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          navigate(`/threats?severity=${key}`);
+                        }
+                      }}
+                    >
+                      <div className={[styles.sevDot, styles[key]].join(' ')} />
                       <span className={styles.sevLbl}>{sev}</span>
                       <div className={styles.sevTrack}>
                         <div style={{ height: '100%', background: color, borderRadius: 4, width: w }} />
                       </div>
                       <span className={styles.sevCount}>{count}</span>
+                      <span className={styles.sevArrow} aria-hidden="true">→</span>
                     </div>
                   );
                 })}
@@ -240,19 +283,37 @@ export function DashboardPage() {
                   {failedWorkflowRuns > 0 ? '⚠' : '✓'}
                 </span>
                 <div>
-                  Workflow runs: <strong>{succeededWorkflowRuns} succeeded</strong>, <strong>{failedWorkflowRuns} failed</strong>
+                  Workflow runs:{' '}
+                  <ClickableValue onClick={() => navigate('/velocity')} label={`${succeededWorkflowRuns} succeeded — view velocity`}>
+                    <strong>{succeededWorkflowRuns} succeeded</strong>
+                  </ClickableValue>
+                  ,{' '}
+                  <ClickableValue onClick={() => navigate('/velocity')} label={`${failedWorkflowRuns} failed — view velocity`}>
+                    <strong>{failedWorkflowRuns} failed</strong>
+                  </ClickableValue>
                   {totalWorkflowRuns > 0 ? ` (${workflowSuccessRate}% success)` : ''}
                 </div>
               </div>
               <div className={`${styles.alertRow} ${styles.alertBorder}`}>
                 <span className={styles.alertIcon} style={{ color: 'var(--attention)' }}>⚡</span>
-                <div>Events volume: <strong>{formatCount(calendarEvents?.total ?? 0)} events</strong> tracked</div>
+                <div>
+                  Events volume:{' '}
+                  <ClickableValue onClick={() => navigate('/events')} label={`${formatCount(calendarEvents?.total ?? 0)} events — view all events`}>
+                    <strong>{formatCount(calendarEvents?.total ?? 0)} events</strong>
+                  </ClickableValue>
+                  {' '}tracked
+                </div>
               </div>
               <div className={`${styles.alertRow} ${styles.alertBorder}`}>
                 <span className={styles.alertIcon} style={{ color: openThreats > 0 ? 'var(--attention)' : 'var(--success)' }}>
                   {openThreats > 0 ? '⚠' : '✓'}
                 </span>
-                <div>Active detections: <strong>{openThreats} investigating</strong></div>
+                <div>
+                  Active detections:{' '}
+                  <ClickableValue onClick={() => navigate('/threats')} label={`${openThreats} investigating — view threats`}>
+                    <strong>{openThreats} investigating</strong>
+                  </ClickableValue>
+                </div>
               </div>
             </div>
           </Card>

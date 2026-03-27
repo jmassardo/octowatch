@@ -240,4 +240,36 @@ describe('IntegrationsPage', () => {
 
     expect(screen.getByText(/fetch via/i)).toBeInTheDocument();
   });
+
+  /* ---------------------------------------------------------------- */
+  /*  Clickable features                                                */
+  /* ---------------------------------------------------------------- */
+
+  it('record counts are clickable', () => {
+    const { container } = renderWithProviders(<IntegrationsPage />);
+    const clickableRecords = container.querySelectorAll('.clickableRecord');
+    expect(clickableRecords.length).toBe(3);
+    clickableRecords.forEach((el) => {
+      expect(el.getAttribute('role')).toBe('button');
+    });
+  });
+
+  it('clicking record count opens import detail modal', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<IntegrationsPage />);
+    const clickableRecord = container.querySelector('.clickableRecord')!;
+    expect(clickableRecord).not.toBeNull();
+    await user.click(clickableRecord);
+    expect(screen.getByText('Import details')).toBeInTheDocument();
+    expect(screen.getByText('Records imported')).toBeInTheDocument();
+  });
+
+  it('status badges are clickable', () => {
+    const { container } = renderWithProviders(<IntegrationsPage />);
+    const clickableStatuses = container.querySelectorAll('.clickableStatus');
+    expect(clickableStatuses.length).toBe(6);
+    clickableStatuses.forEach((el) => {
+      expect(el.getAttribute('tabindex')).toBe('0');
+    });
+  });
 });

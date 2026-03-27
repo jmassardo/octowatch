@@ -1,5 +1,6 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { getActionsVolumeReport } from '../../api/reports';
 import { listEvents } from '../../api/events';
 import { ContributionCalendar } from '../../components/charts/ContributionCalendar';
@@ -8,6 +9,7 @@ import { BarChart } from '../../components/charts/BarChart';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
+import { Modal } from '../../components/primitives/Modal';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import type { ActionsVolumeBucket } from '../../types/reports';
@@ -15,6 +17,9 @@ import styles from './Velocity.module.css';
 
 
 export function VelocityPage() {
+  const navigate = useNavigate();
+  const [doraModalOpen, setDoraModalOpen] = useState(false);
+  const [failureBucket, setFailureBucket] = useState<ActionsVolumeBucket | null>(null);
   const changeFailureRef = useRef<HTMLDivElement>(null);
   const workflowSuccessRef = useRef<HTMLDivElement>(null);
   const dailyRunsRef = useRef<HTMLDivElement>(null);
@@ -116,7 +121,21 @@ export function VelocityPage() {
         <div className={styles.pageTitle}>Engineering Velocity</div>
         <div className={styles.doraGroup}>
           <span className={styles.doraLabel}>DORA tier</span>
-          <span className={styles.doraBadge}>★ Elite</span>
+          <span
+            className={[styles.doraBadge, styles.doraBadgeClickable].join(' ')}
+            role="button"
+            tabIndex={0}
+            aria-label="DORA Elite tier — click for details"
+            onClick={() => setDoraModalOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setDoraModalOpen(true);
+              }
+            }}
+          >
+            ★ Elite
+          </span>
         </div>
       </div>
       <div className={styles.pageSub}>
@@ -235,7 +254,20 @@ export function VelocityPage() {
               <thead><tr><th>Date bucket</th><th>Total runs</th><th>Failed</th><th>Success rate</th></tr></thead>
               <tbody>
                 {recentFailingBuckets.map((b, i) => (
-                  <tr key={i}>
+                  <tr
+                    key={i}
+                    className={styles.clickableRow}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Failure details for ${new Date(b.bucket).toLocaleDateString()}`}
+                    onClick={() => setFailureBucket(b)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setFailureBucket(b);
+                      }
+                    }}
+                  >
                     <td>{new Date(b.bucket).toLocaleDateString()}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.workflow_runs_total ?? 0}</td>
                     <td><Label variant={(b.workflow_runs_failed ?? 0) > 10 ? 'danger' : 'attention'}>{b.workflow_runs_failed ?? 0}</Label></td>
@@ -261,9 +293,22 @@ export function VelocityPage() {
           <tbody>
             {activeRepos.length > 0 ? (
               activeRepos.map((r) => (
-                <tr key={r.name}>
-                  <td style={{ fontWeight: 500 }}>{r.name}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.events}</td>
+                <tr
+                  key={r.name}
+                  className={styles.clickableRow}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`View events for ${r.name}`}
+                  onClick={() => navigate(`/events?repo=${encodeURIComponent(r.name)}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate(`/events?repo=${encodeURIComponent(r.name)}`);
+                    }
+                  }}
+                >
+                  <td style={{ fontWeight: 500, color: 'var(--accent)', cursor: 'pointer' }}>{r.name}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--accent)', cursor: 'pointer' }}>{r.events}</td>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.contributors}</td>
                 </tr>
               ))
@@ -281,6 +326,80 @@ export function VelocityPage() {
       {buckets.length === 0 && !isLoading && (
         <div style={{ color: 'var(--fg-muted)', padding: '16px 0' }}>No workflow run data for the selected period.</div>
       )}
+
+      <Modal open={doraModalOpen} onClose={() => setDoraModalOpen(false)} title="DORA Metrics — Elite Tier" width={520}>
+        <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16, lineHeight: 1.5 }}>
+          DORA (DevOps Research and Assessment) metrics measure software delivery performance.
+          Teams are classified into four tiers based on their performance across four key metrics.
+        </p>
+        <table className={styles.doraTable}>
+          <thead>
+            <tr><th>Metric</th><th>Elite threshold</th><th>Current</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style={{ fontWeight: 500 }}>Deployment Frequency</td>
+              <td>On-demand (multiple deploys/day)</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td style={{ fontWeight: 500 }}>Lead Time for Changes</td>
+              <td>&lt; 1 hour</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td style={{ fontWeight: 500 }}>Change Failure Rate</td>
+              <td>&lt; 5%</td>
+              <td>{changeFailureRate != null ? `${changeFailureRate}%` : '—'}</td>
+            </tr>
+            <tr>
+              <td style={{ fontWeight: 500 }}>Time to Restore Service</td>
+              <td>&lt; 1 hour</td>
+              <td>—</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 12, lineHeight: 1.5 }}>
+          Tier is currently set to Elite as a default. Full DORA calculation requires deployment and incident tracking integrations.
+        </p>
+      </Modal>
+
+      <Modal
+        open={failureBucket !== null}
+        onClose={() => setFailureBucket(null)}
+        title={`Workflow failures — ${failureBucket ? new Date(failureBucket.bucket).toLocaleDateString() : ''}`}
+        width={560}
+      >
+        {failureBucket && (
+          <div>
+            <div className={styles.modalMetrics}>
+              <div className={styles.modalMetric}>
+                <div className={styles.modalMetricVal}>{failureBucket.workflow_runs_total}</div>
+                <div className={styles.modalMetricLbl}>Total runs</div>
+              </div>
+              <div className={styles.modalMetric}>
+                <div className={styles.modalMetricVal} style={{ color: 'var(--success)' }}>{failureBucket.workflow_runs_succeeded}</div>
+                <div className={styles.modalMetricLbl}>Succeeded</div>
+              </div>
+              <div className={styles.modalMetric}>
+                <div className={styles.modalMetricVal} style={{ color: 'var(--danger)' }}>{failureBucket.workflow_runs_failed}</div>
+                <div className={styles.modalMetricLbl}>Failed</div>
+              </div>
+              <div className={styles.modalMetric}>
+                <div className={styles.modalMetricVal}>{failureBucket.success_rate_pct != null ? `${Math.round(failureBucket.success_rate_pct)}%` : '—'}</div>
+                <div className={styles.modalMetricLbl}>Success rate</div>
+              </div>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 16, lineHeight: 1.5 }}>
+              Date bucket: <strong>{new Date(failureBucket.bucket).toLocaleDateString()}</strong><br />
+              Unique workflows: <strong>{failureBucket.unique_workflows}</strong>
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 12, lineHeight: 1.5 }}>
+              Workflow-level failure details require GitHub Actions API integration for individual run data.
+            </p>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

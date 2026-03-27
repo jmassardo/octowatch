@@ -42,6 +42,31 @@ export function ThreatsPage() {
     queryFn: () => listDetections({ status: statusMap[tab], severity: severityFilter || undefined }),
   });
 
+  // Fetch counts for each tab so badges stay current
+  const { data: openData } = useQuery({
+    queryKey: ['detections', 'count-open'],
+    queryFn: () => listDetections({ status: 'investigating', page_size: 1 }),
+  });
+  const { data: closedData } = useQuery({
+    queryKey: ['detections', 'count-closed'],
+    queryFn: () => listDetections({ status: 'resolved', page_size: 1 }),
+  });
+  const { data: ackData } = useQuery({
+    queryKey: ['detections', 'count-ack'],
+    queryFn: () => listDetections({ status: 'false_positive', page_size: 1 }),
+  });
+  const { data: allData } = useQuery({
+    queryKey: ['detections', 'count-all'],
+    queryFn: () => listDetections({ page_size: 1 }),
+  });
+
+  const tabCounts: Record<TabFilter, number | null> = {
+    open: openData?.total ?? null,
+    closed: closedData?.total ?? null,
+    acknowledged: ackData?.total ?? null,
+    all: allData?.total ?? null,
+  };
+
   const acknowledgeMutation = useMutation({
     mutationFn: (id: number) => updateDetectionStatus(id, { status: 'false_positive' }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['detections'] }); },
@@ -97,18 +122,28 @@ export function ThreatsPage() {
 
         <div className={styles.issueList}>
           <div className={styles.ilFilters}>
-            {(['open', 'closed', 'acknowledged', 'all'] as TabFilter[]).map((t) => (
-              <button
-                key={t}
-                className={[styles.ilTab, tab === t && styles.active].filter(Boolean).join(' ')}
-                onClick={() => setTab(t)}
-              >
-                {t === 'open' && `Open (${data?.total ?? '…'})`}
-                {t === 'closed' && 'Closed'}
-                {t === 'acknowledged' && 'Acknowledged'}
-                {t === 'all' && 'All'}
-              </button>
-            ))}
+            {(['open', 'closed', 'acknowledged', 'all'] as TabFilter[]).map((t) => {
+              const count = tabCounts[t];
+              const countStr = count != null ? ` (${count})` : '';
+              const tabLabel =
+                t === 'open' ? 'Open' :
+                t === 'closed' ? 'Closed' :
+                t === 'acknowledged' ? 'Acknowledged' :
+                'All';
+              return (
+                <button
+                  key={t}
+                  className={[styles.ilTab, tab === t && styles.active].filter(Boolean).join(' ')}
+                  onClick={() => setTab(t)}
+                >
+                  {tabLabel}
+                  {count != null && (
+                    <span className={styles.tabBadge}>{count}</span>
+                  )}
+                  {count == null && countStr}
+                </button>
+              );
+            })}
           </div>
 
           {isLoading && (
@@ -161,6 +196,35 @@ export function ThreatsPage() {
             </div>
 
             <p className={styles.panelDesc}>{selected.description}</p>
+
+            {selected.event_ids.length > 0 && (
+              <div className={styles.relatedEvents}>
+                <span className={styles.evidenceLabel}>Related events</span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className={styles.eventCountLink}
+                  aria-label={`${selected.event_ids.length} related events — view in events page`}
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    if (selected.actor) params.set('actor', selected.actor);
+                    if (selected.rule_name) params.set('action', selected.rule_name);
+                    navigate(`/events?${params.toString()}`);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      const params = new URLSearchParams();
+                      if (selected.actor) params.set('actor', selected.actor);
+                      if (selected.rule_name) params.set('action', selected.rule_name);
+                      navigate(`/events?${params.toString()}`);
+                    }
+                  }}
+                >
+                  {selected.event_ids.length} event{selected.event_ids.length === 1 ? '' : 's'} →
+                </span>
+              </div>
+            )}
 
             {Object.keys(selected.context_data).length > 0 && (
               <>

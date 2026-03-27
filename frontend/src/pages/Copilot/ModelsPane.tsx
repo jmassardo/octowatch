@@ -1,10 +1,37 @@
+import { useState } from 'react';
 import { Card, CardHeader } from '../../components/primitives/Card';
+import { Modal } from '../../components/primitives/Modal';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { MODEL_USAGE, FEATURE_USAGE, EDITORS } from './copilotData';
 import styles from './Copilot.module.css';
 
+type ModelsModal = 'model' | 'feature' | 'editor' | null;
+
 export function ModelsPane() {
   const maxFeatureCount = Math.max(...FEATURE_USAGE.map((f) => f.count));
+  const [modelsModal, setModelsModal] = useState<ModelsModal>(null);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<string | null>(null);
+  const [selectedEditor, setSelectedEditor] = useState<string | null>(null);
+
+  function openModelModal(model: string) {
+    setSelectedModel(model);
+    setModelsModal('model');
+  }
+
+  function openFeatureModal(feature: string) {
+    setSelectedFeature(feature);
+    setModelsModal('feature');
+  }
+
+  function openEditorModal(editor: string) {
+    setSelectedEditor(editor);
+    setModelsModal('editor');
+  }
+
+  const selectedModelData = MODEL_USAGE.find((m) => m.model === selectedModel);
+  const selectedFeatureData = FEATURE_USAGE.find((f) => f.feature === selectedFeature);
+  const selectedEditorData = EDITORS.find((e) => e.name === selectedEditor);
 
   return (
     <>
@@ -16,7 +43,14 @@ export function ModelsPane() {
           <CardHeader>Model usage spread</CardHeader>
           <div className={styles.langBars}>
             {MODEL_USAGE.map((m) => (
-              <div key={m.model} className={styles.langRow}>
+              <div
+                key={m.model}
+                className={`${styles.langRow} ${styles.langRowClickable}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => openModelModal(m.model)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openModelModal(m.model); } }}
+              >
                 <span className={styles.langName} style={{ width: 100 }}>
                   {m.model}
                 </span>
@@ -41,7 +75,14 @@ export function ModelsPane() {
           <CardHeader>Feature usage spread</CardHeader>
           <div className={styles.langBars}>
             {FEATURE_USAGE.map((f) => (
-              <div key={f.feature} className={styles.langRow}>
+              <div
+                key={f.feature}
+                className={`${styles.langRow} ${styles.langRowClickable}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => openFeatureModal(f.feature)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFeatureModal(f.feature); } }}
+              >
                 <span className={styles.langName} style={{ width: 120 }}>
                   {f.feature}
                 </span>
@@ -66,13 +107,122 @@ export function ModelsPane() {
       <div className={styles.sectionTitle}>Editor breakdown</div>
       <div className={styles.editorGrid}>
         {EDITORS.map((e) => (
-          <Card key={e.name} className={styles.editorCard}>
-            <div className={styles.editorCount}>{e.count}</div>
-            <div className={styles.editorName}>{e.name}</div>
-            <div className={styles.editorPct}>{e.pct}%</div>
-          </Card>
+          <div
+            key={e.name}
+            className={styles.editorCardClickable}
+            role="button"
+            tabIndex={0}
+            onClick={() => openEditorModal(e.name)}
+            onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openEditorModal(e.name); } }}
+          >
+            <Card className={styles.editorCard}>
+              <div className={styles.editorCount}>{e.count}</div>
+              <div className={styles.editorName}>{e.name}</div>
+              <div className={styles.editorPct}>{e.pct}%</div>
+            </Card>
+          </div>
         ))}
       </div>
+
+      {/* Model detail modal */}
+      <Modal open={modelsModal === 'model'} onClose={() => setModelsModal(null)} title={selectedModelData ? `${selectedModelData.model} — usage details` : 'Model details'} width={520}>
+        <div className={styles.sampleDataNote}>
+          ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
+        </div>
+        {selectedModelData && (
+          <div>
+            <table className={styles.modalTable}>
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ color: 'var(--fg-muted)' }}>Model</td>
+                  <td style={{ fontWeight: 500 }}>{selectedModelData.model}</td>
+                </tr>
+                <tr>
+                  <td style={{ color: 'var(--fg-muted)' }}>Usage share</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{selectedModelData.pct}%</td>
+                </tr>
+              </tbody>
+            </table>
+            <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: '12px 0 0' }}>
+              Per-user and per-team model preference breakdowns require the Copilot Metrics API integration.
+            </p>
+          </div>
+        )}
+      </Modal>
+
+      {/* Feature usage detail modal */}
+      <Modal open={modelsModal === 'feature'} onClose={() => setModelsModal(null)} title={selectedFeatureData ? `${selectedFeatureData.feature} — usage details` : 'Feature details'} width={520}>
+        <div className={styles.sampleDataNote}>
+          ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
+        </div>
+        {selectedFeatureData && (
+          <div>
+            <table className={styles.modalTable}>
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ color: 'var(--fg-muted)' }}>Feature</td>
+                  <td style={{ fontWeight: 500 }}>{selectedFeatureData.feature}</td>
+                </tr>
+                <tr>
+                  <td style={{ color: 'var(--fg-muted)' }}>Active users</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{selectedFeatureData.count}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: '12px 0 0' }}>
+              Per-team feature usage trends and adoption curves require the Copilot Metrics API integration.
+            </p>
+          </div>
+        )}
+      </Modal>
+
+      {/* Editor detail modal */}
+      <Modal open={modelsModal === 'editor'} onClose={() => setModelsModal(null)} title={selectedEditorData ? `${selectedEditorData.name} — editor details` : 'Editor details'} width={520}>
+        <div className={styles.sampleDataNote}>
+          ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
+        </div>
+        {selectedEditorData && (
+          <div>
+            <table className={styles.modalTable}>
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ color: 'var(--fg-muted)' }}>Editor</td>
+                  <td style={{ fontWeight: 500 }}>{selectedEditorData.name}</td>
+                </tr>
+                <tr>
+                  <td style={{ color: 'var(--fg-muted)' }}>Active users</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{selectedEditorData.count}</td>
+                </tr>
+                <tr>
+                  <td style={{ color: 'var(--fg-muted)' }}>Share</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{selectedEditorData.pct}%</td>
+                </tr>
+              </tbody>
+            </table>
+            <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: '12px 0 0' }}>
+              User distribution by editor and team-level editor preferences require the Copilot Metrics API integration.
+            </p>
+          </div>
+        )}
+      </Modal>
     </>
   );
 }

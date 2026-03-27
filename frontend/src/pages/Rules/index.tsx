@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { listRules, createRule, updateRule, deleteRule } from '../../api/rules';
 import type { RuleResponse, RuleCreate, RuleCategory } from '../../types/detections';
@@ -159,6 +160,8 @@ export function RulesPage() {
   const [editRule, setEditRule] = useState<RuleResponse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RuleResponse | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [versionRule, setVersionRule] = useState<RuleResponse | null>(null);
+  const navigate = useNavigate();
 
   const { data: rules, isLoading, isError, refetch } = useQuery({
     queryKey: ['rules'],
@@ -238,8 +241,35 @@ export function RulesPage() {
                   </td>
                   <td><Label variant="muted">{rule.logic_type}</Label></td>
                   <td><Label variant={SEVERITY_VARIANT[rule.default_severity] ?? 'muted'}>{rule.default_severity}</Label></td>
-                  <td className={styles.muted}>{rule.status === 'active' ? '0' : '—'}</td>
-                  <td><span className={styles.versionMono}>v{rule.version}.0.0</span></td>
+                  <td className={styles.muted}>
+                    {rule.status === 'active' ? (
+                      (() => {
+                        const count = 0;
+                        return count > 0 ? (
+                          <span
+                            className={styles.clickableCount}
+                            role="link"
+                            tabIndex={0}
+                            onClick={() => navigate(`/threats?rule_id=${rule.id}`)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/threats?rule_id=${rule.id}`); }}
+                          >
+                            {count}
+                          </span>
+                        ) : '0';
+                      })()
+                    ) : '—'}
+                  </td>
+                  <td>
+                    <span
+                      className={`${styles.versionMono} ${styles.clickableVersion}`}
+                      role="link"
+                      tabIndex={0}
+                      onClick={() => setVersionRule(rule)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') setVersionRule(rule); }}
+                    >
+                      v{rule.version}.0.0
+                    </span>
+                  </td>
                   <td>
                     <Button size="sm" variant="default" onClick={() => setEditRule(rule)}>Edit</Button>
                   </td>
@@ -267,6 +297,22 @@ export function RulesPage() {
             onSave={(v) => updateMutation.mutate({ id: editRule.id, data: v })}
             onCancel={() => setEditRule(null)}
           />
+        )}
+      </Modal>
+
+      <Modal open={!!versionRule} onClose={() => setVersionRule(null)} title="Version details">
+        {versionRule && (
+          <dl className={styles.versionDetail}>
+            <dt>Rule name</dt>
+            <dd>{versionRule.name}</dd>
+            <dt>Current version</dt>
+            <dd>v{versionRule.version}.0.0</dd>
+            <dt>Last updated</dt>
+            <dd>{versionRule.updated_at ?? 'Unknown'}</dd>
+            <dt>Status</dt>
+            <dd>{versionRule.status === 'active' ? 'active' : 'draft'}</dd>
+            <p className={styles.versionNote}>Full version history requires rule versioning API integration.</p>
+          </dl>
         )}
       </Modal>
 

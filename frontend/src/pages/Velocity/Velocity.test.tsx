@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { VelocityPage } from './index';
+
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return { ...actual, useNavigate: () => mockNavigate };
+});
 
 const mockGetActionsVolumeReport = vi.fn().mockResolvedValue({ data: [] });
 const mockListEvents = vi.fn().mockResolvedValue({ items: [], total: 0 });
@@ -311,5 +318,169 @@ describe('VelocityPage with data', () => {
     // Repos derived from mock events
     expect(screen.getByText('myorg/api-service')).toBeInTheDocument();
     expect(screen.getByText('myorg/web-app')).toBeInTheDocument();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  DORA badge modal                                                   */
+/* ------------------------------------------------------------------ */
+
+describe('VelocityPage DORA badge interaction', () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+  });
+
+  it('DORA badge is clickable with role=button', () => {
+    renderWithProviders(<VelocityPage />);
+
+    const badge = screen.getByText('★ Elite');
+    expect(badge).toHaveAttribute('role', 'button');
+    expect(badge).toHaveAttribute('tabindex', '0');
+  });
+
+  it('opens DORA modal when badge is clicked', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<VelocityPage />);
+
+    const badge = screen.getByText('★ Elite');
+    await user.click(badge);
+
+    expect(screen.getByText('DORA Metrics — Elite Tier')).toBeInTheDocument();
+    expect(screen.getByText('Deployment Frequency')).toBeInTheDocument();
+    expect(screen.getByText('Lead Time for Changes')).toBeInTheDocument();
+    expect(screen.getByText('Change Failure Rate')).toBeInTheDocument();
+    expect(screen.getByText('Time to Restore Service')).toBeInTheDocument();
+  });
+
+  it('closes DORA modal when close button is clicked', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<VelocityPage />);
+
+    const badge = screen.getByText('★ Elite');
+    await user.click(badge);
+
+    expect(screen.getByText('DORA Metrics — Elite Tier')).toBeInTheDocument();
+
+    const closeBtn = screen.getByLabelText('Close');
+    await user.click(closeBtn);
+
+    expect(screen.queryByText('DORA Metrics — Elite Tier')).not.toBeInTheDocument();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Clickable repo rows                                                */
+/* ------------------------------------------------------------------ */
+
+describe('VelocityPage repo row clicks', () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockGetActionsVolumeReport.mockResolvedValue({ data: [] });
+    mockListEvents.mockResolvedValue({
+      items: [
+        { id: 1, document_id: 'd1', created_at: '2024-01-15T00:00:00Z', ingested_at: '2024-01-15T00:00:00Z', action: 'push', namespace: 'git', actor: 'alice', actor_id: 1, actor_is_bot: false, org: 'myorg', org_id: 1, repo: 'myorg/api-service', repo_id: 1, business: null, source_ip: null, user_agent: null, geo_country_code: null, geo_city: null, geo_is_proxy: null, data: {}, ingestion_source: 'webhook', source_file_path: '' },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 500,
+      has_next: false,
+    });
+  });
+
+  it('repo rows have role=button and cursor pointer styling', async () => {
+    renderWithProviders(<VelocityPage />);
+
+    const repoCell = await screen.findByText('myorg/api-service');
+    const row = repoCell.closest('tr');
+    expect(row).toHaveAttribute('role', 'button');
+    expect(row).toHaveAttribute('tabindex', '0');
+  });
+
+  it('clicking a repo row navigates to /events?repo=...', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<VelocityPage />);
+
+    const repoCell = await screen.findByText('myorg/api-service');
+    await user.click(repoCell);
+
+    expect(mockNavigate).toHaveBeenCalledWith('/events?repo=myorg%2Fapi-service');
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Workflow failures row modal                                        */
+/* ------------------------------------------------------------------ */
+
+describe('VelocityPage failure row modal', () => {
+  const MOCK_BUCKETS = [
+    {
+      bucket: '2024-01-15',
+      workflow_runs_total: 100,
+      workflow_runs_succeeded: 85,
+      workflow_runs_failed: 15,
+      success_rate_pct: 85.0,
+      unique_workflows: 10,
+    },
+  ];
+
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockGetActionsVolumeReport.mockResolvedValue({
+      report_type: 'actions-volume',
+      org: null,
+      granularity: 'daily',
+      window_days: 30,
+      generated_at: '2024-01-16T00:00:00Z',
+      data: MOCK_BUCKETS,
+    });
+    mockListEvents.mockResolvedValue({ items: [], total: 0 });
+  });
+
+  it('failure rows are clickable with role=button', async () => {
+    renderWithProviders(<VelocityPage />);
+
+    // Wait for the failure table to render
+    const failedLabel = await screen.findByText('15');
+    const row = failedLabel.closest('tr');
+    expect(row).toHaveAttribute('role', 'button');
+  });
+
+  it('clicking a failure row opens a detail modal', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<VelocityPage />);
+
+    const failedLabel = await screen.findByText('15');
+    const row = failedLabel.closest('tr');
+    await user.click(row!);
+
+    // Modal should show the title with "Workflow failures"
+    expect(screen.getByText(/Workflow failures/)).toBeInTheDocument();
+    // Modal contains metric labels (these also exist in the table, so use getAllBy)
+    const totalRunsLabels = screen.getAllByText('Total runs');
+    expect(totalRunsLabels.length).toBeGreaterThanOrEqual(2); // table header + modal
+    expect(screen.getByText('Succeeded')).toBeInTheDocument();
+    // "Failed" appears in column header and modal
+    const failedLabels = screen.getAllByText('Failed');
+    expect(failedLabels.length).toBeGreaterThanOrEqual(2);
+    // "Success rate" also appears in table header and modal
+    const successRateLabels = screen.getAllByText('Success rate');
+    expect(successRateLabels.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('closes failure modal when close button is clicked', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<VelocityPage />);
+
+    const failedLabel = await screen.findByText('15');
+    const row = failedLabel.closest('tr');
+    await user.click(row!);
+
+    expect(screen.getByText(/Workflow failures/)).toBeInTheDocument();
+
+    const closeBtn = screen.getByLabelText('Close');
+    await user.click(closeBtn);
+
+    // Modal-specific content should be gone (check for "Succeeded" which only appears in modal)
+    expect(screen.queryByText('Succeeded')).not.toBeInTheDocument();
   });
 });

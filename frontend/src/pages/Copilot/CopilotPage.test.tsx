@@ -105,7 +105,9 @@ describe('CopilotPage', () => {
     expect(screen.getByText('Sudden drop in acceptance rate')).toBeInTheDocument();
     expect(screen.getByText('Unusual seat churn detected')).toBeInTheDocument();
     expect(screen.getByText('Knowledge base usage spike')).toBeInTheDocument();
-    expect(screen.getByText(/3 anomalies detected/)).toBeInTheDocument();
+    expect(screen.getByText((_content, element) => {
+      return element?.classList?.contains('insightNote') === true && element.textContent?.includes('3 anomalies') === true;
+    })).toBeInTheDocument();
     expect(screen.queryByText(/Seat waste detected/)).not.toBeInTheDocument();
   });
 

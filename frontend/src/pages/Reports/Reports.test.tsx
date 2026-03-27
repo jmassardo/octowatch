@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { ReportsPage } from './index';
@@ -189,5 +189,40 @@ describe('ReportsPage', () => {
     renderWithProviders(<ReportsPage />);
     const orgLabels = screen.getAllByText('my-org');
     expect(orgLabels).toHaveLength(4);
+  });
+
+  it('summary values are clickable when numeric', async () => {
+    const { container } = renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      const grid = container.querySelector('.summaryGrid')!;
+      const clickableValues = grid.querySelectorAll('.clickableValue');
+      expect(clickableValues.length).toBeGreaterThan(0);
+    });
+    const grid = container.querySelector('.summaryGrid')!;
+    const clickableValues = grid.querySelectorAll('.clickableValue');
+    clickableValues.forEach((el) => {
+      expect(el.getAttribute('role')).toBe('button');
+    });
+  });
+
+  it('clicking bucket value opens modal', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(container.querySelector('.clickableValue')).not.toBeNull();
+    });
+    const clickable = container.querySelector('.clickableValue')!;
+    await user.click(clickable);
+    // Modal renders a table with bucket data columns
+    expect(screen.getByRole('table')).toBeInTheDocument();
+  });
+
+  it('report titles have clickable styling', () => {
+    const { container } = renderWithProviders(<ReportsPage />);
+    const clickableTitles = container.querySelectorAll('.reportTitleClickable');
+    expect(clickableTitles).toHaveLength(4);
+    clickableTitles.forEach((el) => {
+      expect(el.getAttribute('role')).toBe('button');
+    });
   });
 });

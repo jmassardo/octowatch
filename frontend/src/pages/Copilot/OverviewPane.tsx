@@ -18,6 +18,7 @@ import {
 import styles from './Copilot.module.css';
 
 type DrillDownType = 'active-seats' | 'assigned' | 'revoked' | 'net' | null;
+type OverviewModal = 'seat-waste' | 'correlation-seats' | 'correlation-cycle' | 'language' | null;
 
 interface OverviewPaneProps {
   seatBuckets: SeatUtilizationBucket[];
@@ -35,6 +36,8 @@ export function OverviewPane({
   onRetry,
 }: OverviewPaneProps) {
   const [drillDown, setDrillDown] = useState<DrillDownType>(null);
+  const [overviewModal, setOverviewModal] = useState<OverviewModal>(null);
+  const [selectedLang, setSelectedLang] = useState<string | null>(null);
   const seatTableRef = useRef<HTMLDivElement>(null);
 
   const latestSeatBucket = seatBuckets[seatBuckets.length - 1];
@@ -115,10 +118,29 @@ export function OverviewPane({
           <span style={{ fontSize: 18, lineHeight: 1 }}>⚠️</span>
           <div className={styles.wasteBody}>
             <div className={styles.wasteTitle}>
-              Seat waste detected — ${monthlyWaste.toLocaleString()}/month in unused licenses
+              Seat waste detected —{' '}
+              <span
+                className={styles.clickableStat}
+                role="button"
+                tabIndex={0}
+                onClick={() => setOverviewModal('seat-waste')}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOverviewModal('seat-waste'); } }}
+              >
+                ${monthlyWaste.toLocaleString()}/month
+              </span>
+              {' '}in unused licenses
             </div>
             <div className={styles.wasteDesc}>
-              {inactiveSeats} seats inactive (provisioned but not active in last 30 days) at $
+              <span
+                className={styles.clickableStat}
+                role="button"
+                tabIndex={0}
+                onClick={() => setOverviewModal('seat-waste')}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOverviewModal('seat-waste'); } }}
+              >
+                {inactiveSeats} seats
+              </span>
+              {' '}inactive (provisioned but not active in last 30 days) at $
               {COST_PER_SEAT}/seat/month
             </div>
           </div>
@@ -334,7 +356,14 @@ export function OverviewPane({
           <CardHeader>Acceptance rate by language</CardHeader>
           <div className={styles.langBars}>
             {LANGUAGES.map((l) => (
-              <div key={l.lang} className={styles.langRow}>
+              <div
+                key={l.lang}
+                className={`${styles.langRow} ${styles.langRowClickable}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => { setSelectedLang(l.lang); setOverviewModal('language'); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedLang(l.lang); setOverviewModal('language'); } }}
+              >
                 <span className={styles.langName}>{l.lang}</span>
                 <div className={styles.langTrack}>
                   <div
@@ -419,7 +448,17 @@ export function OverviewPane({
                 Acceptance rate ↑ correlates with cycle time ↓
               </div>
               <div className={styles.insightBody}>
-                Teams with &gt;30% acceptance rate show 23% shorter cycle times on average compared
+                Teams with &gt;30% acceptance rate show{' '}
+                <span
+                  className={styles.clickableStat}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setOverviewModal('correlation-cycle')}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOverviewModal('correlation-cycle'); } }}
+                >
+                  23%
+                </span>
+                {' '}shorter cycle times on average compared
                 to teams below 20% acceptance.
               </div>
             </div>
@@ -429,13 +468,102 @@ export function OverviewPane({
             <div>
               <div className={styles.insightTitle}>Active seats ≠ effective usage</div>
               <div className={styles.insightBody}>
-                38 seats show activity but acceptance rate is below 10% — suggesting Copilot is
+                <span
+                  className={styles.clickableStat}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setOverviewModal('correlation-seats')}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOverviewModal('correlation-seats'); } }}
+                >
+                  38 seats
+                </span>
+                {' '}show activity but acceptance rate is below 10% — suggesting Copilot is
                 active but suggestions are being dismissed. Consider targeted training.
               </div>
             </div>
           </div>
         </div>
       </Card>
+
+      {/* Seat waste modal */}
+      <Modal open={overviewModal === 'seat-waste'} onClose={() => setOverviewModal(null)} title="Seat utilization breakdown" width={700}>
+        <div className={styles.sampleDataNote}>
+          ℹ️ Showing all seat utilization buckets from the API. Active, provisioned, and cost data is derived from live seat counts.
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table className={styles.modalTable}>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Active</th>
+                <th>Provisioned</th>
+                <th>Inactive</th>
+                <th>Utilization %</th>
+                <th>Cost ($/mo)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {seatBuckets.map((b, i) => {
+                const inactive = b.provisioned_seat_count - b.active_seat_count;
+                return (
+                  <tr key={i}>
+                    <td style={{ color: 'var(--fg-muted)' }}>{new Date(b.bucket).toLocaleDateString()}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums', color: inactive > 0 ? 'var(--danger)' : undefined }}>{inactive}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>${(b.provisioned_seat_count * COST_PER_SEAT).toLocaleString()}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
+
+      {/* Correlation insights modals */}
+      <Modal open={overviewModal === 'correlation-seats'} onClose={() => setOverviewModal(null)} title="Correlation: Active seats with low acceptance" width={520}>
+        <div className={styles.sampleDataNote}>
+          ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
+          <strong>38 seats</strong> show activity (suggestions served) but have an acceptance rate below 10%.
+          This indicates Copilot is active on these seats but suggestions are being dismissed frequently.
+          Per-seat acceptance data requires the Copilot Metrics API to identify specific users and teams for targeted training.
+        </p>
+      </Modal>
+
+      <Modal open={overviewModal === 'correlation-cycle'} onClose={() => setOverviewModal(null)} title="Correlation: Acceptance rate vs cycle time" width={520}>
+        <div className={styles.sampleDataNote}>
+          ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
+          Teams with &gt;30% acceptance rate show <strong>23% shorter cycle times</strong> on average compared to teams below 20% acceptance.
+          This correlation suggests that teams effectively using Copilot suggestions deliver faster.
+          Per-team breakdowns require the Copilot Metrics API integration.
+        </p>
+      </Modal>
+
+      {/* Language drill-down modal */}
+      <Modal open={overviewModal === 'language'} onClose={() => setOverviewModal(null)} title={selectedLang ? `${selectedLang} — Acceptance rate details` : 'Language details'} width={520}>
+        <div className={styles.sampleDataNote}>
+          ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
+        </div>
+        {selectedLang && (() => {
+          const lang = LANGUAGES.find((l) => l.lang === selectedLang);
+          return lang ? (
+            <div>
+              <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
+                <strong>{lang.lang}</strong> has an acceptance rate of <strong>{lang.pct}%</strong>.
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
+                Per-language acceptance breakdowns by team and user require the Copilot Metrics API.
+                This would show which teams are most effective with {lang.lang} completions and where additional training may help.
+              </p>
+            </div>
+          ) : null;
+        })()}
+      </Modal>
     </>
   );
 }

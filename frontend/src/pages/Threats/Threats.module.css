@@ -200,3 +200,52 @@
   display: flex;
   gap: 8px;
 }
+
+/* Tab count badges */
+.tabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(177, 186, 196, 0.12);
+  color: var(--fg-muted);
+  margin-left: 5px;
+  padding: 0 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ilTab.active .tabBadge {
+  background: rgba(248, 81, 73, 0.12);
+  color: var(--severe);
+}
+
+/* Related events link in detail panel */
+.relatedEvents {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.eventCountLink {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.15s;
+  border-radius: 2px;
+}
+
+.eventCountLink:hover {
+  text-decoration: underline;
+}
+
+.eventCountLink:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

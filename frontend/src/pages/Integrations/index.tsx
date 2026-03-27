@@ -158,7 +158,18 @@ function MktCard({ integration, onConfigure, onInstall }: { integration: Marketp
         </div>
       </div>
       <div className={styles.mktCardFooter}>
-        <span className={`${styles.statusLabel} ${className}`}>
+        <span
+          className={`${styles.statusLabel} ${className} ${styles.clickableStatus}`}
+          tabIndex={0}
+          aria-label={`${integration.name} status: ${label}`}
+          onClick={isInstalled ? onConfigure : onInstall}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              (isInstalled ? onConfigure : onInstall)?.();
+            }
+          }}
+        >
           <span className={styles.statusDot} />
           {label}
         </span>
@@ -254,6 +265,7 @@ export function IntegrationsPage() {
   const [statusOverrides, setStatusOverrides] = useState<Record<string, IntegrationStatus>>({});
   const [configTarget, setConfigTarget] = useState<MarketplaceIntegration | null>(null);
   const [importedFiles, setImportedFiles] = useState<RecentImport[]>([]);
+  const [importDetail, setImportDetail] = useState<RecentImport | null>(null);
 
   /* Keep API hooks alive so integration data is cached for future use */
   useQuery({ queryKey: ['ticketing-configs'], queryFn: listTicketingConfigs });
@@ -407,7 +419,24 @@ export function IntegrationsPage() {
                 <td>{row.type}</td>
                 <td>{row.size}</td>
                 <td>{row.importedAt}</td>
-                <td>{row.records > 0 ? row.records.toLocaleString() : '—'}</td>
+                <td>
+                  {row.records > 0 ? (
+                    <span
+                      className={styles.clickableRecord}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setImportDetail(row)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setImportDetail(row);
+                        }
+                      }}
+                    >
+                      {row.records.toLocaleString()}
+                    </span>
+                  ) : '—'}
+                </td>
                 <td>
                   <span className={`${styles.statusBadge} ${row.status === 'Completed' ? styles.badgeSuccess : ''}`}>
                     {row.status}
@@ -428,6 +457,22 @@ export function IntegrationsPage() {
               Configuration settings for {configTarget.name} integration. Connect via API key or OAuth flow.
             </p>
           </div>
+        )}
+      </Modal>
+
+      <Modal open={!!importDetail} onClose={() => setImportDetail(null)} title="Import details" width={420}>
+        {importDetail && (
+          <dl className={styles.importDetail}>
+            <div><dt>File</dt><dd>{importDetail.file}</dd></div>
+            <div><dt>Type</dt><dd>{importDetail.type}</dd></div>
+            <div><dt>Size</dt><dd>{importDetail.size}</dd></div>
+            <div><dt>Records imported</dt><dd>{importDetail.records.toLocaleString()}</dd></div>
+            <div><dt>Imported at</dt><dd>{importDetail.importedAt}</dd></div>
+            <div><dt>Status</dt><dd>{importDetail.status}</dd></div>
+            <p className={styles.importNote}>
+              If any rows were skipped or had errors, details are available in the processing log.
+            </p>
+          </dl>
         )}
       </Modal>
     </div>

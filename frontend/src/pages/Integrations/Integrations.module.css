@@ -259,3 +259,56 @@
 .formInput:focus { border-color: var(--accent); }
 
 .formActions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; border-top: 1px solid var(--border-muted); }
+
+/* ===== Clickable record count ===== */
+.clickableRecord {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 500;
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin: -1px -4px;
+  transition: background 0.15s;
+}
+
+.clickableRecord:hover {
+  background: rgba(177, 186, 196, 0.12);
+  text-decoration: underline;
+}
+
+/* ===== Clickable status badge ===== */
+.clickableStatus {
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.clickableStatus:hover {
+  opacity: 0.8;
+}
+
+/* ===== Import detail modal ===== */
+.importDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.importDetail dt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  margin-bottom: 2px;
+}
+
+.importDetail dd {
+  margin: 0 0 4px;
+}
+
+.importNote {
+  font-size: 12px;
+  color: var(--fg-subtle);
+  border-top: 1px solid var(--border-muted);
+  padding-top: 8px;
+  margin-top: 4px;
+}

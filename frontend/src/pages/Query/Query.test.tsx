@@ -520,4 +520,43 @@ describe('QueryPage', () => {
 
     expect(runQuery).toHaveBeenCalledTimes(2);
   });
+
+  it('row count is clickable after query run', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<QueryPage />);
+
+    await user.click(screen.getByRole('button', { name: /Run/ }));
+    await screen.findByText(/1 row/);
+
+    const rowSpan = container.querySelector('.clickableMeta[role="button"]');
+    expect(rowSpan).not.toBeNull();
+    expect(rowSpan!.textContent).toMatch(/1 row/);
+  });
+
+  it('execution time is clickable after query run', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<QueryPage />);
+
+    await user.click(screen.getByRole('button', { name: /Run/ }));
+    await screen.findByText(/42ms/);
+
+    const msSpans = container.querySelectorAll('.clickableMeta');
+    const msSpan = Array.from(msSpans).find((el) => el.textContent?.includes('ms'));
+    expect(msSpan).not.toBeUndefined();
+    expect(msSpan!.getAttribute('role')).toBe('button');
+  });
+
+  it('clicking execution time opens modal', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<QueryPage />);
+
+    await user.click(screen.getByRole('button', { name: /Run/ }));
+    await screen.findByText(/42ms/);
+
+    const msSpans = container.querySelectorAll('.clickableMeta');
+    const msSpan = Array.from(msSpans).find((el) => el.textContent?.includes('ms'))!;
+    await user.click(msSpan);
+
+    expect(screen.getByText('Query Execution Details')).toBeInTheDocument();
+  });
 });

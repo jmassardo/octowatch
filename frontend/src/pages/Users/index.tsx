@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   listRoleAssignments,
@@ -181,9 +182,11 @@ function EditMappingForm({
 
 export function UsersPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [showAdd, setShowAdd] = useState(false);
   const [editTarget, setEditTarget] = useState<RoleAssignment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RoleAssignment | null>(null);
+  const [sessionUser, setSessionUser] = useState<ActiveUser | null>(null);
 
   const { data: assignments, isLoading, isError, refetch } = useQuery({
     queryKey: ['role-assignments'],
@@ -256,7 +259,15 @@ export function UsersPage() {
                         <Label variant={rl.variant}>{rl.text}</Label>
                       </td>
                       <td>
-                        <span className={styles.mention}>@{a.granted_by}</span>
+                        <span
+                          className={`${styles.mention} ${styles.clickableMention}`}
+                          role="link"
+                          tabIndex={0}
+                          onClick={() => navigate(`/events?actor=${a.granted_by}`)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/events?actor=${a.granted_by}`); }}
+                        >
+                          @{a.granted_by}
+                        </span>
                       </td>
                       <td className={styles.muted}>{formatRelativeTime(a.granted_at)}</td>
                       <td style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -299,7 +310,15 @@ export function UsersPage() {
               {ACTIVE_USERS.map((u) => (
                 <tr key={u.login}>
                   <td>
-                    <span className={styles.mention}>@{u.login}</span>
+                    <span
+                      className={`${styles.mention} ${styles.clickableMention}`}
+                      role="link"
+                      tabIndex={0}
+                      onClick={() => navigate(`/events?actor=${u.login}`)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/events?actor=${u.login}`); }}
+                    >
+                      @{u.login}
+                    </span>
                   </td>
                   <td>
                     <Label variant={userRoleVariant(u.role)}>{u.role}</Label>
@@ -308,7 +327,17 @@ export function UsersPage() {
                   <td>
                     <Label variant={mfaVariant(u.mfa)}>{u.mfa}</Label>
                   </td>
-                  <td className={styles.muted}>{u.sessions}</td>
+                  <td>
+                    <span
+                      className={styles.clickableSession}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSessionUser(u)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') setSessionUser(u); }}
+                    >
+                      {u.sessions}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -344,6 +373,36 @@ export function UsersPage() {
         confirmVariant="danger"
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
       />
+
+      <Modal open={!!sessionUser} onClose={() => setSessionUser(null)} title={sessionUser ? `Sessions — @${sessionUser.login}` : 'Sessions'}>
+        {sessionUser && (
+          <dl className={styles.sessionDetail}>
+            <div>
+              <dt>User</dt>
+              <dd>@{sessionUser.login}</dd>
+            </div>
+            <div>
+              <dt>Active sessions</dt>
+              <dd>{sessionUser.sessions}</dd>
+            </div>
+            <div>
+              <dt>Role</dt>
+              <dd>{sessionUser.role}</dd>
+            </div>
+            <div>
+              <dt>Last active</dt>
+              <dd>{sessionUser.lastActive}</dd>
+            </div>
+            <div>
+              <dt>MFA</dt>
+              <dd>{sessionUser.mfa}</dd>
+            </div>
+            <p className={styles.sessionNote}>
+              Detailed session data including IP addresses and user agents requires GitHub API integration.
+            </p>
+          </dl>
+        )}
+      </Modal>
     </div>
   );
 }

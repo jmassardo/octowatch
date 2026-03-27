@@ -13,6 +13,7 @@ import { Label } from '../../components/primitives/Label';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { Modal } from '../../components/primitives/Modal';
 import type { ReportParams } from '../../types/reports';
 import styles from './Reports.module.css';
 
@@ -61,6 +62,7 @@ const REPORT_CATALOG = [
 export function ReportsPage() {
   const { selectedOrg } = useOrg();
   const [windowDays, setWindowDays] = useState<30 | 60 | 90>(30);
+  const [bucketModal, setBucketModal] = useState<string | null>(null);
   const params: ReportParams = { window_days: windowDays, granularity: 'daily' };
 
   const { data: mauData, isLoading: mauLoading, isError: mauError } = useQuery({
@@ -84,11 +86,13 @@ export function ReportsPage() {
   });
 
   const summaries = [
-    { label: 'Total MAU buckets', value: mauData?.data.length ?? '—' },
-    { label: 'Actions buckets', value: actionsData?.data.length ?? '—' },
-    { label: 'Seat util buckets', value: seatData?.data.length ?? '—' },
-    { label: 'Copilot seat buckets', value: copilotData?.data.length ?? '—' },
+    { key: 'mau', label: 'Total MAU buckets', value: mauData?.data.length ?? '—', data: mauData?.data },
+    { key: 'actions', label: 'Actions buckets', value: actionsData?.data.length ?? '—', data: actionsData?.data },
+    { key: 'seat', label: 'Seat util buckets', value: seatData?.data.length ?? '—', data: seatData?.data },
+    { key: 'copilot', label: 'Copilot seat buckets', value: copilotData?.data.length ?? '—', data: copilotData?.data },
   ];
+
+  const activeBucket = summaries.find((s) => s.key === bucketModal);
 
   return (
     <div className={styles.page}>
@@ -117,14 +121,31 @@ export function ReportsPage() {
       <Card style={{ marginBottom: 20 }}>
         <CardHeader>Data summary — last {windowDays} days</CardHeader>
         <div className={styles.summaryGrid}>
-          {summaries.map((s) => (
-            <div key={s.label} className={styles.summaryItem}>
-              <div className={styles.summaryValue}>
-                {mauLoading || actionsLoading ? <Spinner /> : s.value}
+          {summaries.map((s) => {
+            const isClickable = typeof s.value === 'number' && s.value > 0;
+            return (
+              <div key={s.label} className={styles.summaryItem}>
+                <div className={styles.summaryValue}>
+                  {mauLoading || actionsLoading ? (
+                    <Spinner />
+                  ) : isClickable ? (
+                    <span
+                      className={styles.clickableValue}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setBucketModal(s.key)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setBucketModal(s.key); }}
+                    >
+                      {s.value}
+                    </span>
+                  ) : (
+                    s.value
+                  )}
+                </div>
+                <div className={styles.summaryLabel}>{s.label}</div>
               </div>
-              <div className={styles.summaryLabel}>{s.label}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
 
@@ -132,7 +153,15 @@ export function ReportsPage() {
         {REPORT_CATALOG.map((r) => (
           <div key={r.type} className={styles.reportItem}>
             <div>
-              <div className={styles.reportTitle}>{r.title}</div>
+              <div
+                className={`${styles.reportTitle} ${styles.reportTitleClickable}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => exportReport(r.type, 'pdf')}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') exportReport(r.type, 'pdf'); }}
+              >
+                {r.title}
+              </div>
               <div className={styles.reportDate}>{r.dateInfo}</div>
               <div className={styles.reportTags}>
                 {r.tags.map((t) => (
@@ -148,6 +177,36 @@ export function ReportsPage() {
           </div>
         ))}
       </div>
+
+      <Modal
+        open={bucketModal !== null}
+        onClose={() => setBucketModal(null)}
+        title={activeBucket?.label ?? ''}
+        width={600}
+      >
+        {activeBucket?.data && activeBucket.data.length > 0 ? (
+          <table className={styles.bucketTable}>
+            <thead>
+              <tr>
+                {Object.keys(activeBucket.data[0]).map((col) => (
+                  <th key={col}>{col}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {activeBucket.data.map((row: Record<string, unknown>, i: number) => (
+                <tr key={i}>
+                  {Object.values(row).map((val, j) => (
+                    <td key={j}>{String(val)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p>No data available.</p>
+        )}
+      </Modal>
     </div>
   );
 }

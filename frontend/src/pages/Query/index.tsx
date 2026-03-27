@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { runQuery, listTemplates, createTemplate } from '../../api/query';
 import type { QueryRunResponse } from '../../types/query';
 import { Button } from '../../components/primitives/Button';
+import { Modal } from '../../components/primitives/Modal';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import styles from './Query.module.css';
@@ -204,8 +205,10 @@ export function QueryPage() {
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set(['audit_events', 'detections', 'workflow_runs']));
   const [history, setHistory] = useState<HistoryEntry[]>(loadHistory);
   const [showHistory, setShowHistory] = useState(false);
+  const [showExecModal, setShowExecModal] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLPreElement>(null);
+  const resultsTableRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
   const { data: templates } = useQuery({
@@ -379,10 +382,28 @@ export function QueryPage() {
           {results && (
             <>
               <div className={styles.resultsMeta}>
-                {results.row_count} row{results.row_count !== 1 ? 's' : ''} · {results.execution_ms}ms
+                <span
+                  className={styles.clickableMeta}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => resultsTableRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                  onKeyDown={(e) => { if (e.key === 'Enter') resultsTableRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
+                >
+                  {results.row_count} row{results.row_count !== 1 ? 's' : ''}
+                </span>
+                {' · '}
+                <span
+                  className={styles.clickableMeta}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setShowExecModal(true)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setShowExecModal(true); }}
+                >
+                  {results.execution_ms}ms
+                </span>
                 {results.truncated && <span style={{ color: 'var(--attention)' }}> (truncated)</span>}
               </div>
-              <div className={styles.resultsTable}>
+              <div className={styles.resultsTable} ref={resultsTableRef}>
                 <table>
                   <thead>
                     <tr>{results.columns.map((c) => <th key={c}>{c}</th>)}</tr>
@@ -402,6 +423,24 @@ export function QueryPage() {
           )}
         </div>
       </div>
+
+      {results && (
+        <Modal open={showExecModal} onClose={() => setShowExecModal(false)} title="Query Execution Details" width={420}>
+          <dl className={styles.execDetail}>
+            <dt>Query ID</dt>
+            <dd>{results.query_id}</dd>
+            <dt>Execution time</dt>
+            <dd>{results.execution_ms} ms</dd>
+            <dt>Rows returned</dt>
+            <dd>{results.row_count}</dd>
+            <dt>Truncated</dt>
+            <dd>{results.truncated ? 'Yes' : 'No'}</dd>
+          </dl>
+          <p className={styles.execNote}>
+            Additional metrics like rows scanned and bytes processed require query engine instrumentation.
+          </p>
+        </Modal>
+      )}
     </div>
   );
 }

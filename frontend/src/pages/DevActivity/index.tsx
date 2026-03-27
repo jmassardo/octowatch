@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { listEvents } from '../../api/events';
 import { listDetections } from '../../api/detections';
@@ -8,6 +9,7 @@ import { Card, CardHeader } from '../../components/primitives/Card';
 import { Button } from '../../components/primitives/Button';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { Modal } from '../../components/primitives/Modal';
 import { MiniBarChart } from '../../components/charts/MiniBarChart';
 import styles from './DevActivity.module.css';
 
@@ -28,7 +30,10 @@ const TEAM_MEMBERS: Record<string, readonly string[]> = {
 const TEAM_NAMES = Object.keys(TEAM_MEMBERS);
 
 export function DevActivityPage() {
+  const navigate = useNavigate();
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+  const [othersModalOpen, setOthersModalOpen] = useState(false);
+  const [concentrationModalOpen, setConcentrationModalOpen] = useState(false);
   const { data: eventData, isLoading: loadingEvents, isError: eventsError, refetch } = useQuery({
     queryKey: ['events', 'dev-activity'],
     queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc' }),
@@ -83,7 +88,7 @@ export function DevActivityPage() {
   }, [eventData?.items, detectionData?.items]);
 
   // Compute work distribution from real event data
-  const { prAuthorshipData, activityConcentrationData, topActorWarning, othersInfo, isReviewData } =
+  const { prAuthorshipData, activityConcentrationData, topActorWarning, othersInfo, othersActors, isReviewData } =
     useMemo(() => {
       const actors = [...actorMap.values()];
       const totalEvents = actors.reduce((s, a) => s + a.eventCount, 0);
@@ -99,6 +104,7 @@ export function DevActivityPage() {
           }[],
           topActorWarning: null as { actor: string; pct: number } | null,
           othersInfo: null as { count: number; pct: number } | null,
+          othersActors: [] as { handle: string; eventCount: number }[],
           isReviewData: false,
         };
       }
@@ -146,12 +152,18 @@ export function DevActivityPage() {
           ? { actor: topActor.handle, pct: topActor.pct }
           : null;
 
+      const othersActorsList = sorted.slice(5).map((a) => ({
+        handle: a.handle,
+        eventCount: a.eventCount,
+      }));
+
       return {
         prAuthorshipData: prAuthorship,
         activityConcentrationData: concentration,
         topActorWarning: warning,
         othersInfo:
           othersActorCount > 0 ? { count: othersActorCount, pct: othersPct } : null,
+        othersActors: othersActorsList,
         isReviewData: hasReviewData,
       };
     }, [actorMap]);
@@ -204,7 +216,14 @@ export function DevActivityPage() {
           <CardHeader>PR authorship share</CardHeader>
           <div className={styles.barList}>
             {prAuthorshipData.map((d) => (
-              <div key={d.handle} className={styles.barRow}>
+              <div
+                key={d.handle}
+                className={`${styles.barRow} ${styles.clickableBar}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/events?actor=${d.handle}`)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events?actor=${d.handle}`); } }}
+              >
                 <span className={styles.barHandle}>@{d.handle}</span>
                 <div className={styles.barTrack}>
                   <div style={{ width: `${d.pct}%`, height: '100%', background: d.color, borderRadius: 4 }} />
@@ -213,7 +232,13 @@ export function DevActivityPage() {
               </div>
             ))}
             {othersInfo && (
-              <div className={styles.barRow}>
+              <div
+                className={`${styles.barRow} ${styles.clickableBar}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setOthersModalOpen(true)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOthersModalOpen(true); } }}
+              >
                 <span className={styles.barHandle} style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}>others ({othersInfo.count})</span>
                 <div className={styles.barTrack}>
                   <div style={{ width: `${Math.max(1, othersInfo.pct)}%`, height: '100%', background: 'var(--border)', borderRadius: 4 }} />
@@ -228,7 +253,14 @@ export function DevActivityPage() {
           <CardHeader>{isReviewData ? 'Review concentration' : 'Event activity share'}</CardHeader>
           <div className={styles.barList}>
             {activityConcentrationData.map((d) => (
-              <div key={d.handle} className={styles.barRow}>
+              <div
+                key={d.handle}
+                className={`${styles.barRow} ${styles.clickableBar}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/events?actor=${d.handle}`)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events?actor=${d.handle}`); } }}
+              >
                 <span className={styles.barHandle}>@{d.handle}</span>
                 <div className={styles.barTrack}>
                   <div style={{ width: `${d.pct}%`, height: '100%', background: d.color, borderRadius: 4 }} />
@@ -239,7 +271,7 @@ export function DevActivityPage() {
           </div>
           {topActorWarning ? (
             <div className={styles.busWarning}>
-              ⚠ <strong>@{topActorWarning.actor}</strong> accounts for {topActorWarning.pct}% of activity — consider distributing work to reduce bus factor risk
+              ⚠ <strong className={styles.clickableText} role="button" tabIndex={0} onClick={() => navigate(`/events?actor=${topActorWarning.actor}`)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events?actor=${topActorWarning.actor}`); } }}>@{topActorWarning.actor}</strong> accounts for <span className={styles.clickableText} role="button" tabIndex={0} onClick={() => setConcentrationModalOpen(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setConcentrationModalOpen(true); } }}>{topActorWarning.pct}%</span> of activity — consider distributing work to reduce bus factor risk
             </div>
           ) : (
             <div className={styles.busWarning} style={{ color: 'var(--success)' }}>
@@ -280,9 +312,9 @@ export function DevActivityPage() {
               </div>
               <MiniBarChart data={dev.weeklyCounts} color={flagged ? 'var(--danger)' : 'var(--success)'} />
               <div className={styles.devStats}>
-                <span><strong>{dev.repoSet.size}</strong> repos</span>
-                <span><strong>{dev.prCount}</strong> PRs</span>
-                <span style={{ color: flagged ? 'var(--danger)' : undefined }}>
+                <span className={styles.clickableStat} role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); navigate(`/events?actor=${dev.handle}`); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); navigate(`/events?actor=${dev.handle}`); } }}><strong>{dev.repoSet.size}</strong> repos</span>
+                <span className={styles.clickableStat} role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); navigate(`/events?actor=${dev.handle}`); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); navigate(`/events?actor=${dev.handle}`); } }}><strong>{dev.prCount}</strong> PRs</span>
+                <span className={styles.clickableStat} role="button" tabIndex={0} style={{ color: flagged ? 'var(--danger)' : undefined }} onClick={(e) => { e.stopPropagation(); navigate(`/threats?actor=${dev.handle}`); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); navigate(`/threats?actor=${dev.handle}`); } }}>
                   <strong>{detections}</strong> {flagged ? 'detections' : 'flags'}
                 </span>
               </div>
@@ -290,6 +322,38 @@ export function DevActivityPage() {
           );
         })}
       </div>
+
+      <Modal open={othersModalOpen} onClose={() => setOthersModalOpen(false)} title="Other contributors" width={420}>
+        <table className={styles.othersTable}>
+          <thead>
+            <tr><th>Developer</th><th>Events</th></tr>
+          </thead>
+          <tbody>
+            {othersActors.map((a) => (
+              <tr key={a.handle}>
+                <td>@{a.handle}</td>
+                <td>{a.eventCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Modal>
+
+      <Modal open={concentrationModalOpen} onClose={() => setConcentrationModalOpen(false)} title="Activity concentration" width={420}>
+        <table className={styles.othersTable}>
+          <thead>
+            <tr><th>Developer</th><th>Share</th></tr>
+          </thead>
+          <tbody>
+            {activityConcentrationData.map((d) => (
+              <tr key={d.handle}>
+                <td>@{d.handle}</td>
+                <td style={d.textColor ? { color: d.textColor } : undefined}>{d.pct}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Modal>
     </div>
   );
 }

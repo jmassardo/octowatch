@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { DashboardPage } from './index';
+
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return { ...actual, useNavigate: () => mockNavigate };
+});
 
 const mockGetActionsVolumeReport = vi.fn().mockResolvedValue({ data: [] });
 const mockListDetections = vi.fn().mockResolvedValue({ items: [], total: 0 });
@@ -27,6 +34,10 @@ describe('DashboardPage', () => {
   /* ---------------------------------------------------------------- */
   /*  Page header                                                      */
   /* ---------------------------------------------------------------- */
+
+  beforeEach(() => {
+    mockNavigate.mockClear();
+  });
 
   it('renders the page title', () => {
     renderWithProviders(<DashboardPage />);
@@ -199,5 +210,137 @@ describe('DashboardPage with data', () => {
 
     // calendarEvents total = 1500 → "1.5K events"
     expect(await screen.findByText(/1\.5K events/)).toBeInTheDocument();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Severity row navigation                                            */
+/* ------------------------------------------------------------------ */
+
+describe('DashboardPage severity row clicks', () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockGetActionsVolumeReport.mockResolvedValue({ data: [] });
+    mockListDetections.mockResolvedValue({
+      items: [
+        { id: 1, rule_id: 1, rule_name: 'R1', rule_version: 1, severity: 'critical', confidence: 'high', confidence_score: 0.9, status: 'investigating', title: 'T1', description: '', actor: null, org: 'o', repo: null, source_ip: null, window_start: null, window_end: null, event_ids: [], context_data: {}, triggered_at: '2024-01-15T00:00:00Z', assigned_to: null, resolved_at: null, resolution_note: null, tickets: [] },
+        { id: 2, rule_id: 2, rule_name: 'R2', rule_version: 1, severity: 'high', confidence: 'medium', confidence_score: 0.7, status: 'investigating', title: 'T2', description: '', actor: null, org: 'o', repo: null, source_ip: null, window_start: null, window_end: null, event_ids: [], context_data: {}, triggered_at: '2024-01-15T00:00:00Z', assigned_to: null, resolved_at: null, resolution_note: null, tickets: [] },
+      ],
+      total: 2,
+      page: 1,
+      page_size: 100,
+      has_next: false,
+    });
+    mockListEvents.mockResolvedValue({ items: [], total: 0 });
+  });
+
+  it('severity rows have role=button and are clickable', async () => {
+    renderWithProviders(<DashboardPage />);
+
+    await screen.findByText('Critical');
+
+    const criticalRow = screen.getByLabelText(/critical threats/i);
+    expect(criticalRow).toHaveAttribute('role', 'button');
+    expect(criticalRow).toHaveAttribute('tabindex', '0');
+  });
+
+  it('clicking Critical severity navigates to /threats?severity=critical', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DashboardPage />);
+
+    await screen.findByText('Critical');
+
+    const criticalRow = screen.getByLabelText(/critical threats/i);
+    await user.click(criticalRow);
+
+    expect(mockNavigate).toHaveBeenCalledWith('/threats?severity=critical');
+  });
+
+  it('clicking High severity navigates to /threats?severity=high', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DashboardPage />);
+
+    await screen.findByText('High');
+
+    const highRow = screen.getByLabelText(/high threats/i);
+    await user.click(highRow);
+
+    expect(mockNavigate).toHaveBeenCalledWith('/threats?severity=high');
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Platform alerts clickable values                                   */
+/* ------------------------------------------------------------------ */
+
+describe('DashboardPage platform alerts clicks', () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockGetActionsVolumeReport.mockResolvedValue({
+      data: [{
+        bucket: '2024-01-15',
+        workflow_runs_total: 100,
+        workflow_runs_succeeded: 90,
+        workflow_runs_failed: 10,
+        success_rate_pct: 90.0,
+        unique_workflows: 5,
+      }],
+    });
+    mockListDetections.mockResolvedValue({
+      items: [{ id: 1, rule_id: 1, rule_name: 'R', rule_version: 1, severity: 'high', confidence: 'high', confidence_score: 0.9, status: 'investigating', title: 'T', description: '', actor: null, org: 'o', repo: null, source_ip: null, window_start: null, window_end: null, event_ids: [], context_data: {}, triggered_at: '2024-01-15T00:00:00Z', assigned_to: null, resolved_at: null, resolution_note: null, tickets: [] }],
+      total: 1,
+      page: 1,
+      page_size: 100,
+      has_next: false,
+    });
+    mockListEvents.mockResolvedValue({ items: [], total: 500 });
+  });
+
+  it('workflow succeeded count is clickable and navigates to /velocity', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DashboardPage />);
+
+    const succeededLink = await screen.findByLabelText(/90 succeeded.*velocity/i);
+    await user.click(succeededLink);
+
+    expect(mockNavigate).toHaveBeenCalledWith('/velocity');
+  });
+
+  it('workflow failed count is clickable and navigates to /velocity', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DashboardPage />);
+
+    const failedLink = await screen.findByLabelText(/10 failed.*velocity/i);
+    await user.click(failedLink);
+
+    expect(mockNavigate).toHaveBeenCalledWith('/velocity');
+  });
+
+  it('events volume count is clickable and navigates to /events', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DashboardPage />);
+
+    const eventsLink = await screen.findByLabelText(/events.*view all events/i);
+    await user.click(eventsLink);
+
+    expect(mockNavigate).toHaveBeenCalledWith('/events');
+  });
+
+  it('investigating count is clickable and navigates to /threats', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DashboardPage />);
+
+    const threatsLink = await screen.findByLabelText(/1 investigating.*threats/i);
+    await user.click(threatsLink);
+
+    expect(mockNavigate).toHaveBeenCalledWith('/threats');
+  });
+
+  it('clickable values have proper accessibility attributes', async () => {
+    renderWithProviders(<DashboardPage />);
+
+    const succeededLink = await screen.findByLabelText(/90 succeeded.*velocity/i);
+    expect(succeededLink).toHaveAttribute('role', 'button');
+    expect(succeededLink).toHaveAttribute('tabindex', '0');
   });
 });

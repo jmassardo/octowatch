@@ -529,3 +529,198 @@
   padding-top: 8px;
   border-top: 1px solid var(--border-muted);
 }
+
+/* ---- Clickable stat styles ---- */
+
+.clickableStat {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.clickableStat:hover {
+  color: var(--accent);
+  text-decoration-style: solid;
+}
+
+.clickableStat:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.langRowClickable {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  transition: background 0.15s ease;
+}
+
+.langRowClickable:hover {
+  background: rgba(177, 186, 196, 0.08);
+}
+
+.langRowClickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tierCardClickable {
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.tierCardClickable:hover {
+  border-color: var(--accent);
+}
+
+.tierCardClickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.stackedSegmentClickable {
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.stackedSegmentClickable:hover {
+  opacity: 0.8;
+}
+
+.editorCardClickable {
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.editorCardClickable:hover {
+  border-color: var(--accent);
+}
+
+.editorCardClickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.ccrClickable {
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.ccrClickable:hover {
+  background: rgba(177, 186, 196, 0.06);
+}
+
+.ccrClickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.anomalyTeamClickable {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.anomalyTeamClickable:hover {
+  color: var(--accent);
+  text-decoration-style: solid;
+}
+
+.anomalyTeamClickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.severityBadgeClickable {
+  cursor: pointer;
+}
+
+.severityBadgeClickable:hover {
+  opacity: 0.8;
+}
+
+.anomalyCountClickable {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.anomalyCountClickable:hover {
+  color: var(--accent);
+}
+
+.anomalyCountClickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.sampleDataNote {
+  padding: 12px;
+  background: color-mix(in srgb, var(--attention) 12%, transparent);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.modalTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.modalTable thead th {
+  background: var(--canvas-subtle);
+  color: var(--fg-muted);
+  font-weight: 500;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.modalTable tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-muted);
+  vertical-align: middle;
+}
+
+.modalTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.toastPopover {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--fg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 2000;
+  animation: toastSlideIn 0.2s ease;
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

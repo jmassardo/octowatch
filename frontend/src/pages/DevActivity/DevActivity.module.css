@@ -133,3 +133,64 @@
   color: var(--fg);
   font-variant-numeric: tabular-nums;
 }
+
+.clickableBar {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: background 0.15s;
+}
+
+.clickableBar:hover {
+  background: rgba(177, 186, 196, 0.08);
+}
+
+.clickableStat {
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin: -1px -4px;
+  transition: background 0.15s;
+}
+
+.clickableStat:hover {
+  background: rgba(177, 186, 196, 0.12);
+}
+
+.clickableStat:hover strong {
+  color: var(--accent);
+}
+
+.clickableText {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.clickableText:hover {
+  text-decoration: underline;
+}
+
+.othersTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.othersTable th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.othersTable td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.othersTable tbody tr:last-child td {
+  border-bottom: none;
+}
