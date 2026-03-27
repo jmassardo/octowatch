@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import AuthenticatedUser, get_db, require_role
@@ -68,18 +68,22 @@ async def list_detections(
     if scope.scoped_orgs:
         stmt = stmt.where(Detection.org.in_(scope.scoped_orgs))
 
-    count_result = await db.execute(select(Detection.id).where(stmt.whereclause))
-    total = len(count_result.scalars().all())
+    # Count total matching results
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total: int = (await db.execute(count_stmt)).scalar_one()
 
-    stmt = stmt.limit(params.limit).offset(params.offset)
+    # Pagination
+    offset = (params.page - 1) * params.page_size
+    stmt = stmt.limit(params.page_size).offset(offset)
     result = await db.execute(stmt)
     detections = result.scalars().all()
 
     return DetectionListResponse(
         items=[DetectionResponse.model_validate(d) for d in detections],
         total=total,
-        limit=params.limit,
-        offset=params.offset,
+        page=params.page,
+        page_size=params.page_size,
+        has_next=(params.page * params.page_size < total),
     )
 
 

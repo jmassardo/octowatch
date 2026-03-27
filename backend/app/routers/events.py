@@ -23,7 +23,14 @@ async def list_events_endpoint(
 ) -> EventListResponse:
     """List audit events with filtering, pagination, and scope enforcement."""
     scope = await get_user_scope(db, current_user.github_login, current_user.roles)
-    return await list_events(db, params=params, scope=scope)
+    events, total = await list_events(db, params=params, scope=scope)
+    return EventListResponse(
+        items=[EventResponse.model_validate(e) for e in events],
+        total=total,
+        page=params.page,
+        page_size=params.page_size,
+        has_next=(params.page * params.page_size < total),
+    )
 
 
 @router.get("/{event_id}", response_model=EventResponse)
