@@ -1,0 +1,53 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.modeToggle {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--canvas-subtle);
+  padding: 0 12px;
+  gap: 0;
+}
+
+.modeTab {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.modeTab:hover {
+  color: var(--fg);
+}
+
+.modeTab.active {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.editorBody {
+  padding: 16px;
+}
+
+.switchWarning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  margin: 0 16px 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--attention);
+  background: var(--attention-subtle, rgba(210, 153, 34, 0.1));
+  border-radius: 4px;
+}

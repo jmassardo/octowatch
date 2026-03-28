@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from redis.asyncio import Redis
@@ -16,12 +18,179 @@ from app.schemas.detection import (
     RuleVersionResponse,
     SuppressionCreate,
     SuppressionResponse,
+    ValidateConfigRequest,
+    ValidateConfigResponse,
 )
 from app.services import rule_service
 from app.services.detection_service import _SAFE_DISTINCT_COLUMNS
 from app.services.rule_service import invalidate_rule_cache
 
 router = APIRouter(prefix="/rules", tags=["rules"])
+
+# Allowed values for aggregation_key
+_VALID_AGGREGATION_KEYS: frozenset[str] = frozenset({"actor", "repo", "org"})
+
+# Allowed values for distinct_count_field
+_VALID_DISTINCT_FIELDS: frozenset[str] = frozenset(
+    {"actor", "org", "repo", "source_ip", "user_agent", "geo_country_code", "action"}
+)
+
+# Allowed operators for field_conditions
+_VALID_FIELD_OPERATORS: frozenset[str] = frozenset(
+    {
+        "eq",
+        "ne",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "in",
+        "not_in",
+        "contains",
+        "not_contains",
+        "exists",
+        "not_exists",
+        "matches_glob",
+        "scope_contains",
+    }
+)
+
+
+def validate_logic_config(
+    logic_type: str,
+    config: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    """Validate a logic_config dict for the given logic_type.
+
+    Returns a tuple of (errors, warnings).
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    # ── Common validation: action_filters ──────────────────────────────────
+    action_filters = config.get("action_filters")
+    if action_filters is not None:
+        if not isinstance(action_filters, list):
+            errors.append("action_filters must be a list of strings.")
+        elif not all(isinstance(a, str) for a in action_filters):
+            errors.append("Every element in action_filters must be a string.")
+
+    # ── Common validation: field_conditions ────────────────────────────────
+    field_conditions = config.get("field_conditions")
+    if field_conditions is not None:
+        if not isinstance(field_conditions, list):
+            errors.append("field_conditions must be a list of objects.")
+        else:
+            for idx, cond in enumerate(field_conditions):
+                if not isinstance(cond, dict):
+                    errors.append(f"field_conditions[{idx}] must be an object.")
+                    continue
+                for required_key in ("field", "operator", "value"):
+                    if required_key not in cond:
+                        errors.append(
+                            f"field_conditions[{idx}] is missing required key '{required_key}'."
+                        )
+                op = cond.get("operator")
+                if op is not None and op not in _VALID_FIELD_OPERATORS:
+                    errors.append(
+                        f"field_conditions[{idx}].operator '{op}' is not a valid operator."
+                    )
+
+    # ── Common validation: confidence ──────────────────────────────────────
+    confidence = config.get("confidence")
+    if confidence is not None:
+        try:
+            conf_val = float(confidence)
+            if conf_val < 0 or conf_val > 1:
+                errors.append("confidence must be a float between 0 and 1.")
+        except (TypeError, ValueError):
+            errors.append("confidence must be a float between 0 and 1.")
+
+    # ── Type-specific validation ───────────────────────────────────────────
+    if logic_type == "threshold":
+        # threshold (required, int > 0)
+        threshold = config.get("threshold")
+        if threshold is None:
+            errors.append("threshold is required for threshold rules.")
+        elif not isinstance(threshold, int) or threshold <= 0:
+            errors.append("threshold must be an integer greater than 0.")
+
+        # time_window_minutes (required, int > 0)
+        twm = config.get("time_window_minutes")
+        if twm is None:
+            errors.append("time_window_minutes is required for threshold rules.")
+        elif not isinstance(twm, int) or twm <= 0:
+            errors.append("time_window_minutes must be an integer greater than 0.")
+
+        # aggregation_key (required, must be in allowed set)
+        agg_key = config.get("aggregation_key")
+        if agg_key is None:
+            errors.append("aggregation_key is required for threshold rules.")
+        elif agg_key not in _VALID_AGGREGATION_KEYS:
+            errors.append(
+                f"aggregation_key must be one of {sorted(_VALID_AGGREGATION_KEYS)}, "
+                f"got '{agg_key}'."
+            )
+
+        # distinct_count_field (optional, must be in allowed set)
+        dcf = config.get("distinct_count_field")
+        if dcf is not None and dcf not in _VALID_DISTINCT_FIELDS:
+            errors.append(
+                f"distinct_count_field must be one of {sorted(_VALID_DISTINCT_FIELDS)}, "
+                f"got '{dcf}'."
+            )
+
+    elif logic_type == "sequence":
+        # sequence_steps (required, list of {action, min_count}, min 2 steps)
+        steps = config.get("sequence_steps")
+        if steps is None:
+            errors.append("sequence_steps is required for sequence rules.")
+        elif not isinstance(steps, list):
+            errors.append("sequence_steps must be a list.")
+        elif len(steps) < 2:
+            errors.append("sequence_steps must contain at least 2 steps.")
+        else:
+            for idx, step in enumerate(steps):
+                if not isinstance(step, dict):
+                    errors.append(f"sequence_steps[{idx}] must be an object.")
+                    continue
+                if "action" not in step:
+                    errors.append(f"sequence_steps[{idx}] is missing required key 'action'.")
+                if "min_count" not in step:
+                    errors.append(f"sequence_steps[{idx}] is missing required key 'min_count'.")
+                elif not isinstance(step["min_count"], int) or step["min_count"] < 1:
+                    errors.append(f"sequence_steps[{idx}].min_count must be an integer >= 1.")
+
+        # aggregation_key (required)
+        agg_key = config.get("aggregation_key")
+        if agg_key is None:
+            errors.append("aggregation_key is required for sequence rules.")
+        elif agg_key not in _VALID_AGGREGATION_KEYS:
+            errors.append(
+                f"aggregation_key must be one of {sorted(_VALID_AGGREGATION_KEYS)}, "
+                f"got '{agg_key}'."
+            )
+
+        # time_window_minutes (required, int > 0)
+        twm = config.get("time_window_minutes")
+        if twm is None:
+            errors.append("time_window_minutes is required for sequence rules.")
+        elif not isinstance(twm, int) or twm <= 0:
+            errors.append("time_window_minutes must be an integer greater than 0.")
+
+    elif logic_type == "statistical":
+        # x_config with engine field (required)
+        x_config = config.get("x_config")
+        if x_config is None:
+            errors.append("x_config is required for statistical rules.")
+        elif not isinstance(x_config, dict):
+            errors.append("x_config must be an object.")
+        elif "engine" not in x_config:
+            errors.append("x_config.engine is required for statistical rules.")
+
+    # pattern type has no additional required fields beyond the common ones
+
+    return errors, warnings
 
 
 @router.get("", response_model=RuleListResponse)
@@ -78,6 +247,21 @@ async def create_rule(
         )
     rule = await rule_service.create_rule(db, payload=payload, created_by=current_user.github_login)
     return RuleResponse.model_validate(rule)
+
+
+@router.post("/validate-config", response_model=ValidateConfigResponse)
+async def validate_config(
+    payload: ValidateConfigRequest,
+    current_user: AuthenticatedUser = Depends(
+        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
+    ),
+) -> ValidateConfigResponse:
+    """Validate a logic_config structure for a given logic_type.
+
+    Returns validation errors and warnings without persisting anything.
+    """
+    errs, warns = validate_logic_config(payload.logic_type, payload.logic_config)
+    return ValidateConfigResponse(valid=len(errs) == 0, errors=errs, warnings=warns)
 
 
 @router.get("/{rule_id}", response_model=RuleResponse)

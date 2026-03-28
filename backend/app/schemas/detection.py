@@ -96,7 +96,7 @@ class FieldCondition(BaseModel):
     field: str = Field(..., max_length=255)
     operator: str = Field(
         ...,
-        pattern=r"^(eq|ne|gt|gte|lt|lte|in|not_in|contains|not_contains|exists|not_exists|matches_glob)$",
+        pattern=r"^(eq|ne|gt|gte|lt|lte|in|not_in|contains|not_contains|exists|not_exists|matches_glob|scope_contains)$",
     )
     value: Any = None
 
@@ -206,3 +206,18 @@ class RuleListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class ValidateConfigRequest(BaseModel):
+    """Request body for POST /rules/validate-config."""
+
+    logic_type: str = Field(..., pattern=r"^(threshold|pattern|sequence|statistical)$")
+    logic_config: dict[str, Any]
+
+
+class ValidateConfigResponse(BaseModel):
+    """Response for POST /rules/validate-config."""
+
+    valid: bool
+    errors: list[str] = []
+    warnings: list[str] = []

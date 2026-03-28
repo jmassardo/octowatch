@@ -20,3 +20,34 @@ export function updateRuleStatus(id: number, status: string, enabled?: boolean):
 export function deleteRule(id: number): Promise<void> {
   return api.delete<void>(`/rules/${id}`);
 }
+
+export interface ValidateConfigResponse {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+export function validateRuleConfig(
+  logicType: string,
+  logicConfig: Record<string, unknown>,
+): Promise<ValidateConfigResponse> {
+  return api.post<ValidateConfigResponse>('/rules/validate-config', {
+    logic_type: logicType,
+    logic_config: logicConfig,
+  });
+}
+
+export interface RuleVersionResponse {
+  id: number;
+  rule_id: number;
+  version: number;
+  logic_config: Record<string, unknown>;
+  change_summary: string | null;
+  changed_by: string;
+  git_commit_sha: string | null;
+  created_at: string;
+}
+
+export function listRuleVersions(ruleId: number): Promise<RuleVersionResponse[]> {
+  return api.get<RuleVersionResponse[]>(`/rules/${ruleId}/versions`);
+}

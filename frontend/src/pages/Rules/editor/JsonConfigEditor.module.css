@@ -1,0 +1,147 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.editorWrap {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--canvas-inset);
+}
+
+.editorWrap.hasError {
+  border-color: var(--danger);
+}
+
+.gutter {
+  min-width: 40px;
+  padding: 10px 8px 10px 0;
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-subtle, rgba(125, 133, 144, 0.6));
+  background: var(--canvas-subtle);
+  user-select: none;
+  border-right: 1px solid var(--border-muted);
+  white-space: pre;
+}
+
+.textarea {
+  flex: 1;
+  min-height: 200px;
+  max-height: 500px;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg);
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  tab-size: 2;
+  white-space: pre;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.textarea::placeholder {
+  color: var(--fg-subtle, rgba(125, 133, 144, 0.5));
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.toolbarActions {
+  display: flex;
+  gap: 6px;
+}
+
+.toolBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--canvas-default);
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.toolBtn:hover {
+  background: var(--canvas-subtle);
+  border-color: var(--fg-subtle);
+}
+
+.toolBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.statusDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.valid {
+  color: var(--success, #2ea043);
+}
+
+.valid .statusDot {
+  background: var(--success, #2ea043);
+}
+
+.invalid {
+  color: var(--danger, #da3633);
+}
+
+.invalid .statusDot {
+  background: var(--danger, #da3633);
+}
+
+.errorDetail {
+  font-size: 12px;
+  color: var(--danger, #da3633);
+  padding: 6px 10px;
+  background: var(--danger-subtle, rgba(218, 54, 51, 0.1));
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  line-height: 1.4;
+}
+
+.validationErrors {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.validationError {
+  font-size: 12px;
+  color: var(--danger, #da3633);
+  padding: 4px 8px;
+  background: var(--danger-subtle, rgba(218, 54, 51, 0.1));
+  border-radius: 3px;
+}

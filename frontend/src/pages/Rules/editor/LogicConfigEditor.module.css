@@ -1,0 +1,431 @@
+/* ─── Editor container ──────────────────────────────────────────────── */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ─── Error list ────────────────────────────────────────────────────── */
+
+.errorList {
+  list-style: none;
+  margin: 0;
+  padding: 10px 14px;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid rgba(248, 81, 73, 0.3);
+  border-radius: 6px;
+}
+
+.errorItem {
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.errorItem::before {
+  content: '• ';
+}
+
+/* ─── Sections ──────────────────────────────────────────────────────── */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionHeader {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+  margin: 0;
+}
+
+/* ─── Chip / tag input (ActionFilters) ──────────────────────────────── */
+
+.chipContainer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-height: 36px;
+  cursor: text;
+}
+
+.chipContainer:focus-within {
+  border-color: var(--accent);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--fg);
+  line-height: 1.4;
+}
+
+.chipText {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace;
+}
+
+.chipRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+  border-radius: 2px;
+}
+
+.chipRemove:hover {
+  color: var(--danger);
+}
+
+.chipInput {
+  flex: 1;
+  min-width: 120px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 2px 0;
+}
+
+.chipInput::placeholder {
+  color: var(--fg-subtle);
+}
+
+/* ─── Field conditions ──────────────────────────────────────────────── */
+
+.conditionsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.conditionRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.conditionField {
+  flex: 1;
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  font-family: inherit;
+  min-width: 0;
+}
+
+.conditionField:focus {
+  border-color: var(--accent);
+}
+
+.conditionOperator {
+  width: 150px;
+  flex-shrink: 0;
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  font-family: inherit;
+}
+
+.conditionOperator:focus {
+  border-color: var(--accent);
+}
+
+.conditionValue {
+  flex: 1;
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  font-family: inherit;
+  min-width: 0;
+}
+
+.conditionValue:focus {
+  border-color: var(--accent);
+}
+
+.conditionValue::placeholder,
+.conditionField::placeholder {
+  color: var(--fg-subtle);
+}
+
+/* ─── Add / Remove buttons ──────────────────────────────────────────── */
+
+.addBtn {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-muted);
+  font-family: inherit;
+}
+
+.addBtn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.removeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--fg-muted);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.removeBtn:hover {
+  color: var(--danger);
+  border-color: rgba(248, 81, 73, 0.3);
+  background: rgba(248, 81, 73, 0.1);
+}
+
+/* ─── Confidence slider ─────────────────────────────────────────────── */
+
+.sliderRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.slider {
+  flex: 1;
+  accent-color: var(--accent);
+  height: 4px;
+  cursor: pointer;
+}
+
+.sliderValue {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  min-width: 36px;
+  text-align: right;
+}
+
+/* ─── Form field grid (threshold / sequence / statistical) ──────────── */
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fieldGroupCheck {
+  display: flex;
+  align-items: center;
+  grid-column: 1 / -1;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.fieldInput,
+.fieldSelect {
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.fieldInput:focus,
+.fieldSelect:focus {
+  border-color: var(--accent);
+}
+
+.checkLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+/* ─── Sequence steps ────────────────────────────────────────────────── */
+
+.stepsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stepRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.stepBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.stepFields {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.stepActionInput {
+  flex: 1;
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  font-family: inherit;
+  min-width: 0;
+}
+
+.stepActionInput:focus {
+  border-color: var(--accent);
+}
+
+.stepActionInput::placeholder {
+  color: var(--fg-subtle);
+}
+
+.stepMinCountLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.stepMinCountText {
+  font-size: 12px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.stepMinCountInput {
+  width: 60px;
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  padding: 6px 8px;
+  outline: none;
+  font-family: inherit;
+}
+
+.stepMinCountInput:focus {
+  border-color: var(--accent);
+}
+
+.stepControls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.moveBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.moveBtn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.moveBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}

@@ -32,11 +32,13 @@ _RULES = [
         "high",
         "threshold",
         {
-            "window_seconds": 3600,
+            "time_window_minutes": 60,
             "threshold": 15,
-            "group_by": "actor",
+            "aggregation_key": "actor",
             "distinct_count_field": "repo",
-            "conditions": [{"field": "action", "op": "eq", "value": "git.clone"}],
+            "action_filters": ["git.clone"],
+            "field_conditions": [],
+            "confidence": 0.5,
         },
         True,
     ),
@@ -49,10 +51,11 @@ _RULES = [
         "high",
         "pattern",
         {
-            "conditions": [
-                {"field": "action", "op": "eq", "value": "personal_access_token.create"},
-                {"field": "data.scope", "op": "contains", "value": "repo"},
-            ]
+            "action_filters": ["personal_access_token.create"],
+            "field_conditions": [
+                {"field": "data.scope", "operator": "contains", "value": "repo"},
+            ],
+            "confidence": 0.5,
         },
         True,
     ),
@@ -65,11 +68,12 @@ _RULES = [
         "high",
         "pattern",
         {
-            "conditions": [
-                {"field": "action", "op": "eq", "value": "personal_access_token.create"},
-                {"field": "data.token_type", "op": "eq", "value": "fine-grained"},
-                {"field": "data.repository_selection", "op": "eq", "value": "all"},
-            ]
+            "action_filters": ["personal_access_token.create"],
+            "field_conditions": [
+                {"field": "data.token_type", "operator": "eq", "value": "fine-grained"},
+                {"field": "data.repository_selection", "operator": "eq", "value": "all"},
+            ],
+            "confidence": 0.5,
         },
         True,
     ),
@@ -82,10 +86,11 @@ _RULES = [
         "high",
         "pattern",
         {
-            "conditions": [
-                {"field": "action", "op": "eq", "value": "integration_installation.create"},
-                {"field": "data.repository_selection", "op": "eq", "value": "all"},
-            ]
+            "action_filters": ["integration_installation.create"],
+            "field_conditions": [
+                {"field": "data.repository_selection", "operator": "eq", "value": "all"},
+            ],
+            "confidence": 0.5,
         },
         True,
     ),
@@ -98,9 +103,9 @@ _RULES = [
         "high",
         "pattern",
         {
-            "conditions": [
-                {"field": "action", "op": "eq", "value": "secret_scanning.push_protection.bypass"}
-            ]
+            "action_filters": ["secret_scanning.push_protection.bypass"],
+            "field_conditions": [],
+            "confidence": 0.5,
         },
         True,
     ),
@@ -113,16 +118,12 @@ _RULES = [
         "high",
         "pattern",
         {
-            "conditions": [
-                {
-                    "field": "action",
-                    "op": "in",
-                    "value": [
-                        "branch_protection_rule.policy_override",
-                        "protected_branch.update",
-                    ],
-                }
-            ]
+            "action_filters": [
+                "branch_protection_rule.policy_override",
+                "protected_branch.update",
+            ],
+            "field_conditions": [],
+            "confidence": 0.5,
         },
         True,
     ),
@@ -135,14 +136,16 @@ _RULES = [
         "high",
         "threshold",
         {
-            "window_seconds": 604800,
+            "time_window_minutes": 10080,
             "threshold": 3,
-            "group_by": "actor",
-            "actions": [
+            "aggregation_key": "actor",
+            "action_filters": [
                 "secret_scanning.push_protection.bypass",
                 "branch_protection_rule.policy_override",
                 "protected_branch.update",
             ],
+            "field_conditions": [],
+            "confidence": 0.5,
         },
         True,
     ),
@@ -158,21 +161,18 @@ _RULES = [
         "medium",
         "pattern",
         {
-            "conditions": [
-                {
-                    "field": "action",
-                    "op": "in",
-                    "value": [
-                        "secret_scanning.push_protection.bypass",
-                        "branch_protection_rule.policy_override",
-                    ],
-                },
+            "action_filters": [
+                "secret_scanning.push_protection.bypass",
+                "branch_protection_rule.policy_override",
+            ],
+            "field_conditions": [
                 {
                     "field": "data.user_role",
-                    "op": "in",
+                    "operator": "in",
                     "value": ["owner", "admin", "org_owner"],
                 },
-            ]
+            ],
+            "confidence": 0.5,
         },
         False,
     ),
@@ -185,14 +185,11 @@ _RULES = [
         "high",
         "pattern",
         {
-            "conditions": [
-                {
-                    "field": "action",
-                    "op": "in",
-                    "value": ["org.add_outside_collaborator", "repo.add_member"],
-                },
-                {"field": "data.role", "op": "eq", "value": "outside_collaborator"},
-            ]
+            "action_filters": ["org.add_outside_collaborator", "repo.add_member"],
+            "field_conditions": [
+                {"field": "data.role", "operator": "eq", "value": "outside_collaborator"},
+            ],
+            "confidence": 0.5,
         },
         True,
     ),
@@ -208,22 +205,19 @@ _RULES = [
         "high",
         "pattern",
         {
-            "conditions": [
-                {
-                    "field": "action",
-                    "op": "in",
-                    "value": [
-                        "org.add_outside_collaborator",
-                        "repo.add_member",
-                        "repo.update_member",
-                    ],
-                },
+            "action_filters": [
+                "org.add_outside_collaborator",
+                "repo.add_member",
+                "repo.update_member",
+            ],
+            "field_conditions": [
                 {
                     "field": "data.role",
-                    "op": "in",
+                    "operator": "in",
                     "value": ["write", "maintain", "admin"],
                 },
-            ]
+            ],
+            "confidence": 0.5,
         },
         True,
     ),
@@ -239,14 +233,11 @@ _RULES = [
         "medium",
         "pattern",
         {
-            "conditions": [
-                {
-                    "field": "action",
-                    "op": "eq",
-                    "value": "enterprise.grant_business_plus_features",
-                },
-                {"field": "data.enterprise_role", "op": "eq", "value": "guest"},
-            ]
+            "action_filters": ["enterprise.grant_business_plus_features"],
+            "field_conditions": [
+                {"field": "data.enterprise_role", "operator": "eq", "value": "guest"},
+            ],
+            "confidence": 0.5,
         },
         False,
     ),

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { listRules, createRule, updateRule, deleteRule } from '../../api/rules';
+import { listRules, createRule, updateRule, deleteRule, listRuleVersions } from '../../api/rules';
+import type { RuleVersionResponse } from '../../api/rules';
 import type { RuleResponse, RuleCreate, RuleCategory } from '../../types/detections';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
@@ -9,6 +10,8 @@ import { Modal } from '../../components/primitives/Modal';
 import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { RuleConfigEditorContainer } from './editor/RuleConfigEditorContainer';
+import { JsonConfigEditor } from './editor/JsonConfigEditor';
 import styles from './Rules.module.css';
 
 const CATEGORIES: RuleCategory[] = [
@@ -27,6 +30,21 @@ const SEVERITY_VARIANT: Record<string, 'danger' | 'attention' | 'success' | 'mut
   low: 'muted',
 };
 
+function getDefaultConfig(logicType: string): Record<string, unknown> {
+  switch (logicType) {
+    case 'pattern':
+      return { action_filters: [], field_conditions: [], confidence: 0.5 };
+    case 'threshold':
+      return { action_filters: [], field_conditions: [], threshold: 10, time_window_minutes: 60, aggregation_key: 'actor', confidence: 0.5 };
+    case 'sequence':
+      return { action_filters: [], sequence_steps: [{ action: '', min_count: 1 }, { action: '', min_count: 1 }], aggregation_key: 'actor', time_window_minutes: 60, confidence: 0.5 };
+    case 'statistical':
+      return { action_filters: [], field_conditions: [], time_window_minutes: 60, confidence: 0.65, x_config: { engine: 'impossible_travel', distance_threshold_km: 500, speed_threshold_kmh: 900, suppress_proxy_ips: true } };
+    default:
+      return {};
+  }
+}
+
 function RuleForm({
   initial,
   onSave,
@@ -44,14 +62,27 @@ function RuleForm({
   const [confidence, setConfidence] = useState(initial?.default_confidence ?? 'medium');
   const [logicType, setLogicType] = useState(initial?.logic_type ?? 'threshold');
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
+  const [logicConfig, setLogicConfig] = useState<Record<string, unknown>>(
+    initial?.logic_config ?? getDefaultConfig(logicType),
+  );
+  const [changeSummary, setChangeSummary] = useState('');
+
+  function handleLogicTypeChange(newType: string) {
+    setLogicType(newType);
+    // Only reset config to defaults when creating a new rule
+    if (!initial) {
+      setLogicConfig(getDefaultConfig(newType));
+    }
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     onSave({
       name, slug, description: description || undefined, category,
       default_severity: severity, default_confidence: confidence,
-      logic_type: logicType, logic_config: initial?.logic_config ?? {},
+      logic_type: logicType, logic_config: logicConfig,
       enabled,
+      ...(initial && changeSummary ? { change_summary: changeSummary } : {}),
     });
   }
 
@@ -128,7 +159,7 @@ function RuleForm({
           <select
             className={styles.formSelect}
             value={logicType}
-            onChange={(e) => setLogicType(e.target.value)}
+            onChange={(e) => handleLogicTypeChange(e.target.value)}
           >
             {LOGIC_TYPES.map((t) => (
               <option key={t} value={t}>{t}</option>
@@ -146,11 +177,137 @@ function RuleForm({
           Enabled
         </label>
       </div>
+
+      <div className={styles.editorSection}>
+        <div className={styles.editorSectionHeader}>Detection Logic</div>
+        <RuleConfigEditorContainer
+          logicType={logicType as 'pattern' | 'threshold' | 'sequence' | 'statistical'}
+          config={logicConfig}
+          onChange={setLogicConfig}
+        />
+      </div>
+
+      {initial && (
+        <div className={styles.formRow}>
+          <label className={styles.formLabel}>Change summary</label>
+          <textarea
+            className={styles.formTextarea}
+            value={changeSummary}
+            onChange={(e) => setChangeSummary(e.target.value)}
+            placeholder="Describe what changed..."
+            rows={2}
+          />
+        </div>
+      )}
+
       <div className={styles.formActions}>
         <Button variant="default" onClick={onCancel} type="button">Cancel</Button>
         <Button variant="primary" type="submit">Save rule</Button>
       </div>
     </form>
+  );
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function VersionHistory({ rule }: { rule: RuleResponse }) {
+  const [viewConfig, setViewConfig] = useState<RuleVersionResponse | null>(null);
+
+  const { data: versions, isLoading, isError } = useQuery({
+    queryKey: ['rule-versions', rule.id],
+    queryFn: () => listRuleVersions(rule.id),
+  });
+
+  if (isLoading) return <Spinner />;
+  if (isError) return <ErrorBanner message="Failed to load version history" />;
+
+  if (viewConfig) {
+    return (
+      <div>
+        <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, fontWeight: 500 }}>
+            Version {viewConfig.version} — Config
+          </span>
+          <Button variant="default" size="sm" onClick={() => setViewConfig(null)}>
+            ← Back
+          </Button>
+        </div>
+        <div className={styles.versionConfigWrap}>
+          <JsonConfigEditor
+            config={viewConfig.logic_config}
+            onChange={() => {}}
+            readOnly
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <dl className={styles.versionDetail}>
+        <dt>Rule name</dt>
+        <dd>{rule.name}</dd>
+        <dt>Current version</dt>
+        <dd>v{rule.version}.0.0</dd>
+      </dl>
+
+      {versions && versions.length > 0 ? (
+        <div className={styles.versionTableWrap} style={{ marginTop: 16 }}>
+          <table className={styles.versionTable}>
+            <thead>
+              <tr>
+                <th>Version</th>
+                <th>Changed by</th>
+                <th>Date</th>
+                <th>Summary</th>
+                <th>Commit</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {versions.map((v) => (
+                <tr key={v.id}>
+                  <td>v{v.version}</td>
+                  <td>{v.changed_by}</td>
+                  <td>{formatDate(v.created_at)}</td>
+                  <td>{v.change_summary ?? '—'}</td>
+                  <td>
+                    {v.git_commit_sha ? (
+                      <span className={styles.versionHash}>
+                        {v.git_commit_sha.slice(0, 7)}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setViewConfig(v)}
+                    >
+                      View config
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className={styles.versionNote}>No version history available.</p>
+      )}
+    </div>
   );
 }
 
@@ -283,14 +440,14 @@ export function RulesPage() {
         </div>
       )}
 
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Create rule">
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Create rule" width={720}>
         <RuleForm
           onSave={(v) => createMutation.mutate(v)}
           onCancel={() => setShowCreate(false)}
         />
       </Modal>
 
-      <Modal open={!!editRule} onClose={() => setEditRule(null)} title="Edit rule">
+      <Modal open={!!editRule} onClose={() => setEditRule(null)} title="Edit rule" width={720}>
         {editRule && (
           <RuleForm
             initial={editRule}
@@ -300,19 +457,9 @@ export function RulesPage() {
         )}
       </Modal>
 
-      <Modal open={!!versionRule} onClose={() => setVersionRule(null)} title="Version details">
+      <Modal open={!!versionRule} onClose={() => setVersionRule(null)} title="Version history" width={720}>
         {versionRule && (
-          <dl className={styles.versionDetail}>
-            <dt>Rule name</dt>
-            <dd>{versionRule.name}</dd>
-            <dt>Current version</dt>
-            <dd>v{versionRule.version}.0.0</dd>
-            <dt>Last updated</dt>
-            <dd>{versionRule.updated_at ?? 'Unknown'}</dd>
-            <dt>Status</dt>
-            <dd>{versionRule.status === 'active' ? 'active' : 'draft'}</dd>
-            <p className={styles.versionNote}>Full version history requires rule versioning API integration.</p>
-          </dl>
+          <VersionHistory rule={versionRule} />
         )}
       </Modal>
 

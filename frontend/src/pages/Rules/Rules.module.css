@@ -145,3 +145,60 @@
   padding-top: 8px;
   margin-top: 4px;
 }
+
+/* Editor section */
+.editorSection {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.editorSectionHeader {
+  background: var(--canvas-subtle);
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Version history table */
+.versionTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.versionTable th {
+  background: var(--canvas-subtle);
+  padding: 6px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+
+.versionTable td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.versionHash {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.versionTableWrap {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: auto;
+}
+
+.versionConfigWrap {
+  margin-top: 12px;
+}

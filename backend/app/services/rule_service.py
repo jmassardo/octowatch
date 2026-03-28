@@ -133,9 +133,11 @@ async def create_rule(
         name=payload.name,
         slug=payload.slug,
         description=payload.description,
+        category=payload.category,
+        default_severity=payload.default_severity,
+        default_confidence=payload.default_confidence,
         logic_type=payload.logic_type,
         logic_config=payload.logic_config,
-        default_severity=payload.default_severity,
         enabled=payload.enabled,
         status="draft",
         version=1,
@@ -168,10 +170,13 @@ async def update_rule(
 
     rule.name = payload.name
     rule.description = payload.description
+    rule.category = payload.category
+    rule.default_severity = payload.default_severity
+    rule.default_confidence = payload.default_confidence
     rule.logic_type = payload.logic_type
     rule.logic_config = payload.logic_config
-    rule.default_severity = payload.default_severity
     rule.enabled = payload.enabled
+    rule.updated_by = updated_by
     rule.updated_at = datetime.now(UTC)
 
     if old_config_hash != new_config_hash:
