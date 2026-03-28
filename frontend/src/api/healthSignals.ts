@@ -324,7 +324,7 @@ export interface ExtendedHealthSummary extends HealthSummary {
 }
 
 export function getSystemHealth(): Promise<SystemHealthResponse> {
-  return api.get<SystemHealthResponse>('/health-signals/system-health');
+  return api.get<SystemHealthResponse>('/health-signals/system');
 }
 
 export function getExtendedHealthSummary(): Promise<ExtendedHealthSummary> {
