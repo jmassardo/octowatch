@@ -7,6 +7,8 @@ import { IntegrationsPage } from './index';
 vi.mock('../../api/integrations', () => ({
   listTicketingConfigs: vi.fn().mockResolvedValue([]),
   listNotificationConfigs: vi.fn().mockResolvedValue([]),
+  createNotificationConfig: vi.fn().mockResolvedValue({ id: 1, channel_type: 'slack', display_name: 'Slack', target: 'https://hooks.slack.com/services/test', notify_severities: ['critical', 'high'], cooldown_seconds: 3600, enabled: true, created_by: 'admin', created_at: '2025-01-01T00:00:00Z' }),
+  createTicketingConfig: vi.fn().mockResolvedValue({ id: 1, provider: 'jira', display_name: 'Jira', target: 'https://test.atlassian.net', project_key: 'SEC', default_issue_type: 'Bug', auto_create: false, auto_create_severities: ['critical', 'high'], enabled: true, created_by: 'admin', created_at: '2025-01-01T00:00:00Z' }),
 }));
 
 const mockUpdateSyncConfig = vi.fn().mockResolvedValue({
@@ -110,24 +112,23 @@ describe('IntegrationsPage', () => {
     expect(screen.getByText(/automatically create jira issues/i)).toBeInTheDocument();
   });
 
-  it('shows Coming Soon buttons for unimplemented integrations', () => {
+  it('shows Configure buttons for all integrations', () => {
     renderWithProviders(<IntegrationsPage />);
 
     const slackCard = screen.getByTestId('mkt-card-slack');
-    const comingSoonBtn = within(slackCard).getByRole('button', { name: /coming soon/i });
-    expect(comingSoonBtn).toBeDisabled();
+    expect(within(slackCard).getByRole('button', { name: /configure/i })).toBeEnabled();
 
     const sentinelCard = screen.getByTestId('mkt-card-microsoft-sentinel');
-    expect(within(sentinelCard).getByRole('button', { name: /coming soon/i })).toBeDisabled();
+    expect(within(sentinelCard).getByRole('button', { name: /configure/i })).toBeEnabled();
 
     const splunkCard = screen.getByTestId('mkt-card-splunk');
-    expect(within(splunkCard).getByRole('button', { name: /coming soon/i })).toBeDisabled();
+    expect(within(splunkCard).getByRole('button', { name: /configure/i })).toBeEnabled();
 
     const pdCard = screen.getByTestId('mkt-card-pagerduty');
-    expect(within(pdCard).getByRole('button', { name: /coming soon/i })).toBeDisabled();
+    expect(within(pdCard).getByRole('button', { name: /configure/i })).toBeEnabled();
 
     const jiraCard = screen.getByTestId('mkt-card-jira');
-    expect(within(jiraCard).getByRole('button', { name: /coming soon/i })).toBeDisabled();
+    expect(within(jiraCard).getByRole('button', { name: /configure/i })).toBeEnabled();
   });
 
   it('shows Not installed status for unimplemented integrations', () => {
@@ -286,11 +287,11 @@ describe('IntegrationsPage', () => {
   /*  Clickable features                                                */
   /* ---------------------------------------------------------------- */
 
-  it('GitHub Enterprise status badge is clickable', () => {
+  it('all integration status badges are clickable', () => {
     const { container } = renderWithProviders(<IntegrationsPage />);
     const clickableStatuses = container.querySelectorAll('.clickableStatus');
-    // Only GitHub Enterprise has clickable status (the others are coming soon)
-    expect(clickableStatuses.length).toBe(1);
+    // All 6 integration cards have clickable status
+    expect(clickableStatuses.length).toBe(6);
     clickableStatuses.forEach((el) => {
       expect(el.getAttribute('tabindex')).toBe('0');
     });

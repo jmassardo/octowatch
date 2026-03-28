@@ -1,8 +1,11 @@
 import { useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Label } from '../../components/primitives/Label';
 import { Modal } from '../../components/primitives/Modal';
+import { Spinner } from '../../components/primitives/Spinner';
+import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
-import { ANOMALIES } from './copilotData';
+import { getCopilotAnomalies } from '../../api/copilotMetrics';
 import styles from './Copilot.module.css';
 
 const SEVERITY_VARIANT = {
@@ -14,6 +17,13 @@ const SEVERITY_VARIANT = {
 type SeverityFilter = 'high' | 'medium' | 'low' | null;
 
 export function AnomaliesPane() {
+  const { data: anomalyData, isLoading, isError } = useQuery({
+    queryKey: ['copilot', 'anomalies'],
+    queryFn: getCopilotAnomalies,
+    staleTime: 300_000,
+  });
+  const anomalies = anomalyData?.anomalies ?? [];
+
   const anomalyListRef = useRef<HTMLDivElement>(null);
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>(null);
   const [teamModal, setTeamModal] = useState<string | null>(null);
@@ -29,15 +39,28 @@ export function AnomaliesPane() {
   }
 
   const filteredAnomalies = severityFilter
-    ? ANOMALIES.filter((a) => a.severity === severityFilter)
-    : ANOMALIES;
+    ? anomalies.filter((a) => a.severity === severityFilter)
+    : anomalies;
 
-  const selectedAnomaly = teamModal ? ANOMALIES.find((a) => a.team === teamModal) : null;
+  const selectedAnomaly = teamModal ? anomalies.find((a) => a.team === teamModal) : null;
 
   return (
     <>
-      <SampleDataBanner message="Anomaly data below is illustrative. Requires Copilot Metrics API integration for live data." />
+      {anomalyData?.error && (
+        <SampleDataBanner message={anomalyData.message ?? 'Anomaly data is unavailable.'} />
+      )}
 
+      {isError && <ErrorBanner message="Failed to load anomaly data" />}
+      {isLoading && <Spinner />}
+
+      {!isLoading && !isError && anomalies.length === 0 && !anomalyData?.error && (
+        <div className={styles.insightNote} style={{ textAlign: 'center', padding: '32px 0' }}>
+          ✅ No anomalies detected. This is a good sign!
+        </div>
+      )}
+
+      {!isLoading && !isError && anomalies.length > 0 && (
+        <>
       <div className={styles.insightNote}>
         <span
           className={styles.anomalyCountClickable}
@@ -46,7 +69,7 @@ export function AnomaliesPane() {
           onClick={handleCountClick}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCountClick(); } }}
         >
-          {ANOMALIES.length} anomalies
+          {anomalies.length} anomalies
         </span>
         {' '}detected in the last 7 days based on usage pattern analysis
         {severityFilter && (
@@ -144,6 +167,8 @@ export function AnomaliesPane() {
           </div>
         )}
       </Modal>
+        </>
+      )}
     </>
   );
 }

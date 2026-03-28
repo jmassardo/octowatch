@@ -26,7 +26,7 @@ export interface TicketingConfigCreate {
 
 export interface NotificationConfigResponse {
   readonly id: number;
-  readonly channel_type: 'slack' | 'email';
+  readonly channel_type: 'slack' | 'email' | 'webhook' | 'pagerduty';
   readonly display_name: string;
   readonly target: string;
   readonly notify_severities: readonly string[];
@@ -37,7 +37,7 @@ export interface NotificationConfigResponse {
 }
 
 export interface NotificationConfigCreate {
-  channel_type: 'slack' | 'email';
+  channel_type: 'slack' | 'email' | 'webhook' | 'pagerduty';
   display_name: string;
   target: string;
   credential_env_var?: string;

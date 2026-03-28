@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { OverviewPane } from './OverviewPane';
 
 vi.mock('echarts-for-react', () => ({
@@ -9,6 +10,24 @@ vi.mock('echarts-for-react', () => ({
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
+}));
+
+vi.mock('../../api/copilotMetrics', () => ({
+  getCopilotOverview: vi.fn().mockResolvedValue({
+    acceptance_rate_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    acceptance_rate_values: [24, 26, 27, 25, 28, 31, 29],
+    acceptance_threshold: 25,
+    languages: [
+      { lang: 'TypeScript', pct: 38, color: '#3fb950' },
+      { lang: 'Python', pct: 34, color: '#3fb950' },
+      { lang: 'Go', pct: 29, color: '#26a641' },
+      { lang: 'Java', pct: 21, color: '#d29922' },
+      { lang: 'C++', pct: 14, color: '#f85149' },
+      { lang: 'Rust', pct: 11, color: '#f85149' },
+    ],
+    total_active_users: 120,
+    total_engaged_users: 98,
+  }),
 }));
 
 const mockSeatBuckets = [
@@ -32,14 +51,19 @@ const mockCopilotBuckets = [
 ];
 
 function renderPane() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    <OverviewPane
-      seatBuckets={mockSeatBuckets}
-      copilotBuckets={mockCopilotBuckets}
-      isLoading={false}
-      isError={false}
-      onRetry={() => {}}
-    />,
+    <QueryClientProvider client={queryClient}>
+      <OverviewPane
+        seatBuckets={mockSeatBuckets}
+        copilotBuckets={mockCopilotBuckets}
+        isLoading={false}
+        isError={false}
+        onRetry={() => {}}
+      />
+    </QueryClientProvider>,
   );
 }
 
@@ -115,9 +139,9 @@ describe('OverviewPane clickable stats', () => {
     ).toBeInTheDocument();
   });
 
-  it('makes language bar rows clickable with proper accessibility', () => {
+  it('makes language bar rows clickable with proper accessibility', async () => {
     renderPane();
-    const tsRow = screen.getByText('TypeScript').closest('[role="button"]');
+    const tsRow = (await screen.findByText('TypeScript')).closest('[role="button"]');
     expect(tsRow).toBeTruthy();
     expect(tsRow).toHaveAttribute('tabIndex', '0');
   });
@@ -125,7 +149,7 @@ describe('OverviewPane clickable stats', () => {
   it('opens language modal when clicking a language row', async () => {
     const user = userEvent.setup();
     renderPane();
-    const tsRow = screen.getByText('TypeScript').closest('[role="button"]')!;
+    const tsRow = (await screen.findByText('TypeScript')).closest('[role="button"]')!;
     await user.click(tsRow);
     expect(screen.getByText('TypeScript — Acceptance rate details')).toBeInTheDocument();
     expect(screen.getByText(/acceptance rate of/)).toBeInTheDocument();
@@ -134,7 +158,7 @@ describe('OverviewPane clickable stats', () => {
   it('opens language modal for different languages', async () => {
     const user = userEvent.setup();
     renderPane();
-    const pyRow = screen.getByText('Python').closest('[role="button"]')!;
+    const pyRow = (await screen.findByText('Python')).closest('[role="button"]')!;
     await user.click(pyRow);
     expect(screen.getByText('Python — Acceptance rate details')).toBeInTheDocument();
   });

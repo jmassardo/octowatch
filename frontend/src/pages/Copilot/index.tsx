@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getSeatUtilizationReport, getCopilotSeatsReport } from '../../api/reports';
+import { getCopilotAnomalies } from '../../api/copilotMetrics';
 import type { SeatUtilizationBucket, CopilotSeatsBucket } from '../../types/reports';
 import { CopilotTabBar } from './CopilotTabBar';
 import type { CopilotTab } from './CopilotTabBar';
@@ -9,7 +10,6 @@ import { AdoptionPane } from './AdoptionPane';
 import { ModelsPane } from './ModelsPane';
 import { LicensePane } from './LicensePane';
 import { AnomaliesPane } from './AnomaliesPane';
-import { ANOMALIES } from './copilotData';
 import styles from './Copilot.module.css';
 
 export function CopilotPage() {
@@ -30,6 +30,12 @@ export function CopilotPage() {
     queryFn: () => getCopilotSeatsReport({ window_days: 30 }),
   });
 
+  const { data: anomalyData } = useQuery({
+    queryKey: ['copilot', 'anomalies'],
+    queryFn: getCopilotAnomalies,
+    staleTime: 300_000,
+  });
+
   const seatBuckets = (seatUtilData?.data ?? []) as unknown as SeatUtilizationBucket[];
   const copilotBuckets = (copilotData?.data ?? []) as unknown as CopilotSeatsBucket[];
 
@@ -43,7 +49,7 @@ export function CopilotPage() {
       <CopilotTabBar
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        anomalyCount={ANOMALIES.length}
+        anomalyCount={anomalyData?.anomalies?.length ?? 0}
       />
 
       {activeTab === 'overview' && (

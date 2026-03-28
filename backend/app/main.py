@@ -25,6 +25,7 @@ from app.database import dispose_pool, warm_up_pool
 from app.routers import (
     admin,
     auth,
+    copilot,
     detections,
     events,
     health,
@@ -347,6 +348,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router, prefix=API_PREFIX)
     app.include_router(integrations.router, prefix=API_PREFIX)
     app.include_router(health_signals.router, prefix=API_PREFIX)
+    app.include_router(copilot.router, prefix=API_PREFIX)
     app.include_router(sync.router, prefix=API_PREFIX + "/admin")
 
     return app

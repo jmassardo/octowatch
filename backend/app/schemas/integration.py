@@ -38,7 +38,7 @@ class TicketingConfigResponse(BaseModel):
 
 
 class NotificationConfigCreate(BaseModel):
-    channel_type: str = Field(..., pattern=r"^(slack|email)$")
+    channel_type: str = Field(..., pattern=r"^(slack|email|webhook|pagerduty)$")
     display_name: str = Field(..., min_length=1, max_length=255)
     target: str = Field(..., max_length=1000)
     credential_env_var: str | None = Field(None, max_length=255)

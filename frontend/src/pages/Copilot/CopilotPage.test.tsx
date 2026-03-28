@@ -23,6 +23,76 @@ vi.mock('../../api/reports', () => ({
   getCopilotSeatsReport: vi.fn().mockResolvedValue({ data: [] }),
 }));
 
+vi.mock('../../api/copilotMetrics', () => ({
+  getCopilotOverview: vi.fn().mockResolvedValue({
+    acceptance_rate_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    acceptance_rate_values: [24, 26, 27, 25, 28, 31, 29],
+    acceptance_threshold: 25,
+    languages: [
+      { lang: 'TypeScript', pct: 38, color: '#3fb950' },
+      { lang: 'Python', pct: 34, color: '#3fb950' },
+    ],
+    total_active_users: 120,
+    total_engaged_users: 98,
+  }),
+  getCopilotAnomalies: vi.fn().mockResolvedValue({
+    anomalies: [
+      {
+        id: 1,
+        severity: 'high',
+        title: 'Sudden drop in acceptance rate',
+        description: 'Acceptance rate dropped 15% in Backend team.',
+        timestamp: '2 hours ago',
+        team: 'Backend',
+      },
+      {
+        id: 2,
+        severity: 'medium',
+        title: 'Unusual seat churn detected',
+        description: '12 seats were revoked.',
+        timestamp: '6 hours ago',
+        team: 'Platform',
+      },
+      {
+        id: 3,
+        severity: 'low',
+        title: 'Knowledge base usage spike',
+        description: 'Knowledge base queries increased 340%.',
+        timestamp: '1 day ago',
+        team: 'ML/AI',
+      },
+    ],
+  }),
+  getCopilotAdoption: vi.fn().mockResolvedValue({
+    tiers: [
+      { id: 'power', label: 'Power Users', count: 34, color: '#3fb950', desc: 'Active every day' },
+      { id: 'regular', label: 'Regular', count: 68, color: '#58a6ff', desc: '3-4 days/week' },
+      { id: 'minimal', label: 'Minimal', count: 22, color: '#d29922', desc: '1-2 uses in 30d' },
+      { id: 'inactive', label: 'Inactive', count: 38, color: '#f85149', desc: 'Cold 30d+' },
+      { id: 'never', label: 'Never Used', count: 24, color: '#8b949e', desc: 'Zero activity' },
+    ],
+    total_adoption: 186,
+    power_users: [
+      { user: 'sarah.chen', days_active: 45, features_used: 5 },
+    ],
+    feature_adoption: [
+      { feature: 'IDE completions', pct: 87, color: '#3fb950' },
+    ],
+    minimal_users: [],
+  }),
+  getCopilotModels: vi.fn().mockResolvedValue({
+    models: [
+      { model: 'GPT-4o', pct: 42, color: '#58a6ff' },
+    ],
+    features: [
+      { feature: 'IDE completions', count: 142, color: '#58a6ff' },
+    ],
+    editors: [
+      { name: 'VS Code', count: 112, pct: 79 },
+    ],
+  }),
+}));
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -54,11 +124,14 @@ describe('CopilotPage', () => {
     expect(tabs).toHaveLength(5);
   });
 
-  it('shows the anomaly badge with count 3', () => {
+  it('shows the anomaly badge with count 3', async () => {
     renderPage();
     const tablist = screen.getByRole('tablist');
     const anomaliesTab = within(tablist).getByRole('tab', { name: /Anomalies/ });
-    expect(anomaliesTab).toHaveTextContent('3');
+    // Wait for the anomaly data to load and badge to update
+    await screen.findByText(/Seat waste detected/);
+    // The badge count may take a moment to appear from async query
+    expect(anomaliesTab).toHaveTextContent(/3/);
   });
 
   it('shows overview content by default', async () => {
@@ -72,8 +145,8 @@ describe('CopilotPage', () => {
     renderPage();
 
     await user.click(screen.getByRole('tab', { name: /Adoption/ }));
-    expect(screen.getByText('Adoption tiers')).toBeInTheDocument();
-    expect(screen.getByText('Power Users')).toBeInTheDocument();
+    expect(await screen.findByText('Adoption tiers')).toBeInTheDocument();
+    expect(await screen.findByText('Power Users')).toBeInTheDocument();
     expect(screen.getByText('Daily power users')).toBeInTheDocument();
     expect(screen.queryByText(/Seat waste detected/)).not.toBeInTheDocument();
   });
@@ -83,7 +156,7 @@ describe('CopilotPage', () => {
     renderPage();
 
     await user.click(screen.getByRole('tab', { name: /Models/ }));
-    expect(screen.getByText('Model usage spread')).toBeInTheDocument();
+    expect(await screen.findByText('Model usage spread')).toBeInTheDocument();
     expect(screen.getByText('Feature usage spread')).toBeInTheDocument();
     expect(screen.getByText('Editor breakdown')).toBeInTheDocument();
     expect(screen.queryByText(/Seat waste detected/)).not.toBeInTheDocument();
@@ -105,7 +178,7 @@ describe('CopilotPage', () => {
     renderPage();
 
     await user.click(screen.getByRole('tab', { name: /Anomalies/ }));
-    expect(screen.getByText('Sudden drop in acceptance rate')).toBeInTheDocument();
+    expect(await screen.findByText('Sudden drop in acceptance rate')).toBeInTheDocument();
     expect(screen.getByText('Unusual seat churn detected')).toBeInTheDocument();
     expect(screen.getByText('Knowledge base usage spike')).toBeInTheDocument();
     expect(screen.getByText((_content, element) => {
@@ -119,7 +192,7 @@ describe('CopilotPage', () => {
     renderPage();
 
     await user.click(screen.getByRole('tab', { name: /Adoption/ }));
-    expect(screen.getByText('Adoption tiers')).toBeInTheDocument();
+    expect(await screen.findByText('Adoption tiers')).toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: /Overview/ }));
     expect(await screen.findByText(/Seat waste detected/)).toBeInTheDocument();

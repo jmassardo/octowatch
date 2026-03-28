@@ -277,6 +277,24 @@ export function VelocityPage() {
   // Count successful workflow runs as deployment proxy
   const deploymentProxy = totalSucceeded > 0 ? totalSucceeded : null;
 
+  // Estimate WIP: opened PRs minus closed/merged PRs from events
+  const wipEstimate = useMemo(() => {
+    if (!repoEvents?.items) return null;
+    const opened = repoEvents.items.filter(
+      (e) => e.action.includes('pull_request') && (e.action.includes('opened') || e.action.includes('created')),
+    ).length;
+    const closed = repoEvents.items.filter(
+      (e) => e.action.includes('pull_request') && (e.action.includes('closed') || e.action.includes('merged')),
+    ).length;
+    return opened > 0 || closed > 0 ? Math.max(0, opened - closed) : null;
+  }, [repoEvents]);
+
+  // Review coverage: percentage of merged PRs with review activity
+  const reviewCoverage = useMemo(() => {
+    if (prMerged == null || prMerged === 0 || prReviewCount == null) return null;
+    return Math.round(Math.min((prReviewCount / prMerged) * 100, 100));
+  }, [prMerged, prReviewCount]);
+
   // Compute repo activity stats from events
   const repoStats = useMemo(
     () => (repoEvents?.items ? computeRepoStats(repoEvents.items) : []),
@@ -299,13 +317,13 @@ export function VelocityPage() {
 
   const metrics = [
     { value: prMerged != null ? prMerged.toLocaleString() : '—', label: 'PRs merged (30d)', delta: 'last 30 days', dir: 'neutral' as const, scrollRef: 'calendar' as const },
-    { value: '—', label: 'Lead time for changes', delta: 'Coming soon · requires GitHub Deployments API', dir: 'neutral' as const, scrollRef: null },
+    { value: '—', label: 'Lead time for changes', delta: 'Insufficient data — requires deployment tracking', dir: 'neutral' as const, scrollRef: null },
     { value: prReviewCount != null ? prReviewCount.toLocaleString() : '—', label: 'PR activity (30d)', delta: prReviewCount != null ? 'pull_request events from audit log' : 'No PR events found', dir: 'neutral' as const, scrollRef: 'calendar' as const },
     { value: changeFailureRate != null ? `${changeFailureRate}%` : '—', label: 'Change failure rate', delta: changeFailureRate != null ? (parseFloat(changeFailureRate) < 5 ? '< 5% target ✓' : '≥ 5% target') : '—', dir: changeFailureRate != null && parseFloat(changeFailureRate) < 5 ? 'up' as const : 'down' as const, scrollRef: 'changeFailure' as const },
     { value: deploymentProxy != null ? deploymentProxy.toLocaleString() : '—', label: 'Successful workflows (30d)', delta: deploymentProxy != null ? 'proxy for deployment frequency' : 'No workflow data', dir: deploymentProxy != null ? 'neutral' as const : 'neutral' as const, scrollRef: 'workflowSuccess' as const },
     { value: overallSuccessRate != null ? `${overallSuccessRate}%` : '—', label: 'Workflow success', delta: '30-day average', dir: overallSuccessRate != null && parseFloat(overallSuccessRate) >= 90 ? 'up' as const : 'down' as const, scrollRef: 'workflowSuccess' as const },
-    { value: '—', label: 'WIP (items in flight)', delta: 'Coming soon · requires GitHub Projects API', dir: 'neutral' as const, scrollRef: null },
-    { value: '—', label: 'Planned work ratio', delta: 'Coming soon · requires GitHub Projects API', dir: 'neutral' as const, scrollRef: null },
+    { value: wipEstimate != null ? wipEstimate.toString() : '—', label: 'WIP (items in flight)', delta: wipEstimate != null ? 'estimated from PR events' : 'No PR data available', dir: 'neutral' as const, scrollRef: null },
+    { value: reviewCoverage != null ? `${reviewCoverage}%` : '—', label: 'Review coverage', delta: reviewCoverage != null ? 'reviews per merged PR' : 'No PR data', dir: reviewCoverage != null && reviewCoverage >= 80 ? 'up' as const : 'neutral' as const, scrollRef: null },
   ];
 
   const refMap = {
@@ -389,13 +407,10 @@ export function VelocityPage() {
       <div className={styles.chartsGrid}>
         <div className={styles.chartWrap}>
           <div className={styles.chartTitle}>
-            Lead time for changes <span className={styles.chartSub}>— coming soon</span>
+            Lead time for changes
           </div>
           <div style={{ height: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-muted)', fontSize: 13, gap: 8, padding: '0 24px', textAlign: 'center' }}>
-            <svg width="24" height="24" fill="var(--fg-subtle)" viewBox="0 0 16 16">
-              <path d="M0 8a8 8 0 1116 0A8 8 0 010 8zm8-6.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 7.75A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 110-2 1 1 0 010 2z" />
-            </svg>
-            <span>Requires GitHub Deployments API integration to track time from commit to production.</span>
+            <span>Lead time tracking requires GitHub Deployment events to be included in the audit log stream. Enable deployment event streaming in Integrations → GitHub Enterprise to populate this chart.</span>
           </div>
         </div>
 
@@ -608,12 +623,12 @@ export function VelocityPage() {
             <tr>
               <td style={{ fontWeight: 500 }}>Deployment Frequency</td>
               <td>On-demand (multiple deploys/day)</td>
-              <td>—</td>
+              <td>{deploymentProxy != null ? `${deploymentProxy.toLocaleString()} workflows` : '—'}</td>
             </tr>
             <tr>
               <td style={{ fontWeight: 500 }}>Lead Time for Changes</td>
               <td>&lt; 1 hour</td>
-              <td>—</td>
+              <td>— <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>(requires deployment events)</span></td>
             </tr>
             <tr>
               <td style={{ fontWeight: 500 }}>Change Failure Rate</td>
@@ -623,7 +638,7 @@ export function VelocityPage() {
             <tr>
               <td style={{ fontWeight: 500 }}>Time to Restore Service</td>
               <td>&lt; 1 hour</td>
-              <td>—</td>
+              <td>— <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>(requires incident tracking)</span></td>
             </tr>
           </tbody>
         </table>

@@ -105,7 +105,7 @@ describe('VelocityPage', () => {
     expect(screen.getByText('Successful workflows (30d)')).toBeInTheDocument();
     expect(screen.getByText('Workflow success')).toBeInTheDocument();
     expect(screen.getByText('WIP (items in flight)')).toBeInTheDocument();
-    expect(screen.getByText('Planned work ratio')).toBeInTheDocument();
+    expect(screen.getByText('Review coverage')).toBeInTheDocument();
   });
 
   it('shows dash for metrics that require external API integration', () => {
@@ -115,9 +115,9 @@ describe('VelocityPage', () => {
     const dashes = screen.getAllByText('—');
     expect(dashes.length).toBeGreaterThanOrEqual(3);
 
-    // "Coming soon" hints for unavailable metrics (Lead time, WIP, Planned work)
-    const comingSoonHints = screen.getAllByText(/Coming soon/);
-    expect(comingSoonHints).toHaveLength(3);
+    // Informational hints for unavailable metrics
+    expect(screen.getByText(/Insufficient data/)).toBeInTheDocument();
+    expect(screen.getByText(/No PR data available/)).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
@@ -139,7 +139,7 @@ describe('VelocityPage', () => {
 
     // Lead time chart always shows placeholder
     expect(
-      screen.getByText(/Requires GitHub Deployments API integration/),
+      screen.getByText(/Lead time tracking requires GitHub Deployment events/),
     ).toBeInTheDocument();
 
     // With empty mock data, data-driven charts show empty state
@@ -157,12 +157,10 @@ describe('VelocityPage', () => {
     expect(screen.getAllByText(/Change failure rate/).length).toBeGreaterThanOrEqual(2);
   });
 
-  it('renders lead time integration label and dynamic chart period labels', () => {
+  it('renders lead time informational text and dynamic chart period labels', () => {
     renderWithProviders(<VelocityPage />);
 
-    // Lead time chart shows "coming soon" label
-    expect(screen.getByText('— coming soon')).toBeInTheDocument();
-
+    // Lead time chart section title has no "coming soon" subtitle
     // Other charts show dynamic period label (empty data → '—')
     const periodLabels = screen.getAllByText('— —');
     expect(periodLabels).toHaveLength(3);
@@ -173,7 +171,7 @@ describe('VelocityPage', () => {
 
     // Lead time has no API data, so shows a placeholder message
     expect(
-      screen.getByText(/Requires GitHub Deployments API integration/),
+      screen.getByText(/Lead time tracking requires GitHub Deployment events/),
     ).toBeInTheDocument();
   });
 

@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   listTicketingConfigs,
   listNotificationConfigs,
+  createNotificationConfig,
+  createTicketingConfig,
 } from '../../api/integrations';
 import { getSyncConfig, updateSyncConfig } from '../../api/sync';
 import { Button } from '../../components/primitives/Button';
@@ -26,14 +28,7 @@ interface MarketplaceIntegration {
   iconBg: string;
 }
 
-/** Integrations that are not yet implemented. */
-const COMING_SOON_INTEGRATIONS = new Set([
-  'Slack',
-  'Microsoft Sentinel',
-  'Splunk',
-  'PagerDuty',
-  'Jira',
-]);
+/** All integrations are now configurable. */
 
 /* ------------------------------------------------------------------ */
 /*  Icons                                                              */
@@ -300,6 +295,338 @@ function ConfigFormFields({ config, onClose }: { config: import('../../types/syn
 }
 
 /* ------------------------------------------------------------------ */
+/*  Slack config form                                                  */
+/* ------------------------------------------------------------------ */
+
+function SlackConfigForm({ onClose }: { onClose: () => void }) {
+  const [displayName, setDisplayName] = useState('');
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [severities, setSeverities] = useState<string[]>(['critical', 'high']);
+  const [cooldown, setCooldown] = useState(3600);
+  const queryClient = useQueryClient();
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createNotificationConfig({
+        channel_type: 'slack',
+        display_name: displayName || 'Slack',
+        target: webhookUrl,
+        notify_severities: severities,
+        cooldown_seconds: cooldown,
+        enabled: true,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notification-configs'] });
+      onClose();
+    },
+  });
+
+  return (
+    <form
+      className={styles.configForm}
+      onSubmit={(e) => {
+        e.preventDefault();
+        createMutation.mutate();
+      }}
+    >
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="slack-display-name">Display Name</label>
+        <input
+          id="slack-display-name"
+          className={styles.configInput}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="e.g. #security-alerts"
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="slack-webhook-url">Webhook URL</label>
+        <input
+          id="slack-webhook-url"
+          className={styles.configInput}
+          value={webhookUrl}
+          onChange={(e) => setWebhookUrl(e.target.value)}
+          placeholder="https://hooks.slack.com/services/..."
+          required
+        />
+      </div>
+      <div className={styles.configField}>
+        <span className={styles.configLabel}>Alert severities</span>
+        <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+          {['critical', 'high', 'medium', 'low'].map((s) => (
+            <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg)' }}>
+              <input
+                type="checkbox"
+                checked={severities.includes(s)}
+                onChange={(e) =>
+                  setSeverities((prev) =>
+                    e.target.checked ? [...prev, s] : prev.filter((x) => x !== s),
+                  )
+                }
+              />
+              {s}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="slack-cooldown">Cooldown (seconds)</label>
+        <input
+          id="slack-cooldown"
+          className={styles.configInput}
+          type="number"
+          min={60}
+          max={86400}
+          value={cooldown}
+          onChange={(e) => setCooldown(Number(e.target.value))}
+        />
+        <span className={styles.configHelp}>Minimum time between alerts (60–86,400 seconds).</span>
+      </div>
+      {createMutation.isError && (
+        <div className={styles.configError}>Failed to save configuration. Please try again.</div>
+      )}
+      <div className={styles.configActions}>
+        <Button size="sm" onClick={onClose}>Cancel</Button>
+        <Button variant="primary" size="sm" disabled={!webhookUrl || createMutation.isPending}>
+          {createMutation.isPending ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Jira config form                                                   */
+/* ------------------------------------------------------------------ */
+
+function JiraConfigForm({ onClose }: { onClose: () => void }) {
+  const [displayName, setDisplayName] = useState('');
+  const [baseUrl, setBaseUrl] = useState('');
+  const [projectKey, setProjectKey] = useState('');
+  const [credentialEnvVar, setCredentialEnvVar] = useState('JIRA_API_TOKEN');
+  const [autoCreate, setAutoCreate] = useState(false);
+  const queryClient = useQueryClient();
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createTicketingConfig({
+        provider: 'jira',
+        display_name: displayName || 'Jira',
+        target: baseUrl,
+        project_key: projectKey || undefined,
+        default_issue_type: 'Bug',
+        auto_create: autoCreate,
+        auto_create_severities: ['critical', 'high'],
+        credential_env_var: credentialEnvVar,
+        enabled: true,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticketing-configs'] });
+      onClose();
+    },
+  });
+
+  return (
+    <form
+      className={styles.configForm}
+      onSubmit={(e) => {
+        e.preventDefault();
+        createMutation.mutate();
+      }}
+    >
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="jira-display-name">Display Name</label>
+        <input
+          id="jira-display-name"
+          className={styles.configInput}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="e.g. Security Project"
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="jira-base-url">Jira Base URL</label>
+        <input
+          id="jira-base-url"
+          className={styles.configInput}
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          placeholder="https://your-org.atlassian.net"
+          required
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="jira-project-key">Project Key</label>
+        <input
+          id="jira-project-key"
+          className={styles.configInput}
+          value={projectKey}
+          onChange={(e) => setProjectKey(e.target.value)}
+          placeholder="e.g. SEC"
+        />
+        <span className={styles.configHelp}>Jira project key for issue creation.</span>
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="jira-credential">API Token Environment Variable</label>
+        <input
+          id="jira-credential"
+          className={styles.configInput}
+          value={credentialEnvVar}
+          onChange={(e) => setCredentialEnvVar(e.target.value)}
+          placeholder="JIRA_API_TOKEN"
+          required
+        />
+        <span className={styles.configHelp}>Name of the environment variable holding the Jira API token.</span>
+      </div>
+      <div className={styles.configField}>
+        <div className={styles.configToggleRow}>
+          <label className={styles.configLabel} htmlFor="jira-auto-create">
+            Auto-create issues for critical/high findings
+          </label>
+          <input
+            id="jira-auto-create"
+            type="checkbox"
+            checked={autoCreate}
+            onChange={(e) => setAutoCreate(e.target.checked)}
+          />
+        </div>
+      </div>
+      {createMutation.isError && (
+        <div className={styles.configError}>Failed to save configuration. Please try again.</div>
+      )}
+      <div className={styles.configActions}>
+        <Button size="sm" onClick={onClose}>Cancel</Button>
+        <Button variant="primary" size="sm" disabled={!baseUrl || !credentialEnvVar || createMutation.isPending}>
+          {createMutation.isPending ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Webhook config form (Sentinel, Splunk, PagerDuty)                  */
+/* ------------------------------------------------------------------ */
+
+function WebhookConfigForm({ name, onClose }: { name: string; onClose: () => void }) {
+  const channelType: 'webhook' | 'pagerduty' = name === 'PagerDuty' ? 'pagerduty' : 'webhook';
+  const [displayName, setDisplayName] = useState(name);
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [credentialEnvVar, setCredentialEnvVar] = useState('');
+  const [severities, setSeverities] = useState<string[]>(['critical', 'high']);
+  const [cooldown, setCooldown] = useState(3600);
+  const queryClient = useQueryClient();
+
+  const placeholderUrl =
+    name === 'PagerDuty'
+      ? 'https://events.pagerduty.com/v2/enqueue'
+      : name === 'Splunk'
+        ? 'https://your-splunk-hec:8088/services/collector'
+        : 'https://your-sentinel-workspace.ods.opinsights.azure.com/...';
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createNotificationConfig({
+        channel_type: channelType,
+        display_name: displayName || name,
+        target: webhookUrl,
+        credential_env_var: credentialEnvVar || undefined,
+        notify_severities: severities,
+        cooldown_seconds: cooldown,
+        enabled: true,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notification-configs'] });
+      onClose();
+    },
+  });
+
+  return (
+    <form
+      className={styles.configForm}
+      onSubmit={(e) => {
+        e.preventDefault();
+        createMutation.mutate();
+      }}
+    >
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="webhook-display-name">Display Name</label>
+        <input
+          id="webhook-display-name"
+          className={styles.configInput}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder={name}
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="webhook-url">Endpoint URL</label>
+        <input
+          id="webhook-url"
+          className={styles.configInput}
+          value={webhookUrl}
+          onChange={(e) => setWebhookUrl(e.target.value)}
+          placeholder={placeholderUrl}
+          required
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="webhook-credential">Auth Token Environment Variable</label>
+        <input
+          id="webhook-credential"
+          className={styles.configInput}
+          value={credentialEnvVar}
+          onChange={(e) => setCredentialEnvVar(e.target.value)}
+          placeholder={`${name.toUpperCase().replace(/\s+/g, '_')}_TOKEN`}
+        />
+        <span className={styles.configHelp}>Optional. Name of the environment variable holding the auth token.</span>
+      </div>
+      <div className={styles.configField}>
+        <span className={styles.configLabel}>Alert severities</span>
+        <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+          {['critical', 'high', 'medium', 'low'].map((s) => (
+            <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg)' }}>
+              <input
+                type="checkbox"
+                checked={severities.includes(s)}
+                onChange={(e) =>
+                  setSeverities((prev) =>
+                    e.target.checked ? [...prev, s] : prev.filter((x) => x !== s),
+                  )
+                }
+              />
+              {s}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="webhook-cooldown">Cooldown (seconds)</label>
+        <input
+          id="webhook-cooldown"
+          className={styles.configInput}
+          type="number"
+          min={60}
+          max={86400}
+          value={cooldown}
+          onChange={(e) => setCooldown(Number(e.target.value))}
+        />
+        <span className={styles.configHelp}>Minimum time between alerts (60–86,400 seconds).</span>
+      </div>
+      {createMutation.isError && (
+        <div className={styles.configError}>Failed to save configuration. Please try again.</div>
+      )}
+      <div className={styles.configActions}>
+        <Button size="sm" onClick={onClose}>Cancel</Button>
+        <Button variant="primary" size="sm" disabled={!webhookUrl || createMutation.isPending}>
+          {createMutation.isPending ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main page                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -307,8 +634,8 @@ export function IntegrationsPage() {
   const [configTarget, setConfigTarget] = useState<string | null>(null);
 
   /* Keep API hooks alive so integration data is cached for future use */
-  useQuery({ queryKey: ['ticketing-configs'], queryFn: listTicketingConfigs });
-  useQuery({ queryKey: ['notification-configs'], queryFn: listNotificationConfigs });
+  const { data: ticketingConfigs } = useQuery({ queryKey: ['ticketing-configs'], queryFn: listTicketingConfigs });
+  const { data: notificationConfigs } = useQuery({ queryKey: ['notification-configs'], queryFn: listNotificationConfigs });
 
   const { data: syncConfig } = useQuery({
     queryKey: ['sync-config'],
@@ -316,6 +643,13 @@ export function IntegrationsPage() {
   });
 
   const ghStatus: IntegrationStatus = syncConfig?.app_id ? 'connected' : 'not_installed';
+
+  const slackConfigured = (notificationConfigs ?? []).some((c) => c.channel_type === 'slack');
+  const jiraConfigured = (ticketingConfigs ?? []).some((c) => c.provider === 'jira');
+  const pagerdutyConfigured = (notificationConfigs ?? []).some((c) => c.channel_type === 'pagerduty');
+  const webhookConfigs = (notificationConfigs ?? []).filter((c) => c.channel_type === 'webhook');
+  const sentinelConfigured = webhookConfigs.some((c) => c.display_name.toLowerCase().includes('sentinel'));
+  const splunkConfigured = webhookConfigs.some((c) => c.display_name.toLowerCase().includes('splunk'));
 
   const integrations: MarketplaceIntegration[] = [
     {
@@ -329,35 +663,35 @@ export function IntegrationsPage() {
       name: 'Slack',
       description: 'Send real-time alerts and weekly digest reports to Slack channels.',
       icon: <SlackIcon />,
-      status: 'not_installed',
+      status: slackConfigured ? 'configured' : 'not_installed',
       iconBg: '#4a154b',
     },
     {
       name: 'Microsoft Sentinel',
       description: 'Forward normalized security events to Microsoft Sentinel for SIEM correlation.',
       icon: <SentinelIcon />,
-      status: 'not_installed',
+      status: sentinelConfigured ? 'configured' : 'not_installed',
       iconBg: '#0078d4',
     },
     {
       name: 'Splunk',
       description: 'Stream audit events and Copilot metrics to Splunk via HEC.',
       icon: <SplunkIcon />,
-      status: 'not_installed',
+      status: splunkConfigured ? 'configured' : 'not_installed',
       iconBg: '#1a1a1a',
     },
     {
       name: 'PagerDuty',
       description: 'Trigger PagerDuty incidents for critical security detections.',
       icon: <PagerDutyIcon />,
-      status: 'not_installed',
+      status: pagerdutyConfigured ? 'configured' : 'not_installed',
       iconBg: '#06ac38',
     },
     {
       name: 'Jira',
       description: 'Automatically create Jira issues for security findings and track remediation.',
       icon: <JiraIcon />,
-      status: 'not_installed',
+      status: jiraConfigured ? 'configured' : 'not_installed',
       iconBg: '#0052CC',
     },
   ];
@@ -415,15 +749,36 @@ export function IntegrationsPage() {
         <GitHubEnterpriseConfigForm onClose={() => setConfigTarget(null)} />
       </Modal>
 
-      {/* Configure modal — Coming-soon integrations */}
+      {/* Configure modal — Slack */}
       <Modal
-        open={configTarget !== null && configTarget !== 'GitHub Enterprise'}
+        open={configTarget === 'Slack'}
+        onClose={() => setConfigTarget(null)}
+        title="Configure Slack"
+        width={520}
+      >
+        <SlackConfigForm onClose={() => setConfigTarget(null)} />
+      </Modal>
+
+      {/* Configure modal — Jira */}
+      <Modal
+        open={configTarget === 'Jira'}
+        onClose={() => setConfigTarget(null)}
+        title="Configure Jira"
+        width={520}
+      >
+        <JiraConfigForm onClose={() => setConfigTarget(null)} />
+      </Modal>
+
+      {/* Configure modal — Webhook-based integrations (Sentinel, Splunk, PagerDuty) */}
+      <Modal
+        open={configTarget !== null && ['Microsoft Sentinel', 'Splunk', 'PagerDuty'].includes(configTarget)}
         onClose={() => setConfigTarget(null)}
         title={configTarget ? `Configure ${configTarget}` : ''}
+        width={520}
       >
-        <p style={{ margin: 0, color: 'var(--fg-muted)', fontSize: 13 }}>
-          Configuration for {configTarget} is coming soon.
-        </p>
+        {configTarget && ['Microsoft Sentinel', 'Splunk', 'PagerDuty'].includes(configTarget) && (
+          <WebhookConfigForm name={configTarget} onClose={() => setConfigTarget(null)} />
+        )}
       </Modal>
     </div>
   );

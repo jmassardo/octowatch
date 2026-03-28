@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Modal } from '../../components/primitives/Modal';
@@ -8,13 +9,8 @@ import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { Button } from '../../components/primitives/Button';
 import { LineAreaChart } from '../../components/charts/LineAreaChart';
 import type { SeatUtilizationBucket, CopilotSeatsBucket } from '../../types/reports';
-import {
-  LANGUAGES,
-  ACCEPTANCE_RATE_DAYS,
-  ACCEPTANCE_RATE_VALUES,
-  ACCEPTANCE_THRESHOLD_LINE,
-  COST_PER_SEAT,
-} from './copilotData';
+import { getCopilotOverview } from '../../api/copilotMetrics';
+import { COST_PER_SEAT } from './copilotData';
 import styles from './Copilot.module.css';
 
 type DrillDownType = 'active-seats' | 'assigned' | 'revoked' | 'net' | null;
@@ -35,6 +31,20 @@ export function OverviewPane({
   isError,
   onRetry,
 }: OverviewPaneProps) {
+  const { data: overview, isLoading: overviewLoading } = useQuery({
+    queryKey: ['copilot', 'overview'],
+    queryFn: getCopilotOverview,
+    staleTime: 300_000,
+  });
+
+  const languages = overview?.languages ?? [];
+  const acceptanceRateDays = overview?.acceptance_rate_days ?? [];
+  const acceptanceRateValues = overview?.acceptance_rate_values ?? [];
+  const acceptanceThresholdLine = Array.from(
+    { length: acceptanceRateDays.length },
+    () => overview?.acceptance_threshold ?? 25,
+  );
+
   const [drillDown, setDrillDown] = useState<DrillDownType>(null);
   const [overviewModal, setOverviewModal] = useState<OverviewModal>(null);
   const [selectedLang, setSelectedLang] = useState<string | null>(null);
@@ -110,7 +120,9 @@ export function OverviewPane({
 
   return (
     <>
-      <SampleDataBanner message="Acceptance rate, language breakdown, and correlation insights display sample data requiring Copilot Metrics API integration." />
+      {overview?.error && (
+        <SampleDataBanner message={overview.message ?? 'Copilot metrics data is unavailable. Displaying limited data.'} />
+      )}
 
       {/* Seat waste alert banner — derived from real API data */}
       {latestSeatBucket && inactiveSeats > 0 && (
@@ -271,25 +283,35 @@ export function OverviewPane({
       <div className={styles.grid2}>
         <Card>
           <CardHeader>Acceptance rate — 7-day rolling average</CardHeader>
-          <LineAreaChart
-            xAxisData={ACCEPTANCE_RATE_DAYS}
-            series={[
-              {
-                name: 'Acceptance rate',
-                data: ACCEPTANCE_RATE_VALUES,
-                color: '#bc8cff',
-                areaOpacity: 0.15,
-              },
-              {
-                name: '25% good threshold',
-                data: ACCEPTANCE_THRESHOLD_LINE,
-                color: '#3fb950',
-                dashed: true,
-              },
-            ]}
-            yAxisFormatter={(v: number) => `${v}%`}
-            height={200}
-          />
+          {overviewLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+              <Spinner />
+            </div>
+          ) : acceptanceRateDays.length > 0 ? (
+            <LineAreaChart
+              xAxisData={acceptanceRateDays}
+              series={[
+                {
+                  name: 'Acceptance rate',
+                  data: acceptanceRateValues,
+                  color: '#bc8cff',
+                  areaOpacity: 0.15,
+                },
+                {
+                  name: `${overview?.acceptance_threshold ?? 25}% good threshold`,
+                  data: acceptanceThresholdLine,
+                  color: '#3fb950',
+                  dashed: true,
+                },
+              ]}
+              yAxisFormatter={(v: number) => `${v}%`}
+              height={200}
+            />
+          ) : (
+            <div style={{ color: 'var(--fg-muted)', padding: '24px 0', textAlign: 'center' }}>
+              No acceptance rate data available.
+            </div>
+          )}
         </Card>
         <Card>
           <CardHeader>Seat utilization trend</CardHeader>
@@ -354,31 +376,41 @@ export function OverviewPane({
       <div className={styles.grid2}>
         <Card>
           <CardHeader>Acceptance rate by language</CardHeader>
-          <div className={styles.langBars}>
-            {LANGUAGES.map((l) => (
-              <div
-                key={l.lang}
-                className={`${styles.langRow} ${styles.langRowClickable}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => { setSelectedLang(l.lang); setOverviewModal('language'); }}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedLang(l.lang); setOverviewModal('language'); } }}
-              >
-                <span className={styles.langName}>{l.lang}</span>
-                <div className={styles.langTrack}>
-                  <div
-                    style={{
-                      width: `${l.pct}%`,
-                      height: '100%',
-                      background: l.color,
-                      borderRadius: 4,
-                    }}
-                  />
+          {overviewLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+              <Spinner />
+            </div>
+          ) : languages.length > 0 ? (
+            <div className={styles.langBars}>
+              {languages.map((l) => (
+                <div
+                  key={l.lang}
+                  className={`${styles.langRow} ${styles.langRowClickable}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { setSelectedLang(l.lang); setOverviewModal('language'); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedLang(l.lang); setOverviewModal('language'); } }}
+                >
+                  <span className={styles.langName}>{l.lang}</span>
+                  <div className={styles.langTrack}>
+                    <div
+                      style={{
+                        width: `${l.pct}%`,
+                        height: '100%',
+                        background: l.color,
+                        borderRadius: 4,
+                      }}
+                    />
+                  </div>
+                  <span className={styles.langPct}>{l.pct}%</span>
                 </div>
-                <span className={styles.langPct}>{l.pct}%</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ color: 'var(--fg-muted)', padding: '12px 0' }}>
+              No language data available.
+            </div>
+          )}
           <div className={styles.langNote}>
             Language data from Copilot telemetry (not available via audit log)
           </div>
@@ -550,7 +582,7 @@ export function OverviewPane({
           ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
         </div>
         {selectedLang && (() => {
-          const lang = LANGUAGES.find((l) => l.lang === selectedLang);
+          const lang = languages.find((l) => l.lang === selectedLang);
           return lang ? (
             <div>
               <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>

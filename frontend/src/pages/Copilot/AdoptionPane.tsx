@@ -1,20 +1,29 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Button } from '../../components/primitives/Button';
 import { Modal } from '../../components/primitives/Modal';
+import { Spinner } from '../../components/primitives/Spinner';
+import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
-import {
-  ADOPTION_TIERS,
-  TOTAL_ADOPTION,
-  POWER_USERS,
-  FEATURE_ADOPTION,
-  MINIMAL_USERS,
-} from './copilotData';
+import { getCopilotAdoption } from '../../api/copilotMetrics';
 import styles from './Copilot.module.css';
 
-type AdoptionModal = 'tier' | 'feature' | 'cycle-time' | 'minimal-user' | null;
+type AdoptionModal = 'tier' | 'feature' | 'minimal-user' | null;
 
 export function AdoptionPane() {
+  const { data: adoption, isLoading, isError } = useQuery({
+    queryKey: ['copilot', 'adoption'],
+    queryFn: getCopilotAdoption,
+    staleTime: 300_000,
+  });
+
+  const tiers = adoption?.tiers ?? [];
+  const totalAdoption = adoption?.total_adoption ?? 0;
+  const powerUsers = adoption?.power_users ?? [];
+  const featureAdoption = adoption?.feature_adoption ?? [];
+  const minimalUsers = adoption?.minimal_users ?? [];
+
   const [scheduledUsers, setScheduledUsers] = useState<Record<string, boolean>>({});
   const [adoptionModal, setAdoptionModal] = useState<AdoptionModal>(null);
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
@@ -42,18 +51,25 @@ export function AdoptionPane() {
     setTimeout(() => setToastMessage(null), 2500);
   }
 
-  const selectedTier = ADOPTION_TIERS.find((t) => t.id === selectedTierId);
-  const selectedFeatureData = FEATURE_ADOPTION.find((f) => f.feature === selectedFeature);
-  const selectedMinimalUserData = MINIMAL_USERS.find((u) => u.user === selectedMinimalUser);
+  const selectedTier = tiers.find((t) => t.id === selectedTierId);
+  const selectedFeatureData = featureAdoption.find((f) => f.feature === selectedFeature);
+  const selectedMinimalUserData = minimalUsers.find((u) => u.user === selectedMinimalUser);
 
   return (
     <>
-      <SampleDataBanner message="Adoption data below is illustrative. Requires Copilot Metrics API integration for live data." />
+      {adoption?.error && (
+        <SampleDataBanner message={adoption.message ?? 'Adoption data is unavailable. Displaying limited data.'} />
+      )}
 
+      {isError && <ErrorBanner message="Failed to load adoption data" />}
+      {isLoading && <Spinner />}
+
+      {!isLoading && !isError && (
+        <>
       {/* Adoption tier cards */}
       <div className={styles.sectionTitle}>Adoption tiers</div>
       <div className={styles.tierGrid}>
-        {ADOPTION_TIERS.map((tier) => (
+        {tiers.map((tier) => (
           <div
             key={tier.id}
             className={`${styles.tierCard} ${styles.tierCardClickable}`}
@@ -75,15 +91,15 @@ export function AdoptionPane() {
       {/* Stacked progress bar */}
       <div className={styles.stackedBarContainer}>
         <div className={styles.stackedBar}>
-          {ADOPTION_TIERS.map((tier) => (
+          {tiers.map((tier) => (
             <div
               key={tier.id}
               className={`${styles.stackedSegment} ${styles.stackedSegmentClickable}`}
               style={{
-                width: `${(tier.count / TOTAL_ADOPTION) * 100}%`,
+                width: `${totalAdoption > 0 ? (tier.count / totalAdoption) * 100 : 0}%`,
                 background: tier.color,
               }}
-              title={`${tier.label}: ${tier.count} (${Math.round((tier.count / TOTAL_ADOPTION) * 100)}%)`}
+              title={`${tier.label}: ${tier.count} (${totalAdoption > 0 ? Math.round((tier.count / totalAdoption) * 100) : 0}%)`}
               role="button"
               tabIndex={0}
               onClick={() => openTierModal(tier.id)}
@@ -92,13 +108,13 @@ export function AdoptionPane() {
           ))}
         </div>
         <div className={styles.stackedLegend}>
-          {ADOPTION_TIERS.map((tier) => (
+          {tiers.map((tier) => (
             <div key={tier.id} className={styles.stackedLegendItem}>
               <span
                 className={styles.stackedLegendDot}
                 style={{ background: tier.color }}
               />
-              {tier.label} ({Math.round((tier.count / TOTAL_ADOPTION) * 100)}%)
+              {tier.label} ({totalAdoption > 0 ? Math.round((tier.count / totalAdoption) * 100) : 0}%)
             </div>
           ))}
         </div>
@@ -112,16 +128,14 @@ export function AdoptionPane() {
             <thead>
               <tr>
                 <th>User</th>
-                <th>Team</th>
-                <th>Streak (days)</th>
-                <th>Accept rate</th>
+                <th>Days active</th>
+                <th>Features used</th>
               </tr>
             </thead>
             <tbody>
-              {POWER_USERS.map((u) => (
+              {powerUsers.map((u) => (
                 <tr key={u.user}>
                   <td style={{ fontWeight: 500 }}>{u.user}</td>
-                  <td style={{ color: 'var(--fg-muted)' }}>{u.team}</td>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>
                     <span
                       className={styles.clickableStat}
@@ -130,7 +144,7 @@ export function AdoptionPane() {
                       onClick={() => showToast(u.user)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showToast(u.user); } }}
                     >
-                      {u.streak}d
+                      {u.days_active}d
                     </span>
                   </td>
                   <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--success)' }}>
@@ -141,7 +155,7 @@ export function AdoptionPane() {
                       onClick={() => showToast(u.user)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showToast(u.user); } }}
                     >
-                      {u.acceptRate}%
+                      {u.features_used}
                     </span>
                   </td>
                 </tr>
@@ -156,7 +170,7 @@ export function AdoptionPane() {
         <Card>
           <CardHeader>Feature adoption gaps</CardHeader>
           <div className={styles.langBars}>
-            {FEATURE_ADOPTION.map((f) => (
+            {featureAdoption.map((f) => (
               <div
                 key={f.feature}
                 className={`${styles.langRow} ${styles.langRowClickable}`}
@@ -184,32 +198,12 @@ export function AdoptionPane() {
           </div>
         </Card>
 
-        {/* CCR impact comparison */}
+        {/* CCR impact comparison — requires deployment data */}
         <Card>
           <CardHeader>Copilot impact on cycle time</CardHeader>
-          <div
-            className={`${styles.ccrGrid} ${styles.ccrClickable}`}
-            role="button"
-            tabIndex={0}
-            onClick={() => setAdoptionModal('cycle-time')}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAdoptionModal('cycle-time'); } }}
-          >
-            <div className={styles.ccrBox}>
-              <div className={styles.ccrLabel}>With Copilot</div>
-              <div className={styles.ccrValue} style={{ color: 'var(--success)' }}>
-                2.8h
-              </div>
-              <div className={styles.ccrSub}>avg cycle time</div>
-            </div>
-            <div className={styles.ccrDivider}>
-              <div className={styles.ccrDelta}>↓ 41% faster</div>
-            </div>
-            <div className={styles.ccrBox}>
-              <div className={styles.ccrLabel}>Without Copilot</div>
-              <div className={styles.ccrValue} style={{ color: 'var(--fg-muted)' }}>
-                4.7h
-              </div>
-              <div className={styles.ccrSub}>avg cycle time</div>
+          <div className={styles.ccrGrid} style={{ opacity: 0.6 }}>
+            <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--fg-muted)', fontSize: 13 }}>
+              Cycle time correlation requires deployment data. Connect your CI/CD pipeline to see Copilot&apos;s impact on delivery speed.
             </div>
           </div>
         </Card>
@@ -223,18 +217,15 @@ export function AdoptionPane() {
             <thead>
               <tr>
                 <th>User</th>
-                <th>Team</th>
-                <th>Uses (30d)</th>
-                <th>Accepted</th>
+                <th>Days active</th>
                 <th>Last feature</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {MINIMAL_USERS.map((u) => (
+              {minimalUsers.map((u) => (
                 <tr key={u.user}>
                   <td style={{ fontWeight: 500 }}>{u.user}</td>
-                  <td style={{ color: 'var(--fg-muted)' }}>{u.team}</td>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>
                     <span
                       className={styles.clickableStat}
@@ -243,21 +234,10 @@ export function AdoptionPane() {
                       onClick={() => openMinimalUserModal(u.user)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openMinimalUserModal(u.user); } }}
                     >
-                      {u.uses}
+                      {u.days_active}
                     </span>
                   </td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    <span
-                      className={styles.clickableStat}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => openMinimalUserModal(u.user)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openMinimalUserModal(u.user); } }}
-                    >
-                      {u.accepted}
-                    </span>
-                  </td>
-                  <td style={{ color: 'var(--fg-muted)' }}>{u.lastFeature}</td>
+                  <td style={{ color: 'var(--fg-muted)' }}>{u.last_feature}</td>
                   <td>
                     <Button
                       size="sm"
@@ -288,29 +268,27 @@ export function AdoptionPane() {
       {/* Tier detail modal */}
       <Modal open={adoptionModal === 'tier'} onClose={() => setAdoptionModal(null)} title={selectedTier ? `${selectedTier.label} — ${selectedTier.count} users` : 'Tier details'} width={640}>
         <div className={styles.sampleDataNote}>
-          ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
+          ℹ️ Connect the Copilot Metrics API for live per-user data.
         </div>
         {selectedTier && selectedTierId === 'power' && (
           <div style={{ overflowX: 'auto' }}>
             <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 12px' }}>
-              {selectedTier.desc} — showing top power users by streak.
+              {selectedTier.desc} — showing top power users by activity.
             </p>
             <table className={styles.modalTable}>
               <thead>
                 <tr>
                   <th>User</th>
-                  <th>Team</th>
-                  <th>Streak (days)</th>
-                  <th>Accept rate</th>
+                  <th>Days active</th>
+                  <th>Features used</th>
                 </tr>
               </thead>
               <tbody>
-                {POWER_USERS.map((u) => (
+                {powerUsers.map((u) => (
                   <tr key={u.user}>
                     <td style={{ fontWeight: 500 }}>{u.user}</td>
-                    <td style={{ color: 'var(--fg-muted)' }}>{u.team}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{u.streak}d</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--success)' }}>{u.acceptRate}%</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{u.days_active}d</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--success)' }}>{u.features_used}</td>
                   </tr>
                 ))}
               </tbody>
@@ -326,20 +304,16 @@ export function AdoptionPane() {
               <thead>
                 <tr>
                   <th>User</th>
-                  <th>Team</th>
-                  <th>Uses (30d)</th>
-                  <th>Accepted</th>
+                  <th>Days active</th>
                   <th>Last feature</th>
                 </tr>
               </thead>
               <tbody>
-                {MINIMAL_USERS.map((u) => (
+                {minimalUsers.map((u) => (
                   <tr key={u.user}>
                     <td style={{ fontWeight: 500 }}>{u.user}</td>
-                    <td style={{ color: 'var(--fg-muted)' }}>{u.team}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{u.uses}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{u.accepted}</td>
-                    <td style={{ color: 'var(--fg-muted)' }}>{u.lastFeature}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{u.days_active}</td>
+                    <td style={{ color: 'var(--fg-muted)' }}>{u.last_feature}</td>
                   </tr>
                 ))}
               </tbody>
@@ -352,7 +326,7 @@ export function AdoptionPane() {
               <strong>{selectedTier.label}</strong>: {selectedTier.desc}
             </p>
             <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
-              <strong>{selectedTier.count} users</strong> ({Math.round((selectedTier.count / TOTAL_ADOPTION) * 100)}% of total).
+              <strong>{selectedTier.count} users</strong> ({totalAdoption > 0 ? Math.round((selectedTier.count / totalAdoption) * 100) : 0}% of total).
               Individual user lists for this tier require the Copilot Metrics API integration.
             </p>
           </div>
@@ -362,7 +336,7 @@ export function AdoptionPane() {
       {/* Feature adoption detail modal */}
       <Modal open={adoptionModal === 'feature'} onClose={() => setAdoptionModal(null)} title={selectedFeatureData ? `${selectedFeatureData.feature} — adoption details` : 'Feature details'} width={520}>
         <div className={styles.sampleDataNote}>
-          ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
+          ℹ️ Connect the Copilot Metrics API for live per-user data.
         </div>
         {selectedFeatureData && (
           <div>
@@ -377,30 +351,10 @@ export function AdoptionPane() {
         )}
       </Modal>
 
-      {/* Cycle time comparison modal */}
-      <Modal open={adoptionModal === 'cycle-time'} onClose={() => setAdoptionModal(null)} title="Cycle time comparison methodology" width={520}>
-        <div className={styles.sampleDataNote}>
-          ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
-        </div>
-        <div>
-          <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
-            Cycle time is measured from first commit to PR merge. The comparison groups:
-          </p>
-          <ul style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.8, margin: '0 0 12px', paddingLeft: 20 }}>
-            <li><strong>With Copilot (2.8h avg)</strong>: PRs where the author had active Copilot suggestions during the coding session</li>
-            <li><strong>Without Copilot (4.7h avg)</strong>: PRs where the author did not use Copilot</li>
-          </ul>
-          <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
-            The <strong>41% improvement</strong> is a correlation, not necessarily causation.
-            Other factors (developer experience, PR complexity) may contribute. Per-team breakdowns require the Copilot Metrics API.
-          </p>
-        </div>
-      </Modal>
-
       {/* Minimal user activity modal */}
       <Modal open={adoptionModal === 'minimal-user'} onClose={() => setAdoptionModal(null)} title={selectedMinimalUserData ? `@${selectedMinimalUserData.user} — Copilot activity` : 'User activity'} width={520}>
         <div className={styles.sampleDataNote}>
-          ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
+          ℹ️ Connect the Copilot Metrics API for live per-user data.
         </div>
         {selectedMinimalUserData && (
           <div style={{ overflowX: 'auto' }}>
@@ -417,26 +371,12 @@ export function AdoptionPane() {
                   <td style={{ fontWeight: 500 }}>@{selectedMinimalUserData.user}</td>
                 </tr>
                 <tr>
-                  <td style={{ color: 'var(--fg-muted)' }}>Team</td>
-                  <td>{selectedMinimalUserData.team}</td>
-                </tr>
-                <tr>
-                  <td style={{ color: 'var(--fg-muted)' }}>Uses (30d)</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{selectedMinimalUserData.uses}</td>
-                </tr>
-                <tr>
-                  <td style={{ color: 'var(--fg-muted)' }}>Accepted</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{selectedMinimalUserData.accepted}</td>
+                  <td style={{ color: 'var(--fg-muted)' }}>Days active</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{selectedMinimalUserData.days_active}</td>
                 </tr>
                 <tr>
                   <td style={{ color: 'var(--fg-muted)' }}>Last feature used</td>
-                  <td>{selectedMinimalUserData.lastFeature}</td>
-                </tr>
-                <tr>
-                  <td style={{ color: 'var(--fg-muted)' }}>Acceptance rate</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {selectedMinimalUserData.uses > 0 ? `${Math.round((selectedMinimalUserData.accepted / selectedMinimalUserData.uses) * 100)}%` : '—'}
-                  </td>
+                  <td>{selectedMinimalUserData.last_feature}</td>
                 </tr>
               </tbody>
             </table>
@@ -449,6 +389,8 @@ export function AdoptionPane() {
         <div className={styles.toastPopover} role="status" aria-live="polite">
           {toastMessage}
         </div>
+      )}
+        </>
       )}
     </>
   );
