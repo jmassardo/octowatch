@@ -239,21 +239,55 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         list(_ENTERPRISE_ENTITIES | _ORG_ENTITIES) if scope == "full" else [scope]
     )
 
+    # For enterprise installations (org_login is NULL), discover org names
+    # from GITHUB_SYNC_ORGS env or from the installation's accessible repos.
+    sync_orgs = settings.github_app.sync_orgs_list
+
+    # Auto-discover orgs from accessible repos when no orgs are configured
+    if not sync_orgs and all(c.org_login is None for c in configs):
+        discovered = await _discover_orgs_from_installation(configs[0].installation_id)
+        if discovered:
+            sync_orgs = discovered
+            logger.info("github_sync.auto_discovered_orgs", orgs=sync_orgs)
+
     dispatched: list[tuple[str, str | None]] = []
     for config in configs:
         for entity_type in entity_types:
-            org = None if entity_type in _ENTERPRISE_ENTITIES else config.org_login
-            sync_entity.apply_async(
-                kwargs={
-                    "run_id": run_id,
-                    "entity_type": entity_type,
-                    "org": org,
-                    "installation_id": config.installation_id,
-                    "cursor": None,
-                },
-                queue="github_sync",
-            )
-            dispatched.append((entity_type, org))
+            if entity_type in _ENTERPRISE_ENTITIES:
+                sync_entity.apply_async(
+                    kwargs={
+                        "run_id": run_id,
+                        "entity_type": entity_type,
+                        "org": None,
+                        "installation_id": config.installation_id,
+                        "cursor": None,
+                    },
+                    queue="github_sync",
+                )
+                dispatched.append((entity_type, None))
+            else:
+                # Org-level entity — need actual org login(s)
+                org_list = [config.org_login] if config.org_login else sync_orgs
+                if not org_list:
+                    logger.warning(
+                        "github_sync.no_orgs_for_entity",
+                        entity_type=entity_type,
+                        config_id=config.id,
+                        hint="Set GITHUB_SYNC_ORGS or install the App on individual orgs",
+                    )
+                    continue
+                for org in org_list:
+                    sync_entity.apply_async(
+                        kwargs={
+                            "run_id": run_id,
+                            "entity_type": entity_type,
+                            "org": org,
+                            "installation_id": config.installation_id,
+                            "cursor": None,
+                        },
+                        queue="github_sync",
+                    )
+                    dispatched.append((entity_type, org))
 
     logger.info(
         "github_sync.orchestrator_dispatched",
@@ -277,7 +311,6 @@ async def _sync_entity_async(
     from sqlalchemy.dialects.postgresql import insert
 
     from app.config import settings  # noqa: F811 — deferred import for testability
-    from app.deps import get_valkey_pool
     from app.models.github_sync import EnterpriseSyncEntityCursor
     from app.services.github_rate_limiter import GitHubRateLimiter  # noqa: F811
     from app.services.github_token_service import GitHubAppTokenManager
@@ -298,13 +331,22 @@ async def _sync_entity_async(
         items_synced = cursor_row.items_synced if cursor_row else 0
 
     # ── Set up clients ────────────────────────────────────────────────────
-    valkey = aioredis.Redis(connection_pool=get_valkey_pool())
+    # Create a fresh Valkey connection per task to avoid event-loop binding
+    # issues (the module-level pool binds to the first loop and fails on
+    # subsequent asyncio.run() calls).
+    valkey = aioredis.Redis.from_url(
+        settings.VALKEY_URL, decode_responses=True, max_connections=5
+    )
     token_manager = GitHubAppTokenManager(
         app_id=settings.github_app.GITHUB_APP_ID,
         private_key_pem=_load_private_key(),
         valkey_client=valkey,
     )
-    rate_limiter = _get_rate_limiter()  # module-level singleton
+    # Create a fresh rate limiter per task — the asyncio.Semaphore inside
+    # binds to the current event loop and can't survive across asyncio.run()
+    rate_limiter = GitHubRateLimiter(
+        rate_per_hour=15_000, max_burst=50, max_concurrent=80
+    )
 
     try:
         # ── Paginate and upsert ───────────────────────────────────────────
@@ -474,6 +516,64 @@ async def _check_sync_schedule_async() -> dict:
     return {"status": "triggered", "run_id": str(run_id)}
 
 
+async def _discover_orgs_from_installation(installation_id: int) -> list[str]:
+    """Discover org logins from an installation's accessible repositories.
+
+    Uses ``GET /installation/repositories`` with the installation token to find
+    unique owner logins.  Falls back to an empty list on any error.
+    """
+    import redis.asyncio as aioredis
+
+    import httpx
+
+    from app.config import settings as _settings
+    from app.services.github_token_service import GitHubAppTokenManager
+
+    try:
+        valkey = aioredis.Redis.from_url(
+            _settings.VALKEY_URL, decode_responses=True, max_connections=5
+        )
+        try:
+            mgr = GitHubAppTokenManager(
+                app_id=_settings.github_app.GITHUB_APP_ID,
+                private_key_pem=_load_private_key(),
+                valkey_client=valkey,
+            )
+            token = await mgr.get_installation_token(installation_id)
+            headers = {
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            }
+            orgs: set[str] = set()
+            page = 1
+            async with httpx.AsyncClient(follow_redirects=False) as client:
+                while True:
+                    resp = await client.get(
+                        f"{_GITHUB_API_BASE}/installation/repositories",
+                        headers=headers,
+                        params={"per_page": 100, "page": page},
+                        timeout=30,
+                    )
+                    if resp.status_code != 200:
+                        break
+                    data = resp.json()
+                    repos = data.get("repositories", [])
+                    for repo in repos:
+                        owner = (repo.get("owner") or {}).get("login")
+                        if owner:
+                            orgs.add(owner)
+                    if len(repos) < 100:
+                        break
+                    page += 1
+        finally:
+            await valkey.aclose()
+        return sorted(orgs)
+    except Exception as exc:
+        logger.warning("github_sync.org_discovery_failed", error=str(exc))
+        return []
+
+
 # ── Module-level rate limiter singleton ───────────────────────────────────────
 
 _rate_limiter: GitHubRateLimiter | None = None
@@ -508,8 +608,50 @@ def _load_private_key() -> str:
         return fh.read()
 
 
-# Stub signatures for page fetcher and upsert dispatcher
-# (full implementation is in a separate github_sync_service.py)
+# ── GitHub API base URL (hardcoded to prevent SSRF) ───────────────────────────
+
+_GITHUB_API_BASE = "https://api.github.com"
+
+# Simple entity type → REST API path mapping (page-based pagination)
+_SIMPLE_ENTITY_URLS: dict[str, str] = {
+    "org_members": "/orgs/{org}/members",
+    "repositories": "/orgs/{org}/repos",
+    "teams": "/orgs/{org}/teams",
+}
+
+
+async def _github_get(
+    url: str,
+    headers: dict[str, str],
+    params: dict[str, object],
+    rate_limiter: GitHubRateLimiter,
+    *,
+    max_retries: int = 3,
+) -> "httpx.Response":
+    """Rate-limited GET with automatic retry on 429/403 rate limit responses."""
+    import httpx
+
+    resp: httpx.Response | None = None
+    for _attempt in range(max_retries):
+        await rate_limiter.acquire()
+        try:
+            async with httpx.AsyncClient(follow_redirects=False) as client:
+                resp = await client.get(url, headers=headers, params=params, timeout=30)
+            rate_limiter.update_from_headers(resp.headers)
+        finally:
+            rate_limiter.release()
+
+        if resp.status_code in (429, 403) and "rate limit" in resp.text.lower():
+            await rate_limiter.handle_rate_limit_response(resp)
+            continue
+        return resp
+
+    assert resp is not None
+    return resp
+
+
+def _has_next_page(headers: "httpx.Headers | dict[str, str]") -> bool:
+    return 'rel="next"' in (headers.get("link") or "")
 
 
 async def _fetch_page(
@@ -522,12 +664,420 @@ async def _fetch_page(
 ) -> tuple[list[dict], str | None]:
     """Fetch one page of *entity_type* from the GitHub API.
 
-    Returns (items, next_cursor). next_cursor is None when there are no more pages.
-    All HTTP calls go through the rate_limiter (acquire + release + header update).
-    Retries on 429/403 via rate_limiter.handle_rate_limit_response().
-    URL is always constructed from the hard-coded _GITHUB_API_BASE constant.
+    Returns ``(items, next_cursor)``.  ``next_cursor`` is ``None`` when there
+    are no more pages.
+
+    Pagination
+    ----------
+    * Simple entities (org_members, repositories, teams) use ``?page=N`` with
+      the cursor holding the page number as a string.
+    * ``team_members`` uses a JSON cursor encoding the team list and current
+      position so the full team roster is fetched only once.
+    * ``branch_protections`` iterates repos page-by-page and checks the
+      default-branch protection rule of each repo in that page.
+    * ``installations`` uses the GitHub App JWT (not the installation token).
+    * ``orgs`` / ``enterprise_members`` require the GraphQL API and are
+      deferred to a future release; they return ``([], None)`` with a warning.
     """
-    ...  # implemented in github_sync_service.py
+    import json
+
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    # ── Simple page-based entities ────────────────────────────────────────
+    if entity_type in _SIMPLE_ENTITY_URLS:
+        page = int(cursor) if cursor else 1
+        url = f"{_GITHUB_API_BASE}{_SIMPLE_ENTITY_URLS[entity_type].format(org=org)}"
+        params: dict[str, object] = {"per_page": page_size, "page": page}
+        if entity_type == "repositories":
+            params["type"] = "all"
+            params["sort"] = "full_name"
+
+        resp = await _github_get(url, headers, params, rate_limiter)
+        resp.raise_for_status()
+        items = resp.json()
+        next_cursor = str(page + 1) if items and _has_next_page(resp.headers) else None
+        return items, next_cursor
+
+    # ── Team members (nested: teams → members per team) ───────────────────
+    if entity_type == "team_members":
+        if cursor is None:
+            # First call — list all teams to build the traversal order
+            all_slugs: list[str] = []
+            teams_url = f"{_GITHUB_API_BASE}/orgs/{org}/teams"
+            tp = 1
+            while True:
+                resp = await _github_get(
+                    teams_url, headers, {"per_page": 100, "page": tp}, rate_limiter
+                )
+                resp.raise_for_status()
+                batch = resp.json()
+                all_slugs.extend(t["slug"] for t in batch)
+                if not batch or not _has_next_page(resp.headers):
+                    break
+                tp += 1
+            all_slugs.sort()
+            if not all_slugs:
+                return [], None
+            state = {"teams": all_slugs, "current": all_slugs[0], "page": 1}
+        else:
+            state = json.loads(cursor)
+
+        team_slug = state["current"]
+        page = state["page"]
+        all_slugs = state["teams"]
+
+        members_url = f"{_GITHUB_API_BASE}/orgs/{org}/teams/{team_slug}/members"
+        resp = await _github_get(
+            members_url, headers, {"per_page": page_size, "page": page}, rate_limiter
+        )
+        resp.raise_for_status()
+        items = resp.json()
+        for item in items:
+            item["_team_slug"] = team_slug
+
+        if _has_next_page(resp.headers):
+            state["page"] = page + 1
+            return items, json.dumps(state)
+
+        # Advance to next team
+        try:
+            idx = all_slugs.index(team_slug)
+        except ValueError:
+            return items, None
+        if idx + 1 < len(all_slugs):
+            state["current"] = all_slugs[idx + 1]
+            state["page"] = 1
+            return items, json.dumps(state)
+
+        return items, None
+
+    # ── Branch protections (iterate repos, check default branch) ──────────
+    if entity_type == "branch_protections":
+        page = int(cursor) if cursor else 1
+        repos_url = f"{_GITHUB_API_BASE}/orgs/{org}/repos"
+        resp = await _github_get(
+            repos_url,
+            headers,
+            {"per_page": page_size, "page": page, "type": "all", "sort": "full_name"},
+            rate_limiter,
+        )
+        resp.raise_for_status()
+        repos = resp.json()
+        if not repos:
+            return [], None
+
+        items = []
+        for repo in repos:
+            if repo.get("archived"):
+                continue
+            branch = repo.get("default_branch") or "main"
+            prot_url = (
+                f"{_GITHUB_API_BASE}/repos/{org}/{repo['name']}"
+                f"/branches/{branch}/protection"
+            )
+            prot_resp = await _github_get(prot_url, headers, {}, rate_limiter)
+            if prot_resp.status_code == 200:
+                prot = prot_resp.json()
+                pr_reviews = prot.get("required_pull_request_reviews") or {}
+                status_checks = prot.get("required_status_checks")
+                enforce = prot.get("enforce_admins") or {}
+                items.append({
+                    "_repo_name": repo["name"],
+                    "_branch": branch,
+                    "required_reviews": pr_reviews.get(
+                        "required_approving_review_count", 0
+                    ),
+                    "required_status_checks": (
+                        {
+                            "contexts": status_checks.get("contexts", []),
+                            "strict": status_checks.get("strict", False),
+                        }
+                        if status_checks
+                        else None
+                    ),
+                    "enforce_admins": enforce.get("enabled", False),
+                })
+            elif prot_resp.status_code == 404:
+                items.append({
+                    "_repo_name": repo["name"],
+                    "_branch": branch,
+                    "required_reviews": 0,
+                    "required_status_checks": None,
+                    "enforce_admins": False,
+                })
+            # 403 (no permission) — skip silently
+
+        next_cursor = str(page + 1) if _has_next_page(resp.headers) else None
+        return items, next_cursor
+
+    # ── Installations (uses App JWT, not installation token) ──────────────
+    if entity_type == "installations":
+        import time as _time
+
+        import jwt as pyjwt
+
+        from app.config import settings as _settings
+
+        key = _load_private_key()
+        now = int(_time.time())
+        app_jwt = pyjwt.encode(
+            {"iat": now - 60, "exp": now + 600, "iss": str(_settings.github_app.GITHUB_APP_ID)},
+            key,
+            algorithm="RS256",
+        )
+        inst_headers = {**headers, "Authorization": f"Bearer {app_jwt}"}
+
+        page = int(cursor) if cursor else 1
+        url = f"{_GITHUB_API_BASE}/app/installations"
+        resp = await _github_get(
+            url, inst_headers, {"per_page": page_size, "page": page}, rate_limiter
+        )
+        resp.raise_for_status()
+        items = resp.json()
+        next_cursor = str(page + 1) if items and _has_next_page(resp.headers) else None
+        return items, next_cursor
+
+    # ── Enterprise-level entities (require GraphQL — deferred) ────────────
+    if entity_type in ("orgs", "enterprise_members"):
+        logger.warning(
+            "github_sync.entity_requires_graphql",
+            entity_type=entity_type,
+            message=f"{entity_type} sync requires GitHub GraphQL API (planned for future release)",
+        )
+        return [], None
+
+    logger.error("github_sync.unknown_entity_type", entity_type=entity_type)
+    return [], None
+
+
+# ── Upsert helpers (one per entity type) ──────────────────────────────────────
+
+
+async def _upsert_org_members(
+    session: AsyncSession, org: str, items: list[dict]
+) -> None:
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import OrgMember
+
+    for item in items:
+        stmt = (
+            insert(OrgMember)
+            .values(
+                org=org,
+                github_login=item["login"],
+                github_id=item["id"],
+                role=item.get("role_name") or item.get("role", "member"),
+            )
+            .on_conflict_do_update(
+                constraint="uq_org_members_org_login",
+                set_={
+                    "github_id": item["id"],
+                    "role": item.get("role_name") or item.get("role", "member"),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_repositories(
+    session: AsyncSession, org: str, items: list[dict]
+) -> None:
+    from datetime import datetime as _dt
+
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import Repository
+
+    for item in items:
+        pushed = item.get("pushed_at")
+        pushed_dt = (
+            _dt.fromisoformat(pushed.replace("Z", "+00:00")) if pushed else None
+        )
+        stmt = (
+            insert(Repository)
+            .values(
+                org=org,
+                repo_name=item["name"],
+                repo_id=item["id"],
+                visibility=item.get("visibility", "private"),
+                default_branch=item.get("default_branch"),
+                archived=item.get("archived", False),
+                fork=item.get("fork", False),
+                pushed_at=pushed_dt,
+            )
+            .on_conflict_do_update(
+                constraint="uq_repositories_org_name",
+                set_={
+                    "repo_id": item["id"],
+                    "visibility": item.get("visibility", "private"),
+                    "default_branch": item.get("default_branch"),
+                    "archived": item.get("archived", False),
+                    "fork": item.get("fork", False),
+                    "pushed_at": pushed_dt,
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_teams(
+    session: AsyncSession, org: str, items: list[dict]
+) -> None:
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import OrgTeam
+
+    for item in items:
+        parent = item.get("parent") or {}
+        stmt = (
+            insert(OrgTeam)
+            .values(
+                org=org,
+                team_slug=item["slug"],
+                team_id=item["id"],
+                name=item["name"],
+                privacy=item.get("privacy"),
+                parent_team_slug=parent.get("slug"),
+            )
+            .on_conflict_do_update(
+                constraint="uq_org_teams_org_slug",
+                set_={
+                    "team_id": item["id"],
+                    "name": item["name"],
+                    "privacy": item.get("privacy"),
+                    "parent_team_slug": parent.get("slug"),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_team_members(
+    session: AsyncSession, org: str, items: list[dict]
+) -> None:
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import OrgTeamMember
+
+    for item in items:
+        team_slug = item.get("_team_slug", "unknown")
+        stmt = (
+            insert(OrgTeamMember)
+            .values(
+                org=org,
+                team_slug=team_slug,
+                github_login=item["login"],
+                github_id=item.get("id"),
+                role=item.get("role", "member"),
+            )
+            .on_conflict_do_update(
+                constraint="uq_org_team_members_org_team_login",
+                set_={
+                    "github_id": item.get("id"),
+                    "role": item.get("role", "member"),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_branch_protections(
+    session: AsyncSession, org: str, items: list[dict]
+) -> None:
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import RepoBranchProtection
+
+    for item in items:
+        stmt = (
+            insert(RepoBranchProtection)
+            .values(
+                org=org,
+                repo_name=item["_repo_name"],
+                branch=item["_branch"],
+                required_reviews=item.get("required_reviews", 0),
+                required_status_checks=item.get("required_status_checks"),
+                enforce_admins=item.get("enforce_admins", False),
+            )
+            .on_conflict_do_update(
+                constraint="uq_repo_branch_protections_org_repo_branch",
+                set_={
+                    "required_reviews": item.get("required_reviews", 0),
+                    "required_status_checks": item.get("required_status_checks"),
+                    "enforce_admins": item.get("enforce_admins", False),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_installations(
+    session: AsyncSession, _org: str | None, items: list[dict]
+) -> None:
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.config import settings as _settings
+    from app.models.github_sync import GitHubAppInstallation
+
+    app_id = _settings.github_app.GITHUB_APP_ID
+    for item in items:
+        acct = item.get("account") or {}
+        stmt = (
+            insert(GitHubAppInstallation)
+            .values(
+                app_id=app_id,
+                installation_id=item["id"],
+                target_type=item.get("target_type", "Organization"),
+                target_login=acct.get("login") or acct.get("slug", ""),
+                permissions=item.get("permissions"),
+            )
+            .on_conflict_do_update(
+                constraint="uq_github_app_installations_app_install",
+                set_={
+                    "target_type": item.get("target_type", "Organization"),
+                    "target_login": acct.get("login") or acct.get("slug", ""),
+                    "permissions": item.get("permissions"),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_enterprise_orgs(
+    session: AsyncSession, _org: str | None, items: list[dict]
+) -> None:
+    """Upsert enterprise org rows. Deferred — items will be empty until GraphQL is added."""
+    pass
+
+
+async def _upsert_enterprise_members(
+    session: AsyncSession, _org: str | None, items: list[dict]
+) -> None:
+    """Upsert enterprise member rows. Deferred — items will be empty until GraphQL is added."""
+    pass
 
 
 async def _upsert_items(
@@ -541,7 +1091,21 @@ async def _upsert_items(
     Uses INSERT ... ON CONFLICT DO UPDATE SET synced_at = NOW(), [...fields].
     Never deletes rows — non-destructive merge only.
     """
-    ...  # implemented in github_sync_service.py
+    _UPSERT_DISPATCH = {
+        "org_members": _upsert_org_members,
+        "repositories": _upsert_repositories,
+        "teams": _upsert_teams,
+        "team_members": _upsert_team_members,
+        "branch_protections": _upsert_branch_protections,
+        "installations": _upsert_installations,
+        "orgs": _upsert_enterprise_orgs,
+        "enterprise_members": _upsert_enterprise_members,
+    }
+    handler = _UPSERT_DISPATCH.get(entity_type)
+    if handler is None:
+        logger.error("github_sync.unknown_upsert_entity", entity_type=entity_type)
+        return
+    await handler(session, org, items)
 
 
 async def _bootstrap_app_configs(settings: object) -> list:
