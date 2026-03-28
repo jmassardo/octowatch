@@ -44,6 +44,68 @@ vi.mock('../../api/healthSignals', () => ({
     collaborators: [],
   }),
   getDormantCollaborators: vi.fn().mockResolvedValue({ dormant: [] }),
+  getSecurityPosture: vi.fn().mockResolvedValue({
+    repos_with_secret_scanning: 0,
+    repos_with_dependabot: 0,
+    repos_with_codeql: 0,
+    repos_with_ghas: 0,
+    features_disabled_count: 0,
+  }),
+  getSecretScanning: vi.fn().mockResolvedValue({
+    unresolved_total: 0,
+    publicly_leaked: 0,
+    open_gt_7d: 0,
+    open_gt_30d: 0,
+    mttr_hours: 0,
+  }),
+  getSsoHealth: vi.fn().mockResolvedValue({ orgs: [] }),
+  getPrivilegeChanges: vi.fn().mockResolvedValue({
+    admin_promotions: 0,
+    integration_manager_grants: 0,
+    custom_role_changes: 0,
+  }),
+  getAppGovernance: vi.fn().mockResolvedValue({
+    apps_installed: 0,
+    apps_removed: 0,
+    oauth_approved: 0,
+    oauth_denied: 0,
+    token_revocations: 0,
+    webhooks_created: 0,
+    webhooks_removed: 0,
+    webhooks_modified: 0,
+  }),
+  getCodeScanning: vi.fn().mockResolvedValue({
+    total_alerts: 0,
+    avg_hours_to_close: 0,
+    dismissed_count: 0,
+    reappeared_count: 0,
+  }),
+  getVulnerabilities: vi.fn().mockResolvedValue({
+    total_open: 0,
+    critical_open: 0,
+    high_open: 0,
+    open_gt_30d: 0,
+    critical_open_gt_14d: 0,
+    avg_open_days: 0,
+  }),
+  getWorkflowHealth: vi.fn().mockResolvedValue({ workflows: [] }),
+  getBranchProtection: vi.fn().mockResolvedValue({
+    protections_removed: 0,
+    policy_overrides: 0,
+    modified: 0,
+    distinct_repos_affected: 0,
+  }),
+  getCopilotGovernance: vi.fn().mockResolvedValue({
+    seats_granted_90d: 0,
+    seats_removed: 0,
+    unique_users: 0,
+  }),
+  getCodespaces: vi.fn().mockResolvedValue({
+    active_never_suspended: 0,
+    large_machine_count: 0,
+    unique_users: 0,
+  }),
+  getRunnerHealth: vi.fn().mockResolvedValue({ runners: [] }),
 }));
 
 function renderPage() {
@@ -91,11 +153,11 @@ describe('HealthPage', () => {
     expect(screen.getByText('Elevated Collaborators')).toBeInTheDocument();
   });
 
-  it('renders the tab bar with 5 tabs', () => {
+  it('renders the tab bar with 8 tabs', () => {
     renderPage();
     const tablist = screen.getByRole('tablist');
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs).toHaveLength(5);
+    expect(tabs).toHaveLength(8);
   });
 
   it('shows Repository Health pane by default', async () => {
@@ -145,6 +207,36 @@ describe('HealthPage', () => {
     const wafTab = screen.getByRole('tab', { name: /WAF Insights/ });
     expect(wafTab).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText(/WAF alignment signals/i)).toBeInTheDocument();
+  });
+
+  it('switches to Security Posture tab', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('tab', { name: /Security Posture/ }));
+    const tab = screen.getByRole('tab', { name: /Security Posture/ });
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByText(/Security posture signals/i)).toBeInTheDocument();
+  });
+
+  it('switches to App Governance tab', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('tab', { name: /App Governance/ }));
+    const tab = screen.getByRole('tab', { name: /App Governance/ });
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByText(/App governance signals/i)).toBeInTheDocument();
+  });
+
+  it('switches to Operations tab', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('tab', { name: /Operations/ }));
+    const tab = screen.getByRole('tab', { name: /Operations/ });
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByText(/Operations health signals/i)).toBeInTheDocument();
   });
 
   it('can switch back to Repository Health after navigating to another tab', async () => {

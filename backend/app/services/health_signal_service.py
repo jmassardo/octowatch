@@ -450,3 +450,846 @@ async def get_dormant_collaborators(
         {"scoped_orgs": scoped_orgs, "dormancy_days": dormancy_days, "limit": limit},
     )
     return [dict(row) for row in result.mappings().all()]
+
+
+# ── Phase 1: Audit stream, security, secret scanning, SSO, privilege, visibility ──
+
+
+async def get_audit_stream_status(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Most recent streaming config event per org (last 7 days)."""
+    result = await session.execute(
+        text("""
+            SELECT DISTINCT ON (org)
+                org, action, actor, created_at,
+                EXTRACT(HOURS FROM NOW() - created_at)::INT AS hours_ago
+            FROM events
+            WHERE action LIKE 'audit_log_streaming.%%'
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '7 days'
+            ORDER BY org, created_at DESC
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_security_coverage(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Security feature enable/disable state per org (90 days)."""
+    result = await session.execute(
+        text("""
+            WITH feature_states AS (
+                SELECT DISTINCT ON (org, repo,
+                    CASE
+                        WHEN action LIKE 'secret_scanning%%' THEN 'secret_scanning'
+                        WHEN action LIKE 'repository_secret_scanning%%'
+                            THEN 'secret_scanning'
+                        WHEN action LIKE 'dependency_graph%%' THEN 'dependency_graph'
+                        WHEN action LIKE 'dependabot%%' THEN 'dependabot'
+                        WHEN action LIKE '%%codeql%%' THEN 'codeql'
+                        WHEN action LIKE '%%advanced_security%%' THEN 'ghas'
+                        ELSE 'other'
+                    END
+                )
+                    org, repo,
+                    CASE
+                        WHEN action LIKE 'secret_scanning%%' THEN 'secret_scanning'
+                        WHEN action LIKE 'repository_secret_scanning%%'
+                            THEN 'secret_scanning'
+                        WHEN action LIKE 'dependency_graph%%' THEN 'dependency_graph'
+                        WHEN action LIKE 'dependabot%%' THEN 'dependabot'
+                        WHEN action LIKE '%%codeql%%' THEN 'codeql'
+                        WHEN action LIKE '%%advanced_security%%' THEN 'ghas'
+                        ELSE 'other'
+                    END AS feature,
+                    action,
+                    CASE
+                        WHEN action LIKE '%%.disable%%' OR action LIKE '%%_disabled%%'
+                            THEN 'disabled'
+                        ELSE 'enabled'
+                    END AS state,
+                    created_at, actor
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND (action LIKE 'secret_scanning%%'
+                       OR action LIKE 'repository_secret_scanning%%'
+                       OR action LIKE 'dependency_graph%%'
+                       OR action LIKE 'dependabot%%'
+                       OR action LIKE '%%codeql%%'
+                       OR action LIKE '%%advanced_security%%')
+                  AND repo IS NOT NULL
+                  AND created_at >= NOW() - INTERVAL '90 days'
+                ORDER BY org, repo,
+                    CASE
+                        WHEN action LIKE 'secret_scanning%%' THEN 'secret_scanning'
+                        WHEN action LIKE 'repository_secret_scanning%%'
+                            THEN 'secret_scanning'
+                        WHEN action LIKE 'dependency_graph%%' THEN 'dependency_graph'
+                        WHEN action LIKE 'dependabot%%' THEN 'dependabot'
+                        WHEN action LIKE '%%codeql%%' THEN 'codeql'
+                        WHEN action LIKE '%%advanced_security%%' THEN 'ghas'
+                        ELSE 'other'
+                    END,
+                    created_at DESC
+            )
+            SELECT
+                org,
+                COUNT(DISTINCT repo) AS total_repos,
+                COUNT(DISTINCT repo) FILTER (
+                    WHERE feature = 'secret_scanning' AND state = 'enabled'
+                ) AS secret_scanning_enabled,
+                COUNT(DISTINCT repo) FILTER (
+                    WHERE feature = 'dependabot' AND state = 'enabled'
+                ) AS dependabot_enabled,
+                COUNT(DISTINCT repo) FILTER (
+                    WHERE feature = 'codeql' AND state = 'enabled'
+                ) AS codeql_enabled,
+                COUNT(DISTINCT repo) FILTER (
+                    WHERE feature = 'ghas' AND state = 'enabled'
+                ) AS ghas_enabled,
+                COUNT(DISTINCT repo) FILTER (
+                    WHERE state = 'disabled'
+                ) AS any_feature_disabled
+            FROM feature_states
+            GROUP BY org
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_secret_scanning_alert_health(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Secret scanning MTTR and unresolved counts (90 days)."""
+    result = await session.execute(
+        text("""
+            WITH alerts AS (
+                SELECT
+                    org,
+                    data->>'number'                         AS alert_number,
+                    data->>'secret_type'                    AS secret_type,
+                    data->>'secret_type_display_name'       AS secret_type_display_name,
+                    (data->>'publicly_leaked')::BOOLEAN     AS publicly_leaked,
+                    (data->>'multi_repo')::BOOLEAN          AS multi_repo,
+                    action,
+                    actor,
+                    created_at
+                FROM events
+                WHERE namespace = 'secret_scanning_alert'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '90 days'
+            ),
+            opens AS (
+                SELECT org, alert_number, secret_type, publicly_leaked,
+                       created_at AS opened_at
+                FROM alerts WHERE action = 'secret_scanning_alert.create'
+            ),
+            resolves AS (
+                SELECT org, alert_number, created_at AS resolved_at
+                FROM alerts WHERE action = 'secret_scanning_alert.resolve'
+            ),
+            mttr AS (
+                SELECT
+                    o.org,
+                    AVG(EXTRACT(HOURS FROM r.resolved_at - o.opened_at))
+                        AS avg_hours_to_resolve,
+                    COUNT(*) AS resolved_count
+                FROM opens o
+                JOIN resolves r USING (org, alert_number)
+                GROUP BY o.org
+            ),
+            unresolved AS (
+                SELECT
+                    o.org,
+                    COUNT(*) AS unresolved_total,
+                    COUNT(*) FILTER (
+                        WHERE NOW() - o.opened_at > INTERVAL '7 days'
+                    ) AS unresolved_gt_7d,
+                    COUNT(*) FILTER (
+                        WHERE NOW() - o.opened_at > INTERVAL '30 days'
+                    ) AS unresolved_gt_30d,
+                    COUNT(*) FILTER (
+                        WHERE o.publicly_leaked = TRUE
+                    ) AS publicly_leaked_count
+                FROM opens o
+                LEFT JOIN resolves r USING (org, alert_number)
+                WHERE r.alert_number IS NULL
+                GROUP BY o.org
+            )
+            SELECT
+                u.org,
+                u.unresolved_total,
+                u.unresolved_gt_7d,
+                u.unresolved_gt_30d,
+                u.publicly_leaked_count,
+                m.avg_hours_to_resolve,
+                m.resolved_count
+            FROM unresolved u
+            LEFT JOIN mttr m USING (org)
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_sso_health(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Most recent SSO enable/disable state per org (90 days)."""
+    result = await session.execute(
+        text("""
+            SELECT DISTINCT ON (org)
+                org, action, actor, created_at,
+                CASE WHEN action = 'org.disable_saml'
+                     THEN 'disabled' ELSE 'enabled'
+                END AS sso_state
+            FROM events
+            WHERE action IN ('org.disable_saml', 'org.enable_saml')
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+            ORDER BY org, created_at DESC
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_privilege_change_summary(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Admin promotions, integration manager grants (30 days)."""
+    result = await session.execute(
+        text("""
+            SELECT
+                org,
+                COUNT(*) FILTER (
+                    WHERE action = 'org.member_to_admin'
+                ) AS admin_promotions,
+                COUNT(*) FILTER (
+                    WHERE action = 'org.integration_manager_added'
+                ) AS integration_mgr_grants,
+                COUNT(*) FILTER (
+                    WHERE action LIKE 'organization_role.%%'
+                ) AS custom_role_changes,
+                MIN(created_at) AS earliest_event,
+                MAX(created_at) AS latest_event
+            FROM events
+            WHERE action IN (
+                'org.member_to_admin',
+                'org.integration_manager_added',
+                'organization_role.create',
+                'organization_role.update',
+                'organization_role.destroy'
+            )
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '30 days'
+            GROUP BY org
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_repo_visibility_trends(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Private/internal to public transitions (90 days)."""
+    result = await session.execute(
+        text("""
+            SELECT
+                DATE_TRUNC('week', created_at)           AS week,
+                org,
+                data->>'previous_visibility'             AS from_visibility,
+                data->>'visibility'                      AS to_visibility,
+                COUNT(*)                                 AS change_count,
+                ARRAY_AGG(repo ORDER BY created_at DESC) AS repos_changed
+            FROM events
+            WHERE action = 'repo.access'
+              AND org = ANY(:scoped_orgs)
+              AND data->>'visibility' = 'public'
+              AND data->>'previous_visibility' IN ('private', 'internal')
+              AND created_at >= NOW() - INTERVAL '90 days'
+            GROUP BY 1, 2, 3, 4
+            ORDER BY week DESC
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+# ── Phase 2: Code scanning, vulnerabilities, app governance, webhooks ─────────
+
+
+async def get_code_scanning_health(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Code scanning MTTR, dismissal rates (90 days)."""
+    result = await session.execute(
+        text("""
+            WITH created AS (
+                SELECT org, repo, data->>'alert_number' AS alert_num,
+                       created_at AS opened_at
+                FROM events
+                WHERE action = 'code_scanning.alert_created'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '90 days'
+            ),
+            closed AS (
+                SELECT org, repo, data->>'alert_number' AS alert_num,
+                       created_at AS closed_at
+                FROM events
+                WHERE action = 'code_scanning.alert_closed_by_user'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '90 days'
+            ),
+            dismissed AS (
+                SELECT org, repo, COUNT(*) AS dismissed_count
+                FROM events
+                WHERE action = 'code_scanning.alert_closed_by_user'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '30 days'
+                GROUP BY org, repo
+            ),
+            reappeared AS (
+                SELECT org, repo, COUNT(*) AS reappear_count
+                FROM events
+                WHERE action = 'code_scanning.alert_reappeared'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '30 days'
+                GROUP BY org, repo
+            )
+            SELECT
+                c.org,
+                c.repo,
+                COUNT(*) AS total_alerts_30d,
+                AVG(EXTRACT(HOURS FROM cl.closed_at - c.opened_at))
+                    AS avg_hours_to_close,
+                COALESCE(d.dismissed_count, 0) AS dismissed_30d,
+                COALESCE(r.reappear_count, 0)  AS reappeared_30d
+            FROM created c
+            LEFT JOIN closed cl USING (org, repo, alert_num)
+            LEFT JOIN dismissed d USING (org, repo)
+            LEFT JOIN reappeared r USING (org, repo)
+            GROUP BY c.org, c.repo, d.dismissed_count, r.reappear_count
+            ORDER BY total_alerts_30d DESC
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": limit},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_vulnerability_aging(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Dependabot vulnerability aging (180 days)."""
+    result = await session.execute(
+        text("""
+            WITH created_alerts AS (
+                SELECT
+                    org,
+                    repo,
+                    data->>'alert_number'         AS alert_number,
+                    data->>'severity'             AS severity,
+                    data->>'package_name'         AS package_name,
+                    data->>'affected_range'       AS affected_range,
+                    created_at                    AS alert_created_at
+                FROM events
+                WHERE action = 'repository_vulnerability_alert.create'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '180 days'
+            ),
+            dismissed_alerts AS (
+                SELECT org, repo, data->>'alert_number' AS alert_number
+                FROM events
+                WHERE action IN (
+                    'repository_vulnerability_alert.dismiss',
+                    'repository_vulnerability_alert.resolve'
+                )
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '180 days'
+            )
+            SELECT
+                c.org,
+                COUNT(*) FILTER (WHERE d.alert_number IS NULL)
+                    AS total_open,
+                COUNT(*) FILTER (
+                    WHERE d.alert_number IS NULL AND c.severity = 'critical'
+                ) AS open_critical,
+                COUNT(*) FILTER (
+                    WHERE d.alert_number IS NULL AND c.severity = 'high'
+                ) AS open_high,
+                COUNT(*) FILTER (
+                    WHERE d.alert_number IS NULL
+                      AND NOW() - c.alert_created_at > INTERVAL '30 days'
+                ) AS open_gt_30d,
+                COUNT(*) FILTER (
+                    WHERE d.alert_number IS NULL
+                      AND c.severity = 'critical'
+                      AND NOW() - c.alert_created_at > INTERVAL '14 days'
+                ) AS critical_open_gt_14d,
+                AVG(EXTRACT(DAYS FROM NOW() - c.alert_created_at))
+                    FILTER (WHERE d.alert_number IS NULL) AS avg_open_days
+            FROM created_alerts c
+            LEFT JOIN dismissed_alerts d USING (org, repo, alert_number)
+            GROUP BY c.org
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_app_governance_summary(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """OAuth/GitHub App summary (90 days)."""
+    result = await session.execute(
+        text("""
+            SELECT
+                org,
+                COUNT(*) FILTER (
+                    WHERE action = 'integration_installation.create'
+                ) AS apps_installed_90d,
+                COUNT(*) FILTER (
+                    WHERE action = 'integration_installation.delete'
+                ) AS apps_removed_90d,
+                COUNT(*) FILTER (
+                    WHERE action = 'org.oauth_app_access_approved'
+                ) AS oauth_apps_approved_90d,
+                COUNT(*) FILTER (
+                    WHERE action = 'org.oauth_app_access_denied'
+                ) AS oauth_apps_denied_90d,
+                COUNT(*) FILTER (
+                    WHERE action = 'integration.revoke_all_tokens'
+                ) AS token_revocations_90d
+            FROM events
+            WHERE action IN (
+                'integration_installation.create',
+                'integration_installation.delete',
+                'org.oauth_app_access_approved',
+                'org.oauth_app_access_denied',
+                'integration.revoke_all_tokens'
+            )
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+            GROUP BY org
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_webhook_activity(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Recent webhook creation/modification activity (30 days)."""
+    result = await session.execute(
+        text("""
+            SELECT
+                org,
+                COUNT(*) FILTER (WHERE action = 'hook.create')
+                    AS webhooks_created_30d,
+                COUNT(*) FILTER (WHERE action = 'hook.destroy')
+                    AS webhooks_removed_30d,
+                COUNT(*) FILTER (WHERE action = 'hook.events_changed')
+                    AS webhooks_modified_30d
+            FROM events
+            WHERE action IN ('hook.create', 'hook.destroy', 'hook.events_changed')
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '30 days'
+            GROUP BY org
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+# ── Phase 3: Workflows, branch protection, Copilot, codespaces, runners ──────
+
+
+async def get_workflow_health(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Workflow failure rates (30 days)."""
+    result = await session.execute(
+        text("""
+            WITH run_outcomes AS (
+                SELECT
+                    org,
+                    repo,
+                    data->>'name'           AS workflow_name,
+                    data->>'workflow_id'    AS workflow_id,
+                    data->>'conclusion'     AS conclusion,
+                    data->>'head_branch'    AS head_branch,
+                    created_at
+                FROM events
+                WHERE action = 'workflows.completed_workflow_run'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '30 days'
+            )
+            SELECT
+                org,
+                repo,
+                workflow_name,
+                COUNT(*)                           AS total_runs,
+                COUNT(*) FILTER (WHERE conclusion = 'success')
+                    AS successes,
+                COUNT(*) FILTER (WHERE conclusion = 'failure')
+                    AS failures,
+                COUNT(*) FILTER (WHERE conclusion = 'cancelled')
+                    AS cancelled,
+                ROUND(
+                    100.0 * COUNT(*) FILTER (WHERE conclusion = 'failure')
+                    / NULLIF(COUNT(*), 0), 2
+                ) AS failure_rate_pct,
+                MAX(created_at) AS last_run_at
+            FROM run_outcomes
+            GROUP BY org, repo, workflow_name
+            HAVING COUNT(*) >= 5
+            ORDER BY failure_rate_pct DESC
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": limit},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_workflow_secret_usage(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    threshold: int = 5,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Jobs with excessive secrets passed (7 days)."""
+    result = await session.execute(
+        text("""
+            SELECT
+                org,
+                repo,
+                data->>'job_name'            AS job_name,
+                data->>'workflow_run_id'     AS workflow_run_id,
+                jsonb_array_length(
+                    COALESCE((data->'secrets_passed')::JSONB, '[]'::JSONB)
+                ) AS secrets_count,
+                created_at
+            FROM events
+            WHERE action = 'workflows.prepared_workflow_job'
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '7 days'
+              AND jsonb_array_length(
+                  COALESCE((data->'secrets_passed')::JSONB, '[]'::JSONB)
+              ) > :threshold
+            ORDER BY secrets_count DESC
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "threshold": threshold, "limit": limit},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_branch_protection_health(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Branch protection change summary (30 days)."""
+    result = await session.execute(
+        text("""
+            WITH protection_changes AS (
+                SELECT
+                    org, repo, action, actor, created_at,
+                    CASE
+                        WHEN action LIKE '%%policy_override%%' THEN 'override'
+                        WHEN action LIKE '%%update%%'
+                             OR action LIKE '%%create%%' THEN 'modified'
+                        WHEN action IN ('protected_branch.destroy',
+                                        'required_status_check.destroy')
+                            THEN 'removed'
+                        ELSE 'other'
+                    END AS change_type
+                FROM events
+                WHERE namespace IN ('protected_branch', 'required_status_check',
+                                    'repository_ruleset')
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '30 days'
+            )
+            SELECT
+                org,
+                COUNT(*) FILTER (WHERE change_type = 'removed')
+                    AS protections_removed_30d,
+                COUNT(*) FILTER (WHERE change_type = 'override')
+                    AS policy_overrides_30d,
+                COUNT(*) FILTER (WHERE change_type = 'modified')
+                    AS protections_modified_30d,
+                COUNT(DISTINCT actor)  AS distinct_actors,
+                COUNT(DISTINCT repo)   AS distinct_repos_affected
+            FROM protection_changes
+            GROUP BY org
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_copilot_seat_health(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Copilot seat utilization (90 days)."""
+    result = await session.execute(
+        text("""
+            WITH seat_events AS (
+                SELECT
+                    org,
+                    action,
+                    actor,
+                    data->>'user' AS target_user,
+                    created_at
+                FROM events
+                WHERE namespace = 'copilot'
+                  AND action IN (
+                      'copilot.cfb_seat_added',
+                      'copilot.cfb_seat_cancelled',
+                      'copilot.cfb_seat_assignment_created',
+                      'copilot.cfb_seat_assignment_unassigned'
+                  )
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '90 days'
+            )
+            SELECT
+                org,
+                COUNT(*) FILTER (
+                    WHERE action LIKE '%%seat_added%%'
+                       OR action LIKE '%%seat_assignment_created%%'
+                ) AS seats_granted_90d,
+                COUNT(*) FILTER (
+                    WHERE action LIKE '%%cancelled%%'
+                       OR action LIKE '%%unassigned%%'
+                ) AS seats_removed_90d,
+                COUNT(DISTINCT target_user) FILTER (
+                    WHERE action LIKE '%%seat_added%%'
+                ) AS unique_users_granted,
+                MAX(created_at) FILTER (
+                    WHERE action = 'copilot.cfb_seat_management_changed'
+                ) AS last_policy_change_at
+            FROM seat_events
+            GROUP BY org
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_codespace_cost_signals(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Codespace active/cost signals (30 days)."""
+    result = await session.execute(
+        text("""
+            WITH codespace_lifecycle AS (
+                SELECT DISTINCT ON (org, data->>'name', actor)
+                    org,
+                    repo,
+                    actor,
+                    data->>'name'         AS codespace_name,
+                    data->>'machine_type' AS machine_type,
+                    action,
+                    created_at
+                FROM events
+                WHERE namespace = 'codespaces'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '30 days'
+                ORDER BY org, data->>'name', actor, created_at DESC
+            ),
+            created AS (
+                SELECT org, repo, actor, codespace_name, machine_type,
+                       created_at
+                FROM codespace_lifecycle WHERE action = 'codespaces.create'
+            ),
+            suspended AS (
+                SELECT org, codespace_name, created_at AS suspended_at
+                FROM codespace_lifecycle
+                WHERE action = 'codespaces.suspend_environment'
+            ),
+            destroyed AS (
+                SELECT org, codespace_name
+                FROM codespace_lifecycle WHERE action = 'codespaces.destroy'
+            )
+            SELECT
+                c.org,
+                COUNT(*) FILTER (
+                    WHERE d.codespace_name IS NULL AND s.codespace_name IS NULL
+                ) AS active_never_suspended,
+                COUNT(*) FILTER (
+                    WHERE c.machine_type IN (
+                        'largePremium', 'xLargePremium', '16core', '32core'
+                    )
+                ) AS large_machine_count,
+                COUNT(DISTINCT c.actor) AS unique_users_with_codespaces,
+                MAX(c.created_at) AS most_recent_create
+            FROM created c
+            LEFT JOIN destroyed d USING (org, codespace_name)
+            LEFT JOIN suspended s USING (org, codespace_name)
+            GROUP BY c.org
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_runner_fleet_health(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Self-hosted runner fleet (7 days)."""
+    result = await session.execute(
+        text("""
+            SELECT
+                org,
+                repo,
+                data->>'runner_id'           AS runner_id,
+                data->>'runner_name'         AS runner_name,
+                data->>'source_version'      AS source_version,
+                data->>'target_version'      AS target_version,
+                data->>'runner_group_name'   AS runner_group,
+                action,
+                created_at
+            FROM events
+            WHERE action IN (
+                'org.self_hosted_runner_updated',
+                'repo.self_hosted_runner_updated',
+                'org.add_self_hosted_runner',
+                'repo.add_self_hosted_runner'
+            )
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '7 days'
+            ORDER BY created_at DESC
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": limit},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+# ── Phase 4: Ingestion gaps, system health, threat intel ─────────────────────
+
+
+async def get_ingestion_gap_status(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Check for data gaps per org."""
+    result = await session.execute(
+        text("""
+            SELECT
+                org,
+                MAX(created_at) AS last_event_at,
+                EXTRACT(MINUTES FROM NOW() - MAX(created_at))::INT
+                    AS minutes_since_last
+            FROM events
+            WHERE org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '24 hours'
+            GROUP BY org
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_system_health_events(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Active system health warnings."""
+    result = await session.execute(
+        text("""
+            SELECT id, occurred_at, org, signal_type, severity, detail
+            FROM system_health_events
+            WHERE (org = ANY(:scoped_orgs) OR org IS NULL)
+              AND resolved_at IS NULL
+            ORDER BY occurred_at DESC
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": limit},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_threat_intel_summary(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Threat intel domain stats."""
+    result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) AS total_domains,
+                COUNT(*) FILTER (WHERE active = TRUE) AS active_domains,
+                COUNT(*) FILTER (
+                    WHERE expires_at IS NOT NULL AND expires_at < NOW()
+                ) AS expired_domains,
+                MAX(added_at) AS last_added_at
+            FROM threat_intel_domains
+        """),
+    )
+    row = result.mappings().first()
+    if not row:
+        return {
+            "total_domains": 0,
+            "active_domains": 0,
+            "expired_domains": 0,
+            "last_added_at": None,
+        }
+    return dict(row)

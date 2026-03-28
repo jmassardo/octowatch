@@ -1,0 +1,117 @@
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sectionSub {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-bottom: 10px;
+}
+
+.tableWrap {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tableWrap thead th {
+  background: var(--canvas-subtle);
+  color: var(--fg-muted);
+  font-weight: 500;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tableWrap tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-muted);
+  vertical-align: middle;
+}
+
+.tableWrap tbody tr:hover td {
+  background: rgba(177, 186, 196, 0.04);
+}
+
+.tableWrap tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.numCol {
+  font-variant-numeric: tabular-nums;
+}
+
+.centered {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}
+
+.streamStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.streamDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.streamDotEnabled {
+  background: var(--success);
+}
+
+.streamDotDisabled {
+  background: var(--danger);
+}
+
+.codeSnippet {
+  font-size: 10px;
+  background: var(--canvas-inset);
+  padding: 1px 3px;
+  border-radius: 2px;
+  font-family: monospace;
+}
+
+.cardFooter {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  padding-top: 8px;
+  border-top: 1px solid var(--border-muted);
+}

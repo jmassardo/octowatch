@@ -9,16 +9,19 @@ describe('HealthTabBar', () => {
     onTabChange: vi.fn(),
   };
 
-  it('renders all 5 tabs', () => {
+  it('renders all 8 tabs', () => {
     render(<HealthTabBar {...defaultProps} />);
     const tablist = screen.getByRole('tablist');
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs).toHaveLength(5);
+    expect(tabs).toHaveLength(8);
     expect(tabs[0]).toHaveTextContent('Repository Health');
     expect(tabs[1]).toHaveTextContent('Access & Identity');
-    expect(tabs[2]).toHaveTextContent('License Health');
-    expect(tabs[3]).toHaveTextContent('Maintenance Signals');
-    expect(tabs[4]).toHaveTextContent('WAF Insights');
+    expect(tabs[2]).toHaveTextContent('Security Posture');
+    expect(tabs[3]).toHaveTextContent('App Governance');
+    expect(tabs[4]).toHaveTextContent('Operations');
+    expect(tabs[5]).toHaveTextContent('License Health');
+    expect(tabs[6]).toHaveTextContent('Maintenance Signals');
+    expect(tabs[7]).toHaveTextContent('WAF Insights');
   });
 
   it('marks the active tab with aria-selected', () => {

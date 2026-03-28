@@ -9,6 +9,9 @@ import { AccessIdentityPane } from './AccessIdentityPane';
 import { LicensePane } from './LicensePane';
 import { MaintenancePane } from './MaintenancePane';
 import { WafInsightsPane } from './WafInsightsPane';
+import { SecurityPosturePane } from './SecurityPosturePane';
+import { AppGovernancePane } from './AppGovernancePane';
+import { OpsHealthPane } from './OpsHealthPane';
 import { WAF_FINDINGS } from './healthData';
 import styles from './Health.module.css';
 
@@ -89,6 +92,9 @@ export function HealthPage() {
 
       {activeTab === 'repo-health' && <RepoHealthPane />}
       {activeTab === 'access-identity' && <AccessIdentityPane />}
+      {activeTab === 'security-posture' && <SecurityPosturePane />}
+      {activeTab === 'app-governance' && <AppGovernancePane />}
+      {activeTab === 'operations' && <OpsHealthPane />}
       {activeTab === 'license' && <LicensePane />}
       {activeTab === 'maintenance' && <MaintenancePane />}
       {activeTab === 'waf' && <WafInsightsPane />}

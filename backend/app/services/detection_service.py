@@ -512,6 +512,254 @@ async def evaluate_impossible_travel(
     return results
 
 
+# ─── Cross-namespace sequence helpers ─────────────────────────────────────────
+
+
+def _evaluate_dict_field_condition(event: dict[str, Any], condition: dict[str, Any]) -> bool:
+    """Evaluate a single field_condition against an event dict (raw SQL row).
+
+    Mirror of ``evaluate_field_condition`` but operates on plain dicts instead
+    of AuditEvent ORM instances.  Supports the same operator set.
+    """
+    field_path: str = condition["field"]
+    operator: str = condition["operator"]
+    expected = condition.get("value")
+
+    # Resolve field value — data.* keys are looked up inside the JSONB column
+    if field_path.startswith("data."):
+        key = field_path[5:]
+        data = event.get("data")
+        actual = data.get(key) if isinstance(data, dict) else None
+    else:
+        actual = event.get(field_path)
+
+    match operator:
+        case "eq":
+            return actual == expected
+        case "ne":
+            return actual != expected
+        case "gt":
+            return actual is not None and actual > expected
+        case "gte":
+            return actual is not None and actual >= expected
+        case "lt":
+            return actual is not None and actual < expected
+        case "lte":
+            return actual is not None and actual <= expected
+        case "in":
+            return actual in expected if expected else False
+        case "not_in":
+            return actual not in expected if expected else True
+        case "contains":
+            return str(expected) in str(actual) if actual is not None else False
+        case "not_contains":
+            return str(expected) not in str(actual) if actual is not None else True
+        case "exists":
+            return actual is not None
+        case "not_exists":
+            return actual is None
+        case "matches_glob":
+            return fnmatch.fnmatch(str(actual or ""), str(expected or ""))
+        case "scope_contains":
+            if actual is None:
+                return False
+            tokens = {t.strip() for t in str(actual).replace(",", " ").split()}
+            return str(expected) in tokens
+        case _:
+            logger.warning("detection.unknown_operator", operator=operator)
+            return False
+
+
+def _event_dict_matches_step(event: dict[str, Any], step: dict[str, Any]) -> bool:
+    """Check if an event dict matches a step's action_filters and field_conditions."""
+    step_actions: list[str] = step.get("action_filters", [])
+    if step_actions and event.get("action") not in step_actions:
+        return False
+
+    field_conditions: list[dict[str, Any]] = step.get("field_conditions", [])
+    return all(_evaluate_dict_field_condition(event, cond) for cond in field_conditions)
+
+
+def _match_sequence_steps(
+    events: list[dict[str, Any]],
+    steps: list[dict[str, Any]],
+    window_minutes: int,
+    require_distinct: bool,
+) -> list[dict[str, Any]] | None:
+    """Try to match all steps in sequence order within the time window.
+
+    Returns the list of matched events (one per step minimum) or ``None`` if no
+    complete match is found.  Events must appear in chronological order; each
+    step is satisfied once *min_count* matching events have been found.
+    """
+    sorted_steps = sorted(steps, key=lambda s: s.get("step", 0))
+    if not sorted_steps:
+        return None
+
+    first_step = sorted_steps[0]
+
+    for i, event in enumerate(events):
+        # Check if this event can start step 1
+        if not _event_dict_matches_step(event, first_step):
+            continue
+
+        window_end = event["created_at"] + timedelta(minutes=window_minutes)
+        matched: list[dict[str, Any]] = [event]
+        used_ids: set[int] = {event["id"]} if require_distinct else set()
+
+        current_step_idx = 0
+        current_step_matches = 1
+        first_min = first_step.get("min_count", 1)
+
+        # Advance past step 1 if min_count is already satisfied
+        if current_step_matches >= first_min:
+            current_step_idx = 1
+            current_step_matches = 0
+
+        # Single-step rule already complete
+        if current_step_idx >= len(sorted_steps):
+            return matched
+
+        # Scan remaining events for subsequent steps
+        search_start = i + 1 if require_distinct else i
+        for j in range(search_start, len(events)):
+            if current_step_idx >= len(sorted_steps):
+                break
+            if events[j]["created_at"] > window_end:
+                break
+            if require_distinct and events[j]["id"] in used_ids:
+                continue
+
+            step = sorted_steps[current_step_idx]
+            if _event_dict_matches_step(events[j], step):
+                matched.append(events[j])
+                if require_distinct:
+                    used_ids.add(events[j]["id"])
+                current_step_matches += 1
+
+                if current_step_matches >= step.get("min_count", 1):
+                    current_step_idx += 1
+                    current_step_matches = 0
+
+        if current_step_idx >= len(sorted_steps):
+            return matched
+
+    return None
+
+
+async def evaluate_cross_namespace_sequence(
+    session: AsyncSession,
+    rule: RuleDefinition,
+    scoped_orgs: list[str],
+) -> list[dict[str, Any]]:
+    """Evaluate a cross-namespace sequence rule.
+
+    For each unique aggregation_key value (e.g. each actor), check if ALL steps
+    in the sequence have matching events within the time window.  Steps are
+    ordered and must occur in sequence (step 1 before step 2, etc.).
+
+    Returns a list of hit dicts suitable for
+    ``_write_cross_namespace_sequence_detection``.
+    """
+    config = rule.logic_config
+    agg_key: str = config.get("aggregation_key", "actor")
+    window_minutes: int = config.get("time_window_minutes", 120)
+    require_distinct: bool = config.get("require_distinct_steps", True)
+    steps: list[dict[str, Any]] = config.get("steps", [])
+
+    if not steps:
+        return []
+
+    # Validate aggregation_key against whitelist
+    if agg_key not in _SAFE_DISTINCT_COLUMNS:
+        raise ValueError(f"aggregation_key '{agg_key}' is not a permitted column.")
+
+    # Collect all action_filters across all steps
+    all_actions: list[str] = []
+    for step in steps:
+        all_actions.extend(step.get("action_filters", []))
+
+    if not all_actions:
+        return []
+
+    # Query events matching any step's action_filters within the window.
+    # Compute cutoff in Python (same pattern as evaluate_threshold_rule) so the
+    # SQL stays fully parameterised and TimescaleDB can still prune chunks.
+    window_minutes_int = int(window_minutes)
+    cutoff = datetime.now(UTC) - timedelta(minutes=window_minutes_int)
+    result = await session.execute(
+        text("""
+            SELECT id, action, actor, org, repo, source_ip, created_at, data,
+                   geo_country_code, user_agent
+            FROM events
+            WHERE action = ANY(:actions)
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= :cutoff
+            ORDER BY created_at ASC
+        """),
+        {
+            "actions": all_actions,
+            "scoped_orgs": scoped_orgs if scoped_orgs else [""],
+            "cutoff": cutoff,
+        },
+    )
+
+    rows = result.fetchall()
+    if not rows:
+        return []
+
+    events_list: list[dict[str, Any]] = [dict(row._mapping) for row in rows]
+
+    # Group events by aggregation key
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for ev in events_list:
+        key_val = ev.get(agg_key)
+        if key_val is not None:
+            key_str = str(key_val)
+            groups.setdefault(key_str, []).append(ev)
+
+    results: list[dict[str, Any]] = []
+
+    for key_val, key_events in groups.items():
+        key_events.sort(key=lambda e: e["created_at"])
+
+        matched = _match_sequence_steps(key_events, steps, window_minutes_int, require_distinct)
+        if not matched:
+            continue
+
+        first_event = matched[0]
+        last_event = matched[-1]
+        time_span = (last_event["created_at"] - first_event["created_at"]).total_seconds() / 60
+
+        results.append(
+            {
+                "aggregation_key": agg_key,
+                "aggregation_key_value": key_val,
+                "matched_steps": len(steps),
+                "time_span_minutes": round(time_span, 2),
+                "event_ids": [e["id"] for e in matched],
+                "matched_events": [
+                    {
+                        "action": e["action"],
+                        "created_at": str(e["created_at"]),
+                        "org": e.get("org"),
+                    }
+                    for e in matched
+                ],
+                "actor": (key_val if agg_key == "actor" else first_event.get("actor")),
+                "org": first_event.get("org"),
+                "repo": first_event.get("repo"),
+                "source_ip": (
+                    str(first_event["source_ip"]) if first_event.get("source_ip") else None
+                ),
+                "window_start": first_event["created_at"],
+                "window_end": last_event["created_at"],
+            }
+        )
+
+    return results
+
+
 async def run_detection_pipeline(
     session: AsyncSession,
     event_ids: list[int],
@@ -578,6 +826,15 @@ async def run_detection_pipeline(
             elif rule.logic_type == "sequence":
                 # Sequence evaluation is handled separately per-actor
                 await _evaluate_sequence_rule(session, rule, events, orgs)
+
+            elif rule.logic_type == "cross_namespace_sequence":
+                hits = await evaluate_cross_namespace_sequence(session, rule, orgs)
+                for hit in hits:
+                    written = await _write_cross_namespace_sequence_detection(
+                        session, rule, hit, orgs
+                    )
+                    if written:
+                        detections_written += 1
 
         except Exception as exc:
             logger.error(
@@ -765,6 +1022,96 @@ async def _write_impossible_travel_detection(
     )
     session.add(detection)
     await session.flush()
+    return True
+
+
+async def _write_cross_namespace_sequence_detection(
+    session: AsyncSession,
+    rule: RuleDefinition,
+    hit: dict[str, Any],
+    orgs: list[str],
+) -> bool:
+    """Write a cross-namespace sequence detection. Returns True if new detection written."""
+    actor = hit.get("actor")
+    agg_value: str = hit["aggregation_key_value"]
+    config = rule.logic_config
+    window_minutes: int = config.get("time_window_minutes", 120)
+
+    # Suppression check
+    suppression = await check_suppression(session, rule.id, actor, hit.get("org"), hit.get("repo"))
+    if suppression:
+        logger.debug(
+            "detection.suppressed",
+            rule_id=rule.id,
+            suppression_id=suppression.id,
+        )
+        return False
+
+    # Dedup: check for existing open detection
+    existing = await find_existing_detection(session, rule.id, agg_value, window_minutes)
+    if existing:
+        new_ids = list(set(existing.event_ids + hit.get("event_ids", [])))
+        await session.execute(
+            update(Detection)
+            .where(Detection.id == existing.id)
+            .values(
+                event_ids=new_ids,
+                window_end=hit.get("window_end", datetime.now(UTC)),
+                updated_at=datetime.now(UTC),
+            )
+        )
+        return False
+
+    # Severity resolution — use the first step's primary action
+    first_action = config.get("steps", [{}])[0].get("action_filters", ["*"])[0]
+    severity = await resolve_severity(session, first_action, rule.default_severity)
+
+    # Confidence scoring
+    base_conf = float(config.get("confidence", 0.5))
+    score, tier = compute_confidence_score(base_conf, is_sequence_complete=True)
+
+    agg_key = hit.get("aggregation_key", "actor")
+    matched_steps = hit.get("matched_steps", 0)
+
+    detection = Detection(
+        rule_id=rule.id,
+        rule_version=rule.version,
+        severity=severity,
+        confidence=tier,
+        confidence_score=score,
+        title=f"{rule.name} — {agg_value}",
+        description=(
+            f"Cross-namespace sequence detected for {agg_key}={agg_value}. "
+            f"All {matched_steps} steps matched within {window_minutes} minutes."
+        ),
+        actor=actor,
+        org=hit.get("org") or (orgs[0] if orgs else None),
+        repo=hit.get("repo"),
+        source_ip=hit.get("source_ip"),
+        event_ids=hit.get("event_ids", []),
+        context_data={
+            "aggregation_key": agg_key,
+            "aggregation_key_value": agg_value,
+            "matched_steps": matched_steps,
+            "time_span_minutes": hit.get("time_span_minutes", 0),
+            "matched_events": hit.get("matched_events", []),
+        },
+        window_start=hit.get("window_start"),
+        window_end=hit.get("window_end"),
+    )
+    session.add(detection)
+    await session.flush()
+
+    logger.info(
+        "detection.cross_namespace_sequence",
+        rule_id=rule.id,
+        detection_id=detection.id,
+        severity=severity,
+        confidence=tier,
+        actor=actor,
+        matched_steps=matched_steps,
+    )
+
     return True
 
 

@@ -21,6 +21,16 @@ vi.mock('../../api/events', () => ({
   listEvents: (...args: unknown[]) => mockListEvents(...args),
 }));
 
+vi.mock('../../api/healthSignals', () => ({
+  getWorkflowHealth: vi.fn().mockResolvedValue({ workflows: [] }),
+  getBranchProtection: vi.fn().mockResolvedValue({
+    protections_removed: 0,
+    policy_overrides: 0,
+    modified: 0,
+    distinct_repos_affected: 0,
+  }),
+}));
+
 // ECharts renders canvas elements that jsdom doesn't support.
 // Stub the chart components to avoid runtime errors and enable
 // assertion on the props they receive.
@@ -262,10 +272,18 @@ describe('VelocityPage', () => {
   it('renders the repos table with enhanced column headers', () => {
     renderWithProviders(<VelocityPage />);
 
-    // Find the most active repos table (last table on the page when no failure data)
-    const tables = screen.getAllByRole('table');
-    const repoTable = tables[tables.length - 1];
-    const headers = within(repoTable).getAllByRole('columnheader');
+    // Find the most active repos section title (sectionTitle class div)
+    const sectionTitles = screen.getAllByText(/Most active repositories/);
+    const sectionTitle = sectionTitles[0];
+    // The table is the next sibling tableWrap
+    const container = sectionTitle.closest('.page') ?? document.body;
+    const allTables = within(container as HTMLElement).getAllByRole('table');
+    // Find the table that contains "Commits" header (the active repos table)
+    const repoTable = allTables.find((t) =>
+      within(t).queryByText('Commits') !== null,
+    );
+    expect(repoTable).toBeTruthy();
+    const headers = within(repoTable!).getAllByRole('columnheader');
     const headerTexts = headers.map((h) => h.textContent);
 
     expect(headerTexts).toEqual([

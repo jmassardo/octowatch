@@ -151,9 +151,7 @@ class AbstractIngestWorker(ABC):
                 inserted += 1
 
                 # WS-4: Upsert external_collaborators for lifecycle events
-                await self._upsert_external_collaborator(
-                    session, normalized, event_id
-                )
+                await self._upsert_external_collaborator(session, normalized, event_id)
 
             await session.commit()
 
@@ -163,14 +161,18 @@ class AbstractIngestWorker(ABC):
         return inserted
 
     # External collaborator lifecycle actions
-    _COLLAB_ADD_ACTIONS = frozenset({
-        "org.add_outside_collaborator",
-        "repo.add_member",
-    })
-    _COLLAB_REMOVE_ACTIONS = frozenset({
-        "org.remove_outside_collaborator",
-        "repo.remove_member",
-    })
+    _COLLAB_ADD_ACTIONS = frozenset(
+        {
+            "org.add_outside_collaborator",
+            "repo.add_member",
+        }
+    )
+    _COLLAB_REMOVE_ACTIONS = frozenset(
+        {
+            "org.remove_outside_collaborator",
+            "repo.remove_member",
+        }
+    )
 
     async def _upsert_external_collaborator(
         self,
@@ -189,6 +191,7 @@ class AbstractIngestWorker(ABC):
         data = normalized.get("data")
         if isinstance(data, str):
             import json as _json
+
             try:
                 data = _json.loads(data)
             except (ValueError, TypeError):
@@ -200,7 +203,9 @@ class AbstractIngestWorker(ABC):
             # Only track outside collaborators, not internal members
             member_type = data.get("member_type", "")
             if action == "repo.add_member" and member_type not in (
-                "outside_collaborator", "guest_collaborator", "guest",
+                "outside_collaborator",
+                "guest_collaborator",
+                "guest",
             ):
                 return
 
@@ -332,6 +337,13 @@ class AbstractIngestWorker(ABC):
 
         # Strip large/sensitive fields from data blob
         data = {k: v for k, v in raw.items() if not k.startswith("@")}
+
+        # ── Namespace-specific normalization ─────────────────────────────────
+        # workflows.prepared_workflow_job: count secrets but never persist names
+        if action == "workflows.prepared_workflow_job":
+            secrets = data.get("secrets_passed", [])
+            data["secrets_passed_count"] = len(secrets) if isinstance(secrets, list) else 0
+            data.pop("secrets_passed", None)  # security: never persist secret names
 
         # Use GitHub's _document_id if present, otherwise the computed dedup hash
         document_id = raw.get("_document_id") or dedup_hash

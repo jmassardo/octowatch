@@ -3,6 +3,8 @@ suppression checks, and the core pipeline logic."""
 
 from __future__ import annotations
 
+from datetime import UTC
+
 from app.services.detection_service import (
     compute_confidence_score,
     evaluate_field_condition,
@@ -659,3 +661,796 @@ class TestEvaluateThresholdRuleValidation:
         # Should not raise — data.* keys are allowed
         result = await evaluate_threshold_rule(mock_session, rule, [ev], ["my-org"])  # type: ignore[arg-type]
         assert result == []
+
+
+# ─── Cross-namespace sequence helpers ─────────────────────────────────────────
+
+
+class TestEvaluateDictFieldCondition:
+    """Tests for _evaluate_dict_field_condition() — dict-based field condition matching."""
+
+    def _edc(self, event: dict, condition: dict) -> bool:
+        from app.services.detection_service import _evaluate_dict_field_condition
+
+        return _evaluate_dict_field_condition(event, condition)
+
+    def test_eq_match(self) -> None:
+        ev = {"action": "repo.create"}
+        cond = {"field": "action", "operator": "eq", "value": "repo.create"}
+        assert self._edc(ev, cond)
+
+    def test_eq_no_match(self) -> None:
+        ev = {"action": "repo.delete"}
+        cond = {"field": "action", "operator": "eq", "value": "repo.create"}
+        assert not self._edc(ev, cond)
+
+    def test_ne_match(self) -> None:
+        ev = {"action": "repo.delete"}
+        cond = {"field": "action", "operator": "ne", "value": "repo.create"}
+        assert self._edc(ev, cond)
+
+    def test_gt_match(self) -> None:
+        assert self._edc({"count": 10}, {"field": "count", "operator": "gt", "value": 5})
+
+    def test_gt_none_returns_false(self) -> None:
+        assert not self._edc({}, {"field": "count", "operator": "gt", "value": 5})
+
+    def test_gte_match(self) -> None:
+        assert self._edc({"count": 5}, {"field": "count", "operator": "gte", "value": 5})
+
+    def test_lt_match(self) -> None:
+        assert self._edc({"count": 3}, {"field": "count", "operator": "lt", "value": 5})
+
+    def test_lte_match(self) -> None:
+        assert self._edc({"count": 5}, {"field": "count", "operator": "lte", "value": 5})
+
+    def test_in_match(self) -> None:
+        cond = {"field": "action", "operator": "in", "value": ["a", "b"]}
+        assert self._edc({"action": "a"}, cond)
+
+    def test_in_empty_value_returns_false(self) -> None:
+        assert not self._edc({"action": "a"}, {"field": "action", "operator": "in", "value": []})
+
+    def test_not_in_match(self) -> None:
+        cond = {"field": "action", "operator": "not_in", "value": ["a", "b"]}
+        assert self._edc({"action": "c"}, cond)
+
+    def test_contains_match(self) -> None:
+        ev = {"msg": "hello world"}
+        cond = {"field": "msg", "operator": "contains", "value": "world"}
+        assert self._edc(ev, cond)
+
+    def test_contains_none_actual_returns_false(self) -> None:
+        assert not self._edc({}, {"field": "msg", "operator": "contains", "value": "x"})
+
+    def test_not_contains_match(self) -> None:
+        ev = {"msg": "hello"}
+        cond = {"field": "msg", "operator": "not_contains", "value": "world"}
+        assert self._edc(ev, cond)
+
+    def test_exists_present(self) -> None:
+        assert self._edc({"action": "a"}, {"field": "action", "operator": "exists"})
+
+    def test_not_exists_absent(self) -> None:
+        assert self._edc({}, {"field": "missing", "operator": "not_exists"})
+
+    def test_matches_glob(self) -> None:
+        ev = {"action": "repo.create"}
+        cond = {"field": "action", "operator": "matches_glob", "value": "repo.*"}
+        assert self._edc(ev, cond)
+
+    def test_matches_glob_no_match(self) -> None:
+        ev = {"action": "team.add"}
+        cond = {"field": "action", "operator": "matches_glob", "value": "repo.*"}
+        assert not self._edc(ev, cond)
+
+    def test_scope_contains(self) -> None:
+        ev = {"scopes": "read write admin"}
+        cond = {
+            "field": "scopes",
+            "operator": "scope_contains",
+            "value": "write",
+        }
+        assert self._edc(ev, cond)
+
+    def test_scope_contains_none_returns_false(self) -> None:
+        cond = {
+            "field": "scopes",
+            "operator": "scope_contains",
+            "value": "write",
+        }
+        assert not self._edc({}, cond)
+
+    def test_unknown_operator_returns_false(self) -> None:
+        assert not self._edc({"a": 1}, {"field": "a", "operator": "xyzzy", "value": 1})
+
+    def test_data_dot_field_access(self) -> None:
+        assert self._edc(
+            {"data": {"visibility": "private"}},
+            {"field": "data.visibility", "operator": "eq", "value": "private"},
+        )
+
+    def test_data_dot_field_missing_data(self) -> None:
+        assert not self._edc(
+            {"data": None},
+            {"field": "data.visibility", "operator": "exists"},
+        )
+
+    def test_data_not_dict_returns_none(self) -> None:
+        assert not self._edc(
+            {"data": "not-a-dict"},
+            {"field": "data.key", "operator": "exists"},
+        )
+
+
+class TestEventDictMatchesStep:
+    """Tests for _event_dict_matches_step() — step-level matching."""
+
+    def _edms(self, event: dict, step: dict) -> bool:
+        from app.services.detection_service import _event_dict_matches_step
+
+        return _event_dict_matches_step(event, step)
+
+    def test_matches_action(self) -> None:
+        step = {"action_filters": ["repo.create"], "field_conditions": []}
+        assert self._edms({"action": "repo.create"}, step)
+
+    def test_no_match_action(self) -> None:
+        step = {"action_filters": ["repo.create"], "field_conditions": []}
+        assert not self._edms({"action": "repo.delete"}, step)
+
+    def test_empty_action_filters_matches_any(self) -> None:
+        step = {"action_filters": [], "field_conditions": []}
+        assert self._edms({"action": "anything"}, step)
+
+    def test_field_condition_filters(self) -> None:
+        step = {
+            "action_filters": ["repo.create"],
+            "field_conditions": [
+                {"field": "org", "operator": "eq", "value": "my-org"},
+            ],
+        }
+        assert self._edms({"action": "repo.create", "org": "my-org"}, step)
+        assert not self._edms({"action": "repo.create", "org": "other"}, step)
+
+    def test_multiple_field_conditions_all_must_pass(self) -> None:
+        step = {
+            "action_filters": ["repo.create"],
+            "field_conditions": [
+                {"field": "org", "operator": "eq", "value": "my-org"},
+                {"field": "actor", "operator": "eq", "value": "alice"},
+            ],
+        }
+        assert self._edms({"action": "repo.create", "org": "my-org", "actor": "alice"}, step)
+        assert not self._edms({"action": "repo.create", "org": "my-org", "actor": "bob"}, step)
+
+    def test_no_field_conditions_key(self) -> None:
+        step = {"action_filters": ["repo.create"]}
+        assert self._edms({"action": "repo.create"}, step)
+
+
+class TestMatchSequenceSteps:
+    """Tests for _match_sequence_steps() — pure sequence matching logic."""
+
+    from datetime import datetime, timedelta
+
+    def _mss(
+        self,
+        events: list[dict],
+        steps: list[dict],
+        window_minutes: int,
+        require_distinct: bool,
+    ) -> list[dict] | None:
+        from app.services.detection_service import _match_sequence_steps
+
+        return _match_sequence_steps(events, steps, window_minutes, require_distinct)
+
+    def _make_event(self, eid: int, action: str, minutes_offset: int = 0, **extra: object) -> dict:
+        base = self.datetime(2024, 1, 1, 12, 0, 0)
+        ev: dict = {
+            "id": eid,
+            "action": action,
+            "created_at": base + self.timedelta(minutes=minutes_offset),
+        }
+        ev.update(extra)
+        return ev
+
+    def test_simple_two_step_match(self) -> None:
+        events = [
+            self._make_event(1, "repo.create", 0),
+            self._make_event(2, "repo.create_actions_secret", 10),
+        ]
+        steps = [
+            {"step": 1, "action_filters": ["repo.create"]},
+            {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+        ]
+        result = self._mss(events, steps, 120, True)
+        assert result is not None
+        assert len(result) == 2
+        assert result[0]["id"] == 1
+        assert result[1]["id"] == 2
+
+    def test_no_match_when_step_missing(self) -> None:
+        events = [
+            self._make_event(1, "repo.create", 0),
+        ]
+        steps = [
+            {"step": 1, "action_filters": ["repo.create"]},
+            {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+        ]
+        result = self._mss(events, steps, 120, True)
+        assert result is None
+
+    def test_no_match_outside_window(self) -> None:
+        events = [
+            self._make_event(1, "repo.create", 0),
+            self._make_event(2, "repo.create_actions_secret", 130),
+        ]
+        steps = [
+            {"step": 1, "action_filters": ["repo.create"]},
+            {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+        ]
+        result = self._mss(events, steps, 120, True)
+        assert result is None
+
+    def test_order_matters(self) -> None:
+        # step 2 action appears before step 1 action — should not match unless
+        # a later event provides step 1 followed by step 2
+        events = [
+            self._make_event(1, "repo.create_actions_secret", 0),
+            self._make_event(2, "repo.create", 10),
+        ]
+        steps = [
+            {"step": 1, "action_filters": ["repo.create"]},
+            {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+        ]
+        result = self._mss(events, steps, 120, True)
+        assert result is None
+
+    def test_require_distinct_prevents_reuse(self) -> None:
+        events = [
+            self._make_event(1, "repo.create", 0),
+        ]
+        steps = [
+            {"step": 1, "action_filters": ["repo.create"]},
+            {"step": 2, "action_filters": ["repo.create"]},
+        ]
+        result = self._mss(events, steps, 120, True)
+        assert result is None
+
+    def test_require_distinct_false_allows_reuse(self) -> None:
+        events = [
+            self._make_event(1, "repo.create", 0),
+            self._make_event(2, "repo.create", 5),
+        ]
+        steps = [
+            {"step": 1, "action_filters": ["repo.create"]},
+            {"step": 2, "action_filters": ["repo.create"]},
+        ]
+        result = self._mss(events, steps, 120, False)
+        assert result is not None
+
+    def test_min_count_greater_than_one(self) -> None:
+        events = [
+            self._make_event(1, "auth.login_failure", 0),
+            self._make_event(2, "auth.login_failure", 5),
+            self._make_event(3, "auth.login_failure", 10),
+            self._make_event(4, "auth.login_success", 15),
+        ]
+        steps = [
+            {"step": 1, "action_filters": ["auth.login_failure"], "min_count": 3},
+            {"step": 2, "action_filters": ["auth.login_success"]},
+        ]
+        result = self._mss(events, steps, 120, True)
+        assert result is not None
+        assert len(result) == 4
+
+    def test_min_count_not_met(self) -> None:
+        events = [
+            self._make_event(1, "auth.login_failure", 0),
+            self._make_event(2, "auth.login_failure", 5),
+            self._make_event(3, "auth.login_success", 15),
+        ]
+        steps = [
+            {"step": 1, "action_filters": ["auth.login_failure"], "min_count": 3},
+            {"step": 2, "action_filters": ["auth.login_success"]},
+        ]
+        result = self._mss(events, steps, 120, True)
+        assert result is None
+
+    def test_three_step_sequence(self) -> None:
+        events = [
+            self._make_event(1, "repo.create", 0),
+            self._make_event(2, "repo.create_actions_secret", 10),
+            self._make_event(3, "actions.workflow_dispatch", 20),
+        ]
+        steps = [
+            {"step": 1, "action_filters": ["repo.create"]},
+            {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+            {"step": 3, "action_filters": ["actions.workflow_dispatch"]},
+        ]
+        result = self._mss(events, steps, 120, True)
+        assert result is not None
+        assert len(result) == 3
+
+    def test_empty_steps_returns_none(self) -> None:
+        events = [self._make_event(1, "repo.create", 0)]
+        result = self._mss(events, [], 120, True)
+        assert result is None
+
+    def test_empty_events_returns_none(self) -> None:
+        steps = [{"step": 1, "action_filters": ["repo.create"]}]
+        result = self._mss([], steps, 120, True)
+        assert result is None
+
+    def test_single_step_rule(self) -> None:
+        events = [self._make_event(1, "repo.create", 0)]
+        steps = [{"step": 1, "action_filters": ["repo.create"]}]
+        result = self._mss(events, steps, 120, True)
+        assert result is not None
+        assert len(result) == 1
+
+    def test_skips_non_matching_events(self) -> None:
+        events = [
+            self._make_event(1, "repo.create", 0),
+            self._make_event(2, "org.update", 5),  # noise
+            self._make_event(3, "repo.create_actions_secret", 10),
+        ]
+        steps = [
+            {"step": 1, "action_filters": ["repo.create"]},
+            {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+        ]
+        result = self._mss(events, steps, 120, True)
+        assert result is not None
+        assert len(result) == 2
+        assert result[0]["id"] == 1
+        assert result[1]["id"] == 3
+
+    def test_steps_out_of_order_in_config(self) -> None:
+        """Steps specified out of order in config are sorted by step number."""
+        events = [
+            self._make_event(1, "repo.create", 0),
+            self._make_event(2, "repo.create_actions_secret", 10),
+        ]
+        steps = [
+            {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+            {"step": 1, "action_filters": ["repo.create"]},
+        ]
+        result = self._mss(events, steps, 120, True)
+        assert result is not None
+        assert len(result) == 2
+
+    def test_field_conditions_in_step(self) -> None:
+        events = [
+            self._make_event(1, "repo.create", 0, org="my-org"),
+            self._make_event(2, "repo.create_actions_secret", 10, org="my-org"),
+        ]
+        steps = [
+            {
+                "step": 1,
+                "action_filters": ["repo.create"],
+                "field_conditions": [{"field": "org", "operator": "eq", "value": "my-org"}],
+            },
+            {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+        ]
+        result = self._mss(events, steps, 120, True)
+        assert result is not None
+
+    def test_field_conditions_block_match(self) -> None:
+        events = [
+            self._make_event(1, "repo.create", 0, org="other-org"),
+            self._make_event(2, "repo.create_actions_secret", 10, org="other-org"),
+        ]
+        steps = [
+            {
+                "step": 1,
+                "action_filters": ["repo.create"],
+                "field_conditions": [{"field": "org", "operator": "eq", "value": "my-org"}],
+            },
+            {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+        ]
+        result = self._mss(events, steps, 120, True)
+        assert result is None
+
+
+class TestEvaluateCrossNamespaceSequence:
+    """Tests for evaluate_cross_namespace_sequence() — SQL + grouping + matching."""
+
+    import pytest as _pytest
+
+    @_pytest.mark.anyio
+    async def test_empty_steps_returns_empty(self) -> None:
+        from app.services.detection_service import evaluate_cross_namespace_sequence
+
+        rule = FakeRule(
+            {
+                "aggregation_key": "actor",
+                "time_window_minutes": 120,
+                "require_distinct_steps": True,
+                "steps": [],
+            }
+        )
+        result = await evaluate_cross_namespace_sequence(None, rule, ["my-org"])  # type: ignore[arg-type]
+        assert result == []
+
+    @_pytest.mark.anyio
+    async def test_empty_action_filters_returns_empty(self) -> None:
+        from app.services.detection_service import evaluate_cross_namespace_sequence
+
+        rule = FakeRule(
+            {
+                "aggregation_key": "actor",
+                "time_window_minutes": 120,
+                "require_distinct_steps": True,
+                "steps": [{"step": 1, "action_filters": []}],
+            }
+        )
+        result = await evaluate_cross_namespace_sequence(None, rule, ["my-org"])  # type: ignore[arg-type]
+        assert result == []
+
+    @_pytest.mark.anyio
+    async def test_invalid_agg_key_raises(self) -> None:
+        import pytest
+
+        from app.services.detection_service import evaluate_cross_namespace_sequence
+
+        rule = FakeRule(
+            {
+                "aggregation_key": "data.evil; DROP TABLE events;",
+                "time_window_minutes": 120,
+                "steps": [{"step": 1, "action_filters": ["repo.create"]}],
+            }
+        )
+        with pytest.raises(ValueError, match="not a permitted column"):
+            await evaluate_cross_namespace_sequence(None, rule, ["my-org"])  # type: ignore[arg-type]
+
+    @_pytest.mark.anyio
+    async def test_no_events_returns_empty(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import evaluate_cross_namespace_sequence
+
+        rule = FakeRule(
+            {
+                "aggregation_key": "actor",
+                "time_window_minutes": 120,
+                "require_distinct_steps": True,
+                "steps": [
+                    {"step": 1, "action_filters": ["repo.create"]},
+                    {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+                ],
+            }
+        )
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = []
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        result = await evaluate_cross_namespace_sequence(mock_session, rule, ["my-org"])
+        assert result == []
+
+    @_pytest.mark.anyio
+    async def test_complete_sequence_returns_hit(self) -> None:
+        from datetime import datetime
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import evaluate_cross_namespace_sequence
+
+        rule = FakeRule(
+            {
+                "aggregation_key": "actor",
+                "time_window_minutes": 120,
+                "require_distinct_steps": True,
+                "steps": [
+                    {"step": 1, "action_filters": ["repo.create"]},
+                    {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+                ],
+                "confidence": 0.75,
+            }
+        )
+
+        t1 = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+        t2 = datetime(2024, 1, 1, 12, 30, 0, tzinfo=UTC)
+
+        class FakeRow:
+            def __init__(self, mapping: dict) -> None:
+                self._mapping = mapping
+
+        rows = [
+            FakeRow(
+                {
+                    "id": 1,
+                    "action": "repo.create",
+                    "actor": "alice",
+                    "org": "my-org",
+                    "repo": "my-org/repo1",
+                    "source_ip": "1.2.3.4",
+                    "created_at": t1,
+                    "data": {},
+                    "geo_country_code": "US",
+                    "user_agent": "ua",
+                }
+            ),
+            FakeRow(
+                {
+                    "id": 2,
+                    "action": "repo.create_actions_secret",
+                    "actor": "alice",
+                    "org": "my-org",
+                    "repo": "my-org/repo1",
+                    "source_ip": "1.2.3.4",
+                    "created_at": t2,
+                    "data": {},
+                    "geo_country_code": "US",
+                    "user_agent": "ua",
+                }
+            ),
+        ]
+
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        result = await evaluate_cross_namespace_sequence(mock_session, rule, ["my-org"])
+        assert len(result) == 1
+        hit = result[0]
+        assert hit["aggregation_key_value"] == "alice"
+        assert hit["matched_steps"] == 2
+        assert hit["actor"] == "alice"
+        assert hit["org"] == "my-org"
+        assert len(hit["event_ids"]) == 2
+        assert hit["time_span_minutes"] == 30.0
+
+    @_pytest.mark.anyio
+    async def test_groups_by_actor(self) -> None:
+        from datetime import datetime
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import evaluate_cross_namespace_sequence
+
+        rule = FakeRule(
+            {
+                "aggregation_key": "actor",
+                "time_window_minutes": 120,
+                "require_distinct_steps": True,
+                "steps": [
+                    {"step": 1, "action_filters": ["repo.create"]},
+                    {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+                ],
+            }
+        )
+
+        t1 = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+        t2 = datetime(2024, 1, 1, 12, 30, 0, tzinfo=UTC)
+
+        class FakeRow:
+            def __init__(self, mapping: dict) -> None:
+                self._mapping = mapping
+
+        rows = [
+            # alice: complete sequence
+            FakeRow(
+                {
+                    "id": 1,
+                    "action": "repo.create",
+                    "actor": "alice",
+                    "org": "o",
+                    "repo": "r",
+                    "source_ip": None,
+                    "created_at": t1,
+                    "data": {},
+                    "geo_country_code": None,
+                    "user_agent": None,
+                }
+            ),
+            FakeRow(
+                {
+                    "id": 2,
+                    "action": "repo.create_actions_secret",
+                    "actor": "alice",
+                    "org": "o",
+                    "repo": "r",
+                    "source_ip": None,
+                    "created_at": t2,
+                    "data": {},
+                    "geo_country_code": None,
+                    "user_agent": None,
+                }
+            ),
+            # bob: only step 1
+            FakeRow(
+                {
+                    "id": 3,
+                    "action": "repo.create",
+                    "actor": "bob",
+                    "org": "o",
+                    "repo": "r",
+                    "source_ip": None,
+                    "created_at": t1,
+                    "data": {},
+                    "geo_country_code": None,
+                    "user_agent": None,
+                }
+            ),
+        ]
+
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        result = await evaluate_cross_namespace_sequence(mock_session, rule, ["o"])
+        assert len(result) == 1
+        assert result[0]["aggregation_key_value"] == "alice"
+
+    @_pytest.mark.anyio
+    async def test_null_agg_key_value_skipped(self) -> None:
+        from datetime import datetime
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import evaluate_cross_namespace_sequence
+
+        rule = FakeRule(
+            {
+                "aggregation_key": "actor",
+                "time_window_minutes": 120,
+                "require_distinct_steps": True,
+                "steps": [
+                    {"step": 1, "action_filters": ["repo.create"]},
+                    {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+                ],
+            }
+        )
+
+        t1 = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+        t2 = datetime(2024, 1, 1, 12, 30, 0, tzinfo=UTC)
+
+        class FakeRow:
+            def __init__(self, mapping: dict) -> None:
+                self._mapping = mapping
+
+        rows = [
+            FakeRow(
+                {
+                    "id": 1,
+                    "action": "repo.create",
+                    "actor": None,
+                    "org": "o",
+                    "repo": "r",
+                    "source_ip": None,
+                    "created_at": t1,
+                    "data": {},
+                    "geo_country_code": None,
+                    "user_agent": None,
+                }
+            ),
+            FakeRow(
+                {
+                    "id": 2,
+                    "action": "repo.create_actions_secret",
+                    "actor": None,
+                    "org": "o",
+                    "repo": "r",
+                    "source_ip": None,
+                    "created_at": t2,
+                    "data": {},
+                    "geo_country_code": None,
+                    "user_agent": None,
+                }
+            ),
+        ]
+
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        result = await evaluate_cross_namespace_sequence(mock_session, rule, ["o"])
+        assert result == []
+
+    @_pytest.mark.anyio
+    async def test_sql_uses_bind_params(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import evaluate_cross_namespace_sequence
+
+        rule = FakeRule(
+            {
+                "aggregation_key": "actor",
+                "time_window_minutes": 60,
+                "require_distinct_steps": True,
+                "steps": [
+                    {"step": 1, "action_filters": ["repo.create"]},
+                    {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+                ],
+            }
+        )
+
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = []
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        await evaluate_cross_namespace_sequence(mock_session, rule, ["my-org"])
+
+        call_args = mock_session.execute.call_args
+        sql_text = str(call_args[0][0])
+        params = call_args[0][1]
+
+        assert "action = ANY(:actions)" in sql_text
+        assert "org = ANY(:scoped_orgs)" in sql_text
+        assert "created_at >= :cutoff" in sql_text
+        assert params["actions"] == ["repo.create", "repo.create_actions_secret"]
+        assert params["scoped_orgs"] == ["my-org"]
+        assert "cutoff" in params
+
+    @_pytest.mark.anyio
+    async def test_non_actor_agg_key(self) -> None:
+        from datetime import datetime
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import evaluate_cross_namespace_sequence
+
+        rule = FakeRule(
+            {
+                "aggregation_key": "source_ip",
+                "time_window_minutes": 120,
+                "require_distinct_steps": True,
+                "steps": [
+                    {"step": 1, "action_filters": ["repo.create"]},
+                    {"step": 2, "action_filters": ["repo.create_actions_secret"]},
+                ],
+            }
+        )
+
+        t1 = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+        t2 = datetime(2024, 1, 1, 12, 30, 0, tzinfo=UTC)
+
+        class FakeRow:
+            def __init__(self, mapping: dict) -> None:
+                self._mapping = mapping
+
+        rows = [
+            FakeRow(
+                {
+                    "id": 1,
+                    "action": "repo.create",
+                    "actor": "alice",
+                    "org": "o",
+                    "repo": "r",
+                    "source_ip": "10.0.0.1",
+                    "created_at": t1,
+                    "data": {},
+                    "geo_country_code": None,
+                    "user_agent": None,
+                }
+            ),
+            FakeRow(
+                {
+                    "id": 2,
+                    "action": "repo.create_actions_secret",
+                    "actor": "alice",
+                    "org": "o",
+                    "repo": "r",
+                    "source_ip": "10.0.0.1",
+                    "created_at": t2,
+                    "data": {},
+                    "geo_country_code": None,
+                    "user_agent": None,
+                }
+            ),
+        ]
+
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        result = await evaluate_cross_namespace_sequence(mock_session, rule, ["o"])
+        assert len(result) == 1
+        hit = result[0]
+        assert hit["aggregation_key"] == "source_ip"
+        assert hit["aggregation_key_value"] == "10.0.0.1"
+        # actor should come from the first matched event
+        assert hit["actor"] == "alice"

@@ -546,11 +546,32 @@ class TestRouterEndpoints:
                 new_callable=AsyncMock,
                 return_value=summary_data,
             ):
-                client = TestClient(app)
-                resp = client.get("/api/v1/health-signals/summary")
-                assert resp.status_code == 200
-                data = resp.json()
-                assert data["stale_repos"] == 2
+                with patch(
+                    "app.routers.health_signals.health_signal_service"
+                    ".get_secret_scanning_alert_health",
+                    new_callable=AsyncMock,
+                    return_value=[],
+                ):
+                    with patch(
+                        "app.routers.health_signals.health_signal_service"
+                        ".get_security_coverage",
+                        new_callable=AsyncMock,
+                        return_value=[],
+                    ):
+                        with patch(
+                            "app.routers.health_signals.health_signal_service"
+                            ".get_sso_health",
+                            new_callable=AsyncMock,
+                            return_value=[],
+                        ):
+                            client = TestClient(app)
+                            resp = client.get("/api/v1/health-signals/summary")
+                            assert resp.status_code == 200
+                            data = resp.json()
+                            assert data["stale_repos"] == 2
+                            assert data["secret_scanning_unresolved"] == 0
+                            assert data["security_features_disabled_7d"] == 0
+                            assert data["sso_disabled_orgs"] == 0
 
     def test_pat_health_returns_composite_response(self) -> None:
         app = _build_app_with_access()
@@ -742,10 +763,28 @@ class TestRbacServiceIntegration:
                 new_callable=AsyncMock,
                 return_value=summary_data,
             ):
-                client = TestClient(app)
-                resp = client.get("/api/v1/health-signals/summary")
-                assert resp.status_code == 200
-                mock_get_scoped_orgs.assert_called_once()
+                with patch(
+                    "app.routers.health_signals.health_signal_service"
+                    ".get_secret_scanning_alert_health",
+                    new_callable=AsyncMock,
+                    return_value=[],
+                ):
+                    with patch(
+                        "app.routers.health_signals.health_signal_service"
+                        ".get_security_coverage",
+                        new_callable=AsyncMock,
+                        return_value=[],
+                    ):
+                        with patch(
+                            "app.routers.health_signals.health_signal_service"
+                            ".get_sso_health",
+                            new_callable=AsyncMock,
+                            return_value=[],
+                        ):
+                            client = TestClient(app)
+                            resp = client.get("/api/v1/health-signals/summary")
+                            assert resp.status_code == 200
+                            mock_get_scoped_orgs.assert_called_once()
 
     def test_passes_scoped_orgs_to_service(self) -> None:
         """Verify the resolved orgs are forwarded to the service function."""
@@ -761,8 +800,26 @@ class TestRbacServiceIntegration:
                 "app.routers.health_signals.health_signal_service.get_health_summary",
                 mock_service,
             ):
-                client = TestClient(app)
-                resp = client.get("/api/v1/health-signals/summary")
-                assert resp.status_code == 200
-                call_kwargs = mock_service.call_args
-                assert call_kwargs[1]["scoped_orgs"] == ["org-a", "org-b"]
+                with patch(
+                    "app.routers.health_signals.health_signal_service"
+                    ".get_secret_scanning_alert_health",
+                    new_callable=AsyncMock,
+                    return_value=[],
+                ):
+                    with patch(
+                        "app.routers.health_signals.health_signal_service"
+                        ".get_security_coverage",
+                        new_callable=AsyncMock,
+                        return_value=[],
+                    ):
+                        with patch(
+                            "app.routers.health_signals.health_signal_service"
+                            ".get_sso_health",
+                            new_callable=AsyncMock,
+                            return_value=[],
+                        ):
+                            client = TestClient(app)
+                            resp = client.get("/api/v1/health-signals/summary")
+                            assert resp.status_code == 200
+                            call_kwargs = mock_service.call_args
+                            assert call_kwargs[1]["scoped_orgs"] == ["org-a", "org-b"]

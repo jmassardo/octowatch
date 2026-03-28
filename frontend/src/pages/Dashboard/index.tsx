@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { listDetections } from '../../api/detections';
 import { listEvents } from '../../api/events';
 import { getActionsVolumeReport } from '../../api/reports';
+import { getExtendedHealthSummary, getSystemHealth } from '../../api/healthSignals';
 import { ContributionCalendar } from '../../components/charts/ContributionCalendar';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Spinner } from '../../components/primitives/Spinner';
@@ -132,6 +133,20 @@ export function DashboardPage() {
     queryFn: () => getActionsVolumeReport({ window_days: 7, granularity: 'daily' }),
   });
 
+  // Fetch extended health summary for security pills
+  const { data: healthSummary } = useQuery({
+    queryKey: ['health-signals', 'summary-dashboard'],
+    queryFn: getExtendedHealthSummary,
+    staleTime: 60_000,
+  });
+
+  // Fetch system health for ingestion banner
+  const { data: systemHealth } = useQuery({
+    queryKey: ['health-signals', 'system-dashboard'],
+    queryFn: getSystemHealth,
+    staleTime: 60_000,
+  });
+
   // Derive workflow metrics from actions volume data
   const actionsBuckets = (actionsReport?.data ?? []) as unknown as ActionsVolumeBucket[];
   const totalWorkflowRuns = actionsBuckets.reduce((sum, b) => sum + (b.workflow_runs_total ?? 0), 0);
@@ -197,7 +212,32 @@ export function DashboardPage() {
         />
         <StatPill value={String(uniqueActors || '—')} label="active devs" variant="done" onClick={() => navigate('/devactivity')} />
         <StatPill value={formatCount(calendarEvents?.total ?? 0)} label="total events" variant="accent" onClick={() => navigate('/events')} />
+        <StatPill
+          value={String(healthSummary?.unresolved_secret_alerts ?? '—')}
+          label="unresolved secrets"
+          variant={healthSummary != null && healthSummary.unresolved_secret_alerts > 0 ? 'danger' : undefined}
+          onClick={() => navigate('/health?tab=security-posture')}
+        />
+        <StatPill
+          value={String(healthSummary?.security_feature_disables_7d ?? '—')}
+          label="feature disables (7d)"
+          variant={healthSummary != null && healthSummary.security_feature_disables_7d > 0 ? 'danger' : undefined}
+          onClick={() => navigate('/health?tab=security-posture')}
+        />
       </div>
+
+      {systemHealth != null && systemHealth.gap_detected && (
+        <div className={styles.ingestionBanner}>
+          <span className={styles.ingestionIcon}>⚠</span>
+          <span>
+            Data ingestion gap detected
+            {systemHealth.gap_duration_minutes != null && (
+              <> — {systemHealth.gap_duration_minutes} minutes of missing data</>
+            )}
+            . Some health signals may be incomplete.
+          </span>
+        </div>
+      )}
 
       {threatError && <ErrorBanner message="Could not load threat data" onRetry={refetchThreats} />}
 

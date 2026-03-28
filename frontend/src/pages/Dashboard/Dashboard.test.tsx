@@ -30,6 +30,29 @@ vi.mock('../../components/charts/ContributionCalendar', () => ({
   ContributionCalendar: () => <div data-testid="contribution-calendar" />,
 }));
 
+const mockGetExtendedHealthSummary = vi.fn().mockResolvedValue({
+  stale_repos: 0,
+  pat_no_expiry: 0,
+  pat_stale: 0,
+  bypass_offenders: 0,
+  ext_collab_total: 0,
+  ext_collab_elevated: 0,
+  unresolved_secret_alerts: 0,
+  security_feature_disables_7d: 0,
+});
+
+const mockGetSystemHealth = vi.fn().mockResolvedValue({
+  ingestion_healthy: true,
+  last_event_at: '2025-03-15T00:00:00Z',
+  gap_detected: false,
+  gap_duration_minutes: null,
+});
+
+vi.mock('../../api/healthSignals', () => ({
+  getExtendedHealthSummary: (...args: unknown[]) => mockGetExtendedHealthSummary(...args),
+  getSystemHealth: (...args: unknown[]) => mockGetSystemHealth(...args),
+}));
+
 describe('DashboardPage', () => {
   /* ---------------------------------------------------------------- */
   /*  Page header                                                      */
@@ -65,6 +88,8 @@ describe('DashboardPage', () => {
     expect(screen.getByText(/pipeline success/)).toBeInTheDocument();
     expect(screen.getByText(/active devs/)).toBeInTheDocument();
     expect(screen.getByText(/total events/)).toBeInTheDocument();
+    expect(screen.getByText(/unresolved secrets/)).toBeInTheDocument();
+    expect(screen.getByText(/feature disables \(7d\)/)).toBeInTheDocument();
   });
 
   it('shows dash for pipeline success when no data', () => {
@@ -80,6 +105,27 @@ describe('DashboardPage', () => {
 
     expect(screen.queryByText('94.2%')).not.toBeInTheDocument();
     expect(screen.queryByText('1.8M')).not.toBeInTheDocument();
+  });
+
+  /* ---------------------------------------------------------------- */
+  /*  Ingestion banner                                                  */
+  /* ---------------------------------------------------------------- */
+
+  it('does not render ingestion banner when no gap detected', () => {
+    renderWithProviders(<DashboardPage />);
+    expect(screen.queryByText(/Data ingestion gap detected/)).not.toBeInTheDocument();
+  });
+
+  it('renders ingestion banner when gap is detected', async () => {
+    mockGetSystemHealth.mockResolvedValue({
+      ingestion_healthy: false,
+      last_event_at: '2025-03-15T00:00:00Z',
+      gap_detected: true,
+      gap_duration_minutes: 45,
+    });
+    renderWithProviders(<DashboardPage />);
+    expect(await screen.findByText(/Data ingestion gap detected/)).toBeInTheDocument();
+    expect(screen.getByText(/45 minutes of missing data/)).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */

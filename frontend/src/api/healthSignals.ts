@@ -142,3 +142,184 @@ export function getDormantCollaborators(
     limit,
   });
 }
+
+/* ------------------------------------------------------------------ */
+/*  Phase 2–4: expanded health signal types & endpoints                */
+/* ------------------------------------------------------------------ */
+
+// --- Security Posture (Phase 2) ---
+
+export interface SecurityPostureResponse {
+  repos_with_secret_scanning: number;
+  repos_with_dependabot: number;
+  repos_with_codeql: number;
+  repos_with_ghas: number;
+  features_disabled_count: number;
+}
+
+export interface SecretScanningResponse {
+  unresolved_total: number;
+  publicly_leaked: number;
+  open_gt_7d: number;
+  open_gt_30d: number;
+  mttr_hours: number;
+}
+
+export interface SsoOrgStatus {
+  org: string;
+  sso_enabled: boolean;
+}
+
+export interface SsoHealthResponse {
+  orgs: SsoOrgStatus[];
+}
+
+export interface PrivilegeChangesResponse {
+  admin_promotions: number;
+  integration_manager_grants: number;
+  custom_role_changes: number;
+}
+
+export function getSecurityPosture(): Promise<SecurityPostureResponse> {
+  return api.get<SecurityPostureResponse>('/health-signals/security-posture');
+}
+
+export function getSecretScanning(): Promise<SecretScanningResponse> {
+  return api.get<SecretScanningResponse>('/health-signals/secret-scanning');
+}
+
+export function getSsoHealth(): Promise<SsoHealthResponse> {
+  return api.get<SsoHealthResponse>('/health-signals/sso-health');
+}
+
+export function getPrivilegeChanges(): Promise<PrivilegeChangesResponse> {
+  return api.get<PrivilegeChangesResponse>('/health-signals/privilege-changes');
+}
+
+// --- App Governance (Phase 3) ---
+
+export interface AppGovernanceResponse {
+  apps_installed: number;
+  apps_removed: number;
+  oauth_approved: number;
+  oauth_denied: number;
+  token_revocations: number;
+  webhooks_created: number;
+  webhooks_removed: number;
+  webhooks_modified: number;
+}
+
+export interface CodeScanningResponse {
+  total_alerts: number;
+  avg_hours_to_close: number;
+  dismissed_count: number;
+  reappeared_count: number;
+}
+
+export interface VulnerabilitiesResponse {
+  total_open: number;
+  critical_open: number;
+  high_open: number;
+  open_gt_30d: number;
+  critical_open_gt_14d: number;
+  avg_open_days: number;
+}
+
+export function getAppGovernance(): Promise<AppGovernanceResponse> {
+  return api.get<AppGovernanceResponse>('/health-signals/app-governance');
+}
+
+export function getCodeScanning(): Promise<CodeScanningResponse> {
+  return api.get<CodeScanningResponse>('/health-signals/code-scanning');
+}
+
+export function getVulnerabilities(): Promise<VulnerabilitiesResponse> {
+  return api.get<VulnerabilitiesResponse>('/health-signals/vulnerabilities');
+}
+
+// --- Operations Health (Phase 4) ---
+
+export interface WorkflowRow {
+  repo: string;
+  workflow_name: string;
+  total_runs: number;
+  successes: number;
+  failures: number;
+  failure_rate_pct: number;
+  last_run: string;
+}
+
+export interface WorkflowHealthResponse {
+  workflows: WorkflowRow[];
+}
+
+export interface BranchProtectionResponse {
+  protections_removed: number;
+  policy_overrides: number;
+  modified: number;
+  distinct_repos_affected: number;
+}
+
+export interface CopilotGovernanceResponse {
+  seats_granted_90d: number;
+  seats_removed: number;
+  unique_users: number;
+}
+
+export interface CodespacesResponse {
+  active_never_suspended: number;
+  large_machine_count: number;
+  unique_users: number;
+}
+
+export interface RunnerRow {
+  org: string;
+  runner_name: string;
+  version: string;
+  group: string;
+  last_event: string;
+}
+
+export interface RunnerHealthResponse {
+  runners: RunnerRow[];
+}
+
+export function getWorkflowHealth(): Promise<WorkflowHealthResponse> {
+  return api.get<WorkflowHealthResponse>('/health-signals/workflow-health');
+}
+
+export function getBranchProtection(): Promise<BranchProtectionResponse> {
+  return api.get<BranchProtectionResponse>('/health-signals/branch-protection');
+}
+
+export function getCopilotGovernance(): Promise<CopilotGovernanceResponse> {
+  return api.get<CopilotGovernanceResponse>('/health-signals/copilot-governance');
+}
+
+export function getCodespaces(): Promise<CodespacesResponse> {
+  return api.get<CodespacesResponse>('/health-signals/codespaces');
+}
+
+export function getRunnerHealth(): Promise<RunnerHealthResponse> {
+  return api.get<RunnerHealthResponse>('/health-signals/runner-health');
+}
+
+// --- System Health & Extended Summary ---
+
+export interface SystemHealthResponse {
+  gap_detected: boolean;
+  gap_duration_minutes: number | null;
+}
+
+export interface ExtendedHealthSummary extends HealthSummary {
+  unresolved_secret_alerts: number;
+  security_feature_disables_7d: number;
+}
+
+export function getSystemHealth(): Promise<SystemHealthResponse> {
+  return api.get<SystemHealthResponse>('/health-signals/system-health');
+}
+
+export function getExtendedHealthSummary(): Promise<ExtendedHealthSummary> {
+  return api.get<ExtendedHealthSummary>('/health-signals/summary');
+}

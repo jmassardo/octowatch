@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getActionsVolumeReport } from '../../api/reports';
 import { listEvents } from '../../api/events';
+import { getWorkflowHealth, getBranchProtection } from '../../api/healthSignals';
 import { ContributionCalendar } from '../../components/charts/ContributionCalendar';
 import { LineAreaChart } from '../../components/charts/LineAreaChart';
 import { BarChart } from '../../components/charts/BarChart';
@@ -14,6 +15,7 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import type { ActionsVolumeBucket } from '../../types/reports';
+import type { WorkflowRow } from '../../api/healthSignals';
 import styles from './Velocity.module.css';
 
 interface FailingWorkflow {
@@ -59,6 +61,106 @@ function getCfrVariant(cfr: number): 'danger' | 'attention' | 'success' {
   return 'success';
 }
 
+function WorkflowHealthSection({ workflows }: { workflows: WorkflowRow[] }) {
+  const topFailing = [...workflows]
+    .filter((wf) => wf.failure_rate_pct > 0)
+    .sort((a, b) => b.failure_rate_pct - a.failure_rate_pct)
+    .slice(0, 10);
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div className={styles.sectionTitle}>Workflow health — audit log signals</div>
+      <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Repository</th>
+              <th>Workflow</th>
+              <th>Total runs</th>
+              <th>Failures</th>
+              <th>Failure rate</th>
+              <th>Last run</th>
+            </tr>
+          </thead>
+          <tbody>
+            {topFailing.length === 0 && (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}>
+                  No failing workflows detected
+                </td>
+              </tr>
+            )}
+            {topFailing.map((wf) => (
+              <tr key={`${wf.repo}/${wf.workflow_name}`}>
+                <td>{wf.repo}</td>
+                <td className={styles.workflowName}>{wf.workflow_name}</td>
+                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.total_runs}</td>
+                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.failures}</td>
+                <td>
+                  <Label variant={getFailureRateVariant(wf.failure_rate_pct)}>
+                    {wf.failure_rate_pct.toFixed(1)}%
+                  </Label>
+                </td>
+                <td style={{ color: 'var(--fg-muted)' }}>
+                  {new Date(wf.last_run).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+interface BranchProtectionProps {
+  branchProt: {
+    protections_removed: number;
+    policy_overrides: number;
+    modified: number;
+    distinct_repos_affected: number;
+  } | undefined;
+}
+
+function BranchProtectionSection({ branchProt }: BranchProtectionProps) {
+  const total = branchProt
+    ? branchProt.protections_removed + branchProt.policy_overrides + branchProt.modified
+    : 0;
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div className={styles.sectionTitle}>Branch protection changes (30d)</div>
+      <div className={styles.metricStrip} style={{ marginBottom: 12 }}>
+        <MetricCard
+          value={String(branchProt?.protections_removed ?? 0)}
+          label="Protections removed"
+        />
+        <MetricCard
+          value={String(branchProt?.policy_overrides ?? 0)}
+          label="Policy overrides"
+        />
+        <MetricCard
+          value={String(branchProt?.modified ?? 0)}
+          label="Modified"
+        />
+        <MetricCard
+          value={String(branchProt?.distinct_repos_affected ?? 0)}
+          label="Repos affected"
+        />
+      </div>
+      {total === 0 && (
+        <div style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '8px 0', marginBottom: 20 }}>
+          No branch protection weakening events detected in the last 30 days.
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function VelocityPage() {
   const navigate = useNavigate();
   const [doraModalOpen, setDoraModalOpen] = useState(false);
@@ -83,6 +185,18 @@ export function VelocityPage() {
   const { data: repoEvents } = useQuery({
     queryKey: ['events', 'velocity-repos'],
     queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc' }),
+  });
+
+  const { data: workflowHealthData } = useQuery({
+    queryKey: ['health', 'workflows-velocity'],
+    queryFn: getWorkflowHealth,
+    staleTime: 60_000,
+  });
+
+  const { data: branchProtData } = useQuery({
+    queryKey: ['health', 'branch-protection-velocity'],
+    queryFn: getBranchProtection,
+    staleTime: 60_000,
   });
 
   const buckets = (actionsData?.data ?? []) as unknown as ActionsVolumeBucket[];
@@ -413,6 +527,12 @@ export function VelocityPage() {
       {buckets.length === 0 && !isLoading && (
         <div style={{ color: 'var(--fg-muted)', padding: '16px 0' }}>No workflow run data for the selected period.</div>
       )}
+
+      {/* Workflow Health from audit logs */}
+      <WorkflowHealthSection workflows={workflowHealthData?.workflows ?? []} />
+
+      {/* Branch Protection Changes */}
+      <BranchProtectionSection branchProt={branchProtData} />
 
       <Modal open={doraModalOpen} onClose={() => setDoraModalOpen(false)} title="DORA Metrics — Elite Tier" width={520}>
         <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16, lineHeight: 1.5 }}>

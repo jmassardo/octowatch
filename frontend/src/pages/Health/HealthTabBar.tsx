@@ -1,6 +1,14 @@
 import styles from './Health.module.css';
 
-export type HealthTab = 'repo-health' | 'access-identity' | 'license' | 'maintenance' | 'waf';
+export type HealthTab =
+  | 'repo-health'
+  | 'access-identity'
+  | 'license'
+  | 'maintenance'
+  | 'waf'
+  | 'security-posture'
+  | 'app-governance'
+  | 'operations';
 
 interface HealthTabBarProps {
   activeTab: HealthTab;
@@ -11,6 +19,9 @@ interface HealthTabBarProps {
 const TABS: { id: HealthTab; label: string }[] = [
   { id: 'repo-health', label: 'Repository Health' },
   { id: 'access-identity', label: 'Access & Identity' },
+  { id: 'security-posture', label: 'Security Posture' },
+  { id: 'app-governance', label: 'App Governance' },
+  { id: 'operations', label: 'Operations' },
   { id: 'license', label: 'License Health' },
   { id: 'maintenance', label: 'Maintenance Signals' },
   { id: 'waf', label: 'WAF Insights' },

@@ -74,6 +74,12 @@ app.config_from_object(
                 "schedule": crontab(hour=3, minute=0),
                 "options": {"queue": "ingestion"},
             },
+            # Ingestion gap detection — every 60 minutes
+            "check-ingestion-gaps": {
+                "task": "app.workers.ingestion_health.check_ingestion_gaps",
+                "schedule": 3600.0,  # every 60 minutes
+                "options": {"queue": "baseline"},
+            },
         },
     }
 )
