@@ -38,6 +38,7 @@ app.config_from_object(
             "app.workers.detection_worker.*": {"queue": "detection"},
             "app.workers.baseline_worker.*": {"queue": "baseline"},
             "app.workers.notification.*": {"queue": "notification"},
+            "app.workers.github_sync.*": {"queue": "github_sync"},
         },
         # ─── Soft / hard time limits ─────────────────────────────────────────
         "task_soft_time_limit": 1800,  # 30 minutes
@@ -84,3 +85,14 @@ app.autodiscover_tasks(
         "app.workers",
     ]
 )
+
+# Conditionally add GitHub sync heartbeat to beat schedule
+if settings.github_app.GITHUB_SYNC_ENABLED:
+    app.conf.beat_schedule["enterprise-sync-heartbeat"] = {
+        "task": "app.workers.github_sync.check_sync_schedule",
+        "schedule": crontab(hour=2, minute=0),
+        "options": {"queue": "github_sync"},
+    }
+
+# Alias for import convenience: `from app.celery_app import celery_app`
+celery_app = app

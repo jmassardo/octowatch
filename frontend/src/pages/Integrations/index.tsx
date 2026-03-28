@@ -6,6 +6,9 @@ import {
 } from '../../api/integrations';
 import { Button } from '../../components/primitives/Button';
 import { Modal } from '../../components/primitives/Modal';
+import { SyncPanel } from './SyncPanel';
+import { SyncRunHistory } from './SyncRunHistory';
+import { ManualIngestPanel } from './ManualIngestPanel';
 import styles from './Integrations.module.css';
 
 /* ------------------------------------------------------------------ */
@@ -446,6 +449,21 @@ export function IntegrationsPage() {
             ))}
           </tbody>
         </table>
+      </section>
+
+      {/* Enterprise Sync */}
+      <section>
+        <h2 className={styles.sectionTitle}>Enterprise Sync</h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <SyncPanel />
+          <SyncRunHistory />
+        </div>
+      </section>
+
+      {/* Import Data */}
+      <section>
+        <h2 className={styles.sectionTitle}>Import Data</h2>
+        <ManualIngestPanel />
       </section>
 
       <Modal open={!!configTarget} onClose={() => setConfigTarget(null)} title={configTarget ? `Configure ${configTarget.name}` : ''}>

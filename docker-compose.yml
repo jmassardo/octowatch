@@ -347,6 +347,36 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
+  # worker-sync — Celery worker for GitHub Enterprise Sync queue
+  # Concurrency: 4 (GitHub API rate limits constrain throughput more than
+  # local resources; 4 workers allow parallel sync of independent orgs).
+  # ---------------------------------------------------------------------------
+  worker-sync:
+    image: audit-log-analyzer-worker:latest
+    command: ["celery", "-A", "app.celery_app", "worker", "-Q", "github_sync", "-c", "4", "--loglevel", "${LOG_LEVEL:-INFO}"]
+    environment:
+      <<: *app-env
+      INGESTION_MODE: ${INGESTION_MODE:-minio}
+      MINIO_ENDPOINT_URL: ${MINIO_ENDPOINT_URL:-http://minio:9000}
+      MINIO_INGEST_USER: ${MINIO_INGEST_USER}
+      MINIO_INGEST_PASSWORD: ${MINIO_INGEST_PASSWORD}
+      MINIO_AUDIT_BUCKET: ${MINIO_AUDIT_BUCKET}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY_PATH: ${GITHUB_APP_PRIVATE_KEY_PATH:-}
+      GITHUB_ENTERPRISE_SLUG: ${GITHUB_ENTERPRISE_SLUG:-}
+      GITHUB_SYNC_ENABLED: ${GITHUB_SYNC_ENABLED:-false}
+      GITHUB_SYNC_INTERVAL_DAYS: ${GITHUB_SYNC_INTERVAL_DAYS:-60}
+      GITHUB_SYNC_ORGS: ${GITHUB_SYNC_ORGS:-}
+    networks:
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
   # beat — Celery Beat scheduler
   # CRITICAL: Only ONE beat instance must ever run. Running multiple causes
   # duplicate task scheduling (double ingestion, double baseline recomputation).

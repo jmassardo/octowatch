@@ -28,7 +28,7 @@ export async function apiFetch<T>(
 
   headers.set('Accept', 'application/json');
 
-  if (!headers.has('Content-Type') && options.body != null) {
+  if (!headers.has('Content-Type') && options.body != null && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
 

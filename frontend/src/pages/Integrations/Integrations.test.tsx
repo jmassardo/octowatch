@@ -9,6 +9,39 @@ vi.mock('../../api/integrations', () => ({
   listNotificationConfigs: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('../../api/sync', () => ({
+  getSyncStatus: vi.fn().mockResolvedValue({
+    id: 'run-1',
+    status: 'completed',
+    trigger_type: 'manual',
+    triggered_by: 'admin',
+    scope: 'full',
+    started_at: '2025-06-01T08:00:00Z',
+    completed_at: '2025-06-01T08:15:00Z',
+    error_message: null,
+    entity_counts: {},
+    cursors: [],
+  }),
+  triggerSync: vi.fn().mockResolvedValue({ run_id: 'r', status: 'pending' }),
+  cancelSyncRun: vi.fn().mockResolvedValue(undefined),
+  getSyncConfig: vi.fn().mockResolvedValue({
+    app_id: null,
+    enterprise_slug: null,
+    installation_ids: [],
+    sync_enabled: false,
+    interval_days: 1,
+    orgs: [],
+  }),
+  listSyncRuns: vi.fn().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 10, has_next: false }),
+  getSyncRun: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock('../../api/ingest', () => ({
+  uploadFile: vi.fn().mockResolvedValue(null),
+  getIngestJob: vi.fn().mockResolvedValue(null),
+  listIngestJobs: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+}));
+
 describe('IntegrationsPage', () => {
   /* ---------------------------------------------------------------- */
   /*  Page structure                                                    */
@@ -124,14 +157,16 @@ describe('IntegrationsPage', () => {
     renderWithProviders(<IntegrationsPage />);
 
     const dropTexts = screen.getAllByText(/drop file here or browse/i);
-    expect(dropTexts).toHaveLength(2);
+    // 2 from original Data Import section + 3 from ManualIngestPanel
+    expect(dropTexts).toHaveLength(5);
   });
 
   it('renders hidden file inputs with correct accept attributes', () => {
     renderWithProviders(<IntegrationsPage />);
 
     const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
-    expect(fileInputs).toHaveLength(2);
+    // 2 from original Data Import + 3 from ManualIngestPanel
+    expect(fileInputs).toHaveLength(5);
 
     const accepts = Array.from(fileInputs).map((input) => input.accept);
     expect(accepts).toContain('.csv,.json');
@@ -203,8 +238,9 @@ describe('IntegrationsPage', () => {
   it('renders correct types in the recent imports table', () => {
     renderWithProviders(<IntegrationsPage />);
 
+    // 2 from recent imports table + 1 from ManualIngestPanel card title
     const auditLogCells = screen.getAllByText('Audit Log');
-    expect(auditLogCells).toHaveLength(2);
+    expect(auditLogCells).toHaveLength(3);
     expect(screen.getByText('Copilot Metrics')).toBeInTheDocument();
   });
 

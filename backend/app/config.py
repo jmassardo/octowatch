@@ -196,6 +196,75 @@ class GeoIPSettings(BaseSettings):
     )
 
 
+class GitHubAppSettings(BaseSettings):
+    """GitHub App credentials and sync behaviour.
+
+    GITHUB_APP_PRIVATE_KEY_PATH must point to a file on the local filesystem.
+    The key is NEVER stored in the database and NEVER appears in API responses.
+    When running in Kubernetes, mount the key as a Secret volume at this path.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+
+    GITHUB_APP_ID: int | None = Field(
+        default=None,
+        description="GitHub App numeric App ID (from App settings page)",
+    )
+    GITHUB_APP_PRIVATE_KEY_PATH: str | None = Field(
+        default=None,
+        description="Absolute path to the PEM-encoded RS256 private key file",
+    )
+    GITHUB_ENTERPRISE_SLUG: str | None = Field(
+        default=None,
+        description="GitHub Enterprise account slug (e.g. 'my-company')",
+    )
+    GITHUB_SYNC_INTERVAL_DAYS: int = Field(
+        default=60,
+        ge=60,
+        le=90,
+        description="How many days between automatic scheduled syncs (60–90)",
+    )
+    GITHUB_SYNC_ENABLED: bool = Field(
+        default=False,
+        description="Enable/disable the scheduled enterprise sync",
+    )
+    GITHUB_SYNC_ORGS: list[str] = Field(
+        default_factory=list,
+        description="Comma-separated org logins to include (empty = all enterprise orgs)",
+    )
+
+    @field_validator("GITHUB_APP_PRIVATE_KEY_PATH")
+    @classmethod
+    def validate_key_path(cls, v: str | None) -> str | None:
+        """Validate the key exists and is a regular file (not a symlink to /dev/null etc.)."""
+        if v is None:
+            return None
+        if not os.path.isfile(v):
+            raise ValueError(f"GITHUB_APP_PRIVATE_KEY_PATH does not point to a file: {v}")
+        return v
+
+    @field_validator("GITHUB_ENTERPRISE_SLUG")
+    @classmethod
+    def validate_enterprise_slug(cls, v: str | None) -> str | None:
+        """Enterprise slug must be alphanumeric with hyphens only."""
+        import re
+
+        if v is None:
+            return None
+        if not re.fullmatch(r"[a-zA-Z0-9-]+", v):
+            raise ValueError(
+                "GITHUB_ENTERPRISE_SLUG must contain only alphanumeric characters and hyphens"
+            )
+        return v
+
+    @field_validator("GITHUB_SYNC_INTERVAL_DAYS")
+    @classmethod
+    def validate_interval(cls, v: int) -> int:
+        if not (60 <= v <= 90):
+            raise ValueError("GITHUB_SYNC_INTERVAL_DAYS must be between 60 and 90 inclusive")
+        return v
+
+
 class GitHubRulesSettings(BaseSettings):
     """Settings for GitHub-backed detection rule versioning."""
 
@@ -305,6 +374,7 @@ class Settings(BaseSettings):
     AZURE: AzureBlobSettings = Field(default_factory=AzureBlobSettings)
     GEOIP: GeoIPSettings = Field(default_factory=GeoIPSettings)
     GIT: GitHubRulesSettings = Field(default_factory=GitHubRulesSettings)
+    GITHUB_APP: GitHubAppSettings = Field(default_factory=GitHubAppSettings)
     INTEGRATIONS: IntegrationSettings = Field(default_factory=IntegrationSettings)
 
     @property
@@ -335,6 +405,10 @@ class Settings(BaseSettings):
     @property
     def environment(self) -> str:
         return self.ENVIRONMENT
+
+    @property
+    def github_app(self) -> GitHubAppSettings:
+        return self.GITHUB_APP
 
     @property
     def cors_origins(self) -> list[str]:
@@ -376,6 +450,7 @@ def _build_settings() -> Settings:
             GITHUB_RULES_TOKEN=os.getenv("GITHUB_RULES_TOKEN", ""),
             GITHUB_RULES_BRANCH=os.getenv("GITHUB_RULES_BRANCH", "main"),
         ),
+        GITHUB_APP=GitHubAppSettings(),
         INTEGRATIONS=IntegrationSettings(),
     )
 
