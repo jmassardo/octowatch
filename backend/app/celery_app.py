@@ -92,6 +92,11 @@ app.autodiscover_tasks(
     ]
 )
 
+# autodiscover only finds tasks.py; explicitly include other task modules
+app.conf.include = [
+    "app.workers.github_sync_worker",
+]
+
 # Conditionally add GitHub sync heartbeat to beat schedule
 if settings.github_app.GITHUB_SYNC_ENABLED:
     app.conf.beat_schedule["enterprise-sync-heartbeat"] = {
