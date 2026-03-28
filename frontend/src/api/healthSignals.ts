@@ -284,8 +284,14 @@ export interface RunnerHealthResponse {
   runners: RunnerRow[];
 }
 
-export function getWorkflowHealth(): Promise<WorkflowHealthResponse> {
-  return api.get<WorkflowHealthResponse>('/health-signals/workflows');
+export async function getWorkflowHealth(): Promise<WorkflowHealthResponse> {
+  const data = await api.get<WorkflowHealthResponse>('/health-signals/workflows');
+  // PostgreSQL ROUND() returns numeric/Decimal which JSON-serializes as a string
+  data.workflows = data.workflows.map((wf) => ({
+    ...wf,
+    failure_rate_pct: Number(wf.failure_rate_pct),
+  }));
+  return data;
 }
 
 export function getBranchProtection(): Promise<BranchProtectionResponse> {
