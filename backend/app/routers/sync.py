@@ -96,18 +96,18 @@ async def trigger_sync(
     return SyncTriggerResponse(run_id=run_id, status="pending")
 
 
-@router.get("/status", response_model=SyncRunDetail)
+@router.get("/status", response_model=SyncRunDetail | None)
 async def get_sync_status(
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
-) -> SyncRunDetail:
+) -> SyncRunDetail | None:
     """Return the current running sync or the most recently completed run."""
     result = await db.execute(
         select(EnterpriseSyncRun).order_by(EnterpriseSyncRun.created_at.desc()).limit(1)
     )
     run = result.scalar_one_or_none()
     if not run:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No sync runs found.")
+        return None
 
     cursors_result = await db.execute(
         select(EnterpriseSyncEntityCursor).where(

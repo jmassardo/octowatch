@@ -5,8 +5,8 @@ export function triggerSync(scope: string = 'full'): Promise<{ run_id: string; s
   return api.post('/admin/sync/trigger', { scope });
 }
 
-export function getSyncStatus(): Promise<SyncRun> {
-  return api.get<SyncRun>('/admin/sync/status');
+export function getSyncStatus(): Promise<SyncRun | null> {
+  return api.get<SyncRun | null>('/admin/sync/status');
 }
 
 export function listSyncRuns(page = 1, pageSize = 20): Promise<SyncRunsResponse> {
