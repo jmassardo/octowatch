@@ -26,11 +26,31 @@ import structlog
 from celery import Task
 
 from app.celery_app import celery_app
-from app.database import AsyncSessionLocal
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
+
+
+def _make_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Create a fresh async session factory with a disposable NullPool engine.
+
+    Each Celery task invocation calls asyncio.run() which creates a new event
+    loop. asyncpg connections are bound to the loop they were created on, so
+    we MUST create a fresh engine per task to avoid 'attached to a different
+    loop' errors.
+    """
+    from app.config import settings
+
+    engine = create_async_engine(settings.DATABASE_URL, poolclass=NullPool)
+    return async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+        autocommit=False,
+    )
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
-
     from app.services.github_rate_limiter import GitHubRateLimiter
 
 logger = structlog.get_logger(__name__)
@@ -172,7 +192,7 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
 
     run_uuid = uuid.UUID(run_id)
 
-    async with AsyncSessionLocal() as session:
+    async with _make_session_factory()() as session:
         # Mark run as started
         await session.execute(
             update(EnterpriseSyncRun)
@@ -193,7 +213,7 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
 
     if not configs:
         logger.error("github_sync.no_configs", run_id=run_id)
-        async with AsyncSessionLocal() as session:
+        async with _make_session_factory()() as session:
             await session.execute(
                 update(EnterpriseSyncRun)
                 .where(EnterpriseSyncRun.id == run_uuid)
@@ -265,7 +285,7 @@ async def _sync_entity_async(
     run_uuid = uuid.UUID(run_id)
 
     # ── Read or initialise cursor ──────────────────────────────────────────
-    async with AsyncSessionLocal() as session:
+    async with _make_session_factory()() as session:
         cursor_result = await session.execute(
             select(EnterpriseSyncEntityCursor).where(
                 EnterpriseSyncEntityCursor.run_id == run_uuid,
@@ -302,7 +322,7 @@ async def _sync_entity_async(
             if not items:
                 break
 
-            async with AsyncSessionLocal() as session:
+            async with _make_session_factory()() as session:
                 await _upsert_items(session, entity_type, org, items)
                 items_synced += len(items)
 
@@ -346,7 +366,7 @@ async def _sync_entity_async(
 
     except Exception as exc:
         # Mark cursor row as failed
-        async with AsyncSessionLocal() as session:
+        async with _make_session_factory()() as session:
             from sqlalchemy.dialects.postgresql import insert as pg_insert
 
             stmt = (
@@ -400,7 +420,7 @@ async def _check_sync_schedule_async() -> dict:
         logger.debug("github_sync.schedule_check_skipped", reason="sync_disabled")
         return {"status": "skipped", "reason": "sync_disabled"}
 
-    async with AsyncSessionLocal() as session:
+    async with _make_session_factory()() as session:
         # Check for already pending/running run
         active_result = await session.execute(
             select(EnterpriseSyncRun)
@@ -434,7 +454,7 @@ async def _check_sync_schedule_async() -> dict:
 
     # Sync is due — create a new run and dispatch
     run_id = uuid.uuid4()
-    async with AsyncSessionLocal() as session:
+    async with _make_session_factory()() as session:
         run = EnterpriseSyncRun(
             id=run_id,
             status="pending",
@@ -575,16 +595,18 @@ async def _bootstrap_app_configs(settings: object) -> list:
         return []
 
     configs = []
-    async with AsyncSessionLocal() as session:
+    async with _make_session_factory()() as session:
         for inst in installations:
+            acct = inst.get("account") or {}
+            target = inst.get("target_type")
             config = GitHubAppConfig(
                 app_id=app_id,
                 installation_id=inst["id"],
-                enterprise_slug=inst.get("account", {}).get("login")
-                if inst.get("target_type") == "Enterprise"
+                enterprise_slug=acct.get("slug") or acct.get("login")
+                if target == "Enterprise"
                 else None,
-                org_login=inst.get("account", {}).get("login")
-                if inst.get("target_type") == "Organization"
+                org_login=acct.get("login")
+                if target == "Organization"
                 else None,
                 enabled=True,
             )

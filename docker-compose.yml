@@ -362,7 +362,7 @@ services:
   # ---------------------------------------------------------------------------
   worker-sync:
     image: audit-log-analyzer-worker:latest
-    command: ["celery", "-A", "app.celery_app", "worker", "-Q", "github_sync", "-c", "4", "--loglevel", "${LOG_LEVEL:-INFO}"]
+    command: ["celery", "-A", "app.celery_app", "worker", "-Q", "github_sync", "--pool=solo", "--loglevel", "${LOG_LEVEL:-INFO}"]
     environment:
       <<: *app-env
       INGESTION_MODE: ${INGESTION_MODE:-minio}
