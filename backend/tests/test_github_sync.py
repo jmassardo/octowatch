@@ -523,3 +523,108 @@ class TestCancelRun:
         run_id = uuid.uuid4()
         resp = client.delete(f"/api/v1/admin/sync/runs/{run_id}/cancel")
         assert resp.status_code == 409
+
+
+class TestUpdateSyncConfig:
+    """Tests for PUT /sync/config endpoint."""
+
+    @patch("app.routers.sync.settings")
+    def test_update_config_persists_all_fields(self, mock_settings: MagicMock) -> None:
+        mock_settings.github_app.GITHUB_APP_ID = 42
+        mock_settings.github_app.GITHUB_ENTERPRISE_SLUG = "test-corp"
+        mock_settings.github_app.GITHUB_SYNC_ENABLED = False
+        mock_settings.github_app.GITHUB_SYNC_INTERVAL_DAYS = 60
+        mock_settings.github_app.GITHUB_SYNC_ORGS = []
+
+        app, mock_db, _ = _build_sync_app(valkey_session=_make_admin_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        client.cookies.set("access_token", token)
+
+        # Mock the GET config call after update
+        mock_configs_result = MagicMock()
+        mock_configs_result.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_configs_result)
+
+        resp = client.put(
+            "/api/v1/admin/sync/config",
+            json={"sync_enabled": True, "interval_days": 75, "orgs": ["acme", "widgets"]},
+        )
+        assert resp.status_code == 200
+
+        # Verify in-memory settings were updated
+        assert mock_settings.github_app.GITHUB_SYNC_ENABLED is True
+        assert mock_settings.github_app.GITHUB_SYNC_INTERVAL_DAYS == 75
+        assert mock_settings.github_app.GITHUB_SYNC_ORGS == ["acme", "widgets"]
+
+    @patch("app.routers.sync.settings")
+    def test_update_config_partial_update_interval_only(self, mock_settings: MagicMock) -> None:
+        mock_settings.github_app.GITHUB_APP_ID = None
+        mock_settings.github_app.GITHUB_ENTERPRISE_SLUG = None
+        mock_settings.github_app.GITHUB_SYNC_ENABLED = False
+        mock_settings.github_app.GITHUB_SYNC_INTERVAL_DAYS = 60
+        mock_settings.github_app.GITHUB_SYNC_ORGS = []
+
+        app, mock_db, _ = _build_sync_app(valkey_session=_make_admin_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        client.cookies.set("access_token", token)
+
+        mock_configs_result = MagicMock()
+        mock_configs_result.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_configs_result)
+
+        resp = client.put(
+            "/api/v1/admin/sync/config",
+            json={"interval_days": 80},
+        )
+        assert resp.status_code == 200
+
+        # Only interval_days should change
+        assert mock_settings.github_app.GITHUB_SYNC_INTERVAL_DAYS == 80
+        # sync_enabled and orgs should remain unchanged
+        assert mock_settings.github_app.GITHUB_SYNC_ENABLED is False
+        assert mock_settings.github_app.GITHUB_SYNC_ORGS == []
+
+    @patch("app.routers.sync.settings")
+    def test_update_config_partial_update_orgs_only(self, mock_settings: MagicMock) -> None:
+        mock_settings.github_app.GITHUB_APP_ID = None
+        mock_settings.github_app.GITHUB_ENTERPRISE_SLUG = None
+        mock_settings.github_app.GITHUB_SYNC_ENABLED = False
+        mock_settings.github_app.GITHUB_SYNC_INTERVAL_DAYS = 60
+        mock_settings.github_app.GITHUB_SYNC_ORGS = []
+
+        app, mock_db, _ = _build_sync_app(valkey_session=_make_admin_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        client.cookies.set("access_token", token)
+
+        mock_configs_result = MagicMock()
+        mock_configs_result.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_configs_result)
+
+        resp = client.put(
+            "/api/v1/admin/sync/config",
+            json={"orgs": ["org-a", "org-b"]},
+        )
+        assert resp.status_code == 200
+        assert mock_settings.github_app.GITHUB_SYNC_ORGS == ["org-a", "org-b"]
+        assert mock_settings.github_app.GITHUB_SYNC_INTERVAL_DAYS == 60
+
+    def test_update_config_rejects_invalid_interval(self) -> None:
+        app, _, _ = _build_sync_app(valkey_session=_make_admin_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        client.cookies.set("access_token", token)
+
+        resp = client.put(
+            "/api/v1/admin/sync/config",
+            json={"interval_days": 30},
+        )
+        assert resp.status_code == 422
+
+    def test_update_config_unauthenticated_returns_401(self) -> None:
+        app, _, _ = _build_sync_app()
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.put("/api/v1/admin/sync/config", json={"sync_enabled": True})
+        assert resp.status_code == 401

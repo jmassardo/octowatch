@@ -1,6 +1,10 @@
+import { useQuery } from '@tanstack/react-query';
 import { Card } from '../../components/primitives/Card';
-import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
-import { WAF_FINDINGS, PILLAR_META, type WafPillar } from './healthData';
+import { Spinner } from '../../components/primitives/Spinner';
+import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { getWafFindings } from '../../api/healthSignals';
+import type { WafFindingResponse } from '../../api/healthSignals';
+import { PILLAR_META, type WafPillar } from './healthData';
 import styles from './WafInsightsPane.module.css';
 
 /** Pillar style class map. */
@@ -32,6 +36,19 @@ const PILLAR_COUNT_COLOR: Record<WafPillar, string> = {
 
 const PILLAR_ORDER: WafPillar[] = ['governance', 'appsec', 'architecture', 'collaboration', 'productivity'];
 
+/** Map backend pillar names to WafPillar type. */
+function toPillar(raw: string): WafPillar {
+  const mapping: Record<string, WafPillar> = {
+    governance: 'governance',
+    appsec: 'appsec',
+    security: 'appsec',
+    architecture: 'architecture',
+    collaboration: 'collaboration',
+    productivity: 'productivity',
+  };
+  return mapping[raw] ?? 'governance';
+}
+
 interface PillarSummary {
   total: number;
   critical: number;
@@ -39,10 +56,10 @@ interface PillarSummary {
   summaryText: string;
 }
 
-function computePillarSummaries(): Record<WafPillar, PillarSummary> {
+function computePillarSummaries(findings: WafFindingResponse[]): Record<WafPillar, PillarSummary> {
   const summaries = {} as Record<WafPillar, PillarSummary>;
   for (const pillar of PILLAR_ORDER) {
-    const evaluated = WAF_FINDINGS.filter((f) => f.pillar === pillar && f.evaluated);
+    const evaluated = findings.filter((f) => toPillar(f.pillar) === pillar && f.evaluated);
     const critical = evaluated.filter((f) => f.severity === 'critical').length;
     const warning = evaluated.filter((f) => f.severity === 'warning').length;
     const total = critical + warning;
@@ -70,12 +87,35 @@ function PillarTag({ pillar }: { pillar: WafPillar }) {
 }
 
 export function WafInsightsPane() {
-  const pillarSummaries = computePillarSummaries();
-  const evaluatedFindings = WAF_FINDINGS.filter((f) => f.evaluated);
-  const unevaluatedFindings = WAF_FINDINGS.filter((f) => !f.evaluated);
+  const {
+    data: wafData,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ['health', 'waf-findings'],
+    queryFn: getWafFindings,
+    staleTime: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+        <Spinner size={28} />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return <ErrorBanner message="Failed to load WAF findings" onRetry={() => void refetch()} />;
+  }
+
+  const allFindings = wafData?.findings ?? [];
+  const pillarSummaries = computePillarSummaries(allFindings);
+  const evaluatedFindings = allFindings.filter((f) => f.evaluated);
 
   // Group evaluated findings by pillar
-  const findingsByPillar: Record<WafPillar, typeof evaluatedFindings> = {
+  const findingsByPillar: Record<WafPillar, WafFindingResponse[]> = {
     governance: [],
     appsec: [],
     architecture: [],
@@ -83,13 +123,11 @@ export function WafInsightsPane() {
     productivity: [],
   };
   for (const f of evaluatedFindings) {
-    findingsByPillar[f.pillar].push(f);
+    findingsByPillar[toPillar(f.pillar)].push(f);
   }
 
   return (
     <>
-      <SampleDataBanner message="WAF alignment signals are derived from audit log events and baseline imports. Some signals require active API polling and cannot be evaluated — see gaps below." />
-
       {/* Header with WAF note */}
       <div className={styles.wafHeader}>
         <div className={`${styles.dataSourceNote} ${styles.wafHeaderNote}`} style={{ marginBottom: 0 }}>
@@ -107,10 +145,7 @@ export function WafInsightsPane() {
             Signals are aligned to the{' '}
             <strong>GitHub Well-Architected Framework</strong> (5 pillars: Governance, Application
             Security, Architecture, Collaboration, Productivity). Coverage is partial — OctoWatch
-            only surfaces what is detectable from audit log events or a baseline import. Findings
-            marked{' '}
-            <span className={styles.wafNa}>API only</span> cannot be evaluated without active
-            polling and are shown as informational gaps.
+            evaluates signals detectable from audit log events.
           </span>
         </div>
         <a
@@ -171,8 +206,6 @@ export function WafInsightsPane() {
             {pillar === 'productivity' && findings.length === 0 && (
               <div className={styles.productivityOk}>
                 <strong style={{ color: 'var(--success)' }}>✓ No productivity anti-patterns detected</strong>
-                {' — '}Copilot adoption is active (see Copilot Insights), CI pipelines are running,
-                and automated deployment is in place.
               </div>
             )}
 
@@ -189,34 +222,13 @@ export function WafInsightsPane() {
                       className={`${styles.sevDot} ${isCritical ? styles.sevDotCritical : styles.sevDotWarning}`}
                     />
                     <div className={styles.wafFindingTitle}>{f.finding}</div>
-                    <PillarTag pillar={f.pillar} />
+                    <PillarTag pillar={toPillar(f.pillar)} />
                   </div>
                   {f.detail && <div className={styles.wafFindingBody}>{f.detail}</div>}
                   <div className={styles.wafFindingMeta}>
-                    {f.evidence.split(',').map((src) => {
-                      const trimmed = src.trim();
-                      // Distinguish between event sources and descriptive text
-                      if (trimmed.includes('—') || trimmed.includes('absence') || trimmed.includes('missing')) {
-                        return (
-                          <span key={trimmed} style={{ color: 'var(--fg-subtle)', fontSize: 11 }}>
-                            {trimmed}
-                          </span>
-                        );
-                      }
-                      return (
-                        <span key={trimmed} className={styles.wafSource}>
-                          {trimmed}
-                        </span>
-                      );
-                    })}
-                    <a
-                      href={f.wafRef.url}
-                      target="_blank"
-                      rel="noopener"
-                      className={styles.wafRef}
-                    >
-                      {f.wafRef.label} ↗
-                    </a>
+                    <span style={{ color: 'var(--fg-subtle)', fontSize: 11 }}>
+                      {f.evidence_count} event{f.evidence_count !== 1 ? 's' : ''} evaluated
+                    </span>
                   </div>
                 </div>
               );
@@ -225,52 +237,9 @@ export function WafInsightsPane() {
         );
       })}
 
-      {/* Unevaluated signals */}
-      {unevaluatedFindings.length > 0 && (
-        <div className={styles.unevaluatedSection}>
-          <div className={styles.unevaluatedTitle}>
-            <span style={{ color: 'var(--fg-subtle)' }}>▢</span>
-            <span>Signals that require active API polling (not evaluated)</span>
-          </div>
-          <div className={styles.tableWrap} style={{ marginBottom: 8 }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Signal</th>
-                  <th>Pillar</th>
-                  <th>Why not available</th>
-                  <th>WAF Reference</th>
-                </tr>
-              </thead>
-              <tbody>
-                {unevaluatedFindings.map((f) => (
-                  <tr key={f.id}>
-                    <td>{f.finding}</td>
-                    <td>
-                      <PillarTag pillar={f.pillar} />
-                    </td>
-                    <td style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{f.evidence}</td>
-                    <td>
-                      <a
-                        href={f.wafRef.url}
-                        target="_blank"
-                        rel="noopener"
-                        className={styles.wafRef}
-                        style={{ fontSize: 12 }}
-                      >
-                        {f.wafRef.label} ↗
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className={styles.wafBaselineNote}>
-            ℹ To evaluate these signals, perform a one-time baseline import from{' '}
-            <strong>Settings → Integrations → Baseline Import</strong>. Continuous polling of
-            GitHub APIs is not supported by design.
-          </div>
+      {allFindings.length === 0 && (
+        <div style={{ color: 'var(--fg-muted)', fontSize: 13, padding: 24, textAlign: 'center' }}>
+          No WAF findings available. Ensure audit log events are being ingested.
         </div>
       )}
     </>

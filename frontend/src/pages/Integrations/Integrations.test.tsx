@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { IntegrationsPage } from './index';
@@ -8,6 +8,15 @@ vi.mock('../../api/integrations', () => ({
   listTicketingConfigs: vi.fn().mockResolvedValue([]),
   listNotificationConfigs: vi.fn().mockResolvedValue([]),
 }));
+
+const mockUpdateSyncConfig = vi.fn().mockResolvedValue({
+  app_id: null,
+  enterprise_slug: null,
+  installation_ids: [],
+  sync_enabled: true,
+  interval_days: 75,
+  orgs: [],
+});
 
 vi.mock('../../api/sync', () => ({
   getSyncStatus: vi.fn().mockResolvedValue({
@@ -25,13 +34,14 @@ vi.mock('../../api/sync', () => ({
   triggerSync: vi.fn().mockResolvedValue({ run_id: 'r', status: 'pending' }),
   cancelSyncRun: vi.fn().mockResolvedValue(undefined),
   getSyncConfig: vi.fn().mockResolvedValue({
-    app_id: null,
-    enterprise_slug: null,
-    installation_ids: [],
+    app_id: 12345,
+    enterprise_slug: 'my-corp',
+    installation_ids: [{ org: 'acme', installation_id: 999 }],
     sync_enabled: false,
-    interval_days: 1,
-    orgs: [],
+    interval_days: 60,
+    orgs: ['acme'],
   }),
+  updateSyncConfig: (...args: unknown[]) => mockUpdateSyncConfig(...args),
   listSyncRuns: vi.fn().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 10, has_next: false }),
   getSyncRun: vi.fn().mockResolvedValue(null),
 }));
@@ -43,6 +53,10 @@ vi.mock('../../api/ingest', () => ({
 }));
 
 describe('IntegrationsPage', () => {
+  beforeEach(() => {
+    mockUpdateSyncConfig.mockClear();
+  });
+
   /* ---------------------------------------------------------------- */
   /*  Page structure                                                    */
   /* ---------------------------------------------------------------- */
@@ -60,19 +74,6 @@ describe('IntegrationsPage', () => {
     expect(screen.getByRole('heading', { level: 2, name: /marketplace/i })).toBeInTheDocument();
   });
 
-  it('renders the Data Import section heading and description', () => {
-    renderWithProviders(<IntegrationsPage />);
-
-    expect(screen.getByRole('heading', { level: 2, name: /data import/i })).toBeInTheDocument();
-    expect(screen.getByText(/import exported data files to analyze/i)).toBeInTheDocument();
-  });
-
-  it('renders the Recent imports section heading', () => {
-    renderWithProviders(<IntegrationsPage />);
-
-    expect(screen.getByRole('heading', { level: 2, name: /recent imports/i })).toBeInTheDocument();
-  });
-
   /* ---------------------------------------------------------------- */
   /*  Marketplace cards                                                 */
   /* ---------------------------------------------------------------- */
@@ -88,40 +89,14 @@ describe('IntegrationsPage', () => {
     expect(screen.getByText('Jira')).toBeInTheDocument();
   });
 
-  it('shows Connected status for GitHub Enterprise and Slack', () => {
+  it('shows Connected status for GitHub Enterprise when app_id is set', async () => {
     renderWithProviders(<IntegrationsPage />);
 
     const ghCard = screen.getByTestId('mkt-card-github-enterprise');
-    expect(within(ghCard).getByText('Connected')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(within(ghCard).getByText('Connected')).toBeInTheDocument();
+    });
     expect(within(ghCard).getByRole('button', { name: /configure/i })).toBeInTheDocument();
-
-    const slackCard = screen.getByTestId('mkt-card-slack');
-    expect(within(slackCard).getByText('Connected')).toBeInTheDocument();
-    expect(within(slackCard).getByRole('button', { name: /configure/i })).toBeInTheDocument();
-  });
-
-  it('shows Configured status for PagerDuty', () => {
-    renderWithProviders(<IntegrationsPage />);
-
-    const pdCard = screen.getByTestId('mkt-card-pagerduty');
-    expect(within(pdCard).getByText('Configured')).toBeInTheDocument();
-    expect(within(pdCard).getByRole('button', { name: /configure/i })).toBeInTheDocument();
-  });
-
-  it('shows Not installed status with Install button for uninstalled integrations', () => {
-    renderWithProviders(<IntegrationsPage />);
-
-    const sentinelCard = screen.getByTestId('mkt-card-microsoft-sentinel');
-    expect(within(sentinelCard).getByText('Not installed')).toBeInTheDocument();
-    expect(within(sentinelCard).getByRole('button', { name: /install/i })).toBeInTheDocument();
-
-    const splunkCard = screen.getByTestId('mkt-card-splunk');
-    expect(within(splunkCard).getByText('Not installed')).toBeInTheDocument();
-    expect(within(splunkCard).getByRole('button', { name: /install/i })).toBeInTheDocument();
-
-    const jiraCard = screen.getByTestId('mkt-card-jira');
-    expect(within(jiraCard).getByText('Not installed')).toBeInTheDocument();
-    expect(within(jiraCard).getByRole('button', { name: /install/i })).toBeInTheDocument();
   });
 
   it('renders card descriptions for all integrations', () => {
@@ -135,175 +110,187 @@ describe('IntegrationsPage', () => {
     expect(screen.getByText(/automatically create jira issues/i)).toBeInTheDocument();
   });
 
+  it('shows Coming Soon buttons for unimplemented integrations', () => {
+    renderWithProviders(<IntegrationsPage />);
+
+    const slackCard = screen.getByTestId('mkt-card-slack');
+    const comingSoonBtn = within(slackCard).getByRole('button', { name: /coming soon/i });
+    expect(comingSoonBtn).toBeDisabled();
+
+    const sentinelCard = screen.getByTestId('mkt-card-microsoft-sentinel');
+    expect(within(sentinelCard).getByRole('button', { name: /coming soon/i })).toBeDisabled();
+
+    const splunkCard = screen.getByTestId('mkt-card-splunk');
+    expect(within(splunkCard).getByRole('button', { name: /coming soon/i })).toBeDisabled();
+
+    const pdCard = screen.getByTestId('mkt-card-pagerduty');
+    expect(within(pdCard).getByRole('button', { name: /coming soon/i })).toBeDisabled();
+
+    const jiraCard = screen.getByTestId('mkt-card-jira');
+    expect(within(jiraCard).getByRole('button', { name: /coming soon/i })).toBeDisabled();
+  });
+
+  it('shows Not installed status for unimplemented integrations', () => {
+    renderWithProviders(<IntegrationsPage />);
+
+    const sentinelCard = screen.getByTestId('mkt-card-microsoft-sentinel');
+    expect(within(sentinelCard).getByText('Not installed')).toBeInTheDocument();
+
+    const splunkCard = screen.getByTestId('mkt-card-splunk');
+    expect(within(splunkCard).getByText('Not installed')).toBeInTheDocument();
+
+    const jiraCard = screen.getByTestId('mkt-card-jira');
+    expect(within(jiraCard).getByText('Not installed')).toBeInTheDocument();
+  });
+
   /* ---------------------------------------------------------------- */
-  /*  Data Import cards                                                 */
+  /*  GitHub Enterprise config form                                     */
   /* ---------------------------------------------------------------- */
 
-  it('renders the Audit Log Import card with correct hints', () => {
-    renderWithProviders(<IntegrationsPage />);
-
-    expect(screen.getByText('Audit Log Import')).toBeInTheDocument();
-    expect(screen.getByText(/accepts \.csv or \.json · max 500 mb/i)).toBeInTheDocument();
-  });
-
-  it('renders the Copilot Metrics Import card with correct hints', () => {
-    renderWithProviders(<IntegrationsPage />);
-
-    expect(screen.getByText('Copilot Metrics Import')).toBeInTheDocument();
-    expect(screen.getByText(/accepts \.json · github copilot metrics api format/i)).toBeInTheDocument();
-  });
-
-  it('renders "Drop file here or browse" text for both import cards', () => {
-    renderWithProviders(<IntegrationsPage />);
-
-    const dropTexts = screen.getAllByText(/drop file here or browse/i);
-    // 2 from original Data Import section + 3 from ManualIngestPanel
-    expect(dropTexts).toHaveLength(5);
-  });
-
-  it('renders hidden file inputs with correct accept attributes', () => {
-    renderWithProviders(<IntegrationsPage />);
-
-    const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
-    // 2 from original Data Import + 3 from ManualIngestPanel
-    expect(fileInputs).toHaveLength(5);
-
-    const accepts = Array.from(fileInputs).map((input) => input.accept);
-    expect(accepts).toContain('.csv,.json');
-    expect(accepts).toContain('.json');
-  });
-
-  it('triggers file input click when drop zone is clicked', async () => {
+  it('opens config form when Configure is clicked on GitHub Enterprise', async () => {
     const user = userEvent.setup();
     renderWithProviders(<IntegrationsPage />);
 
-    const dropZones = screen.getAllByRole('button', { name: /upload/i });
-    expect(dropZones.length).toBeGreaterThanOrEqual(2);
+    const ghCard = screen.getByTestId('mkt-card-github-enterprise');
+    const configureBtn = within(ghCard).getByRole('button', { name: /configure/i });
+    await user.click(configureBtn);
 
-    const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
-    const clickSpy = vi.spyOn(fileInputs[0], 'click');
-
-    await user.click(dropZones[0]);
-    expect(clickSpy).toHaveBeenCalled();
-
-    clickSpy.mockRestore();
+    await waitFor(() => {
+      expect(screen.getByText('Configure GitHub Enterprise')).toBeInTheDocument();
+    });
   });
 
-  it('triggers file input click when drop zone receives Enter keypress', async () => {
+  it('renders config form with data from getSyncConfig', async () => {
     const user = userEvent.setup();
     renderWithProviders(<IntegrationsPage />);
 
-    const dropZones = screen.getAllByRole('button', { name: /upload/i });
-    const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
-    const clickSpy = vi.spyOn(fileInputs[0], 'click');
+    const ghCard = screen.getByTestId('mkt-card-github-enterprise');
+    await user.click(within(ghCard).getByRole('button', { name: /configure/i }));
 
-    dropZones[0].focus();
-    await user.keyboard('{Enter}');
-    expect(clickSpy).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByLabelText(/enable scheduled sync/i)).toBeInTheDocument();
+    });
 
-    clickSpy.mockRestore();
+    const enabledCheckbox = screen.getByLabelText(/enable scheduled sync/i) as HTMLInputElement;
+    expect(enabledCheckbox.checked).toBe(false);
+
+    const intervalInput = screen.getByLabelText(/sync interval/i) as HTMLInputElement;
+    expect(intervalInput.value).toBe('60');
+
+    const orgsInput = screen.getByLabelText(/organizations to sync/i) as HTMLInputElement;
+    expect(orgsInput.value).toBe('acme');
+
+    expect(screen.getByText('12345')).toBeInTheDocument();
+    expect(screen.getByText('my-corp')).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
   });
 
-  /* ---------------------------------------------------------------- */
-  /*  Recent imports table                                              */
-  /* ---------------------------------------------------------------- */
-
-  it('renders the recent imports table with correct column headers', () => {
+  it('Save button calls updateSyncConfig with form values', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<IntegrationsPage />);
 
-    const table = screen.getByRole('table');
-    const headers = within(table).getAllByRole('columnheader');
-    const headerTexts = headers.map((h) => h.textContent);
+    const ghCard = screen.getByTestId('mkt-card-github-enterprise');
+    await user.click(within(ghCard).getByRole('button', { name: /configure/i }));
 
-    expect(headerTexts).toEqual(['File', 'Type', 'Size', 'Imported at', 'Records', 'Status']);
+    await waitFor(() => {
+      expect(screen.getByLabelText(/enable scheduled sync/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByLabelText(/enable scheduled sync/i));
+
+    const intervalInput = screen.getByLabelText(/sync interval/i);
+    await user.clear(intervalInput);
+    await user.type(intervalInput, '75');
+
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(mockUpdateSyncConfig).toHaveBeenCalledWith({
+        sync_enabled: true,
+        interval_days: 75,
+        orgs: ['acme'],
+      });
+    });
   });
 
-  it('renders 3 rows of import data', () => {
+  it('shows success message after saving', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<IntegrationsPage />);
 
-    const table = screen.getByRole('table');
-    const rows = within(table).getAllByRole('row');
-    // 1 header row + 3 data rows
-    expect(rows).toHaveLength(4);
+    const ghCard = screen.getByTestId('mkt-card-github-enterprise');
+    await user.click(within(ghCard).getByRole('button', { name: /configure/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/enable scheduled sync/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/configuration saved successfully/i)).toBeInTheDocument();
+    });
   });
 
-  it('renders correct file names in the recent imports table', () => {
+  it('Cancel closes modal and resets form', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<IntegrationsPage />);
 
-    expect(screen.getByText('audit-log-2025-06-01.csv')).toBeInTheDocument();
-    expect(screen.getByText('copilot-metrics-may.json')).toBeInTheDocument();
-    expect(screen.getByText('audit-log-2025-05-15.json')).toBeInTheDocument();
+    const ghCard = screen.getByTestId('mkt-card-github-enterprise');
+    await user.click(within(ghCard).getByRole('button', { name: /configure/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/enable scheduled sync/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByLabelText(/enable scheduled sync/i));
+
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+
+    expect(screen.queryByText('Configure GitHub Enterprise')).not.toBeInTheDocument();
   });
 
-  it('renders correct types in the recent imports table', () => {
+  it('shows validation error for invalid interval_days', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<IntegrationsPage />);
 
-    // 2 from recent imports table + 1 from ManualIngestPanel card title
-    const auditLogCells = screen.getAllByText('Audit Log');
-    expect(auditLogCells).toHaveLength(3);
-    expect(screen.getByText('Copilot Metrics')).toBeInTheDocument();
+    const ghCard = screen.getByTestId('mkt-card-github-enterprise');
+    await user.click(within(ghCard).getByRole('button', { name: /configure/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/sync interval/i)).toBeInTheDocument();
+    });
+
+    const intervalInput = screen.getByLabelText(/sync interval/i);
+    await user.clear(intervalInput);
+    await user.type(intervalInput, '30');
+
+    expect(screen.getByText(/must be between 60 and 90 days/i)).toBeInTheDocument();
+
+    const saveBtn = screen.getByRole('button', { name: /^save$/i });
+    expect(saveBtn).toBeDisabled();
   });
 
-  it('shows Completed status badges for all imports', () => {
+  it('shows read-only info about credentials in config form', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<IntegrationsPage />);
 
-    const completedBadges = screen.getAllByText('Completed');
-    expect(completedBadges).toHaveLength(3);
-  });
+    const ghCard = screen.getByTestId('mkt-card-github-enterprise');
+    await user.click(within(ghCard).getByRole('button', { name: /configure/i }));
 
-  it('renders formatted record counts', () => {
-    renderWithProviders(<IntegrationsPage />);
-
-    // toLocaleString formatting — accept either comma or period as separator
-    expect(screen.getByText(/48.?210/)).toBeInTheDocument();
-    expect(screen.getByText(/1.?340/)).toBeInTheDocument();
-    expect(screen.getByText(/125.?800/)).toBeInTheDocument();
-  });
-
-  /* ---------------------------------------------------------------- */
-  /*  Helper text                                                       */
-  /* ---------------------------------------------------------------- */
-
-  it('renders export helper text for audit log import', () => {
-    renderWithProviders(<IntegrationsPage />);
-
-    expect(screen.getByText(/export from github enterprise/i)).toBeInTheDocument();
-    expect(screen.getByText(/settings → audit log → export csv/i)).toBeInTheDocument();
-  });
-
-  it('renders API helper text for copilot metrics import', () => {
-    renderWithProviders(<IntegrationsPage />);
-
-    expect(screen.getByText(/fetch via/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/github app credentials are configured via environment variables/i)).toBeInTheDocument();
+    });
   });
 
   /* ---------------------------------------------------------------- */
   /*  Clickable features                                                */
   /* ---------------------------------------------------------------- */
 
-  it('record counts are clickable', () => {
-    const { container } = renderWithProviders(<IntegrationsPage />);
-    const clickableRecords = container.querySelectorAll('.clickableRecord');
-    expect(clickableRecords.length).toBe(3);
-    clickableRecords.forEach((el) => {
-      expect(el.getAttribute('role')).toBe('button');
-    });
-  });
-
-  it('clicking record count opens import detail modal', async () => {
-    const user = userEvent.setup();
-    const { container } = renderWithProviders(<IntegrationsPage />);
-    const clickableRecord = container.querySelector('.clickableRecord')!;
-    expect(clickableRecord).not.toBeNull();
-    await user.click(clickableRecord);
-    expect(screen.getByText('Import details')).toBeInTheDocument();
-    expect(screen.getByText('Records imported')).toBeInTheDocument();
-  });
-
-  it('status badges are clickable', () => {
+  it('GitHub Enterprise status badge is clickable', () => {
     const { container } = renderWithProviders(<IntegrationsPage />);
     const clickableStatuses = container.querySelectorAll('.clickableStatus');
-    expect(clickableStatuses.length).toBe(6);
+    // Only GitHub Enterprise has clickable status (the others are coming soon)
+    expect(clickableStatuses.length).toBe(1);
     clickableStatuses.forEach((el) => {
       expect(el.getAttribute('tabindex')).toBe('0');
     });

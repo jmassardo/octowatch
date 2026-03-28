@@ -24,6 +24,36 @@ vi.mock('../../api/admin', () => ({
     { name: 'analyst' },
     { name: 'admin' },
   ]),
+  getActiveSessions: vi.fn().mockResolvedValue([
+    {
+      login: 'jmassardo',
+      last_active_at: new Date().toISOString(),
+      session_count: 3,
+      role: 'sys_admin',
+      mfa_enabled: true,
+    },
+    {
+      login: 'mwestphal',
+      last_active_at: new Date(Date.now() - 12 * 60_000).toISOString(),
+      session_count: 1,
+      role: 'analyst',
+      mfa_enabled: true,
+    },
+    {
+      login: 'skeshari',
+      last_active_at: new Date(Date.now() - 34 * 60_000).toISOString(),
+      session_count: 2,
+      role: 'analyst',
+      mfa_enabled: false,
+    },
+    {
+      login: 'jdoe-bot',
+      last_active_at: new Date(Date.now() - 60 * 60_000).toISOString(),
+      session_count: 1,
+      role: 'viewer',
+      mfa_enabled: true,
+    },
+  ]),
 }));
 
 describe('UsersPage', () => {
@@ -43,30 +73,39 @@ describe('UsersPage', () => {
     expect(await screen.findByText('@security-team')).toBeInTheDocument();
   });
 
-  it('renders active users section', () => {
+  it('renders active users section from API data', async () => {
     renderWithProviders(<UsersPage />);
 
     expect(screen.getByRole('heading', { level: 2, name: /active users/i })).toBeInTheDocument();
 
-    expect(screen.getByText('@jmassardo')).toBeInTheDocument();
-    expect(screen.getByText('@mwestphal')).toBeInTheDocument();
-    expect(screen.getByText('@skeshari')).toBeInTheDocument();
-    expect(screen.getByText('@jdoe-bot')).toBeInTheDocument();
+    // Wait for session data to load from API - use findAllByText because
+    // @jmassardo also appears in team mappings granted_by column
+    const jmassardoElements = await screen.findAllByText('@jmassardo');
+    expect(jmassardoElements.length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText('@mwestphal')).toBeInTheDocument();
+    expect(await screen.findByText('@skeshari')).toBeInTheDocument();
+    expect(await screen.findByText('@jdoe-bot')).toBeInTheDocument();
   });
 
-  it('active user logins are clickable with clickableMention class', () => {
+  it('active user logins are clickable with clickableMention class', async () => {
     renderWithProviders(<UsersPage />);
+
+    // Wait for sessions to load (use unique login to avoid multi-match)
+    await screen.findByText('@mwestphal');
 
     const mentions = document.querySelectorAll('.clickableMention');
     // 4 active users + 1 granted-by mention in team mappings
     expect(mentions.length).toBeGreaterThanOrEqual(4);
 
-    const jmassardoMention = screen.getByText('@jmassardo');
+    const jmassardoMention = screen.getAllByText('@jmassardo')[0];
     expect(jmassardoMention.classList.contains('clickableMention')).toBe(true);
   });
 
-  it('session counts are clickable with clickableSession class', () => {
+  it('session counts are clickable with clickableSession class', async () => {
     renderWithProviders(<UsersPage />);
+
+    // Wait for sessions to load
+    await screen.findByText('@mwestphal');
 
     const sessions = document.querySelectorAll('.clickableSession');
     expect(sessions).toHaveLength(4);
@@ -75,6 +114,9 @@ describe('UsersPage', () => {
   it('clicking session count opens session detail modal', async () => {
     const user = userEvent.setup();
     renderWithProviders(<UsersPage />);
+
+    // Wait for sessions to load
+    await screen.findByText('@mwestphal');
 
     const sessions = document.querySelectorAll('.clickableSession');
     await user.click(sessions[0]);
@@ -85,6 +127,9 @@ describe('UsersPage', () => {
   it('session modal shows user info and note about API integration', async () => {
     const user = userEvent.setup();
     renderWithProviders(<UsersPage />);
+
+    // Wait for sessions to load
+    await screen.findByText('@mwestphal');
 
     const sessions = document.querySelectorAll('.clickableSession');
     await user.click(sessions[0]);
@@ -108,5 +153,14 @@ describe('UsersPage', () => {
     );
     expect(grantedByMention).toBeDefined();
     expect(grantedByMention!.classList.contains('clickableMention')).toBe(true);
+  });
+
+  it('shows empty state when no active sessions', async () => {
+    const { getActiveSessions } = await import('../../api/admin');
+    vi.mocked(getActiveSessions).mockResolvedValueOnce([]);
+
+    renderWithProviders(<UsersPage />);
+
+    expect(await screen.findByText('No active sessions in the last 24 hours')).toBeInTheDocument();
   });
 });

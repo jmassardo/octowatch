@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { RoleDefinition, RoleAssignment, RoleAssignmentCreate, IngestionSource } from '../types/admin';
+import type { RoleDefinition, RoleAssignment, RoleAssignmentCreate, IngestionSource, ActiveSession } from '../types/admin';
 
 export function listRoles(): Promise<RoleDefinition[]> {
   return api.get<RoleDefinition[]>('/admin/roles');
@@ -27,4 +27,8 @@ export function createIngestionSource(s: Partial<IngestionSource>): Promise<Inge
 
 export function deleteIngestionSource(id: number): Promise<void> {
   return api.delete<void>(`/admin/ingestion-sources/${id}`);
+}
+
+export function getActiveSessions(): Promise<ActiveSession[]> {
+  return api.get<ActiveSession[]>('/admin/sessions');
 }

@@ -46,3 +46,11 @@ export interface RetentionPolicy {
   readonly warm_days: number;
   readonly cold_days: number;
 }
+
+export interface ActiveSession {
+  readonly login: string;
+  readonly last_active_at: string | null;
+  readonly session_count: number;
+  readonly role: string;
+  readonly mfa_enabled: boolean;
+}

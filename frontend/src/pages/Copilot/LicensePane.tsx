@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Modal } from '../../components/primitives/Modal';
@@ -15,6 +16,32 @@ interface LicensePaneProps {
 export function LicensePane({ seatBuckets }: LicensePaneProps) {
   const [drillDown, setDrillDown] = useState<LicenseDrillDown>(null);
   const costSectionRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  if (!seatBuckets || seatBuckets.length === 0) {
+    return (
+      <Card style={{ padding: 24, textAlign: 'center' }}>
+        <div style={{ fontSize: 14, color: 'var(--fg-muted)', lineHeight: 1.6 }}>
+          No Copilot seat data available. Import a Copilot Metrics file on the{' '}
+          <span
+            role="link"
+            tabIndex={0}
+            style={{ color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={() => navigate('/integrations')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                navigate('/integrations');
+              }
+            }}
+          >
+            Integrations page
+          </span>
+          , or connect the Copilot Metrics API.
+        </div>
+      </Card>
+    );
+  }
 
   // Derive seat metrics from real API data
   const latestBucket = seatBuckets[seatBuckets.length - 1];

@@ -69,6 +69,10 @@ vi.mock('../../api/detections', () => ({
   }),
 }));
 
+vi.mock('../../api/healthSignals', () => ({
+  getTeams: vi.fn().mockResolvedValue({ teams: [] }),
+}));
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -83,13 +87,27 @@ describe('DevActivityPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders team filter buttons', async () => {
+  it('renders "All teams" button and empty team note when no teams available', async () => {
     renderWithProviders(<DevActivityPage />);
 
     expect(await screen.findByText('All teams')).toBeInTheDocument();
-    expect(screen.getByText('platform-team')).toBeInTheDocument();
+    expect(screen.getByText('No team data available')).toBeInTheDocument();
+  });
+
+  it('renders team filter buttons when teams are available', async () => {
+    const { getTeams } = await import('../../api/healthSignals');
+    vi.mocked(getTeams).mockResolvedValueOnce({
+      teams: [
+        { org: 'test-org', team_slug: 'platform', team_name: 'platform-team', members: ['alice', 'bob'] },
+        { org: 'test-org', team_slug: 'backend', team_name: 'backend-team', members: ['carol'] },
+      ],
+    });
+
+    renderWithProviders(<DevActivityPage />);
+
+    expect(await screen.findByText('All teams')).toBeInTheDocument();
+    expect(await screen.findByText('platform-team')).toBeInTheDocument();
     expect(screen.getByText('backend-team')).toBeInTheDocument();
-    expect(screen.getByText('frontend-team')).toBeInTheDocument();
   });
 
   it('renders "Work distribution" section title', async () => {

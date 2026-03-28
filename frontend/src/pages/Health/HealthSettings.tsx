@@ -1,7 +1,11 @@
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
+import { Spinner } from '../../components/primitives/Spinner';
+import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { getHealthSettings, updateHealthSettings } from '../../api/healthSignals';
 import styles from './HealthSettings.module.css';
 
 /* ------------------------------------------------------------------ */
@@ -84,8 +88,45 @@ const ESCALATION_OPTIONS = [
 
 export function HealthSettingsPage() {
   const navigate = useNavigate();
-  const [settings, setSettings] = useState<HealthSettingsState>({ ...DEFAULTS });
+  const queryClient = useQueryClient();
   const [toast, setToast] = useState<string | null>(null);
+
+  const {
+    data: savedSettings,
+    isLoading: isLoadingSettings,
+    isError: isLoadError,
+    refetch,
+  } = useQuery({
+    queryKey: ['health-settings'],
+    queryFn: getHealthSettings,
+    staleTime: 60_000,
+  });
+
+  const [settings, setSettings] = useState<HealthSettingsState>({ ...DEFAULTS });
+  const [hasHydrated, setHasHydrated] = useState(false);
+
+  // Hydrate local state from server data once loaded
+  if (savedSettings && !hasHydrated) {
+    const merged = { ...DEFAULTS };
+    for (const key of Object.keys(DEFAULTS) as (keyof HealthSettingsState)[]) {
+      if (key in savedSettings) {
+        (merged as Record<string, unknown>)[key] = savedSettings[key];
+      }
+    }
+    setSettings(merged);
+    setHasHydrated(true);
+  }
+
+  const saveMutation = useMutation({
+    mutationFn: (data: Record<string, unknown>) => updateHealthSettings(data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['health-settings'] });
+      showToast('Settings saved successfully');
+    },
+    onError: () => {
+      showToast('Failed to save settings');
+    },
+  });
 
   const update = useCallback(
     <K extends keyof HealthSettingsState>(key: K, value: HealthSettingsState[K]) => {
@@ -100,14 +141,30 @@ export function HealthSettingsPage() {
   }
 
   function handleSave() {
-    // No backend endpoint yet — log and show toast
-    console.log('Health settings saved:', settings);
-    showToast('Settings saved successfully');
+    saveMutation.mutate(settings as unknown as Record<string, unknown>);
   }
 
   function handleReset() {
     setSettings({ ...DEFAULTS });
     showToast('Settings reset to defaults');
+  }
+
+  if (isLoadingSettings) {
+    return (
+      <div className={styles.page}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+          <Spinner size={28} />
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoadError) {
+    return (
+      <div className={styles.page}>
+        <ErrorBanner message="Failed to load health settings" onRetry={() => void refetch()} />
+      </div>
+    );
   }
 
   return (
@@ -455,8 +512,8 @@ export function HealthSettingsPage() {
 
       {/* ---- Footer buttons ---- */}
       <div className={styles.footerActions}>
-        <Button variant="primary" onClick={handleSave}>
-          Save settings
+        <Button variant="primary" onClick={handleSave} disabled={saveMutation.isPending}>
+          {saveMutation.isPending ? 'Saving…' : 'Save settings'}
         </Button>
         <Button onClick={handleReset}>Reset to defaults</Button>
       </div>

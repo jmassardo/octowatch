@@ -47,7 +47,7 @@ vi.mock('../../components/charts/BarChart', () => ({
 }));
 
 vi.mock('../../components/charts/ContributionCalendar', () => ({
-  ContributionCalendar: () => <div data-testid="contribution-calendar" />,
+  ContributionCalendar: (props: Record<string, unknown>) => <div data-testid="contribution-calendar" data-has-data={props.data ? 'true' : 'false'} />,
 }));
 
 describe('VelocityPage', () => {
@@ -99,25 +99,25 @@ describe('VelocityPage', () => {
     expect(screen.getByText('PRs merged (30d)')).toBeInTheDocument();
     // "Lead time for changes" also appears in chart title; verify at least the metric card
     expect(screen.getAllByText(/Lead time for changes/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('PR cycle time (median)')).toBeInTheDocument();
+    expect(screen.getByText('PR activity (30d)')).toBeInTheDocument();
     // "Change failure rate" also appears in chart title and table header
     expect(screen.getAllByText(/Change failure rate/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Deployments (30d)')).toBeInTheDocument();
+    expect(screen.getByText('Successful workflows (30d)')).toBeInTheDocument();
     expect(screen.getByText('Workflow success')).toBeInTheDocument();
     expect(screen.getByText('WIP (items in flight)')).toBeInTheDocument();
     expect(screen.getByText('Planned work ratio')).toBeInTheDocument();
   });
 
-  it('shows dash for metrics that require API integration', () => {
+  it('shows dash for metrics that require external API integration', () => {
     renderWithProviders(<VelocityPage />);
 
     // Metrics without API backing show '—'
     const dashes = screen.getAllByText('—');
-    expect(dashes.length).toBeGreaterThanOrEqual(5);
+    expect(dashes.length).toBeGreaterThanOrEqual(3);
 
-    // Integration message is shown for unavailable metrics
-    const integrationHints = screen.getAllByText('Requires GitHub API integration');
-    expect(integrationHints).toHaveLength(5);
+    // "Coming soon" hints for unavailable metrics (Lead time, WIP, Planned work)
+    const comingSoonHints = screen.getAllByText(/Coming soon/);
+    expect(comingSoonHints).toHaveLength(3);
   });
 
   /* ---------------------------------------------------------------- */
@@ -139,7 +139,7 @@ describe('VelocityPage', () => {
 
     // Lead time chart always shows placeholder
     expect(
-      screen.getByText(/No data available — requires GitHub deployment API integration/),
+      screen.getByText(/Requires GitHub Deployments API integration/),
     ).toBeInTheDocument();
 
     // With empty mock data, data-driven charts show empty state
@@ -160,8 +160,8 @@ describe('VelocityPage', () => {
   it('renders lead time integration label and dynamic chart period labels', () => {
     renderWithProviders(<VelocityPage />);
 
-    // Lead time chart shows "requires integration" label
-    expect(screen.getByText('— requires integration')).toBeInTheDocument();
+    // Lead time chart shows "coming soon" label
+    expect(screen.getByText('— coming soon')).toBeInTheDocument();
 
     // Other charts show dynamic period label (empty data → '—')
     const periodLabels = screen.getAllByText('— —');
@@ -173,7 +173,7 @@ describe('VelocityPage', () => {
 
     // Lead time has no API data, so shows a placeholder message
     expect(
-      screen.getByText(/No data available — requires GitHub deployment API integration/),
+      screen.getByText(/Requires GitHub Deployments API integration/),
     ).toBeInTheDocument();
   });
 
@@ -199,7 +199,7 @@ describe('VelocityPage', () => {
     renderWithProviders(<VelocityPage />);
 
     const sectionTitle = screen.getByText('Top failing workflows');
-    const tableWrap = sectionTitle.nextElementSibling?.nextElementSibling;
+    const tableWrap = sectionTitle.nextElementSibling;
     const table = tableWrap?.querySelector('table');
     expect(table).toBeTruthy();
     const headers = within(table!).getAllByRole('columnheader');
@@ -209,52 +209,23 @@ describe('VelocityPage', () => {
       'Workflow',
       'Repository',
       'Failure rate',
-      'Last failed',
-      'P50 duration',
+      'Last run',
+      'Total runs',
     ]);
   });
 
-  it('renders sample failing workflow rows', () => {
+  it('shows empty state when no workflow health data is available', () => {
     renderWithProviders(<VelocityPage />);
 
-    expect(screen.getByText('deploy-production.yml')).toBeInTheDocument();
-    expect(screen.getByText('e2e-tests.yml')).toBeInTheDocument();
-    expect(screen.getByText('integration-tests.yml')).toBeInTheDocument();
+    expect(screen.getByText('No workflow health data available')).toBeInTheDocument();
   });
 
-  it('renders failure rate badges with correct values', () => {
-    renderWithProviders(<VelocityPage />);
-
-    // 60% → danger, 28% → danger (>20), 15% → attention (>10)
-    expect(screen.getByText('60%')).toBeInTheDocument();
-    expect(screen.getByText('28%')).toBeInTheDocument();
-    expect(screen.getByText('15%')).toBeInTheDocument();
-  });
-
-  it('renders repository names in the failing workflows table', () => {
-    renderWithProviders(<VelocityPage />);
-
-    // These repos appear in both failing workflows and active repos tables
-    expect(screen.getAllByText('acme/infra-deploy').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('acme/checkout-service').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('globex/auth-service').length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('renders last failed and P50 duration for failing workflows', () => {
-    renderWithProviders(<VelocityPage />);
-
-    expect(screen.getByText('14 min ago')).toBeInTheDocument();
-    expect(screen.getByText('2h ago')).toBeInTheDocument();
-    expect(screen.getByText('4m 22s')).toBeInTheDocument();
-    expect(screen.getByText('12m 08s')).toBeInTheDocument();
-  });
-
-  it('shows sample data banner for top failing workflows', () => {
+  it('does not show sample data banner for top failing workflows', () => {
     renderWithProviders(<VelocityPage />);
 
     expect(
-      screen.getByText(/Top failing workflows display sample data/),
-    ).toBeInTheDocument();
+      screen.queryByText(/Top failing workflows display sample data/),
+    ).not.toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
@@ -269,7 +240,7 @@ describe('VelocityPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the repos table with enhanced column headers', () => {
+  it('renders the repos table with correct column headers', () => {
     renderWithProviders(<VelocityPage />);
 
     // Find the most active repos section title (sectionTitle class div)
@@ -278,9 +249,9 @@ describe('VelocityPage', () => {
     // The table is the next sibling tableWrap
     const container = sectionTitle.closest('.page') ?? document.body;
     const allTables = within(container as HTMLElement).getAllByRole('table');
-    // Find the table that contains "Commits" header (the active repos table)
+    // Find the table that contains "Events" header (the active repos table)
     const repoTable = allTables.find((t) =>
-      within(t).queryByText('Commits') !== null,
+      within(t).queryByText('Events') !== null,
     );
     expect(repoTable).toBeTruthy();
     const headers = within(repoTable!).getAllByRole('columnheader');
@@ -288,40 +259,25 @@ describe('VelocityPage', () => {
 
     expect(headerTexts).toEqual([
       'Repository',
-      'Commits',
-      'PRs merged',
-      'Change failure rate',
-      'MTTR',
+      'Events',
+      'PR events',
+      'Push events',
       'Contributors',
     ]);
   });
 
-  it('renders sample active repos when no real data is available', () => {
+  it('renders empty state for repos when no events are available', () => {
     renderWithProviders(<VelocityPage />);
 
-    // Sample data includes acme/payments-api
-    expect(screen.getByText('acme/payments-api')).toBeInTheDocument();
-    expect(screen.getByText('847')).toBeInTheDocument();
-    expect(screen.getByText('214')).toBeInTheDocument();
+    expect(screen.getByText('No repository activity data available')).toBeInTheDocument();
   });
 
-  it('renders CFR labels with correct variants for sample repos', () => {
-    renderWithProviders(<VelocityPage />);
-
-    // acme/infra-deploy has 14.3% CFR → danger
-    expect(screen.getByText('14.3%')).toBeInTheDocument();
-    // globex/auth-service has 6.2% CFR → attention
-    expect(screen.getByText('6.2%')).toBeInTheDocument();
-    // acme/payments-api has 2.1% CFR → success
-    expect(screen.getByText('2.1%')).toBeInTheDocument();
-  });
-
-  it('shows sample data banner for most active repos when no real data', () => {
+  it('does not show sample data banner for most active repos', () => {
     renderWithProviders(<VelocityPage />);
 
     expect(
-      screen.getByText(/Most active repositories display sample data/),
-    ).toBeInTheDocument();
+      screen.queryByText(/Most active repositories display sample data/),
+    ).not.toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
@@ -424,7 +380,7 @@ describe('VelocityPage with data', () => {
     expect(periodLabels).toHaveLength(3);
   });
 
-  it('renders active repos derived from events with enhanced columns', async () => {
+  it('renders active repos derived from events with activity columns', async () => {
     renderWithProviders(<VelocityPage />);
 
     await screen.findByText('92.8%');
@@ -433,24 +389,25 @@ describe('VelocityPage with data', () => {
     expect(screen.getByText('myorg/api-service')).toBeInTheDocument();
     expect(screen.getByText('myorg/web-app')).toBeInTheDocument();
 
-    // When real data exists, new columns show dashes (no commits/PRs/MTTR data from events API)
+    // When real data exists, table shows activity columns
     const repoTable = screen.getByText('myorg/api-service').closest('table');
     expect(repoTable).toBeTruthy();
     const headers = within(repoTable!).getAllByRole('columnheader');
     const headerTexts = headers.map((h) => h.textContent);
-    expect(headerTexts).toContain('Commits');
-    expect(headerTexts).toContain('PRs merged');
-    expect(headerTexts).toContain('MTTR');
+    expect(headerTexts).toContain('Events');
+    expect(headerTexts).toContain('PR events');
+    expect(headerTexts).toContain('Push events');
+    expect(headerTexts).toContain('Contributors');
   });
 
-  it('does not show sample data banner for repos when real data exists', async () => {
+  it('does not show any sample data banners when real data exists', async () => {
     renderWithProviders(<VelocityPage />);
 
     await screen.findByText('92.8%');
 
-    // The failing workflows banner still exists, but repos banner should not
+    // No sample data banners should exist at all
     expect(
-      screen.queryByText(/Most active repositories display sample data/),
+      screen.queryByText(/display sample data/),
     ).not.toBeInTheDocument();
   });
 });
@@ -623,47 +580,52 @@ describe('VelocityPage failure row modal', () => {
 /*  Helper function tests                                              */
 /* ------------------------------------------------------------------ */
 
-describe('Failing workflow failure rate variants', () => {
-  it('renders 60% failure rate with danger variant', () => {
+describe('Workflow health failure rate variants', () => {
+  const MOCK_WORKFLOWS = [
+    { repo: 'acme/api', workflow_name: 'ci.yml', total_runs: 100, successes: 40, failures: 60, failure_rate_pct: 60.0, last_run: '2024-01-15T00:00:00Z' },
+    { repo: 'acme/web', workflow_name: 'deploy.yml', total_runs: 50, successes: 36, failures: 14, failure_rate_pct: 28.0, last_run: '2024-01-14T00:00:00Z' },
+    { repo: 'acme/lib', workflow_name: 'test.yml', total_runs: 80, successes: 68, failures: 12, failure_rate_pct: 15.0, last_run: '2024-01-13T00:00:00Z' },
+  ];
+
+  it('renders workflow health data with failure rate badges', async () => {
+    const { getWorkflowHealth } = await import('../../api/healthSignals');
+    vi.mocked(getWorkflowHealth).mockResolvedValue({ workflows: MOCK_WORKFLOWS });
+    mockGetActionsVolumeReport.mockResolvedValue({ data: [] });
+    mockListEvents.mockResolvedValue({ items: [], total: 0 });
+
     renderWithProviders(<VelocityPage />);
 
-    // 60% should appear (danger variant, >20%)
-    const badge60 = screen.getByText('60%');
-    expect(badge60).toBeInTheDocument();
-  });
-
-  it('renders 28% failure rate as a badge', () => {
-    renderWithProviders(<VelocityPage />);
-
-    // 28% should appear (danger variant, >20%)
-    const badge28 = screen.getByText('28%');
-    expect(badge28).toBeInTheDocument();
-  });
-
-  it('renders 15% failure rate as a badge', () => {
-    renderWithProviders(<VelocityPage />);
-
-    // 15% should appear (attention variant, >10% and ≤20%)
-    const badge15 = screen.getByText('15%');
-    expect(badge15).toBeInTheDocument();
+    // Wait for workflow health data to load — appears in both "Top failing" and "Workflow health" sections
+    const badges60 = await screen.findAllByText('60.0%');
+    expect(badges60.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('28.0%').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('15.0%').length).toBeGreaterThanOrEqual(1);
   });
 });
 
-describe('Active repos CFR variants', () => {
-  it('renders sample repo MTTR values', () => {
-    renderWithProviders(<VelocityPage />);
+describe('Active repos show real event-derived stats', () => {
+  const MOCK_EVENTS = [
+    { id: 1, document_id: 'd1', created_at: '2024-01-15T00:00:00Z', ingested_at: '2024-01-15T00:00:00Z', action: 'git.push', namespace: 'git', actor: 'alice', actor_id: 1, actor_is_bot: false, org: 'myorg', org_id: 1, repo: 'myorg/api-service', repo_id: 1, business: null, source_ip: null, user_agent: null, geo_country_code: null, geo_city: null, geo_is_proxy: null, data: {}, ingestion_source: 'webhook', source_file_path: '' },
+    { id: 2, document_id: 'd2', created_at: '2024-01-15T01:00:00Z', ingested_at: '2024-01-15T01:00:00Z', action: 'pull_request.opened', namespace: 'git', actor: 'bob', actor_id: 2, actor_is_bot: false, org: 'myorg', org_id: 1, repo: 'myorg/api-service', repo_id: 1, business: null, source_ip: null, user_agent: null, geo_country_code: null, geo_city: null, geo_is_proxy: null, data: {}, ingestion_source: 'webhook', source_file_path: '' },
+    { id: 3, document_id: 'd3', created_at: '2024-01-15T02:00:00Z', ingested_at: '2024-01-15T02:00:00Z', action: 'pull_request.merged', namespace: 'git', actor: 'alice', actor_id: 1, actor_is_bot: false, org: 'myorg', org_id: 1, repo: 'myorg/web-app', repo_id: 2, business: null, source_ip: null, user_agent: null, geo_country_code: null, geo_city: null, geo_is_proxy: null, data: {}, ingestion_source: 'webhook', source_file_path: '' },
+  ];
 
-    expect(screen.getByText('38m')).toBeInTheDocument();
-    expect(screen.getByText('22m')).toBeInTheDocument();
-    expect(screen.getByText('1h 12m')).toBeInTheDocument();
-    expect(screen.getByText('45m')).toBeInTheDocument();
+  beforeEach(() => {
+    mockGetActionsVolumeReport.mockResolvedValue({ data: [] });
+    mockListEvents.mockResolvedValue({
+      items: MOCK_EVENTS,
+      total: 3,
+      page: 1,
+      page_size: 500,
+      has_next: false,
+    });
   });
 
-  it('renders sample repo contributor counts', () => {
+  it('renders repo stats computed from events', async () => {
     renderWithProviders(<VelocityPage />);
 
-    expect(screen.getByText('28')).toBeInTheDocument();
-    expect(screen.getByText('19')).toBeInTheDocument();
-    expect(screen.getByText('12')).toBeInTheDocument();
+    // api-service has 2 events, 1 PR event, 1 push event, 2 contributors
+    expect(await screen.findByText('myorg/api-service')).toBeInTheDocument();
+    expect(screen.getByText('myorg/web-app')).toBeInTheDocument();
   });
 });

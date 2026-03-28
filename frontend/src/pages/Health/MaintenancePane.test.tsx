@@ -1,155 +1,219 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MaintenancePane } from './MaintenancePane';
-import { STALE_PRS, UNHEALTHY_WEBHOOKS, SKIPPED_WORKFLOWS } from './healthData';
+
+vi.mock('../../api/healthSignals', () => ({
+  getStalePrs: vi.fn(),
+  getUnhealthyHooks: vi.fn(),
+  getSkippedWorkflows: vi.fn(),
+}));
+
+const mockStalePrs = {
+  stale_prs: [
+    {
+      org: 'acme-corp',
+      repo: 'web-app',
+      pr_number: '42',
+      title: 'Add caching layer',
+      actor: 'dev1',
+      opened_at: '2025-01-01T00:00:00Z',
+      days_open: 127,
+    },
+    {
+      org: 'acme-corp',
+      repo: 'api-service',
+      pr_number: '99',
+      title: 'Fix auth bug',
+      actor: 'dev2',
+      opened_at: '2025-02-01T00:00:00Z',
+      days_open: 62,
+    },
+  ],
+};
+
+const mockUnhealthyHooks = {
+  unhealthy_hooks: [
+    {
+      org: 'acme-corp',
+      repo: 'web-app',
+      action: 'hook.destroy',
+      actor: 'admin1',
+      hook_id: null,
+      app_name: 'Slack Notifier',
+      config_url: null,
+      created_at: '2025-03-01T00:00:00Z',
+    },
+    {
+      org: 'globex',
+      repo: 'data-svc',
+      action: 'hook.config_changed',
+      actor: 'ops-user',
+      hook_id: '12345',
+      app_name: null,
+      config_url: null,
+      created_at: '2025-03-02T00:00:00Z',
+    },
+  ],
+};
+
+const mockSkippedWorkflows = {
+  skipped_workflows: [
+    {
+      org: 'acme-corp',
+      repo: 'web-app',
+      action: 'workflows.disable_workflow',
+      actor: 'ci-admin',
+      workflow_name: 'security-scan.yml',
+      workflow_id: 'wf1',
+      created_at: '2025-03-01T00:00:00Z',
+    },
+    {
+      org: 'globex',
+      repo: 'data-svc',
+      action: 'workflows.delete_workflow',
+      actor: 'dev1',
+      workflow_name: 'deploy.yml',
+      workflow_id: 'wf2',
+      created_at: '2025-02-15T00:00:00Z',
+    },
+  ],
+};
+
+let useQueryCallIndex: number;
+
+const mockQueryReturns: Array<{
+  data: unknown;
+  isLoading: boolean;
+  isError: boolean;
+  refetch: ReturnType<typeof vi.fn>;
+}> = [];
+
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
+  return {
+    ...actual,
+    useQuery: () => {
+      const idx = useQueryCallIndex++;
+      return mockQueryReturns[idx] || { data: undefined, isLoading: false, isError: false, refetch: vi.fn() };
+    },
+  };
+});
+
+function renderPane() {
+  useQueryCallIndex = 0;
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <MaintenancePane />
+    </QueryClientProvider>,
+  );
+}
+
+function setDefaultData() {
+  mockQueryReturns.length = 0;
+  // Call 0: stale PRs
+  mockQueryReturns.push({ data: mockStalePrs, isLoading: false, isError: false, refetch: vi.fn() });
+  // Call 1: unhealthy hooks
+  mockQueryReturns.push({ data: mockUnhealthyHooks, isLoading: false, isError: false, refetch: vi.fn() });
+  // Call 2: skipped workflows
+  mockQueryReturns.push({ data: mockSkippedWorkflows, isLoading: false, isError: false, refetch: vi.fn() });
+}
 
 describe('MaintenancePane', () => {
-  it('renders the sample data banner', () => {
-    render(<MaintenancePane />);
-    expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.getByText(/Maintenance signals/)).toBeInTheDocument();
+  beforeEach(() => {
+    setDefaultData();
   });
 
-  it('renders stale PRs card header', () => {
-    render(<MaintenancePane />);
+  it('shows loading spinner when any query is loading', () => {
+    mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: undefined, isLoading: true, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
+    renderPane();
+    expect(document.querySelector('[class*="spinner"]')).toBeTruthy();
+  });
+
+  it('renders stale PRs card with API data', () => {
+    renderPane();
     expect(screen.getByText('Stale PRs')).toBeInTheDocument();
-    expect(screen.getByText('open > configured threshold')).toBeInTheDocument();
+    expect(screen.getByText(/open > configured threshold/)).toBeInTheDocument();
+    expect(screen.getAllByText(/acme-corp\/web-app/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/127 days open/)).toBeInTheDocument();
+    expect(screen.getByText(/62 days open/)).toBeInTheDocument();
   });
 
-  it('renders all stale PRs with repo name and title', () => {
-    render(<MaintenancePane />);
-    for (const pr of STALE_PRS) {
-      // repo names may appear multiple times (in stale PRs and workflow tables)
-      const repoElements = screen.getAllByText(pr.repo);
-      expect(repoElements.length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText(`#${pr.number} · "${pr.title}"`)).toBeInTheDocument();
-    }
+  it('shows "No stale PRs detected" empty state', () => {
+    mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: { stale_prs: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: mockUnhealthyHooks, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: mockSkippedWorkflows, isLoading: false, isError: false, refetch: vi.fn() });
+    renderPane();
+    expect(screen.getByText('No stale PRs detected')).toBeInTheDocument();
   });
 
-  it('renders stale PR age labels with correct variants', () => {
-    render(<MaintenancePane />);
-    // 127 days and 84 days should be danger (>90)
-    expect(screen.getByText('127 days open')).toBeInTheDocument();
-    expect(screen.getByText('84 days open')).toBeInTheDocument();
-    // 62 days should be attention
-    expect(screen.getByText('62 days open')).toBeInTheDocument();
-  });
-
-  it('renders stale PRs source note', () => {
-    render(<MaintenancePane />);
-    const sourceNotes = screen.getAllByText(/Derived from/, { exact: false });
-    expect(sourceNotes.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('renders unhealthy webhooks card header', () => {
-    render(<MaintenancePane />);
+  it('renders unhealthy webhooks with API data', () => {
+    renderPane();
     expect(screen.getByText('Unhealthy webhooks & apps')).toBeInTheDocument();
+    expect(screen.getByText('Slack Notifier')).toBeInTheDocument();
   });
 
-  it('renders all unhealthy webhooks with name and detail', () => {
-    render(<MaintenancePane />);
-    for (const wh of UNHEALTHY_WEBHOOKS) {
-      expect(screen.getByText(wh.name)).toBeInTheDocument();
-    }
+  it('shows "No unhealthy webhooks detected" empty state', () => {
+    mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: mockStalePrs, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: { unhealthy_hooks: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: mockSkippedWorkflows, isLoading: false, isError: false, refetch: vi.fn() });
+    renderPane();
+    expect(screen.getByText('No unhealthy webhooks detected')).toBeInTheDocument();
   });
 
-  it('renders webhook danger item with correct styling class', () => {
-    render(<MaintenancePane />);
-    const dangerWebhook = screen.getByText(UNHEALTHY_WEBHOOKS[0].name).closest(`.webhookItem`);
-    expect(dangerWebhook).toBeTruthy();
-    expect(dangerWebhook!.classList.contains('webhookItemDanger')).toBe(true);
-  });
-
-  it('renders webhook attention item with correct styling class', () => {
-    render(<MaintenancePane />);
-    const warnWebhook = screen.getByText(UNHEALTHY_WEBHOOKS[1].name).closest(`.webhookItem`);
-    expect(warnWebhook).toBeTruthy();
-    expect(warnWebhook!.classList.contains('webhookItemWarn')).toBe(true);
-  });
-
-  it('renders webhook muted item with correct styling class', () => {
-    render(<MaintenancePane />);
-    const mutedWebhook = screen.getByText(UNHEALTHY_WEBHOOKS[2].name).closest(`.webhookItem`);
-    expect(mutedWebhook).toBeTruthy();
-    expect(mutedWebhook!.classList.contains('webhookItemMuted')).toBe(true);
-  });
-
-  it('renders disabled/skipped workflows section title', () => {
-    render(<MaintenancePane />);
+  it('renders skipped workflows table with correct columns', () => {
+    renderPane();
     expect(screen.getByText('Disabled / consistently-skipped workflows')).toBeInTheDocument();
-  });
-
-  it('renders workflow table with correct headers', () => {
-    render(<MaintenancePane />);
     const table = screen.getByText('Workflow').closest('table')!;
     const headers = within(table).getAllByRole('columnheader');
-    const headerTexts = headers.map((h) => h.textContent);
-    expect(headerTexts).toEqual([
+    expect(headers.map((h) => h.textContent)).toEqual([
       'Workflow',
       'Repository',
-      'Status',
-      'Last run',
-      'Consecutive skips',
+      'Action',
+      'Actor',
+      'Date',
     ]);
   });
 
-  it('renders all skipped workflows in the table', () => {
-    render(<MaintenancePane />);
-    for (const wf of SKIPPED_WORKFLOWS) {
-      expect(screen.getByText(wf.workflow)).toBeInTheDocument();
-      // Repositories may appear in both stale PRs and workflows tables
-      const repoElements = screen.getAllByText(wf.repository);
-      expect(repoElements.length).toBeGreaterThanOrEqual(1);
-    }
+  it('renders skipped workflow data in table', () => {
+    renderPane();
+    expect(screen.getByText('security-scan.yml')).toBeInTheDocument();
+    expect(screen.getByText('deploy.yml')).toBeInTheDocument();
+    expect(screen.getByText('ci-admin')).toBeInTheDocument();
   });
 
-  it('renders disabled status label as danger variant', () => {
-    render(<MaintenancePane />);
-    // "disabled" appears once in the workflow table
+  it('renders disabled label for disable_workflow action', () => {
+    renderPane();
     const disabledLabels = screen.getAllByText('disabled');
     expect(disabledLabels.length).toBeGreaterThanOrEqual(1);
-    expect(disabledLabels[0].classList.contains('danger')).toBe(true);
   });
 
-  it('renders skipped status labels as attention variant', () => {
-    render(<MaintenancePane />);
-    // Find only the Label components with "skipped" text (they have the "label" CSS class)
-    const skippedLabels = screen.getAllByText('skipped').filter(
-      (el) => el.classList.contains('label'),
-    );
-    expect(skippedLabels.length).toBe(2);
-    for (const label of skippedLabels) {
-      expect(label.classList.contains('attention')).toBe(true);
-    }
+  it('renders deleted label for delete_workflow action', () => {
+    renderPane();
+    const deletedLabels = screen.getAllByText('deleted');
+    expect(deletedLabels.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders consecutive skip counts with labels', () => {
-    render(<MaintenancePane />);
-    expect(screen.getByText('18 consecutive')).toBeInTheDocument();
-    expect(screen.getByText('41 consecutive')).toBeInTheDocument();
+  it('shows "No disabled or skipped workflows detected" empty state', () => {
+    mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: mockStalePrs, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: mockUnhealthyHooks, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: { skipped_workflows: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    renderPane();
+    expect(screen.getByText('No disabled or skipped workflows detected')).toBeInTheDocument();
   });
 
-  it('renders dash for disabled workflow without consecutive skips', () => {
-    render(<MaintenancePane />);
-    // The disabled workflow has null consecutiveSkips, should show "—"
-    const row = screen.getByText('security-scan.yml').closest('tr')!;
-    expect(within(row).getByText('—')).toBeInTheDocument();
-  });
-
-  it('renders high consecutive skips as danger variant', () => {
-    render(<MaintenancePane />);
-    const label41 = screen.getByText('41 consecutive');
-    expect(label41.classList.contains('danger')).toBe(true);
-  });
-
-  it('renders moderate consecutive skips as attention variant', () => {
-    render(<MaintenancePane />);
-    const label18 = screen.getByText('18 consecutive');
-    expect(label18.classList.contains('attention')).toBe(true);
-  });
-
-  it('renders workflow source note', () => {
-    render(<MaintenancePane />);
-    expect(screen.getByText(/workflows.disabled_intentionally/, { exact: false })).toBeInTheDocument();
+  it('renders source notes', () => {
+    renderPane();
+    const sourceNotes = screen.getAllByText(/Derived from/, { exact: false });
+    expect(sourceNotes.length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getActionsVolumeReport } from '../../api/reports';
@@ -13,51 +13,89 @@ import { Label } from '../../components/primitives/Label';
 import { Modal } from '../../components/primitives/Modal';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
-import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import type { ActionsVolumeBucket } from '../../types/reports';
+import type { EventResponse } from '../../types/events';
 import type { WorkflowRow } from '../../api/healthSignals';
 import styles from './Velocity.module.css';
 
-interface FailingWorkflow {
-  readonly workflow: string;
-  readonly repository: string;
-  readonly failureRate: number;
-  readonly lastFailed: string;
-  readonly p50Duration: string;
+interface CalendarDay {
+  date: string;
+  level: 0 | 1 | 2 | 3 | 4;
+  alert?: boolean;
 }
 
-interface ActiveRepo {
+interface RepoActivityStats {
   readonly name: string;
-  readonly commits: number;
-  readonly prsMerged: number;
-  readonly cfr: number;
-  readonly mttr: string;
+  readonly totalEvents: number;
+  readonly prEvents: number;
+  readonly pushEvents: number;
   readonly contributors: number;
 }
 
-const SAMPLE_FAILING_WORKFLOWS: readonly FailingWorkflow[] = [
-  { workflow: 'deploy-production.yml', repository: 'acme/infra-deploy', failureRate: 60, lastFailed: '14 min ago', p50Duration: '4m 22s' },
-  { workflow: 'e2e-tests.yml', repository: 'acme/checkout-service', failureRate: 28, lastFailed: '2h ago', p50Duration: '12m 08s' },
-  { workflow: 'integration-tests.yml', repository: 'globex/auth-service', failureRate: 15, lastFailed: '5h ago', p50Duration: '8m 41s' },
-];
+/** Convert a list of events into per-day contribution calendar data (last 91 days). */
+function buildCalendarData(events: readonly EventResponse[]): CalendarDay[] {
+  const now = new Date();
+  const counts = new Map<string, number>();
 
-const SAMPLE_ACTIVE_REPOS: readonly ActiveRepo[] = [
-  { name: 'acme/payments-api', commits: 847, prsMerged: 214, cfr: 2.1, mttr: '38m', contributors: 28 },
-  { name: 'acme/checkout-service', commits: 623, prsMerged: 187, cfr: 1.8, mttr: '22m', contributors: 19 },
-  { name: 'acme/infra-deploy', commits: 412, prsMerged: 98, cfr: 14.3, mttr: '1h 12m', contributors: 12 },
-  { name: 'globex/auth-service', commits: 318, prsMerged: 76, cfr: 6.2, mttr: '45m', contributors: 9 },
-  { name: 'globex/api-gateway', commits: 275, prsMerged: 61, cfr: 0, mttr: '—', contributors: 8 },
-];
+  // Initialize last 91 days with zero counts
+  for (let i = 90; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    counts.set(d.toISOString().slice(0, 10), 0);
+  }
+
+  // Count events per day
+  for (const e of events) {
+    const day = e.created_at.slice(0, 10);
+    if (counts.has(day)) {
+      counts.set(day, (counts.get(day) ?? 0) + 1);
+    }
+  }
+
+  // Determine thresholds for levels based on max count
+  const values = [...counts.values()];
+  const maxCount = Math.max(...values, 1);
+
+  return [...counts.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, count]) => {
+      let level: 0 | 1 | 2 | 3 | 4;
+      if (count === 0) level = 0;
+      else if (count <= maxCount * 0.25) level = 1;
+      else if (count <= maxCount * 0.5) level = 2;
+      else if (count <= maxCount * 0.75) level = 3;
+      else level = 4;
+      return { date, level };
+    });
+}
+
+/** Compute per-repo activity stats from a list of events. */
+function computeRepoStats(events: readonly EventResponse[]): RepoActivityStats[] {
+  const repoMap = new Map<string, { total: number; pr: number; push: number; actors: Set<string> }>();
+  for (const e of events) {
+    if (!e.repo) continue;
+    const existing = repoMap.get(e.repo) ?? { total: 0, pr: 0, push: 0, actors: new Set<string>() };
+    existing.total++;
+    if (e.action.includes('pull_request')) existing.pr++;
+    if (e.action.includes('push') || e.action.includes('git.push')) existing.push++;
+    if (e.actor) existing.actors.add(e.actor);
+    repoMap.set(e.repo, existing);
+  }
+  return [...repoMap.entries()]
+    .map(([name, stats]) => ({
+      name,
+      totalEvents: stats.total,
+      prEvents: stats.pr,
+      pushEvents: stats.push,
+      contributors: stats.actors.size,
+    }))
+    .sort((a, b) => b.totalEvents - a.totalEvents)
+    .slice(0, 10);
+}
 
 function getFailureRateVariant(rate: number): 'danger' | 'attention' | 'success' {
   if (rate > 20) return 'danger';
   if (rate > 10) return 'attention';
-  return 'success';
-}
-
-function getCfrVariant(cfr: number): 'danger' | 'attention' | 'success' {
-  if (cfr > 10) return 'danger';
-  if (cfr > 5) return 'attention';
   return 'success';
 }
 
@@ -199,6 +237,24 @@ export function VelocityPage() {
     staleTime: 60_000,
   });
 
+  // Fetch events for the last 91 days for the contribution calendar
+  const calendarSince = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 91);
+    return d.toISOString();
+  }, []);
+
+  const { data: calendarEvents } = useQuery({
+    queryKey: ['events', 'calendar-activity', calendarSince],
+    queryFn: () => listEvents({ since: calendarSince, page_size: 500, sort: 'created_at_desc' }),
+    staleTime: 60_000,
+  });
+
+  const calendarData = useMemo(
+    () => (calendarEvents?.items ? buildCalendarData(calendarEvents.items) : undefined),
+    [calendarEvents],
+  );
+
   const buckets = (actionsData?.data ?? []) as unknown as ActionsVolumeBucket[];
 
   // Aggregate totals from actions volume data
@@ -210,6 +266,22 @@ export function VelocityPage() {
   const changeFailureRate = totalRuns > 0 ? ((totalFailed / totalRuns) * 100).toFixed(1) : null;
 
   const prMerged = prEvents?.total ?? null;
+
+  // Count PR review events from general events for "PR reviews" metric
+  const prReviewCount = useMemo(() => {
+    if (!repoEvents?.items) return null;
+    const count = repoEvents.items.filter((e) => e.action.includes('pull_request')).length;
+    return count > 0 ? count : null;
+  }, [repoEvents]);
+
+  // Count successful workflow runs as deployment proxy
+  const deploymentProxy = totalSucceeded > 0 ? totalSucceeded : null;
+
+  // Compute repo activity stats from events
+  const repoStats = useMemo(
+    () => (repoEvents?.items ? computeRepoStats(repoEvents.items) : []),
+    [repoEvents],
+  );
 
   // Derive chart data from API buckets
   const chartLabels = buckets.map((b) => {
@@ -225,33 +297,15 @@ export function VelocityPage() {
   const dailyRunsChartData = buckets.map((b) => b.workflow_runs_total ?? 0);
   const chartDaysLabel = buckets.length > 0 ? `${buckets.length} days` : '—';
 
-  // Derive active repos from events data
-  const hasRealRepoData = (repoEvents?.items.length ?? 0) > 0;
-  const realRepoNames = (() => {
-    if (!hasRealRepoData) return [];
-    const repoMap = new Map<string, { events: number; actors: Set<string> }>();
-    for (const e of repoEvents!.items) {
-      if (!e.repo) continue;
-      const existing = repoMap.get(e.repo) ?? { events: 0, actors: new Set<string>() };
-      existing.events++;
-      if (e.actor) existing.actors.add(e.actor);
-      repoMap.set(e.repo, existing);
-    }
-    return [...repoMap.entries()]
-      .sort(([, a], [, b]) => b.events - a.events)
-      .slice(0, 5)
-      .map(([name]) => name);
-  })();
-
   const metrics = [
     { value: prMerged != null ? prMerged.toLocaleString() : '—', label: 'PRs merged (30d)', delta: 'last 30 days', dir: 'neutral' as const, scrollRef: 'calendar' as const },
-    { value: '—', label: 'Lead time for changes', delta: 'Requires GitHub API integration', dir: 'neutral' as const, scrollRef: null },
-    { value: '—', label: 'PR cycle time (median)', delta: 'Requires GitHub API integration', dir: 'neutral' as const, scrollRef: null },
+    { value: '—', label: 'Lead time for changes', delta: 'Coming soon · requires GitHub Deployments API', dir: 'neutral' as const, scrollRef: null },
+    { value: prReviewCount != null ? prReviewCount.toLocaleString() : '—', label: 'PR activity (30d)', delta: prReviewCount != null ? 'pull_request events from audit log' : 'No PR events found', dir: 'neutral' as const, scrollRef: 'calendar' as const },
     { value: changeFailureRate != null ? `${changeFailureRate}%` : '—', label: 'Change failure rate', delta: changeFailureRate != null ? (parseFloat(changeFailureRate) < 5 ? '< 5% target ✓' : '≥ 5% target') : '—', dir: changeFailureRate != null && parseFloat(changeFailureRate) < 5 ? 'up' as const : 'down' as const, scrollRef: 'changeFailure' as const },
-    { value: '—', label: 'Deployments (30d)', delta: 'Requires GitHub API integration', dir: 'neutral' as const, scrollRef: null },
+    { value: deploymentProxy != null ? deploymentProxy.toLocaleString() : '—', label: 'Successful workflows (30d)', delta: deploymentProxy != null ? 'proxy for deployment frequency' : 'No workflow data', dir: deploymentProxy != null ? 'neutral' as const : 'neutral' as const, scrollRef: 'workflowSuccess' as const },
     { value: overallSuccessRate != null ? `${overallSuccessRate}%` : '—', label: 'Workflow success', delta: '30-day average', dir: overallSuccessRate != null && parseFloat(overallSuccessRate) >= 90 ? 'up' as const : 'down' as const, scrollRef: 'workflowSuccess' as const },
-    { value: '—', label: 'WIP (items in flight)', delta: 'Requires GitHub API integration', dir: 'neutral' as const, scrollRef: null },
-    { value: '—', label: 'Planned work ratio', delta: 'Requires GitHub API integration', dir: 'neutral' as const, scrollRef: null },
+    { value: '—', label: 'WIP (items in flight)', delta: 'Coming soon · requires GitHub Projects API', dir: 'neutral' as const, scrollRef: null },
+    { value: '—', label: 'Planned work ratio', delta: 'Coming soon · requires GitHub Projects API', dir: 'neutral' as const, scrollRef: null },
   ];
 
   const refMap = {
@@ -328,17 +382,20 @@ export function VelocityPage() {
           <CardHeader actions={<span style={{ fontWeight: 400 }}>commit + PR + deploy activity</span>}>
             Team contribution calendar — last 13 weeks
           </CardHeader>
-          <ContributionCalendar />
+          <ContributionCalendar data={calendarData} />
         </Card>
       </div>
 
       <div className={styles.chartsGrid}>
         <div className={styles.chartWrap}>
           <div className={styles.chartTitle}>
-            Lead time for changes <span className={styles.chartSub}>— requires integration</span>
+            Lead time for changes <span className={styles.chartSub}>— coming soon</span>
           </div>
-          <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-muted)', fontSize: 13 }}>
-            No data available — requires GitHub deployment API integration
+          <div style={{ height: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-muted)', fontSize: 13, gap: 8, padding: '0 24px', textAlign: 'center' }}>
+            <svg width="24" height="24" fill="var(--fg-subtle)" viewBox="0 0 16 16">
+              <path d="M0 8a8 8 0 1116 0A8 8 0 010 8zm8-6.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 7.75A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 110-2 1 1 0 010 2z" />
+            </svg>
+            <span>Requires GitHub Deployments API integration to track time from commit to production.</span>
           </div>
         </div>
 
@@ -435,7 +492,6 @@ export function VelocityPage() {
       )}
 
       <div className={styles.sectionTitle}>Top failing workflows</div>
-      <SampleDataBanner message="Top failing workflows display sample data. Per-workflow failure metrics require GitHub Actions API integration for individual run data." />
       <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
         <table>
           <thead>
@@ -443,79 +499,84 @@ export function VelocityPage() {
               <th>Workflow</th>
               <th>Repository</th>
               <th>Failure rate</th>
-              <th>Last failed</th>
-              <th>P50 duration</th>
+              <th>Last run</th>
+              <th>Total runs</th>
             </tr>
           </thead>
           <tbody>
-            {SAMPLE_FAILING_WORKFLOWS.map((wf) => (
-              <tr key={`${wf.repository}/${wf.workflow}`}>
-                <td className={styles.workflowName}>{wf.workflow}</td>
-                <td>{wf.repository}</td>
-                <td><Label variant={getFailureRateVariant(wf.failureRate)}>{wf.failureRate}%</Label></td>
-                <td style={{ color: 'var(--fg-muted)' }}>{wf.lastFailed}</td>
-                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.p50Duration}</td>
-              </tr>
-            ))}
+            {(() => {
+              const sorted = [...(workflowHealthData?.workflows ?? [])]
+                .filter((wf) => wf.failure_rate_pct > 0)
+                .sort((a, b) => b.failure_rate_pct - a.failure_rate_pct)
+                .slice(0, 10);
+              if (sorted.length === 0) {
+                return (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}>
+                      No workflow health data available
+                    </td>
+                  </tr>
+                );
+              }
+              return sorted.map((wf) => (
+                <tr key={`${wf.repo}/${wf.workflow_name}`}>
+                  <td className={styles.workflowName}>{wf.workflow_name}</td>
+                  <td>{wf.repo}</td>
+                  <td><Label variant={getFailureRateVariant(wf.failure_rate_pct)}>{wf.failure_rate_pct.toFixed(1)}%</Label></td>
+                  <td style={{ color: 'var(--fg-muted)' }}>
+                    {new Date(wf.last_run).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.total_runs}</td>
+                </tr>
+              ));
+            })()}
           </tbody>
         </table>
       </div>
 
       <div ref={reposRef} className={styles.sectionTitle}>Most active repositories — last 30 days</div>
-      {!hasRealRepoData && (
-        <SampleDataBanner message="Most active repositories display sample data. Commits, PRs merged, CFR, and MTTR require GitHub API integration." />
-      )}
       <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
         <table>
           <thead>
             <tr>
               <th>Repository</th>
-              <th>Commits</th>
-              <th>PRs merged</th>
-              <th>Change failure rate</th>
-              <th>MTTR</th>
+              <th>Events</th>
+              <th>PR events</th>
+              <th>Push events</th>
               <th>Contributors</th>
             </tr>
           </thead>
           <tbody>
-            {hasRealRepoData ? (
-              realRepoNames.map((name) => (
+            {repoStats.length > 0 ? (
+              repoStats.map((r) => (
                 <tr
-                  key={name}
+                  key={r.name}
                   className={styles.clickableRow}
                   role="button"
                   tabIndex={0}
-                  aria-label={`View events for ${name}`}
-                  onClick={() => navigate(`/events?repo=${encodeURIComponent(name)}`)}
+                  aria-label={`View events for ${r.name}`}
+                  onClick={() => navigate(`/events?repo=${encodeURIComponent(r.name)}`)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      navigate(`/events?repo=${encodeURIComponent(name)}`);
+                      navigate(`/events?repo=${encodeURIComponent(r.name)}`);
                     }
                   }}
                 >
-                  <td style={{ fontWeight: 500, color: 'var(--accent)', cursor: 'pointer' }}>{name}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>—</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>—</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>—</td>
-                </tr>
-              ))
-            ) : SAMPLE_ACTIVE_REPOS.length > 0 ? (
-              SAMPLE_ACTIVE_REPOS.map((r) => (
-                <tr key={r.name}>
-                  <td style={{ fontWeight: 500 }}>{r.name}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.commits.toLocaleString()}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.prsMerged}</td>
-                  <td><Label variant={getCfrVariant(r.cfr)}>{r.cfr}%</Label></td>
-                  <td>{r.mttr}</td>
+                  <td style={{ fontWeight: 500, color: 'var(--accent)', cursor: 'pointer' }}>{r.name}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.totalEvents.toLocaleString()}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.prEvents.toLocaleString()}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.pushEvents.toLocaleString()}</td>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.contributors}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={6} style={{ color: 'var(--fg-muted)', textAlign: 'center' }}>
+                <td colSpan={5} style={{ color: 'var(--fg-muted)', textAlign: 'center', padding: 24 }}>
                   No repository activity data available
                 </td>
               </tr>

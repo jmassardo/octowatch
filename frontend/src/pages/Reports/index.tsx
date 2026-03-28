@@ -6,6 +6,7 @@ import {
   getActionsVolumeReport,
   getCopilotSeatsReport,
   exportReport,
+  getReportCatalog,
 } from '../../api/reports';
 import { useOrg } from '../../hooks/useOrg';
 import { Button } from '../../components/primitives/Button';
@@ -16,48 +17,6 @@ import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Modal } from '../../components/primitives/Modal';
 import type { ReportParams } from '../../types/reports';
 import styles from './Reports.module.css';
-
-const REPORT_CATALOG = [
-  {
-    type: 'security_posture',
-    title: 'Monthly Security Posture — January 2024',
-    dateInfo: 'Generated Jan 15, 2024 · 47 pages',
-    tags: [
-      { label: '14 critical findings', variant: 'danger' as const },
-      { label: '8 medium', variant: 'attention' as const },
-      { label: 'automated', variant: 'success' as const },
-    ],
-  },
-  {
-    type: 'engineering_velocity',
-    title: 'Engineering Velocity Q4 2023 — Executive Summary',
-    dateInfo: 'Generated Jan 1, 2024 · 12 pages',
-    tags: [
-      { label: 'velocity', variant: 'accent' as const },
-      { label: '847 deploys', variant: 'success' as const },
-      { label: '94.2% pipeline health', variant: 'success' as const },
-    ],
-  },
-  {
-    type: 'access_review',
-    title: 'Access Review — Outside Collaborators and PAT Inventory',
-    dateInfo: 'Generated Dec 28, 2023 · 23 pages',
-    tags: [
-      { label: '47 collaborators', variant: 'attention' as const },
-      { label: '12 expiring tokens', variant: 'danger' as const },
-      { label: 'quarterly', variant: 'muted' as const },
-    ],
-  },
-  {
-    type: 'dora_metrics',
-    title: 'DORA Metrics — December 2023',
-    dateInfo: 'Generated Jan 2, 2024 · 8 pages',
-    tags: [
-      { label: 'Elite performer', variant: 'success' as const },
-      { label: 'DORA', variant: 'accent' as const },
-    ],
-  },
-];
 
 export function ReportsPage() {
   const { selectedOrg } = useOrg();
@@ -83,6 +42,11 @@ export function ReportsPage() {
   const { data: copilotData } = useQuery({
     queryKey: ['reports', 'copilot-seats', windowDays],
     queryFn: () => getCopilotSeatsReport(params),
+  });
+
+  const { data: catalogData, isLoading: catalogLoading } = useQuery({
+    queryKey: ['reports', 'catalog'],
+    queryFn: getReportCatalog,
   });
 
   const summaries = [
@@ -150,32 +114,40 @@ export function ReportsPage() {
       </Card>
 
       <div className={styles.reportList}>
-        {REPORT_CATALOG.map((r) => (
-          <div key={r.type} className={styles.reportItem}>
-            <div>
-              <div
-                className={`${styles.reportTitle} ${styles.reportTitleClickable}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => exportReport(r.type, 'pdf')}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') exportReport(r.type, 'pdf'); }}
-              >
-                {r.title}
-              </div>
-              <div className={styles.reportDate}>{r.dateInfo}</div>
-              <div className={styles.reportTags}>
-                {r.tags.map((t) => (
-                  <Label key={t.label} variant={t.variant}>{t.label}</Label>
-                ))}
-                <Label variant="muted">{selectedOrg || 'All orgs'}</Label>
-              </div>
-            </div>
-            <div className={styles.reportActions}>
-              <Button size="sm" onClick={() => exportReport(r.type, 'pdf')}>PDF</Button>
-              <Button size="sm" onClick={() => exportReport(r.type, 'csv')}>CSV</Button>
-            </div>
+        {catalogLoading ? (
+          <Spinner />
+        ) : (catalogData ?? []).length === 0 ? (
+          <div className={styles.emptyReports}>
+            No reports generated yet. Use the data summary cards above to explore your data, or check back after reports have been generated.
           </div>
-        ))}
+        ) : (
+          (catalogData ?? []).map((r) => (
+            <div key={r.id} className={styles.reportItem}>
+              <div>
+                <div
+                  className={`${styles.reportTitle} ${styles.reportTitleClickable}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => exportReport(r.type, 'pdf')}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') exportReport(r.type, 'pdf'); }}
+                >
+                  {r.title}
+                </div>
+                <div className={styles.reportDate}>Generated {new Date(r.generated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {r.status}</div>
+                <div className={styles.reportTags}>
+                  {r.tags.map((tag) => (
+                    <Label key={tag} variant="muted">{tag}</Label>
+                  ))}
+                  <Label variant="muted">{selectedOrg || 'All orgs'}</Label>
+                </div>
+              </div>
+              <div className={styles.reportActions}>
+                <Button size="sm" onClick={() => exportReport(r.type, 'pdf')}>PDF</Button>
+                <Button size="sm" onClick={() => exportReport(r.type, 'csv')}>CSV</Button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       <Modal

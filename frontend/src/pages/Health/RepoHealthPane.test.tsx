@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RepoHealthPane } from './RepoHealthPane';
 import type { RepoHealthResponse } from '../../api/healthSignals';
@@ -112,16 +112,18 @@ describe('RepoHealthPane', () => {
     expect(screen.getByText(/4 repos/)).toBeInTheDocument();
   });
 
-  it('renders the sample data banner', () => {
+  it('renders GitHub API integration note', () => {
     renderPane();
     expect(
-      screen.getByText(/Branch protection, secret scanning, Dependabot/),
+      screen.getByText(/Additional repository health data/, { exact: false }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/requires GitHub API integration/, { exact: false }),
     ).toBeInTheDocument();
   });
 
   it('renders repository names in the table', () => {
     renderPane();
-    // legacy-payments appears in both table and archive candidates
     expect(screen.getAllByText('acme-corp/legacy-payments').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('acme-corp/infra-deploy')).toBeInTheDocument();
     expect(screen.getByText('globex/internal-tools')).toBeInTheDocument();
@@ -129,7 +131,6 @@ describe('RepoHealthPane', () => {
 
   it('renders health labels for repos', () => {
     renderPane();
-    // legacy-payments with 389 days should be critical
     expect(screen.getByText('⚠ critical')).toBeInTheDocument();
   });
 
@@ -140,11 +141,12 @@ describe('RepoHealthPane', () => {
     expect(screen.getByText('47 days')).toBeInTheDocument();
   });
 
-  it('renders unknown labels for columns without audit data', () => {
+  it('renders table with 3 columns (Repository, Last push, Overall)', () => {
     renderPane();
-    const unknownLabels = screen.getAllByText('unknown');
-    // Each repo should have unknown for branch protection, secret scanning, dependabot, CI = 4 per repo * 4 repos
-    expect(unknownLabels.length).toBe(16);
+    const table = screen.getByText('Repository').closest('table')!;
+    const headers = within(table).getAllByRole('columnheader');
+    expect(headers).toHaveLength(3);
+    expect(headers.map((h) => h.textContent)).toEqual(['Repository', 'Last push', 'Overall']);
   });
 
   it('renders the stale trend section title', () => {

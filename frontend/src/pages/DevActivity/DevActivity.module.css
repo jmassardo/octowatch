@@ -7,6 +7,14 @@
   gap: 8px;
   margin-bottom: 20px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.teamNote {
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-style: italic;
+  cursor: help;
 }
 
 .sectionTitle {

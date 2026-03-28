@@ -1,16 +1,61 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { LicensePane } from './LicensePane';
-import { GHOST_MEMBERS, LICENSE_SAMPLE, COPILOT_CROSS_REF } from './healthData';
+import { COST_PER_SEAT_DEFAULT } from './healthData';
 
 vi.mock('../../api/reports', () => ({
-  getSeatUtilizationReport: vi.fn().mockResolvedValue({ data: [] }),
-  getCopilotSeatsReport: vi.fn().mockResolvedValue({ data: [] }),
+  getSeatUtilizationReport: vi.fn(),
+  getCopilotSeatsReport: vi.fn(),
 }));
 
+vi.mock('../../api/healthSignals', () => ({
+  getGhostMembers: vi.fn(),
+}));
+
+const mockSeatData = {
+  data: [
+    { provisioned_seat_count: 100, active_seat_count: 82, utilization_pct: 82 },
+  ],
+};
+
+const mockCopilotData = {
+  data: [
+    { seats_net: 45 },
+  ],
+};
+
+const mockGhostMembers = {
+  ghost_members: [
+    { actor: 'legacy-bot-1', last_active: '2024-12-01T00:00:00Z' },
+    { actor: 'old-dev-2', last_active: null },
+  ],
+};
+
+// Track which useQuery call index we're on per render
+let useQueryCallIndex: number;
+
+const mockQueryReturns: Array<{
+  data: unknown;
+  isLoading: boolean;
+  isError: boolean;
+  refetch: ReturnType<typeof vi.fn>;
+}> = [];
+
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
+  return {
+    ...actual,
+    useQuery: () => {
+      const idx = useQueryCallIndex++;
+      return mockQueryReturns[idx] || { data: undefined, isLoading: false, isError: false, refetch: vi.fn() };
+    },
+  };
+});
+
 function renderWithProviders() {
+  useQueryCallIndex = 0;
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -23,67 +68,73 @@ function renderWithProviders() {
   );
 }
 
+function setDefaultData() {
+  mockQueryReturns.length = 0;
+  // Call 0: seat utilization
+  mockQueryReturns.push({ data: mockSeatData, isLoading: false, isError: false, refetch: vi.fn() });
+  // Call 1: copilot seats
+  mockQueryReturns.push({ data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() });
+  // Call 2: ghost members
+  mockQueryReturns.push({ data: mockGhostMembers, isLoading: false, isError: false, refetch: vi.fn() });
+}
+
 describe('LicensePane', () => {
-  it('renders the sample data banner', () => {
-    renderWithProviders();
-    expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.getByText(/sample values/)).toBeInTheDocument();
+  beforeEach(() => {
+    setDefaultData();
   });
 
-  it('renders total seats card with utilization gauge', () => {
+  it('renders total seats card', () => {
     renderWithProviders();
     expect(screen.getByText('Total seats (GitHub)')).toBeInTheDocument();
-    expect(screen.getByText(`/ ${LICENSE_SAMPLE.seatLimit}`)).toBeInTheDocument();
-    expect(screen.getByText(`${LICENSE_SAMPLE.utilizationPct}% utilized`, { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('/ 100')).toBeInTheDocument();
+    expect(screen.getByText(/82% utilized/)).toBeInTheDocument();
   });
 
-  it('renders ghost members card with count and cost', () => {
+  it('renders ghost members card with count', () => {
     renderWithProviders();
-    // "Ghost members" appears multiple times (card title + section title + metric card)
     const ghostTexts = screen.getAllByText('Ghost members');
     expect(ghostTexts.length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText(`≈ $${LICENSE_SAMPLE.ghostMonthlyCost}/month recoverable`)).toBeInTheDocument();
     expect(screen.getByText('Dormant 90d+ still consuming a seat')).toBeInTheDocument();
+    const expectedCost = 2 * COST_PER_SEAT_DEFAULT;
+    expect(screen.getByText(`≈ $${expectedCost}/month recoverable`)).toBeInTheDocument();
   });
 
-  it('renders growth forecast card', () => {
+  it('renders Active seats card', () => {
     renderWithProviders();
-    expect(screen.getByText('Growth forecast')).toBeInTheDocument();
-    // ~74d appears in both the card and the metric card
-    const forecastTexts = screen.getAllByText(`~${LICENSE_SAMPLE.growthForecastDays}d`);
-    expect(forecastTexts.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(`+${LICENSE_SAMPLE.growthRate}/month rate`, { exact: false })).toBeInTheDocument();
+    const activeLabels = screen.getAllByText('Active seats');
+    expect(activeLabels.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Members with recent activity')).toBeInTheDocument();
   });
 
-  it('renders ghost members table with all sample members', () => {
+  it('renders ghost member table with 2 columns (Member, Last active)', () => {
     renderWithProviders();
     expect(screen.getByText('Ghost members — consuming seats with no activity')).toBeInTheDocument();
-
-    for (const member of GHOST_MEMBERS) {
-      expect(screen.getByText(member.member)).toBeInTheDocument();
-    }
+    const table = screen.getByText('Member').closest('table')!;
+    const headers = within(table).getAllByRole('columnheader');
+    expect(headers).toHaveLength(2);
+    expect(headers.map((h) => h.textContent)).toEqual(['Member', 'Last active']);
   });
 
-  it('renders ghost member status labels', () => {
+  it('renders ghost members from API data', () => {
     renderWithProviders();
-    const dormantLabels = screen.getAllByText('dormant');
-    expect(dormantLabels.length).toBe(3);
-    expect(screen.getByText('stale & dormant')).toBeInTheDocument();
-  });
-
-  it('renders ghost member details correctly', () => {
-    renderWithProviders();
-    // Check first member
     expect(screen.getByText('legacy-bot-1')).toBeInTheDocument();
-    expect(screen.getByText('102')).toBeInTheDocument();
+    expect(screen.getByText('old-dev-2')).toBeInTheDocument();
+    expect(screen.getByText('Never')).toBeInTheDocument();
   });
 
-  it('renders copilot seat cross-reference', () => {
+  it('shows "No ghost members detected" when empty', () => {
+    mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: mockSeatData, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: { ghost_members: [] }, isLoading: false, isError: false, refetch: vi.fn() });
     renderWithProviders();
-    expect(screen.getByText('Copilot seat waste for reference')).toBeInTheDocument();
-    expect(
-      screen.getByText(`${COPILOT_CROSS_REF.inactiveSeats} of ${COPILOT_CROSS_REF.totalSeats} Copilot seats`),
-    ).toBeInTheDocument();
+    expect(screen.getByText('No ghost members detected')).toBeInTheDocument();
+  });
+
+  it('renders copilot cross-reference section', () => {
+    renderWithProviders();
+    expect(screen.getByText('Copilot seat cross-reference')).toBeInTheDocument();
+    expect(screen.getByText(/45 Copilot seats/)).toBeInTheDocument();
   });
 
   it('renders data source note', () => {
@@ -91,33 +142,31 @@ describe('LicensePane', () => {
     expect(screen.getByText(/License seat data is derived from/)).toBeInTheDocument();
   });
 
-  it('renders summary MetricCards', () => {
+  it('renders summary MetricCards (Seat utilization, Ghost members, Active seats, Copilot seats)', () => {
     renderWithProviders();
     expect(screen.getByText('Seat utilization')).toBeInTheDocument();
-    expect(screen.getByText('Days to limit')).toBeInTheDocument();
-    expect(screen.getByText('Copilot waste')).toBeInTheDocument();
+    const ghostLabels = screen.getAllByText('Ghost members');
+    expect(ghostLabels.length).toBeGreaterThanOrEqual(2);
+    const activeLabels = screen.getAllByText('Active seats');
+    expect(activeLabels.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Copilot seats')).toBeInTheDocument();
   });
 
-  it('renders the table header columns', () => {
+  it('shows loading spinner for ghost members', () => {
+    mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: mockSeatData, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: undefined, isLoading: true, isError: false, refetch: vi.fn() });
     renderWithProviders();
-    const table = screen.getByText('Member').closest('table')!;
-    const headers = within(table).getAllByRole('columnheader');
-    const headerTexts = headers.map((h) => h.textContent);
-    expect(headerTexts).toEqual([
-      'Member',
-      'Org',
-      'Role',
-      'Last seen',
-      'Days inactive',
-      'Licenses held',
-      'Status',
-    ]);
+    expect(document.querySelector('[class*="spinner"]')).toBeTruthy();
   });
 
-  it('renders ghost member org info', () => {
+  it('shows error banner for ghost members on error', () => {
+    mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: mockSeatData, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: undefined, isLoading: false, isError: true, refetch: vi.fn() });
     renderWithProviders();
-    const acmeCells = screen.getAllByText('acme-corp');
-    expect(acmeCells.length).toBe(3);
-    expect(screen.getByText('globex')).toBeInTheDocument();
+    expect(screen.getByText('Failed to load ghost members')).toBeInTheDocument();
   });
 });

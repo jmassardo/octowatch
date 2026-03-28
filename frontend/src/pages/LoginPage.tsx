@@ -31,7 +31,7 @@ export function LoginPage() {
         </a>
 
         <p className={styles.footer}>
-          By signing in you agree to OctoWatch being installed in your organization.
+          By signing in, you authorize OctoWatch to access your organization's audit log data.
         </p>
       </div>
     </div>

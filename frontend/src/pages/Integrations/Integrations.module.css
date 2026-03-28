@@ -702,3 +702,101 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ===== Config form (modal) ===== */
+
+.configForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.configField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.configLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.configHelp {
+  font-size: 11px;
+  color: var(--fg-subtle);
+}
+
+.configInput {
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.configInput:focus {
+  border-color: var(--accent);
+}
+
+.configToggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.configReadonly {
+  padding: 12px;
+  background: var(--canvas-inset);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.configReadonly dt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  margin-bottom: 2px;
+}
+
+.configReadonly dd {
+  color: var(--fg);
+  margin: 0 0 8px;
+}
+
+.configReadonly dd:last-child {
+  margin-bottom: 0;
+}
+
+.configActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-muted);
+}
+
+.configSuccess {
+  color: var(--success);
+  font-size: 13px;
+  padding: 6px 10px;
+  background: rgba(63, 185, 80, 0.1);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.configError {
+  color: var(--danger);
+  font-size: 13px;
+  padding: 6px 10px;
+  background: rgba(248, 81, 73, 0.1);
+  border-radius: 6px;
+  text-align: center;
+}

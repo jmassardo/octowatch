@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
-import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { BarChart } from '../../components/charts/BarChart';
@@ -95,18 +94,14 @@ function RepoHealthTable({ repos }: { repos: RepoRow[] }) {
         <thead>
           <tr>
             <th>Repository</th>
-            <th>Branch protection</th>
             <th>Last push</th>
-            <th>Secret scanning</th>
-            <th>Dependabot alerts</th>
-            <th>CI health</th>
             <th>Overall</th>
           </tr>
         </thead>
         <tbody>
           {repos.length === 0 && (
             <tr>
-              <td colSpan={7} style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}>
+              <td colSpan={3} style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}>
                 No stale repositories found
               </td>
             </tr>
@@ -119,22 +114,10 @@ function RepoHealthTable({ repos }: { repos: RepoRow[] }) {
               <tr key={`${r.org}/${r.repo}`}>
                 <td>
                   <div className={styles.repoName}>{r.org}/{r.repo}</div>
-                  <div className={styles.repoSub}>{r.org} · private</div>
-                </td>
-                <td>
-                  <Label variant="muted">unknown</Label>
+                  <div className={styles.repoSub}>{r.org}</div>
                 </td>
                 <td>
                   <Label variant={pushVariant}>{formatDaysAgo(r.daysSinceActivity)}</Label>
-                </td>
-                <td>
-                  <Label variant="muted">unknown</Label>
-                </td>
-                <td>
-                  <Label variant="muted">unknown</Label>
-                </td>
-                <td>
-                  <Label variant="muted">unknown</Label>
                 </td>
                 <td>
                   <Label variant={healthLabelVariant(health)}>
@@ -146,6 +129,9 @@ function RepoHealthTable({ repos }: { repos: RepoRow[] }) {
           })}
         </tbody>
       </table>
+      <div style={{ fontSize: 11, color: 'var(--fg-subtle)', padding: '8px 12px' }}>
+        ℹ️ Additional repository health data (branch protection, secret scanning, Dependabot, CI) requires GitHub API integration.
+      </div>
     </div>
   );
 }
@@ -328,8 +314,6 @@ export function RepoHealthPane() {
 
   return (
     <div className={styles.pane}>
-      <SampleDataBanner message="Branch protection, secret scanning, Dependabot, and CI columns require data sources beyond the audit log. Connect additional integrations in Settings to populate them." />
-
       <div className={styles.toolbar}>
         <span className={styles.toolbarInfo}>
           {totalRepos} {totalRepos === 1 ? 'repo' : 'repos'} · showing signals with issues

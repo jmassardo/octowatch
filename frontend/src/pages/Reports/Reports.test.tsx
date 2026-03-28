@@ -47,6 +47,7 @@ vi.mock('../../api/reports', () => ({
     data: [{ bucket: '2024-01-01', seats_assigned: 5 }],
   }),
   exportReport: vi.fn(),
+  getReportCatalog: vi.fn().mockResolvedValue([]),
 }));
 
 describe('ReportsPage', () => {
@@ -63,63 +64,60 @@ describe('ReportsPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders all four report cards with correct titles', () => {
+  it('shows empty state when no reports in catalog', async () => {
     renderWithProviders(<ReportsPage />);
     expect(
-      screen.getByText('Monthly Security Posture — January 2024'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Engineering Velocity Q4 2023 — Executive Summary',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Access Review — Outside Collaborators and PAT Inventory',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('DORA Metrics — December 2023'),
+      await screen.findByText(/No reports generated yet/),
     ).toBeInTheDocument();
   });
 
-  it('renders date and page info for each report', () => {
+  it('renders report cards from catalog API data', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-1',
+        type: 'security_posture',
+        title: 'Security Posture Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: ['security', 'automated'],
+      },
+      {
+        id: 'report-2',
+        type: 'dora_metrics',
+        title: 'DORA Metrics Report',
+        generated_at: '2024-06-14T08:00:00Z',
+        status: 'completed',
+        tags: ['dora'],
+      },
+    ]);
+
     renderWithProviders(<ReportsPage />);
-    expect(
-      screen.getByText('Generated Jan 15, 2024 · 47 pages'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('Generated Jan 1, 2024 · 12 pages'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('Generated Dec 28, 2023 · 23 pages'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('Generated Jan 2, 2024 · 8 pages'),
-    ).toBeInTheDocument();
+
+    expect(await screen.findByText('Security Posture Report')).toBeInTheDocument();
+    expect(screen.getByText('DORA Metrics Report')).toBeInTheDocument();
   });
 
-  it('renders tags for reports', () => {
-    renderWithProviders(<ReportsPage />);
-    expect(screen.getByText('14 critical findings')).toBeInTheDocument();
-    expect(screen.getByText('8 medium')).toBeInTheDocument();
-    expect(screen.getByText('automated')).toBeInTheDocument();
-    expect(screen.getByText('velocity')).toBeInTheDocument();
-    expect(screen.getByText('847 deploys')).toBeInTheDocument();
-    expect(screen.getByText('94.2% pipeline health')).toBeInTheDocument();
-    expect(screen.getByText('47 collaborators')).toBeInTheDocument();
-    expect(screen.getByText('12 expiring tokens')).toBeInTheDocument();
-    expect(screen.getByText('quarterly')).toBeInTheDocument();
-    expect(screen.getByText('Elite performer')).toBeInTheDocument();
-    expect(screen.getByText('DORA')).toBeInTheDocument();
-  });
+  it('renders PDF and CSV buttons for catalog report cards', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-1',
+        type: 'security_posture',
+        title: 'Security Posture Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
 
-  it('renders PDF and CSV buttons for each report card', () => {
     renderWithProviders(<ReportsPage />);
+
+    await screen.findByText('Security Posture Report');
     const pdfButtons = screen.getAllByRole('button', { name: 'PDF' });
     const csvButtons = screen.getAllByRole('button', { name: 'CSV' });
-    expect(pdfButtons).toHaveLength(4);
-    expect(csvButtons).toHaveLength(4);
+    expect(pdfButtons).toHaveLength(1);
+    expect(csvButtons).toHaveLength(1);
   });
 
   it('renders window selector with 30d, 60d, 90d buttons', () => {
@@ -137,20 +135,42 @@ describe('ReportsPage', () => {
   });
 
   it('calls exportReport with pdf format when PDF button is clicked', async () => {
-    const { exportReport } = await import('../../api/reports');
+    const { exportReport, getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-1',
+        type: 'security_posture',
+        title: 'Security Posture Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
     const user = userEvent.setup();
     renderWithProviders(<ReportsPage />);
 
+    await screen.findByText('Security Posture Report');
     const pdfButtons = screen.getAllByRole('button', { name: 'PDF' });
     await user.click(pdfButtons[0]);
     expect(exportReport).toHaveBeenCalledWith('security_posture', 'pdf');
   });
 
   it('calls exportReport with csv format when CSV button is clicked', async () => {
-    const { exportReport } = await import('../../api/reports');
+    const { exportReport, getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-1',
+        type: 'security_posture',
+        title: 'Security Posture Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
     const user = userEvent.setup();
     renderWithProviders(<ReportsPage />);
 
+    await screen.findByText('Security Posture Report');
     const csvButtons = screen.getAllByRole('button', { name: 'CSV' });
     await user.click(csvButtons[0]);
     expect(exportReport).toHaveBeenCalledWith('security_posture', 'csv');
@@ -178,17 +198,41 @@ describe('ReportsPage', () => {
     expect(screen.getByText('Copilot seat buckets')).toBeInTheDocument();
   });
 
-  it('renders org-scoped tags showing "All orgs" when no org is selected', () => {
+  it('renders org-scoped tags showing "All orgs" when no org is selected and catalog has items', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-1',
+        type: 'security_posture',
+        title: 'Test Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
     renderWithProviders(<ReportsPage />);
+    await screen.findByText('Test Report');
     const allOrgLabels = screen.getAllByText('All orgs');
-    expect(allOrgLabels).toHaveLength(4);
+    expect(allOrgLabels).toHaveLength(1);
   });
 
-  it('renders org-scoped tags showing selected org name', () => {
+  it('renders org-scoped tags showing selected org name when catalog has items', async () => {
     mockUseOrg.mockReturnValue({ selectedOrg: 'my-org', setSelectedOrg: vi.fn() });
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-1',
+        type: 'security_posture',
+        title: 'Test Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
     renderWithProviders(<ReportsPage />);
+    await screen.findByText('Test Report');
     const orgLabels = screen.getAllByText('my-org');
-    expect(orgLabels).toHaveLength(4);
+    expect(orgLabels).toHaveLength(1);
   });
 
   it('summary values are clickable when numeric', async () => {
@@ -217,10 +261,22 @@ describe('ReportsPage', () => {
     expect(screen.getByRole('table')).toBeInTheDocument();
   });
 
-  it('report titles have clickable styling', () => {
+  it('report titles have clickable styling when catalog has items', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-1',
+        type: 'security_posture',
+        title: 'Test Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
     const { container } = renderWithProviders(<ReportsPage />);
+    await screen.findByText('Test Report');
     const clickableTitles = container.querySelectorAll('.reportTitleClickable');
-    expect(clickableTitles).toHaveLength(4);
+    expect(clickableTitles).toHaveLength(1);
     clickableTitles.forEach((el) => {
       expect(el.getAttribute('role')).toBe('button');
     });

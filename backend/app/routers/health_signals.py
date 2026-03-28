@@ -7,9 +7,11 @@ user has no org access.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import AuthenticatedUser, get_current_user, get_db
@@ -350,3 +352,166 @@ async def system_health(
         "health_events": health_events,
         "stream_status": stream_status,
     }
+
+
+@router.get("/settings")
+async def get_health_settings(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Return persisted health settings, merged with defaults."""
+    result = await db.execute(
+        text("""
+            SELECT detail FROM system_health_events
+            WHERE signal_type = 'health_settings'
+            ORDER BY occurred_at DESC LIMIT 1
+        """)
+    )
+    row = result.fetchone()
+    defaults: dict[str, Any] = {
+        "staleRepoDays": 90,
+        "stalePrDays": 30,
+        "unreviewedDependabotDays": 60,
+        "ciSkippedConsecutive": 10,
+        "dormantMemberDays": 90,
+        "patNoExpiryFlag": True,
+        "patStaleDays": 90,
+        "outsideCollabFlag": True,
+        "licenseUtilizationPct": 80,
+        "ghostMemberCost": 19,
+        "escalateCriticalDays": 60,
+        "escalateStaleReposDays": 180,
+        "escalateDormantDays": 180,
+        "escalationDestination": "Detection queue (internal)",
+    }
+    if row:
+        saved = row[0] if isinstance(row[0], dict) else {}
+        defaults.update(saved)
+    return defaults
+
+
+@router.put("/settings")
+async def update_health_settings(
+    body: dict[str, Any],
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Persist health settings."""
+    from app.models.audit_trail import AuditTrail
+
+    await db.execute(
+        text("""
+            INSERT INTO system_health_events
+                (signal_type, severity, detail, org)
+            VALUES
+                ('health_settings', 'info', CAST(:detail AS JSONB), NULL)
+        """),
+        {"detail": json.dumps(body)},
+    )
+    db.add(
+        AuditTrail(
+            user_login=current_user.github_login,
+            action_type="health_settings.update",
+            resource_type="health_settings",
+            resource_id="global",
+            outcome="success",
+        )
+    )
+    await db.commit()
+    return body
+
+
+@router.get("/ghost-members")
+async def ghost_members(
+    dormancy_days: int = Query(default=90, ge=30, le=365),
+    limit: int = Query(default=50, ge=1, le=100),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Ghost members with no activity beyond dormancy threshold."""
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    members = await health_signal_service.get_ghost_members(
+        db, scoped_orgs=scoped_orgs, dormancy_days=dormancy_days, limit=limit
+    )
+    return {"ghost_members": members}
+
+
+@router.get("/stale-prs")
+async def stale_prs(
+    stale_days: int = Query(default=30, ge=7, le=365),
+    limit: int = Query(default=50, ge=1, le=100),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """PRs open longer than the stale threshold."""
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    prs = await health_signal_service.get_stale_prs(
+        db, scoped_orgs=scoped_orgs, stale_days=stale_days, limit=limit
+    )
+    return {"stale_prs": prs}
+
+
+@router.get("/unhealthy-hooks")
+async def unhealthy_hooks(
+    limit: int = Query(default=50, ge=1, le=100),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Unhealthy webhooks and apps."""
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    hooks = await health_signal_service.get_unhealthy_webhooks(
+        db, scoped_orgs=scoped_orgs, limit=limit
+    )
+    return {"unhealthy_hooks": hooks}
+
+
+@router.get("/skipped-workflows")
+async def skipped_workflows(
+    limit: int = Query(default=50, ge=1, le=100),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Disabled or consistently skipped workflows."""
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    wfs = await health_signal_service.get_skipped_workflows(
+        db, scoped_orgs=scoped_orgs, limit=limit
+    )
+    return {"skipped_workflows": wfs}
+
+
+@router.get("/waf-findings")
+async def waf_findings(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Well-Architected Framework alignment findings."""
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    findings = await health_signal_service.get_waf_findings(db, scoped_orgs=scoped_orgs)
+    return {"findings": findings}
+
+
+@router.get("/teams")
+async def list_teams(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Return team memberships from enterprise sync data (org_teams + org_team_members)."""
+    from sqlalchemy import text as sa_text
+
+    scoped_orgs = await _resolve_orgs(db, current_user)
+
+    result = await db.execute(
+        sa_text("""
+            SELECT t.org, t.team_slug, t.name AS team_name,
+                   ARRAY_AGG(DISTINCT tm.github_login) AS members
+            FROM org_teams t
+            JOIN org_team_members tm ON tm.org = t.org AND tm.team_slug = t.team_slug
+            WHERE t.org = ANY(:scoped_orgs)
+            GROUP BY t.org, t.team_slug, t.name
+            ORDER BY t.name
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    teams = [dict(row._mapping) for row in result.fetchall()]
+
+    return {"teams": teams}

@@ -143,6 +143,7 @@ ignore = [
 # report_service uses SQLAlchemy text() with bound parameters (:param syntax),
 # not raw string interpolation of user data. S608 is a false positive here.
 "app/services/report_service.py" = ["S608"]
+"app/services/health_signal_service.py" = ["S608"]
 # fix_ann001.py is a one-off development helper script
 "fix_ann001.py" = ["T20"]
 

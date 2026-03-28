@@ -106,6 +106,13 @@ vi.mock('../../api/healthSignals', () => ({
     unique_users: 0,
   }),
   getRunnerHealth: vi.fn().mockResolvedValue({ runners: [] }),
+  getGhostMembers: vi.fn().mockResolvedValue({ ghost_members: [] }),
+  getStalePrs: vi.fn().mockResolvedValue({ stale_prs: [] }),
+  getUnhealthyHooks: vi.fn().mockResolvedValue({ unhealthy_hooks: [] }),
+  getSkippedWorkflows: vi.fn().mockResolvedValue({ skipped_workflows: [] }),
+  getWafFindings: vi.fn().mockResolvedValue({ findings: [] }),
+  getHealthSettings: vi.fn().mockResolvedValue({}),
+  updateHealthSettings: vi.fn().mockResolvedValue({}),
 }));
 
 function renderPage() {
@@ -165,7 +172,7 @@ describe('HealthPage', () => {
     const repoTab = screen.getByRole('tab', { name: /Repository Health/ });
     expect(repoTab).toHaveAttribute('aria-selected', 'true');
     expect(
-      await screen.findByText(/Branch protection, secret scanning, Dependabot/),
+      await screen.findByText(/Additional repository health data/),
     ).toBeInTheDocument();
   });
 
@@ -196,7 +203,7 @@ describe('HealthPage', () => {
     await user.click(screen.getByRole('tab', { name: /Maintenance Signals/ }));
     const maintenanceTab = screen.getByRole('tab', { name: /Maintenance Signals/ });
     expect(maintenanceTab).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByText(/Stale PRs/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Stale PRs/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it('switches to WAF Insights tab', async () => {
@@ -206,7 +213,7 @@ describe('HealthPage', () => {
     await user.click(screen.getByRole('tab', { name: /WAF Insights/ }));
     const wafTab = screen.getByRole('tab', { name: /WAF Insights/ });
     expect(wafTab).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByText(/WAF alignment signals/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Well-Architected Framework/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it('switches to Security Posture tab', async () => {
@@ -226,7 +233,7 @@ describe('HealthPage', () => {
     await user.click(screen.getByRole('tab', { name: /App Governance/ }));
     const tab = screen.getByRole('tab', { name: /App Governance/ });
     expect(tab).toHaveAttribute('aria-selected', 'true');
-    expect(await screen.findByText(/App governance signals/i)).toBeInTheDocument();
+    expect(await screen.findByText(/OAuth & app summary/i)).toBeInTheDocument();
   });
 
   it('switches to Operations tab', async () => {

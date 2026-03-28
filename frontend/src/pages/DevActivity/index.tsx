@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { listEvents } from '../../api/events';
 import { listDetections } from '../../api/detections';
+import { getTeams } from '../../api/healthSignals';
 import { Avatar } from '../../components/primitives/Avatar';
 import { Label } from '../../components/primitives/Label';
 import { Card, CardHeader } from '../../components/primitives/Card';
@@ -22,13 +23,6 @@ interface ActorStats {
   weeklyCounts: number[];
 }
 
-const TEAM_MEMBERS: Record<string, readonly string[]> = {
-  'platform-team': ['alice', 'david', 'sarah.chen', 'priya.patel'],
-  'backend-team': ['bob', 'mike.ross', 'raj.kumar'],
-  'frontend-team': ['carol', 'ana.silva', 'eremin', 'lisa.park'],
-};
-const TEAM_NAMES = Object.keys(TEAM_MEMBERS);
-
 export function DevActivityPage() {
   const navigate = useNavigate();
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
@@ -43,6 +37,20 @@ export function DevActivityPage() {
     queryKey: ['detections', 'dev-activity'],
     queryFn: () => listDetections({ page_size: 200, status: 'investigating' }),
   });
+
+  const { data: teamsData } = useQuery({
+    queryKey: ['teams'],
+    queryFn: getTeams,
+  });
+
+  const teamNames = useMemo(() => (teamsData?.teams ?? []).map((t) => t.team_name), [teamsData]);
+  const teamMembers = useMemo(() => {
+    const map: Record<string, readonly string[]> = {};
+    for (const t of teamsData?.teams ?? []) {
+      map[t.team_name] = t.members;
+    }
+    return map;
+  }, [teamsData]);
 
   // Build actor stats from events
   const { actorMap, actorDetections } = useMemo(() => {
@@ -172,7 +180,7 @@ export function DevActivityPage() {
   const topActors = [...actorMap.values()]
     .filter((a) => {
       if (!selectedTeam) return true;
-      const members = TEAM_MEMBERS[selectedTeam];
+      const members = teamMembers[selectedTeam];
       return members ? members.includes(a.handle) : true;
     })
     .sort((a, b) => b.eventCount - a.eventCount)
@@ -191,16 +199,22 @@ export function DevActivityPage() {
         >
           All teams
         </Button>
-        {TEAM_NAMES.map((team) => (
-          <Button
-            key={team}
-            size="sm"
-            style={selectedTeam === team ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
-            onClick={() => setSelectedTeam(team)}
-          >
-            {team}
-          </Button>
-        ))}
+        {teamNames.length > 0 ? (
+          teamNames.map((team) => (
+            <Button
+              key={team}
+              size="sm"
+              style={selectedTeam === team ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+              onClick={() => setSelectedTeam(team)}
+            >
+              {team}
+            </Button>
+          ))
+        ) : (
+          <span className={styles.teamNote} title="Team data requires Enterprise Sync or team audit events">
+            No team data available
+          </span>
+        )}
       </div>
 
       {eventsError && <ErrorBanner message="Failed to load developer activity" onRetry={refetch} />}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getHealthSummary } from '../../api/healthSignals';
+import { getHealthSummary, getWafFindings } from '../../api/healthSignals';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { HealthTabBar } from './HealthTabBar';
 import type { HealthTab } from './HealthTabBar';
@@ -12,7 +12,6 @@ import { WafInsightsPane } from './WafInsightsPane';
 import { SecurityPosturePane } from './SecurityPosturePane';
 import { AppGovernancePane } from './AppGovernancePane';
 import { OpsHealthPane } from './OpsHealthPane';
-import { WAF_FINDINGS } from './healthData';
 import styles from './Health.module.css';
 
 export function HealthPage() {
@@ -24,6 +23,12 @@ export function HealthPage() {
     staleTime: 60_000,
   });
 
+  const { data: wafData } = useQuery({
+    queryKey: ['health', 'waf-findings'],
+    queryFn: getWafFindings,
+    staleTime: 60_000,
+  });
+
   const totalFindings = summary
     ? summary.stale_repos +
       summary.pat_no_expiry +
@@ -32,7 +37,7 @@ export function HealthPage() {
       summary.ext_collab_elevated
     : 0;
 
-  const evaluatedWafFindings = WAF_FINDINGS.filter((f) => f.evaluated).length;
+  const evaluatedWafFindings = (wafData?.findings ?? []).filter((f) => f.evaluated).length;
 
   return (
     <div className={styles.page}>

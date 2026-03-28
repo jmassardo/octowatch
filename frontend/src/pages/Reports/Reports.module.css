@@ -56,6 +56,13 @@
   gap: 12px;
 }
 
+.emptyReports {
+  color: var(--fg-muted);
+  font-size: 14px;
+  padding: 24px 0;
+  text-align: center;
+}
+
 .reportItem {
   background: var(--canvas-subtle);
   border: 1px solid var(--border);

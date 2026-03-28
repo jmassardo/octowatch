@@ -8,6 +8,7 @@ import { ContributionCalendar } from '../../components/charts/ContributionCalend
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { useOrg } from '../../hooks/useOrg';
 import type { EventResponse } from '../../types/events';
 import type { ActionsVolumeBucket } from '../../types/reports';
 import type { DetectionSeverity } from '../../types/detections';
@@ -110,6 +111,9 @@ function formatCount(n: number): string {
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { selectedOrg } = useOrg();
+
+  const orgLabel = !selectedOrg || selectedOrg === 'all' ? 'All organizations' : selectedOrg;
 
   const { data: detections, isLoading: loadingThreats, refetch: refetchThreats, isError: threatError } = useQuery({
     queryKey: ['detections', 'open'],
@@ -196,9 +200,11 @@ export function DashboardPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.pageTitle}>Dashboard</div>
+      <div className={styles.pageTitle}>Dashboard · {orgLabel}</div>
       <div className={styles.pageSub}>
-        Activity across your organizations · Updated just now
+        {systemHealth?.last_event_at
+          ? `Last synced: ${formatRelative(systemHealth.last_event_at)}`
+          : 'Activity across your organizations'}
       </div>
 
       <div className={styles.pills}>

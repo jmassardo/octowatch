@@ -261,7 +261,14 @@ async def update_sync_config(
     can only be changed at deploy time.
     """
     if body.sync_enabled is not None:
+        settings.github_app.GITHUB_SYNC_ENABLED = body.sync_enabled
         await db.execute(update(GitHubAppConfig).values(enabled=body.sync_enabled))
+
+    if body.interval_days is not None:
+        settings.github_app.GITHUB_SYNC_INTERVAL_DAYS = body.interval_days
+
+    if body.orgs is not None:
+        settings.github_app.GITHUB_SYNC_ORGS = body.orgs
 
     db.add(
         AuditTrail(

@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   listTicketingConfigs,
   listNotificationConfigs,
 } from '../../api/integrations';
+import { getSyncConfig, updateSyncConfig } from '../../api/sync';
 import { Button } from '../../components/primitives/Button';
 import { Modal } from '../../components/primitives/Modal';
 import { SyncPanel } from './SyncPanel';
@@ -25,24 +26,14 @@ interface MarketplaceIntegration {
   iconBg: string;
 }
 
-interface RecentImport {
-  file: string;
-  type: string;
-  size: string;
-  importedAt: string;
-  records: number;
-  status: string;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Static data                                                        */
-/* ------------------------------------------------------------------ */
-
-const RECENT_IMPORTS: RecentImport[] = [
-  { file: 'audit-log-2025-06-01.csv', type: 'Audit Log', size: '14.2 MB', importedAt: '2025-06-01 09:32', records: 48_210, status: 'Completed' },
-  { file: 'copilot-metrics-may.json', type: 'Copilot Metrics', size: '2.1 MB', importedAt: '2025-05-28 14:15', records: 1_340, status: 'Completed' },
-  { file: 'audit-log-2025-05-15.json', type: 'Audit Log', size: '38.7 MB', importedAt: '2025-05-15 11:04', records: 125_800, status: 'Completed' },
-];
+/** Integrations that are not yet implemented. */
+const COMING_SOON_INTEGRATIONS = new Set([
+  'Slack',
+  'Microsoft Sentinel',
+  'Splunk',
+  'PagerDuty',
+  'Jira',
+]);
 
 /* ------------------------------------------------------------------ */
 /*  Icons                                                              */
@@ -103,33 +94,6 @@ function JiraIcon() {
   );
 }
 
-function UploadIcon() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 16V4m0 0l-4 4m4-4l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function LogFileIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="4" y="2" width="16" height="20" rx="2" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M8 7h8M8 11h8M8 15h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function MetricsFileIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M7 17V13M12 17V9M17 17V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 /* ------------------------------------------------------------------ */
 /*  Marketplace card component                                         */
 /* ------------------------------------------------------------------ */
@@ -145,7 +109,7 @@ function statusMeta(status: IntegrationStatus): { label: string; className: stri
   }
 }
 
-function MktCard({ integration, onConfigure, onInstall }: { integration: MarketplaceIntegration; onConfigure?: () => void; onInstall?: () => void }) {
+function MktCard({ integration, onConfigure, comingSoon }: { integration: MarketplaceIntegration; onConfigure?: () => void; comingSoon?: boolean }) {
   const { label, className } = statusMeta(integration.status);
   const isInstalled = integration.status !== 'not_installed';
 
@@ -162,24 +126,26 @@ function MktCard({ integration, onConfigure, onInstall }: { integration: Marketp
       </div>
       <div className={styles.mktCardFooter}>
         <span
-          className={`${styles.statusLabel} ${className} ${styles.clickableStatus}`}
-          tabIndex={0}
+          className={`${styles.statusLabel} ${className} ${!comingSoon ? styles.clickableStatus : ''}`}
+          tabIndex={comingSoon ? undefined : 0}
           aria-label={`${integration.name} status: ${label}`}
-          onClick={isInstalled ? onConfigure : onInstall}
-          onKeyDown={(e) => {
+          onClick={comingSoon ? undefined : onConfigure}
+          onKeyDown={comingSoon ? undefined : (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              (isInstalled ? onConfigure : onInstall)?.();
+              onConfigure?.();
             }
           }}
         >
           <span className={styles.statusDot} />
           {label}
         </span>
-        {isInstalled ? (
+        {comingSoon ? (
+          <Button size="sm" disabled title="Coming soon">Coming Soon</Button>
+        ) : isInstalled ? (
           <Button size="sm" onClick={onConfigure}>Configure</Button>
         ) : (
-          <Button variant="primary" size="sm" onClick={onInstall}>Install</Button>
+          <Button variant="primary" size="sm" onClick={onConfigure}>Configure</Button>
         )}
       </div>
     </div>
@@ -187,69 +153,148 @@ function MktCard({ integration, onConfigure, onInstall }: { integration: Marketp
 }
 
 /* ------------------------------------------------------------------ */
-/*  Import drop zone component                                         */
+/*  GitHub Enterprise config form                                      */
 /* ------------------------------------------------------------------ */
 
-function ImportCard({
-  title,
-  icon,
-  accept,
-  formatHint,
-  helperText,
-  onFileSelect,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  accept: string;
-  formatHint: string;
-  helperText: React.ReactNode;
-  onFileSelect?: (file: File) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
+function GitHubEnterpriseConfigForm({ onClose }: { onClose: () => void }) {
+  const { data: config, isLoading } = useQuery({
+    queryKey: ['sync-config'],
+    queryFn: getSyncConfig,
+  });
 
-  function handleClick() {
-    inputRef.current?.click();
+  if (isLoading || !config) {
+    return <p style={{ margin: 0, color: 'var(--fg-muted)', fontSize: 13 }}>Loading configuration…</p>;
   }
 
+  return <ConfigFormFields config={config} onClose={onClose} />;
+}
+
+function ConfigFormFields({ config, onClose }: { config: import('../../types/sync').SyncConfig; onClose: () => void }) {
+  const queryClient = useQueryClient();
+
+  const [syncEnabled, setSyncEnabled] = useState(config.sync_enabled);
+  const [intervalDays, setIntervalDays] = useState(config.interval_days);
+  const [orgsText, setOrgsText] = useState(config.orgs.join(', '));
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      const orgs = orgsText
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return updateSyncConfig({
+        sync_enabled: syncEnabled,
+        interval_days: intervalDays,
+        orgs,
+      });
+    },
+    onSuccess: () => {
+      setSuccessMessage('Configuration saved successfully.');
+      queryClient.invalidateQueries({ queryKey: ['sync-config'] });
+      setTimeout(() => setSuccessMessage(null), 3000);
+    },
+  });
+
+  function handleCancel() {
+    setSyncEnabled(config.sync_enabled);
+    setIntervalDays(config.interval_days);
+    setOrgsText(config.orgs.join(', '));
+    onClose();
+  }
+
+  const intervalInvalid = intervalDays < 60 || intervalDays > 90;
+
   return (
-    <div className={styles.importCard}>
-      <div className={styles.importCardHeader}>
-        <span className={styles.importCardHeaderIcon}>{icon}</span>
-        {title}
-      </div>
-      <div
-        className={styles.importDrop}
-        onClick={handleClick}
-        role="button"
-        tabIndex={0}
-        aria-label={`Upload ${title}`}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleClick();
-          }
-        }}
-      >
-        <div className={styles.importDropIcon}>
-          <UploadIcon />
+    <div className={styles.configForm}>
+      {/* Sync enabled toggle */}
+      <div className={styles.configField}>
+        <div className={styles.configToggleRow}>
+          <label className={styles.configLabel} htmlFor="sync-enabled-toggle">
+            Enable scheduled sync
+          </label>
+          <input
+            id="sync-enabled-toggle"
+            type="checkbox"
+            checked={syncEnabled}
+            onChange={(e) => setSyncEnabled(e.target.checked)}
+          />
         </div>
-        <p className={styles.importDropText}>Drop file here or browse</p>
-        <p className={styles.importDropHint}>{formatHint}</p>
-        <input
-          ref={inputRef}
-          type="file"
-          accept={accept}
-          className={styles.hiddenInput}
-          aria-hidden="true"
-          tabIndex={-1}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file && onFileSelect) onFileSelect(file);
-            e.target.value = '';
-          }}
-        />
       </div>
-      <p className={styles.importHelp}>{helperText}</p>
+
+      {/* Interval days */}
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="sync-interval-input">
+          Sync interval (days)
+        </label>
+        <input
+          id="sync-interval-input"
+          type="number"
+          className={styles.configInput}
+          min={60}
+          max={90}
+          value={intervalDays}
+          onChange={(e) => setIntervalDays(Number(e.target.value))}
+        />
+        {intervalInvalid && (
+          <span className={styles.configHelp} style={{ color: 'var(--danger)' }}>
+            Must be between 60 and 90 days.
+          </span>
+        )}
+      </div>
+
+      {/* Organizations */}
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="sync-orgs-input">
+          Organizations to sync
+        </label>
+        <input
+          id="sync-orgs-input"
+          type="text"
+          className={styles.configInput}
+          value={orgsText}
+          onChange={(e) => setOrgsText(e.target.value)}
+          placeholder="e.g. acme-corp, widgets-inc"
+        />
+        <span className={styles.configHelp}>
+          Leave empty to sync all organizations. Comma-separated org slugs.
+        </span>
+      </div>
+
+      {/* Read-only info */}
+      <dl className={styles.configReadonly}>
+        <dt>App ID</dt>
+        <dd>{config.app_id ?? '—'}</dd>
+        <dt>Enterprise slug</dt>
+        <dd>{config.enterprise_slug ?? '—'}</dd>
+        <dt>Installations</dt>
+        <dd>{config.installation_ids.length}</dd>
+        <dd className={styles.configHelp}>
+          GitHub App credentials are configured via environment variables.
+        </dd>
+      </dl>
+
+      {successMessage && (
+        <div className={styles.configSuccess}>{successMessage}</div>
+      )}
+      {saveMutation.isError && (
+        <div className={styles.configError}>
+          Failed to save configuration. Please try again.
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className={styles.configActions}>
+        <Button size="sm" onClick={handleCancel}>Cancel</Button>
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={saveMutation.isPending || intervalInvalid}
+          onClick={() => saveMutation.mutate()}
+        >
+          {saveMutation.isPending ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -258,35 +303,33 @@ function ImportCard({
 /*  Main page                                                          */
 /* ------------------------------------------------------------------ */
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 export function IntegrationsPage() {
-  const [statusOverrides, setStatusOverrides] = useState<Record<string, IntegrationStatus>>({});
-  const [configTarget, setConfigTarget] = useState<MarketplaceIntegration | null>(null);
-  const [importedFiles, setImportedFiles] = useState<RecentImport[]>([]);
-  const [importDetail, setImportDetail] = useState<RecentImport | null>(null);
+  const [configTarget, setConfigTarget] = useState<string | null>(null);
 
   /* Keep API hooks alive so integration data is cached for future use */
   useQuery({ queryKey: ['ticketing-configs'], queryFn: listTicketingConfigs });
   useQuery({ queryKey: ['notification-configs'], queryFn: listNotificationConfigs });
+
+  const { data: syncConfig } = useQuery({
+    queryKey: ['sync-config'],
+    queryFn: getSyncConfig,
+  });
+
+  const ghStatus: IntegrationStatus = syncConfig?.app_id ? 'connected' : 'not_installed';
 
   const integrations: MarketplaceIntegration[] = [
     {
       name: 'GitHub Enterprise',
       description: 'Connect your GitHub Enterprise instance for audit log streaming and Copilot metrics.',
       icon: <GitHubEnterpriseIcon />,
-      status: 'connected',
+      status: ghStatus,
       iconBg: '#24292f',
     },
     {
       name: 'Slack',
       description: 'Send real-time alerts and weekly digest reports to Slack channels.',
       icon: <SlackIcon />,
-      status: 'connected',
+      status: 'not_installed',
       iconBg: '#4a154b',
     },
     {
@@ -307,7 +350,7 @@ export function IntegrationsPage() {
       name: 'PagerDuty',
       description: 'Trigger PagerDuty incidents for critical security detections.',
       icon: <PagerDutyIcon />,
-      status: 'configured',
+      status: 'not_installed',
       iconBg: '#06ac38',
     },
     {
@@ -318,29 +361,6 @@ export function IntegrationsPage() {
       iconBg: '#0052CC',
     },
   ];
-
-  function handleFileImport(file: File, type: string) {
-    const entry: RecentImport = {
-      file: file.name,
-      type,
-      size: formatFileSize(file.size),
-      importedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
-      records: 0,
-      status: 'Processing',
-    };
-    setImportedFiles((prev) => [entry, ...prev]);
-    setTimeout(() => {
-      setImportedFiles((prev) =>
-        prev.map((f) =>
-          f.file === file.name && f.status === 'Processing'
-            ? { ...f, status: 'Completed', records: Math.floor(Math.random() * 50000) + 1000 }
-            : f,
-        ),
-      );
-    }, 2000);
-  }
-
-  const allImports = [...importedFiles, ...RECENT_IMPORTS];
 
   return (
     <div className={styles.page}>
@@ -357,98 +377,17 @@ export function IntegrationsPage() {
         <h2 className={styles.sectionTitle}>Marketplace</h2>
         <div className={styles.mktGrid}>
           {integrations.map((integration) => {
-            const effective = { ...integration, status: statusOverrides[integration.name] ?? integration.status };
+            const isComingSoon = COMING_SOON_INTEGRATIONS.has(integration.name);
             return (
               <MktCard
                 key={integration.name}
-                integration={effective}
-                onConfigure={() => setConfigTarget(effective)}
-                onInstall={() => setStatusOverrides((prev) => ({ ...prev, [integration.name]: 'configured' }))}
+                integration={integration}
+                comingSoon={isComingSoon}
+                onConfigure={() => setConfigTarget(integration.name)}
               />
             );
           })}
         </div>
-      </section>
-
-      {/* Data Import */}
-      <section>
-        <h2 className={styles.sectionTitle}>Data Import</h2>
-        <p className={styles.sectionDesc}>
-          Import exported data files to analyze without live API access — great for
-          evaluating OctoWatch before full deployment or filling historical gaps.
-        </p>
-        <div className={styles.importGrid}>
-          <ImportCard
-            title="Audit Log Import"
-            icon={<LogFileIcon />}
-            accept=".csv,.json"
-            formatHint="Accepts .csv or .json · max 500 MB"
-            helperText={
-              <>Export from GitHub Enterprise: <code>Settings → Audit log → Export CSV</code></>
-            }
-            onFileSelect={(file) => handleFileImport(file, 'Audit Log')}
-          />
-          <ImportCard
-            title="Copilot Metrics Import"
-            icon={<MetricsFileIcon />}
-            accept=".json"
-            formatHint="Accepts .json · GitHub Copilot Metrics API format"
-            helperText={
-              <>Fetch via: <code>GET /orgs/&#123;org&#125;/copilot/metrics</code></>
-            }
-            onFileSelect={(file) => handleFileImport(file, 'Copilot Metrics')}
-          />
-        </div>
-      </section>
-
-      {/* Recent imports table */}
-      <section>
-        <h2 className={styles.sectionTitle}>Recent imports</h2>
-        <table className={styles.recentTable}>
-          <thead>
-            <tr>
-              <th>File</th>
-              <th>Type</th>
-              <th>Size</th>
-              <th>Imported at</th>
-              <th>Records</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {allImports.map((row) => (
-              <tr key={`${row.file}-${row.importedAt}`}>
-                <td>{row.file}</td>
-                <td>{row.type}</td>
-                <td>{row.size}</td>
-                <td>{row.importedAt}</td>
-                <td>
-                  {row.records > 0 ? (
-                    <span
-                      className={styles.clickableRecord}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setImportDetail(row)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          setImportDetail(row);
-                        }
-                      }}
-                    >
-                      {row.records.toLocaleString()}
-                    </span>
-                  ) : '—'}
-                </td>
-                <td>
-                  <span className={`${styles.statusBadge} ${row.status === 'Completed' ? styles.badgeSuccess : ''}`}>
-                    {row.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </section>
 
       {/* Enterprise Sync */}
@@ -466,32 +405,25 @@ export function IntegrationsPage() {
         <ManualIngestPanel />
       </section>
 
-      <Modal open={!!configTarget} onClose={() => setConfigTarget(null)} title={configTarget ? `Configure ${configTarget.name}` : ''}>
-        {configTarget && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={{ margin: 0 }}><strong>Status:</strong> {statusMeta(configTarget.status).label}</p>
-            <p style={{ margin: 0 }}><strong>Description:</strong> {configTarget.description}</p>
-            <p style={{ margin: 0, color: 'var(--fg-muted)', fontSize: 13 }}>
-              Configuration settings for {configTarget.name} integration. Connect via API key or OAuth flow.
-            </p>
-          </div>
-        )}
+      {/* Configure modal — GitHub Enterprise gets a real form */}
+      <Modal
+        open={configTarget === 'GitHub Enterprise'}
+        onClose={() => setConfigTarget(null)}
+        title="Configure GitHub Enterprise"
+        width={520}
+      >
+        <GitHubEnterpriseConfigForm onClose={() => setConfigTarget(null)} />
       </Modal>
 
-      <Modal open={!!importDetail} onClose={() => setImportDetail(null)} title="Import details" width={420}>
-        {importDetail && (
-          <dl className={styles.importDetail}>
-            <div><dt>File</dt><dd>{importDetail.file}</dd></div>
-            <div><dt>Type</dt><dd>{importDetail.type}</dd></div>
-            <div><dt>Size</dt><dd>{importDetail.size}</dd></div>
-            <div><dt>Records imported</dt><dd>{importDetail.records.toLocaleString()}</dd></div>
-            <div><dt>Imported at</dt><dd>{importDetail.importedAt}</dd></div>
-            <div><dt>Status</dt><dd>{importDetail.status}</dd></div>
-            <p className={styles.importNote}>
-              If any rows were skipped or had errors, details are available in the processing log.
-            </p>
-          </dl>
-        )}
+      {/* Configure modal — Coming-soon integrations */}
+      <Modal
+        open={configTarget !== null && configTarget !== 'GitHub Enterprise'}
+        onClose={() => setConfigTarget(null)}
+        title={configTarget ? `Configure ${configTarget}` : ''}
+      >
+        <p style={{ margin: 0, color: 'var(--fg-muted)', fontSize: 13 }}>
+          Configuration for {configTarget} is coming soon.
+        </p>
       </Modal>
     </div>
   );

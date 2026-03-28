@@ -64,3 +64,12 @@ export interface ReportParams {
   granularity?: ReportGranularity;
   window_days?: 7 | 30 | 60 | 90;
 }
+
+export interface ReportCatalogEntry {
+  readonly id: string;
+  readonly type: string;
+  readonly title: string;
+  readonly generated_at: string;
+  readonly status: string;
+  readonly tags: readonly string[];
+}

@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { MetricCard } from '../../components/primitives/MetricCard';
-import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import {
@@ -57,8 +56,6 @@ export function AppGovernancePane() {
 
   return (
     <div className={styles.pane}>
-      <SampleDataBanner message="App governance signals are derived from audit log events. OAuth and webhook metrics reflect the last 90 days of activity." />
-
       {/* OAuth & App Summary (90d) */}
       <div>
         <div className={styles.sectionTitle}>OAuth &amp; app summary (90d)</div>

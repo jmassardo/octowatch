@@ -1293,3 +1293,484 @@ async def get_threat_intel_summary(
             "last_added_at": None,
         }
     return dict(row)
+
+
+async def get_ghost_members(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    dormancy_days: int = 90,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Find members with no audit log activity in the last N days."""
+    result = await session.execute(
+        text(f"""
+            WITH all_actors AS (
+                SELECT DISTINCT actor FROM events
+                WHERE org = ANY(:scoped_orgs) AND actor IS NOT NULL
+                  AND created_at >= NOW() - INTERVAL '365 days'
+            ),
+            recent_actors AS (
+                SELECT DISTINCT actor FROM events
+                WHERE org = ANY(:scoped_orgs) AND actor IS NOT NULL
+                  AND created_at >= NOW() - INTERVAL '{int(dormancy_days)} days'
+            )
+            SELECT a.actor,
+                   e.last_active
+            FROM all_actors a
+            LEFT JOIN LATERAL (
+                SELECT MAX(created_at) AS last_active FROM events
+                WHERE actor = a.actor AND org = ANY(:scoped_orgs)
+            ) e ON true
+            WHERE a.actor NOT IN (SELECT actor FROM recent_actors)
+            ORDER BY e.last_active ASC NULLS FIRST
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": limit},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_stale_prs(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    stale_days: int = 30,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Find PRs that have been open longer than stale_days."""
+    result = await session.execute(
+        text(f"""
+            WITH opened AS (
+                SELECT org, repo, data->>'number' AS pr_number,
+                       data->>'title' AS title, actor,
+                       created_at AS opened_at
+                FROM events
+                WHERE action IN ('pull_request.opened', 'pull_request.reopened')
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '365 days'
+            ),
+            closed AS (
+                SELECT org, repo, data->>'number' AS pr_number
+                FROM events
+                WHERE action IN ('pull_request.closed', 'pull_request.merged')
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '365 days'
+            )
+            SELECT o.org, o.repo, o.pr_number, o.title, o.actor, o.opened_at,
+                   EXTRACT(DAYS FROM NOW() - o.opened_at)::INT AS days_open
+            FROM opened o
+            LEFT JOIN closed c USING (org, repo, pr_number)
+            WHERE c.pr_number IS NULL
+              AND o.opened_at < NOW() - INTERVAL '{int(stale_days)} days'
+            ORDER BY o.opened_at ASC
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": limit},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_unhealthy_webhooks(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Find webhooks/apps with recent error signals."""
+    result = await session.execute(
+        text("""
+            SELECT org, repo, action, actor,
+                   data->>'hook_id' AS hook_id,
+                   data->>'name' AS app_name,
+                   data->>'config_url' AS config_url,
+                   created_at
+            FROM events
+            WHERE action IN (
+                'hook.destroy', 'integration.destroy',
+                'oauth_application.destroy', 'hook.create',
+                'integration_installation.destroy'
+            )
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+            ORDER BY created_at DESC
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": limit},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_skipped_workflows(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Find workflows that have been disabled or are consistently skipped."""
+    result = await session.execute(
+        text("""
+            SELECT org, repo, action, actor,
+                   data->>'name' AS workflow_name,
+                   data->>'workflow_id' AS workflow_id,
+                   created_at
+            FROM events
+            WHERE action IN (
+                'workflows.disable_workflow',
+                'workflows.delete_workflow'
+            )
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+            ORDER BY created_at DESC
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": limit},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_waf_findings(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+) -> list[dict[str, Any]]:
+    """Evaluate Well-Architected Framework alignment signals against audit events."""
+    findings: list[dict[str, Any]] = []
+
+    # 1. Audit log streaming (governance / security)
+    stream_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt FROM events
+            WHERE action LIKE 'audit_log_streaming.%%'
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '30 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    stream_count = stream_result.scalar() or 0
+    findings.append(
+        {
+            "id": "waf-audit-streaming",
+            "pillar": "governance",
+            "finding": "Audit log streaming configuration",
+            "severity": "info" if stream_count > 0 else "warning",
+            "status": "pass" if stream_count > 0 else "warning",
+            "evaluated": True,
+            "detail": (
+                f"{stream_count} streaming events in last 30 days"
+                if stream_count > 0
+                else "No audit log streaming events detected"
+            ),
+            "evidence_count": stream_count,
+        }
+    )
+
+    # 2. Secret scanning enablement (security)
+    secret_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE action = 'repository.enable_secret_scanning'
+                ) AS enabled,
+                COUNT(*) FILTER (
+                    WHERE action = 'repository.disable_secret_scanning'
+                ) AS disabled
+            FROM events
+            WHERE action IN (
+                'repository.enable_secret_scanning',
+                'repository.disable_secret_scanning'
+            )
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    secret_row = secret_result.mappings().first()
+    enabled_count = (secret_row["enabled"] if secret_row else 0) or 0
+    disabled_count = (secret_row["disabled"] if secret_row else 0) or 0
+    findings.append(
+        {
+            "id": "waf-secret-scanning",
+            "pillar": "appsec",
+            "finding": "Secret scanning enablement",
+            "severity": "critical" if disabled_count > 0 else "info",
+            "status": "fail" if disabled_count > 0 else "pass",
+            "evaluated": True,
+            "detail": (
+                f"{disabled_count} repos disabled secret scanning, "
+                f"{enabled_count} repos enabled in last 90 days"
+            ),
+            "evidence_count": enabled_count + disabled_count,
+        }
+    )
+
+    # 3. Branch protection coverage (reliability)
+    bp_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE action IN (
+                        'protected_branch.destroy',
+                        'protected_branch.policy_override'
+                    )
+                ) AS removed_or_overridden,
+                COUNT(*) FILTER (
+                    WHERE action = 'protected_branch.create'
+                ) AS created
+            FROM events
+            WHERE action IN (
+                'protected_branch.create',
+                'protected_branch.destroy',
+                'protected_branch.policy_override'
+            )
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    bp_row = bp_result.mappings().first()
+    bp_removed = (bp_row["removed_or_overridden"] if bp_row else 0) or 0
+    bp_created = (bp_row["created"] if bp_row else 0) or 0
+    findings.append(
+        {
+            "id": "waf-branch-protection",
+            "pillar": "governance",
+            "finding": "Branch protection coverage",
+            "severity": "critical" if bp_removed > bp_created else "info",
+            "status": "fail" if bp_removed > bp_created else "pass",
+            "evaluated": True,
+            "detail": (
+                f"{bp_created} branch protections created, "
+                f"{bp_removed} removed/overridden in last 90 days"
+            ),
+            "evidence_count": bp_created + bp_removed,
+        }
+    )
+
+    # 4. SAML/SSO status (security)
+    sso_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE action LIKE 'org.saml_%%' OR action LIKE 'org.sso_%%'
+                ) AS sso_events,
+                COUNT(*) FILTER (
+                    WHERE action IN (
+                        'org.disable_saml', 'org.disable_two_factor_requirement'
+                    )
+                ) AS sso_disabled
+            FROM events
+            WHERE (action LIKE 'org.saml_%%'
+                   OR action LIKE 'org.sso_%%'
+                   OR action = 'org.disable_two_factor_requirement')
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    sso_row = sso_result.mappings().first()
+    sso_events = (sso_row["sso_events"] if sso_row else 0) or 0
+    sso_disabled = (sso_row["sso_disabled"] if sso_row else 0) or 0
+    findings.append(
+        {
+            "id": "waf-sso-status",
+            "pillar": "governance",
+            "finding": "SAML / SSO enforcement",
+            "severity": "critical" if sso_disabled > 0 else "info",
+            "status": ("fail" if sso_disabled > 0 else ("pass" if sso_events > 0 else "warning")),
+            "evaluated": True,
+            "detail": (
+                f"{sso_disabled} SSO disable events detected"
+                if sso_disabled > 0
+                else (
+                    f"{sso_events} SSO configuration events in last 90 days"
+                    if sso_events > 0
+                    else "No SSO-related events detected"
+                )
+            ),
+            "evidence_count": sso_events,
+        }
+    )
+
+    # 5. IP allowlist (security)
+    ip_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt FROM events
+            WHERE action LIKE 'ip_allow_list%%'
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    ip_count = ip_result.scalar() or 0
+    findings.append(
+        {
+            "id": "waf-ip-allowlist",
+            "pillar": "governance",
+            "finding": "IP allowlist configuration",
+            "severity": "info" if ip_count > 0 else "warning",
+            "status": "pass" if ip_count > 0 else "warning",
+            "evaluated": True,
+            "detail": (
+                f"{ip_count} IP allowlist events in last 90 days"
+                if ip_count > 0
+                else "No IP allowlist configuration events detected"
+            ),
+            "evidence_count": ip_count,
+        }
+    )
+
+    # 6. Dependabot alerts (operational excellence)
+    dep_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE action = 'dependabot_alerts.enable'
+                ) AS enabled,
+                COUNT(*) FILTER (
+                    WHERE action = 'dependabot_alerts.disable'
+                ) AS disabled
+            FROM events
+            WHERE action IN (
+                'dependabot_alerts.enable', 'dependabot_alerts.disable'
+            )
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    dep_row = dep_result.mappings().first()
+    dep_enabled = (dep_row["enabled"] if dep_row else 0) or 0
+    dep_disabled = (dep_row["disabled"] if dep_row else 0) or 0
+    findings.append(
+        {
+            "id": "waf-dependabot",
+            "pillar": "appsec",
+            "finding": "Dependabot alert coverage",
+            "severity": "warning" if dep_disabled > 0 else "info",
+            "status": "warning" if dep_disabled > 0 else "pass",
+            "evaluated": True,
+            "detail": (
+                f"{dep_disabled} repos disabled Dependabot alerts, "
+                f"{dep_enabled} repos enabled in last 90 days"
+            ),
+            "evidence_count": dep_enabled + dep_disabled,
+        }
+    )
+
+    # 7. Code scanning (security)
+    cs_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt FROM events
+            WHERE action LIKE 'code_scanning.%%'
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    cs_count = cs_result.scalar() or 0
+    findings.append(
+        {
+            "id": "waf-code-scanning",
+            "pillar": "appsec",
+            "finding": "Code scanning activity",
+            "severity": "info" if cs_count > 0 else "warning",
+            "status": "pass" if cs_count > 0 else "warning",
+            "evaluated": True,
+            "detail": (
+                f"{cs_count} code scanning events in last 90 days"
+                if cs_count > 0
+                else "No code scanning events detected"
+            ),
+            "evidence_count": cs_count,
+        }
+    )
+
+    # 8. Webhook health (operational excellence)
+    wh_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE action = 'hook.destroy'
+                ) AS destroyed,
+                COUNT(*) FILTER (
+                    WHERE action = 'hook.create'
+                ) AS created
+            FROM events
+            WHERE action IN ('hook.create', 'hook.destroy')
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    wh_row = wh_result.mappings().first()
+    wh_destroyed = (wh_row["destroyed"] if wh_row else 0) or 0
+    wh_created = (wh_row["created"] if wh_row else 0) or 0
+    findings.append(
+        {
+            "id": "waf-webhook-health",
+            "pillar": "governance",
+            "finding": "Webhook lifecycle management",
+            "severity": "warning" if wh_destroyed > wh_created else "info",
+            "status": "warning" if wh_destroyed > wh_created else "pass",
+            "evaluated": True,
+            "detail": (f"{wh_created} webhooks created, {wh_destroyed} destroyed in last 90 days"),
+            "evidence_count": wh_created + wh_destroyed,
+        }
+    )
+
+    # 9. Push protection bypasses (governance)
+    bypass_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt FROM events
+            WHERE action = 'secret_scanning.push_protection.bypass'
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    bypass_count = bypass_result.scalar() or 0
+    findings.append(
+        {
+            "id": "waf-push-protection-bypass",
+            "pillar": "governance",
+            "finding": "Push protection bypass events",
+            "severity": "critical" if bypass_count > 0 else "info",
+            "status": "fail" if bypass_count > 0 else "pass",
+            "evaluated": True,
+            "detail": (
+                f"{bypass_count} push protection bypasses in last 90 days"
+                if bypass_count > 0
+                else "No push protection bypass events detected"
+            ),
+            "evidence_count": bypass_count,
+        }
+    )
+
+    # 10. Direct pushes to default branch (appsec)
+    push_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt FROM events
+            WHERE action = 'git.push'
+              AND (data->>'ref' = 'refs/heads/main'
+                   OR data->>'ref' = 'refs/heads/master')
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    push_count = push_result.scalar() or 0
+    findings.append(
+        {
+            "id": "waf-direct-push",
+            "pillar": "appsec",
+            "finding": "Direct pushes to default branch",
+            "severity": "warning" if push_count > 5 else "info",
+            "status": "warning" if push_count > 5 else "pass",
+            "evaluated": True,
+            "detail": f"{push_count} direct pushes to main/master in last 90 days",
+            "evidence_count": push_count,
+        }
+    )
+
+    return findings

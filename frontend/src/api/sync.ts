@@ -24,3 +24,11 @@ export function cancelSyncRun(runId: string): Promise<void> {
 export function getSyncConfig(): Promise<SyncConfig> {
   return api.get<SyncConfig>('/admin/sync/config');
 }
+
+export function updateSyncConfig(updates: {
+  sync_enabled?: boolean;
+  interval_days?: number;
+  orgs?: string[];
+}): Promise<SyncConfig> {
+  return api.put<SyncConfig>('/admin/sync/config', updates);
+}

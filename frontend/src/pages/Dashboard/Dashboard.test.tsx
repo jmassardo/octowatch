@@ -65,15 +65,34 @@ describe('DashboardPage', () => {
   it('renders the page title', () => {
     renderWithProviders(<DashboardPage />);
 
-    expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    expect(screen.getByText(/Dashboard/)).toBeInTheDocument();
   });
 
-  it('renders the page subtitle', () => {
+  it('renders the page subtitle with last synced time', async () => {
     renderWithProviders(<DashboardPage />);
 
+    // systemHealth resolves asynchronously with last_event_at
     expect(
-      screen.getByText(/activity across your organizations/i),
+      await screen.findByText(/last synced:/i),
     ).toBeInTheDocument();
+  });
+
+  it('shows fallback subtitle when no system health data', () => {
+    mockGetSystemHealth.mockResolvedValue({
+      gap_detected: false,
+      gap_duration_minutes: null,
+      last_event_at: null,
+    });
+    renderWithProviders(<DashboardPage />);
+
+    expect(screen.getByText(/activity across your organizations/i)).toBeInTheDocument();
+  });
+
+  it('shows org label in page title', () => {
+    renderWithProviders(<DashboardPage />);
+
+    // Default org context is empty string → "All organizations"
+    expect(screen.getByText(/All organizations/)).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */

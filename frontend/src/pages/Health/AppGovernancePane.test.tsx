@@ -91,11 +91,11 @@ describe('AppGovernancePane', () => {
     expect(screen.getByText('Failed to load app governance data')).toBeInTheDocument();
   });
 
-  it('renders the sample data banner', () => {
+  it('does not render a sample data banner', () => {
     renderPane();
     expect(
-      screen.getByText(/App governance signals are derived from audit log events/),
-    ).toBeInTheDocument();
+      screen.queryByText(/App governance signals are derived from audit log events/),
+    ).not.toBeInTheDocument();
   });
 
   /* ---- OAuth & App Summary ---- */

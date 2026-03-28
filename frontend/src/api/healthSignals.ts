@@ -285,7 +285,7 @@ export interface RunnerHealthResponse {
 }
 
 export function getWorkflowHealth(): Promise<WorkflowHealthResponse> {
-  return api.get<WorkflowHealthResponse>('/health-signals/workflow-health');
+  return api.get<WorkflowHealthResponse>('/health-signals/workflows');
 }
 
 export function getBranchProtection(): Promise<BranchProtectionResponse> {
@@ -309,6 +309,7 @@ export function getRunnerHealth(): Promise<RunnerHealthResponse> {
 export interface SystemHealthResponse {
   gap_detected: boolean;
   gap_duration_minutes: number | null;
+  last_event_at: string | null;
 }
 
 export interface ExtendedHealthSummary extends HealthSummary {
@@ -322,4 +323,124 @@ export function getSystemHealth(): Promise<SystemHealthResponse> {
 
 export function getExtendedHealthSummary(): Promise<ExtendedHealthSummary> {
   return api.get<ExtendedHealthSummary>('/health-signals/summary');
+}
+
+// --- Health Settings ---
+
+export function getHealthSettings(): Promise<Record<string, unknown>> {
+  return api.get<Record<string, unknown>>('/health-signals/settings');
+}
+
+export function updateHealthSettings(
+  settings: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  return api.put<Record<string, unknown>>('/health-signals/settings', settings);
+}
+
+// --- Ghost Members (License Pane) ---
+
+export interface GhostMember {
+  actor: string;
+  last_active: string | null;
+}
+
+export interface GhostMembersResponse {
+  ghost_members: GhostMember[];
+}
+
+export function getGhostMembers(
+  dormancyDays = 90,
+  limit = 50,
+): Promise<GhostMembersResponse> {
+  return api.get<GhostMembersResponse>('/health-signals/ghost-members', {
+    dormancy_days: dormancyDays,
+    limit,
+  });
+}
+
+// --- Maintenance Signals ---
+
+export interface StalePrResponse {
+  org: string;
+  repo: string;
+  pr_number: string;
+  title: string;
+  actor: string;
+  opened_at: string;
+  days_open: number;
+}
+
+export function getStalePrs(
+  staleDays = 30,
+  limit = 50,
+): Promise<{ stale_prs: StalePrResponse[] }> {
+  return api.get('/health-signals/stale-prs', {
+    stale_days: staleDays,
+    limit,
+  });
+}
+
+export interface UnhealthyHook {
+  org: string;
+  repo: string;
+  action: string;
+  actor: string;
+  hook_id: string | null;
+  app_name: string | null;
+  config_url: string | null;
+  created_at: string;
+}
+
+export function getUnhealthyHooks(
+  limit = 50,
+): Promise<{ unhealthy_hooks: UnhealthyHook[] }> {
+  return api.get('/health-signals/unhealthy-hooks', { limit });
+}
+
+export interface SkippedWorkflowResponse {
+  org: string;
+  repo: string;
+  action: string;
+  actor: string;
+  workflow_name: string | null;
+  workflow_id: string | null;
+  created_at: string;
+}
+
+export function getSkippedWorkflows(
+  limit = 50,
+): Promise<{ skipped_workflows: SkippedWorkflowResponse[] }> {
+  return api.get('/health-signals/skipped-workflows', { limit });
+}
+
+// --- WAF Findings ---
+
+export interface WafFindingResponse {
+  id: string;
+  pillar: string;
+  finding: string;
+  severity: string;
+  status: string;
+  evaluated: boolean;
+  detail: string;
+  evidence_count: number;
+}
+
+export function getWafFindings(): Promise<{ findings: WafFindingResponse[] }> {
+  return api.get('/health-signals/waf-findings');
+}
+
+export interface TeamInfo {
+  readonly org: string;
+  readonly team_slug: string;
+  readonly team_name: string;
+  readonly members: readonly string[];
+}
+
+export interface TeamsResponse {
+  readonly teams: readonly TeamInfo[];
+}
+
+export function getTeams(): Promise<TeamsResponse> {
+  return api.get<TeamsResponse>('/health-signals/teams');
 }

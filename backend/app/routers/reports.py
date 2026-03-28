@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -29,6 +30,20 @@ def _gran_dep(granularity: str = "daily") -> str:
     if granularity not in _GRANULARITY_VALUES:
         return "daily"
     return granularity
+
+
+@router.get("/catalog", response_model=list[dict[str, Any]])
+async def report_catalog(
+    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """Return available and previously generated reports.
+
+    The v1 system uses TimescaleDB views rather than stored report jobs,
+    so this endpoint returns an empty list until a report-job pipeline
+    is implemented.
+    """
+    return []
 
 
 @router.get("/mau", response_model=ReportEnvelope)

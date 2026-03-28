@@ -156,7 +156,13 @@ export function ThreatsPage() {
           )}
 
           {!isLoading && !isError && items.length === 0 && (
-            <div className={styles.emptyRow}>No detections found</div>
+            <div className={styles.emptyRow}>
+              {tab === 'open'
+                ? 'No open threats detected — all clear ✓'
+                : tab === 'closed'
+                  ? 'No closed detections. Resolved detections will appear here.'
+                  : 'No detections found'}
+            </div>
           )}
 
           {items.map((d) => (
