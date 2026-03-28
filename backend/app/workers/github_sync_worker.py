@@ -530,17 +530,28 @@ async def _bootstrap_app_configs(settings: object) -> list:
     Called when the table is empty but env vars are configured. Uses the App JWT
     to list installations from the GitHub API, then inserts a config row for each.
     """
+    import time
+
     import httpx
+    import jwt
     from sqlalchemy import select
 
     from app.models.github_sync import GitHubAppConfig
-    from app.services.github_token_service import GitHubTokenService
 
-    token_svc = GitHubTokenService(settings)
+    app_id = settings.github_app.GITHUB_APP_ID
+    key_path = settings.github_app.GITHUB_APP_PRIVATE_KEY_PATH
+    if not app_id or not key_path:
+        logger.error("github_sync.bootstrap_missing_env", app_id=app_id, key_path=key_path)
+        return []
+
     try:
-        app_jwt = token_svc._generate_app_jwt()
-    except Exception:
-        logger.error("github_sync.bootstrap_jwt_failed")
+        with open(key_path) as f:
+            private_key = f.read()
+        now = int(time.time())
+        payload = {"iat": now - 60, "exp": now + 600, "iss": str(app_id)}
+        app_jwt = jwt.encode(payload, private_key, algorithm="RS256")
+    except Exception as exc:
+        logger.error("github_sync.bootstrap_jwt_failed", error=str(exc))
         return []
 
     try:
@@ -567,7 +578,7 @@ async def _bootstrap_app_configs(settings: object) -> list:
     async with AsyncSessionLocal() as session:
         for inst in installations:
             config = GitHubAppConfig(
-                app_id=settings.github_app.GITHUB_APP_ID,
+                app_id=app_id,
                 installation_id=inst["id"],
                 enterprise_slug=inst.get("account", {}).get("login")
                 if inst.get("target_type") == "Enterprise"
