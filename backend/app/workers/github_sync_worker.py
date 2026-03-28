@@ -211,6 +211,12 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
     if not configs and settings.github_app.GITHUB_APP_ID:
         configs = await _bootstrap_app_configs(settings)
 
+    # Promote org-level installations discovered by a previous sync into
+    # github_app_configs so the orchestrator uses the correct (org-scoped)
+    # installation token for org-level API calls.
+    if configs and settings.github_app.GITHUB_APP_ID:
+        configs = await _sync_installation_configs(configs, settings)
+
     if not configs:
         logger.error("github_sync.no_configs", run_id=run_id)
         async with _make_session_factory()() as session:
@@ -253,47 +259,65 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
             sync_orgs = discovered
             logger.info("github_sync.auto_discovered_orgs", orgs=sync_orgs)
 
+    # Separate enterprise and org configs for correct dispatch
+    enterprise_configs = [c for c in configs if c.enterprise_slug and not c.org_login]
+    org_configs = [c for c in configs if c.org_login]
+
     dispatched: list[tuple[str, str | None]] = []
-    for config in configs:
+
+    # Enterprise-level entities: use enterprise installation
+    for config in enterprise_configs:
         for entity_type in entity_types:
-            if entity_type in _ENTERPRISE_ENTITIES:
-                # Pass enterprise_slug via the `org` field for enterprise entities
-                # so _fetch_page knows which enterprise to query via GraphQL
-                enterprise_slug = config.enterprise_slug
+            if entity_type not in _ENTERPRISE_ENTITIES:
+                continue
+            sync_entity.apply_async(
+                kwargs={
+                    "run_id": run_id,
+                    "entity_type": entity_type,
+                    "org": config.enterprise_slug,
+                    "installation_id": config.installation_id,
+                    "cursor": None,
+                },
+                queue="github_sync",
+            )
+            dispatched.append((entity_type, config.enterprise_slug))
+
+    # Org-level entities: prefer org-specific installations (broader access),
+    # fall back to enterprise installation + discovered orgs
+    org_entity_types = [e for e in entity_types if e in _ORG_ENTITIES]
+    dispatched_orgs: set[str] = set()
+
+    for config in org_configs:
+        for entity_type in org_entity_types:
+            sync_entity.apply_async(
+                kwargs={
+                    "run_id": run_id,
+                    "entity_type": entity_type,
+                    "org": config.org_login,
+                    "installation_id": config.installation_id,
+                    "cursor": None,
+                },
+                queue="github_sync",
+            )
+            dispatched.append((entity_type, config.org_login))
+        dispatched_orgs.add(config.org_login)
+
+    # For any discovered orgs without their own installation, use enterprise token
+    if enterprise_configs:
+        remaining_orgs = [o for o in sync_orgs if o not in dispatched_orgs]
+        for org in remaining_orgs:
+            for entity_type in org_entity_types:
                 sync_entity.apply_async(
                     kwargs={
                         "run_id": run_id,
                         "entity_type": entity_type,
-                        "org": enterprise_slug,
-                        "installation_id": config.installation_id,
+                        "org": org,
+                        "installation_id": enterprise_configs[0].installation_id,
                         "cursor": None,
                     },
                     queue="github_sync",
                 )
-                dispatched.append((entity_type, enterprise_slug))
-            else:
-                # Org-level entity — need actual org login(s)
-                org_list = [config.org_login] if config.org_login else sync_orgs
-                if not org_list:
-                    logger.warning(
-                        "github_sync.no_orgs_for_entity",
-                        entity_type=entity_type,
-                        config_id=config.id,
-                        hint="Set GITHUB_SYNC_ORGS or install the App on individual orgs",
-                    )
-                    continue
-                for org in org_list:
-                    sync_entity.apply_async(
-                        kwargs={
-                            "run_id": run_id,
-                            "entity_type": entity_type,
-                            "org": org,
-                            "installation_id": config.installation_id,
-                            "cursor": None,
-                        },
-                        queue="github_sync",
-                    )
-                    dispatched.append((entity_type, org))
+                dispatched.append((entity_type, org))
 
     logger.info(
         "github_sync.orchestrator_dispatched",
@@ -1362,6 +1386,74 @@ async def _upsert_items(
         logger.error("github_sync.unknown_upsert_entity", entity_type=entity_type)
         return
     await handler(session, org, items)
+
+
+async def _sync_installation_configs(
+    existing_configs: list, settings: object
+) -> list:
+    """Promote org-level installations into github_app_configs.
+
+    Compares ``github_app_installations`` (synced from the API) with
+    ``github_app_configs`` (used by the orchestrator). Any org-level
+    installation that exists in the former but not the latter is inserted
+    as a new config row so that subsequent syncs use the org-scoped
+    installation token — which typically has broader repository access
+    than the enterprise-level token.
+
+    Returns the updated list of configs.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import GitHubAppConfig, GitHubAppInstallation
+
+    app_id = settings.github_app.GITHUB_APP_ID
+    existing_inst_ids = {c.installation_id for c in existing_configs}
+
+    async with _make_session_factory()() as session:
+        result = await session.execute(
+            select(GitHubAppInstallation).where(
+                GitHubAppInstallation.app_id == app_id,
+                GitHubAppInstallation.target_type == "Organization",
+            )
+        )
+        org_installations = result.scalars().all()
+
+        new_configs = []
+        for inst in org_installations:
+            if inst.installation_id in existing_inst_ids:
+                continue
+            stmt = (
+                insert(GitHubAppConfig)
+                .values(
+                    app_id=app_id,
+                    installation_id=inst.installation_id,
+                    enterprise_slug=None,
+                    org_login=inst.target_login,
+                    enabled=True,
+                )
+                .on_conflict_do_update(
+                    constraint="uq_github_app_configs_app_install",
+                    set_={"org_login": inst.target_login, "enabled": True},
+                )
+                .returning(GitHubAppConfig)
+            )
+            row = await session.execute(stmt)
+            new_configs.append(row.scalar_one())
+
+        if new_configs:
+            await session.commit()
+            logger.info(
+                "github_sync.promoted_installations",
+                count=len(new_configs),
+                orgs=[c.org_login for c in new_configs],
+            )
+
+        # Reload all configs
+        result = await session.execute(
+            select(GitHubAppConfig).where(GitHubAppConfig.enabled == True)  # noqa: E712
+        )
+        return list(result.scalars().all())
 
 
 async def _bootstrap_app_configs(settings: object) -> list:
