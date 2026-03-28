@@ -173,7 +173,7 @@ async def get_run_detail(
     return detail
 
 
-@router.delete("/runs/{run_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/runs/{run_id}/cancel", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def cancel_run(
     run_id: uuid.UUID,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),

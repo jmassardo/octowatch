@@ -200,6 +200,20 @@ _INSERT_SQL = text("""
 
 
 def upgrade() -> None:
+    # Extend logic_type CHECK constraint to include 'cross_namespace_sequence'
+    op.execute("""
+        ALTER TABLE rule_definitions
+            DROP CONSTRAINT IF EXISTS rule_definitions_logic_type_check;
+    """)
+    op.execute("""
+        ALTER TABLE rule_definitions
+            ADD CONSTRAINT rule_definitions_logic_type_check
+            CHECK (logic_type IN (
+                'threshold', 'pattern', 'sequence', 'statistical',
+                'cross_namespace_sequence'
+            ));
+    """)
+
     bind = op.get_bind()
     for (
         name,
