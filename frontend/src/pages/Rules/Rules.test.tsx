@@ -63,6 +63,8 @@ vi.mock('../../api/rules', () => ({
   createRule: vi.fn().mockResolvedValue({}),
   updateRule: vi.fn().mockResolvedValue({}),
   deleteRule: vi.fn().mockResolvedValue(undefined),
+  listRuleVersions: vi.fn().mockResolvedValue([]),
+  validateRuleConfig: vi.fn().mockResolvedValue({ valid: true, errors: [], warnings: [] }),
 }));
 
 describe('RulesPage', () => {
@@ -128,7 +130,7 @@ describe('RulesPage', () => {
     const versionLink = await screen.findByText('v2.0.0');
     await user.click(versionLink);
 
-    expect(await screen.findByText('Version details')).toBeInTheDocument();
+    expect(await screen.findByText('Version history')).toBeInTheDocument();
   });
 
   it('version modal shows rule name, version number, and status', async () => {
@@ -138,7 +140,7 @@ describe('RulesPage', () => {
     const versionLink = await screen.findByText('v2.0.0');
     await user.click(versionLink);
 
-    const modalTitle = await screen.findByText('Version details');
+    const modalTitle = await screen.findByText('Version history');
     const modal = modalTitle.closest('.dialog')!;
 
     expect(within(modal as HTMLElement).getByText('Rule name')).toBeInTheDocument();
