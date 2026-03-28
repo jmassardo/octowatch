@@ -37,13 +37,77 @@ async def report_catalog(
     current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
-    """Return available and previously generated reports.
+    """Return the catalog of available report types.
 
-    The v1 system uses TimescaleDB views rather than stored report jobs,
-    so this endpoint returns an empty list until a report-job pipeline
-    is implemented.
+    Each entry describes a report that can be generated on-demand via the
+    corresponding ``/reports/{type}`` endpoint or exported via ``/reports/export/{type}``.
     """
-    return []
+    return [
+        {
+            "id": "mau",
+            "type": "mau",
+            "title": "Monthly Active Users",
+            "description": "Unique actors performing audit-logged actions per time bucket.",
+            "generated_at": None,
+            "status": "available",
+        },
+        {
+            "id": "seat-utilization",
+            "type": "seat-utilization",
+            "title": "Seat Utilization",
+            "description": "Active vs. provisioned GitHub Copilot seats over time.",
+            "generated_at": None,
+            "status": "available",
+        },
+        {
+            "id": "actions-volume",
+            "type": "actions-volume",
+            "title": "Actions Volume",
+            "description": "GitHub Actions workflow run volume and trends.",
+            "generated_at": None,
+            "status": "available",
+        },
+        {
+            "id": "copilot-seats",
+            "type": "copilot-seats",
+            "title": "Copilot Seats",
+            "description": "Copilot seat assignment, revocation, and net change.",
+            "generated_at": None,
+            "status": "available",
+        },
+        {
+            "id": "repo-creation-rate",
+            "type": "repo-creation-rate",
+            "title": "Repository Creation Rate",
+            "description": "New repository creation volume over time.",
+            "generated_at": None,
+            "status": "available",
+        },
+        {
+            "id": "pat-counts",
+            "type": "pat-counts",
+            "title": "Personal Access Tokens",
+            "description": "PAT creation and revocation events over time.",
+            "generated_at": None,
+            "status": "available",
+        },
+        {
+            "id": "webhook-counts",
+            "type": "webhook-counts",
+            "title": "Webhook Activity",
+            "description": "Webhook creation and delivery events over time.",
+            "generated_at": None,
+            "status": "available",
+        },
+        {
+            "id": "codespace-hours",
+            "type": "codespace-hours",
+            "title": "Codespace Hours",
+            "description": "GitHub Codespaces usage hours over time.",
+            "generated_at": None,
+            "status": "available",
+        },
+    ]
 
 
 @router.get("/mau", response_model=ReportEnvelope)
@@ -197,12 +261,19 @@ async def export_report_csv(
     """Export a report as CSV."""
     _REPORT_HANDLERS = {
         "mau": report_service.get_mau_report,
+        "seat-utilization": report_service.get_seat_utilization_report,
         "seat_utilization": report_service.get_seat_utilization_report,
+        "repo-creation-rate": report_service.get_repo_creation_rate_report,
         "repo_creation_rate": report_service.get_repo_creation_rate_report,
+        "actions-volume": report_service.get_actions_volume_report,
         "actions_volume": report_service.get_actions_volume_report,
+        "copilot-seats": report_service.get_copilot_seats_report,
         "copilot_seats": report_service.get_copilot_seats_report,
+        "codespace-hours": report_service.get_codespace_hours_report,
         "codespace_hours": report_service.get_codespace_hours_report,
+        "pat-counts": report_service.get_pat_counts_report,
         "pat_counts": report_service.get_pat_counts_report,
+        "webhook-counts": report_service.get_webhook_counts_report,
         "webhook_counts": report_service.get_webhook_counts_report,
     }
 

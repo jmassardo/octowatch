@@ -189,7 +189,7 @@ export function getSecretScanning(): Promise<SecretScanningResponse> {
 }
 
 export function getSsoHealth(): Promise<SsoHealthResponse> {
-  return api.get<SsoHealthResponse>('/health-signals/sso-health');
+  return api.get<SsoHealthResponse>('/health-signals/sso');
 }
 
 export function getPrivilegeChanges(): Promise<PrivilegeChangesResponse> {
@@ -307,7 +307,7 @@ export function getCodespaces(): Promise<CodespacesResponse> {
 }
 
 export function getRunnerHealth(): Promise<RunnerHealthResponse> {
-  return api.get<RunnerHealthResponse>('/health-signals/runner-health');
+  return api.get<RunnerHealthResponse>('/health-signals/runners');
 }
 
 // --- System Health & Extended Summary ---
