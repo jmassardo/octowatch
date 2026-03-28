@@ -243,9 +243,12 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
     # from GITHUB_SYNC_ORGS env or from the installation's accessible repos.
     sync_orgs = settings.github_app.sync_orgs_list
 
-    # Auto-discover orgs from accessible repos when no orgs are configured
+    # Auto-discover orgs from enterprise GraphQL or accessible repos
     if not sync_orgs and all(c.org_login is None for c in configs):
-        discovered = await _discover_orgs_from_installation(configs[0].installation_id)
+        enterprise_slug = next((c.enterprise_slug for c in configs if c.enterprise_slug), None)
+        discovered = await _discover_orgs_from_installation(
+            configs[0].installation_id, enterprise_slug
+        )
         if discovered:
             sync_orgs = discovered
             logger.info("github_sync.auto_discovered_orgs", orgs=sync_orgs)
@@ -254,17 +257,20 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
     for config in configs:
         for entity_type in entity_types:
             if entity_type in _ENTERPRISE_ENTITIES:
+                # Pass enterprise_slug via the `org` field for enterprise entities
+                # so _fetch_page knows which enterprise to query via GraphQL
+                enterprise_slug = config.enterprise_slug
                 sync_entity.apply_async(
                     kwargs={
                         "run_id": run_id,
                         "entity_type": entity_type,
-                        "org": None,
+                        "org": enterprise_slug,
                         "installation_id": config.installation_id,
                         "cursor": None,
                     },
                     queue="github_sync",
                 )
-                dispatched.append((entity_type, None))
+                dispatched.append((entity_type, enterprise_slug))
             else:
                 # Org-level entity — need actual org login(s)
                 org_list = [config.org_login] if config.org_login else sync_orgs
@@ -516,11 +522,19 @@ async def _check_sync_schedule_async() -> dict:
     return {"status": "triggered", "run_id": str(run_id)}
 
 
-async def _discover_orgs_from_installation(installation_id: int) -> list[str]:
-    """Discover org logins from an installation's accessible repositories.
+async def _discover_orgs_from_installation(
+    installation_id: int,
+    enterprise_slug: str | None = None,
+) -> list[str]:
+    """Discover org logins belonging to the enterprise.
 
-    Uses ``GET /installation/repositories`` with the installation token to find
-    unique owner logins.  Falls back to an empty list on any error.
+    Strategy:
+      1. If ``enterprise_slug`` is provided, query the GitHub GraphQL API to
+         list all organisations under that enterprise.
+      2. Fall back to ``GET /installation/repositories`` REST endpoint and
+         extract unique owner logins from accessible repositories.
+
+    Returns a sorted list of org login strings, or an empty list on error.
     """
     import redis.asyncio as aioredis
 
@@ -540,12 +554,25 @@ async def _discover_orgs_from_installation(installation_id: int) -> list[str]:
                 valkey_client=valkey,
             )
             token = await mgr.get_installation_token(installation_id)
+
+            # ── Strategy 1: GraphQL enterprise org listing ────────────────
+            if enterprise_slug:
+                orgs = await _graphql_list_enterprise_orgs(token, enterprise_slug)
+                if orgs:
+                    return orgs
+                logger.info(
+                    "github_sync.graphql_org_discovery_empty",
+                    enterprise_slug=enterprise_slug,
+                    fallback="REST /installation/repositories",
+                )
+
+            # ── Strategy 2: Derive orgs from accessible repos ────────────
             headers = {
                 "Authorization": f"token {token}",
                 "Accept": "application/vnd.github+json",
                 "X-GitHub-Api-Version": "2022-11-28",
             }
-            orgs: set[str] = set()
+            orgs_set: set[str] = set()
             page = 1
             async with httpx.AsyncClient(follow_redirects=False) as client:
                 while True:
@@ -562,16 +589,121 @@ async def _discover_orgs_from_installation(installation_id: int) -> list[str]:
                     for repo in repos:
                         owner = (repo.get("owner") or {}).get("login")
                         if owner:
-                            orgs.add(owner)
+                            orgs_set.add(owner)
                     if len(repos) < 100:
                         break
                     page += 1
+            return sorted(orgs_set)
         finally:
             await valkey.aclose()
-        return sorted(orgs)
     except Exception as exc:
         logger.warning("github_sync.org_discovery_failed", error=str(exc))
         return []
+
+
+# ── GraphQL helpers ───────────────────────────────────────────────────────────
+
+_GRAPHQL_URL = "https://api.github.com/graphql"
+
+_ENTERPRISE_ORGS_QUERY = """
+query($slug: String!, $first: Int!, $after: String) {
+  enterprise(slug: $slug) {
+    organizations(first: $first, after: $after) {
+      nodes { login databaseId }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}
+"""
+
+_ENTERPRISE_MEMBERS_QUERY = """
+query($slug: String!, $first: Int!, $after: String) {
+  enterprise(slug: $slug) {
+    members(first: $first, after: $after) {
+      nodes {
+        ... on EnterpriseUserAccount {
+          login
+          user { databaseId }
+        }
+        ... on User {
+          login
+          databaseId
+        }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}
+"""
+
+
+async def _graphql_page(
+    token: str,
+    query: str,
+    variables: dict,
+    rate_limiter: "GitHubRateLimiter | None" = None,
+) -> dict:
+    """Execute a single GraphQL request against the GitHub API.
+
+    If *rate_limiter* is provided, acquire/release around the request and
+    handle 429/403 automatically. When *rate_limiter* is ``None`` (used by
+    the discovery helper), the request is made without rate-limiting.
+    """
+    import httpx
+
+    headers = {
+        "Authorization": f"bearer {token}",
+        "Content-Type": "application/json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    payload = {"query": query, "variables": variables}
+
+    if rate_limiter is not None:
+        await rate_limiter.acquire()
+    try:
+        async with httpx.AsyncClient(follow_redirects=False) as client:
+            resp = await client.post(
+                _GRAPHQL_URL, json=payload, headers=headers, timeout=30
+            )
+        if rate_limiter is not None:
+            rate_limiter.update_from_headers(resp.headers)
+    finally:
+        if rate_limiter is not None:
+            rate_limiter.release()
+
+    if resp.status_code in (429, 403) and rate_limiter is not None:
+        await rate_limiter.handle_rate_limit_response(resp)
+        # Caller should retry
+        return {"data": None, "errors": [{"message": "rate_limited"}]}
+
+    resp.raise_for_status()
+    return resp.json()
+
+
+async def _graphql_list_enterprise_orgs(
+    token: str, enterprise_slug: str
+) -> list[str]:
+    """Return all org logins under *enterprise_slug* via the GraphQL API."""
+    orgs: list[str] = []
+    cursor: str | None = None
+    while True:
+        result = await _graphql_page(
+            token,
+            _ENTERPRISE_ORGS_QUERY,
+            {"slug": enterprise_slug, "first": 100, "after": cursor},
+        )
+        data = result.get("data")
+        if not data or not data.get("enterprise"):
+            break
+        org_conn = data["enterprise"]["organizations"]
+        for node in org_conn.get("nodes", []):
+            if node and node.get("login"):
+                orgs.append(node["login"])
+        page_info = org_conn.get("pageInfo", {})
+        if not page_info.get("hasNextPage"):
+            break
+        cursor = page_info["endCursor"]
+    return sorted(orgs)
 
 
 # ── Module-level rate limiter singleton ───────────────────────────────────────
@@ -676,8 +808,8 @@ async def _fetch_page(
     * ``branch_protections`` iterates repos page-by-page and checks the
       default-branch protection rule of each repo in that page.
     * ``installations`` uses the GitHub App JWT (not the installation token).
-    * ``orgs`` / ``enterprise_members`` require the GraphQL API and are
-      deferred to a future release; they return ``([], None)`` with a warning.
+    * ``orgs`` / ``enterprise_members`` use the GitHub GraphQL API with the
+      enterprise slug passed via the ``org`` parameter.
     """
     import json
 
@@ -697,6 +829,15 @@ async def _fetch_page(
             params["sort"] = "full_name"
 
         resp = await _github_get(url, headers, params, rate_limiter)
+        if resp.status_code == 403:
+            logger.warning(
+                "github_sync.permission_denied",
+                entity_type=entity_type,
+                org=org,
+                url=url,
+                hint="Check GitHub App permissions for this entity type",
+            )
+            return [], None
         resp.raise_for_status()
         items = resp.json()
         next_cursor = str(page + 1) if items and _has_next_page(resp.headers) else None
@@ -713,6 +854,14 @@ async def _fetch_page(
                 resp = await _github_get(
                     teams_url, headers, {"per_page": 100, "page": tp}, rate_limiter
                 )
+                if resp.status_code == 403:
+                    logger.warning(
+                        "github_sync.permission_denied",
+                        entity_type="team_members",
+                        org=org,
+                        hint="GitHub App needs 'members:read' permission",
+                    )
+                    return [], None
                 resp.raise_for_status()
                 batch = resp.json()
                 all_slugs.extend(t["slug"] for t in batch)
@@ -841,14 +990,79 @@ async def _fetch_page(
         next_cursor = str(page + 1) if items and _has_next_page(resp.headers) else None
         return items, next_cursor
 
-    # ── Enterprise-level entities (require GraphQL — deferred) ────────────
-    if entity_type in ("orgs", "enterprise_members"):
-        logger.warning(
-            "github_sync.entity_requires_graphql",
-            entity_type=entity_type,
-            message=f"{entity_type} sync requires GitHub GraphQL API (planned for future release)",
+    # ── Enterprise orgs (GraphQL) ────────────────────────────────────────
+    if entity_type == "orgs":
+        if not org:
+            logger.warning("github_sync.orgs_no_enterprise_slug")
+            return [], None
+        # org parameter holds the enterprise_slug for enterprise entities
+        enterprise_slug = org
+        result = await _graphql_page(
+            token,
+            _ENTERPRISE_ORGS_QUERY,
+            {"slug": enterprise_slug, "first": page_size, "after": cursor},
+            rate_limiter,
         )
-        return [], None
+        data = result.get("data")
+        if not data or not data.get("enterprise"):
+            errors = result.get("errors", [])
+            if errors:
+                logger.warning(
+                    "github_sync.graphql_error",
+                    entity_type="orgs",
+                    errors=errors,
+                )
+            return [], None
+        org_conn = data["enterprise"]["organizations"]
+        items = []
+        for node in org_conn.get("nodes", []):
+            if node and node.get("login"):
+                items.append({
+                    "_enterprise_slug": enterprise_slug,
+                    "login": node["login"],
+                    "databaseId": node.get("databaseId", 0),
+                })
+        page_info = org_conn.get("pageInfo", {})
+        next_cursor = page_info.get("endCursor") if page_info.get("hasNextPage") else None
+        return items, next_cursor
+
+    # ── Enterprise members (GraphQL) ──────────────────────────────────────
+    if entity_type == "enterprise_members":
+        if not org:
+            logger.warning("github_sync.enterprise_members_no_slug")
+            return [], None
+        enterprise_slug = org
+        result = await _graphql_page(
+            token,
+            _ENTERPRISE_MEMBERS_QUERY,
+            {"slug": enterprise_slug, "first": page_size, "after": cursor},
+            rate_limiter,
+        )
+        data = result.get("data")
+        if not data or not data.get("enterprise"):
+            errors = result.get("errors", [])
+            if errors:
+                logger.warning(
+                    "github_sync.graphql_error",
+                    entity_type="enterprise_members",
+                    errors=errors,
+                )
+            return [], None
+        member_conn = data["enterprise"]["members"]
+        items = []
+        for node in member_conn.get("nodes", []):
+            if not node or not node.get("login"):
+                continue
+            # GraphQL returns either EnterpriseUserAccount or User
+            db_id = node.get("databaseId") or (node.get("user") or {}).get("databaseId", 0)
+            items.append({
+                "_enterprise_slug": enterprise_slug,
+                "login": node["login"],
+                "databaseId": db_id,
+            })
+        page_info = member_conn.get("pageInfo", {})
+        next_cursor = page_info.get("endCursor") if page_info.get("hasNextPage") else None
+        return items, next_cursor
 
     logger.error("github_sync.unknown_entity_type", entity_type=entity_type)
     return [], None
@@ -1069,15 +1283,57 @@ async def _upsert_installations(
 async def _upsert_enterprise_orgs(
     session: AsyncSession, _org: str | None, items: list[dict]
 ) -> None:
-    """Upsert enterprise org rows. Deferred — items will be empty until GraphQL is added."""
-    pass
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import EnterpriseOrg
+
+    for item in items:
+        stmt = (
+            insert(EnterpriseOrg)
+            .values(
+                enterprise_slug=item["_enterprise_slug"],
+                org_login=item["login"],
+                org_id=item.get("databaseId", 0),
+            )
+            .on_conflict_do_update(
+                constraint="uq_enterprise_orgs_slug_login",
+                set_={
+                    "org_id": item.get("databaseId", 0),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
 
 
 async def _upsert_enterprise_members(
     session: AsyncSession, _org: str | None, items: list[dict]
 ) -> None:
-    """Upsert enterprise member rows. Deferred — items will be empty until GraphQL is added."""
-    pass
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import EnterpriseMember
+
+    for item in items:
+        stmt = (
+            insert(EnterpriseMember)
+            .values(
+                enterprise_slug=item["_enterprise_slug"],
+                github_login=item["login"],
+                github_id=item.get("databaseId", 0),
+            )
+            .on_conflict_do_update(
+                constraint="uq_enterprise_members_slug_login",
+                set_={
+                    "github_id": item.get("databaseId", 0),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
 
 
 async def _upsert_items(
