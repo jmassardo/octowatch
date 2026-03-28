@@ -315,3 +315,68 @@ async def list_active_sessions(
             }
         )
     return sessions
+
+
+# ─── Ingest job stubs ─────────────────────────────────────────────────────────
+
+
+@router.get("/ingest/jobs")
+async def list_ingest_jobs(
+    page: int = 1,
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List recent file ingestion jobs from audit trail."""
+    per_page = 20
+    offset = (page - 1) * per_page
+    result = await db.execute(
+        text("""
+            SELECT id, timestamp, parameters, outcome
+            FROM audit_trail
+            WHERE action_type = 'ingest.upload'
+            ORDER BY timestamp DESC
+            LIMIT :limit OFFSET :offset
+        """),
+        {"limit": per_page, "offset": offset},
+    )
+    rows = result.fetchall()
+    count_result = await db.execute(
+        text("SELECT COUNT(*) FROM audit_trail WHERE action_type = 'ingest.upload'")
+    )
+    total = count_result.scalar() or 0
+    items = [
+        {
+            "id": str(r.id),
+            "created_at": r.timestamp.isoformat(),
+            "status": r.outcome or "success",
+            "file_name": (r.parameters or {}).get("file_name", "unknown"),
+            "file_type": (r.parameters or {}).get("type", "unknown"),
+            "events_processed": (r.parameters or {}).get("events_processed", 0),
+        }
+        for r in rows
+    ]
+    return {"items": items, "total": total}
+
+
+@router.get("/ingest/jobs/{job_id}")
+async def get_ingest_job(
+    job_id: str,
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get a specific ingest job by audit trail ID."""
+    result = await db.execute(
+        text("SELECT id, timestamp, parameters, outcome FROM audit_trail WHERE id = :id"),
+        {"id": int(job_id)},
+    )
+    row = result.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {
+        "id": str(row.id),
+        "created_at": row.timestamp.isoformat(),
+        "status": row.outcome or "success",
+        "file_name": (row.parameters or {}).get("file_name", "unknown"),
+        "file_type": (row.parameters or {}).get("type", "unknown"),
+        "events_processed": (row.parameters or {}).get("events_processed", 0),
+    }
