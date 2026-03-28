@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Modal } from '../../components/primitives/Modal';
+import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import type { SeatUtilizationBucket } from '../../types/reports';
 import { COST_PER_SEAT } from './copilotData';
 import styles from './Copilot.module.css';
@@ -82,6 +83,8 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
   });
   return (
     <>
+      <SampleDataBanner message="Cost-per-seat ($19) is a default estimate. Requires Copilot Metrics API integration for actual pricing and seat-level activity data." />
+
       {/* Summary metrics */}
       <div className={styles.metricStrip}>
         <MetricCard
