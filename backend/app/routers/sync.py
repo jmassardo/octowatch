@@ -74,7 +74,7 @@ async def trigger_sync(
             resource_type="enterprise_sync_run",
             resource_id=str(run_id),
             parameters={"scope": body.scope},
-            outcome="initiated",
+            outcome="success",
         )
     )
     await db.commit()
@@ -215,7 +215,7 @@ async def cancel_run(
             action_type="github_sync.cancel",
             resource_type="enterprise_sync_run",
             resource_id=str(run_id),
-            outcome="cancelled",
+            outcome="success",
         )
     )
     await db.commit()
@@ -276,7 +276,7 @@ async def update_sync_config(
             action_type="github_sync.config_update",
             resource_type="github_app_config",
             parameters=body.model_dump(exclude_none=True),
-            outcome="updated",
+            outcome="success",
         )
     )
     await db.commit()

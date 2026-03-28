@@ -60,7 +60,7 @@ async def get_health_summary(
                     COUNT(*) AS total_active,
                     COUNT(*) FILTER (WHERE role IN ('admin', 'maintain')) AS elevated
                 FROM external_collaborators
-                WHERE org = ANY(:scoped_orgs) AND is_active = TRUE
+                WHERE org = ANY(:scoped_orgs) AND status = 'active'
             )
             SELECT
                 (SELECT COUNT(*) FROM stale) AS stale_repos,
@@ -383,7 +383,7 @@ async def get_external_collaborators(
             LEFT JOIN idp_actor_enrichments ia
                 ON ia.github_login = ec.github_login
             WHERE ec.org       = ANY(:scoped_orgs)
-              AND ec.is_active  = TRUE
+              AND ec.status    = 'active'
             ORDER BY ec.granted_at DESC
             LIMIT :limit
         """),
@@ -409,7 +409,7 @@ async def get_external_collaborator_summary(
                        OR last_event_at < NOW() - INTERVAL '60 days'
                 ) AS dormant_count
             FROM external_collaborators
-            WHERE org = ANY(:scoped_orgs) AND is_active = TRUE
+            WHERE org = ANY(:scoped_orgs) AND status = 'active'
         """),
         {"scoped_orgs": scoped_orgs},
     )
@@ -439,7 +439,7 @@ async def get_dormant_collaborators(
                 END AS days_inactive
             FROM external_collaborators
             WHERE org = ANY(:scoped_orgs)
-              AND is_active = TRUE
+              AND status = 'active'
               AND (
                   last_event_at IS NULL
                   OR last_event_at < NOW() - make_interval(days => :dormancy_days)
