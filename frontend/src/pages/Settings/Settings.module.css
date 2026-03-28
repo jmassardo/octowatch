@@ -1,0 +1,208 @@
+/* ===== Page layout ===== */
+.page { padding: 24px; display: flex; flex-direction: column; gap: 24px; }
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pageTitle { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+.pageSub { font-size: 13px; color: var(--fg-muted); margin: 0; }
+
+/* ===== Tab bar ===== */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+
+.tab:hover {
+  color: var(--fg);
+}
+
+.tabActive {
+  composes: tab;
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+
+/* ===== Table ===== */
+.tableWrap {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table thead th {
+  background: var(--canvas-subtle);
+  color: var(--fg-muted);
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 8px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-muted);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover td { background: rgba(177, 186, 196, 0.04); }
+
+.settingKey {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--done);
+}
+
+.settingValue {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  color: var(--fg-muted);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settingDescription {
+  font-size: 12px;
+  color: var(--fg-subtle);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settingMeta {
+  font-size: 12px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.empty {
+  text-align: center;
+  color: var(--fg-muted);
+  padding: 40px !important;
+}
+
+.cellActions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/* ===== Edit Form ===== */
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.formRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.formLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.formInput {
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.formInput:focus {
+  border-color: var(--accent);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-muted);
+}
+
+.formHint {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-top: 2px;
+}
+
+/* ===== Audit trail ===== */
+.auditAction {
+  text-transform: capitalize;
+  font-weight: 500;
+}
+
+.auditActionCreate { color: var(--success); }
+.auditActionUpdate { color: var(--accent); }
+.auditActionDelete { color: var(--danger); }
+
+.sensitivityBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.sensitivityCritical {
+  composes: sensitivityBadge;
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--danger);
+}
+
+.sensitivitySensitive {
+  composes: sensitivityBadge;
+  background: rgba(210, 153, 34, 0.15);
+  color: var(--attention);
+}
+
+.sensitivityNormal {
+  composes: sensitivityBadge;
+  background: rgba(139, 148, 158, 0.15);
+  color: var(--fg-muted);
+}

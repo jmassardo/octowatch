@@ -23,6 +23,7 @@ os.environ.setdefault("MINIO_INGEST_USER", "minioadmin")
 os.environ.setdefault("MINIO_INGEST_PASSWORD", "minioadmin")
 os.environ.setdefault("GITHUB_RULES_REPO", "")
 os.environ.setdefault("GITHUB_RULES_TOKEN", "")
+os.environ.setdefault("ENCRYPTION_KEY", "")
 
 import pytest
 import pytest_asyncio

@@ -6,6 +6,9 @@ import { AuthGuard } from './AuthGuard';
 import type { ReactNode } from 'react';
 
 vi.mock('../../hooks/useCurrentUser');
+vi.mock('../../api/setup', () => ({
+  getSetupStatus: vi.fn().mockResolvedValue({ setup_required: false }),
+}));
 
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 
@@ -25,6 +28,7 @@ function renderAuthGuard(children: ReactNode, route = '/dashboard') {
             element={<AuthGuard>{children}</AuthGuard>}
           />
           <Route path="/login" element={<p>Login page</p>} />
+          <Route path="/setup" element={<p>Setup page</p>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -51,7 +55,7 @@ describe('AuthGuard', () => {
     expect(spinner).toBeInTheDocument();
   });
 
-  it('renders children when authenticated', () => {
+  it('renders children when authenticated', async () => {
     mockUseCurrentUser.mockReturnValue({
       data: {
         github_login: 'testuser',
@@ -68,11 +72,11 @@ describe('AuthGuard', () => {
 
     renderAuthGuard(<p>Protected content</p>);
 
-    expect(screen.getByText('Protected content')).toBeInTheDocument();
+    expect(await screen.findByText('Protected content')).toBeInTheDocument();
     expect(screen.queryByText('Login page')).not.toBeInTheDocument();
   });
 
-  it('redirects to /login when an error occurs', () => {
+  it('redirects to /login when an error occurs', async () => {
     mockUseCurrentUser.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -81,11 +85,11 @@ describe('AuthGuard', () => {
 
     renderAuthGuard(<p>Protected content</p>);
 
+    expect(await screen.findByText('Login page')).toBeInTheDocument();
     expect(screen.queryByText('Protected content')).not.toBeInTheDocument();
-    expect(screen.getByText('Login page')).toBeInTheDocument();
   });
 
-  it('redirects to /login when user data is undefined', () => {
+  it('redirects to /login when user data is undefined', async () => {
     mockUseCurrentUser.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -94,7 +98,7 @@ describe('AuthGuard', () => {
 
     renderAuthGuard(<p>Protected content</p>);
 
+    expect(await screen.findByText('Login page')).toBeInTheDocument();
     expect(screen.queryByText('Protected content')).not.toBeInTheDocument();
-    expect(screen.getByText('Login page')).toBeInTheDocument();
   });
 });

@@ -185,6 +185,9 @@ omit = [
     "app/services/ticketing_service.py",
     "app/services/event_service.py",
     "app/services/rule_service.py",
+    # Settings service and config overlay require DB (integration test scope)
+    "app/services/settings_service.py",
+    "app/services/config_overlay.py",
     # Detection engines and pipeline require DB (integration test scope)
     "app/services/detection_service.py",
     # RBAC async resolver requires DB joins
@@ -198,6 +201,7 @@ omit = [
     "app/schemas/integration.py",
     "app/schemas/query.py",
     "app/schemas/report.py",
+    "app/schemas/setup.py",
 ]
 
 # ─── pytest ──────────────────────────────────────────────────────────────────

@@ -1,0 +1,232 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--canvas);
+}
+
+.wizardCard {
+  width: 100%;
+  max-width: 600px;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.logo {
+  margin-bottom: 8px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0 0 8px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--fg-muted);
+  margin: 0;
+}
+
+.stepper {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+
+.step {
+  width: 32px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background 0.2s;
+}
+
+.stepActive {
+  composes: step;
+  background: var(--accent);
+}
+
+.stepComplete {
+  composes: step;
+  background: var(--success);
+}
+
+.stepPending {
+  composes: step;
+}
+
+.stepLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.formGroup {
+  margin-bottom: 16px;
+}
+
+.label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  margin-bottom: 6px;
+}
+
+.input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--canvas);
+  color: var(--fg);
+  font-size: 14px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3);
+}
+
+.textarea {
+  composes: input;
+  min-height: 120px;
+  resize: vertical;
+  font-family: 'SF Mono', 'Fira Code', ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 24px;
+}
+
+.actionsRight {
+  display: flex;
+  gap: 8px;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.hintCode {
+  background: var(--canvas-inset);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+.successMessage {
+  color: var(--success);
+  font-size: 13px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.errorMessage {
+  color: var(--danger);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.reviewItem {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.reviewItem:last-child {
+  border-bottom: none;
+}
+
+.reviewLabel {
+  color: var(--fg-muted);
+}
+
+.reviewValue {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.reviewConfigured {
+  color: var(--success);
+}
+
+.reviewSkipped {
+  color: var(--fg-muted);
+  font-style: italic;
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.checkboxRow input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+
+.checkboxLabel {
+  font-size: 13px;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.skipNote {
+  font-size: 12px;
+  color: var(--fg-subtle);
+  font-style: italic;
+  margin-top: 4px;
+}
+
+.completeBanner {
+  text-align: center;
+  padding: 24px 0;
+}
+
+.completeBanner svg {
+  margin-bottom: 12px;
+}
+
+.completeTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--success);
+  margin: 0 0 8px;
+}
+
+.completeSubtitle {
+  font-size: 14px;
+  color: var(--fg-muted);
+  margin: 0;
+}

@@ -1,5 +1,6 @@
 """ORM models package."""
 
+from app.models.app_settings import AppSetting, AppSettingAudit, SetupState
 from app.models.audit_event import AuditEvent, EventDedup, EventRawPayload
 from app.models.audit_trail import AuditTrail
 from app.models.detection import (
@@ -34,6 +35,8 @@ from app.models.integration import (
 from app.models.user import RbacRole, UserRoleAssignment
 
 __all__ = [
+    "AppSetting",
+    "AppSettingAudit",
     "AuditEvent",
     "EventDedup",
     "EventRawPayload",
@@ -58,6 +61,7 @@ __all__ = [
     "Repository",
     "RuleDefinition",
     "RuleVersion",
+    "SetupState",
     "SeverityConfig",
     "Ticket",
     "TicketingConfig",

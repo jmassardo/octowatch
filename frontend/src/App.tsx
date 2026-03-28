@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { AuthGuard } from './components/auth/AuthGuard';
 import { LoginPage } from './pages/LoginPage';
+import { SetupPage } from './pages/Setup';
 import { DashboardPage } from './pages/Dashboard';
 import { ThreatsPage } from './pages/Threats';
 import { EventsPage } from './pages/Events';
@@ -15,10 +16,12 @@ import { UsersPage } from './pages/Users';
 import { IntegrationsPage } from './pages/Integrations';
 import { HealthPage } from './pages/Health';
 import { HealthSettingsPage } from './pages/Health/HealthSettings';
+import { SettingsPage } from './pages/Settings';
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
   { path: '/login', element: <LoginPage /> },
+  { path: '/setup', element: <SetupPage /> },
   {
     element: (
       <AuthGuard>
@@ -39,6 +42,7 @@ export const router = createBrowserRouter([
       { path: '/rules', element: <RulesPage /> },
       { path: '/users', element: <UsersPage /> },
       { path: '/integrations', element: <IntegrationsPage /> },
+      { path: '/settings', element: <SettingsPage /> },
     ],
   },
 ]);

@@ -24,6 +24,7 @@ from app.config import settings
 from app.database import dispose_pool, warm_up_pool
 from app.routers import (
     admin,
+    admin_settings,
     auth,
     copilot,
     detections,
@@ -34,6 +35,7 @@ from app.routers import (
     query,
     reports,
     rules,
+    setup,
     sync,
 )
 from app.services.geoip_service import close_geoip_db, load_geoip_db
@@ -202,6 +204,36 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         logger.warning("app.geoip_unavailable", error=str(exc))
 
+    # 4. Load settings overlay from DB + generate setup token on first boot
+    if app.state.db_pool_ready:
+        try:
+            from app.database import AsyncSessionLocal
+            from app.services.config_overlay import load_settings_overlay
+            from app.services.settings_service import (
+                generate_setup_token,
+                is_setup_complete,
+            )
+
+            async with AsyncSessionLocal() as db_session:
+                # Load DB-backed settings overlay
+                count = await load_settings_overlay(db_session)
+                logger.info("settings_overlay.loaded", count=count)
+
+                # Generate setup token on first boot if setup is not complete
+                if not await is_setup_complete(db_session):
+                    token = await generate_setup_token(db_session)
+                    await db_session.commit()
+                    logger.info(
+                        "setup.token_generated",
+                        message=(
+                            f"\U0001f511 Setup token: {token} — use this to complete initial setup"
+                        ),
+                    )
+                else:
+                    logger.info("setup.already_complete")
+        except Exception as exc:
+            logger.warning("settings_overlay.load_failed", error=str(exc))
+
     yield
 
     # Shutdown
@@ -346,10 +378,12 @@ def create_app() -> FastAPI:
     app.include_router(query.router, prefix=API_PREFIX)
     app.include_router(rules.router, prefix=API_PREFIX)
     app.include_router(admin.router, prefix=API_PREFIX)
+    app.include_router(admin_settings.router, prefix=API_PREFIX)
     app.include_router(integrations.router, prefix=API_PREFIX)
     app.include_router(health_signals.router, prefix=API_PREFIX)
     app.include_router(copilot.router, prefix=API_PREFIX)
     app.include_router(sync.router, prefix=API_PREFIX + "/admin")
+    app.include_router(setup.router, prefix=API_PREFIX)
 
     return app
 

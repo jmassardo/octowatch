@@ -28,8 +28,6 @@ interface MarketplaceIntegration {
   iconBg: string;
 }
 
-/** All integrations are now configurable. */
-
 /* ------------------------------------------------------------------ */
 /*  Icons                                                              */
 /* ------------------------------------------------------------------ */
@@ -104,7 +102,7 @@ function statusMeta(status: IntegrationStatus): { label: string; className: stri
   }
 }
 
-function MktCard({ integration, onConfigure, comingSoon }: { integration: MarketplaceIntegration; onConfigure?: () => void; comingSoon?: boolean }) {
+function MktCard({ integration, onConfigure }: { integration: MarketplaceIntegration; onConfigure?: () => void }) {
   const { label, className } = statusMeta(integration.status);
   const isInstalled = integration.status !== 'not_installed';
 
@@ -121,11 +119,11 @@ function MktCard({ integration, onConfigure, comingSoon }: { integration: Market
       </div>
       <div className={styles.mktCardFooter}>
         <span
-          className={`${styles.statusLabel} ${className} ${!comingSoon ? styles.clickableStatus : ''}`}
-          tabIndex={comingSoon ? undefined : 0}
+          className={`${styles.statusLabel} ${className} ${styles.clickableStatus}`}
+          tabIndex={0}
           aria-label={`${integration.name} status: ${label}`}
-          onClick={comingSoon ? undefined : onConfigure}
-          onKeyDown={comingSoon ? undefined : (e) => {
+          onClick={onConfigure}
+          onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               onConfigure?.();
@@ -135,9 +133,7 @@ function MktCard({ integration, onConfigure, comingSoon }: { integration: Market
           <span className={styles.statusDot} />
           {label}
         </span>
-        {comingSoon ? (
-          <Button size="sm" disabled title="Coming soon">Coming Soon</Button>
-        ) : isInstalled ? (
+        {isInstalled ? (
           <Button size="sm" onClick={onConfigure}>Configure</Button>
         ) : (
           <Button variant="primary" size="sm" onClick={onConfigure}>Configure</Button>
@@ -710,17 +706,13 @@ export function IntegrationsPage() {
       <section>
         <h2 className={styles.sectionTitle}>Marketplace</h2>
         <div className={styles.mktGrid}>
-          {integrations.map((integration) => {
-            const isComingSoon = COMING_SOON_INTEGRATIONS.has(integration.name);
-            return (
-              <MktCard
-                key={integration.name}
-                integration={integration}
-                comingSoon={isComingSoon}
-                onConfigure={() => setConfigTarget(integration.name)}
-              />
-            );
-          })}
+          {integrations.map((integration) => (
+            <MktCard
+              key={integration.name}
+              integration={integration}
+              onConfigure={() => setConfigTarget(integration.name)}
+            />
+          ))}
         </div>
       </section>
 

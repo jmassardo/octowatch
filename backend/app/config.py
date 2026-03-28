@@ -354,6 +354,14 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
 
+    # Encryption — master key for the secrets store.  If empty, falls back
+    # to SECRET_KEY with a logged warning.  Generate with:
+    #   python -c "import secrets; print(secrets.token_hex(32))"
+    ENCRYPTION_KEY: str = Field(
+        default="",
+        description="Master key for encrypting secrets in the DB. If empty, SECRET_KEY is used.",
+    )
+
     # Core
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     ENVIRONMENT: Literal["development", "staging", "production"] = "development"
@@ -388,9 +396,7 @@ class Settings(BaseSettings):
     def initial_admin_logins(self) -> set[str]:
         """Return the set of GitHub logins that always have sys_admin."""
         return {
-            login.strip().lower()
-            for login in self.INITIAL_ADMIN_LOGINS.split(",")
-            if login.strip()
+            login.strip().lower() for login in self.INITIAL_ADMIN_LOGINS.split(",") if login.strip()
         }
 
     @property

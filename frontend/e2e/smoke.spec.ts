@@ -34,6 +34,16 @@ test.describe('Login page', () => {
   });
 });
 
+test.describe('Setup page', () => {
+  test('renders the setup wizard', async ({ page }) => {
+    await page.goto('/setup');
+
+    await expect(
+      page.getByRole('heading', { name: /octowatch setup/i }),
+    ).toBeVisible();
+  });
+});
+
 test.describe('Protected routes (unauthenticated)', () => {
   // Every protected route should redirect to /login when the user has no
   // active session.  The `expectedTitle` field documents what heading each
