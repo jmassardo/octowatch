@@ -228,10 +228,17 @@ class GitHubAppSettings(BaseSettings):
         default=False,
         description="Enable/disable the scheduled enterprise sync",
     )
-    GITHUB_SYNC_ORGS: list[str] = Field(
-        default_factory=list,
+    GITHUB_SYNC_ORGS: str = Field(
+        default="",
         description="Comma-separated org logins to include (empty = all enterprise orgs)",
     )
+
+    @property
+    def sync_orgs_list(self) -> list[str]:
+        """Parse comma-separated GITHUB_SYNC_ORGS into a list."""
+        if not self.GITHUB_SYNC_ORGS or not self.GITHUB_SYNC_ORGS.strip():
+            return []
+        return [s.strip() for s in self.GITHUB_SYNC_ORGS.split(",") if s.strip()]
 
     @field_validator("GITHUB_APP_PRIVATE_KEY_PATH")
     @classmethod

@@ -243,7 +243,7 @@ async def get_sync_config(
         installation_ids=installation_ids,
         sync_enabled=settings.github_app.GITHUB_SYNC_ENABLED,
         interval_days=settings.github_app.GITHUB_SYNC_INTERVAL_DAYS,
-        orgs=settings.github_app.GITHUB_SYNC_ORGS,
+        orgs=settings.github_app.sync_orgs_list,
     )
 
 
@@ -268,7 +268,7 @@ async def update_sync_config(
         settings.github_app.GITHUB_SYNC_INTERVAL_DAYS = body.interval_days
 
     if body.orgs is not None:
-        settings.github_app.GITHUB_SYNC_ORGS = body.orgs
+        settings.github_app.GITHUB_SYNC_ORGS = ",".join(body.orgs)
 
     db.add(
         AuditTrail(

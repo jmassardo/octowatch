@@ -231,6 +231,15 @@ services:
       DETECTION_CONFIDENCE_THRESHOLD: ${DETECTION_CONFIDENCE_THRESHOLD:-0.7}
       QUERY_MAX_ROWS: ${QUERY_MAX_ROWS:-100000}
       QUERY_TIMEOUT_SECONDS: ${QUERY_TIMEOUT_SECONDS:-30}
+      # GitHub App — Enterprise Sync config (optional)
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY_PATH: /app/secrets/github-app-key.pem
+      GITHUB_ENTERPRISE_SLUG: ${GITHUB_ENTERPRISE_SLUG:-}
+      GITHUB_SYNC_ENABLED: ${GITHUB_SYNC_ENABLED:-false}
+      GITHUB_SYNC_INTERVAL_DAYS: ${GITHUB_SYNC_INTERVAL_DAYS:-60}
+      GITHUB_SYNC_ORGS: ${GITHUB_SYNC_ORGS:-}
+    volumes:
+      - ${GITHUB_APP_PRIVATE_KEY_PATH:-/dev/null}:/app/secrets/github-app-key.pem:ro
     networks:
       - internal
     # No ports exposed to host; nginx proxies /api/ → api:8000
@@ -362,11 +371,13 @@ services:
       MINIO_INGEST_PASSWORD: ${MINIO_INGEST_PASSWORD}
       MINIO_AUDIT_BUCKET: ${MINIO_AUDIT_BUCKET}
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
-      GITHUB_APP_PRIVATE_KEY_PATH: ${GITHUB_APP_PRIVATE_KEY_PATH:-}
+      GITHUB_APP_PRIVATE_KEY_PATH: /app/secrets/github-app-key.pem
       GITHUB_ENTERPRISE_SLUG: ${GITHUB_ENTERPRISE_SLUG:-}
       GITHUB_SYNC_ENABLED: ${GITHUB_SYNC_ENABLED:-false}
       GITHUB_SYNC_INTERVAL_DAYS: ${GITHUB_SYNC_INTERVAL_DAYS:-60}
       GITHUB_SYNC_ORGS: ${GITHUB_SYNC_ORGS:-}
+    volumes:
+      - ${GITHUB_APP_PRIVATE_KEY_PATH:-/dev/null}:/app/secrets/github-app-key.pem:ro
     networks:
       - internal
     depends_on:

@@ -49,3 +49,4 @@ playwright-report/
 *.json.gz
 backend/import_copilot_usage.py
 *.ndjson
+*.pem
