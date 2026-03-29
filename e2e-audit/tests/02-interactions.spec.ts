@@ -29,11 +29,11 @@ test.describe('Sidebar Navigation', () => {
       const navItem = page.locator(`nav a:has-text("${link.text}")`);
       const isVisible = await navItem.isVisible().catch(() => false);
       if (!isVisible) {
-        console.log(`MISSING NAV: "${link.text}" not visible (may be feature-toggled off)`);
+        console.log(`SKIP NAV: "${link.text}" not visible (may be feature-toggled off)`);
         continue;
       }
       await navItem.click();
-      await page.waitForTimeout(1000);
+      await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
       const url = page.url();
       expect(url).toContain(link.path);
       console.log(`NAV OK: "${link.text}" → ${url}`);

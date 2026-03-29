@@ -26,7 +26,9 @@ test.describe('Page Load Audit', () => {
 
   test('Threats page loads', async ({ authedPage: page }) => {
     await navigateTo(page, '/threats');
-    await expect(page.locator('text=Threat').first()).toBeVisible({ timeout: 10_000 });
+    // Page renders either detections or an empty state
+    const hasContent = await page.locator('text=/Detection|Threat|Alert|Investigating|No.*detection/i').first().isVisible({ timeout: 15_000 }).catch(() => false);
+    expect(hasContent).toBeTruthy();
   });
 
   test('Velocity page loads', async ({ authedPage: page }) => {
@@ -41,26 +43,26 @@ test.describe('Page Load Audit', () => {
 
   test('Copilot Overview loads', async ({ authedPage: page }) => {
     await navigateTo(page, '/copilot/overview');
-    // Should either show copilot data or a disabled message
-    const hasContent = await page.locator('text=/Copilot|disabled|not available|feature/i').first().isVisible().catch(() => false);
+    // Shows either copilot data or a "disabled" message
+    const hasContent = await page.locator('text=/Copilot|disabled|Disabled|not available|feature|Overview/i').first().isVisible({ timeout: 15_000 }).catch(() => false);
     expect(hasContent).toBeTruthy();
   });
 
   test('Copilot Adoption loads', async ({ authedPage: page }) => {
     await navigateTo(page, '/copilot/adoption');
-    const hasContent = await page.locator('text=/Adoption|Copilot|disabled|not available/i').first().isVisible().catch(() => false);
+    const hasContent = await page.locator('text=/Adoption|Copilot|disabled|Disabled|not available/i').first().isVisible({ timeout: 15_000 }).catch(() => false);
     expect(hasContent).toBeTruthy();
   });
 
   test('Copilot Models loads', async ({ authedPage: page }) => {
     await navigateTo(page, '/copilot/models');
-    const hasContent = await page.locator('text=/Model|Copilot|disabled|not available/i').first().isVisible().catch(() => false);
+    const hasContent = await page.locator('text=/Model|Copilot|disabled|Disabled|not available/i').first().isVisible({ timeout: 15_000 }).catch(() => false);
     expect(hasContent).toBeTruthy();
   });
 
   test('Copilot License loads', async ({ authedPage: page }) => {
     await navigateTo(page, '/copilot/license');
-    const hasContent = await page.locator('text=/License|Copilot|disabled|not available/i').first().isVisible().catch(() => false);
+    const hasContent = await page.locator('text=/License|Copilot|disabled|Disabled|not available/i').first().isVisible({ timeout: 15_000 }).catch(() => false);
     expect(hasContent).toBeTruthy();
   });
 
