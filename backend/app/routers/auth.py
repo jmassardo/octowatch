@@ -116,15 +116,50 @@ async def get_me(
 ) -> MeResponse:
     """Return the currently authenticated user's profile and roles."""
     scope = await get_user_scope(db, current_user.github_login, current_user.roles)
+
+    orgs = scope.scoped_orgs
+    if scope.is_global and not orgs:
+        # Global-scope users (sys_admin) need the org list hydrated from
+        # enterprise_orgs (populated by GitHub Enterprise sync) or, failing
+        # that, from distinct orgs in the events table.
+        orgs = await _hydrate_global_orgs(db)
+
     return MeResponse(
         github_login=current_user.github_login,
         github_id=current_user.github_id,
         roles=current_user.roles,
-        scoped_orgs=scope.scoped_orgs,
+        scoped_orgs=orgs,
         scoped_repos=scope.scoped_repos,
         scope_type=scope.scope_type if not scope.is_global else "global",
         session_expires_at=current_user.session_expires_at,
     )
+
+
+async def _hydrate_global_orgs(db: AsyncSession) -> list[str]:
+    """Resolve the org list for global-scope users.
+
+    Prefers enterprise_orgs (authoritative sync source), falls back to
+    distinct org values from the events table.
+    """
+    from sqlalchemy import select, text
+
+    from app.models.github_sync import EnterpriseOrg
+
+    result = await db.execute(
+        select(EnterpriseOrg.org_login)
+        .distinct()
+        .order_by(EnterpriseOrg.org_login)
+        .limit(500)
+    )
+    orgs = [row[0] for row in result.fetchall()]
+
+    if not orgs:
+        result = await db.execute(
+            text("SELECT DISTINCT org FROM events WHERE org IS NOT NULL ORDER BY org LIMIT 500")
+        )
+        orgs = [row[0] for row in result.fetchall()]
+
+    return orgs
 
 
 @router.post("/logout", response_model=LogoutResponse)
