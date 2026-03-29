@@ -4,14 +4,18 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import structlog
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
+from app.models.audit_trail import AuditTrail
 from app.schemas.query import QueryRunRequest, QueryRunResponse, QueryTemplate, QueryTemplateCreate
 from app.services.query_service import QueryValidationError, execute_query
 from app.services.rbac_service import get_user_scope
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/query", tags=["query"])
 
@@ -20,9 +24,15 @@ _QUERY_TEMPLATES: dict[int, dict] = {}
 _template_counter = 0
 
 
+def _get_client_ip(request: Request) -> str | None:
+    """Extract the client IP from the request."""
+    return request.client.host if request.client else None
+
+
 @router.post("/run", response_model=QueryRunResponse, dependencies=[Depends(verify_csrf)])
 async def run_query(
     payload: QueryRunRequest,
+    request: Request,
     current_user: AuthenticatedUser = Depends(
         require_role(["analyst", "report_admin", "sys_admin"])
     ),
@@ -30,15 +40,74 @@ async def run_query(
 ) -> QueryRunResponse:
     """Execute a user-submitted SQL query with AST validation and scope injection."""
     scope = await get_user_scope(db, current_user.github_login, current_user.roles)
+    client_ip = _get_client_ip(request)
     try:
         result = await execute_query(db, sql=payload.sql, scope=scope)
+
+        # Audit log: successful query execution
+        trail = AuditTrail(
+            user_login=current_user.github_login,
+            user_github_id=current_user.github_id,
+            ip_address=client_ip,
+            action_type="query.executed",
+            resource_type="query_explorer",
+            parameters={
+                "sql": payload.sql[:500],
+                "row_count": result["row_count"],
+                "execution_ms": result["execution_ms"],
+            },
+            outcome="success",
+        )
+        db.add(trail)
+        await db.commit()
+
         return result
     except (QueryValidationError, ValueError) as exc:
+        # Audit log: blocked query
+        try:
+            trail = AuditTrail(
+                user_login=current_user.github_login,
+                user_github_id=current_user.github_id,
+                ip_address=client_ip,
+                action_type="query.blocked",
+                resource_type="query_explorer",
+                parameters={"sql": payload.sql[:500], "reason": str(exc)},
+                outcome="denied",
+                error_detail=str(exc),
+            )
+            db.add(trail)
+            await db.commit()
+        except Exception:
+            logger.warning(
+                "audit.write_failed",
+                user=current_user.github_login,
+                action="query.blocked",
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
     except Exception as exc:
+        # Audit log: query execution error
+        try:
+            trail = AuditTrail(
+                user_login=current_user.github_login,
+                user_github_id=current_user.github_id,
+                ip_address=client_ip,
+                action_type="query.blocked",
+                resource_type="query_explorer",
+                parameters={"sql": payload.sql[:500], "reason": str(exc)},
+                outcome="denied",
+                error_detail=str(exc),
+            )
+            db.add(trail)
+            await db.commit()
+        except Exception:
+            logger.warning(
+                "audit.write_failed",
+                user=current_user.github_login,
+                action="query.error",
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Query execution error: {exc}",

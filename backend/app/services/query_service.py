@@ -2,10 +2,12 @@
 
 Security model:
 1. Parse with pglast — reject anything that is not a single SELECT
-2. Whitelist tables, reject system catalogs, whitelist functions
-3. Inject scope as CTE wrapper (AST-level, not string append)
-4. Execute under readonly_query_user PostgreSQL role
-5. Enforce 30s timeout + 100k-row cap
+2. Whitelist tables via AST RangeVar extraction, reject system catalogs
+3. Whitelist functions via AST FuncCall extraction
+4. Block semicolons to prevent multi-statement injection
+5. Inject scope as CTE wrapper (AST-level, not string append)
+6. Execute under readonly_query_user PostgreSQL role (defense-in-depth)
+7. Enforce 30s timeout + 100k-row cap
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ import uuid
 from typing import Any
 
 import pglast
+import pglast.ast
 import pglast.enums
 import structlog
 from sqlalchemy import text
@@ -40,42 +43,83 @@ ALLOWED_TABLES = frozenset(
 # Built-in functions that are safe in read-only queries
 ALLOWED_FUNCTIONS = frozenset(
     {
+        # Aggregates
         "count",
         "sum",
         "avg",
         "min",
         "max",
+        "string_agg",
+        "array_agg",
+        "bool_or",
+        "bool_and",
+        # Date/time
         "date_trunc",
         "time_bucket",
         "to_char",
-        "coalesce",
-        "nullif",
-        "array_agg",
+        "to_timestamp",
+        "date_part",
         "extract",
         "now",
+        "timezone",
+        "age",
+        "date",
+        "make_interval",
+        "justify_interval",
+        # String
         "lower",
         "upper",
         "length",
         "substr",
         "substring",
         "regexp_replace",
-        "to_timestamp",
-        "date_part",
-        "timezone",
+        "regexp_matches",
+        "concat",
+        "trim",
+        "btrim",
+        "ltrim",
+        "rtrim",
+        "replace",
+        "left",
+        "right",
+        "position",
+        "strpos",
+        "split_part",
+        # Conditional/null
+        "coalesce",
+        "nullif",
+        "greatest",
+        "least",
+        # Math
+        "abs",
+        "ceil",
+        "floor",
+        "round",
+        "trunc",
+        # JSON
+        "jsonb_extract_path_text",
+        "jsonb_array_elements",
+        # Window functions
+        "row_number",
+        "rank",
+        "dense_rank",
+        "lag",
+        "lead",
+        "first_value",
+        "last_value",
+        "ntile",
+        "percent_rank",
+        "cume_dist",
+        # Misc
+        "cast",
+        "unnest",
+        "generate_series",
     }
 )
 
-
-class QueryValidationError(ValueError):
-    pass
-
-
-def _check_no_writes(node: Any) -> None:
-    """Recursively check AST for write operations."""
-    if node is None:
-        return
-    node_type = type(node).__name__
-    if node_type in (
+# Statement types that represent write or administrative operations
+_WRITE_STATEMENT_TYPES = frozenset(
+    {
         "InsertStmt",
         "UpdateStmt",
         "DeleteStmt",
@@ -88,61 +132,140 @@ def _check_no_writes(node: Any) -> None:
         "CallStmt",
         "DoStmt",
         "ExecuteStmt",
-    ):
-        raise QueryValidationError(f"Statement type not permitted: {node_type}")
-    # Recurse into child nodes
-    if hasattr(node, "__iter__") and not isinstance(node, str):
-        try:
-            for child in node:
-                _check_no_writes(child)
-        except TypeError:
-            pass
+        "GrantStmt",
+        "GrantRoleStmt",
+        "CreateRoleStmt",
+        "AlterRoleStmt",
+        "DropRoleStmt",
+        "TransactionStmt",
+        "LockStmt",
+        "ClusterStmt",
+        "VacuumStmt",
+        "ReindexStmt",
+        "CreateTableAsStmt",
+        "CreateSchemaStmt",
+        "DropOwnedStmt",
+        "VariableSetStmt",
+    }
+)
 
 
-def _check_table_allowlist(sql: str) -> None:
-    """Check that no FROM targets reference tables outside the allowlist."""
-    import re
+class QueryValidationError(ValueError):
+    pass
 
-    sql_lower = sql.lower()
-    # Check for schema-qualified names (information_schema, pg_catalog, etc.)
-    forbidden_schemas = ("information_schema.", "pg_catalog.", "pg_toast.", "pg_temp.")
-    for schema in forbidden_schemas:
-        if schema in sql_lower:
-            raise QueryValidationError(f"Cross-schema reference not permitted: {schema}")
 
-    # Extract all table/view names from FROM and JOIN clauses and check whitelist
-    table_pattern = re.compile(r"\b(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)", re.IGNORECASE)
-    referenced = {m.group(1).lower() for m in table_pattern.finditer(sql)}
-    for tbl in referenced:
+def _walk_ast(node: Any) -> Any:
+    """Yield every AST node in the pglast parse tree (depth-first)."""
+    if node is None:
+        return
+    # Yield the current node itself (if it's a pglast AST node)
+    if isinstance(node, pglast.ast.Node):
+        yield node
+        # Recurse into each slot value
+        for slot_name in node.__slots__:
+            child = getattr(node, slot_name, None)
+            if child is not None and not isinstance(child, (str, int, float, bool)):
+                yield from _walk_ast(child)
+    elif isinstance(node, (list, tuple)):
+        for item in node:
+            yield from _walk_ast(item)
+
+
+def _check_no_writes(node: Any) -> None:
+    """Recursively check AST for write and administrative operations."""
+    for child in _walk_ast(node):
+        node_type = type(child).__name__
+        if node_type in _WRITE_STATEMENT_TYPES:
+            raise QueryValidationError(f"Statement type not permitted: {node_type}")
+
+
+def _extract_table_refs(node: Any, tables: set[str]) -> None:
+    """Walk pglast AST to find all RangeVar (table reference) nodes."""
+    for child in _walk_ast(node):
+        if type(child).__name__ == "RangeVar":
+            schema = getattr(child, "schemaname", None)
+            relname = getattr(child, "relname", None)
+            if schema is not None and schema != "public":
+                raise QueryValidationError(
+                    f"Schema-qualified table references not permitted: {schema}.{relname}"
+                )
+            if relname:
+                tables.add(relname.lower())
+
+
+def _extract_function_calls(node: Any, funcs: set[str]) -> None:
+    """Walk pglast AST to find all FuncCall nodes.
+
+    PostgreSQL internally represents SQL standard functions (EXTRACT, TRIM,
+    POSITION, SUBSTRING) as ``pg_catalog.<name>``.  We allow the ``pg_catalog``
+    schema prefix for these built-ins and still validate the function name
+    against the allowlist.  Any other schema prefix is rejected.
+    """
+    for child in _walk_ast(node):
+        if type(child).__name__ == "FuncCall":
+            funcname_parts = getattr(child, "funcname", None)
+            if funcname_parts:
+                name_parts: list[str] = []
+                for part in funcname_parts:
+                    if hasattr(part, "sval"):
+                        name_parts.append(part.sval.lower())
+                    elif isinstance(part, str):
+                        name_parts.append(part.lower())
+                if name_parts:
+                    if len(name_parts) > 1:
+                        # pg_catalog is used by PostgreSQL for SQL-standard
+                        # built-in functions – allow it and just check the
+                        # function name against the allowlist below.
+                        if name_parts[0] != "pg_catalog":
+                            raise QueryValidationError(
+                                "Schema-qualified function calls not permitted: "
+                                f"{'.'.join(name_parts)}"
+                            )
+                    funcs.add(name_parts[-1])
+
+
+def _check_table_allowlist(stmt: Any) -> None:
+    """Check that all table references are in the allowlist using AST walking."""
+    tables: set[str] = set()
+    _extract_table_refs(stmt, tables)
+
+    # Exclude user-defined CTE names (they are virtual, not real tables)
+    cte_names: set[str] = set()
+    if hasattr(stmt, "withClause") and stmt.withClause is not None:
+        ctes = getattr(stmt.withClause, "ctes", None)
+        if ctes:
+            for cte in ctes:
+                ctename = getattr(cte, "ctename", None)
+                if ctename:
+                    cte_names.add(ctename.lower())
+
+    real_tables = tables - cte_names
+    for tbl in sorted(real_tables):
         if tbl not in ALLOWED_TABLES:
             raise QueryValidationError(
                 f"Table '{tbl}' is not in allowed tables: {sorted(ALLOWED_TABLES)}"
             )
 
 
-def _check_function_allowlist(sql: str) -> None:
-    """Basic function allowlist check via string scanning."""
-    # Block obviously dangerous functions
-    dangerous_funcs = (
-        "pg_read_file",
-        "pg_ls_dir",
-        "pg_sleep",
-        "lo_export",
-        "lo_import",
-        "copy",
-        "pg_execute",
-        "dblink",
-        "file_fdw",
-        "pg_stat_file",
-        "pg_read_binary_file",
-        "lo_get",
-    )
-    sql_lower = sql.lower()
-    for func in dangerous_funcs:
-        if func in sql_lower:
-            raise QueryValidationError(
-                f"Function call not permitted in self-service queries: {func}"
-            )
+def _check_function_allowlist(stmt: Any) -> None:
+    """Check that all function calls are in the allowlist using AST walking."""
+    funcs: set[str] = set()
+    _extract_function_calls(stmt, funcs)
+
+    disallowed = funcs - ALLOWED_FUNCTIONS
+    if disallowed:
+        raise QueryValidationError(
+            f"Function(s) not permitted: {sorted(disallowed)}. Allowed: {sorted(ALLOWED_FUNCTIONS)}"
+        )
+
+
+def _check_no_multi_statements(sql: str) -> None:
+    """Block multi-statement injection via semicolons in the raw input."""
+    stripped = sql.strip().rstrip(";").strip()
+    if ";" in stripped:
+        raise QueryValidationError(
+            "Multiple SQL statements are not permitted; only a single SELECT is allowed"
+        )
 
 
 def validate_and_prepare(sql: str, scope: OrgRepoScope) -> tuple[str, dict[str, Any]]:
@@ -151,7 +274,10 @@ def validate_and_prepare(sql: str, scope: OrgRepoScope) -> tuple[str, dict[str, 
     Returns (rewritten_sql, bind_params).
     Raises QueryValidationError on any violation.
     """
-    # 0. Strip trailing semicolons — they break CTE wrapping
+    # 0. Block multi-statement injection before any parsing
+    _check_no_multi_statements(sql)
+
+    # 0b. Strip trailing semicolons — they break CTE wrapping
     sql = sql.rstrip().rstrip(";").rstrip()
 
     # 1. Parse
@@ -174,10 +300,10 @@ def validate_and_prepare(sql: str, scope: OrgRepoScope) -> tuple[str, dict[str, 
     if type(stmt).__name__ != "SelectStmt":
         raise QueryValidationError("Only SELECT statements are permitted")
 
-    # 2. Check for prohibited constructs
-    _check_table_allowlist(sql)
+    # 2. Check for prohibited constructs using AST walking
     _check_no_writes(stmt)
-    _check_function_allowlist(sql)
+    _check_table_allowlist(stmt)
+    _check_function_allowlist(stmt)
 
     # 3. Build scope CTE wrapper
     # The user's SQL is wrapped: WITH __scope AS (...) <user_sql_with_limit>
@@ -221,6 +347,10 @@ async def execute_query(
             text(f"SET LOCAL statement_timeout = '{settings.QUERY_TIMEOUT_SECONDS}000'")
         )
 
+        # Defense-in-depth: execute as readonly_query_user so the DB itself
+        # rejects any writes even if AST validation has a bug.
+        await session.execute(text("SET LOCAL ROLE readonly_query_user"))
+
         result = await session.execute(text(rewritten_sql), params)
         rows = result.fetchall()
         columns = list(result.keys())
@@ -253,3 +383,7 @@ async def execute_query(
             execution_ms=execution_ms,
         )
         raise
+    finally:
+        # Always reset role, even on error, to avoid leaking the role change
+        # to subsequent operations on this session.
+        await session.execute(text("RESET ROLE"))
