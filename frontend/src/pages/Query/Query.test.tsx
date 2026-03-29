@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { QueryPage } from './index';
@@ -13,6 +13,7 @@ vi.mock('../../api/query', () => ({
     execution_ms: 42,
     query_id: 'q-1',
   }),
+  validateQuery: vi.fn().mockResolvedValue({ valid: true }),
   listTemplates: vi.fn().mockResolvedValue([]),
   createTemplate: vi.fn().mockResolvedValue({
     id: 1,
@@ -568,5 +569,453 @@ describe('QueryPage', () => {
     await user.click(msSpan);
 
     expect(screen.getByText('Query Execution Details')).toBeInTheDocument();
+  });
+
+  // --- Validation, Autocomplete, Keyboard Shortcut, Click-to-Insert ---
+  // These tests use fake timers because the validation debounce (800ms) creates
+  // a pending setTimeout that prevents userEvent from settling with real timers.
+  // We use fireEvent + act for timer-sensitive scenarios and userEvent.setup
+  // with advanceTimers for interactions.
+
+  describe('intellisense features', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+    });
+
+    // --- Live Validation ---
+
+    it('calls validateQuery after 800ms debounce and shows valid badge', async () => {
+      const { validateQuery } = await import('../../api/query');
+      vi.mocked(validateQuery).mockResolvedValue({ valid: true });
+
+      renderWithProviders(<QueryPage />);
+
+      // Advance past the debounce and flush React updates
+      await act(async () => {
+        vi.advanceTimersByTime(800);
+      });
+
+      expect(validateQuery).toHaveBeenCalledWith(expect.stringContaining('SELECT'));
+      expect(screen.getByText(/✓ Valid/)).toBeInTheDocument();
+    });
+
+    it('shows invalid badge with error message when validation fails', async () => {
+      const { validateQuery } = await import('../../api/query');
+      vi.mocked(validateQuery).mockResolvedValue({ valid: false, error: 'Syntax error at position 5' });
+
+      renderWithProviders(<QueryPage />);
+
+      await act(async () => {
+        vi.advanceTimersByTime(800);
+      });
+
+      expect(screen.getByText(/✗/)).toBeInTheDocument();
+      expect(screen.getByText(/Syntax error at position 5/)).toBeInTheDocument();
+    });
+
+    it('truncates long validation errors to ~80 chars with full tooltip', async () => {
+      const { validateQuery } = await import('../../api/query');
+      const longError = 'A'.repeat(120);
+      vi.mocked(validateQuery).mockResolvedValue({ valid: false, error: longError });
+
+      const { container } = renderWithProviders(<QueryPage />);
+
+      await act(async () => {
+        vi.advanceTimersByTime(800);
+      });
+
+      const badge = container.querySelector('.invalidBadge');
+      expect(badge).not.toBeNull();
+      expect(badge!.textContent!.length).toBeLessThan(120);
+      expect(badge!.getAttribute('title')).toBe(longError);
+    });
+
+    it('does not validate empty or whitespace-only queries', async () => {
+      const { validateQuery } = await import('../../api/query');
+
+      renderWithProviders(<QueryPage />);
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+      // Clear the textarea via React's controlled input mechanism
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, 'value',
+        )!.set!;
+        setter.call(textarea, '');
+        textarea.selectionStart = 0;
+        textarea.selectionEnd = 0;
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      vi.mocked(validateQuery).mockClear();
+
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(validateQuery).not.toHaveBeenCalled();
+    });
+
+    it('shows validating indicator while validation is in progress', async () => {
+      const { validateQuery } = await import('../../api/query');
+
+      let resolveValidation!: (val: { valid: boolean }) => void;
+      vi.mocked(validateQuery).mockReturnValue(
+        new Promise((resolve) => { resolveValidation = resolve; }),
+      );
+
+      const { container } = renderWithProviders(<QueryPage />);
+
+      await act(async () => {
+        vi.advanceTimersByTime(800);
+      });
+
+      const badge = container.querySelector('.validatingBadge');
+      expect(badge).not.toBeNull();
+
+      await act(async () => {
+        resolveValidation({ valid: true });
+      });
+
+      expect(screen.getByText(/✓ Valid/)).toBeInTheDocument();
+    });
+
+    // --- Keyboard Shortcut ---
+
+    it('runs query on Ctrl+Enter', async () => {
+      const { runQuery } = await import('../../api/query');
+      renderWithProviders(<QueryPage />);
+
+      const textarea = screen.getByRole('textbox');
+
+      await act(async () => {
+        textarea.focus();
+        textarea.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Enter', ctrlKey: true, bubbles: true,
+        }));
+      });
+
+      expect(runQuery).toHaveBeenCalled();
+    });
+
+    it('runs query on Meta+Enter (Cmd on Mac)', async () => {
+      const { runQuery } = await import('../../api/query');
+      renderWithProviders(<QueryPage />);
+
+      const textarea = screen.getByRole('textbox');
+
+      await act(async () => {
+        textarea.focus();
+        textarea.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Enter', metaKey: true, bubbles: true,
+        }));
+      });
+
+      expect(runQuery).toHaveBeenCalled();
+    });
+
+    it('shows keyboard shortcut hint next to Run button', () => {
+      const { container } = renderWithProviders(<QueryPage />);
+      const hint = container.querySelector('.shortcutHint');
+      expect(hint).not.toBeNull();
+      expect(hint!.textContent).toMatch(/Ctrl\+↵|⌘\+↵/);
+    });
+
+    // --- Schema Click-to-Insert ---
+
+    it('inserts column name at cursor when schema column is clicked', async () => {
+      renderWithProviders(<QueryPage />);
+
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+      // Set textarea to a short query with cursor at end
+      await act(async () => {
+        // Use the native setter to change the value (React's onChange won't fire from just setting .value)
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, 'value',
+        )!.set!;
+        nativeInputValueSetter.call(textarea, 'SELECT ');
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      // Click a schema column — source_ip is unique to events table
+      const colButtons = screen.getAllByRole('button').filter(
+        (el) => el.textContent?.includes('source_ip'),
+      );
+      expect(colButtons.length).toBeGreaterThanOrEqual(1);
+
+      await act(async () => {
+        colButtons[0].click();
+      });
+
+      expect(textarea.value).toContain('source_ip');
+    });
+
+    it('schema columns have role="button" for accessibility', () => {
+      const { container } = renderWithProviders(<QueryPage />);
+      const colButtons = container.querySelectorAll('.schemaColClickable[role="button"]');
+      expect(colButtons.length).toBeGreaterThan(0);
+    });
+
+    // --- Autocomplete ---
+
+    it('shows autocomplete dropdown when typing 2+ chars matching keywords', async () => {
+      renderWithProviders(<QueryPage />);
+
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+      // Set value and cursor position to trigger autocomplete
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, 'value',
+        )!.set!;
+        setter.call(textarea, 'SE');
+        textarea.selectionStart = 2;
+        textarea.selectionEnd = 2;
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      const listbox = screen.queryByRole('listbox');
+      expect(listbox).toBeInTheDocument();
+
+      // 'SE' is highlighted, 'LECT' is the rest of 'SELECT'
+      expect(screen.getByText('LECT')).toBeInTheDocument();
+    });
+
+    it('shows table suggestions after FROM keyword', async () => {
+      renderWithProviders(<QueryPage />);
+
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, 'value',
+        )!.set!;
+        setter.call(textarea, 'SELECT * FROM e');
+        textarea.selectionStart = 15;
+        textarea.selectionEnd = 15;
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      const listbox = screen.queryByRole('listbox');
+      expect(listbox).toBeInTheDocument();
+
+      const options = screen.getAllByRole('option');
+      const texts = options.map((o) => o.textContent);
+      expect(texts.some((t) => t?.includes('events'))).toBe(true);
+    });
+
+    it('shows column suggestions after WHERE keyword', async () => {
+      renderWithProviders(<QueryPage />);
+
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, 'value',
+        )!.set!;
+        setter.call(textarea, 'SELECT * FROM events WHERE a');
+        textarea.selectionStart = 28;
+        textarea.selectionEnd = 28;
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      const options = screen.getAllByRole('option');
+      const texts = options.map((o) => o.textContent);
+      expect(texts.some((t) => t?.includes('action'))).toBe(true);
+      expect(texts.some((t) => t?.includes('actor'))).toBe(true);
+    });
+
+    it('does not show autocomplete with fewer than 2 chars in general context', async () => {
+      renderWithProviders(<QueryPage />);
+
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, 'value',
+        )!.set!;
+        setter.call(textarea, 'S');
+        textarea.selectionStart = 1;
+        textarea.selectionEnd = 1;
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('dismisses autocomplete on Escape and does not re-trigger until user types', async () => {
+      renderWithProviders(<QueryPage />);
+
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+      // Type 'SE' to show autocomplete
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, 'value',
+        )!.set!;
+        setter.call(textarea, 'SE');
+        textarea.selectionStart = 2;
+        textarea.selectionEnd = 2;
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      expect(screen.queryByRole('listbox')).toBeInTheDocument();
+
+      // Press Escape to dismiss
+      await act(async () => {
+        textarea.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Escape', bubbles: true,
+        }));
+      });
+
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('accepts autocomplete suggestion with Tab key', async () => {
+      renderWithProviders(<QueryPage />);
+
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, 'value',
+        )!.set!;
+        setter.call(textarea, 'SE');
+        textarea.selectionStart = 2;
+        textarea.selectionEnd = 2;
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      expect(screen.queryByRole('listbox')).toBeInTheDocument();
+
+      // Press Tab to accept the first suggestion (SELECT)
+      await act(async () => {
+        textarea.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Tab', bubbles: true,
+        }));
+      });
+
+      expect(textarea.value).toContain('SELECT');
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('navigates autocomplete suggestions with ArrowDown/ArrowUp', async () => {
+      const { container } = renderWithProviders(<QueryPage />);
+
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, 'value',
+        )!.set!;
+        setter.call(textarea, 'SE');
+        textarea.selectionStart = 2;
+        textarea.selectionEnd = 2;
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      expect(screen.queryByRole('listbox')).toBeInTheDocument();
+
+      let activeItems = container.querySelectorAll('.acItemActive');
+      expect(activeItems.length).toBe(1);
+
+      // Press ArrowDown to move to second item
+      await act(async () => {
+        textarea.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'ArrowDown', bubbles: true,
+        }));
+      });
+
+      activeItems = container.querySelectorAll('.acItemActive');
+      expect(activeItems.length).toBe(1);
+      const selected = screen.getAllByRole('option').filter(
+        (o) => o.getAttribute('aria-selected') === 'true',
+      );
+      expect(selected).toHaveLength(1);
+    });
+
+    it('shows suggestion type labels (KW, FN, TBL, COL)', async () => {
+      const { container } = renderWithProviders(<QueryPage />);
+
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, 'value',
+        )!.set!;
+        setter.call(textarea, 'SE');
+        textarea.selectionStart = 2;
+        textarea.selectionEnd = 2;
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      const typeLabels = container.querySelectorAll('.acItemType');
+      expect(typeLabels.length).toBeGreaterThan(0);
+      const labelTexts = Array.from(typeLabels).map((el) => el.textContent);
+      expect(labelTexts.some((t) => t === 'KW')).toBe(true);
+    });
+
+    it('highlights the matching portion of suggestions', async () => {
+      const { container } = renderWithProviders(<QueryPage />);
+
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, 'value',
+        )!.set!;
+        setter.call(textarea, 'SE');
+        textarea.selectionStart = 2;
+        textarea.selectionEnd = 2;
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      const highlights = container.querySelectorAll('.acHighlight');
+      expect(highlights.length).toBeGreaterThan(0);
+      expect(Array.from(highlights).some((el) => el.textContent === 'SE')).toBe(true);
+    });
+
+    it('does not show autocomplete inside string literals', async () => {
+      renderWithProviders(<QueryPage />);
+
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, 'value',
+        )!.set!;
+        setter.call(textarea, "SELECT * FROM events WHERE action = 'SE");
+        textarea.selectionStart = 39;
+        textarea.selectionEnd = 39;
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('does not show autocomplete inside comments', async () => {
+      renderWithProviders(<QueryPage />);
+
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, 'value',
+        )!.set!;
+        setter.call(textarea, '-- This is SE');
+        textarea.selectionStart = 13;
+        textarea.selectionEnd = 13;
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
   });
 });

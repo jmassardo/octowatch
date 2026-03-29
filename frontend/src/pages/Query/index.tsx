@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { runQuery, listTemplates, createTemplate } from '../../api/query';
+import { runQuery, validateQuery, listTemplates, createTemplate } from '../../api/query';
 import type { QueryRunResponse } from '../../types/query';
 import { Button } from '../../components/primitives/Button';
 import { Modal } from '../../components/primitives/Modal';
@@ -202,6 +202,225 @@ function renderHighlightedSql(sqlText: string) {
   });
 }
 
+// --- Validation & Autocomplete ---
+
+type ValidationStatus = 'idle' | 'validating' | 'valid' | 'invalid';
+
+type SuggestionKind = 'keyword' | 'function' | 'table' | 'column';
+
+interface Suggestion {
+  text: string;
+  kind: SuggestionKind;
+  label: string;
+}
+
+type SuggestionContext = 'table' | 'column' | 'general';
+
+const IS_MAC = typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent);
+
+/** Check if cursor position falls inside a string literal or comment token */
+function isCursorInStringOrComment(sql: string, cursorPos: number): boolean {
+  const tokens = tokenizeSql(sql);
+  let pos = 0;
+  for (const token of tokens) {
+    const end = pos + token.value.length;
+    if (cursorPos > pos && cursorPos <= end) {
+      return token.type === 'string' || token.type === 'comment';
+    }
+    pos = end;
+  }
+  return false;
+}
+
+/** Extract partial word being typed at cursor position */
+function getPartialWord(sql: string, cursorPos: number): string {
+  let start = cursorPos;
+  while (start > 0 && /[a-zA-Z0-9_]/.test(sql[start - 1])) {
+    start--;
+  }
+  return sql.slice(start, cursorPos);
+}
+
+/** Determine what kind of suggestions to show based on the SQL keyword before cursor */
+function getSuggestionContext(sql: string, cursorPos: number): SuggestionContext {
+  const beforeCursor = sql.substring(0, cursorPos);
+  const stripped = beforeCursor.replace(/[a-zA-Z0-9_]*$/, '').trimEnd().toUpperCase();
+
+  if (stripped.endsWith('FROM') || stripped.endsWith('JOIN')) {
+    return 'table';
+  }
+
+  if (
+    stripped.endsWith('SELECT') || stripped.endsWith(',') ||
+    stripped.endsWith('WHERE') || stripped.endsWith('AND') ||
+    stripped.endsWith('OR') || stripped.endsWith('BY') ||
+    stripped.endsWith('ON') || stripped.endsWith('HAVING')
+  ) {
+    return 'column';
+  }
+
+  return 'general';
+}
+
+/** Extract table names referenced in FROM / JOIN clauses */
+function extractReferencedTables(sql: string): string[] {
+  const knownTables = new Set(SCHEMA.map((s) => s.table.toLowerCase()));
+  const found: string[] = [];
+  const regex = /\b(?:FROM|JOIN)\s+(\w+)/gi;
+  let match;
+  while ((match = regex.exec(sql)) !== null) {
+    const name = match[1].toLowerCase();
+    if (knownTables.has(name) && !found.includes(name)) {
+      found.push(name);
+    }
+  }
+  return found;
+}
+
+/** Generate context-aware autocomplete suggestions */
+function computeSuggestions(sql: string, cursorPos: number): Suggestion[] {
+  if (isCursorInStringOrComment(sql, cursorPos)) return [];
+
+  const partial = getPartialWord(sql, cursorPos);
+  const context = getSuggestionContext(sql, cursorPos);
+  const minChars = context === 'general' ? 2 : 1;
+
+  if (partial.length < minChars) return [];
+
+  const lower = partial.toLowerCase();
+  const results: Suggestion[] = [];
+
+  if (context === 'table') {
+    for (const s of SCHEMA) {
+      if (s.table.toLowerCase().startsWith(lower)) {
+        results.push({ text: s.table, kind: 'table', label: 'TBL' });
+      }
+    }
+  } else if (context === 'column') {
+    const refTables = extractReferencedTables(sql);
+    const tablesToSearch = refTables.length > 0
+      ? SCHEMA.filter((s) => refTables.includes(s.table.toLowerCase()))
+      : SCHEMA;
+
+    const seen = new Set<string>();
+    for (const table of tablesToSearch) {
+      for (const col of table.cols) {
+        if (col.name.toLowerCase().startsWith(lower) && !seen.has(col.name)) {
+          seen.add(col.name);
+          results.push({ text: col.name, kind: 'column', label: 'COL' });
+        }
+      }
+    }
+  } else {
+    for (const kw of SQL_KEYWORDS) {
+      if (kw.toLowerCase().startsWith(lower)) {
+        results.push({ text: kw, kind: 'keyword', label: 'KW' });
+      }
+    }
+    for (const fn of SQL_FUNCTIONS) {
+      if (fn.toLowerCase().startsWith(lower)) {
+        results.push({ text: fn, kind: 'function', label: 'FN' });
+      }
+    }
+    for (const s of SCHEMA) {
+      if (s.table.toLowerCase().startsWith(lower)) {
+        results.push({ text: s.table, kind: 'table', label: 'TBL' });
+      }
+    }
+    const seen = new Set<string>();
+    for (const s of SCHEMA) {
+      for (const col of s.cols) {
+        if (col.name.toLowerCase().startsWith(lower) && !seen.has(col.name)) {
+          seen.add(col.name);
+          results.push({ text: col.name, kind: 'column', label: 'COL' });
+        }
+      }
+    }
+  }
+
+  return results.slice(0, 8);
+}
+
+/** Calculate pixel position of cursor in textarea using a mirror div */
+function getCursorPixelPosition(textarea: HTMLTextAreaElement): { top: number; left: number } {
+  const div = document.createElement('div');
+  const cs = getComputedStyle(textarea);
+
+  div.style.fontFamily = cs.fontFamily;
+  div.style.fontSize = cs.fontSize;
+  div.style.lineHeight = cs.lineHeight;
+  div.style.padding = cs.padding;
+  div.style.border = cs.border;
+  div.style.letterSpacing = cs.letterSpacing;
+  div.style.wordSpacing = cs.wordSpacing;
+  div.style.position = 'absolute';
+  div.style.visibility = 'hidden';
+  div.style.whiteSpace = 'pre-wrap';
+  div.style.wordWrap = 'break-word';
+  div.style.width = cs.width;
+  div.style.overflow = 'hidden';
+
+  const textBeforeCursor = textarea.value.substring(0, textarea.selectionStart);
+  div.textContent = textBeforeCursor;
+  const span = document.createElement('span');
+  span.textContent = '|';
+  div.appendChild(span);
+  document.body.appendChild(div);
+
+  const spanRect = span.getBoundingClientRect();
+  const textareaRect = textarea.getBoundingClientRect();
+  document.body.removeChild(div);
+
+  return {
+    top: spanRect.top - textareaRect.top + textarea.scrollTop,
+    left: spanRect.left - textareaRect.left + textarea.scrollLeft,
+  };
+}
+
+/** Positioned autocomplete dropdown rendered inside the editor code area */
+function SqlAutocomplete({
+  items,
+  activeIndex,
+  position,
+  partial,
+  onAccept,
+}: {
+  items: readonly Suggestion[];
+  activeIndex: number;
+  position: { top: number; left: number };
+  partial: string;
+  onAccept: (text: string) => void;
+}) {
+  return (
+    <div
+      className={styles.acDropdown}
+      style={{ top: position.top + 22, left: position.left }}
+      role="listbox"
+    >
+      {items.map((item, i) => (
+        <div
+          key={`${item.kind}-${item.text}`}
+          className={`${styles.acItem}${i === activeIndex ? ` ${styles.acItemActive}` : ''}`}
+          role="option"
+          aria-selected={i === activeIndex}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            onAccept(item.text);
+          }}
+        >
+          <span className={styles.acItemType}>{item.label}</span>
+          <span>
+            <span className={styles.acHighlight}>
+              {item.text.slice(0, partial.length)}
+            </span>
+            {item.text.slice(partial.length)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // --- Query History ---
 
 const HISTORY_KEY = 'octowatch:query-history';
@@ -237,6 +456,22 @@ export function QueryPage() {
   const resultsTableRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
+  // Validation state — stores the API response keyed to the SQL it validated
+  const [validationResult, setValidationResult] = useState<{
+    sql: string;
+    valid: boolean;
+    error: string;
+  } | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+
+  // Autocomplete state
+  const [acItems, setAcItems] = useState<Suggestion[]>([]);
+  const [acIndex, setAcIndex] = useState(0);
+  const [acPosition, setAcPosition] = useState({ top: 0, left: 0 });
+  const [acPartial, setAcPartial] = useState('');
+  const cursorPosRef = useRef(0);
+  const acDismissedRef = useRef(false);
+
   const { data: templates } = useQuery({
     queryKey: ['query-templates'],
     queryFn: listTemplates,
@@ -262,7 +497,134 @@ export function QueryPage() {
     },
   });
 
+  // Debounced live validation — only calls setState inside async callbacks
+  useEffect(() => {
+    if (!sql.trim()) return;
+
+    const timer = setTimeout(() => {
+      setIsValidating(true);
+      validateQuery(sql)
+        .then((result) => {
+          setValidationResult({
+            sql,
+            valid: result.valid,
+            error: result.error ?? '',
+          });
+          setIsValidating(false);
+        })
+        .catch(() => {
+          setIsValidating(false);
+        });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [sql]);
+
+  // Derive validation display from current SQL and last API result
+  const validationStatus: ValidationStatus =
+    !sql.trim() ? 'idle' :
+    isValidating ? 'validating' :
+    (validationResult?.sql === sql) ? (validationResult.valid ? 'valid' : 'invalid') : 'idle';
+  const validationError = (validationResult?.sql === sql) ? validationResult.error : '';
+
   const lines = sql.split('\n');
+
+  /** Update autocomplete suggestions inline in the event handler (not in an effect) */
+  function updateAutocomplete(newSql: string, cursorPos: number) {
+    if (acDismissedRef.current) {
+      setAcItems([]);
+      setAcPartial('');
+      return;
+    }
+    const items = computeSuggestions(newSql, cursorPos);
+    const partial = getPartialWord(newSql, cursorPos);
+    setAcItems(items);
+    setAcPartial(partial);
+    setAcIndex(0);
+    if (items.length > 0 && textareaRef.current) {
+      setAcPosition(getCursorPixelPosition(textareaRef.current));
+    }
+  }
+
+  function handleSqlChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const newSql = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    setSql(newSql);
+    cursorPosRef.current = cursorPos;
+    acDismissedRef.current = false;
+    updateAutocomplete(newSql, cursorPos);
+  }
+
+  function acceptSuggestion(text: string) {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const cursorPos = cursorPosRef.current;
+    const partial = getPartialWord(sql, cursorPos);
+    const start = cursorPos - partial.length;
+    const newSql = sql.slice(0, start) + text + sql.slice(cursorPos);
+    setSql(newSql);
+    const newCursorPos = start + text.length;
+    cursorPosRef.current = newCursorPos;
+    setAcItems([]);
+    setAcPartial('');
+    setAcIndex(0);
+    acDismissedRef.current = true;
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.selectionStart = newCursorPos;
+      textarea.selectionEnd = newCursorPos;
+    });
+  }
+
+  function insertAtCursor(text: string) {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const pos = textarea.selectionStart ?? sql.length;
+    const newSql = sql.slice(0, pos) + text + sql.slice(pos);
+    setSql(newSql);
+    setAcItems([]);
+    setAcPartial('');
+    const newPos = pos + text.length;
+    cursorPosRef.current = newPos;
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.selectionStart = newPos;
+      textarea.selectionEnd = newPos;
+    });
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // Ctrl/Cmd+Enter to run query
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      runMutation.mutate(sql);
+      return;
+    }
+
+    // Autocomplete keyboard navigation
+    if (acItems.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setAcIndex((prev) => (prev + 1) % acItems.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setAcIndex((prev) => (prev - 1 + acItems.length) % acItems.length);
+        return;
+      }
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault();
+        acceptSuggestion(acItems[acIndex].text);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setAcItems([]);
+        acDismissedRef.current = true;
+        return;
+      }
+    }
+  }
 
   function handleSave() {
     const name = window.prompt('Query name:', 'Untitled query');
@@ -274,12 +636,17 @@ export function QueryPage() {
   function handleHistorySelect(entry: HistoryEntry) {
     setSql(entry.sql);
     setShowHistory(false);
+    setAcItems([]);
+    setAcPartial('');
   }
 
   function handleEditorScroll(e: React.UIEvent<HTMLTextAreaElement>) {
     if (highlightRef.current) {
       highlightRef.current.scrollTop = e.currentTarget.scrollTop;
       highlightRef.current.scrollLeft = e.currentTarget.scrollLeft;
+    }
+    if (acItems.length > 0) {
+      setAcItems([]);
     }
   }
 
@@ -307,7 +674,14 @@ export function QueryPage() {
                 {expandedTables.has(s.table) ? '▼' : '▶'} {s.table}
               </div>
               {expandedTables.has(s.table) && s.cols.map((c) => (
-                <div key={c.name} className={styles.schemaCol}>
+                <div
+                  key={c.name}
+                  className={`${styles.schemaCol} ${styles.schemaColClickable}`}
+                  onClick={() => insertAtCursor(c.name)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter') insertAtCursor(c.name); }}
+                >
                   <span className={styles.schemaType}>{c.type}</span>&nbsp;{c.name}
                 </div>
               ))}
@@ -321,7 +695,7 @@ export function QueryPage() {
                 <div
                   key={t.id}
                   className={styles.schemaTable}
-                  onClick={() => setSql(t.sql)}
+                  onClick={() => { setSql(t.sql); setAcItems([]); setAcPartial(''); }}
                   title={t.description ?? undefined}
                 >
                   {t.name}
@@ -336,10 +710,22 @@ export function QueryPage() {
           <div className={styles.editorFile}>
             <div className={styles.editorToolbar}>
               <span className={styles.editorFilename}>query.sql</span>
+              {validationStatus === 'valid' && (
+                <span className={styles.validBadge}>✓ Valid</span>
+              )}
+              {validationStatus === 'invalid' && (
+                <span className={styles.invalidBadge} title={validationError}>
+                  ✗ {validationError.length > 80 ? `${validationError.slice(0, 80)}…` : validationError}
+                </span>
+              )}
+              {validationStatus === 'validating' && (
+                <span className={styles.validatingBadge}>…</span>
+              )}
               <div className={styles.toolbarActions}>
                 <Button size="sm" variant="primary" onClick={() => runMutation.mutate(sql)} disabled={runMutation.isPending}>
                   {runMutation.isPending ? '…' : '▶ Run'}
                 </Button>
+                <span className={styles.shortcutHint}>{IS_MAC ? '⌘' : 'Ctrl'}+↵</span>
                 <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
                   {saveMutation.isPending ? '…' : 'Save'}
                 </Button>
@@ -390,11 +776,21 @@ export function QueryPage() {
                   ref={textareaRef}
                   className={styles.editorCode}
                   value={sql}
-                  onChange={(e) => setSql(e.target.value)}
+                  onChange={handleSqlChange}
+                  onKeyDown={handleKeyDown}
                   onScroll={handleEditorScroll}
                   spellCheck={false}
                   rows={lines.length}
                 />
+                {acItems.length > 0 && (
+                  <SqlAutocomplete
+                    items={acItems}
+                    activeIndex={acIndex}
+                    position={acPosition}
+                    partial={acPartial}
+                    onAccept={acceptSuggestion}
+                  />
+                )}
               </div>
             </div>
           </div>
