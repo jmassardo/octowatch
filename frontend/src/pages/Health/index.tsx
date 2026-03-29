@@ -68,7 +68,9 @@ export function HealthPage() {
       summary.ext_collab_elevated
     : 0;
 
-  const evaluatedWafFindings = (wafData?.findings ?? []).filter((f) => f.evaluated).length;
+  const evaluatedWafFindings = (wafData?.findings ?? []).filter(
+    (f) => f.evaluated && (f.severity === 'critical' || f.severity === 'warning'),
+  ).length;
 
   return (
     <div className={styles.page}>

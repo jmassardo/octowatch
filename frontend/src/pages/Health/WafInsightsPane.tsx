@@ -216,18 +216,32 @@ export function WafInsightsPane() {
 
             {findings.map((f) => {
               const isCritical = f.severity === 'critical';
+              const isInfo = f.severity === 'info';
               const findingClass = isCritical
                 ? styles.wafFindingCritical
-                : styles.wafFindingWarning;
+                : isInfo
+                  ? styles.wafFindingInfo ?? ''
+                  : styles.wafFindingWarning;
 
               return (
                 <div key={f.id} className={`${styles.wafFinding} ${findingClass}`}>
                   <div className={styles.wafFindingHeader}>
                     <div
-                      className={`${styles.sevDot} ${isCritical ? styles.sevDotCritical : styles.sevDotWarning}`}
+                      className={`${styles.sevDot} ${
+                        isCritical
+                          ? styles.sevDotCritical
+                          : isInfo
+                            ? styles.sevDotInfo ?? styles.sevDotPass ?? ''
+                            : styles.sevDotWarning
+                      }`}
                     />
                     <div className={styles.wafFindingTitle}>{f.finding}</div>
                     <PillarTag pillar={toPillar(f.pillar)} />
+                    {isInfo && (
+                      <span style={{ color: 'var(--success)', fontSize: 11, fontWeight: 600, marginLeft: 'auto' }}>
+                        ✓ PASS
+                      </span>
+                    )}
                   </div>
                   {f.detail && <div className={styles.wafFindingBody}>{f.detail}</div>}
                   <div className={styles.wafFindingMeta}>

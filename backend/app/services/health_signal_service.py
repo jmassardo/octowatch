@@ -1457,9 +1457,9 @@ async def get_waf_findings(
             "status": "pass" if stream_count > 0 else "warning",
             "evaluated": True,
             "detail": (
-                f"{stream_count} streaming events in last 30 days"
+                f"{stream_count} streaming events in last 30 days — audit log forwarding is active."
                 if stream_count > 0
-                else "No audit log streaming events detected"
+                else "No audit log streaming events detected. Configure audit log streaming in your enterprise settings to forward events to OctoWatch in real time. Without streaming, security analysis relies solely on periodic imports."
             ),
             "evidence_count": stream_count,
         }
@@ -1488,6 +1488,7 @@ async def get_waf_findings(
     secret_row = secret_result.mappings().first()
     enabled_count = (secret_row["enabled"] if secret_row else 0) or 0
     disabled_count = (secret_row["disabled"] if secret_row else 0) or 0
+    has_secret_events = enabled_count + disabled_count > 0
     findings.append(
         {
             "id": "waf-secret-scanning",
@@ -1495,10 +1496,17 @@ async def get_waf_findings(
             "finding": "Secret scanning enablement",
             "severity": "critical" if disabled_count > 0 else "info",
             "status": "fail" if disabled_count > 0 else "pass",
-            "evaluated": True,
+            "evaluated": has_secret_events,
             "detail": (
                 f"{disabled_count} repos disabled secret scanning, "
-                f"{enabled_count} repos enabled in last 90 days"
+                f"{enabled_count} repos enabled in last 90 days. "
+                "Repos with secret scanning disabled are at risk of leaking credentials."
+                if disabled_count > 0
+                else (
+                    f"{enabled_count} repos enabled secret scanning in last 90 days."
+                    if has_secret_events
+                    else "No secret scanning enable/disable events in audit log. Enable secret scanning org-wide in Settings → Code security."
+                )
             ),
             "evidence_count": enabled_count + disabled_count,
         }
@@ -1531,6 +1539,7 @@ async def get_waf_findings(
     bp_row = bp_result.mappings().first()
     bp_removed = (bp_row["removed_or_overridden"] if bp_row else 0) or 0
     bp_created = (bp_row["created"] if bp_row else 0) or 0
+    has_bp_events = bp_created + bp_removed > 0
     findings.append(
         {
             "id": "waf-branch-protection",
@@ -1538,10 +1547,17 @@ async def get_waf_findings(
             "finding": "Branch protection coverage",
             "severity": "critical" if bp_removed > bp_created else "info",
             "status": "fail" if bp_removed > bp_created else "pass",
-            "evaluated": True,
+            "evaluated": has_bp_events,
             "detail": (
                 f"{bp_created} branch protections created, "
-                f"{bp_removed} removed/overridden in last 90 days"
+                f"{bp_removed} removed/overridden in last 90 days. "
+                "More removals than creations indicates weakening branch security."
+                if bp_removed > bp_created
+                else (
+                    f"{bp_created} branch protections created, {bp_removed} removed in last 90 days."
+                    if has_bp_events
+                    else "No branch protection events in audit log. Use repository rulesets or branch protection rules to enforce review requirements."
+                )
             ),
             "evidence_count": bp_created + bp_removed,
         }
@@ -1571,6 +1587,7 @@ async def get_waf_findings(
     sso_row = sso_result.mappings().first()
     sso_events = (sso_row["sso_events"] if sso_row else 0) or 0
     sso_disabled = (sso_row["sso_disabled"] if sso_row else 0) or 0
+    has_sso_events = sso_events > 0
     findings.append(
         {
             "id": "waf-sso-status",
@@ -1578,14 +1595,14 @@ async def get_waf_findings(
             "finding": "SAML / SSO enforcement",
             "severity": "critical" if sso_disabled > 0 else "info",
             "status": ("fail" if sso_disabled > 0 else ("pass" if sso_events > 0 else "warning")),
-            "evaluated": True,
+            "evaluated": has_sso_events or sso_disabled > 0,
             "detail": (
-                f"{sso_disabled} SSO disable events detected"
+                f"{sso_disabled} SSO disable events detected — organization authentication may be weakened."
                 if sso_disabled > 0
                 else (
-                    f"{sso_events} SSO configuration events in last 90 days"
+                    f"{sso_events} SSO configuration events in last 90 days — SSO is actively managed."
                     if sso_events > 0
-                    else "No SSO-related events detected"
+                    else "No SSO-related events in audit log. If SSO is not configured, enforce SAML SSO in enterprise settings to prevent credential-based attacks."
                 )
             ),
             "evidence_count": sso_events,
@@ -1612,9 +1629,9 @@ async def get_waf_findings(
             "status": "pass" if ip_count > 0 else "warning",
             "evaluated": True,
             "detail": (
-                f"{ip_count} IP allowlist events in last 90 days"
+                f"{ip_count} IP allowlist events in last 90 days — network restrictions are actively managed."
                 if ip_count > 0
-                else "No IP allowlist configuration events detected"
+                else "No IP allowlist events detected. Consider configuring IP allowlists in enterprise settings to restrict API and UI access to trusted networks."
             ),
             "evidence_count": ip_count,
         }
@@ -1642,6 +1659,7 @@ async def get_waf_findings(
     dep_row = dep_result.mappings().first()
     dep_enabled = (dep_row["enabled"] if dep_row else 0) or 0
     dep_disabled = (dep_row["disabled"] if dep_row else 0) or 0
+    has_dep_events = dep_enabled + dep_disabled > 0
     findings.append(
         {
             "id": "waf-dependabot",
@@ -1649,10 +1667,15 @@ async def get_waf_findings(
             "finding": "Dependabot alert coverage",
             "severity": "warning" if dep_disabled > 0 else "info",
             "status": "warning" if dep_disabled > 0 else "pass",
-            "evaluated": True,
+            "evaluated": has_dep_events,
             "detail": (
-                f"{dep_disabled} repos disabled Dependabot alerts, "
-                f"{dep_enabled} repos enabled in last 90 days"
+                f"{dep_disabled} repos disabled Dependabot alerts — vulnerable dependencies may go undetected."
+                if dep_disabled > 0
+                else (
+                    f"{dep_enabled} repos enabled Dependabot alerts in last 90 days."
+                    if has_dep_events
+                    else "No Dependabot enable/disable events in audit log. Enable Dependabot alerts org-wide in Settings → Code security."
+                )
             ),
             "evidence_count": dep_enabled + dep_disabled,
         }
@@ -1678,9 +1701,9 @@ async def get_waf_findings(
             "status": "pass" if cs_count > 0 else "warning",
             "evaluated": True,
             "detail": (
-                f"{cs_count} code scanning events in last 90 days"
+                f"{cs_count} code scanning events in last 90 days — CodeQL or third-party scanning is active."
                 if cs_count > 0
-                else "No code scanning events detected"
+                else "No code scanning events detected. Enable CodeQL or a third-party SAST tool via GitHub Actions to detect vulnerabilities in source code before they reach production."
             ),
             "evidence_count": cs_count,
         }
@@ -1706,6 +1729,7 @@ async def get_waf_findings(
     wh_row = wh_result.mappings().first()
     wh_destroyed = (wh_row["destroyed"] if wh_row else 0) or 0
     wh_created = (wh_row["created"] if wh_row else 0) or 0
+    has_wh_events = wh_created + wh_destroyed > 0
     findings.append(
         {
             "id": "waf-webhook-health",
@@ -1713,8 +1737,13 @@ async def get_waf_findings(
             "finding": "Webhook lifecycle management",
             "severity": "warning" if wh_destroyed > wh_created else "info",
             "status": "warning" if wh_destroyed > wh_created else "pass",
-            "evaluated": True,
-            "detail": (f"{wh_created} webhooks created, {wh_destroyed} destroyed in last 90 days"),
+            "evaluated": has_wh_events,
+            "detail": (
+                f"{wh_created} webhooks created, {wh_destroyed} destroyed in last 90 days."
+                + (" More deletions than creations may indicate integration instability." if wh_destroyed > wh_created else "")
+                if has_wh_events
+                else "No webhook lifecycle events in audit log."
+            ),
             "evidence_count": wh_created + wh_destroyed,
         }
     )
@@ -1737,11 +1766,11 @@ async def get_waf_findings(
             "finding": "Push protection bypass events",
             "severity": "critical" if bypass_count > 0 else "info",
             "status": "fail" if bypass_count > 0 else "pass",
-            "evaluated": True,
+            "evaluated": bypass_count > 0,
             "detail": (
-                f"{bypass_count} push protection bypasses in last 90 days"
+                f"{bypass_count} push protection bypasses in last 90 days — developers are overriding secret detection. Review bypass reasons and consider restricting bypass permissions."
                 if bypass_count > 0
-                else "No push protection bypass events detected"
+                else "No push protection bypass events — secret push protection is enforced."
             ),
             "evidence_count": bypass_count,
         }
@@ -1760,6 +1789,7 @@ async def get_waf_findings(
         {"scoped_orgs": scoped_orgs},
     )
     push_count = push_result.scalar() or 0
+    has_push_events = push_count > 0
     findings.append(
         {
             "id": "waf-direct-push",
@@ -1767,8 +1797,14 @@ async def get_waf_findings(
             "finding": "Direct pushes to default branch",
             "severity": "warning" if push_count > 5 else "info",
             "status": "warning" if push_count > 5 else "pass",
-            "evaluated": True,
-            "detail": f"{push_count} direct pushes to main/master in last 90 days",
+            "evaluated": has_push_events,
+            "detail": (
+                f"{push_count} direct pushes to main/master in last 90 days. "
+                + ("This exceeds the recommended threshold. Enforce branch protection rules requiring pull request reviews." if push_count > 5
+                   else "Volume is within acceptable range.")
+                if has_push_events
+                else "No direct pushes to default branches detected in audit log."
+            ),
             "evidence_count": push_count,
         }
     )
