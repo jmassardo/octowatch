@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   getSyncStatus,
@@ -7,13 +7,14 @@ import {
   getSyncConfig,
   getSyncSchedule,
   updateSyncSchedule,
+  getSyncLogs,
 } from '../../api/sync';
 import { Button } from '../../components/primitives/Button';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
-import type { SyncRun, SyncRunStatus, EntityStatus } from '../../types/sync';
+import type { SyncRun, SyncRunStatus, EntityStatus, PostProcessingStatus, SyncLogEntry } from '../../types/sync';
 import styles from './Integrations.module.css';
 
 /* ------------------------------------------------------------------ */
@@ -121,8 +122,24 @@ function EntityTable({ cursors }: { cursors: EntityStatus[] }) {
 /*  Progress bar                                                       */
 /* ------------------------------------------------------------------ */
 
-function ProgressBar({ cursors }: { cursors: EntityStatus[] }) {
+function ProgressBar({ cursors, isActive }: { cursors: EntityStatus[]; isActive: boolean }) {
   const total = cursors.length;
+
+  if (total === 0 && isActive) {
+    return (
+      <div className={styles.progressContainer} data-testid="sync-progress">
+        <div className={styles.progressBar}>
+          <div
+            className={`${styles.progressFill} ${styles.progressIndeterminate}`}
+            role="progressbar"
+            aria-valuetext="Preparing sync tasks"
+          />
+        </div>
+        <span className={styles.progressLabel}>Preparing sync tasks…</span>
+      </div>
+    );
+  }
+
   if (total === 0) return null;
 
   const completed = cursors.filter(
@@ -145,6 +162,172 @@ function ProgressBar({ cursors }: { cursors: EntityStatus[] }) {
       <span className={styles.progressLabel}>
         {completed}/{total} entities · {pct}%
       </span>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Post-processing status                                             */
+/* ------------------------------------------------------------------ */
+
+function PostProcessingStatusDisplay({ status }: { status: PostProcessingStatus | null }) {
+  if (!status || status === 'pending') {
+    if (status === 'pending') {
+      return (
+        <div className={styles.postProcessing} data-testid="post-processing-status">
+          <span className={styles.postProcessingPending}>Post-processing: Queued…</span>
+        </div>
+      );
+    }
+    return null;
+  }
+
+  if (status === 'running') {
+    return (
+      <div className={styles.postProcessing} data-testid="post-processing-status">
+        <Spinner />
+        <span>Post-processing: Running detection rules and computing baselines…</span>
+      </div>
+    );
+  }
+
+  if (status === 'completed') {
+    return (
+      <div className={styles.postProcessing} data-testid="post-processing-status">
+        <span className={styles.postProcessingSuccess}>
+          ✓ Post-processing complete — detections and baselines updated
+        </span>
+      </div>
+    );
+  }
+
+  if (status === 'failed') {
+    return (
+      <div className={styles.postProcessing} data-testid="post-processing-status">
+        <span className={styles.postProcessingError}>✗ Post-processing failed</span>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Sync log viewer                                                    */
+/* ------------------------------------------------------------------ */
+
+function formatLogTimestamp(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+function SyncLogViewer({ runId, isActive }: { runId: string; isActive: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const [entries, setEntries] = useState<SyncLogEntry[]>([]);
+  const lastSeqRef = useRef(0);
+  const logEndRef = useRef<HTMLDivElement>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      const response = await getSyncLogs(runId, lastSeqRef.current);
+      if (response.entries.length > 0) {
+        setEntries((prev) => [...prev, ...response.entries]);
+        lastSeqRef.current = response.last_seq;
+      }
+    } catch {
+      // Silently ignore fetch errors — log viewer is non-critical
+    }
+  }, [runId]);
+
+  // Initial fetch when expanded
+  useEffect(() => {
+    if (expanded) {
+      void fetchLogs();
+    }
+  }, [expanded, fetchLogs]);
+
+  // Poll for new entries
+  useEffect(() => {
+    if (!expanded) return;
+
+    // Poll while active or once after terminal to catch final entries
+    intervalRef.current = setInterval(() => {
+      void fetchLogs();
+    }, 3000);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [expanded, isActive, fetchLogs]);
+
+  // Stop polling once terminal and we've done one final fetch
+  useEffect(() => {
+    if (!isActive && intervalRef.current) {
+      // Do one final fetch then stop
+      void fetchLogs().then(() => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      });
+    }
+  }, [isActive, fetchLogs]);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (expanded && logEndRef.current && typeof logEndRef.current.scrollIntoView === 'function') {
+      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [entries, expanded]);
+
+  const levelClass = (level: string): string => {
+    switch (level) {
+      case 'warn':
+        return styles.logWarn;
+      case 'error':
+        return styles.logError;
+      default:
+        return styles.logInfo;
+    }
+  };
+
+  return (
+    <div className={styles.logViewerSection} data-testid="sync-log-viewer">
+      <button
+        type="button"
+        className={styles.logViewerToggle}
+        onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+      >
+        <span>Sync Log</span>
+        {!expanded && entries.length > 0 && (
+          <span className={styles.logBadge}>{entries.length}</span>
+        )}
+        <span className={styles.logViewerChevron}>{expanded ? '▾' : '▸'}</span>
+      </button>
+      {expanded && (
+        <div className={styles.logViewerContainer}>
+          {entries.length === 0 ? (
+            <div className={styles.logEmpty}>No log entries yet…</div>
+          ) : (
+            entries.map((entry) => (
+              <div key={entry.seq} className={`${styles.logLine} ${levelClass(entry.level)}`}>
+                <span className={styles.logTimestamp}>[{formatLogTimestamp(entry.timestamp)}]</span>
+                <span className={styles.logLevel}>[{entry.level}]</span>
+                <span className={styles.logMessage}>{entry.message}</span>
+              </div>
+            ))
+          )}
+          <div ref={logEndRef} />
+        </div>
+      )}
     </div>
   );
 }
@@ -514,8 +697,10 @@ export function SyncPanel() {
               Running for {formatDuration(syncRun.started_at, null)}
             </span>
           </div>
-          <ProgressBar cursors={syncRun.cursors} />
+          <ProgressBar cursors={syncRun.cursors} isActive={isActive} />
           <EntityTable cursors={syncRun.cursors} />
+          <PostProcessingStatusDisplay status={syncRun.post_processing_status} />
+          <SyncLogViewer runId={syncRun.id} isActive={isActive} />
         </div>
       )}
 
@@ -539,6 +724,9 @@ export function SyncPanel() {
               <span className={styles.syncSummaryLabel}>Error</span>
               <span>{syncRun.error_message}</span>
             </div>
+          )}
+          {syncRun.post_processing_status && (
+            <PostProcessingStatusDisplay status={syncRun.post_processing_status} />
           )}
         </div>
       )}

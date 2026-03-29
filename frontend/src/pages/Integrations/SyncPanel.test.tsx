@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { SyncPanel } from './SyncPanel';
-import type { SyncRun, SyncConfig, SyncSchedule } from '../../types/sync';
+import type { SyncRun, SyncConfig, SyncSchedule, SyncLogsResponse } from '../../types/sync';
 
 /* ------------------------------------------------------------------ */
 /*  Mocks                                                              */
@@ -15,6 +15,7 @@ const mockCancelSyncRun = vi.fn<(runId: string) => Promise<void>>();
 const mockGetSyncConfig = vi.fn<() => Promise<SyncConfig>>();
 const mockGetSyncSchedule = vi.fn<() => Promise<SyncSchedule>>();
 const mockUpdateSyncSchedule = vi.fn<() => Promise<SyncSchedule>>();
+const mockGetSyncLogs = vi.fn<() => Promise<SyncLogsResponse>>();
 
 vi.mock('../../api/sync', () => ({
   getSyncStatus: (...args: unknown[]) => mockGetSyncStatus(...(args as [])),
@@ -23,6 +24,7 @@ vi.mock('../../api/sync', () => ({
   getSyncConfig: (...args: unknown[]) => mockGetSyncConfig(...(args as [])),
   getSyncSchedule: (...args: unknown[]) => mockGetSyncSchedule(...(args as [])),
   updateSyncSchedule: (...args: unknown[]) => mockUpdateSyncSchedule(...(args as [])),
+  getSyncLogs: (...args: unknown[]) => mockGetSyncLogs(...(args as [])),
 }));
 
 /* ------------------------------------------------------------------ */
@@ -39,6 +41,7 @@ const completedRun: SyncRun = {
   completed_at: '2025-06-01T08:15:00Z',
   error_message: null,
   entity_counts: { repos: 500, users: 100 },
+  post_processing_status: null,
   cursors: [
     { entity_type: 'repos', org: 'acme', status: 'completed', items_synced: 500, last_cursor: null },
     { entity_type: 'users', org: null, status: 'completed', items_synced: 100, last_cursor: null },
@@ -55,11 +58,26 @@ const runningRun: SyncRun = {
   completed_at: null,
   error_message: null,
   entity_counts: null,
+  post_processing_status: null,
   cursors: [
     { entity_type: 'repos', org: 'acme', status: 'completed', items_synced: 300, last_cursor: 'abc' },
     { entity_type: 'users', org: null, status: 'in_progress', items_synced: 50, last_cursor: 'def' },
     { entity_type: 'teams', org: 'acme', status: 'pending', items_synced: 0, last_cursor: null },
   ],
+};
+
+const runningEmptyCursorsRun: SyncRun = {
+  id: 'run-4',
+  status: 'running',
+  trigger_type: 'manual',
+  triggered_by: 'admin',
+  scope: 'full',
+  started_at: new Date(Date.now() - 30_000).toISOString(),
+  completed_at: null,
+  error_message: null,
+  entity_counts: null,
+  post_processing_status: null,
+  cursors: [],
 };
 
 const failedRun: SyncRun = {
@@ -72,6 +90,7 @@ const failedRun: SyncRun = {
   completed_at: '2025-06-01T10:05:00Z',
   error_message: 'Authentication token expired',
   entity_counts: { repos: 200 },
+  post_processing_status: null,
   cursors: [
     { entity_type: 'repos', org: 'acme', status: 'failed', items_synced: 200, last_cursor: null },
   ],
@@ -110,6 +129,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockGetSyncConfig.mockResolvedValue(syncConfig);
   mockGetSyncSchedule.mockResolvedValue(defaultSchedule);
+  mockGetSyncLogs.mockResolvedValue({ entries: [], last_seq: 0 });
 });
 
 describe('SyncPanel', () => {
@@ -223,6 +243,229 @@ describe('SyncPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('Queued')).toBeInTheDocument();
     });
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Indeterminate progress bar tests                                   */
+/* ------------------------------------------------------------------ */
+
+describe('SyncPanel – indeterminate progress bar', () => {
+  it('shows indeterminate progress bar when running with empty cursors', async () => {
+    mockGetSyncStatus.mockResolvedValue(runningEmptyCursorsRun);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('sync-progress')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Preparing sync tasks…')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+  });
+
+  it('shows determinate progress bar when cursors are present', async () => {
+    mockGetSyncStatus.mockResolvedValue(runningRun);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('sync-progress')).toBeInTheDocument();
+    });
+    expect(screen.getByText('1/3 entities · 33%')).toBeInTheDocument();
+  });
+
+  it('does not show progress bar when completed with empty cursors', async () => {
+    const completedEmpty: SyncRun = {
+      ...completedRun,
+      cursors: [],
+      entity_counts: null,
+    };
+    mockGetSyncStatus.mockResolvedValue(completedEmpty);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByText('completed')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('sync-progress')).not.toBeInTheDocument();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Post-processing status tests                                       */
+/* ------------------------------------------------------------------ */
+
+describe('SyncPanel – post-processing status', () => {
+  it('shows pending post-processing status while running', async () => {
+    const run: SyncRun = {
+      ...runningRun,
+      post_processing_status: 'pending',
+    };
+    mockGetSyncStatus.mockResolvedValue(run);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('post-processing-status')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Post-processing: Queued…')).toBeInTheDocument();
+  });
+
+  it('shows running post-processing status', async () => {
+    const run: SyncRun = {
+      ...runningRun,
+      post_processing_status: 'running',
+    };
+    mockGetSyncStatus.mockResolvedValue(run);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('post-processing-status')).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText('Post-processing: Running detection rules and computing baselines…'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows completed post-processing status in summary', async () => {
+    const run: SyncRun = {
+      ...completedRun,
+      post_processing_status: 'completed',
+    };
+    mockGetSyncStatus.mockResolvedValue(run);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('post-processing-status')).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText('✓ Post-processing complete — detections and baselines updated'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows failed post-processing status in summary', async () => {
+    const run: SyncRun = {
+      ...completedRun,
+      post_processing_status: 'failed',
+    };
+    mockGetSyncStatus.mockResolvedValue(run);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('post-processing-status')).toBeInTheDocument();
+    });
+    expect(screen.getByText('✗ Post-processing failed')).toBeInTheDocument();
+  });
+
+  it('does not show post-processing status when null', async () => {
+    mockGetSyncStatus.mockResolvedValue(completedRun);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByText('completed')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('post-processing-status')).not.toBeInTheDocument();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Sync log viewer tests                                              */
+/* ------------------------------------------------------------------ */
+
+describe('SyncPanel – sync log viewer', () => {
+  it('renders collapsed log viewer for active sync', async () => {
+    mockGetSyncStatus.mockResolvedValue(runningRun);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('sync-log-viewer')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Sync Log')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sync log/i })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+  });
+
+  it('expands log viewer and shows empty state', async () => {
+    const user = userEvent.setup();
+    mockGetSyncStatus.mockResolvedValue(runningRun);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('sync-log-viewer')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /sync log/i }));
+    expect(screen.getByRole('button', { name: /sync log/i })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    await waitFor(() => {
+      expect(screen.getByText('No log entries yet…')).toBeInTheDocument();
+    });
+  });
+
+  it('displays log entries when expanded', async () => {
+    const user = userEvent.setup();
+    mockGetSyncLogs.mockResolvedValue({
+      entries: [
+        {
+          seq: 1,
+          timestamp: '2025-06-01T08:00:01Z',
+          level: 'info',
+          message: 'Starting enterprise sync',
+          entity_type: null,
+          org: null,
+          details: null,
+        },
+        {
+          seq: 2,
+          timestamp: '2025-06-01T08:00:05Z',
+          level: 'error',
+          message: 'Failed to sync repos',
+          entity_type: 'repos',
+          org: 'acme',
+          details: null,
+        },
+      ],
+      last_seq: 2,
+    });
+    mockGetSyncStatus.mockResolvedValue(runningRun);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('sync-log-viewer')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /sync log/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Starting enterprise sync')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Failed to sync repos')).toBeInTheDocument();
+  });
+
+  it('shows entry count badge when collapsed with entries', async () => {
+    const user = userEvent.setup();
+    mockGetSyncLogs.mockResolvedValue({
+      entries: [
+        {
+          seq: 1,
+          timestamp: '2025-06-01T08:00:01Z',
+          level: 'info',
+          message: 'Starting sync',
+          entity_type: null,
+          org: null,
+          details: null,
+        },
+      ],
+      last_seq: 1,
+    });
+    mockGetSyncStatus.mockResolvedValue(runningRun);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('sync-log-viewer')).toBeInTheDocument();
+    });
+    // Expand to trigger fetch, then collapse
+    await user.click(screen.getByRole('button', { name: /sync log/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Starting sync')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /sync log/i }));
+    // Badge should show count
+    expect(screen.getByText('1')).toBeInTheDocument();
+  });
+
+  it('does not render log viewer for completed syncs', async () => {
+    mockGetSyncStatus.mockResolvedValue(completedRun);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByText('completed')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('sync-log-viewer')).not.toBeInTheDocument();
   });
 });
 

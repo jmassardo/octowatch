@@ -143,3 +143,27 @@ class SyncScheduleUpdateRequest(BaseModel):
             msg = f"scope must be one of {sorted(valid_scopes)}"
             raise ValueError(msg)
         return v
+
+
+# ── Sync log schemas ───────────────────────────────────────────────────────────
+
+
+class SyncLogEntryResponse(BaseModel):
+    """Single log entry emitted during a sync run."""
+
+    seq: int
+    timestamp: datetime
+    level: str
+    message: str
+    entity_type: str | None = None
+    org: str | None = None
+    details: dict[str, Any] | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class SyncLogsResponse(BaseModel):
+    """Paginated log entries for a sync run."""
+
+    entries: list[SyncLogEntryResponse]
+    last_seq: int

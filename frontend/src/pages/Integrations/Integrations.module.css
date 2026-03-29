@@ -847,3 +847,156 @@
   color: var(--fg);
   font-size: 13px;
 }
+
+/* ===== Indeterminate progress bar ===== */
+
+@keyframes progressIndeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
+.progressIndeterminate {
+  width: 33% !important;
+  animation: progressIndeterminate 1.5s ease-in-out infinite;
+  background: linear-gradient(
+    90deg,
+    var(--accent) 0%,
+    rgba(88, 166, 255, 0.6) 50%,
+    var(--accent) 100%
+  );
+}
+
+/* ===== Post-processing status ===== */
+
+.postProcessing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  padding: 8px 0;
+}
+
+.postProcessingPending {
+  color: var(--fg-muted);
+  font-style: italic;
+}
+
+.postProcessingSuccess {
+  color: var(--success);
+}
+
+.postProcessingError {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+/* ===== Sync Log Viewer ===== */
+
+.logViewerSection {
+  border-top: 1px solid var(--border-muted);
+  padding-top: 8px;
+}
+
+.logViewerToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  padding: 4px 0;
+  text-align: left;
+  font-family: inherit;
+}
+
+.logViewerToggle:hover {
+  color: var(--fg);
+}
+
+.logViewerChevron {
+  margin-left: auto;
+  font-size: 11px;
+}
+
+.logBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--canvas-inset);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.logViewerContainer {
+  background: #1a1a2e;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.logEmpty {
+  color: #666;
+  font-style: italic;
+  padding: 8px 0;
+}
+
+.logLine {
+  display: flex;
+  gap: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.logTimestamp {
+  color: #666;
+  flex-shrink: 0;
+}
+
+.logLevel {
+  flex-shrink: 0;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.logMessage {
+  flex: 1;
+}
+
+.logInfo {
+  color: #a0a0a0;
+}
+
+.logInfo .logLevel {
+  color: #888;
+}
+
+.logWarn {
+  color: #f0ad4e;
+}
+
+.logWarn .logLevel {
+  color: #f0ad4e;
+}
+
+.logError {
+  color: #d9534f;
+}
+
+.logError .logLevel {
+  color: #d9534f;
+}

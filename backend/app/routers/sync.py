@@ -17,11 +17,14 @@ from app.models.github_sync import (
     EnterpriseSyncEntityCursor,
     EnterpriseSyncRun,
     GitHubAppConfig,
+    SyncLogEntry,
 )
 from app.schemas.github_sync import (
     CursorRow,
     SyncConfigResponse,
     SyncConfigUpdateRequest,
+    SyncLogEntryResponse,
+    SyncLogsResponse,
     SyncRunDetail,
     SyncRunsResponse,
     SyncRunSummary,
@@ -183,6 +186,40 @@ async def get_run_detail(
     detail = SyncRunDetail.model_validate(run)
     detail.cursors = [CursorRow.model_validate(c) for c in cursors]
     return detail
+
+
+@router.get("/runs/{run_id}/logs", response_model=SyncLogsResponse)
+async def get_sync_logs(
+    run_id: uuid.UUID,
+    after: int = Query(default=0, ge=0, description="Return logs after this sequence number"),
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> SyncLogsResponse:
+    """Return incremental log entries for a sync run.
+
+    The ``after`` parameter supports efficient polling: the client tracks
+    the ``last_seq`` value from the previous response and passes it here
+    to receive only new entries.  At most 200 entries are returned per
+    request.
+    """
+    # Verify run exists
+    run_result = await db.execute(select(EnterpriseSyncRun).where(EnterpriseSyncRun.id == run_id))
+    if not run_result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found.")
+
+    entries_result = await db.execute(
+        select(SyncLogEntry)
+        .where(SyncLogEntry.run_id == run_id, SyncLogEntry.seq > after)
+        .order_by(SyncLogEntry.seq)
+        .limit(200)
+    )
+    entries = entries_result.scalars().all()
+
+    last_seq = entries[-1].seq if entries else after
+    return SyncLogsResponse(
+        entries=[SyncLogEntryResponse.model_validate(e) for e in entries],
+        last_seq=last_seq,
+    )
 
 
 @router.delete("/runs/{run_id}/cancel", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

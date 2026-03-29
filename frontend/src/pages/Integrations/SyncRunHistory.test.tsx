@@ -64,6 +64,7 @@ const runDetail: SyncRun = {
   completed_at: '2025-06-01T08:15:00Z',
   error_message: null,
   entity_counts: { repos: 500 },
+  post_processing_status: null,
   cursors: [
     { entity_type: 'repos', org: 'acme', status: 'completed', items_synced: 500, last_cursor: null },
     { entity_type: 'users', org: null, status: 'completed', items_synced: 100, last_cursor: null },

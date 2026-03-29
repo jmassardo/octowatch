@@ -57,6 +57,54 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
+
+async def _write_sync_log(
+    session_factory: async_sessionmaker[AsyncSession],
+    run_id: str,
+    message: str,
+    level: str = "info",
+    entity_type: str | None = None,
+    org: str | None = None,
+    details: dict[str, object] | None = None,
+) -> None:
+    """Write a log entry for a sync run in its own transaction.
+
+    This helper is resilient — it catches and logs exceptions so that a
+    failed log write never crashes the sync itself.
+    """
+    try:
+        from sqlalchemy import func, select
+
+        from app.models.github_sync import SyncLogEntry
+
+        run_uuid = uuid.UUID(run_id)
+        async with session_factory() as session:
+            result = await session.execute(
+                select(func.coalesce(func.max(SyncLogEntry.seq), 0) + 1).where(
+                    SyncLogEntry.run_id == run_uuid
+                )
+            )
+            seq = result.scalar_one()
+            entry = SyncLogEntry(
+                run_id=run_uuid,
+                seq=seq,
+                level=level,
+                message=message,
+                entity_type=entity_type,
+                org=org,
+                details=details,
+            )
+            session.add(entry)
+            await session.commit()
+    except Exception as exc:
+        logger.warning(
+            "github_sync.log_write_failed",
+            run_id=run_id,
+            message=message,
+            error=str(exc),
+        )
+
+
 # Types accepted as scope values
 ScopeType = Literal[
     "full",
@@ -215,7 +263,9 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
 
     run_uuid = uuid.UUID(run_id)
 
-    async with _make_session_factory()() as session:
+    sf = _make_session_factory()
+
+    async with sf() as session:
         # Mark run as started
         await session.execute(
             update(EnterpriseSyncRun)
@@ -230,6 +280,8 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         )
         configs = configs_result.scalars().all()
 
+    await _write_sync_log(sf, run_id, f"Starting enterprise sync (scope={scope})")
+
     # Auto-discover installations if none exist but env is configured
     if not configs and settings.github_app.GITHUB_APP_ID:
         configs = await _bootstrap_app_configs(settings)
@@ -242,6 +294,7 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
 
     if not configs:
         logger.error("github_sync.no_configs", run_id=run_id)
+        await _write_sync_log(sf, run_id, "No enabled GitHub App configs found", level="error")
         async with _make_session_factory()() as session:
             await session.execute(
                 update(EnterpriseSyncRun)
@@ -351,6 +404,12 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         run_id=run_id,
         task_count=len(dispatched),
     )
+    await _write_sync_log(
+        sf,
+        run_id,
+        f"Dispatched {len(dispatched)} entity sync tasks",
+        details={"tasks": [f"{et}:{o}" for et, o in dispatched]},
+    )
 
     # ── Wait for all child tasks to reach terminal state ───────────────────
     _TERMINAL_STATES = {"SUCCESS", "FAILURE", "REVOKED"}
@@ -382,6 +441,23 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
     final_status = "failed" if has_failures else "completed"
     error_msg = f"Failed entities: {', '.join(failed_entities)}" if has_failures else None
 
+    if has_failures:
+        await _write_sync_log(
+            sf,
+            run_id,
+            f"Sync completed with failures: {', '.join(failed_entities)}",
+            level="error",
+            details={"failed_entities": failed_entities, "entity_counts": entity_counts},
+        )
+    else:
+        total_items = sum(entity_counts.values()) if entity_counts else 0
+        await _write_sync_log(
+            sf,
+            run_id,
+            f"All entity tasks completed — {total_items} total items synced",
+            details={"entity_counts": entity_counts},
+        )
+
     async with _make_session_factory()() as session:
         await session.execute(
             update(EnterpriseSyncRun)
@@ -403,6 +479,7 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
             queue="github_sync",
         )
         logger.info("github_sync.post_sync_pipeline_dispatched", run_id=run_id)
+        await _write_sync_log(sf, run_id, "Post-sync pipeline dispatched")
 
     return {
         "status": final_status,
@@ -419,10 +496,11 @@ async def _run_post_sync_pipeline_async(run_id: str) -> dict[str, object]:
     from app.models.github_sync import EnterpriseSyncRun
 
     run_uuid = uuid.UUID(run_id)
+    sf = _make_session_factory()
 
     try:
         # Mark post-processing as running
-        async with _make_session_factory()() as session:
+        async with sf() as session:
             await session.execute(
                 update(EnterpriseSyncRun)
                 .where(EnterpriseSyncRun.id == run_uuid)
@@ -430,9 +508,11 @@ async def _run_post_sync_pipeline_async(run_id: str) -> dict[str, object]:
             )
             await session.commit()
 
+        await _write_sync_log(sf, run_id, "Starting post-sync pipeline")
+
         # Query event IDs from the last 30 days
         cutoff = datetime.now(UTC) - timedelta(days=30)
-        async with _make_session_factory()() as session:
+        async with sf() as session:
             result = await session.execute(
                 select(AuditEvent.id).where(AuditEvent.created_at >= cutoff).order_by(AuditEvent.id)
             )
@@ -451,13 +531,21 @@ async def _run_post_sync_pipeline_async(run_id: str) -> dict[str, object]:
             )
             detection_batches += 1
 
+        await _write_sync_log(
+            sf,
+            run_id,
+            f"Dispatched {detection_batches} detection batches for {len(event_ids)} events",
+        )
+
         # Dispatch rolling baseline computation
         from app.workers.baseline_worker import compute_rolling_baselines_task
 
         compute_rolling_baselines_task.apply_async(queue="baseline")
 
+        await _write_sync_log(sf, run_id, "Baseline computation triggered")
+
         # Mark post-processing as completed
-        async with _make_session_factory()() as session:
+        async with sf() as session:
             await session.execute(
                 update(EnterpriseSyncRun)
                 .where(EnterpriseSyncRun.id == run_uuid)
@@ -470,6 +558,11 @@ async def _run_post_sync_pipeline_async(run_id: str) -> dict[str, object]:
             run_id=run_id,
             event_count=len(event_ids),
             detection_batches=detection_batches,
+        )
+        await _write_sync_log(
+            sf,
+            run_id,
+            "Post-sync pipeline completed — detections and baselines updated",
         )
 
         return {
@@ -484,9 +577,15 @@ async def _run_post_sync_pipeline_async(run_id: str) -> dict[str, object]:
             run_id=run_id,
             error=str(exc),
         )
+        await _write_sync_log(
+            sf,
+            run_id,
+            f"Post-sync pipeline failed: {exc}",
+            level="error",
+        )
         # Attempt to mark status as failed
         try:
-            async with _make_session_factory()() as session:
+            async with sf() as session:
                 await session.execute(
                     update(EnterpriseSyncRun)
                     .where(EnterpriseSyncRun.id == run_uuid)
@@ -524,9 +623,18 @@ async def _sync_entity_async(
     from app.services.github_token_service import GitHubAppTokenManager
 
     run_uuid = uuid.UUID(run_id)
+    sf = _make_session_factory()
+
+    await _write_sync_log(
+        sf,
+        run_id,
+        f"Starting sync for {entity_type}",
+        entity_type=entity_type,
+        org=org,
+    )
 
     # ── Read or initialise cursor ──────────────────────────────────────────
-    async with _make_session_factory()() as session:
+    async with sf() as session:
         cursor_result = await session.execute(
             select(EnterpriseSyncEntityCursor).where(
                 EnterpriseSyncEntityCursor.run_id == run_uuid,
@@ -604,6 +712,13 @@ async def _sync_entity_async(
                 items=len(items),
                 items_synced=items_synced,
             )
+            await _write_sync_log(
+                sf,
+                run_id,
+                f"Fetched page {page_num + 1} ({len(items)} items, {items_synced} total)",
+                entity_type=entity_type,
+                org=org,
+            )
 
             if not next_cursor:
                 break
@@ -640,10 +755,26 @@ async def _sync_entity_async(
             org=org,
             error=str(exc),
         )
+        await _write_sync_log(
+            sf,
+            run_id,
+            f"Failed to sync {entity_type}: {exc}",
+            level="error",
+            entity_type=entity_type,
+            org=org,
+        )
         raise task.retry(exc=exc) from exc
 
     finally:
         await valkey.aclose()
+
+    await _write_sync_log(
+        sf,
+        run_id,
+        f"Completed {entity_type}: {items_synced} items synced",
+        entity_type=entity_type,
+        org=org,
+    )
 
     return {
         "status": "completed",

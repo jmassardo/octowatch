@@ -888,3 +888,200 @@ class TestUpdateSyncSchedule:
         assert resp.status_code == 200
         # No settings should have been written
         mock_set_setting.assert_not_called()
+
+
+# ─── Sync Log Schema Tests ───────────────────────────────────────────────────
+
+
+class TestSyncLogEntryResponse:
+    def test_from_attributes(self):
+        from app.schemas.github_sync import SyncLogEntryResponse
+
+        class FakeEntry:
+            seq = 1
+            timestamp = datetime(2025, 1, 1, tzinfo=UTC)
+            level = "info"
+            message = "Starting enterprise sync"
+            entity_type = None
+            org = None
+            details = None
+
+        entry = SyncLogEntryResponse.model_validate(FakeEntry())
+        assert entry.seq == 1
+        assert entry.level == "info"
+        assert entry.message == "Starting enterprise sync"
+        assert entry.entity_type is None
+        assert entry.org is None
+        assert entry.details is None
+
+    def test_from_attributes_with_all_fields(self):
+        from app.schemas.github_sync import SyncLogEntryResponse
+
+        class FakeEntry:
+            seq = 5
+            timestamp = datetime(2025, 6, 1, 8, 5, 0, tzinfo=UTC)
+            level = "error"
+            message = "Failed to sync repos"
+            entity_type = "repositories"
+            org = "acme"
+            details = {"error": "rate limited", "retry_after": 60}
+
+        entry = SyncLogEntryResponse.model_validate(FakeEntry())
+        assert entry.seq == 5
+        assert entry.level == "error"
+        assert entry.entity_type == "repositories"
+        assert entry.org == "acme"
+        assert entry.details == {"error": "rate limited", "retry_after": 60}
+
+
+class TestSyncLogsResponse:
+    def test_empty_response(self):
+        from app.schemas.github_sync import SyncLogsResponse
+
+        resp = SyncLogsResponse(entries=[], last_seq=0)
+        assert resp.entries == []
+        assert resp.last_seq == 0
+
+    def test_response_with_entries(self):
+        from app.schemas.github_sync import SyncLogEntryResponse, SyncLogsResponse
+
+        entries = [
+            SyncLogEntryResponse(
+                seq=1,
+                timestamp=datetime(2025, 1, 1, tzinfo=UTC),
+                level="info",
+                message="Starting sync",
+            ),
+            SyncLogEntryResponse(
+                seq=2,
+                timestamp=datetime(2025, 1, 1, 0, 1, tzinfo=UTC),
+                level="warn",
+                message="Rate limited",
+                entity_type="repos",
+                org="acme",
+            ),
+        ]
+        resp = SyncLogsResponse(entries=entries, last_seq=2)
+        assert len(resp.entries) == 2
+        assert resp.last_seq == 2
+        assert resp.entries[0].message == "Starting sync"
+        assert resp.entries[1].entity_type == "repos"
+
+
+# ─── SyncLogEntry Model Tests ────────────────────────────────────────────────
+
+
+class TestSyncLogEntryModel:
+    def test_model_has_expected_columns(self):
+        from app.models.github_sync import SyncLogEntry
+
+        assert SyncLogEntry.__tablename__ == "enterprise_sync_log_entries"
+        # Verify columns exist on the mapped class
+        mapper = SyncLogEntry.__mapper__
+        column_names = {c.key for c in mapper.column_attrs}
+        expected = {"id", "run_id", "seq", "timestamp", "level", "message", "entity_type", "org", "details"}
+        assert expected.issubset(column_names)
+
+    def test_model_table_args(self):
+        from app.models.github_sync import SyncLogEntry
+
+        # Should have the composite index
+        table = SyncLogEntry.__table__
+        index_names = {idx.name for idx in table.indexes}
+        assert "idx_sync_log_entries_run_id_seq" in index_names
+
+
+# ─── Sync Logs Router Tests ──────────────────────────────────────────────────
+
+
+class TestGetSyncLogs:
+    def test_logs_returns_404_when_run_not_found(self):
+        app, mock_db, _ = _build_sync_app(valkey_session=_make_admin_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        client.cookies.set("access_token", token)
+
+        # Mock: run not found
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        run_id = str(uuid.uuid4())
+        resp = client.get(f"/api/v1/admin/sync/runs/{run_id}/logs")
+        assert resp.status_code == 404
+
+    def test_logs_returns_empty_entries(self):
+        app, mock_db, _ = _build_sync_app(valkey_session=_make_admin_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        client.cookies.set("access_token", token)
+
+        # First execute: run exists. Second execute: empty logs.
+        mock_run_result = MagicMock()
+        mock_run_result.scalar_one_or_none.return_value = MagicMock()  # run exists
+
+        mock_entries_result = MagicMock()
+        mock_entries_result.scalars.return_value.all.return_value = []
+
+        mock_db.execute = AsyncMock(side_effect=[mock_run_result, mock_entries_result])
+
+        run_id = str(uuid.uuid4())
+        resp = client.get(f"/api/v1/admin/sync/runs/{run_id}/logs")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["entries"] == []
+        assert data["last_seq"] == 0
+
+    def test_logs_returns_entries_with_after_parameter(self):
+        app, mock_db, _ = _build_sync_app(valkey_session=_make_admin_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        client.cookies.set("access_token", token)
+
+        mock_run_result = MagicMock()
+        mock_run_result.scalar_one_or_none.return_value = MagicMock()
+
+        # Simulate log entries
+        class FakeLogEntry:
+            def __init__(self, seq, level, message):
+                self.seq = seq
+                self.timestamp = datetime(2025, 6, 1, 8, 0, seq, tzinfo=UTC)
+                self.level = level
+                self.message = message
+                self.entity_type = None
+                self.org = None
+                self.details = None
+
+        fake_entries = [
+            FakeLogEntry(3, "info", "Page 1 fetched"),
+            FakeLogEntry(4, "info", "Page 2 fetched"),
+        ]
+        mock_entries_result = MagicMock()
+        mock_entries_result.scalars.return_value.all.return_value = fake_entries
+
+        mock_db.execute = AsyncMock(side_effect=[mock_run_result, mock_entries_result])
+
+        run_id = str(uuid.uuid4())
+        resp = client.get(f"/api/v1/admin/sync/runs/{run_id}/logs?after=2")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["entries"]) == 2
+        assert data["last_seq"] == 4
+        assert data["entries"][0]["message"] == "Page 1 fetched"
+        assert data["entries"][1]["message"] == "Page 2 fetched"
+
+    def test_logs_unauthenticated_returns_401(self):
+        app, _, _ = _build_sync_app()
+        client = TestClient(app, raise_server_exceptions=False)
+        run_id = str(uuid.uuid4())
+        resp = client.get(f"/api/v1/admin/sync/runs/{run_id}/logs")
+        assert resp.status_code == 401
+
+    def test_logs_non_admin_returns_403(self):
+        app, _, _ = _build_sync_app(valkey_session=_make_analyst_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt(sub="analyst", jti="analyst-jti")
+        client.cookies.set("access_token", token)
+        run_id = str(uuid.uuid4())
+        resp = client.get(f"/api/v1/admin/sync/runs/{run_id}/logs")
+        assert resp.status_code == 403

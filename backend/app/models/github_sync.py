@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    String,
     Text,
     UniqueConstraint,
     text,
@@ -392,3 +393,39 @@ class GitHubAppInstallation(Base):
         Index("idx_github_app_installations_app_id", "app_id"),
         Index("idx_github_app_installations_target", "target_type", "target_login"),
     )
+
+
+# ─── Sync Log Entries ─────────────────────────────────────────────────────────
+
+
+class SyncLogEntry(Base):
+    """Lightweight log entries written during an enterprise sync run.
+
+    Each entry records a key event (task dispatched, entity sync started,
+    page fetched, entity completed, pipeline step, error, etc.) and is
+    immediately committed in its own transaction so the frontend can poll
+    for incremental updates while the sync is still running.
+
+    Entries are ordered within a run by their ``seq`` (sequence) number,
+    which is monotonically increasing per run.
+    """
+
+    __tablename__ = "enterprise_sync_log_entries"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("enterprise_sync_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+    level: Mapped[str] = mapped_column(String(10), nullable=False, server_default=text("'info'"))
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    org: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    details: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
+    __table_args__ = (Index("idx_sync_log_entries_run_id_seq", "run_id", "seq"),)
