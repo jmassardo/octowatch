@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getHealthSummary, getWafFindings } from '../../api/healthSignals';
 import { MetricCard } from '../../components/primitives/MetricCard';
@@ -14,8 +14,26 @@ import { AppGovernancePane } from './AppGovernancePane';
 import { OpsHealthPane } from './OpsHealthPane';
 import styles from './Health.module.css';
 
+const SLUG_TO_TAB: Record<string, HealthTab> = {
+  repos: 'repo-health',
+  access: 'access-identity',
+  security: 'security-posture',
+  governance: 'app-governance',
+  operations: 'operations',
+  license: 'license',
+  maintenance: 'maintenance',
+  waf: 'waf',
+};
+
+const TAB_TO_SLUG: Record<HealthTab, string> = Object.fromEntries(
+  Object.entries(SLUG_TO_TAB).map(([slug, tab]) => [tab, slug]),
+) as Record<HealthTab, string>;
+
 export function HealthPage() {
-  const [activeTab, setActiveTab] = useState<HealthTab>('repo-health');
+  const { tab: tabSlug } = useParams<{ tab: string }>();
+  const navigate = useNavigate();
+
+  const activeTab: HealthTab = SLUG_TO_TAB[tabSlug ?? 'repos'] ?? 'repo-health';
 
   const { data: summary, isLoading } = useQuery({
     queryKey: ['health-signals', 'summary'],
@@ -91,7 +109,7 @@ export function HealthPage() {
 
       <HealthTabBar
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={(newTab) => navigate(`/health/${TAB_TO_SLUG[newTab]}`)}
         findingsCount={totalFindings > 0 ? totalFindings : evaluatedWafFindings}
       />
 

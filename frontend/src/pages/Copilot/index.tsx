@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getSeatUtilizationReport, getCopilotSeatsReport } from '../../api/reports';
 import { getCopilotAnomalies } from '../../api/copilotMetrics';
@@ -12,8 +12,15 @@ import { LicensePane } from './LicensePane';
 import { AnomaliesPane } from './AnomaliesPane';
 import styles from './Copilot.module.css';
 
+const VALID_TABS: readonly CopilotTab[] = ['overview', 'adoption', 'models', 'license', 'anomalies'];
+
 export function CopilotPage() {
-  const [activeTab, setActiveTab] = useState<CopilotTab>('overview');
+  const { tab } = useParams<{ tab: string }>();
+  const navigate = useNavigate();
+
+  const activeTab: CopilotTab = VALID_TABS.includes(tab as CopilotTab)
+    ? (tab as CopilotTab)
+    : 'overview';
 
   const {
     isLoading: loadingSeatUtil,
@@ -48,7 +55,7 @@ export function CopilotPage() {
 
       <CopilotTabBar
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={(newTab) => navigate(`/copilot/${newTab}`)}
         anomalyCount={anomalyData?.anomalies?.length ?? 0}
       />
 

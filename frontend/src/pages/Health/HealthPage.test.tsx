@@ -2,11 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { HealthPage } from './index';
-
-vi.mock('react-router-dom', () => ({
-  useNavigate: () => vi.fn(),
-}));
 
 vi.mock('echarts-for-react', () => ({
   default: () => <div data-testid="echarts-mock" />,
@@ -115,13 +112,17 @@ vi.mock('../../api/healthSignals', () => ({
   updateHealthSettings: vi.fn().mockResolvedValue({}),
 }));
 
-function renderPage() {
+function renderPage(initialTab = 'repos') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <HealthPage />
+      <MemoryRouter initialEntries={[`/health/${initialTab}`]}>
+        <Routes>
+          <Route path="/health/:tab" element={<HealthPage />} />
+        </Routes>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
