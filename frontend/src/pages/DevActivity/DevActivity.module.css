@@ -297,3 +297,99 @@
 .detailGhLink:hover {
   text-decoration: underline;
 }
+
+/* ── Platform usage widgets ─────────────────────────────────────────────── */
+
+.usageGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.metricRow {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.metricItem {
+  flex: 1;
+  text-align: center;
+}
+
+.metricValue {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+.metricLabel {
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+}
+
+.trendChart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 40px;
+  margin-bottom: 16px;
+}
+
+.apiDisabledNote {
+  background: var(--canvas-inset);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.apiDisabledNote a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.apiDisabledNote a:hover {
+  text-decoration: underline;
+}
+
+.botBar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.botSegment {
+  background: var(--attention);
+  height: 100%;
+}
+
+.humanSegment {
+  background: #238636;
+  height: 100%;
+}
+
+.botBarLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin-top: 4px;
+}
+
+.subsectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  margin-bottom: 8px;
+  margin-top: 12px;
+}

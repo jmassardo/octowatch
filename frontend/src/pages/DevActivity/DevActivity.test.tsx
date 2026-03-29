@@ -73,6 +73,40 @@ vi.mock('../../api/healthSignals', () => ({
   getTeams: vi.fn().mockResolvedValue({ teams: [] }),
 }));
 
+vi.mock('../../api/devActivity', () => ({
+  getUsageStats: vi.fn().mockResolvedValue({
+    git_stats: {
+      total_clones: 353,
+      total_pushes: 159,
+      total_fetches: 5,
+      top_cloners: [
+        { actor: 'github-actions[bot]', count: 352, is_bot: true },
+        { actor: 'jmassardo', count: 1, is_bot: false },
+      ],
+      top_pushers: [
+        { actor: 'jmassardo', count: 158, repos: ['org/repo-a', 'org/repo-b'] },
+      ],
+      daily_trend: [
+        { date: '2026-03-20', clones: 10, pushes: 5, fetches: 1 },
+        { date: '2026-03-21', clones: 8, pushes: 3, fetches: 0 },
+      ],
+    },
+    api_stats: {
+      total_requests: 0,
+      top_users: [],
+      top_endpoints: [],
+      daily_trend: [],
+      available: false,
+    },
+    bot_vs_human: {
+      bot_events: 353,
+      human_events: 164,
+      bot_actors: ['github-actions[bot]'],
+      human_actors: ['jmassardo'],
+    },
+  }),
+}));
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -336,5 +370,136 @@ describe('DevActivityPage', () => {
 
     const drawerPanel = await screen.findByTestId('drawer-panel');
     expect(within(drawerPanel).getByText('@bob')).toBeInTheDocument();
+  });
+
+  // ── Platform usage section tests ──────────────────────────────────────
+
+  it('renders "Platform usage" section title', async () => {
+    renderWithProviders(<DevActivityPage />);
+
+    expect(
+      await screen.findByText(/Platform usage — last 30 days/),
+    ).toBeInTheDocument();
+  });
+
+  it('renders Git operations card with metric values', async () => {
+    renderWithProviders(<DevActivityPage />);
+
+    expect(await screen.findByText('Git operations')).toBeInTheDocument();
+    expect(screen.getByText('353')).toBeInTheDocument();
+    expect(screen.getByText('159')).toBeInTheDocument();
+    expect(screen.getByText('5')).toBeInTheDocument();
+    expect(screen.getByText('Clones')).toBeInTheDocument();
+    expect(screen.getByText('Pushes')).toBeInTheDocument();
+    expect(screen.getByText('Fetches')).toBeInTheDocument();
+  });
+
+  it('renders top cloners list in git operations widget', async () => {
+    renderWithProviders(<DevActivityPage />);
+
+    expect(await screen.findByText('Top cloners')).toBeInTheDocument();
+    expect(screen.getByText('github-actions[bot]')).toBeInTheDocument();
+    // jmassardo appears in both dev cards and cloners; use getAllByText
+    const jmassardoElements = screen.getAllByText('@jmassardo');
+    expect(jmassardoElements.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders top pushers list in git operations widget', async () => {
+    renderWithProviders(<DevActivityPage />);
+
+    expect(await screen.findByText('Top pushers')).toBeInTheDocument();
+  });
+
+  it('renders bot vs human indicator', async () => {
+    renderWithProviders(<DevActivityPage />);
+
+    expect(await screen.findByText('Bot vs Human')).toBeInTheDocument();
+    expect(screen.getByText(/Bot 68%/)).toBeInTheDocument();
+    expect(screen.getByText(/Human 32%/)).toBeInTheDocument();
+  });
+
+  it('renders daily trend chart bars for git events', async () => {
+    renderWithProviders(<DevActivityPage />);
+
+    expect(await screen.findByText('Daily trend')).toBeInTheDocument();
+  });
+
+  it('renders API usage card with disabled note when unavailable', async () => {
+    renderWithProviders(<DevActivityPage />);
+
+    expect(await screen.findByText('API usage')).toBeInTheDocument();
+    expect(
+      screen.getByText('No API request events found in the last 30 days.'),
+    ).toBeInTheDocument();
+  });
+
+  it('renders API usage card with docs link', async () => {
+    renderWithProviders(<DevActivityPage />);
+
+    await screen.findByText('API usage');
+    const link = screen.getByText('GitHub Enterprise audit log streaming settings');
+    expect(link).toBeInTheDocument();
+    expect(link.closest('a')).toHaveAttribute('target', '_blank');
+    expect(link.closest('a')).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('renders API usage card with stats when available', async () => {
+    const { getUsageStats } = await import('../../api/devActivity');
+    vi.mocked(getUsageStats).mockResolvedValueOnce({
+      git_stats: {
+        total_clones: 0,
+        total_pushes: 0,
+        total_fetches: 0,
+        top_cloners: [],
+        top_pushers: [],
+        daily_trend: [],
+      },
+      api_stats: {
+        total_requests: 500,
+        top_users: [
+          { actor: 'admin-user', count: 200 },
+          { actor: 'dev-user', count: 100 },
+        ],
+        top_endpoints: [
+          { endpoint: 'GET /repos', count: 300 },
+        ],
+        daily_trend: [
+          { date: '2026-03-20', requests: 250 },
+          { date: '2026-03-21', requests: 250 },
+        ],
+        available: true,
+      },
+      bot_vs_human: {
+        bot_events: 0,
+        human_events: 0,
+        bot_actors: [],
+        human_actors: [],
+      },
+    });
+
+    renderWithProviders(<DevActivityPage />);
+
+    expect(await screen.findByText('API usage')).toBeInTheDocument();
+    expect(await screen.findByText('500')).toBeInTheDocument();
+    expect(screen.getByText('Total requests')).toBeInTheDocument();
+    expect(screen.getByText('Unique users')).toBeInTheDocument();
+    expect(screen.getByText('Unique endpoints')).toBeInTheDocument();
+    expect(screen.getByText('Top API users')).toBeInTheDocument();
+    expect(screen.getByText('@admin-user')).toBeInTheDocument();
+    expect(screen.getByText('Top endpoints')).toBeInTheDocument();
+    expect(screen.getByText('GET /repos')).toBeInTheDocument();
+  });
+
+  it('cloner bar rows are clickable with role="button"', async () => {
+    renderWithProviders(<DevActivityPage />);
+
+    await screen.findByText('Top cloners');
+    // The bot cloner should render in italic
+    const botLabel = screen.getByText('github-actions[bot]');
+    expect(botLabel).toHaveStyle({ fontStyle: 'italic' });
+    // It should be inside a clickable bar
+    const barRow = botLabel.closest('.clickableBar');
+    expect(barRow).not.toBeNull();
+    expect(barRow?.getAttribute('role')).toBe('button');
   });
 });

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { listEvents } from '../../api/events';
 import { listDetections } from '../../api/detections';
 import { getTeams } from '../../api/healthSignals';
+import { getUsageStats, type UsageStatsResponse } from '../../api/devActivity';
 import { useFeatures } from '../../hooks/useFeatures';
 import { Avatar } from '../../components/primitives/Avatar';
 import { Label } from '../../components/primitives/Label';
@@ -54,6 +55,11 @@ export function DevActivityPage() {
   const { data: teamsData } = useQuery({
     queryKey: ['teams'],
     queryFn: getTeams,
+  });
+
+  const { data: usageStats } = useQuery({
+    queryKey: ['dev-activity', 'usage-stats'],
+    queryFn: getUsageStats,
   });
 
   const teamNames = useMemo(() => (teamsData?.teams ?? []).map((t) => t.team_name), [teamsData]);
@@ -366,6 +372,17 @@ export function DevActivityPage() {
         })}
       </div>
 
+      {/* ── Platform usage section ─────────────────────────────── */}
+      <div className={styles.sectionTitle} style={{ marginBottom: 4, marginTop: 24 }}>Platform usage — last 30 days</div>
+      <div className={styles.workNote}>
+        Git operations and API request patterns across your organization.
+      </div>
+
+      <div className={styles.usageGrid}>
+        <GitOperationsWidget stats={usageStats} navigate={navigate} />
+        <ApiUsageWidget stats={usageStats} navigate={navigate} />
+      </div>
+
       <Modal open={othersModalOpen} onClose={() => setOthersModalOpen(false)} title="Other contributors" width={420}>
         <table className={styles.othersTable}>
           <thead>
@@ -414,6 +431,263 @@ export function DevActivityPage() {
         )}
       </Drawer>
     </div>
+  );
+}
+
+/* ── Helper: compute bar width percentage from max count ──────────────── */
+
+function barPct(count: number, max: number): number {
+  return max > 0 ? Math.round((count / max) * 100) : 0;
+}
+
+/* ── Git Operations widget ────────────────────────────────────────────── */
+
+interface WidgetProps {
+  stats: UsageStatsResponse | undefined;
+  navigate: (path: string) => void;
+}
+
+function GitOperationsWidget({ stats, navigate }: WidgetProps) {
+  const git = stats?.git_stats;
+  const bvh = stats?.bot_vs_human;
+
+  const totalGit = (git?.total_clones ?? 0) + (git?.total_pushes ?? 0) + (git?.total_fetches ?? 0);
+  const botTotal = (bvh?.bot_events ?? 0) + (bvh?.human_events ?? 0);
+  const botPct = botTotal > 0 ? Math.round(((bvh?.bot_events ?? 0) / botTotal) * 100) : 0;
+
+  const trendMax = Math.max(
+    ...((git?.daily_trend ?? []).map((d) => d.clones + d.pushes + d.fetches)),
+    1,
+  );
+
+  const cloneMax = Math.max(...((git?.top_cloners ?? []).map((c) => c.count)), 1);
+  const pushMax = Math.max(...((git?.top_pushers ?? []).map((p) => p.count)), 1);
+
+  return (
+    <Card>
+      <CardHeader>Git operations</CardHeader>
+      <div className={styles.metricRow}>
+        <div className={styles.metricItem}>
+          <div className={styles.metricValue}>{git?.total_clones ?? 0}</div>
+          <div className={styles.metricLabel}>Clones</div>
+        </div>
+        <div className={styles.metricItem}>
+          <div className={styles.metricValue}>{git?.total_pushes ?? 0}</div>
+          <div className={styles.metricLabel}>Pushes</div>
+        </div>
+        <div className={styles.metricItem}>
+          <div className={styles.metricValue}>{git?.total_fetches ?? 0}</div>
+          <div className={styles.metricLabel}>Fetches</div>
+        </div>
+      </div>
+
+      {totalGit > 0 && (git?.daily_trend ?? []).length > 0 && (
+        <>
+          <div className={styles.subsectionTitle}>Daily trend</div>
+          <div className={styles.trendChart}>
+            {git!.daily_trend.map((d) => {
+              const total = d.clones + d.pushes + d.fetches;
+              const h = Math.max(3, (total / trendMax) * 40);
+              return (
+                <div
+                  key={d.date}
+                  title={`${d.date}: ${total} events`}
+                  style={{
+                    width: 10,
+                    height: h,
+                    borderRadius: 2,
+                    background: '#1f6feb',
+                  }}
+                />
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {(git?.top_cloners ?? []).length > 0 && (
+        <>
+          <div className={styles.subsectionTitle}>Top cloners</div>
+          <div className={styles.barList}>
+            {git!.top_cloners.slice(0, 5).map((c) => (
+              <div
+                key={c.actor}
+                className={`${styles.barRow} ${styles.clickableBar}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/events?actor=${c.actor}&action=git.clone`)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events?actor=${c.actor}&action=git.clone`); } }}
+              >
+                <span className={styles.barHandle} style={c.is_bot ? { fontStyle: 'italic' } : undefined}>
+                  {c.is_bot ? c.actor : `@${c.actor}`}
+                </span>
+                <div className={styles.barTrack}>
+                  <div style={{ width: `${barPct(c.count, cloneMax)}%`, height: '100%', background: '#1f6feb', borderRadius: 4 }} />
+                </div>
+                <span className={styles.barPct}>{c.count}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {(git?.top_pushers ?? []).length > 0 && (
+        <>
+          <div className={styles.subsectionTitle}>Top pushers</div>
+          <div className={styles.barList}>
+            {git!.top_pushers.slice(0, 5).map((p) => (
+              <div
+                key={p.actor}
+                className={`${styles.barRow} ${styles.clickableBar}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/events?actor=${p.actor}&action=git.push`)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events?actor=${p.actor}&action=git.push`); } }}
+              >
+                <span className={styles.barHandle}>@{p.actor}</span>
+                <div className={styles.barTrack}>
+                  <div style={{ width: `${barPct(p.count, pushMax)}%`, height: '100%', background: '#238636', borderRadius: 4 }} />
+                </div>
+                <span className={styles.barPct}>{p.count}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {botTotal > 0 && (
+        <>
+          <div className={styles.subsectionTitle}>Bot vs Human</div>
+          <div className={styles.botBar}>
+            <div className={styles.botSegment} style={{ width: `${botPct}%` }} />
+            <div className={styles.humanSegment} style={{ width: `${100 - botPct}%` }} />
+          </div>
+          <div className={styles.botBarLabels}>
+            <span>🤖 Bot {botPct}%</span>
+            <span>👤 Human {100 - botPct}%</span>
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+/* ── API Usage widget ─────────────────────────────────────────────────── */
+
+function ApiUsageWidget({ stats, navigate }: WidgetProps) {
+  const apiStats = stats?.api_stats;
+
+  if (!apiStats || !apiStats.available) {
+    return (
+      <Card>
+        <CardHeader>API usage</CardHeader>
+        <div className={styles.apiDisabledNote}>
+          <p>No API request events found in the last 30 days.</p>
+          <p style={{ marginTop: 8 }}>
+            To see API usage data, enable <strong>API request events</strong> in your{' '}
+            <a
+              href="https://docs.github.com/en/enterprise-cloud@latest/admin/monitoring-activity-in-your-enterprise/reviewing-audit-logs-for-your-enterprise/streaming-the-audit-log-for-your-enterprise"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub Enterprise audit log streaming settings
+            </a>.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
+  const uniqueUsers = apiStats.top_users.length;
+  const uniqueEndpoints = apiStats.top_endpoints.length;
+  const userMax = Math.max(...apiStats.top_users.map((u) => u.count), 1);
+  const endpointMax = Math.max(...apiStats.top_endpoints.map((e) => e.count), 1);
+  const trendMax = Math.max(...apiStats.daily_trend.map((d) => d.requests), 1);
+
+  return (
+    <Card>
+      <CardHeader>API usage</CardHeader>
+      <div className={styles.metricRow}>
+        <div className={styles.metricItem}>
+          <div className={styles.metricValue}>{apiStats.total_requests.toLocaleString()}</div>
+          <div className={styles.metricLabel}>Total requests</div>
+        </div>
+        <div className={styles.metricItem}>
+          <div className={styles.metricValue}>{uniqueUsers}</div>
+          <div className={styles.metricLabel}>Unique users</div>
+        </div>
+        <div className={styles.metricItem}>
+          <div className={styles.metricValue}>{uniqueEndpoints}</div>
+          <div className={styles.metricLabel}>Unique endpoints</div>
+        </div>
+      </div>
+
+      {apiStats.daily_trend.length > 0 && (
+        <>
+          <div className={styles.subsectionTitle}>Daily trend</div>
+          <div className={styles.trendChart}>
+            {apiStats.daily_trend.map((d) => {
+              const h = Math.max(3, (d.requests / trendMax) * 40);
+              return (
+                <div
+                  key={d.date}
+                  title={`${d.date}: ${d.requests} requests`}
+                  style={{
+                    width: 10,
+                    height: h,
+                    borderRadius: 2,
+                    background: '#58a6ff',
+                  }}
+                />
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {apiStats.top_users.length > 0 && (
+        <>
+          <div className={styles.subsectionTitle}>Top API users</div>
+          <div className={styles.barList}>
+            {apiStats.top_users.slice(0, 5).map((u) => (
+              <div
+                key={u.actor}
+                className={`${styles.barRow} ${styles.clickableBar}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/events?actor=${u.actor}`)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events?actor=${u.actor}`); } }}
+              >
+                <span className={styles.barHandle}>@{u.actor}</span>
+                <div className={styles.barTrack}>
+                  <div style={{ width: `${barPct(u.count, userMax)}%`, height: '100%', background: '#58a6ff', borderRadius: 4 }} />
+                </div>
+                <span className={styles.barPct}>{u.count}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {apiStats.top_endpoints.length > 0 && (
+        <>
+          <div className={styles.subsectionTitle}>Top endpoints</div>
+          <div className={styles.barList}>
+            {apiStats.top_endpoints.slice(0, 5).map((ep) => (
+              <div key={ep.endpoint} className={styles.barRow}>
+                <span className={styles.barHandle} title={ep.endpoint} style={{ width: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {ep.endpoint}
+                </span>
+                <div className={styles.barTrack}>
+                  <div style={{ width: `${barPct(ep.count, endpointMax)}%`, height: '100%', background: '#58a6ff', borderRadius: 4 }} />
+                </div>
+                <span className={styles.barPct}>{ep.count}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Card>
   );
 }
 

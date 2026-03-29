@@ -38,7 +38,9 @@ from app.routers import (
     reports,
     rules,
     setup,
+    suggestions,
     sync,
+    dev_activity,
 )
 from app.services.geoip_service import close_geoip_db, load_geoip_db
 
@@ -394,6 +396,8 @@ def create_app() -> FastAPI:
     app.include_router(org_config.router, prefix=API_PREFIX)
     app.include_router(sync.router, prefix=API_PREFIX + "/admin")
     app.include_router(setup.router, prefix=API_PREFIX)
+    app.include_router(suggestions.router, prefix=API_PREFIX)
+    app.include_router(dev_activity.router, prefix=API_PREFIX)
 
     return app
 
