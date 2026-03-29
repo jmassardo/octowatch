@@ -269,3 +269,89 @@
   color: var(--fg-subtle);
   margin-bottom: 4px;
 }
+
+/* WAF Checks Catalog */
+.catalogWrapper {
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.catalogToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--canvas-subtle);
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-default);
+  text-align: left;
+}
+
+.catalogToggle:hover {
+  background: var(--canvas-inset);
+}
+
+.catalogCount {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--fg-muted);
+  background: var(--neutral-muted);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.catalogBody {
+  padding: 12px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.catalogPillar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.catalogPillarLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.catalogCheck {
+  padding: 6px 0 6px 16px;
+  border-left: 2px solid var(--border);
+}
+
+.catalogCheckName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.catalogCheckDesc {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.catalogLookback {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-top: 2px;
+  display: inline-block;
+}

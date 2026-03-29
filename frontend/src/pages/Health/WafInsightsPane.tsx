@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Card } from '../../components/primitives/Card';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
@@ -36,6 +37,71 @@ const PILLAR_COUNT_COLOR: Record<WafPillar, string> = {
 };
 
 const PILLAR_ORDER: WafPillar[] = ['governance', 'appsec', 'architecture', 'collaboration', 'productivity'];
+
+/** Catalog of all WAF checks evaluated by OctoWatch. */
+const WAF_CHECKS: { id: string; pillar: WafPillar; name: string; description: string; lookback: string }[] = [
+  { id: 'waf-audit-streaming', pillar: 'governance', name: 'Audit log streaming', description: 'Checks for audit log streaming configuration events, indicating real-time event forwarding is active.', lookback: '30 days' },
+  { id: 'waf-branch-protection', pillar: 'governance', name: 'Branch protection coverage', description: 'Compares branch protection creations vs. removals/overrides to detect weakening of code review requirements.', lookback: '90 days' },
+  { id: 'waf-sso-status', pillar: 'governance', name: 'SAML / SSO enforcement', description: 'Monitors for SSO disable events and tracks whether SAML/SSO is actively configured across organizations.', lookback: '90 days' },
+  { id: 'waf-ip-allowlist', pillar: 'governance', name: 'IP allowlist configuration', description: 'Detects IP allowlist management events to verify network-level access restrictions are in place.', lookback: '90 days' },
+  { id: 'waf-webhook-health', pillar: 'governance', name: 'Webhook lifecycle management', description: 'Tracks webhook creation vs. destruction to identify integration instability or orphaned hooks.', lookback: '90 days' },
+  { id: 'waf-push-protection-bypass', pillar: 'governance', name: 'Push protection bypasses', description: 'Counts instances where developers bypassed secret scanning push protection, overriding security controls.', lookback: '90 days' },
+  { id: 'waf-secret-scanning', pillar: 'appsec', name: 'Secret scanning enablement', description: 'Tracks repositories enabling or disabling secret scanning to identify coverage gaps.', lookback: '90 days' },
+  { id: 'waf-dependabot', pillar: 'appsec', name: 'Dependabot alert coverage', description: 'Monitors Dependabot alert enablement/disablement across repositories for supply chain security.', lookback: '90 days' },
+  { id: 'waf-code-scanning', pillar: 'appsec', name: 'Code scanning activity', description: 'Checks for CodeQL or third-party SAST tool activity to verify static analysis is running.', lookback: '90 days' },
+  { id: 'waf-direct-push', pillar: 'appsec', name: 'Direct pushes to default branch', description: 'Counts direct pushes to main/master branches that bypass the pull request review workflow.', lookback: '90 days' },
+];
+
+function WafChecksCatalog() {
+  const [open, setOpen] = useState(false);
+  const byPillar = PILLAR_ORDER.reduce<Record<WafPillar, typeof WAF_CHECKS>>((acc, p) => {
+    acc[p] = WAF_CHECKS.filter((c) => c.pillar === p);
+    return acc;
+  }, {} as Record<WafPillar, typeof WAF_CHECKS>);
+
+  return (
+    <div className={styles.catalogWrapper}>
+      <button
+        className={styles.catalogToggle}
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+      >
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="currentColor"
+          style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
+        >
+          <path d="M4.5 2L9 6 4.5 10V2z" />
+        </svg>
+        <span>What we check</span>
+        <span className={styles.catalogCount}>{WAF_CHECKS.length} signals</span>
+      </button>
+      {open && (
+        <div className={styles.catalogBody}>
+          {PILLAR_ORDER.map((pillar) => {
+            const checks = byPillar[pillar];
+            if (checks.length === 0) return null;
+            const meta = PILLAR_META[pillar];
+            return (
+              <div key={pillar} className={styles.catalogPillar}>
+                <div className={styles.catalogPillarLabel}>{meta.emoji} {meta.label}</div>
+                {checks.map((c) => (
+                  <div key={c.id} className={styles.catalogCheck}>
+                    <div className={styles.catalogCheckName}>{c.name}</div>
+                    <div className={styles.catalogCheckDesc}>{c.description}</div>
+                    <span className={styles.catalogLookback}>Lookback: {c.lookback}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Map backend pillar names to WafPillar type. */
 function toPillar(raw: string): WafPillar {
@@ -163,6 +229,8 @@ export function WafInsightsPane() {
           WAF Library ↗
         </a>
       </div>
+
+      <WafChecksCatalog />
 
       {/* Pillar summary strip */}
       <div className={styles.pillarGrid}>
