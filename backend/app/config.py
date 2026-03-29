@@ -223,6 +223,10 @@ class GitHubAppSettings(BaseSettings):
         default=None,
         description="Absolute path to the PEM-encoded RS256 private key file",
     )
+    GITHUB_APP_PRIVATE_KEY_PEM: str | None = Field(
+        default=None,
+        description="Inline PEM-encoded RS256 private key (from vault; takes precedence over PATH)",
+    )
     GITHUB_ENTERPRISE_SLUG: str | None = Field(
         default=None,
         description="GitHub Enterprise account slug (e.g. 'my-company')",
@@ -249,12 +253,32 @@ class GitHubAppSettings(BaseSettings):
             return []
         return [s.strip() for s in self.GITHUB_SYNC_ORGS.split(",") if s.strip()]
 
+    def resolve_private_key(self) -> str | None:
+        """Return the PEM private key from the vault (inline) or filesystem.
+
+        Inline PEM (``GITHUB_APP_PRIVATE_KEY_PEM``, set by the config overlay
+        from the secrets vault) takes precedence over the file path.
+        """
+        if self.GITHUB_APP_PRIVATE_KEY_PEM:
+            return self.GITHUB_APP_PRIVATE_KEY_PEM
+        if self.GITHUB_APP_PRIVATE_KEY_PATH:
+            with open(self.GITHUB_APP_PRIVATE_KEY_PATH) as fh:
+                return fh.read()
+        return None
+
     @field_validator("GITHUB_APP_PRIVATE_KEY_PATH")
     @classmethod
     def validate_key_path(cls, v: str | None) -> str | None:
-        """Validate the key exists and is a regular file (not a symlink to /dev/null etc.)."""
+        """Validate the key exists and is a regular file.
+
+        Skips validation if the value looks like inline PEM content
+        (which happens transiently during config overlay application —
+        the overlay now targets GITHUB_APP_PRIVATE_KEY_PEM instead).
+        """
         if v is None:
             return None
+        if v.strip().startswith("-----BEGIN"):
+            return None  # Inline PEM accidentally targeted here; ignore
         if not os.path.isfile(v):
             raise ValueError(f"GITHUB_APP_PRIVATE_KEY_PATH does not point to a file: {v}")
         return v

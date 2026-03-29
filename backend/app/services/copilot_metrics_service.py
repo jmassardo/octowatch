@@ -117,10 +117,11 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
 
     app_id = settings.github_app.GITHUB_APP_ID
     key_path = settings.github_app.GITHUB_APP_PRIVATE_KEY_PATH
-    if not app_id or not key_path:
+    private_key_pem = settings.github_app.GITHUB_APP_PRIVATE_KEY_PEM
+    if not app_id or (not key_path and not private_key_pem):
         return {
             "error": "no_enterprise_config",
-            "message": "GitHub App credentials (APP_ID / PRIVATE_KEY_PATH) are not configured.",
+            "message": "GitHub App credentials (APP_ID / private key) are not configured.",
         }
 
     # ── Check Valkey cache ────────────────────────────────────────────────────
@@ -152,7 +153,9 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
 
     # ── Get token and call API ────────────────────────────────────────────────
     try:
-        private_key = Path(key_path).read_text()
+        private_key = settings.github_app.resolve_private_key()
+        if not private_key:
+            raise RuntimeError("Private key could not be resolved")
         token_manager = GitHubAppTokenManager(
             app_id=app_id,
             private_key_pem=private_key,
@@ -169,7 +172,7 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
             await valkey.aclose()
         return {
             "error": "copilot_not_available",
-            "message": f"Failed to obtain GitHub App installation token: {exc}",
+            "message": "Failed to obtain GitHub App installation token. Check App credentials.",
         }
     except Exception as exc:
         logger.error("copilot_metrics.token_unexpected", error=str(exc), exc_info=True)
@@ -177,7 +180,7 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
             await valkey.aclose()
         return {
             "error": "copilot_not_available",
-            "message": f"Unexpected error obtaining token: {exc}",
+            "message": "Unexpected error obtaining GitHub App token. Check server logs.",
         }
 
     url = f"{_GITHUB_API_BASE}/enterprises/{enterprise_slug}/copilot/metrics"
@@ -225,7 +228,7 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
             await valkey.aclose()
         return {
             "error": "copilot_not_available",
-            "message": f"Failed to fetch Copilot metrics: {exc}",
+            "message": "Failed to fetch Copilot metrics from GitHub API. Check server logs.",
         }
 
     # ── Write back to cache ───────────────────────────────────────────────────

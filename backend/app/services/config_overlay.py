@@ -27,7 +27,7 @@ SETTING_MAP: dict[str, tuple[str | None, str]] = {
     "github_client_secret": ("AUTH", "GITHUB_CLIENT_SECRET"),
     # GitHub App
     "github_app_id": ("GITHUB_APP", "GITHUB_APP_ID"),
-    "github_app_private_key": ("GITHUB_APP", "GITHUB_APP_PRIVATE_KEY_PATH"),
+    "github_app_private_key": ("GITHUB_APP", "GITHUB_APP_PRIVATE_KEY_PEM"),
     "github_enterprise_slug": ("GITHUB_APP", "GITHUB_ENTERPRISE_SLUG"),
     "github_sync_enabled": ("GITHUB_APP", "GITHUB_SYNC_ENABLED"),
     "github_sync_interval_days": ("GITHUB_APP", "GITHUB_SYNC_INTERVAL_DAYS"),

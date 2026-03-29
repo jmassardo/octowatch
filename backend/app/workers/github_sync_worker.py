@@ -750,18 +750,17 @@ def _get_rate_limiter() -> GitHubRateLimiter:
 
 
 def _load_private_key() -> str:
-    """Load GitHub App private key PEM from the configured filesystem path.
+    """Load GitHub App private key PEM from the vault or filesystem.
 
-    Called once per task invocation.  The path is from
-    settings.github_app.GITHUB_APP_PRIVATE_KEY_PATH — never from the DB.
+    Prefers inline PEM from the config overlay (vault), falls back to
+    the filesystem path.
     """
     from app.config import settings  # noqa: F811 — deferred import for testability
 
-    path = settings.github_app.GITHUB_APP_PRIVATE_KEY_PATH
-    if not path:
-        raise RuntimeError("GITHUB_APP_PRIVATE_KEY_PATH is not configured")
-    with open(path) as fh:
-        return fh.read()
+    key = settings.github_app.resolve_private_key()
+    if not key:
+        raise RuntimeError("GitHub App private key is not configured (neither PEM nor PATH)")
+    return key
 
 
 # ── GitHub API base URL (hardcoded to prevent SSRF) ───────────────────────────
@@ -1471,14 +1470,12 @@ async def _bootstrap_app_configs(settings: object) -> list:
     from app.models.github_sync import GitHubAppConfig
 
     app_id = settings.github_app.GITHUB_APP_ID
-    key_path = settings.github_app.GITHUB_APP_PRIVATE_KEY_PATH
-    if not app_id or not key_path:
-        logger.error("github_sync.bootstrap_missing_env", app_id=app_id, key_path=key_path)
+    private_key = settings.github_app.resolve_private_key()
+    if not app_id or not private_key:
+        logger.error("github_sync.bootstrap_missing_env", app_id=app_id, has_key=bool(private_key))
         return []
 
     try:
-        with open(key_path) as f:
-            private_key = f.read()
         now = int(time.time())
         payload = {"iat": now - 60, "exp": now + 600, "iss": str(app_id)}
         app_jwt = jwt.encode(payload, private_key, algorithm="RS256")
