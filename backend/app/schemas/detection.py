@@ -115,14 +115,18 @@ class RuleCreate(BaseModel):
     category: str = Field(
         ...,
         pattern=(
-            r"^(exfiltration|account_compromise|privilege_escalation|secret_leakage|"
-            r"supply_chain|branch_protection_bypass|pat_abuse|impossible_travel|"
+            r"^(access_control|data_exfiltration|defense_evasion|incident_response|"
+            r"policy_violation|posture_change|posture_degradation|privilege_escalation|"
+            r"supply_chain|exfiltration|account_compromise|secret_leakage|"
+            r"branch_protection_bypass|pat_abuse|impossible_travel|"
             r"off_hours_anomaly|other)$"
         ),
     )
     default_severity: str = Field(..., pattern=r"^(critical|high|medium|low|info)$")
     default_confidence: str = Field(..., pattern=r"^(high|medium|low)$")
-    logic_type: str = Field(..., pattern=r"^(threshold|pattern|sequence|statistical)$")
+    logic_type: str = Field(
+        ..., pattern=r"^(threshold|pattern|sequence|statistical|cross_namespace_sequence|posture)$"
+    )
     logic_config: dict[str, Any]
     enabled: bool = True
     status: str = Field(default="draft", pattern=r"^(draft|active|deprecated)$")
@@ -211,7 +215,9 @@ class RuleListResponse(BaseModel):
 class ValidateConfigRequest(BaseModel):
     """Request body for POST /rules/validate-config."""
 
-    logic_type: str = Field(..., pattern=r"^(threshold|pattern|sequence|statistical)$")
+    logic_type: str = Field(
+        ..., pattern=r"^(threshold|pattern|sequence|statistical|cross_namespace_sequence|posture)$"
+    )
     logic_config: dict[str, Any]
 
 

@@ -6,7 +6,7 @@ import { FieldConditions } from './FieldConditions';
 import { SequenceSteps } from './SequenceSteps';
 import styles from './LogicConfigEditor.module.css';
 
-type LogicType = 'pattern' | 'threshold' | 'sequence' | 'statistical';
+type LogicType = 'pattern' | 'threshold' | 'sequence' | 'statistical' | 'posture';
 
 interface LogicConfigEditorProps {
   logicType: LogicType;
@@ -71,6 +71,18 @@ function getDefaults(logicType: LogicType): LogicConfig {
     case 'pattern':
     default:
       return base;
+    case 'posture':
+      return {
+        ...base,
+        action_filters: undefined,
+        field_conditions: undefined,
+        entity_type: 'org',
+        check_type: 'field_value',
+        field: '',
+        operator: 'eq',
+        expected: '',
+        value: '',
+      };
   }
 }
 
@@ -83,7 +95,8 @@ function resolveConfig(logicType: LogicType, config: LogicConfig): LogicConfig {
       config.threshold === undefined &&
       config.time_window_minutes === undefined &&
       config.sequence_steps === undefined &&
-      config.x_config === undefined);
+      config.x_config === undefined &&
+      (config as Record<string, unknown>).entity_type === undefined);
 
   if (isEmpty) {
     return getDefaults(logicType);
@@ -189,23 +202,27 @@ export function LogicConfigEditor({
         </ul>
       )}
 
-      {/* Common: Action Filters */}
-      <section className={styles.section}>
-        <h3 className={styles.sectionHeader}>Action Filters</h3>
-        <ActionFilters
-          actions={config.action_filters ?? []}
-          onChange={handleActionFiltersChange}
-        />
-      </section>
+      {/* Common: Action Filters (not used by posture rules) */}
+      {logicType !== 'posture' && (
+        <section className={styles.section}>
+          <h3 className={styles.sectionHeader}>Action Filters</h3>
+          <ActionFilters
+            actions={config.action_filters ?? []}
+            onChange={handleActionFiltersChange}
+          />
+        </section>
+      )}
 
-      {/* Common: Field Conditions */}
-      <section className={styles.section}>
-        <h3 className={styles.sectionHeader}>Field Conditions</h3>
-        <FieldConditions
-          conditions={config.field_conditions ?? []}
-          onChange={handleFieldConditionsChange}
-        />
-      </section>
+      {/* Common: Field Conditions (not used by posture rules) */}
+      {logicType !== 'posture' && (
+        <section className={styles.section}>
+          <h3 className={styles.sectionHeader}>Field Conditions</h3>
+          <FieldConditions
+            conditions={config.field_conditions ?? []}
+            onChange={handleFieldConditionsChange}
+          />
+        </section>
+      )}
 
       {/* Common: Confidence */}
       <section className={styles.section}>
@@ -258,6 +275,14 @@ export function LogicConfigEditor({
           timeWindowMinutes={config.time_window_minutes}
           onXConfigChange={handleXConfigChange}
           onTimeWindowChange={handleTimeWindowChange}
+        />
+      )}
+
+      {/* Posture-specific */}
+      {logicType === 'posture' && (
+        <PostureSection
+          config={config}
+          onChange={update}
         />
       )}
     </div>
@@ -513,6 +538,251 @@ function StatisticalSection({
             />
             Suppress proxy IPs
           </label>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Posture Section ───────────────────────────────────────────────── */
+
+const POSTURE_ENTITY_TYPES = [
+  { value: 'org', label: 'Organization' },
+  { value: 'repo', label: 'Repository' },
+  { value: 'branch_protection', label: 'Branch Protection' },
+] as const;
+
+const POSTURE_CHECK_TYPES = [
+  { value: 'field_value', label: 'Field Value Check' },
+  { value: 'missing_protection', label: 'Missing Protection' },
+] as const;
+
+const POSTURE_OPERATORS = [
+  { value: 'eq', label: 'equals' },
+  { value: 'ne', label: 'not equals' },
+  { value: 'lt', label: 'less than' },
+  { value: 'lte', label: 'less or equal' },
+  { value: 'gt', label: 'greater than' },
+  { value: 'gte', label: 'greater or equal' },
+  { value: 'in', label: 'in (list)' },
+  { value: 'not_in', label: 'not in (list)' },
+] as const;
+
+const ORG_FIELDS = [
+  { value: 'two_factor_required', label: 'Two-factor required' },
+  { value: 'default_repo_permission', label: 'Default repo permission' },
+  { value: 'members_can_fork_private_repos', label: 'Members can fork private repos' },
+  { value: 'members_can_create_public_repos', label: 'Members can create public repos' },
+  { value: 'ip_allow_list_enabled', label: 'IP allow list enabled' },
+  { value: 'ip_allow_list_for_installed_apps_enabled', label: 'IP allow list for apps enabled' },
+  { value: 'visibility', label: 'Visibility' },
+];
+
+const REPO_FIELDS = [
+  { value: 'visibility', label: 'Visibility' },
+  { value: 'archived', label: 'Archived' },
+  { value: 'fork', label: 'Fork' },
+  { value: 'default_branch', label: 'Default branch' },
+];
+
+const BRANCH_PROTECTION_FIELDS = [
+  { value: 'required_reviews', label: 'Required reviews' },
+  { value: 'enforce_admins', label: 'Enforce admins' },
+];
+
+function getFieldsForEntityType(entityType: string) {
+  switch (entityType) {
+    case 'org': return ORG_FIELDS;
+    case 'repo': return REPO_FIELDS;
+    case 'branch_protection': return BRANCH_PROTECTION_FIELDS;
+    default: return [];
+  }
+}
+
+interface PostureSectionProps {
+  config: LogicConfig;
+  onChange: (patch: Partial<LogicConfig>) => void;
+}
+
+function PostureSection({ config, onChange }: PostureSectionProps) {
+  const entityType = (config as Record<string, unknown>).entity_type as string ?? 'org';
+  const checkType = (config as Record<string, unknown>).check_type as string ?? 'field_value';
+  const field = (config as Record<string, unknown>).field as string ?? '';
+  const operator = (config as Record<string, unknown>).operator as string ?? 'eq';
+  const expected = (config as Record<string, unknown>).expected;
+  const value = (config as Record<string, unknown>).value;
+  const scope = (config as Record<string, unknown>).scope as Record<string, unknown> ?? {};
+
+  const availableFields = getFieldsForEntityType(entityType);
+  const isMissingProtection = checkType === 'missing_protection';
+  const useExpected = expected !== undefined;
+
+  return (
+    <section className={styles.section}>
+      <h3 className={styles.sectionHeader}>Posture Check</h3>
+      <p className={styles.sectionHint}>
+        Evaluates the current state of synced metadata — not audit log events.
+      </p>
+      <div className={styles.fieldGrid}>
+        <div className={styles.fieldGroup}>
+          <label className={styles.fieldLabel} htmlFor="posture-entity-type">
+            Entity type
+          </label>
+          <select
+            id="posture-entity-type"
+            className={styles.fieldSelect}
+            value={entityType}
+            onChange={(e) =>
+              onChange({ ...config, entity_type: e.target.value, field: '' } as unknown as Partial<LogicConfig>)
+            }
+          >
+            {POSTURE_ENTITY_TYPES.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className={styles.fieldGroup}>
+          <label className={styles.fieldLabel} htmlFor="posture-check-type">
+            Check type
+          </label>
+          <select
+            id="posture-check-type"
+            className={styles.fieldSelect}
+            value={checkType}
+            onChange={(e) =>
+              onChange({ ...config, check_type: e.target.value } as unknown as Partial<LogicConfig>)
+            }
+          >
+            {POSTURE_CHECK_TYPES.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {!isMissingProtection && (
+          <>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel} htmlFor="posture-field">
+                Field to check
+              </label>
+              <select
+                id="posture-field"
+                className={styles.fieldSelect}
+                value={field}
+                onChange={(e) =>
+                  onChange({ ...config, field: e.target.value } as unknown as Partial<LogicConfig>)
+                }
+              >
+                <option value="">Select a field...</option>
+                {availableFields.map((f) => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel} htmlFor="posture-mode">
+                Comparison mode
+              </label>
+              <select
+                id="posture-mode"
+                className={styles.fieldSelect}
+                value={useExpected ? 'expected' : 'operator'}
+                onChange={(e) => {
+                  if (e.target.value === 'expected') {
+                    onChange({ ...config, expected: true, operator: undefined, value: undefined } as unknown as Partial<LogicConfig>);
+                  } else {
+                    onChange({ ...config, expected: undefined, operator: 'eq', value: '' } as unknown as Partial<LogicConfig>);
+                  }
+                }}
+              >
+                <option value="expected">Alert when NOT equal to expected value</option>
+                <option value="operator">Custom operator comparison</option>
+              </select>
+            </div>
+
+            {useExpected ? (
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel} htmlFor="posture-expected">
+                  Expected value (alert fires when actual ≠ expected)
+                </label>
+                <input
+                  id="posture-expected"
+                  type="text"
+                  className={styles.fieldInput}
+                  value={String(expected ?? '')}
+                  onChange={(e) => {
+                    let parsed: unknown = e.target.value;
+                    if (parsed === 'true') parsed = true;
+                    else if (parsed === 'false') parsed = false;
+                    else if (!isNaN(Number(parsed)) && parsed !== '') parsed = Number(parsed);
+                    onChange({ ...config, expected: parsed } as unknown as Partial<LogicConfig>);
+                  }}
+                  placeholder="e.g., true, false, read"
+                />
+              </div>
+            ) : (
+              <>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel} htmlFor="posture-operator">
+                    Operator
+                  </label>
+                  <select
+                    id="posture-operator"
+                    className={styles.fieldSelect}
+                    value={operator}
+                    onChange={(e) =>
+                      onChange({ ...config, operator: e.target.value } as unknown as Partial<LogicConfig>)
+                    }
+                  >
+                    {POSTURE_OPERATORS.map((op) => (
+                      <option key={op.value} value={op.value}>{op.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel} htmlFor="posture-value">
+                    Value
+                  </label>
+                  <input
+                    id="posture-value"
+                    type="text"
+                    className={styles.fieldInput}
+                    value={String(value ?? '')}
+                    onChange={(e) => {
+                      let parsed: unknown = e.target.value;
+                      if (parsed === 'true') parsed = true;
+                      else if (parsed === 'false') parsed = false;
+                      else if (!isNaN(Number(parsed)) && parsed !== '') parsed = Number(parsed);
+                      onChange({ ...config, value: parsed } as unknown as Partial<LogicConfig>);
+                    }}
+                    placeholder="e.g., true, write, 1"
+                  />
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        <div className={styles.fieldGroup}>
+          <label className={styles.fieldLabel} htmlFor="posture-scope">
+            Scope filter (JSON, optional)
+          </label>
+          <input
+            id="posture-scope"
+            type="text"
+            className={styles.fieldInput}
+            value={Object.keys(scope).length > 0 ? JSON.stringify(scope) : ''}
+            onChange={(e) => {
+              try {
+                const parsed = e.target.value ? JSON.parse(e.target.value) : {};
+                onChange({ ...config, scope: parsed } as unknown as Partial<LogicConfig>);
+              } catch {
+                // Invalid JSON — don't update
+              }
+            }}
+            placeholder='e.g., {"archived": false}'
+          />
         </div>
       </div>
     </section>

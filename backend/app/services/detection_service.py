@@ -18,6 +18,11 @@ from app.models.detection import (
     RuleDefinition,
     SeverityConfig,
 )
+from app.models.github_sync import (
+    EnterpriseOrg,
+    RepoBranchProtection,
+    Repository,
+)
 from app.services.geoip_service import haversine_km, is_impossible_travel
 
 logger = structlog.get_logger(__name__)
@@ -1231,6 +1236,411 @@ async def _evaluate_sequence_rule(
         )
         session.add(detection)
         await session.flush()
+
+
+# ─── Posture assessment ───────────────────────────────────────────────────────
+
+_POSTURE_OPS: dict[str, Any] = {
+    "eq": lambda a, v: a == v,
+    "ne": lambda a, v: a != v,
+    "gt": lambda a, v: a is not None and a > v,
+    "gte": lambda a, v: a is not None and a >= v,
+    "lt": lambda a, v: a is not None and a < v,
+    "lte": lambda a, v: a is not None and a <= v,
+    "in": lambda a, v: a in v if v else False,
+    "not_in": lambda a, v: a not in v if v else True,
+}
+
+
+async def run_posture_assessment(
+    session: AsyncSession,
+    run_id: str | None = None,
+) -> int:
+    """Evaluate posture rules against synced metadata.
+
+    Unlike ``run_detection_pipeline`` which processes audit events,
+    this evaluates the *current state* of the environment for insecure
+    configurations.
+
+    Returns the number of new detections created.
+    """
+    rules_result = await session.execute(
+        select(RuleDefinition).where(
+            RuleDefinition.enabled.is_(True),
+            RuleDefinition.status == "active",
+            RuleDefinition.logic_type == "posture",
+        )
+    )
+    posture_rules = list(rules_result.scalars().all())
+    if not posture_rules:
+        return 0
+
+    detections_written = 0
+    active_dedup_keys: set[str] = set()
+
+    for rule in posture_rules:
+        config = rule.logic_config
+        try:
+            hits = await _evaluate_posture_rule(
+                session,
+                rule,
+                config,
+            )
+            for hit in hits:
+                dedup_key = hit["dedup_key"]
+                active_dedup_keys.add(dedup_key)
+                written = await _write_posture_detection(
+                    session,
+                    rule,
+                    hit,
+                )
+                if written:
+                    detections_written += 1
+        except Exception as exc:
+            logger.error(
+                "detection.posture_rule_failed",
+                slug=rule.slug,
+                error=str(exc),
+            )
+
+    # Auto-resolve detections whose issues have been fixed
+    await _auto_resolve_posture_detections(
+        session,
+        posture_rules,
+        active_dedup_keys,
+    )
+
+    return detections_written
+
+
+async def _evaluate_posture_rule(
+    session: AsyncSession,
+    rule: RuleDefinition,
+    config: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Evaluate a single posture rule against synced metadata."""
+    entity_type: str = config.get("entity_type", "")
+    check_type: str = config.get("check_type", "field_value")
+
+    if entity_type == "org":
+        return await _evaluate_org_posture(session, rule, config)
+    if entity_type == "repo":
+        return await _evaluate_repo_posture(session, rule, config)
+    if entity_type == "branch_protection":
+        if check_type == "missing_protection":
+            return await _evaluate_missing_bp(
+                session,
+                rule,
+                config,
+            )
+        return await _evaluate_bp_posture(
+            session,
+            rule,
+            config,
+        )
+
+    logger.warning(
+        "detection.posture_unknown_entity",
+        entity_type=entity_type,
+        slug=rule.slug,
+    )
+    return []
+
+
+async def _evaluate_org_posture(
+    session: AsyncSession,
+    rule: RuleDefinition,
+    config: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Evaluate a posture rule against EnterpriseOrg rows."""
+    field = config.get("field", "")
+    operator = config.get("operator", "eq")
+    expected_value = config.get("value")
+
+    result = await session.execute(select(EnterpriseOrg))
+    orgs = list(result.scalars().all())
+
+    op_fn = _POSTURE_OPS.get(operator)
+    if op_fn is None:
+        return []
+
+    hits: list[dict[str, Any]] = []
+    for org_row in orgs:
+        actual = getattr(org_row, field, None)
+        if actual is None:
+            continue
+        if op_fn(actual, expected_value):
+            hits.append(
+                {
+                    "org": org_row.org_login,
+                    "repo": None,
+                    "dedup_key": (f"posture:{rule.slug}:{org_row.org_login}:"),
+                    "entity_type": "org",
+                    "field": field,
+                    "actual_value": actual,
+                    "expected_value": expected_value,
+                }
+            )
+    return hits
+
+
+async def _evaluate_repo_posture(
+    session: AsyncSession,
+    rule: RuleDefinition,
+    config: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Evaluate a posture rule against Repository rows."""
+    field = config.get("field", "")
+    operator = config.get("operator", "eq")
+    expected_value = config.get("value")
+
+    result = await session.execute(
+        select(Repository).where(
+            Repository.archived.is_(False),
+        ),
+    )
+    repos = list(result.scalars().all())
+
+    op_fn = _POSTURE_OPS.get(operator)
+    if op_fn is None:
+        return []
+
+    hits: list[dict[str, Any]] = []
+    for repo_row in repos:
+        actual = getattr(repo_row, field, None)
+        if actual is None:
+            continue
+        if op_fn(actual, expected_value):
+            full = f"{repo_row.org}/{repo_row.repo_name}"
+            hits.append(
+                {
+                    "org": repo_row.org,
+                    "repo": full,
+                    "dedup_key": (f"posture:{rule.slug}:{repo_row.org}:{repo_row.repo_name}"),
+                    "entity_type": "repo",
+                    "field": field,
+                    "actual_value": actual,
+                    "expected_value": expected_value,
+                }
+            )
+    return hits
+
+
+async def _evaluate_missing_bp(
+    session: AsyncSession,
+    rule: RuleDefinition,
+    config: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Find repos whose default branch has no protection."""
+    repo_result = await session.execute(
+        select(Repository).where(
+            Repository.archived.is_(False),
+            Repository.default_branch.isnot(None),
+        )
+    )
+    repos = list(repo_result.scalars().all())
+
+    bp_result = await session.execute(
+        select(RepoBranchProtection),
+    )
+    all_bps = list(bp_result.scalars().all())
+
+    protected: set[tuple[str, str, str]] = {(bp.org, bp.repo_name, bp.branch) for bp in all_bps}
+
+    hits: list[dict[str, Any]] = []
+    for repo_row in repos:
+        branch = repo_row.default_branch
+        if not branch:
+            continue
+        key = (repo_row.org, repo_row.repo_name, branch)
+        if key not in protected:
+            full = f"{repo_row.org}/{repo_row.repo_name}"
+            hits.append(
+                {
+                    "org": repo_row.org,
+                    "repo": full,
+                    "dedup_key": (f"posture:{rule.slug}:{repo_row.org}:{repo_row.repo_name}"),
+                    "entity_type": "branch_protection",
+                    "field": "missing",
+                    "actual_value": None,
+                    "expected_value": "branch_protection_exists",
+                }
+            )
+    return hits
+
+
+async def _evaluate_bp_posture(
+    session: AsyncSession,
+    rule: RuleDefinition,
+    config: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Evaluate a posture rule against branch protection rows."""
+    field = config.get("field", "")
+    operator = config.get("operator", "eq")
+    expected_value = config.get("value")
+
+    result = await session.execute(select(RepoBranchProtection))
+    bps = list(result.scalars().all())
+
+    op_fn = _POSTURE_OPS.get(operator)
+    if op_fn is None:
+        return []
+
+    hits: list[dict[str, Any]] = []
+    for bp_row in bps:
+        actual = getattr(bp_row, field, None)
+        if actual is None:
+            continue
+        if op_fn(actual, expected_value):
+            full = f"{bp_row.org}/{bp_row.repo_name}"
+            hits.append(
+                {
+                    "org": bp_row.org,
+                    "repo": full,
+                    "dedup_key": (f"posture:{rule.slug}:{bp_row.org}:{bp_row.repo_name}"),
+                    "entity_type": "branch_protection",
+                    "field": field,
+                    "actual_value": actual,
+                    "expected_value": expected_value,
+                }
+            )
+    return hits
+
+
+async def _write_posture_detection(
+    session: AsyncSession,
+    rule: RuleDefinition,
+    hit: dict[str, Any],
+) -> bool:
+    """Write a posture detection. Returns True if new.
+
+    Deduplication uses a stable key in ``context_data["dedup_key"]``.
+    """
+    dedup_key = hit["dedup_key"]
+    org = hit.get("org")
+    repo = hit.get("repo")
+
+    suppression = await check_suppression(
+        session,
+        rule.id,
+        "system",
+        org,
+        repo,
+    )
+    if suppression:
+        return False
+
+    existing_result = await session.execute(
+        select(Detection).where(
+            Detection.rule_id == rule.id,
+            Detection.status.in_(["open", "investigating"]),
+            Detection.context_data["dedup_key"].astext == dedup_key,
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
+
+    now = datetime.now(UTC)
+    if existing:
+        await session.execute(
+            update(Detection)
+            .where(Detection.id == existing.id)
+            .values(
+                updated_at=now,
+                context_data={
+                    **(existing.context_data or {}),
+                    "entity_type": hit["entity_type"],
+                    "field": hit["field"],
+                    "actual_value": hit["actual_value"],
+                    "expected_value": hit["expected_value"],
+                    "dedup_key": dedup_key,
+                    "last_assessed_at": now.isoformat(),
+                },
+            )
+        )
+        return False
+
+    base_conf = float(
+        rule.logic_config.get("confidence", 0.5),
+    )
+    score, tier = compute_confidence_score(base_conf)
+
+    title_org = org or "unknown"
+    detection = Detection(
+        rule_id=rule.id,
+        rule_version=rule.version,
+        severity=rule.default_severity,
+        confidence=tier,
+        confidence_score=score,
+        title=f"{rule.name} — {title_org}",
+        description=rule.description or rule.name,
+        actor="system",
+        org=org,
+        repo=repo,
+        event_ids=[],
+        context_data={
+            "entity_type": hit["entity_type"],
+            "field": hit["field"],
+            "actual_value": hit["actual_value"],
+            "expected_value": hit["expected_value"],
+            "dedup_key": dedup_key,
+            "last_assessed_at": now.isoformat(),
+        },
+    )
+    session.add(detection)
+    await session.flush()
+
+    logger.info(
+        "detection.posture_written",
+        rule_id=rule.id,
+        detection_id=detection.id,
+        slug=rule.slug,
+        org=org,
+        repo=repo,
+    )
+    return True
+
+
+async def _auto_resolve_posture_detections(
+    session: AsyncSession,
+    posture_rules: list[RuleDefinition],
+    active_dedup_keys: set[str],
+) -> None:
+    """Auto-resolve posture detections whose issues were fixed."""
+    rule_ids = [r.id for r in posture_rules]
+    if not rule_ids:
+        return
+
+    result = await session.execute(
+        select(Detection).where(
+            Detection.rule_id.in_(rule_ids),
+            Detection.status.in_(["open", "investigating"]),
+        )
+    )
+    open_detections = list(result.scalars().all())
+
+    now = datetime.now(UTC)
+    for det in open_detections:
+        ctx = det.context_data or {}
+        dedup_key = ctx.get("dedup_key", "")
+        if not dedup_key:
+            continue
+        if dedup_key not in active_dedup_keys:
+            await session.execute(
+                update(Detection)
+                .where(Detection.id == det.id)
+                .values(
+                    status="resolved",
+                    resolved_at=now,
+                    resolved_by="system",
+                    resolution_note=("Auto-resolved: posture check passed"),
+                    updated_at=now,
+                )
+            )
+            logger.info(
+                "detection.posture_auto_resolved",
+                detection_id=det.id,
+                dedup_key=dedup_key,
+            )
 
 
 # ─── Lightweight dry-run evaluator (no DB writes) ─────────────────────────────

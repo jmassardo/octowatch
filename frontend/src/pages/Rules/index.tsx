@@ -16,13 +16,15 @@ import { TestRuleModal } from './TestRuleModal';
 import styles from './Rules.module.css';
 
 const CATEGORIES: RuleCategory[] = [
-  'exfiltration', 'account_compromise', 'privilege_escalation', 'secret_leakage',
-  'supply_chain', 'branch_protection_bypass', 'pat_abuse', 'impossible_travel',
+  'access_control', 'data_exfiltration', 'defense_evasion', 'incident_response',
+  'policy_violation', 'posture_change', 'posture_degradation', 'privilege_escalation',
+  'supply_chain', 'exfiltration', 'account_compromise', 'secret_leakage',
+  'branch_protection_bypass', 'pat_abuse', 'impossible_travel',
   'off_hours_anomaly', 'other',
 ];
 const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'] as const;
 const CONFIDENCES = ['high', 'medium', 'low'] as const;
-const LOGIC_TYPES = ['threshold', 'pattern', 'sequence', 'statistical'] as const;
+const LOGIC_TYPES = ['threshold', 'pattern', 'sequence', 'statistical', 'posture'] as const;
 
 const SEVERITY_VARIANT: Record<string, 'danger' | 'attention' | 'success' | 'muted'> = {
   critical: 'danger',
@@ -41,6 +43,8 @@ function getDefaultConfig(logicType: string): Record<string, unknown> {
       return { action_filters: [], sequence_steps: [{ action: '', min_count: 1 }, { action: '', min_count: 1 }], aggregation_key: 'actor', time_window_minutes: 60, confidence: 0.5 };
     case 'statistical':
       return { action_filters: [], field_conditions: [], time_window_minutes: 60, confidence: 0.65, x_config: { engine: 'impossible_travel', distance_threshold_km: 500, speed_threshold_kmh: 900, suppress_proxy_ips: true } };
+    case 'posture':
+      return { entity_type: 'org', check_type: 'field_value', field: '', operator: 'eq', value: '', confidence: 0.85 };
     default:
       return {};
   }
@@ -182,7 +186,7 @@ function RuleForm({
       <div className={styles.editorSection}>
         <div className={styles.editorSectionHeader}>Detection Logic</div>
         <RuleConfigEditorContainer
-          logicType={logicType as 'pattern' | 'threshold' | 'sequence' | 'statistical'}
+          logicType={logicType as 'pattern' | 'threshold' | 'sequence' | 'statistical' | 'posture'}
           config={logicConfig}
           onChange={setLogicConfig}
         />

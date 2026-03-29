@@ -160,6 +160,18 @@ class EnterpriseOrg(Base):
     visibility: Mapped[str | None] = mapped_column(Text)
     plan: Mapped[str | None] = mapped_column(Text)  # "free" | "team" | "enterprise"
     member_count: Mapped[int | None] = mapped_column(Integer)
+
+    # Security settings (enriched via REST API after org sync)
+    two_factor_required: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # "read" | "write" | "admin" | "none"
+    default_repo_permission: Mapped[str | None] = mapped_column(Text)
+    members_can_fork_private_repos: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    members_can_create_public_repos: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    ip_allow_list_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    ip_allow_list_for_installed_apps_enabled: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True
+    )
+
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
     )

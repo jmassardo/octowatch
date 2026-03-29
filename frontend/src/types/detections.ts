@@ -53,11 +53,18 @@ export interface AssignDetectionRequest {
 }
 
 export type RuleCategory =
+  | 'access_control'
+  | 'data_exfiltration'
+  | 'defense_evasion'
+  | 'incident_response'
+  | 'policy_violation'
+  | 'posture_change'
+  | 'posture_degradation'
+  | 'privilege_escalation'
+  | 'supply_chain'
   | 'exfiltration'
   | 'account_compromise'
-  | 'privilege_escalation'
   | 'secret_leakage'
-  | 'supply_chain'
   | 'branch_protection_bypass'
   | 'pat_abuse'
   | 'impossible_travel'

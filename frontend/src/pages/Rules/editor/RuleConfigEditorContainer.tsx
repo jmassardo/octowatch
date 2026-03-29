@@ -8,7 +8,7 @@ import styles from './RuleConfigEditorContainer.module.css';
 type EditorMode = 'visual' | 'json';
 
 interface RuleConfigEditorContainerProps {
-  logicType: 'pattern' | 'threshold' | 'sequence' | 'statistical';
+  logicType: 'pattern' | 'threshold' | 'sequence' | 'statistical' | 'posture';
   config: Record<string, unknown>;
   onChange: (config: Record<string, unknown>) => void;
 }

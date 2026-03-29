@@ -29,4 +29,12 @@ export interface LogicConfig {
   sequence_steps?: SequenceStep[];
   // Statistical
   x_config?: XConfig;
+  // Posture
+  entity_type?: string;
+  check_type?: string;
+  field?: string;
+  operator?: string;
+  expected?: unknown;
+  value?: unknown;
+  scope?: Record<string, unknown>;
 }

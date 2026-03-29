@@ -478,6 +478,20 @@ async def _run_post_sync_pipeline_async(run_id: str) -> dict[str, object]:
 
         await _write_sync_log(sf, run_id, "Baseline computation triggered")
 
+        # Run posture assessment against synced metadata
+        await _write_sync_log(sf, run_id, "Running posture assessment...")
+        from app.services.detection_service import run_posture_assessment
+
+        async with sf() as session:
+            posture_count = await run_posture_assessment(session, run_id=run_id)
+            await session.commit()
+
+        await _write_sync_log(
+            sf,
+            run_id,
+            f"Posture assessment complete: {posture_count} finding(s)",
+        )
+
         # Mark post-processing as completed
         async with sf() as session:
             await session.execute(
@@ -503,6 +517,7 @@ async def _run_post_sync_pipeline_async(run_id: str) -> dict[str, object]:
             "status": "completed",
             "event_count": len(event_ids),
             "detection_batches": detection_batches,
+            "posture_findings": posture_count,
         }
 
     except Exception as exc:
@@ -704,6 +719,31 @@ async def _sync_entity_async(
             await _maybe_finalize_run(sf, run_id)
             raise
 
+    else:
+        # No exception — enrich org settings while valkey is still open
+        if entity_type == "orgs":
+            try:
+                enrich_token = await token_manager.get_installation_token(
+                    installation_id,
+                )
+                enriched = await _enrich_org_settings(
+                    sf,
+                    run_id,
+                    enrich_token,
+                    rate_limiter,
+                )
+                await _write_sync_log(
+                    sf,
+                    run_id,
+                    f"Enriched security settings for {enriched} org(s)",
+                    entity_type="orgs",
+                )
+            except Exception as enrich_exc:
+                logger.warning(
+                    "github_sync.org_enrich_error",
+                    error=str(enrich_exc),
+                )
+
     finally:
         await valkey.aclose()
 
@@ -737,8 +777,7 @@ async def _maybe_finalize_run(sf: async_sessionmaker[AsyncSession], run_id: str)
     async with sf() as session:
         # Count total cursors and completed/failed cursors for this run
         all_cursors = await session.execute(
-            select(EnterpriseSyncEntityCursor)
-            .where(EnterpriseSyncEntityCursor.run_id == run_uuid)
+            select(EnterpriseSyncEntityCursor).where(EnterpriseSyncEntityCursor.run_id == run_uuid)
         )
         cursors = all_cursors.scalars().all()
         if not cursors:
@@ -776,7 +815,8 @@ async def _maybe_finalize_run(sf: async_sessionmaker[AsyncSession], run_id: str)
 
     if has_failures:
         await _write_sync_log(
-            sf, run_id,
+            sf,
+            run_id,
             f"Sync completed with failures: {', '.join(failed_entities)}",
             level="error",
             details={"failed_entities": failed_entities, "entity_counts": entity_counts},
@@ -784,7 +824,8 @@ async def _maybe_finalize_run(sf: async_sessionmaker[AsyncSession], run_id: str)
     else:
         total_items = sum(entity_counts.values()) if entity_counts else 0
         await _write_sync_log(
-            sf, run_id,
+            sf,
+            run_id,
             f"All entity tasks completed — {total_items} total items synced",
             details={"entity_counts": entity_counts},
         )
@@ -1685,6 +1726,79 @@ async def _upsert_enterprise_members(
         )
         await session.execute(stmt)
     await session.commit()
+
+
+async def _enrich_org_settings(
+    sf: async_sessionmaker[AsyncSession],
+    run_id: str,
+    token: str,
+    rate_limiter: GitHubRateLimiter,
+) -> int:
+    """Fetch org security settings via REST and update EnterpriseOrg rows.
+
+    Makes a ``GET /orgs/{login}`` call for each org synced from the
+    enterprise GraphQL query.  Returns the number of orgs enriched.
+    """
+    from sqlalchemy import select, update
+
+    from app.models.github_sync import EnterpriseOrg
+
+    async with sf() as session:
+        result = await session.execute(select(EnterpriseOrg))
+        org_list = list(result.scalars().all())
+
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    enriched = 0
+    for org_row in org_list:
+        try:
+            resp = await _github_get(
+                f"{_GITHUB_API_BASE}/orgs/{org_row.org_login}",
+                headers,
+                {},
+                rate_limiter,
+            )
+            if resp.status_code != 200:
+                logger.warning(
+                    "github_sync.org_enrich_http_error",
+                    org=org_row.org_login,
+                    status=resp.status_code,
+                )
+                continue
+            data = resp.json()
+            async with sf() as session:
+                await session.execute(
+                    update(EnterpriseOrg)
+                    .where(EnterpriseOrg.id == org_row.id)
+                    .values(
+                        two_factor_required=data.get(
+                            "two_factor_requirement_enabled",
+                        ),
+                        default_repo_permission=data.get(
+                            "default_repository_permission",
+                        ),
+                        members_can_fork_private_repos=data.get(
+                            "members_can_fork_private_repositories",
+                        ),
+                        members_can_create_public_repos=data.get(
+                            "members_can_create_public_repositories",
+                        ),
+                    )
+                )
+                await session.commit()
+            enriched += 1
+        except Exception as exc:
+            logger.warning(
+                "github_sync.org_enrich_failed",
+                org=org_row.org_login,
+                error=str(exc),
+            )
+
+    return enriched
 
 
 async def _upsert_items(
