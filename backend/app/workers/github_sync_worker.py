@@ -411,80 +411,14 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         details={"tasks": [f"{et}:{o}" for et, o in dispatched]},
     )
 
-    # ── Wait for all child tasks to reach terminal state ───────────────────
-    _TERMINAL_STATES = {"SUCCESS", "FAILURE", "REVOKED"}
-
-    if child_results:
-        logger.info(
-            "github_sync.orchestrator_waiting",
-            run_id=run_id,
-            task_count=len(child_results),
-        )
-        while True:
-            terminal_count = sum(1 for r in child_results if r.state in _TERMINAL_STATES)
-            if terminal_count >= len(child_results):
-                break
-            await asyncio.sleep(15)
-
-    # ── Aggregate results and mark run completed ──────────────────────────
-    entity_counts: dict[str, int] = {}
-    failed_entities: list[str] = []
-
-    for (entity_type, org_name), child in zip(dispatched, child_results, strict=True):
-        if child.state == "SUCCESS" and child.result:
-            items = child.result.get("items", 0)
-            entity_counts[entity_type] = entity_counts.get(entity_type, 0) + items
-        elif child.state in ("FAILURE", "REVOKED"):
-            failed_entities.append(f"{entity_type}:{org_name}")
-
-    has_failures = len(failed_entities) > 0
-    final_status = "failed" if has_failures else "completed"
-    error_msg = f"Failed entities: {', '.join(failed_entities)}" if has_failures else None
-
-    if has_failures:
-        await _write_sync_log(
-            sf,
-            run_id,
-            f"Sync completed with failures: {', '.join(failed_entities)}",
-            level="error",
-            details={"failed_entities": failed_entities, "entity_counts": entity_counts},
-        )
-    else:
-        total_items = sum(entity_counts.values()) if entity_counts else 0
-        await _write_sync_log(
-            sf,
-            run_id,
-            f"All entity tasks completed — {total_items} total items synced",
-            details={"entity_counts": entity_counts},
-        )
-
-    async with _make_session_factory()() as session:
-        await session.execute(
-            update(EnterpriseSyncRun)
-            .where(EnterpriseSyncRun.id == run_uuid)
-            .values(
-                status=final_status,
-                completed_at=datetime.now(UTC),
-                entity_counts=entity_counts or None,
-                error_message=error_msg,
-                post_processing_status=("pending" if final_status == "completed" else None),
-            )
-        )
-        await session.commit()
-
-    # ── Dispatch post-sync pipeline (fire-and-forget) ─────────────────────
-    if final_status == "completed":
-        run_post_sync_pipeline.apply_async(
-            kwargs={"run_id": run_id},
-            queue="github_sync",
-        )
-        logger.info("github_sync.post_sync_pipeline_dispatched", run_id=run_id)
-        await _write_sync_log(sf, run_id, "Post-sync pipeline dispatched")
+    # NOTE: The orchestrator does NOT wait for child tasks to complete.
+    # With --pool=solo, waiting would deadlock (one thread, children queued behind us).
+    # Instead, each sync_entity task checks if it's the last to finish and, if so,
+    # marks the run as completed and triggers the post-sync pipeline.
 
     return {
-        "status": final_status,
+        "status": "dispatched",
         "tasks": len(dispatched),
-        "entity_counts": entity_counts,
     }
 
 
@@ -763,7 +697,12 @@ async def _sync_entity_async(
             entity_type=entity_type,
             org=org,
         )
-        raise task.retry(exc=exc) from exc
+        try:
+            raise task.retry(exc=exc) from exc
+        except task.MaxRetriesExceededError:
+            # Retries exhausted — check if this was the last entity
+            await _maybe_finalize_run(sf, run_id)
+            raise
 
     finally:
         await valkey.aclose()
@@ -776,12 +715,88 @@ async def _sync_entity_async(
         org=org,
     )
 
+    # ── Check if this is the last entity to finish; if so, finalize the run ──
+    await _maybe_finalize_run(sf, run_id)
+
     return {
         "status": "completed",
         "entity_type": entity_type,
         "org": org,
         "items": items_synced,
     }
+
+
+async def _maybe_finalize_run(sf: async_sessionmaker[AsyncSession], run_id: str) -> None:
+    """Check if all entity cursors for this run are terminal. If so, mark run completed."""
+    from sqlalchemy import select, update as sa_update
+
+    from app.models.github_sync import EnterpriseSyncEntityCursor, EnterpriseSyncRun
+
+    run_uuid = uuid.UUID(run_id)
+
+    async with sf() as session:
+        # Count total cursors and completed/failed cursors for this run
+        all_cursors = await session.execute(
+            select(EnterpriseSyncEntityCursor)
+            .where(EnterpriseSyncEntityCursor.run_id == run_uuid)
+        )
+        cursors = all_cursors.scalars().all()
+        if not cursors:
+            return  # No cursors yet — orchestrator hasn't finished dispatching
+
+        terminal = [c for c in cursors if c.status in ("completed", "failed")]
+        if len(terminal) < len(cursors):
+            return  # Still in-progress entities
+
+        # All entities are done — finalize the run
+        entity_counts: dict[str, int] = {}
+        failed_entities: list[str] = []
+        for c in cursors:
+            if c.status == "completed":
+                entity_counts[c.entity_type] = entity_counts.get(c.entity_type, 0) + c.items_synced
+            else:
+                failed_entities.append(f"{c.entity_type}:{c.org or 'global'}")
+
+        has_failures = len(failed_entities) > 0
+        final_status = "failed" if has_failures else "completed"
+        error_msg = f"Failed entities: {', '.join(failed_entities)}" if has_failures else None
+
+        await session.execute(
+            sa_update(EnterpriseSyncRun)
+            .where(EnterpriseSyncRun.id == run_uuid)
+            .values(
+                status=final_status,
+                completed_at=datetime.now(UTC),
+                entity_counts=entity_counts or None,
+                error_message=error_msg,
+                post_processing_status=("pending" if final_status == "completed" else None),
+            )
+        )
+        await session.commit()
+
+    if has_failures:
+        await _write_sync_log(
+            sf, run_id,
+            f"Sync completed with failures: {', '.join(failed_entities)}",
+            level="error",
+            details={"failed_entities": failed_entities, "entity_counts": entity_counts},
+        )
+    else:
+        total_items = sum(entity_counts.values()) if entity_counts else 0
+        await _write_sync_log(
+            sf, run_id,
+            f"All entity tasks completed — {total_items} total items synced",
+            details={"entity_counts": entity_counts},
+        )
+
+    # Dispatch post-sync pipeline if successful
+    if final_status == "completed":
+        run_post_sync_pipeline.apply_async(
+            kwargs={"run_id": run_id},
+            queue="github_sync",
+        )
+        logger.info("github_sync.post_sync_pipeline_dispatched", run_id=run_id)
+        await _write_sync_log(sf, run_id, "Post-sync pipeline dispatched")
 
 
 async def _check_sync_schedule_async() -> dict:
