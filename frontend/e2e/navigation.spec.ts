@@ -3,21 +3,8 @@ import { test, expect } from '@playwright/test';
 // ---------------------------------------------------------------------------
 // Sidebar navigation tests — click each nav link and verify routing.
 //
-// These tests require an authenticated session because the sidebar is only
-// rendered inside the AuthGuard-protected AppShell.
-//
-// TODO: Configure authenticated storageState for these tests:
-//   1. Create e2e/auth.setup.ts that logs in and saves session state
-//   2. Add a "setup" project to playwright.config.ts
-//   3. Uncomment the `test.use(...)` line below
-//
-// Until auth is configured, these tests will be redirected to /login and
-// will not find the sidebar.  They are structured so that enabling auth is
-// a single-line change.
+// Authentication is handled by the "setup" project in playwright.config.ts.
 // ---------------------------------------------------------------------------
-
-// TODO: Uncomment when auth setup is available
-// test.use({ storageState: 'e2e/.auth/user.json' });
 
 const navItems = [
   { label: 'Dashboard', path: '/dashboard', heading: 'Dashboard' },

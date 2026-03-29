@@ -3,7 +3,16 @@ import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { LicensePane } from './LicensePane';
-import { COST_PER_SEAT_DEFAULT } from './healthData';
+
+const COST_PER_SEAT_DEFAULT = 19;
+
+vi.mock('../../hooks/useOrgConfig', () => ({
+  useOrgConfig: () => ({ costPerSeat: COST_PER_SEAT_DEFAULT, isLoading: false, isError: false, orgConfig: undefined }),
+}));
+
+vi.mock('../../hooks/useOrg', () => ({
+  useOrg: () => ({ selectedOrg: '', setSelectedOrg: vi.fn() }),
+}));
 
 vi.mock('../../api/reports', () => ({
   getSeatUtilizationReport: vi.fn(),
@@ -168,5 +177,38 @@ describe('LicensePane', () => {
     mockQueryReturns.push({ data: undefined, isLoading: false, isError: true, refetch: vi.fn() });
     renderWithProviders();
     expect(screen.getByText('Failed to load ghost members')).toBeInTheDocument();
+  });
+
+  it('shows sample data banner when all API queries return empty data', () => {
+    mockQueryReturns.length = 0;
+    // All queries return empty/no data
+    mockQueryReturns.push({ data: { data: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: { data: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: { ghost_members: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    renderWithProviders();
+    expect(screen.getByText(/This data is illustrative/)).toBeInTheDocument();
+  });
+
+  it('does not show sample data banner when real data is available', () => {
+    renderWithProviders();
+    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+  });
+
+  it('does not show sample data banner during loading state', () => {
+    mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: undefined, isLoading: true, isError: false, refetch: vi.fn() });
+    renderWithProviders();
+    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+  });
+
+  it('does not show sample data banner during error state', () => {
+    mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: undefined, isLoading: false, isError: true, refetch: vi.fn() });
+    renderWithProviders();
+    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
   });
 });

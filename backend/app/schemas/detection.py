@@ -221,3 +221,23 @@ class ValidateConfigResponse(BaseModel):
     valid: bool
     errors: list[str] = []
     warnings: list[str] = []
+
+
+# ─── Rule test (dry-run) schemas ──────────────────────────────────────────────
+
+
+class RuleTestEventRequest(BaseModel):
+    """Request body for POST /rules/{rule_id}/test — dry-run a rule against a sample event."""
+
+    event: dict[str, Any] = Field(
+        ...,
+        description="Sample audit event payload to evaluate the rule against.",
+    )
+
+
+class RuleTestEventResponse(BaseModel):
+    """Response for POST /rules/{rule_id}/test — dry-run evaluation result."""
+
+    matched: bool
+    reason: str
+    matched_fields: list[str] = []

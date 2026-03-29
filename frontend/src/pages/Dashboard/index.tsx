@@ -118,23 +118,27 @@ export function DashboardPage() {
   const { data: detections, isLoading: loadingThreats, refetch: refetchThreats, isError: threatError } = useQuery({
     queryKey: ['detections', 'open'],
     queryFn: () => listDetections({ status: 'investigating', page_size: 100 }),
+    refetchInterval: 60_000,
   });
 
   const { data: events, isLoading: loadingEvents } = useQuery({
     queryKey: ['events', 'recent'],
     queryFn: () => listEvents({ page_size: 10, sort: 'created_at_desc' }),
+    refetchInterval: 60_000,
   });
 
   // Fetch a larger page of events for the heatmap (up to 500 most recent)
   const { data: calendarEvents } = useQuery({
     queryKey: ['events', 'calendar'],
     queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc' }),
+    refetchInterval: 60_000,
   });
 
   // Fetch actions volume data for workflow success metrics
   const { data: actionsReport } = useQuery({
     queryKey: ['reports', 'actions-volume-dashboard'],
     queryFn: () => getActionsVolumeReport({ window_days: 7, granularity: 'daily' }),
+    refetchInterval: 60_000,
   });
 
   // Fetch extended health summary for security pills
@@ -142,6 +146,7 @@ export function DashboardPage() {
     queryKey: ['health-signals', 'summary-dashboard'],
     queryFn: getExtendedHealthSummary,
     staleTime: 60_000,
+    refetchInterval: 60_000,
   });
 
   // Fetch system health for ingestion banner
@@ -149,6 +154,7 @@ export function DashboardPage() {
     queryKey: ['health-signals', 'system-dashboard'],
     queryFn: getSystemHealth,
     staleTime: 60_000,
+    refetchInterval: 60_000,
   });
 
   // Derive workflow metrics from actions volume data
@@ -217,6 +223,7 @@ export function DashboardPage() {
           onClick={() => navigate('/velocity')}
         />
         <StatPill value={String(uniqueActors || '—')} label="active devs" variant="done" onClick={() => navigate('/devactivity')} />
+        <StatPill value="—" label="API calls (24h)" onClick={() => navigate('/reports')} />
         <StatPill value={formatCount(calendarEvents?.total ?? 0)} label="total events" variant="accent" onClick={() => navigate('/events')} />
         <StatPill
           value={String(healthSummary?.unresolved_secret_alerts ?? '—')}

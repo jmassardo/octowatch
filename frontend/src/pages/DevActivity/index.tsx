@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { listEvents } from '../../api/events';
@@ -11,6 +11,7 @@ import { Button } from '../../components/primitives/Button';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Modal } from '../../components/primitives/Modal';
+import { Drawer } from '../../components/primitives/Drawer';
 import { MiniBarChart } from '../../components/charts/MiniBarChart';
 import styles from './DevActivity.module.css';
 
@@ -28,6 +29,16 @@ export function DevActivityPage() {
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [othersModalOpen, setOthersModalOpen] = useState(false);
   const [concentrationModalOpen, setConcentrationModalOpen] = useState(false);
+  const [selectedDev, setSelectedDev] = useState<ActorStats | null>(null);
+
+  const handleCardClick = useCallback((dev: ActorStats) => {
+    setSelectedDev(dev);
+  }, []);
+
+  const handleDrawerClose = useCallback(() => {
+    setSelectedDev(null);
+  }, []);
+
   const { data: eventData, isLoading: loadingEvents, isError: eventsError, refetch } = useQuery({
     queryKey: ['events', 'dev-activity'],
     queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc' }),
@@ -307,6 +318,11 @@ export function DevActivityPage() {
             <div
               key={dev.handle}
               className={[styles.devCard, flagged && styles.flagged].filter(Boolean).join(' ')}
+              role="button"
+              tabIndex={0}
+              onClick={() => handleCardClick(dev)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick(dev); } }}
+              aria-label={`View details for ${dev.handle}`}
             >
               <div className={styles.devTop}>
                 <Avatar username={dev.handle} size={36} />
@@ -368,9 +384,99 @@ export function DevActivityPage() {
           </tbody>
         </table>
       </Modal>
+
+      {/* Developer detail slide-out panel */}
+      <Drawer
+        open={selectedDev !== null}
+        onClose={handleDrawerClose}
+        title="Developer details"
+        titleId="dev-detail-title"
+      >
+        {selectedDev && (
+          <DevDetailPanel
+            dev={selectedDev}
+            detections={actorDetections.get(selectedDev.handle) ?? 0}
+            team={findTeamForDev(selectedDev.handle, teamMembers)}
+          />
+        )}
+      </Drawer>
     </div>
   );
 }
 
+/** Find the team name for a developer from the team members map. */
+function findTeamForDev(
+  handle: string,
+  teamMembers: Record<string, readonly string[]>,
+): string | null {
+  for (const [teamName, members] of Object.entries(teamMembers)) {
+    if (members.includes(handle)) return teamName;
+  }
+  return null;
+}
 
+interface DevDetailPanelProps {
+  dev: ActorStats;
+  detections: number;
+  team: string | null;
+}
+
+function DevDetailPanel({ dev, detections, team }: DevDetailPanelProps) {
+  const flagged = detections > 0;
+  return (
+    <div className={styles.detailPanel}>
+      <div className={styles.detailHeader}>
+        <Avatar username={dev.handle} size={48} />
+        <div>
+          <div className={styles.detailName}>
+            {dev.handle}
+            {flagged && (
+              <span style={{ marginLeft: 8, display: 'inline-flex' }}>
+                <Label variant="danger" className={styles.flagLabel}>
+                  flagged
+                </Label>
+              </span>
+            )}
+          </div>
+          <div className={styles.detailHandle}>
+            <span className={styles.mention}>@{dev.handle}</span>
+          </div>
+          {team && <div className={styles.detailTeam}>Team: {team}</div>}
+        </div>
+      </div>
+
+      <div className={styles.detailSection}>
+        <div className={styles.detailSectionTitle}>Contributions</div>
+        <div className={styles.detailStatsList}>
+          <span>📊 <strong>{dev.repoSet.size}</strong> repos</span>
+          <span>🔀 <strong>{dev.prCount}</strong> PRs authored</span>
+          <span>📝 <strong>{dev.eventCount}</strong> events</span>
+          <span style={flagged ? { color: 'var(--danger)' } : undefined}>
+            🚨 <strong>{detections}</strong> detections
+          </span>
+        </div>
+      </div>
+
+      <div className={styles.detailSection}>
+        <div className={styles.detailSectionTitle}>Weekly Activity</div>
+        <MiniBarChart
+          data={dev.weeklyCounts}
+          color={flagged ? 'var(--danger)' : 'var(--success)'}
+          height={48}
+        />
+      </div>
+
+      <div className={styles.detailSection}>
+        <a
+          href={`https://github.com/${dev.handle}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.detailGhLink}
+        >
+          View GitHub profile ↗
+        </a>
+      </div>
+    </div>
+  );
+}
 

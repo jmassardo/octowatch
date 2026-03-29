@@ -10,7 +10,7 @@ import { Button } from '../../components/primitives/Button';
 import { LineAreaChart } from '../../components/charts/LineAreaChart';
 import type { SeatUtilizationBucket, CopilotSeatsBucket } from '../../types/reports';
 import { getCopilotOverview } from '../../api/copilotMetrics';
-import { COST_PER_SEAT } from './copilotData';
+import { useOrgConfig } from '../../hooks/useOrgConfig';
 import styles from './Copilot.module.css';
 
 type DrillDownType = 'active-seats' | 'assigned' | 'revoked' | 'net' | null;
@@ -31,6 +31,7 @@ export function OverviewPane({
   isError,
   onRetry,
 }: OverviewPaneProps) {
+  const { costPerSeat } = useOrgConfig();
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['copilot', 'overview'],
     queryFn: getCopilotOverview,
@@ -67,7 +68,7 @@ export function OverviewPane({
 
   // Derive waste metrics from real API data
   const inactiveSeats = (provisionedSeats ?? 0) - (activeSeats ?? 0);
-  const monthlyWaste = inactiveSeats * COST_PER_SEAT;
+  const monthlyWaste = inactiveSeats * costPerSeat;
 
   function handleActiveSeatsClick() {
     if (seatTableRef.current) {
@@ -93,9 +94,9 @@ export function OverviewPane({
   function handleExportInactive() {
     const rows = [
       'Category,Seats,Cost Per Seat ($/mo),Monthly Cost ($)',
-      `Inactive (provisioned - active),${inactiveSeats},${COST_PER_SEAT},${monthlyWaste}`,
-      `Active seats,${activeSeats ?? 0},${COST_PER_SEAT},${(activeSeats ?? 0) * COST_PER_SEAT}`,
-      `Provisioned seats,${provisionedSeats ?? 0},${COST_PER_SEAT},${(provisionedSeats ?? 0) * COST_PER_SEAT}`,
+      `Inactive (provisioned - active),${inactiveSeats},${costPerSeat},${monthlyWaste}`,
+      `Active seats,${activeSeats ?? 0},${costPerSeat},${(activeSeats ?? 0) * costPerSeat}`,
+      `Provisioned seats,${provisionedSeats ?? 0},${costPerSeat},${(provisionedSeats ?? 0) * costPerSeat}`,
     ];
     const csv = rows.join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -153,7 +154,7 @@ export function OverviewPane({
                 {inactiveSeats} seats
               </span>
               {' '}inactive (provisioned but not active in last 30 days) at $
-              {COST_PER_SEAT}/seat/month
+              {costPerSeat}/seat/month
             </div>
           </div>
           <Button size="sm" variant="danger" onClick={handleExportInactive}>
@@ -544,7 +545,7 @@ export function OverviewPane({
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums', color: inactive > 0 ? 'var(--danger)' : undefined }}>{inactive}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>${(b.provisioned_seat_count * COST_PER_SEAT).toLocaleString()}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>${(b.provisioned_seat_count * costPerSeat).toLocaleString()}</td>
                   </tr>
                 );
               })}

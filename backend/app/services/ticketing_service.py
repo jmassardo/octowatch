@@ -64,7 +64,8 @@ async def create_ticket_for_detection(
         elif config.platform == "github":
             external_id, external_url = await _create_github_issue(detection, config)
         else:
-            raise NotImplementedError(f"Unsupported ticketing platform: {config.platform}")
+            logger.warning("ticketing.unsupported_platform", platform=config.platform)
+            raise ValueError(f"Unsupported ticketing platform: {config.platform}")
     except Exception as exc:
         logger.error(
             "ticketing.create_failed",

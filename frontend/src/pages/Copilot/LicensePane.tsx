@@ -5,7 +5,7 @@ import { MetricCard } from '../../components/primitives/MetricCard';
 import { Modal } from '../../components/primitives/Modal';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import type { SeatUtilizationBucket } from '../../types/reports';
-import { COST_PER_SEAT } from './copilotData';
+import { useOrgConfig } from '../../hooks/useOrgConfig';
 import styles from './Copilot.module.css';
 
 type LicenseDrillDown = 'total' | 'active' | 'inactive' | 'waste' | null;
@@ -18,6 +18,7 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
   const [drillDown, setDrillDown] = useState<LicenseDrillDown>(null);
   const costSectionRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const { costPerSeat } = useOrgConfig();
 
   if (!seatBuckets || seatBuckets.length === 0) {
     return (
@@ -49,7 +50,7 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
   const totalSeats = latestBucket?.provisioned_seat_count ?? 0;
   const activeSeats = latestBucket?.active_seat_count ?? 0;
   const inactiveSeats = totalSeats - activeSeats;
-  const monthlyWaste = inactiveSeats * COST_PER_SEAT;
+  const monthlyWaste = inactiveSeats * costPerSeat;
   const annualSavings = monthlyWaste * 12;
 
   function drillDownTitle(): string {
@@ -72,7 +73,7 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
   if (inactiveSeats > 0) {
     recommendations.push({
       icon: '🔴',
-      title: `Revoke ${inactiveSeats} inactive seats to save $${(inactiveSeats * COST_PER_SEAT).toLocaleString()}/month`,
+      title: `Revoke ${inactiveSeats} inactive seats to save $${(inactiveSeats * costPerSeat).toLocaleString()}/month`,
       description: 'These seats have shown no activity in the last 30 days.',
     });
   }
@@ -160,7 +161,7 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
                       {drillDown === 'waste' && (
                         <>
                           <td style={{ fontVariantNumeric: 'tabular-nums' }}>{bucketInactive}</td>
-                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>${(bucketInactive * COST_PER_SEAT).toLocaleString()}</td>
+                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>${(bucketInactive * costPerSeat).toLocaleString()}</td>
                         </>
                       )}
                     </tr>
@@ -180,13 +181,13 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
           <div className={styles.costRow}>
             <span className={styles.costLabel}>Current monthly spend</span>
             <span className={styles.costValue}>
-              ${(totalSeats * COST_PER_SEAT).toLocaleString()}
+              ${(totalSeats * costPerSeat).toLocaleString()}
             </span>
           </div>
           <div className={styles.costRow}>
             <span className={styles.costLabel}>Optimized monthly spend</span>
             <span className={styles.costValue} style={{ color: 'var(--success)' }}>
-              ${(activeSeats * COST_PER_SEAT).toLocaleString()}
+              ${(activeSeats * costPerSeat).toLocaleString()}
             </span>
           </div>
           <div className={[styles.costRow, styles.costRowHighlight].join(' ')}>

@@ -15,6 +15,8 @@ from app.schemas.detection import (
     RuleListResponse,
     RuleResponse,
     RuleStatusUpdate,
+    RuleTestEventRequest,
+    RuleTestEventResponse,
     RuleVersionResponse,
     SuppressionCreate,
     SuppressionResponse,
@@ -22,7 +24,7 @@ from app.schemas.detection import (
     ValidateConfigResponse,
 )
 from app.services import rule_service
-from app.services.detection_service import _SAFE_DISTINCT_COLUMNS
+from app.services.detection_service import _SAFE_DISTINCT_COLUMNS, evaluate_rule_against_event
 from app.services.rule_service import invalidate_rule_cache
 
 router = APIRouter(prefix="/rules", tags=["rules"])
@@ -356,6 +358,33 @@ async def get_rule_versions(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
     versions = await rule_service.get_rule_versions(db, rule_id=rule_id, limit=limit)
     return [RuleVersionResponse.model_validate(v) for v in versions]
+
+
+@router.post("/{rule_id}/test", response_model=RuleTestEventResponse)
+async def test_rule(
+    rule_id: int,
+    payload: RuleTestEventRequest,
+    current_user: AuthenticatedUser = Depends(
+        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> RuleTestEventResponse:
+    """Dry-run a rule against a sample event payload (no database writes).
+
+    Evaluates the rule's action filters, field conditions, confidence threshold,
+    and logic-type-specific checks against the provided event data, returning
+    whether the rule would trigger and which fields matched.
+    """
+    rule = await rule_service.get_rule_by_id(db, rule_id)
+    if not rule:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+
+    result = evaluate_rule_against_event(rule, payload.event)
+    return RuleTestEventResponse(
+        matched=result["matched"],
+        reason=result["reason"],
+        matched_fields=result["matched_fields"],
+    )
 
 
 # ─── Suppression sub-resource ─────────────────────────────────────────────────

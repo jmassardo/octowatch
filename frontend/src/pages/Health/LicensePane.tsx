@@ -6,9 +6,8 @@ import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { getSeatUtilizationReport, getCopilotSeatsReport } from '../../api/reports';
 import { getGhostMembers } from '../../api/healthSignals';
 import type { SeatUtilizationBucket, CopilotSeatsBucket, ReportEnvelope } from '../../types/reports';
-import {
-  COST_PER_SEAT_DEFAULT,
-} from './healthData';
+import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
+import { useOrgConfig } from '../../hooks/useOrgConfig';
 import styles from './LicensePane.module.css';
 
 /** Extract typed buckets from the generic report envelope. */
@@ -23,6 +22,8 @@ function toCopilotBuckets(env: ReportEnvelope | undefined): CopilotSeatsBucket[]
 }
 
 export function LicensePane() {
+  const { costPerSeat } = useOrgConfig();
+
   const { data: seatEnv } = useQuery({
     queryKey: ['reports', 'seat-util-health'],
     queryFn: () => getSeatUtilizationReport({ window_days: 30 }),
@@ -60,14 +61,26 @@ export function LicensePane() {
 
   const ghostMembers = ghostData?.ghost_members ?? [];
   const ghostCount = ghostMembers.length;
-  const ghostCost = ghostCount * COST_PER_SEAT_DEFAULT;
+  const ghostCost = ghostCount * costPerSeat;
 
   // Copilot cross-reference
   const latestCopilot = copilotBuckets[copilotBuckets.length - 1];
   const copilotTotal = latestCopilot?.seats_net ?? 0;
 
+  // Show sample-data banner when all API queries returned no real data
+  // (not during loading or error — only when fallback zeros are displayed)
+  const isSampleData =
+    !isLoadingGhosts &&
+    !isGhostError &&
+    seatBuckets.length === 0 &&
+    copilotBuckets.length === 0 &&
+    ghostMembers.length === 0;
+
   return (
     <>
+      {isSampleData && (
+        <SampleDataBanner message="This data is illustrative. Connect your GitHub organization to see real license metrics." />
+      )}
       {/* Summary metric cards */}
       <div className={styles.grid3}>
         <Card>

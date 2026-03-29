@@ -9,6 +9,7 @@ from __future__ import annotations
 import ssl
 from collections.abc import AsyncGenerator
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -66,7 +67,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
             await session.commit()
-        except Exception:
+        except (SQLAlchemyError, ConnectionRefusedError):
             await session.rollback()
             raise
 

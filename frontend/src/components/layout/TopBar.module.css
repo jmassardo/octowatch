@@ -15,6 +15,84 @@
   position: relative;
 }
 
+/* ---- Org single label (1 org) ---- */
+
+.orgSingleLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+/* ---- Org segmented pill tabs (multiple orgs) ---- */
+
+.orgTabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--canvas-default, #0d1117);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px;
+  overflow-x: auto;
+  max-width: 480px;
+}
+
+.orgTab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--fg-muted);
+  background: transparent;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.orgTab:hover {
+  color: var(--fg);
+  background: var(--canvas-subtle);
+}
+
+.orgTabActive {
+  color: var(--fg);
+  background: var(--canvas-subtle);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* ---- Add org button ---- */
+
+.addOrgBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.addOrgBtn:hover {
+  border-color: var(--fg-muted);
+  color: var(--fg);
+}
+
 .orgDropdownTrigger {
   display: flex;
   align-items: center;

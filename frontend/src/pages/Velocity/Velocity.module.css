@@ -228,3 +228,42 @@
   color: var(--fg-muted);
   margin-top: 4px;
 }
+
+/* Chart skeleton loading state */
+.chartSkeleton {
+  height: 160px;
+  background: linear-gradient(90deg, var(--canvas-inset) 25%, var(--canvas-subtle) 50%, var(--canvas-inset) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* DORA tier badge variants */
+.doraTierElite {
+  background: rgba(63, 185, 80, 0.15);
+  border-color: rgba(63, 185, 80, 0.4);
+  color: var(--success);
+}
+
+.doraTierHigh {
+  background: rgba(88, 166, 255, 0.15);
+  border-color: rgba(88, 166, 255, 0.4);
+  color: var(--accent);
+}
+
+.doraTierMedium {
+  background: rgba(210, 153, 34, 0.15);
+  border-color: rgba(210, 153, 34, 0.4);
+  color: var(--attention);
+}
+
+.doraTierLow {
+  background: rgba(248, 81, 73, 0.15);
+  border-color: rgba(248, 81, 73, 0.4);
+  color: var(--danger);
+}

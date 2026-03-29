@@ -4,6 +4,7 @@ import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { getStalePrs, getUnhealthyHooks, getSkippedWorkflows } from '../../api/healthSignals';
+import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import styles from './MaintenancePane.module.css';
 
 export function MaintenancePane() {
@@ -45,6 +46,16 @@ export function MaintenancePane() {
   const skippedWorkflows = wfData?.skipped_workflows ?? [];
 
   const isLoading = isLoadingPrs || isLoadingHooks || isLoadingWfs;
+  const isAnyError = isPrError || isHookError || isWfError;
+
+  // Show sample-data banner when all API queries returned no real data
+  // (not during loading or error states — only when displaying empty/fallback data)
+  const isSampleData =
+    !isLoading &&
+    !isAnyError &&
+    stalePrs.length === 0 &&
+    unhealthyHooks.length === 0 &&
+    skippedWorkflows.length === 0;
 
   if (isLoading) {
     return (
@@ -56,6 +67,9 @@ export function MaintenancePane() {
 
   return (
     <>
+      {isSampleData && (
+        <SampleDataBanner message="This data is illustrative. Connect your GitHub organization to see real maintenance metrics." />
+      )}
       <div className={styles.grid2}>
         {/* Stale PRs */}
         <Card>

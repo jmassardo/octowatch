@@ -32,6 +32,7 @@ from app.routers import (
     health,
     health_signals,
     integrations,
+    org_config,
     query,
     reports,
     rules,
@@ -184,7 +185,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         logger.error("app.db_pool_failed", error=str(exc))
 
-    # 2. Warm up Valkey pool
+    # 2. Log auth config
+    logger.info(
+        "auth.config",
+        jwt_ttl_seconds=settings.JWT_TTL_SECONDS,
+    )
+
+    # 3. Warm up Valkey pool
     try:
         from app.deps import _get_valkey_pool
 
@@ -197,14 +204,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         logger.error("app.valkey_failed", error=str(exc))
 
-    # 3. Load GeoIP database (non-fatal)
+    # 4. Load GeoIP database (non-fatal)
     try:
         await load_geoip_db()
         logger.info("app.geoip_loaded")
     except Exception as exc:
         logger.warning("app.geoip_unavailable", error=str(exc))
 
-    # 4. Load settings overlay from DB + generate setup token on first boot
+    # 5. Load settings overlay from DB + generate setup token on first boot
     if app.state.db_pool_ready:
         try:
             from app.database import AsyncSessionLocal
@@ -382,6 +389,7 @@ def create_app() -> FastAPI:
     app.include_router(integrations.router, prefix=API_PREFIX)
     app.include_router(health_signals.router, prefix=API_PREFIX)
     app.include_router(copilot.router, prefix=API_PREFIX)
+    app.include_router(org_config.router, prefix=API_PREFIX)
     app.include_router(sync.router, prefix=API_PREFIX + "/admin")
     app.include_router(setup.router, prefix=API_PREFIX)
 

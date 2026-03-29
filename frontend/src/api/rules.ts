@@ -51,3 +51,17 @@ export interface RuleVersionResponse {
 export function listRuleVersions(ruleId: number): Promise<RuleVersionResponse[]> {
   return api.get<RuleVersionResponse[]>(`/rules/${ruleId}/versions`);
 }
+
+export interface RuleTestEventRequest {
+  event: Record<string, unknown>;
+}
+
+export interface RuleTestEventResponse {
+  matched: boolean;
+  reason: string;
+  matched_fields: string[];
+}
+
+export function testRule(ruleId: number, event: Record<string, unknown>): Promise<RuleTestEventResponse> {
+  return api.post<RuleTestEventResponse>(`/rules/${ruleId}/test`, { event });
+}

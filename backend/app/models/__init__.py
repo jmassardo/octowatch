@@ -32,6 +32,7 @@ from app.models.integration import (
     Ticket,
     TicketingConfig,
 )
+from app.models.org_config import OrgConfig
 from app.models.user import RbacRole, UserRoleAssignment
 
 __all__ = [
@@ -54,6 +55,7 @@ __all__ = [
     "IngestionCursor",
     "IdpActorEnrichment",
     "NotificationConfig",
+    "OrgConfig",
     "OrgMember",
     "OrgTeam",
     "OrgTeamMember",

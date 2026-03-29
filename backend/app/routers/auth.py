@@ -210,3 +210,63 @@ async def saml_metadata(request: Request) -> Response:
             detail=f"SP metadata validation failed: {errors}",
         )
     return Response(content=metadata, media_type="application/xml")
+
+
+# ─── Dev/test login (non-production only) ───────────────────────────────────
+
+
+@router.post("/dev-login")
+async def dev_login(
+    request: Request,
+    valkey: Redis = Depends(get_valkey),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Credential-based login for development/testing only.
+
+    Disabled when ENVIRONMENT=production.  Accepts ``{"username": "...",
+    "password": "..."}`` and returns auth cookies.  The username must match
+    a known user in the RBAC tables; the password must equal the username
+    (trivial check — security is irrelevant in dev/test).
+    """
+    from app.config import settings as cfg
+
+    if cfg.ENVIRONMENT == "production":
+        raise HTTPException(status_code=404)
+
+    body = await request.json()
+    username = body.get("username", "")
+    password = body.get("password", "")
+
+    if not username or password != username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid dev credentials",
+        )
+
+    roles = await resolve_roles(db, username)
+    if not roles:
+        roles = ["viewer"]
+    scope = await get_user_scope(db, username, roles)
+    scope_type = "global" if scope.is_global else "scoped"
+
+    jti = str(uuid.uuid4())
+    jwt_token = create_jwt(github_login=username, github_id=0, jti=jti)
+    csrf_token = secrets.token_urlsafe(32)
+
+    await store_session(
+        valkey=valkey,
+        jti=jti,
+        github_login=username,
+        github_id=0,
+        roles=roles,
+        scoped_orgs=scope.scoped_orgs,
+        scoped_repos=scope.scoped_repos,
+        scope_type=scope_type,
+    )
+
+    response = Response(
+        content='{"status":"authenticated"}',
+        media_type="application/json",
+    )
+    set_auth_cookies(response, jwt_token, csrf_token)
+    return response

@@ -12,6 +12,7 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { RuleConfigEditorContainer } from './editor/RuleConfigEditorContainer';
 import { JsonConfigEditor } from './editor/JsonConfigEditor';
+import { TestRuleModal } from './TestRuleModal';
 import styles from './Rules.module.css';
 
 const CATEGORIES: RuleCategory[] = [
@@ -318,6 +319,7 @@ export function RulesPage() {
   const [deleteTarget, setDeleteTarget] = useState<RuleResponse | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [versionRule, setVersionRule] = useState<RuleResponse | null>(null);
+  const [testRuleTarget, setTestRuleTarget] = useState<RuleResponse | null>(null);
   const navigate = useNavigate();
 
   const { data: rules, isLoading, isError, refetch } = useQuery({
@@ -428,7 +430,10 @@ export function RulesPage() {
                     </span>
                   </td>
                   <td>
-                    <Button size="sm" variant="default" onClick={() => setEditRule(rule)}>Edit</Button>
+                    <div className={styles.headerActions}>
+                      <Button size="sm" variant="default" onClick={() => setTestRuleTarget(rule)}>Test</Button>
+                      <Button size="sm" variant="default" onClick={() => setEditRule(rule)}>Edit</Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -471,6 +476,11 @@ export function RulesPage() {
         confirmLabel="Delete"
         confirmVariant="danger"
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+      />
+
+      <TestRuleModal
+        rule={testRuleTarget}
+        onClose={() => setTestRuleTarget(null)}
       />
     </div>
   );

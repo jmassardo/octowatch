@@ -106,6 +106,7 @@ describe('DashboardPage', () => {
     expect(screen.getByText(/open threats/)).toBeInTheDocument();
     expect(screen.getByText(/pipeline success/)).toBeInTheDocument();
     expect(screen.getByText(/active devs/)).toBeInTheDocument();
+    expect(screen.getByText(/API calls \(24h\)/)).toBeInTheDocument();
     expect(screen.getByText(/total events/)).toBeInTheDocument();
     expect(screen.getByText(/unresolved secrets/)).toBeInTheDocument();
     expect(screen.getByText(/feature disables \(7d\)/)).toBeInTheDocument();

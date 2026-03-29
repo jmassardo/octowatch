@@ -208,4 +208,133 @@ describe('DevActivityPage', () => {
       await screen.findByText('No developer activity data found.'),
     ).toBeInTheDocument();
   });
+
+  it('opens developer detail drawer when a card is clicked', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DevActivityPage />);
+
+    // Wait for dev cards to render
+    await screen.findByText('Developer cards');
+
+    // Click the first dev card (alice)
+    const aliceCard = screen.getByLabelText('View details for alice');
+    await user.click(aliceCard);
+
+    // Drawer should open with title "Developer details"
+    expect(await screen.findByText('Developer details')).toBeInTheDocument();
+
+    // Drawer content should show developer info
+    const drawerPanel = screen.getByTestId('drawer-panel');
+    expect(within(drawerPanel).getByText('@alice')).toBeInTheDocument();
+  });
+
+  it('drawer shows contribution stats with emoji labels', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DevActivityPage />);
+
+    await screen.findByText('Developer cards');
+    const aliceCard = screen.getByLabelText('View details for alice');
+    await user.click(aliceCard);
+
+    const drawerPanel = await screen.findByTestId('drawer-panel');
+
+    // Check contribution section
+    expect(within(drawerPanel).getByText('Contributions')).toBeInTheDocument();
+    expect(within(drawerPanel).getByText('Weekly Activity')).toBeInTheDocument();
+  });
+
+  it('drawer shows GitHub profile link with correct href', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DevActivityPage />);
+
+    await screen.findByText('Developer cards');
+    const aliceCard = screen.getByLabelText('View details for alice');
+    await user.click(aliceCard);
+
+    const drawerPanel = await screen.findByTestId('drawer-panel');
+    const profileLink = within(drawerPanel).getByText(/View GitHub profile/);
+    expect(profileLink).toBeInTheDocument();
+    expect(profileLink.closest('a')).toHaveAttribute('href', 'https://github.com/alice');
+    expect(profileLink.closest('a')).toHaveAttribute('target', '_blank');
+    expect(profileLink.closest('a')).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('closes drawer when backdrop is clicked', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DevActivityPage />);
+
+    await screen.findByText('Developer cards');
+    const aliceCard = screen.getByLabelText('View details for alice');
+    await user.click(aliceCard);
+
+    // Drawer should be open
+    expect(await screen.findByTestId('drawer-panel')).toBeInTheDocument();
+
+    // Click backdrop to close
+    const backdrop = screen.getByTestId('drawer-backdrop');
+    await user.click(backdrop);
+
+    // Drawer should be gone
+    expect(screen.queryByTestId('drawer-panel')).not.toBeInTheDocument();
+  });
+
+  it('closes drawer when close button is clicked', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DevActivityPage />);
+
+    await screen.findByText('Developer cards');
+    const aliceCard = screen.getByLabelText('View details for alice');
+    await user.click(aliceCard);
+
+    expect(await screen.findByTestId('drawer-panel')).toBeInTheDocument();
+
+    // Click the close button
+    const closeButton = screen.getByLabelText('Close');
+    await user.click(closeButton);
+
+    expect(screen.queryByTestId('drawer-panel')).not.toBeInTheDocument();
+  });
+
+  it('closes drawer on Escape key press', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DevActivityPage />);
+
+    await screen.findByText('Developer cards');
+    const aliceCard = screen.getByLabelText('View details for alice');
+    await user.click(aliceCard);
+
+    expect(await screen.findByTestId('drawer-panel')).toBeInTheDocument();
+
+    // Press Escape to close
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByTestId('drawer-panel')).not.toBeInTheDocument();
+  });
+
+  it('drawer has correct ARIA attributes', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DevActivityPage />);
+
+    await screen.findByText('Developer cards');
+    const aliceCard = screen.getByLabelText('View details for alice');
+    await user.click(aliceCard);
+
+    const drawerPanel = await screen.findByTestId('drawer-panel');
+    expect(drawerPanel).toHaveAttribute('role', 'dialog');
+    expect(drawerPanel).toHaveAttribute('aria-modal', 'true');
+    expect(drawerPanel).toHaveAttribute('aria-labelledby', 'dev-detail-title');
+  });
+
+  it('dev card opens drawer via keyboard Enter key', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DevActivityPage />);
+
+    await screen.findByText('Developer cards');
+    const bobCard = screen.getByLabelText('View details for bob');
+    bobCard.focus();
+    await user.keyboard('{Enter}');
+
+    const drawerPanel = await screen.findByTestId('drawer-panel');
+    expect(within(drawerPanel).getByText('@bob')).toBeInTheDocument();
+  });
 });

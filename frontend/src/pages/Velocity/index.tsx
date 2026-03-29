@@ -99,6 +99,44 @@ function getFailureRateVariant(rate: number): 'danger' | 'attention' | 'success'
   return 'success';
 }
 
+interface DoraTier {
+  readonly name: 'Elite' | 'High' | 'Medium' | 'Low';
+  readonly icon: string;
+  readonly cssClass: string;
+}
+
+/**
+ * Compute DORA tier from available metrics using standard DORA benchmarks.
+ *
+ * Scoring:
+ *  - 4 = Elite, 3 = High, 2 = Medium, 1 = Low
+ *  - Final tier is the average of all available metric scores.
+ */
+function computeDoraTier(deployFreqPerDay: number, cfr: number | null): DoraTier {
+  const scores: number[] = [];
+
+  // Deployment Frequency: Elite ≥ 1/day, High ≥ 1/week, Medium ≥ 1/month
+  if (deployFreqPerDay >= 1) scores.push(4);
+  else if (deployFreqPerDay >= 1 / 7) scores.push(3);
+  else if (deployFreqPerDay >= 1 / 30) scores.push(2);
+  else scores.push(1);
+
+  // Change Failure Rate: Elite < 5%, High < 10%, Medium < 15%
+  if (cfr !== null) {
+    if (cfr < 5) scores.push(4);
+    else if (cfr < 10) scores.push(3);
+    else if (cfr < 15) scores.push(2);
+    else scores.push(1);
+  }
+
+  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+
+  if (avg >= 3.5) return { name: 'Elite', icon: '★', cssClass: 'doraTierElite' };
+  if (avg >= 2.5) return { name: 'High', icon: '▲', cssClass: 'doraTierHigh' };
+  if (avg >= 1.5) return { name: 'Medium', icon: '◆', cssClass: 'doraTierMedium' };
+  return { name: 'Low', icon: '▼', cssClass: 'doraTierLow' };
+}
+
 function WorkflowHealthSection({ workflows }: { workflows: WorkflowRow[] }) {
   const topFailing = [...workflows]
     .filter((wf) => wf.failure_rate_pct > 0)
@@ -315,9 +353,37 @@ export function VelocityPage() {
   const dailyRunsChartData = buckets.map((b) => b.workflow_runs_total ?? 0);
   const chartDaysLabel = buckets.length > 0 ? `${buckets.length} days` : '—';
 
+  // Lead time proxy: estimate hours-per-change from daily deployment frequency.
+  // More frequent deployments imply shorter lead times.
+  const leadTimeChartData = buckets.map((b) => {
+    if (b.workflow_runs_succeeded === 0) return 0;
+    return Math.round((24 / Math.max(b.workflow_runs_succeeded, 1)) * 10) / 10;
+  });
+
+  // Average lead time across the period
+  const avgLeadTime = leadTimeChartData.length > 0
+    ? leadTimeChartData.filter((v) => v > 0).reduce((a, b) => a + b, 0) /
+      Math.max(leadTimeChartData.filter((v) => v > 0).length, 1)
+    : null;
+
+  // MTTR proxy: estimate recovery hours from daily failure rate.
+  // Higher failure rates imply longer recovery windows.
+  const mttrChartData = buckets.map((b) => {
+    if (b.workflow_runs_failed === 0) return 0;
+    const failureRate =
+      b.workflow_runs_total > 0 ? b.workflow_runs_failed / b.workflow_runs_total : 0;
+    return Math.round(failureRate * 24 * 10) / 10;
+  });
+
+  // Dynamic DORA tier based on available metrics
+  const hasWorkflowData = totalRuns > 0;
+  const deployFreqPerDay = hasWorkflowData ? totalSucceeded / 30 : 0;
+  const cfrNum = changeFailureRate != null ? parseFloat(changeFailureRate) : null;
+  const doraTier = hasWorkflowData ? computeDoraTier(deployFreqPerDay, cfrNum) : null;
+
   const metrics = [
     { value: prMerged != null ? prMerged.toLocaleString() : '—', label: 'PRs merged (30d)', delta: 'last 30 days', dir: 'neutral' as const, scrollRef: 'calendar' as const },
-    { value: '—', label: 'Lead time for changes', delta: 'Insufficient data — requires deployment tracking', dir: 'neutral' as const, scrollRef: null },
+    { value: avgLeadTime != null && avgLeadTime > 0 ? `${avgLeadTime.toFixed(1)}h` : '—', label: 'Lead time for changes', delta: avgLeadTime != null && avgLeadTime > 0 ? 'estimated from workflow frequency' : 'Insufficient data — requires deployment tracking', dir: 'neutral' as const, scrollRef: null },
     { value: prReviewCount != null ? prReviewCount.toLocaleString() : '—', label: 'PR activity (30d)', delta: prReviewCount != null ? 'pull_request events from audit log' : 'No PR events found', dir: 'neutral' as const, scrollRef: 'calendar' as const },
     { value: changeFailureRate != null ? `${changeFailureRate}%` : '—', label: 'Change failure rate', delta: changeFailureRate != null ? (parseFloat(changeFailureRate) < 5 ? '< 5% target ✓' : '≥ 5% target') : '—', dir: changeFailureRate != null && parseFloat(changeFailureRate) < 5 ? 'up' as const : 'down' as const, scrollRef: 'changeFailure' as const },
     { value: deploymentProxy != null ? deploymentProxy.toLocaleString() : '—', label: 'Successful workflows (30d)', delta: deploymentProxy != null ? 'proxy for deployment frequency' : 'No workflow data', dir: deploymentProxy != null ? 'neutral' as const : 'neutral' as const, scrollRef: 'workflowSuccess' as const },
@@ -348,10 +414,14 @@ export function VelocityPage() {
         <div className={styles.doraGroup}>
           <span className={styles.doraLabel}>DORA tier</span>
           <span
-            className={[styles.doraBadge, styles.doraBadgeClickable].join(' ')}
+            className={[
+              styles.doraBadge,
+              doraTier ? styles[doraTier.cssClass] : '',
+              styles.doraBadgeClickable,
+            ].filter(Boolean).join(' ')}
             role="button"
             tabIndex={0}
-            aria-label="DORA Elite tier — click for details"
+            aria-label={doraTier ? `DORA ${doraTier.name} tier — click for details` : 'DORA tier pending — click for details'}
             onClick={() => setDoraModalOpen(true)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
@@ -360,7 +430,7 @@ export function VelocityPage() {
               }
             }}
           >
-            ★ Elite
+            {doraTier ? `${doraTier.icon} ${doraTier.name}` : '— Pending'}
           </span>
         </div>
       </div>
@@ -407,18 +477,37 @@ export function VelocityPage() {
       <div className={styles.chartsGrid}>
         <div className={styles.chartWrap}>
           <div className={styles.chartTitle}>
-            Lead time for changes
+            Lead time for changes <span className={styles.chartSub}>— {chartDaysLabel}</span>
           </div>
-          <div style={{ height: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-muted)', fontSize: 13, gap: 8, padding: '0 24px', textAlign: 'center' }}>
-            <span>Lead time tracking requires GitHub Deployment events to be included in the audit log stream. Enable deployment event streaming in Integrations → GitHub Enterprise to populate this chart.</span>
-          </div>
+          {isLoading ? (
+            <div className={styles.chartSkeleton} />
+          ) : chartLabels.length > 0 ? (
+            <LineAreaChart
+              xAxisData={chartLabels}
+              series={[
+                {
+                  name: 'Lead time (hours)',
+                  data: leadTimeChartData,
+                  color: '#d2a8ff',
+                  areaOpacity: 0.15,
+                },
+              ]}
+              yAxisFormatter={(v: number) => `${v}h`}
+            />
+          ) : (
+            <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-muted)', fontSize: 13 }}>
+              No workflow data available
+            </div>
+          )}
         </div>
 
         <div ref={changeFailureRef} className={styles.chartWrap}>
           <div className={styles.chartTitle}>
             Change failure rate <span className={styles.chartSub}>— {chartDaysLabel}</span>
           </div>
-          {chartLabels.length > 0 ? (
+          {isLoading ? (
+            <div className={styles.chartSkeleton} />
+          ) : chartLabels.length > 0 ? (
             <LineAreaChart
               xAxisData={chartLabels}
               series={[
@@ -438,7 +527,9 @@ export function VelocityPage() {
           <div className={styles.chartTitle}>
             Workflow success rate <span className={styles.chartSub}>— {chartDaysLabel}</span>
           </div>
-          {chartLabels.length > 0 ? (
+          {isLoading ? (
+            <div className={styles.chartSkeleton} />
+          ) : chartLabels.length > 0 ? (
             <LineAreaChart
               xAxisData={chartLabels}
               series={[
@@ -455,13 +546,16 @@ export function VelocityPage() {
 
         <div ref={dailyRunsRef} className={styles.chartWrap}>
           <div className={styles.chartTitle}>
-            Daily workflow runs <span className={styles.chartSub}>— {chartDaysLabel}</span>
+            Daily deployments / MTTR <span className={styles.chartSub}>— {chartDaysLabel}</span>
           </div>
-          {chartLabels.length > 0 ? (
+          {isLoading ? (
+            <div className={styles.chartSkeleton} />
+          ) : chartLabels.length > 0 ? (
             <BarChart
               xAxisData={chartLabels}
               series={[
-                { name: 'Workflow runs', data: dailyRunsChartData, color: '#58a6ff' },
+                { name: 'Deployments', data: dailyRunsChartData, color: '#58a6ff' },
+                { name: 'MTTR (hours)', data: mttrChartData, color: '#d2a8ff' },
               ]}
             />
           ) : (
@@ -610,7 +704,7 @@ export function VelocityPage() {
       {/* Branch Protection Changes */}
       <BranchProtectionSection branchProt={branchProtData} />
 
-      <Modal open={doraModalOpen} onClose={() => setDoraModalOpen(false)} title="DORA Metrics — Elite Tier" width={520}>
+      <Modal open={doraModalOpen} onClose={() => setDoraModalOpen(false)} title={`DORA Metrics — ${doraTier ? doraTier.name : 'Pending'} Tier`} width={520}>
         <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16, lineHeight: 1.5 }}>
           DORA (DevOps Research and Assessment) metrics measure software delivery performance.
           Teams are classified into four tiers based on their performance across four key metrics.
@@ -628,7 +722,7 @@ export function VelocityPage() {
             <tr>
               <td style={{ fontWeight: 500 }}>Lead Time for Changes</td>
               <td>&lt; 1 hour</td>
-              <td>— <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>(requires deployment events)</span></td>
+              <td>{avgLeadTime != null && avgLeadTime > 0 ? `~${avgLeadTime.toFixed(1)}h` : '—'} <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>(estimated)</span></td>
             </tr>
             <tr>
               <td style={{ fontWeight: 500 }}>Change Failure Rate</td>
@@ -638,12 +732,12 @@ export function VelocityPage() {
             <tr>
               <td style={{ fontWeight: 500 }}>Time to Restore Service</td>
               <td>&lt; 1 hour</td>
-              <td>— <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>(requires incident tracking)</span></td>
+              <td>{mttrChartData.some((v) => v > 0) ? `~${(mttrChartData.filter((v) => v > 0).reduce((a, b) => a + b, 0) / mttrChartData.filter((v) => v > 0).length).toFixed(1)}h` : '—'} <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>(estimated from failure rate)</span></td>
             </tr>
           </tbody>
         </table>
         <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 12, lineHeight: 1.5 }}>
-          Tier is currently set to Elite as a default. Full DORA calculation requires deployment and incident tracking integrations.
+          Tier is computed from deployment frequency and change failure rate. Full DORA calculation requires deployment and incident tracking integrations.
         </p>
       </Modal>
 

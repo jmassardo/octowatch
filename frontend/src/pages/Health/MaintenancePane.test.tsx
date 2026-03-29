@@ -216,4 +216,36 @@ describe('MaintenancePane', () => {
     const sourceNotes = screen.getAllByText(/Derived from/, { exact: false });
     expect(sourceNotes.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('shows sample data banner when all API queries return empty data', () => {
+    mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: { stale_prs: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: { unhealthy_hooks: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: { skipped_workflows: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    renderPane();
+    expect(screen.getByText(/This data is illustrative/)).toBeInTheDocument();
+  });
+
+  it('does not show sample data banner when real data is available', () => {
+    renderPane();
+    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+  });
+
+  it('does not show sample data banner during loading state', () => {
+    mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: undefined, isLoading: true, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
+    renderPane();
+    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+  });
+
+  it('does not show sample data banner when any query has an error', () => {
+    mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: { stale_prs: [] }, isLoading: false, isError: true, refetch: vi.fn() });
+    mockQueryReturns.push({ data: { unhealthy_hooks: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: { skipped_workflows: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    renderPane();
+    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+  });
 });

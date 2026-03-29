@@ -202,3 +202,85 @@
 .versionConfigWrap {
   margin-top: 12px;
 }
+
+/* Test rule modal */
+.testModalContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.testJsonEditor {
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 12px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  tab-size: 2;
+}
+
+.testJsonEditor:focus { border-color: var(--accent); }
+
+.testError {
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--danger-subtle, #da36331a);
+  color: var(--danger, #da3633);
+  font-size: 13px;
+}
+
+.testResultMatch {
+  padding: 12px 16px;
+  border-radius: 6px;
+  background: var(--success-subtle, #2ea04333);
+  border: 1px solid var(--success, #2ea043);
+}
+
+.testResultNoMatch {
+  padding: 12px 16px;
+  border-radius: 6px;
+  background: var(--attention-subtle, #d4a01833);
+  border: 1px solid var(--attention, #d4a018);
+}
+
+.testResultHeading {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.testResultMatch .testResultHeading { color: var(--success, #2ea043); }
+.testResultNoMatch .testResultHeading { color: var(--attention, #d4a018); }
+
+.testResultReason {
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.testMatchedFields {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.testMatchedFieldsLabel {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.testMatchedFieldsList {
+  margin: 4px 0 0;
+  padding-left: 20px;
+  list-style: disc;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+}
+
+.testMatchedFieldsList li { margin: 2px 0; }

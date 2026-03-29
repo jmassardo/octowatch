@@ -44,6 +44,7 @@ nginx/ssl/*.crt
 # Playwright
 test-results/
 playwright-report/
+e2e/.auth/
 
 # Exports
 *.json.gz

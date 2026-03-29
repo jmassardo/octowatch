@@ -1231,3 +1231,160 @@ async def _evaluate_sequence_rule(
         )
         session.add(detection)
         await session.flush()
+
+
+# ─── Lightweight dry-run evaluator (no DB writes) ─────────────────────────────
+
+
+def _evaluate_field_condition_dict(
+    event_data: dict[str, Any],
+    condition: dict[str, Any],
+) -> bool:
+    """Evaluate a single field_condition against a flat event dict.
+
+    This mirrors ``evaluate_field_condition`` but works on a raw dict instead of
+    an ORM ``AuditEvent`` instance, making it suitable for dry-run testing
+    without requiring a database row.
+    """
+    field_path: str = condition.get("field", "")
+    operator: str = condition.get("operator", "")
+    expected = condition.get("value")
+
+    # Resolve field value from nested data or top-level keys
+    if field_path.startswith("data."):
+        data_block = event_data.get("data", {}) or {}
+        actual = data_block.get(field_path[5:])
+    else:
+        actual = event_data.get(field_path)
+
+    match operator:
+        case "eq":
+            return actual == expected
+        case "ne":
+            return actual != expected
+        case "gt":
+            return actual is not None and actual > expected
+        case "gte":
+            return actual is not None and actual >= expected
+        case "lt":
+            return actual is not None and actual < expected
+        case "lte":
+            return actual is not None and actual <= expected
+        case "in":
+            return actual in expected if expected else False
+        case "not_in":
+            return actual not in expected if expected else True
+        case "contains":
+            return expected in str(actual) if actual is not None else False
+        case "not_contains":
+            return expected not in str(actual) if actual is not None else True
+        case "exists":
+            return actual is not None
+        case "not_exists":
+            return actual is None
+        case "matches_glob":
+            return fnmatch.fnmatch(str(actual or ""), str(expected or ""))
+        case "scope_contains":
+            if actual is None:
+                return False
+            tokens = {t.strip() for t in str(actual).replace(",", " ").split()}
+            return str(expected) in tokens
+        case _:
+            return False
+
+
+def evaluate_rule_against_event(
+    rule: RuleDefinition,
+    event: dict[str, Any],
+) -> dict[str, Any]:
+    """Evaluate a rule against a sample event payload (dry-run, no side effects).
+
+    Returns a dict with:
+      - matched: bool
+      - reason: str
+      - matched_fields: list[str]  (fields that contributed to the match)
+    """
+    config: dict[str, Any] = rule.logic_config
+    matched_fields: list[str] = []
+
+    # ── Step 1: Action filter check ────────────────────────────────────────
+    action_filters: list[str] = config.get("action_filters", [])
+    event_action: str = event.get("action", "")
+
+    if action_filters:
+        action_matched = any(fnmatch.fnmatch(event_action, pat) for pat in action_filters)
+        if not action_matched:
+            return {
+                "matched": False,
+                "reason": (
+                    f"Event action '{event_action}' does not match any "
+                    f"action filter: {action_filters}"
+                ),
+                "matched_fields": [],
+            }
+        matched_fields.append("action")
+
+    # ── Step 2: Field conditions check ─────────────────────────────────────
+    field_conditions: list[dict[str, Any]] = config.get("field_conditions", [])
+    for cond in field_conditions:
+        field_name = cond.get("field", "")
+        if not _evaluate_field_condition_dict(event, cond):
+            return {
+                "matched": False,
+                "reason": (
+                    f"Field condition failed: {field_name} "
+                    f"{cond.get('operator', '?')} {cond.get('value', '')}"
+                ),
+                "matched_fields": matched_fields,
+            }
+        matched_fields.append(field_name)
+
+    # ── Step 3: Confidence threshold check ─────────────────────────────────
+    confidence_threshold = config.get("confidence")
+    if confidence_threshold is not None:
+        try:
+            conf_val = float(confidence_threshold)
+            # Map default_confidence tier to a numeric value for comparison
+            confidence_map = {"high": 0.8, "medium": 0.5, "low": 0.2}
+            rule_conf = confidence_map.get(rule.default_confidence, 0.5)
+            if rule_conf < conf_val:
+                return {
+                    "matched": False,
+                    "reason": (
+                        f"Rule confidence ({rule.default_confidence}={rule_conf}) "
+                        f"is below the configured threshold ({conf_val})"
+                    ),
+                    "matched_fields": matched_fields,
+                }
+            matched_fields.append("confidence")
+        except (TypeError, ValueError):
+            pass  # Skip if not a valid number
+
+    # ── Step 4: Logic-type-specific checks ─────────────────────────────────
+    if rule.logic_type == "threshold":
+        threshold = config.get("threshold")
+        if threshold is not None:
+            matched_fields.append("threshold")
+
+    if rule.logic_type == "sequence":
+        sequence_steps = config.get("sequence_steps", [])
+        if sequence_steps:
+            # Check if the event action matches any step
+            step_actions = [s.get("action", "") for s in sequence_steps]
+            if event_action and not any(fnmatch.fnmatch(event_action, sa) for sa in step_actions):
+                return {
+                    "matched": False,
+                    "reason": (
+                        f"Event action '{event_action}' does not match any "
+                        f"sequence step: {step_actions}"
+                    ),
+                    "matched_fields": matched_fields,
+                }
+            matched_fields.append("sequence_step")
+
+    # ── All checks passed ──────────────────────────────────────────────────
+    return {
+        "matched": True,
+        "reason": "Event matches all rule conditions",
+        "matched_fields": matched_fields,
+    }

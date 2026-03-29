@@ -4,6 +4,7 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { getWafFindings } from '../../api/healthSignals';
 import type { WafFindingResponse } from '../../api/healthSignals';
+import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { PILLAR_META, type WafPillar } from './healthData';
 import styles from './WafInsightsPane.module.css';
 
@@ -111,6 +112,7 @@ export function WafInsightsPane() {
   }
 
   const allFindings = wafData?.findings ?? [];
+  const isSampleData = allFindings.length === 0;
   const pillarSummaries = computePillarSummaries(allFindings);
   const evaluatedFindings = allFindings.filter((f) => f.evaluated);
 
@@ -128,6 +130,9 @@ export function WafInsightsPane() {
 
   return (
     <>
+      {isSampleData && (
+        <SampleDataBanner message="This data is illustrative. Connect your GitHub organization to see real WAF insights." />
+      )}
       {/* Header with WAF note */}
       <div className={styles.wafHeader}>
         <div className={`${styles.dataSourceNote} ${styles.wafHeaderNote}`} style={{ marginBottom: 0 }}>

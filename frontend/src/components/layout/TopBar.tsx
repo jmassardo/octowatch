@@ -71,64 +71,103 @@ export function TopBar() {
     window.location.replace('/login');
   }
 
+  /* ---- Org section rendering ---- */
+  function renderOrgSection() {
+    if (orgs.length === 0) {
+      return (
+        <span className={styles.orgSingleLabel} data-testid="org-label">
+          No organizations
+        </span>
+      );
+    }
+
+    if (orgs.length === 1) {
+      return (
+        <span className={styles.orgSingleLabel} data-testid="org-label">
+          {orgs[0]}
+        </span>
+      );
+    }
+
+    // Multiple orgs — show segmented pill tabs
+    return (
+      <div className={styles.orgTabs} role="tablist" aria-label="Organization tabs">
+        <button
+          className={`${styles.orgTab}${selectedOrg === '' ? ` ${styles.orgTabActive}` : ''}`}
+          role="tab"
+          aria-selected={selectedOrg === ''}
+          onClick={() => selectOrg('')}
+        >
+          All
+        </button>
+        {orgs.map((org) => (
+          <button
+            key={org}
+            className={`${styles.orgTab}${org === selectedOrg ? ` ${styles.orgTabActive}` : ''}`}
+            role="tab"
+            aria-selected={org === selectedOrg}
+            onClick={() => selectOrg(org)}
+          >
+            {org}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  /* ---- Dropdown fallback for many orgs (>6) ---- */
+  const useDropdown = orgs.length > 6;
+
   return (
     <header className={styles.topbar} role="banner">
-      <div className={styles.orgDropdownWrap} ref={dropdownRef}>
-        <button
-          className={styles.orgDropdownTrigger}
-          onClick={() => setDropdownOpen((prev) => !prev)}
-          aria-expanded={dropdownOpen}
-          aria-haspopup="listbox"
-          aria-label="Select organization"
-        >
-          <span className={styles.orgDropdownLabel}>
-            {selectedOrg || 'All organizations'}
-          </span>
-          <span className={styles.orgDropdownChevron} aria-hidden="true">
-            ▾
-          </span>
-        </button>
-
-        {dropdownOpen && (
-          <div
-            className={styles.orgDropdownPanel}
-            role="listbox"
-            aria-label="Organizations"
+      {useDropdown ? (
+        <div className={styles.orgDropdownWrap} ref={dropdownRef}>
+          <button
+            className={styles.orgDropdownTrigger}
+            onClick={() => setDropdownOpen((prev) => !prev)}
+            aria-expanded={dropdownOpen}
+            aria-haspopup="listbox"
+            aria-label="Select organization"
           >
-            <input
-              ref={filterInputRef}
-              className={styles.orgDropdownFilter}
-              type="text"
-              placeholder="Filter organizations..."
-              value={filterText}
-              onChange={(e) => setFilterText(e.target.value)}
-              aria-label="Filter organizations"
-            />
-            <div className={styles.orgDropdownList}>
-              <button
-                className={`${styles.orgDropdownItem}${selectedOrg === '' ? ` ${styles.orgDropdownItemSelected}` : ''}`}
-                role="option"
-                aria-selected={selectedOrg === ''}
-                onClick={() => selectOrg('')}
-              >
-                All organizations
-                {selectedOrg === '' && (
-                  <span className={styles.orgDropdownCheck} aria-hidden="true">
-                    ✓
-                  </span>
-                )}
-              </button>
+            <span className={styles.orgDropdownLabel}>
+              {selectedOrg || 'All organizations'}
+            </span>
+            <span className={styles.orgDropdownChevron} aria-hidden="true">
+              ▾
+            </span>
+          </button>
 
-              {orgs.length === 0 ? (
-                <div
-                  className={styles.orgDropdownEmpty}
+          {dropdownOpen && (
+            <div
+              className={styles.orgDropdownPanel}
+              role="listbox"
+              aria-label="Organizations"
+            >
+              <input
+                ref={filterInputRef}
+                className={styles.orgDropdownFilter}
+                type="text"
+                placeholder="Filter organizations..."
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+                aria-label="Filter organizations"
+              />
+              <div className={styles.orgDropdownList}>
+                <button
+                  className={`${styles.orgDropdownItem}${selectedOrg === '' ? ` ${styles.orgDropdownItemSelected}` : ''}`}
                   role="option"
-                  aria-disabled="true"
+                  aria-selected={selectedOrg === ''}
+                  onClick={() => selectOrg('')}
                 >
-                  No organizations
-                </div>
-              ) : (
-                filteredOrgs.map((org) => (
+                  All organizations
+                  {selectedOrg === '' && (
+                    <span className={styles.orgDropdownCheck} aria-hidden="true">
+                      ✓
+                    </span>
+                  )}
+                </button>
+
+                {filteredOrgs.map((org) => (
                   <button
                     key={org}
                     className={`${styles.orgDropdownItem}${org === selectedOrg ? ` ${styles.orgDropdownItemSelected}` : ''}`}
@@ -146,12 +185,26 @@ export function TopBar() {
                       </span>
                     )}
                   </button>
-                ))
-              )}
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      ) : (
+        renderOrgSection()
+      )}
+
+      <button
+        className={styles.addOrgBtn}
+        onClick={() => navigate('/integrations')}
+        aria-label="Add organization"
+        title="Add organization"
+      >
+        <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z" />
+        </svg>
+        Add org
+      </button>
 
       <div className={styles.right}>
         <button

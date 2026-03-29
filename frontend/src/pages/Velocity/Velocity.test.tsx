@@ -69,11 +69,12 @@ describe('VelocityPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the DORA tier label and Elite badge', () => {
+  it('renders the DORA tier label and pending badge when no data', () => {
     renderWithProviders(<VelocityPage />);
 
     expect(screen.getByText('DORA tier')).toBeInTheDocument();
-    expect(screen.getByText('★ Elite')).toBeInTheDocument();
+    // With no workflow data, DORA tier shows pending state
+    expect(screen.getByText('— Pending')).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
@@ -134,52 +135,45 @@ describe('VelocityPage', () => {
   /*  2×2 Chart grid                                                    */
   /* ---------------------------------------------------------------- */
 
-  it('renders lead time placeholder and empty-state messages for charts when no data', () => {
+  it('renders empty-state messages for all charts when no data', async () => {
     renderWithProviders(<VelocityPage />);
 
-    // Lead time chart always shows placeholder
-    expect(
-      screen.getByText(/Lead time tracking requires GitHub Deployment events/),
-    ).toBeInTheDocument();
-
-    // With empty mock data, data-driven charts show empty state
-    const noDataMessages = screen.getAllByText('No workflow data available');
-    expect(noDataMessages).toHaveLength(3);
+    // Wait for queries to resolve, then all 4 charts show empty state
+    const noDataMessages = await screen.findAllByText('No workflow data available');
+    expect(noDataMessages).toHaveLength(4);
   });
 
-  it('renders chart titles for all 4 charts', () => {
+  it('renders chart titles for all 4 DORA charts', () => {
     renderWithProviders(<VelocityPage />);
 
     expect(screen.getByText(/Workflow success rate/)).toBeInTheDocument();
-    expect(screen.getByText(/Daily workflow runs/)).toBeInTheDocument();
+    expect(screen.getByText(/Daily deployments \/ MTTR/)).toBeInTheDocument();
     // "Lead time for changes" and "Change failure rate" also appear as metric labels
     expect(screen.getAllByText(/Lead time for changes/).length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText(/Change failure rate/).length).toBeGreaterThanOrEqual(2);
   });
 
-  it('renders lead time informational text and dynamic chart period labels', () => {
+  it('renders dynamic chart period labels for all 4 charts when no data', () => {
     renderWithProviders(<VelocityPage />);
 
-    // Lead time chart section title has no "coming soon" subtitle
-    // Other charts show dynamic period label (empty data → '—')
+    // All 4 charts show dynamic period label (empty data → '—')
     const periodLabels = screen.getAllByText('— —');
-    expect(periodLabels).toHaveLength(3);
+    expect(periodLabels).toHaveLength(4);
   });
 
-  it('renders lead time placeholder instead of chart', () => {
+  it('renders lead time empty state instead of placeholder when no data', async () => {
     renderWithProviders(<VelocityPage />);
 
-    // Lead time has no API data, so shows a placeholder message
-    expect(
-      screen.getByText(/Lead time tracking requires GitHub Deployment events/),
-    ).toBeInTheDocument();
+    // Lead time now shows standard empty state instead of placeholder text
+    const noDataMessages = await screen.findAllByText('No workflow data available');
+    expect(noDataMessages.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('shows empty state for bar chart area when no data', () => {
+  it('shows empty state for bar chart area when no data', async () => {
     renderWithProviders(<VelocityPage />);
 
     // With empty mock data, bar chart area shows placeholder text
-    const noDataMessages = screen.getAllByText('No workflow data available');
+    const noDataMessages = await screen.findAllByText('No workflow data available');
     expect(noDataMessages.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -361,8 +355,9 @@ describe('VelocityPage with data', () => {
     await screen.findByText('92.8%');
 
     // Line and bar charts should render (not empty state)
+    // 3 line-area-charts: Lead time, CFR, Workflow success
     const lineCharts = screen.getAllByTestId('line-area-chart');
-    expect(lineCharts.length).toBeGreaterThanOrEqual(2);
+    expect(lineCharts.length).toBeGreaterThanOrEqual(3);
 
     const barCharts = screen.getAllByTestId('bar-chart');
     expect(barCharts).toHaveLength(1);
@@ -373,9 +368,9 @@ describe('VelocityPage with data', () => {
 
     await screen.findByText('92.8%');
 
-    // 2 buckets → "2 days"
+    // 2 buckets → "2 days" — all 4 charts show this label
     const periodLabels = screen.getAllByText('— 2 days');
-    expect(periodLabels).toHaveLength(3);
+    expect(periodLabels).toHaveLength(4);
   });
 
   it('renders active repos derived from events with activity columns', async () => {
@@ -408,6 +403,30 @@ describe('VelocityPage with data', () => {
       screen.queryByText(/display sample data/),
     ).not.toBeInTheDocument();
   });
+
+  it('renders dynamic DORA tier badge based on data', async () => {
+    renderWithProviders(<VelocityPage />);
+
+    await screen.findByText('92.8%');
+
+    // Mock data has 167 succeeded / 30 days ≈ 5.6 deploys/day (Elite)
+    // and CFR 7.2% (High), average = 3.5 → Elite
+    expect(screen.getByText('★ Elite')).toBeInTheDocument();
+  });
+
+  it('renders MTTR chart with dual series when data is available', async () => {
+    renderWithProviders(<VelocityPage />);
+
+    await screen.findByText('92.8%');
+
+    // The bar chart should contain MTTR series
+    const barCharts = screen.getAllByTestId('bar-chart');
+    expect(barCharts).toHaveLength(1);
+    const seriesData = JSON.parse(barCharts[0].getAttribute('data-series') ?? '[]');
+    const seriesNames = seriesData.map((s: { name: string }) => s.name);
+    expect(seriesNames).toContain('Deployments');
+    expect(seriesNames).toContain('MTTR (hours)');
+  });
 });
 
 /* ------------------------------------------------------------------ */
@@ -417,12 +436,15 @@ describe('VelocityPage with data', () => {
 describe('VelocityPage DORA badge interaction', () => {
   beforeEach(() => {
     mockNavigate.mockClear();
+    mockGetActionsVolumeReport.mockResolvedValue({ data: [] });
+    mockListEvents.mockResolvedValue({ items: [], total: 0 });
   });
 
   it('DORA badge is clickable with role=button', () => {
     renderWithProviders(<VelocityPage />);
 
-    const badge = screen.getByText('★ Elite');
+    // With no data, shows pending state
+    const badge = screen.getByText('— Pending');
     expect(badge).toHaveAttribute('role', 'button');
     expect(badge).toHaveAttribute('tabindex', '0');
   });
@@ -431,10 +453,10 @@ describe('VelocityPage DORA badge interaction', () => {
     const user = userEvent.setup();
     renderWithProviders(<VelocityPage />);
 
-    const badge = screen.getByText('★ Elite');
+    const badge = screen.getByText('— Pending');
     await user.click(badge);
 
-    expect(screen.getByText('DORA Metrics — Elite Tier')).toBeInTheDocument();
+    expect(screen.getByText('DORA Metrics — Pending Tier')).toBeInTheDocument();
     expect(screen.getByText('Deployment Frequency')).toBeInTheDocument();
     expect(screen.getByText('Lead Time for Changes')).toBeInTheDocument();
     expect(screen.getByText('Change Failure Rate')).toBeInTheDocument();
@@ -445,15 +467,15 @@ describe('VelocityPage DORA badge interaction', () => {
     const user = userEvent.setup();
     renderWithProviders(<VelocityPage />);
 
-    const badge = screen.getByText('★ Elite');
+    const badge = screen.getByText('— Pending');
     await user.click(badge);
 
-    expect(screen.getByText('DORA Metrics — Elite Tier')).toBeInTheDocument();
+    expect(screen.getByText('DORA Metrics — Pending Tier')).toBeInTheDocument();
 
     const closeBtn = screen.getByLabelText('Close');
     await user.click(closeBtn);
 
-    expect(screen.queryByText('DORA Metrics — Elite Tier')).not.toBeInTheDocument();
+    expect(screen.queryByText('DORA Metrics — Pending Tier')).not.toBeInTheDocument();
   });
 });
 

@@ -3,23 +3,14 @@ import { test, expect } from '@playwright/test';
 // ---------------------------------------------------------------------------
 // Smoke tests — verify every route is reachable and the app renders.
 //
-// The OctoWatch app wraps all feature routes in an AuthGuard that redirects
-// unauthenticated users to /login.  Until an authenticated storageState is
-// configured these tests verify the redirect-to-login behaviour for each
-// protected route and that the login page itself renders correctly.
-//
-// TODO: Add authenticated smoke tests using Playwright's storageState.
-// See: https://playwright.dev/docs/auth
-//
-// To enable authenticated tests:
-//   1. Create e2e/auth.setup.ts that logs in and saves session state
-//   2. Add a "setup" project to playwright.config.ts
-//   3. Use `test.use({ storageState: 'e2e/.auth/user.json' })` below
-//   4. Replace login-redirect assertions with actual page title checks
+// Authentication is handled by the "setup" project in playwright.config.ts
+// which runs auth.setup.ts to create a session state file.
 // ---------------------------------------------------------------------------
 
 test.describe('Login page', () => {
   test('renders with sign-in options', async ({ page }) => {
+    // Clear auth state for this test to see login page
+    await page.context().clearCookies();
     await page.goto('/login');
 
     await expect(
@@ -36,6 +27,7 @@ test.describe('Login page', () => {
 
 test.describe('Setup page', () => {
   test('renders the setup wizard', async ({ page }) => {
+    await page.context().clearCookies();
     await page.goto('/setup');
 
     await expect(
@@ -44,10 +36,7 @@ test.describe('Setup page', () => {
   });
 });
 
-test.describe('Protected routes (unauthenticated)', () => {
-  // Every protected route should redirect to /login when the user has no
-  // active session.  The `expectedTitle` field documents what heading each
-  // page should show once authenticated tests are in place.
+test.describe('Protected routes (authenticated)', () => {
   const protectedRoutes = [
     { path: '/dashboard', expectedTitle: 'Dashboard' },
     { path: '/threats', expectedTitle: 'Threat Detections' },
@@ -63,13 +52,16 @@ test.describe('Protected routes (unauthenticated)', () => {
   ];
 
   for (const route of protectedRoutes) {
-    test(`${route.path} → redirects to login`, async ({ page }) => {
+    test(`${route.path} → renders ${route.expectedTitle}`, async ({
+      page,
+    }) => {
       await page.goto(route.path);
 
-      await expect(page).toHaveURL(/\/login/);
+      // Should NOT redirect to login when authenticated
+      await expect(page).not.toHaveURL(/\/login/);
       await expect(
-        page.getByRole('heading', { name: 'OctoWatch' }),
-      ).toBeVisible();
+        page.getByRole('heading', { name: route.expectedTitle }),
+      ).toBeVisible({ timeout: 10_000 });
     });
   }
 });

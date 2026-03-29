@@ -13,14 +13,18 @@ import asyncio
 import gzip
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
 import redis.asyncio as aioredis
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 
-def parse_file(path: Path) -> list[dict[str, Any]]:
-    """Read a .json.gz or .json file and return a list of event dicts."""
+def parse_file(path: Path) -> tuple[list[dict[str, Any]], int]:
+    """Read a .json.gz or .json file and return a list of event dicts and parse error count."""
     if path.suffix == ".gz" or path.name.endswith(".json.gz"):
         opener = gzip.open(path, "rt", encoding="utf-8")
     else:
@@ -33,14 +37,21 @@ def parse_file(path: Path) -> list[dict[str, Any]]:
 
     # Try NDJSON first (one JSON object per line)
     parse_errors = 0
-    for line in content.splitlines():
+    for line_number, line in enumerate(content.splitlines(), 1):
         line = line.strip()
         if not line:
             continue
         try:
             events.append(json.loads(line))
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
             parse_errors += 1
+            logger.warning(
+                "import_local.json_parse_error",
+                file=path.name,
+                line_number=line_number,
+                error=str(exc),
+                raw_line_preview=line[:200],
+            )
 
     # If NDJSON failed entirely, try JSON array format
     if not events and parse_errors > 0:
@@ -48,9 +59,13 @@ def parse_file(path: Path) -> list[dict[str, Any]]:
             parsed = json.loads(content)
             events = parsed if isinstance(parsed, list) else [parsed]
         except json.JSONDecodeError as exc:
-            print(f"  ERROR: Could not parse {path.name}: {exc}", file=sys.stderr)
+            logger.error(
+                "import_local.file_parse_failed",
+                file=path.name,
+                error=str(exc),
+            )
 
-    return events
+    return events, parse_errors
 
 
 async def main(files: list[str]) -> None:
@@ -72,39 +87,56 @@ async def main(files: list[str]) -> None:
 
     total_parsed = 0
     total_inserted = 0
+    total_parse_errors = 0
+    source_files: list[str] = []
+    start_time = time.monotonic()
 
     for path_str in files:
         path = Path(path_str)
         if not path.exists():
-            print(f"  SKIP: {path} not found", file=sys.stderr)
+            logger.warning("import_local.file_not_found", file=str(path))
             continue
 
         size_kb = path.stat().st_size / 1024
-        print(f"\nParsing {path.name}  ({size_kb:.1f} KB)...")
+        logger.info("import_local.parsing_file", file=path.name, size_kb=round(size_kb, 1))
 
-        events = parse_file(path)
+        events, parse_errors = parse_file(path)
+        total_parse_errors += parse_errors
+        source_files.append(path.name)
+
         if not events:
-            print(f"  SKIP: no events parsed from {path.name}")
+            logger.warning("import_local.no_events_parsed", file=path.name)
             continue
 
-        print(f"  Parsed {len(events):,} events. Inserting...")
+        logger.info("import_local.inserting_events", file=path.name, event_count=len(events))
         total_parsed += len(events)
 
         inserted = await worker.ingest_batch(events, source_file_path=path.name)
         skipped = len(events) - inserted
-        print(f"  ✓ {inserted:,} inserted  ({skipped:,} duplicates skipped)")
+        logger.info(
+            "import_local.batch_complete",
+            file=path.name,
+            inserted=inserted,
+            duplicates_skipped=skipped,
+        )
         total_inserted += inserted
 
-    print(f"\n{'─'*50}")
-    print(f"Total parsed:   {total_parsed:,}")
-    print(f"Total inserted: {total_inserted:,}")
-    print(f"Total skipped:  {total_parsed - total_inserted:,}")
+    duration = time.monotonic() - start_time
+    logger.info(
+        "import_local.summary",
+        records_imported=total_inserted,
+        records_parsed=total_parsed,
+        records_skipped=total_parsed - total_inserted,
+        parse_errors=total_parse_errors,
+        source_file=source_files,
+        duration_seconds=round(duration, 2),
+    )
 
     await valkey.aclose()
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print(__doc__)
+        logger.info("import_local.usage", message=__doc__)
         sys.exit(1)
     asyncio.run(main(sys.argv[1:]))
