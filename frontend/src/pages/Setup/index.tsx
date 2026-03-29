@@ -600,6 +600,7 @@ function ReviewStep({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -607,6 +608,31 @@ function ReviewStep({
     const timer = setTimeout(() => navigate('/login', { replace: true }), 3000);
     return () => clearTimeout(timer);
   }, [done, navigate]);
+
+  useEffect(() => {
+    if (!completedSteps.sync) return;
+    let cancelled = false;
+    async function poll() {
+      try {
+        const status = await getSyncStatus();
+        if (cancelled) return;
+        if (status === null) {
+          setSyncStatus('unknown');
+        } else if (status.status === 'completed') {
+          setSyncStatus('completed');
+        } else if (status.status === 'failed') {
+          setSyncStatus('failed');
+        } else {
+          setSyncStatus('running');
+        }
+      } catch {
+        if (!cancelled) setSyncStatus('unknown');
+      }
+    }
+    poll();
+    const iv = setInterval(poll, 5000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [completedSteps.sync]);
 
   async function handleComplete() {
     setLoading(true);
@@ -649,7 +675,19 @@ function ReviewStep({
           <div key={item.key} className={styles.reviewItem}>
             <span className={styles.reviewLabel}>{item.label}</span>
             <span className={styles.reviewValue}>
-              {completedSteps[item.key] ? (
+              {item.key === 'sync' ? (
+                !completedSteps.sync ? (
+                  <span className={styles.reviewSkipped}>Skipped</span>
+                ) : syncStatus === 'completed' ? (
+                  <span className={styles.reviewConfigured}>✓ Sync completed</span>
+                ) : syncStatus === 'failed' ? (
+                  <span className={styles.reviewSkipped}>✗ Sync failed</span>
+                ) : syncStatus === 'running' ? (
+                  <span className={styles.reviewConfigured}>⏳ Sync in progress</span>
+                ) : (
+                  <span className={styles.reviewConfigured}>✓ Sync started</span>
+                )
+              ) : completedSteps[item.key] ? (
                 <span className={styles.reviewConfigured}>✓ Configured</span>
               ) : (
                 <span className={styles.reviewSkipped}>Skipped</span>
@@ -657,6 +695,11 @@ function ReviewStep({
             </span>
           </div>
         ))}
+        {completedSteps.sync && syncStatus === 'running' && (
+          <p className={styles.hint}>
+            Sync will continue in the background. Check Admin → Sync for progress.
+          </p>
+        )}
       </div>
       <StepError message={error} />
       <div className={styles.actions}>
