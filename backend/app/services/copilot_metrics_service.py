@@ -211,6 +211,24 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
                 ),
             }
 
+        if response.status_code == 422:
+            logger.warning(
+                "copilot_metrics.api_422",
+                enterprise=enterprise_slug,
+                body=response.text[:500],
+            )
+            if valkey:
+                await valkey.aclose()
+            return {
+                "error": "copilot_not_available",
+                "message": (
+                    "GitHub API returned 422. This usually means the Copilot Metrics "
+                    "API is disabled in your enterprise settings. Enable it at: "
+                    "GitHub Enterprise → Settings → Copilot → Policies → "
+                    "Copilot Metrics API access."
+                ),
+            }
+
         response.raise_for_status()
         metrics: list[dict[str, Any]] = response.json()
 
