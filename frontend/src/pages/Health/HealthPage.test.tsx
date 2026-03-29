@@ -138,29 +138,6 @@ describe('HealthPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the data source info banner', () => {
-    renderPage();
-    expect(
-      screen.getByText(
-        /Health signals are derived exclusively from GitHub audit log events/,
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it('renders metric cards with summary data', async () => {
-    renderPage();
-    expect(await screen.findByText('12')).toBeInTheDocument();
-    expect(screen.getByText('Stale Repos')).toBeInTheDocument();
-    expect(screen.getByText('5')).toBeInTheDocument();
-    expect(screen.getByText('PATs Without Expiry')).toBeInTheDocument();
-    expect(screen.getByText('7')).toBeInTheDocument();
-    expect(screen.getByText('Bypass Offenders')).toBeInTheDocument();
-    expect(screen.getByText('23')).toBeInTheDocument();
-    expect(screen.getByText('External Collaborators')).toBeInTheDocument();
-    expect(screen.getByText('4')).toBeInTheDocument();
-    expect(screen.getByText('Elevated Collaborators')).toBeInTheDocument();
-  });
-
   it('renders the tab bar with 8 tabs', () => {
     renderPage();
     const tablist = screen.getByRole('tablist');

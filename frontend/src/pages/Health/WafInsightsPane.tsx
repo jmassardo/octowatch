@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Card } from '../../components/primitives/Card';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
@@ -46,10 +46,21 @@ const WAF_CHECKS: { id: string; pillar: WafPillar; name: string; description: st
   { id: 'waf-ip-allowlist', pillar: 'governance', name: 'IP allowlist configuration', description: 'Detects IP allowlist management events to verify network-level access restrictions are in place.', lookback: '90 days' },
   { id: 'waf-webhook-health', pillar: 'governance', name: 'Webhook lifecycle management', description: 'Tracks webhook creation vs. destruction to identify integration instability or orphaned hooks.', lookback: '90 days' },
   { id: 'waf-push-protection-bypass', pillar: 'governance', name: 'Push protection bypasses', description: 'Counts instances where developers bypassed secret scanning push protection, overriding security controls.', lookback: '90 days' },
+  { id: 'waf-workflow-permissions', pillar: 'governance', name: 'Workflow permissions changes', description: 'Detects changes to default workflow permissions that may loosen security controls.', lookback: '90 days' },
+  { id: 'waf-self-approve-pr', pillar: 'governance', name: 'Workflow self-approval of PRs', description: 'Monitors for changes to workflow PR self-approval settings that could weaken code review enforcement.', lookback: '90 days' },
+  { id: 'waf-deploy-key-policy', pillar: 'governance', name: 'Deploy key policy status', description: 'Checks for deploy key policy disable events that may allow uncontrolled repository access.', lookback: '90 days' },
+  { id: 'waf-environment-protection', pillar: 'governance', name: 'Environment protection rules', description: 'Tracks environment protection rule additions to verify deployment approval gates are in place.', lookback: '90 days' },
+  { id: 'waf-admin-escalation', pillar: 'governance', name: 'Admin privilege escalation', description: 'Detects admin promotions that should be rare and approved through proper channels.', lookback: '90 days' },
   { id: 'waf-secret-scanning', pillar: 'appsec', name: 'Secret scanning enablement', description: 'Tracks repositories enabling or disabling secret scanning to identify coverage gaps.', lookback: '90 days' },
   { id: 'waf-dependabot', pillar: 'appsec', name: 'Dependabot alert coverage', description: 'Monitors Dependabot alert enablement/disablement across repositories for supply chain security.', lookback: '90 days' },
   { id: 'waf-code-scanning', pillar: 'appsec', name: 'Code scanning activity', description: 'Checks for CodeQL or third-party SAST tool activity to verify static analysis is running.', lookback: '90 days' },
   { id: 'waf-direct-push', pillar: 'appsec', name: 'Direct pushes to default branch', description: 'Counts direct pushes to main/master branches that bypass the pull request review workflow.', lookback: '90 days' },
+  { id: 'waf-actions-secrets', pillar: 'appsec', name: 'Actions secrets created', description: 'Reports on Actions secret creation events to track credential management activity.', lookback: '90 days' },
+  { id: 'waf-vuln-alert-dismissed', pillar: 'appsec', name: 'Vulnerability alerts dismissed', description: 'Detects dismissed or withdrawn vulnerability alerts that may represent unaddressed security risks.', lookback: '90 days' },
+  { id: 'waf-clone-anomaly', pillar: 'appsec', name: 'Clone activity anomaly detection', description: 'Identifies actors with clone counts exceeding 3× the average, which may indicate data exfiltration.', lookback: '30 days' },
+  { id: 'waf-pr-merge-ratio', pillar: 'collaboration', name: 'Pull request merge ratio', description: 'Compares PR merge count to creation count to detect anomalies in the review workflow.', lookback: '90 days' },
+  { id: 'waf-workflow-failure-rate', pillar: 'productivity', name: 'Workflow failure rate', description: 'Measures the percentage of failed workflow runs to identify CI/CD reliability issues.', lookback: '30 days' },
+  { id: 'waf-workflow-rerun-rate', pillar: 'productivity', name: 'Workflow rerun rate', description: 'Tracks the ratio of workflow reruns to total runs, indicating flaky or unreliable workflows.', lookback: '30 days' },
 ];
 
 function WafChecksCatalog() {
@@ -153,6 +164,34 @@ function PillarTag({ pillar }: { pillar: WafPillar }) {
   );
 }
 
+/** Render a table of evidence items for an expanded finding. */
+function EvidenceTable({ evidence }: { evidence: Record<string, unknown>[] }) {
+  if (evidence.length === 0) return null;
+  const columns = Object.keys(evidence[0]);
+  return (
+    <div className={styles.evidenceTable}>
+      <table>
+        <thead>
+          <tr>
+            {columns.map((col) => (
+              <th key={col}>{col.replace(/_/g, ' ')}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {evidence.map((row, i) => (
+            <tr key={i}>
+              {columns.map((col) => (
+                <td key={col}>{String(row[col] ?? '—')}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function WafInsightsPane() {
   const {
     data: wafData,
@@ -164,6 +203,27 @@ export function WafInsightsPane() {
     queryFn: getWafFindings,
     staleTime: 60_000,
   });
+
+  const [expandedFindings, setExpandedFindings] = useState<Set<string>>(new Set());
+
+  const toggleFinding = useCallback((id: string) => {
+    setExpandedFindings((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const scrollToPillar = useCallback((pillar: WafPillar) => {
+    const el = document.getElementById(`pillar-${pillar}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   if (isLoading) {
     return (
@@ -230,8 +290,6 @@ export function WafInsightsPane() {
         </a>
       </div>
 
-      <WafChecksCatalog />
-
       {/* Pillar summary strip */}
       <div className={styles.pillarGrid}>
         {PILLAR_ORDER.map((pillar) => {
@@ -240,8 +298,9 @@ export function WafInsightsPane() {
           return (
             <Card
               key={pillar}
-              className={styles.pillarCard}
+              className={`${styles.pillarCard} ${styles.pillarCardClickable}`}
               style={{ borderColor: PILLAR_BORDER_COLOR[pillar] }}
+              onClick={() => scrollToPillar(pillar)}
             >
               <div className={styles.pillarLabel} style={{ color: PILLAR_COUNT_COLOR[pillar] }}>
                 {meta.emoji} {meta.label}
@@ -261,7 +320,7 @@ export function WafInsightsPane() {
         const meta = PILLAR_META[pillar];
 
         return (
-          <div key={pillar}>
+          <div key={pillar} id={`pillar-${pillar}`}>
             <div className={styles.pillarSectionTitle}>
               <PillarTag pillar={pillar} />
               <span className={styles.pillarSectionDesc}>{meta.description}</span>
@@ -289,10 +348,29 @@ export function WafInsightsPane() {
                 : isInfo
                   ? styles.wafFindingInfo ?? ''
                   : styles.wafFindingWarning;
+              const isExpanded = expandedFindings.has(f.id);
+              const hasEvidence = f.evidence && f.evidence.length > 0;
 
               return (
-                <div key={f.id} className={`${styles.wafFinding} ${findingClass}`}>
+                <div
+                  key={f.id}
+                  className={`${styles.wafFinding} ${findingClass} ${styles.findingClickable} ${isExpanded ? styles.findingExpanded : styles.findingCollapsed}`}
+                  onClick={() => toggleFinding(f.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFinding(f.id); } }}
+                >
                   <div className={styles.wafFindingHeader}>
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 12 12"
+                      fill="currentColor"
+                      className={`${styles.expandChevron} ${isExpanded ? styles.expandChevronOpen : ''}`}
+                      aria-hidden="true"
+                    >
+                      <path d="M4.5 2L9 6 4.5 10V2z" />
+                    </svg>
                     <div
                       className={`${styles.sevDot} ${
                         isCritical
@@ -310,12 +388,17 @@ export function WafInsightsPane() {
                       </span>
                     )}
                   </div>
-                  {f.detail && <div className={styles.wafFindingBody}>{f.detail}</div>}
-                  <div className={styles.wafFindingMeta}>
-                    <span style={{ color: 'var(--fg-subtle)', fontSize: 11 }}>
-                      {f.evidence_count} event{f.evidence_count !== 1 ? 's' : ''} evaluated
-                    </span>
-                  </div>
+                  {isExpanded && (
+                    <>
+                      {f.detail && <div className={styles.wafFindingBody}>{f.detail}</div>}
+                      {hasEvidence && <EvidenceTable evidence={f.evidence!} />}
+                      <div className={styles.wafFindingMeta}>
+                        <span style={{ color: 'var(--fg-subtle)', fontSize: 11 }}>
+                          {f.evidence_count} event{f.evidence_count !== 1 ? 's' : ''} evaluated
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })}
@@ -328,6 +411,9 @@ export function WafInsightsPane() {
           No WAF findings available. Ensure audit log events are being ingested.
         </div>
       )}
+
+      {/* Catalog moved to bottom */}
+      <WafChecksCatalog />
     </>
   );
 }

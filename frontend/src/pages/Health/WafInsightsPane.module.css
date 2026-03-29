@@ -355,3 +355,88 @@
   margin-top: 2px;
   display: inline-block;
 }
+
+/* Pillar card clickable */
+.pillarCardClickable {
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.pillarCardClickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Finding clickable / expandable */
+.findingClickable {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.findingCollapsed .wafFindingBody,
+.findingCollapsed .wafFindingMeta {
+  display: none;
+}
+
+.findingExpanded .wafFindingBody,
+.findingExpanded .wafFindingMeta {
+  display: block;
+}
+
+/* Expand chevron */
+.expandChevron {
+  flex-shrink: 0;
+  margin-top: 3px;
+  transition: transform 0.2s ease;
+  transform: rotate(0deg);
+  color: var(--fg-muted);
+}
+
+.expandChevronOpen {
+  transform: rotate(90deg);
+}
+
+/* Evidence table */
+.evidenceTable {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: auto;
+  margin-bottom: 8px;
+  max-height: 320px;
+}
+
+.evidenceTable table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.evidenceTable thead th {
+  background: var(--canvas-subtle);
+  color: var(--fg-muted);
+  font-weight: 500;
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  text-transform: capitalize;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+}
+
+.evidenceTable tbody td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border-muted);
+  vertical-align: middle;
+  word-break: break-all;
+}
+
+.evidenceTable tbody tr:hover td {
+  background: rgba(177, 186, 196, 0.04);
+}
+
+.evidenceTable tbody tr:last-child td {
+  border-bottom: none;
+}

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WafInsightsPane } from './WafInsightsPane';
 import { PILLAR_META } from './healthData';
@@ -19,6 +20,7 @@ const mockFindings = {
       evaluated: true,
       detail: 'Several PATs have no expiry set.',
       evidence_count: 12,
+      evidence: [{ actor: 'user1', count: 5 }],
     },
     {
       id: 'waf-2',
@@ -142,22 +144,55 @@ describe('WafInsightsPane', () => {
     expect(prodLabels.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders evaluated findings', () => {
+  it('renders evaluated finding titles', () => {
     renderPane();
     expect(screen.getByText('PATs without expiry detected')).toBeInTheDocument();
     expect(screen.getByText('Push protection bypasses recorded')).toBeInTheDocument();
     expect(screen.getByText('PRs merged without review')).toBeInTheDocument();
   });
 
-  it('renders finding detail text', () => {
+  it('hides finding detail text when collapsed', () => {
     renderPane();
+    // Details should be hidden in collapsed state (via CSS class)
+    const finding = screen.getByText('PATs without expiry detected').closest('[role="button"]');
+    expect(finding).toHaveClass(/findingCollapsed/);
+  });
+
+  it('expands finding to show detail text when clicked', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    const finding = screen.getByText('PATs without expiry detected').closest('[role="button"]');
+    expect(finding).toBeTruthy();
+    await user.click(finding!);
+    expect(finding).toHaveClass(/findingExpanded/);
     expect(screen.getByText(/Several PATs have no expiry set/)).toBeInTheDocument();
   });
 
-  it('renders evidence counts', () => {
+  it('shows evidence table when finding with evidence is expanded', async () => {
+    const user = userEvent.setup();
     renderPane();
+    const finding = screen.getByText('PATs without expiry detected').closest('[role="button"]');
+    await user.click(finding!);
+    expect(screen.getByText('actor')).toBeInTheDocument();
+    expect(screen.getByText('user1')).toBeInTheDocument();
+  });
+
+  it('shows evidence count when finding is expanded', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    const finding = screen.getByText('PATs without expiry detected').closest('[role="button"]');
+    await user.click(finding!);
     expect(screen.getByText('12 events evaluated')).toBeInTheDocument();
-    expect(screen.getByText('4 events evaluated')).toBeInTheDocument();
+  });
+
+  it('collapses finding when clicked again', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    const finding = screen.getByText('PATs without expiry detected').closest('[role="button"]');
+    await user.click(finding!);
+    expect(finding).toHaveClass(/findingExpanded/);
+    await user.click(finding!);
+    expect(finding).toHaveClass(/findingCollapsed/);
   });
 
   it('renders pillar section headers with View pillar links', () => {
@@ -222,5 +257,19 @@ describe('WafInsightsPane', () => {
     mockQueryReturn = { data: undefined, isLoading: false, isError: true, refetch: vi.fn() };
     renderPane();
     expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+  });
+
+  it('renders catalog at bottom of page', () => {
+    renderPane();
+    expect(screen.getByText('What we check')).toBeInTheDocument();
+  });
+
+  it('adds id attributes to pillar sections for scrolling', () => {
+    renderPane();
+    expect(document.getElementById('pillar-governance')).toBeTruthy();
+    expect(document.getElementById('pillar-appsec')).toBeTruthy();
+    expect(document.getElementById('pillar-architecture')).toBeTruthy();
+    expect(document.getElementById('pillar-collaboration')).toBeTruthy();
+    expect(document.getElementById('pillar-productivity')).toBeTruthy();
   });
 });

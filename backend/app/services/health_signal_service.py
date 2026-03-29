@@ -1429,6 +1429,13 @@ async def get_skipped_workflows(
     return [dict(row) for row in result.mappings().all()]
 
 
+def _ts(val: object) -> str:
+    """Convert a timestamp value to ISO string."""
+    if hasattr(val, "isoformat"):
+        return str(val.isoformat())
+    return str(val)
+
+
 async def get_waf_findings(
     session: AsyncSession,
     *,
@@ -1462,6 +1469,7 @@ async def get_waf_findings(
                 else "No audit log streaming events detected. Configure audit log streaming in your enterprise settings to forward events to OctoWatch in real time. Without streaming, security analysis relies solely on periodic imports."
             ),
             "evidence_count": stream_count,
+            "evidence": None,
         }
     )
 
@@ -1509,6 +1517,7 @@ async def get_waf_findings(
                 )
             ),
             "evidence_count": enabled_count + disabled_count,
+            "evidence": None,
         }
     )
 
@@ -1560,6 +1569,7 @@ async def get_waf_findings(
                 )
             ),
             "evidence_count": bp_created + bp_removed,
+            "evidence": None,
         }
     )
 
@@ -1606,6 +1616,7 @@ async def get_waf_findings(
                 )
             ),
             "evidence_count": sso_events,
+            "evidence": None,
         }
     )
 
@@ -1634,6 +1645,7 @@ async def get_waf_findings(
                 else "No IP allowlist events detected. Consider configuring IP allowlists in enterprise settings to restrict API and UI access to trusted networks."
             ),
             "evidence_count": ip_count,
+            "evidence": None,
         }
     )
 
@@ -1678,6 +1690,7 @@ async def get_waf_findings(
                 )
             ),
             "evidence_count": dep_enabled + dep_disabled,
+            "evidence": None,
         }
     )
 
@@ -1706,6 +1719,7 @@ async def get_waf_findings(
                 else "No code scanning events detected. Enable CodeQL or a third-party SAST tool via GitHub Actions to detect vulnerabilities in source code before they reach production."
             ),
             "evidence_count": cs_count,
+            "evidence": None,
         }
     )
 
@@ -1745,6 +1759,7 @@ async def get_waf_findings(
                 else "No webhook lifecycle events in audit log."
             ),
             "evidence_count": wh_created + wh_destroyed,
+            "evidence": None,
         }
     )
 
@@ -1773,6 +1788,7 @@ async def get_waf_findings(
                 else "No push protection bypass events — secret push protection is enforced."
             ),
             "evidence_count": bypass_count,
+            "evidence": None,
         }
     )
 
@@ -1790,6 +1806,34 @@ async def get_waf_findings(
     )
     push_count = push_result.scalar() or 0
     has_push_events = push_count > 0
+
+    # Fetch evidence for direct pushes
+    push_evidence: list[dict[str, Any]] | None = None
+    if push_count > 0:
+        push_ev_result = await session.execute(
+            text("""
+                SELECT actor, repo, data->>'ref' AS ref, created_at
+                FROM events
+                WHERE action = 'git.push'
+                  AND (data->>'ref' = 'refs/heads/main'
+                       OR data->>'ref' = 'refs/heads/master')
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '90 days'
+                ORDER BY created_at DESC
+                LIMIT 25
+            """),
+            {"scoped_orgs": scoped_orgs},
+        )
+        push_evidence = [
+            {
+                "actor": row["actor"],
+                "repo": row["repo"],
+                "ref": row["ref"],
+                "timestamp": _ts(row["created_at"]),
+            }
+            for row in push_ev_result.mappings().all()
+        ]
+
     findings.append(
         {
             "id": "waf-direct-push",
@@ -1800,12 +1844,682 @@ async def get_waf_findings(
             "evaluated": has_push_events,
             "detail": (
                 f"{push_count} direct pushes to main/master in last 90 days. "
-                + ("This exceeds the recommended threshold. Enforce branch protection rules requiring pull request reviews." if push_count > 5
+                + ("This exceeds the recommended threshold. "
+                   "Enforce branch protection rules "
+                   "requiring pull request reviews."
+                   if push_count > 5
                    else "Volume is within acceptable range.")
                 if has_push_events
                 else "No direct pushes to default branches detected in audit log."
             ),
             "evidence_count": push_count,
+            "evidence": push_evidence,
+        }
+    )
+
+    # ---- New signals (11-21) ----
+
+    # 11. Workflow permissions changes (governance)
+    wfperm_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt FROM events
+            WHERE action IN (
+                'business.set_default_workflow_permissions',
+                'repo.set_default_workflow_permissions',
+                'org.set_default_workflow_permissions'
+            )
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    wfperm_count = wfperm_result.scalar() or 0
+
+    wfperm_evidence: list[dict[str, Any]] | None = None
+    if wfperm_count > 0:
+        wfperm_ev_result = await session.execute(
+            text("""
+                SELECT actor, org, action, created_at
+                FROM events
+                WHERE action IN (
+                    'business.set_default_workflow_permissions',
+                    'repo.set_default_workflow_permissions',
+                    'org.set_default_workflow_permissions'
+                )
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '90 days'
+                ORDER BY created_at DESC
+                LIMIT 25
+            """),
+            {"scoped_orgs": scoped_orgs},
+        )
+        wfperm_evidence = [
+            {
+                "actor": row["actor"],
+                "org": row["org"],
+                "action": row["action"],
+                "timestamp": _ts(row["created_at"]),
+            }
+            for row in wfperm_ev_result.mappings().all()
+        ]
+
+    findings.append(
+        {
+            "id": "waf-workflow-permissions",
+            "pillar": "governance",
+            "finding": "Workflow permissions changes",
+            "severity": "warning" if wfperm_count > 0 else "info",
+            "status": "warning" if wfperm_count > 0 else "pass",
+            "evaluated": True,
+            "detail": (
+                f"{wfperm_count} workflow permission changes in last 90 days. "
+                "Review these changes to ensure workflow permissions have not been loosened. "
+                "Overly permissive workflow defaults can "
+                "allow actions to write to repos or approve PRs."
+                if wfperm_count > 0
+                else "No workflow permission changes detected in last 90 days."
+            ),
+            "evidence_count": wfperm_count,
+            "evidence": wfperm_evidence,
+        }
+    )
+
+    # 12. Self-approve PR permissions (governance)
+    selfappr_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt FROM events
+            WHERE action IN (
+                'business.set_workflow_permission_can_approve_pr',
+                'repo.set_workflow_permission_can_approve_pr',
+                'org.set_workflow_permission_can_approve_pr'
+            )
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    selfappr_count = selfappr_result.scalar() or 0
+
+    selfappr_evidence: list[dict[str, Any]] | None = None
+    if selfappr_count > 0:
+        selfappr_ev_result = await session.execute(
+            text("""
+                SELECT actor, org, action, created_at
+                FROM events
+                WHERE action IN (
+                    'business.set_workflow_permission_can_approve_pr',
+                    'repo.set_workflow_permission_can_approve_pr',
+                    'org.set_workflow_permission_can_approve_pr'
+                )
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '90 days'
+                ORDER BY created_at DESC
+                LIMIT 25
+            """),
+            {"scoped_orgs": scoped_orgs},
+        )
+        selfappr_evidence = [
+            {
+                "actor": row["actor"],
+                "org": row["org"],
+                "action": row["action"],
+                "timestamp": _ts(row["created_at"]),
+            }
+            for row in selfappr_ev_result.mappings().all()
+        ]
+
+    findings.append(
+        {
+            "id": "waf-self-approve-pr",
+            "pillar": "governance",
+            "finding": "Workflow self-approval of pull requests",
+            "severity": "warning" if selfappr_count > 0 else "info",
+            "status": "warning" if selfappr_count > 0 else "pass",
+            "evaluated": True,
+            "detail": (
+                f"{selfappr_count} events changing workflow PR "
+                "self-approval permissions in last 90 days. "
+                "If self-approval is enabled, workflows can "
+                "approve their own pull requests, "
+                "weakening code review enforcement."
+                if selfappr_count > 0
+                else "No workflow self-approval permission "
+                "changes detected. "
+                "This setting should remain restricted."
+            ),
+            "evidence_count": selfappr_count,
+            "evidence": selfappr_evidence,
+        }
+    )
+
+    # 13. PR merge ratio (collaboration)
+    pr_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) FILTER (WHERE action = 'pull_request.merge') AS merged,
+                COUNT(*) FILTER (WHERE action = 'pull_request.create') AS created
+            FROM events
+            WHERE action IN ('pull_request.merge', 'pull_request.create')
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    pr_row = pr_result.mappings().first()
+    pr_merged = (pr_row["merged"] if pr_row else 0) or 0
+    pr_created = (pr_row["created"] if pr_row else 0) or 0
+    has_pr_events = pr_merged + pr_created > 0
+    merge_ratio = pr_merged / pr_created if pr_created > 0 else 0.0
+    pr_anomaly = pr_merged > pr_created and pr_created > 0
+
+    pr_severity: str
+    pr_status: str
+    if pr_anomaly:
+        pr_severity = "warning"
+        pr_status = "warning"
+    elif pr_created == 0 or merge_ratio > 0.95:
+        pr_severity = "info"
+        pr_status = "pass"
+    else:
+        pr_severity = "info"
+        pr_status = "pass"
+
+    findings.append(
+        {
+            "id": "waf-pr-merge-ratio",
+            "pillar": "collaboration",
+            "finding": "Pull request merge ratio",
+            "severity": pr_severity,
+            "status": pr_status,
+            "evaluated": has_pr_events,
+            "detail": (
+                f"{pr_merged} PRs merged vs. {pr_created} PRs created in last 90 days "
+                f"(ratio: {merge_ratio:.2f}). "
+                + ("More merges than creates is unexpected "
+                   "— check for merges of "
+                   "externally-created PRs or data gaps."
+                   if pr_anomaly
+                   else "Merge ratio is within expected range.")
+                if has_pr_events
+                else "No pull request events in audit log."
+            ),
+            "evidence_count": pr_merged + pr_created,
+            "evidence": None,
+        }
+    )
+
+    # 14. Actions secrets created (appsec)
+    secrets_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt FROM events
+            WHERE action = 'repo.create_actions_secret'
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    secrets_count = secrets_result.scalar() or 0
+
+    secrets_evidence: list[dict[str, Any]] | None = None
+    if secrets_count > 0:
+        secrets_ev_result = await session.execute(
+            text("""
+                SELECT actor, repo, created_at
+                FROM events
+                WHERE action = 'repo.create_actions_secret'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '90 days'
+                ORDER BY created_at DESC
+                LIMIT 25
+            """),
+            {"scoped_orgs": scoped_orgs},
+        )
+        secrets_evidence = [
+            {
+                "actor": row["actor"],
+                "repo": row["repo"],
+                "timestamp": _ts(row["created_at"]),
+            }
+            for row in secrets_ev_result.mappings().all()
+        ]
+
+    findings.append(
+        {
+            "id": "waf-actions-secrets",
+            "pillar": "appsec",
+            "finding": "Actions secrets created",
+            "severity": "info",
+            "status": "pass",
+            "evaluated": True,
+            "detail": (
+                f"{secrets_count} Actions secrets created in last 90 days. "
+                "Review secret creation activity to ensure "
+                "sensitive credentials are "
+                "managed appropriately."
+                if secrets_count > 0
+                else "No Actions secret creation events in last 90 days."
+            ),
+            "evidence_count": secrets_count,
+            "evidence": secrets_evidence,
+        }
+    )
+
+    # 15. Vulnerability alerts dismissed (appsec)
+    vuln_dismiss_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt FROM events
+            WHERE action = 'repository_vulnerability_alert.withdraw'
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    vuln_dismiss_count = vuln_dismiss_result.scalar() or 0
+
+    vuln_dismiss_evidence: list[dict[str, Any]] | None = None
+    if vuln_dismiss_count > 0:
+        vuln_dismiss_ev_result = await session.execute(
+            text("""
+                SELECT actor, repo, created_at
+                FROM events
+                WHERE action = 'repository_vulnerability_alert.withdraw'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '90 days'
+                ORDER BY created_at DESC
+                LIMIT 25
+            """),
+            {"scoped_orgs": scoped_orgs},
+        )
+        vuln_dismiss_evidence = [
+            {
+                "actor": row["actor"],
+                "repo": row["repo"],
+                "timestamp": _ts(row["created_at"]),
+            }
+            for row in vuln_dismiss_ev_result.mappings().all()
+        ]
+
+    findings.append(
+        {
+            "id": "waf-vuln-alert-dismissed",
+            "pillar": "appsec",
+            "finding": "Vulnerability alerts dismissed",
+            "severity": "warning" if vuln_dismiss_count > 0 else "info",
+            "status": "warning" if vuln_dismiss_count > 0 else "pass",
+            "evaluated": True,
+            "detail": (
+                f"{vuln_dismiss_count} vulnerability alerts dismissed/withdrawn in last 90 days. "
+                "Dismissed alerts may represent unaddressed "
+                "security vulnerabilities. "
+                "Review dismissal reasons."
+                if vuln_dismiss_count > 0
+                else "No vulnerability alert dismissals detected in last 90 days."
+            ),
+            "evidence_count": vuln_dismiss_count,
+            "evidence": vuln_dismiss_evidence,
+        }
+    )
+
+    # 16. Deploy key policy disabled (governance)
+    dkp_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt FROM events
+            WHERE action = 'deploy_key_policy.disabled'
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    dkp_count = dkp_result.scalar() or 0
+
+    findings.append(
+        {
+            "id": "waf-deploy-key-policy",
+            "pillar": "governance",
+            "finding": "Deploy key policy status",
+            "severity": "warning" if dkp_count > 0 else "info",
+            "status": "warning" if dkp_count > 0 else "pass",
+            "evaluated": True,
+            "detail": (
+                f"{dkp_count} deploy key policy disable events in last 90 days. "
+                "Disabling deploy key policies may allow "
+                "uncontrolled repository access "
+                "via deploy keys."
+                if dkp_count > 0
+                else "No deploy key policy disable events detected. Deploy key policy is enforced."
+            ),
+            "evidence_count": dkp_count,
+            "evidence": None,
+        }
+    )
+
+    # 17. Environment protection rules (governance)
+    envprot_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt FROM events
+            WHERE action = 'environment.add_protection_rule'
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    envprot_count = envprot_result.scalar() or 0
+
+    envprot_evidence: list[dict[str, Any]] | None = None
+    if envprot_count > 0:
+        envprot_ev_result = await session.execute(
+            text("""
+                SELECT actor, repo, created_at
+                FROM events
+                WHERE action = 'environment.add_protection_rule'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '90 days'
+                ORDER BY created_at DESC
+                LIMIT 25
+            """),
+            {"scoped_orgs": scoped_orgs},
+        )
+        envprot_evidence = [
+            {
+                "actor": row["actor"],
+                "repo": row["repo"],
+                "timestamp": _ts(row["created_at"]),
+            }
+            for row in envprot_ev_result.mappings().all()
+        ]
+
+    findings.append(
+        {
+            "id": "waf-environment-protection",
+            "pillar": "governance",
+            "finding": "Environment protection rules",
+            "severity": "info",
+            "status": "pass",
+            "evaluated": True,
+            "detail": (
+                f"{envprot_count} environment protection rules added in last 90 days. "
+                "Environment protection rules add deployment "
+                "approval gates and are a "
+                "security best practice."
+                if envprot_count > 0
+                else "No environment protection rule events "
+                "detected. Consider adding required "
+                "reviewers or wait timers to "
+                "deployment environments."
+            ),
+            "evidence_count": envprot_count,
+            "evidence": envprot_evidence,
+        }
+    )
+
+    # 18. Workflow failure rate (productivity)
+    wf_fail_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) AS total,
+                COUNT(*) FILTER (
+                    WHERE data->>'conclusion' = 'failure'
+                ) AS failures
+            FROM events
+            WHERE action = 'workflows.completed_workflow_run'
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '30 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    wf_fail_row = wf_fail_result.mappings().first()
+    wf_total = (wf_fail_row["total"] if wf_fail_row else 0) or 0
+    wf_failures = (wf_fail_row["failures"] if wf_fail_row else 0) or 0
+    has_wf_events = wf_total > 0
+    failure_rate = wf_failures / wf_total if wf_total > 0 else 0.0
+    failure_pct = round(failure_rate * 100, 1)
+
+    wf_fail_evidence: list[dict[str, Any]] | None = None
+    if wf_failures > 0:
+        wf_fail_ev_result = await session.execute(
+            text("""
+                SELECT actor, repo,
+                       data->>'name' AS workflow_name,
+                       data->>'conclusion' AS conclusion,
+                       created_at
+                FROM events
+                WHERE action = 'workflows.completed_workflow_run'
+                  AND data->>'conclusion' = 'failure'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '30 days'
+                ORDER BY created_at DESC
+                LIMIT 25
+            """),
+            {"scoped_orgs": scoped_orgs},
+        )
+        wf_fail_evidence = [
+            {
+                "actor": row["actor"],
+                "repo": row["repo"],
+                "workflow_name": row["workflow_name"],
+                "conclusion": row["conclusion"],
+                "timestamp": _ts(row["created_at"]),
+            }
+            for row in wf_fail_ev_result.mappings().all()
+        ]
+
+    findings.append(
+        {
+            "id": "waf-workflow-failure-rate",
+            "pillar": "productivity",
+            "finding": "Workflow failure rate",
+            "severity": "warning" if failure_rate > 0.20 else "info",
+            "status": "warning" if failure_rate > 0.20 else "pass",
+            "evaluated": has_wf_events,
+            "detail": (
+                f"{wf_failures}/{wf_total} workflow runs failed in last 30 days ({failure_pct}%). "
+                + ("Failure rate exceeds 20% threshold. "
+                   "Investigate flaky tests, misconfigured "
+                   "workflows, or infrastructure issues."
+                   if failure_rate > 0.20
+                   else "Failure rate is within acceptable range.")
+                if has_wf_events
+                else "No completed workflow run events in last 30 days."
+            ),
+            "evidence_count": wf_total,
+            "evidence": wf_fail_evidence,
+        }
+    )
+
+    # 19. Workflow rerun rate (productivity)
+    rerun_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE action = 'workflows.rerun_workflow_run'
+                ) AS reruns,
+                COUNT(*) FILTER (
+                    WHERE action = 'workflows.created_workflow_run'
+                ) AS created
+            FROM events
+            WHERE action IN (
+                'workflows.rerun_workflow_run',
+                'workflows.created_workflow_run'
+            )
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '30 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    rerun_row = rerun_result.mappings().first()
+    rerun_count = (rerun_row["reruns"] if rerun_row else 0) or 0
+    wf_created_count = (rerun_row["created"] if rerun_row else 0) or 0
+    has_rerun_events = rerun_count + wf_created_count > 0
+    rerun_rate = rerun_count / wf_created_count if wf_created_count > 0 else 0.0
+    rerun_pct = round(rerun_rate * 100, 1)
+
+    rerun_evidence: list[dict[str, Any]] | None = None
+    if rerun_count > 0:
+        rerun_ev_result = await session.execute(
+            text("""
+                SELECT actor, repo,
+                       data->>'name' AS workflow_name,
+                       created_at
+                FROM events
+                WHERE action = 'workflows.rerun_workflow_run'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '30 days'
+                ORDER BY created_at DESC
+                LIMIT 25
+            """),
+            {"scoped_orgs": scoped_orgs},
+        )
+        rerun_evidence = [
+            {
+                "actor": row["actor"],
+                "repo": row["repo"],
+                "workflow_name": row["workflow_name"],
+                "timestamp": _ts(row["created_at"]),
+            }
+            for row in rerun_ev_result.mappings().all()
+        ]
+
+    findings.append(
+        {
+            "id": "waf-workflow-rerun-rate",
+            "pillar": "productivity",
+            "finding": "Workflow rerun rate",
+            "severity": "warning" if rerun_rate > 0.15 else "info",
+            "status": "warning" if rerun_rate > 0.15 else "pass",
+            "evaluated": has_rerun_events,
+            "detail": (
+                f"{rerun_count} reruns out of "
+                f"{wf_created_count} workflow runs "
+                f"in last 30 days ({rerun_pct}%). "
+                + ("Rerun rate exceeds 15% threshold. "
+                   "High rerun rates indicate flaky "
+                   "workflows or transient failures."
+                   if rerun_rate > 0.15
+                   else "Rerun rate is within acceptable range.")
+                if has_rerun_events
+                else "No workflow run events in last 30 days."
+            ),
+            "evidence_count": rerun_count + wf_created_count,
+            "evidence": rerun_evidence,
+        }
+    )
+
+    # 20. Clone anomaly detection (appsec)
+    clone_result = await session.execute(
+        text("""
+            SELECT actor, COUNT(*) AS clone_count
+            FROM events
+            WHERE action = 'git.clone'
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '30 days'
+            GROUP BY actor
+            ORDER BY clone_count DESC
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    clone_rows = [dict(row) for row in clone_result.mappings().all()]
+    total_cloners = len(clone_rows)
+    avg_clone_count = (
+        sum(r["clone_count"] for r in clone_rows) / total_cloners
+        if total_cloners > 0
+        else 0.0
+    )
+    anomalous_cloners = [
+        r for r in clone_rows if r["clone_count"] > avg_clone_count * 3
+    ] if avg_clone_count > 0 else []
+    has_clone_anomaly = len(anomalous_cloners) > 0
+
+    clone_evidence: list[dict[str, Any]] | None = None
+    if has_clone_anomaly:
+        clone_evidence = [
+            {
+                "actor": r["actor"],
+                "clone_count": r["clone_count"],
+                "avg_count": round(avg_clone_count, 1),
+            }
+            for r in anomalous_cloners[:25]
+        ]
+
+    findings.append(
+        {
+            "id": "waf-clone-anomaly",
+            "pillar": "appsec",
+            "finding": "Clone activity anomaly detection",
+            "severity": "warning" if has_clone_anomaly else "info",
+            "status": "warning" if has_clone_anomaly else "pass",
+            "evaluated": total_cloners > 0,
+            "detail": (
+                f"{len(anomalous_cloners)} actor(s) with clone counts exceeding 3× the average "
+                f"({round(avg_clone_count, 1)} clones/actor) in last 30 days. "
+                "Unusually high clone activity may indicate "
+                "data exfiltration or automated scraping."
+                if has_clone_anomaly
+                else (
+                    f"{total_cloners} actors cloned repositories "
+                    "in last 30 days — no anomalies detected."
+                    if total_cloners > 0
+                    else "No git clone events in last 30 days."
+                )
+            ),
+            "evidence_count": total_cloners,
+            "evidence": clone_evidence,
+        }
+    )
+
+    # 21. Admin escalation (governance)
+    admin_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt FROM events
+            WHERE action = 'business.add_admin'
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - INTERVAL '90 days'
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    admin_count = admin_result.scalar() or 0
+
+    admin_evidence: list[dict[str, Any]] | None = None
+    if admin_count > 0:
+        admin_ev_result = await session.execute(
+            text("""
+                SELECT actor, org, data->>'user' AS promoted_user, created_at
+                FROM events
+                WHERE action = 'business.add_admin'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '90 days'
+                ORDER BY created_at DESC
+                LIMIT 25
+            """),
+            {"scoped_orgs": scoped_orgs},
+        )
+        admin_evidence = [
+            {
+                "actor": row["actor"],
+                "org": row["org"],
+                "promoted_user": row["promoted_user"],
+                "timestamp": _ts(row["created_at"]),
+            }
+            for row in admin_ev_result.mappings().all()
+        ]
+
+    findings.append(
+        {
+            "id": "waf-admin-escalation",
+            "pillar": "governance",
+            "finding": "Admin privilege escalation",
+            "severity": "critical" if admin_count > 0 else "info",
+            "status": "fail" if admin_count > 0 else "pass",
+            "evaluated": True,
+            "detail": (
+                f"{admin_count} admin promotion(s) detected in last 90 days. "
+                "Admin escalations should be rare and "
+                "approved. Review each promotion "
+                "for legitimacy."
+                if admin_count > 0
+                else "No admin privilege escalations detected in last 90 days."
+            ),
+            "evidence_count": admin_count,
+            "evidence": admin_evidence,
         }
     )
 

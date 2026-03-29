@@ -430,6 +430,7 @@ export interface WafFindingResponse {
   evaluated: boolean;
   detail: string;
   evidence_count: number;
+  evidence?: Record<string, unknown>[];
 }
 
 export function getWafFindings(): Promise<{ findings: WafFindingResponse[] }> {
