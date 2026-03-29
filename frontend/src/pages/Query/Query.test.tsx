@@ -74,57 +74,68 @@ describe('QueryPage', () => {
 
   // --- Schema Tree ---
 
-  it('renders all three schema tables', () => {
+  it('renders all schema tables', () => {
     const { container } = renderWithProviders(<QueryPage />);
     const schemaTree = container.querySelector('.schemaTree')!;
-    expect(schemaTree.textContent).toContain('audit_events');
+    expect(schemaTree.textContent).toContain('events');
     expect(schemaTree.textContent).toContain('detections');
-    expect(schemaTree.textContent).toContain('workflow_runs');
+    expect(schemaTree.textContent).toContain('events_hourly');
+    expect(schemaTree.textContent).toContain('events_daily_actor');
+    expect(schemaTree.textContent).toContain('detections_daily');
   });
 
   it('shows columns for expanded tables', () => {
     renderWithProviders(<QueryPage />);
-    // detections-specific columns (not in default SQL)
-    expect(screen.getByText(/rule_name/)).toBeInTheDocument();
-    expect(screen.getByText(/severity/)).toBeInTheDocument();
-    // workflow_runs-specific columns
-    expect(screen.getByText(/run_id/)).toBeInTheDocument();
-    expect(screen.getByText(/duration_s/)).toBeInTheDocument();
+    // events-specific columns
+    expect(screen.getByText(/source_ip/)).toBeInTheDocument();
+    expect(screen.getAllByText(/geo_country_code/).length).toBeGreaterThanOrEqual(1);
+    // events_hourly-specific columns
+    expect(screen.getByText(/bucket_hour/)).toBeInTheDocument();
   });
 
   it('collapses a schema table when its header is clicked', async () => {
     const user = userEvent.setup();
     renderWithProviders(<QueryPage />);
 
-    expect(screen.getByText(/rule_name/)).toBeInTheDocument();
+    expect(screen.getByText(/source_ip/)).toBeInTheDocument();
 
-    await user.click(screen.getByText(/detections/));
+    // Click the "events" table header (exact match to avoid events_hourly etc.)
+    const headers = screen.getAllByText(/events/);
+    const eventsHeader = headers.find((el) => el.textContent === '▼ events');
+    expect(eventsHeader).toBeDefined();
+    await user.click(eventsHeader!);
 
-    expect(screen.queryByText(/rule_name/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/source_ip/)).not.toBeInTheDocument();
   });
 
   it('re-expands a collapsed schema table on second click', async () => {
     const user = userEvent.setup();
     renderWithProviders(<QueryPage />);
 
-    const header = screen.getByText(/detections/);
-    await user.click(header); // collapse
-    expect(screen.queryByText(/rule_name/)).not.toBeInTheDocument();
+    // Click to collapse events table
+    const expandedHeaders = screen.getAllByText(/events/);
+    const eventsHeader = expandedHeaders.find((el) => el.textContent === '▼ events');
+    expect(eventsHeader).toBeDefined();
+    await user.click(eventsHeader!); // collapse
+    expect(screen.queryByText(/source_ip/)).not.toBeInTheDocument();
 
-    await user.click(header); // expand
-    expect(screen.getByText(/rule_name/)).toBeInTheDocument();
+    // Click to re-expand
+    const collapsedHeaders = screen.getAllByText(/events/);
+    const collapsedHeader = collapsedHeaders.find((el) => el.textContent === '▶ events');
+    expect(collapsedHeader).toBeDefined();
+    await user.click(collapsedHeader!); // expand
+    expect(screen.getByText(/source_ip/)).toBeInTheDocument();
   });
 
   it('shows column types in schema tree', () => {
     const { container } = renderWithProviders(<QueryPage />);
     const typeSpans = container.querySelectorAll('.schemaType');
     const typeTexts = Array.from(typeSpans).map((s) => s.textContent);
-    expect(typeTexts).toContain('uuid');
+    expect(typeTexts).toContain('bigint');
     expect(typeTexts).toContain('text');
     expect(typeTexts).toContain('jsonb');
     expect(typeTexts).toContain('tstz');
-    expect(typeTexts).toContain('bigint');
-    expect(typeTexts).toContain('int4');
+    expect(typeTexts).toContain('inet');
   });
 
   // --- SQL Syntax Highlighting ---
@@ -161,7 +172,7 @@ describe('QueryPage', () => {
     const colSpans = container.querySelectorAll('.sqlCol');
     const colTexts = Array.from(colSpans).map((s) => s.textContent);
     expect(colTexts).toContain('actor');
-    expect(colTexts).toContain('location');
+    expect(colTexts).toContain('geo_country_code');
     expect(colTexts).toContain('created_at');
     expect(colTexts).toContain('action');
   });
@@ -172,7 +183,6 @@ describe('QueryPage', () => {
     const litTexts = Array.from(litSpans).map((s) => s.textContent);
     expect(litTexts).toContain("'user.login'");
     expect(litTexts).toContain("'1 day'");
-    expect(litTexts).toContain("'country_code'");
   });
 
   it('highlights comments with sqlCmt class', () => {

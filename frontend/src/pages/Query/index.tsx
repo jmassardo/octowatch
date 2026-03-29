@@ -10,15 +10,17 @@ import styles from './Query.module.css';
 
 const SCHEMA = [
   {
-    table: 'audit_events',
+    table: 'events',
     cols: [
-      { name: 'id', type: 'uuid' },
+      { name: 'id', type: 'bigint' },
       { name: 'action', type: 'text' },
+      { name: 'namespace', type: 'text' },
       { name: 'actor', type: 'text' },
       { name: 'org', type: 'text' },
       { name: 'repo', type: 'text' },
-      { name: 'actor_ip', type: 'inet' },
-      { name: 'location', type: 'jsonb' },
+      { name: 'source_ip', type: 'inet' },
+      { name: 'geo_country_code', type: 'text' },
+      { name: 'geo_city', type: 'text' },
       { name: 'created_at', type: 'tstz' },
       { name: 'data', type: 'jsonb' },
     ],
@@ -26,19 +28,43 @@ const SCHEMA = [
   {
     table: 'detections',
     cols: [
-      { name: 'id', type: 'uuid' },
-      { name: 'rule_name', type: 'text' },
+      { name: 'id', type: 'bigint' },
+      { name: 'title', type: 'text' },
       { name: 'severity', type: 'text' },
-      { name: 'detected_at', type: 'tstz' },
+      { name: 'status', type: 'text' },
+      { name: 'actor', type: 'text' },
+      { name: 'org', type: 'text' },
+      { name: 'repo', type: 'text' },
+      { name: 'triggered_at', type: 'tstz' },
     ],
   },
   {
-    table: 'workflow_runs',
+    table: 'events_hourly',
     cols: [
-      { name: 'run_id', type: 'bigint' },
-      { name: 'workflow', type: 'text' },
-      { name: 'conclusion', type: 'text' },
-      { name: 'duration_s', type: 'int4' },
+      { name: 'bucket_hour', type: 'tstz' },
+      { name: 'org', type: 'text' },
+      { name: 'namespace', type: 'text' },
+      { name: 'action', type: 'text' },
+      { name: 'event_count', type: 'bigint' },
+    ],
+  },
+  {
+    table: 'events_daily_actor',
+    cols: [
+      { name: 'bucket_day', type: 'tstz' },
+      { name: 'actor', type: 'text' },
+      { name: 'org', type: 'text' },
+      { name: 'namespace', type: 'text' },
+      { name: 'event_count', type: 'bigint' },
+    ],
+  },
+  {
+    table: 'detections_daily',
+    cols: [
+      { name: 'bucket_day', type: 'tstz' },
+      { name: 'severity', type: 'text' },
+      { name: 'status', type: 'text' },
+      { name: 'detection_count', type: 'bigint' },
     ],
   },
 ];
@@ -46,15 +72,15 @@ const SCHEMA = [
 const DEFAULT_SQL = `-- Actors with logins from 2+ countries in a single day
 SELECT
   actor,
-  COUNT(DISTINCT location->>'country_code') AS country_count,
-  array_agg(DISTINCT location->>'country_code') AS countries,
+  COUNT(DISTINCT geo_country_code) AS country_count,
+  array_agg(DISTINCT geo_country_code) AS countries,
   MIN(created_at) AS first_seen,
   MAX(created_at) AS last_seen
-FROM audit_events
+FROM events
 WHERE action = 'user.login'
   AND created_at >= NOW() - INTERVAL '1 day'
 GROUP BY actor
-HAVING COUNT(DISTINCT location->>'country_code') > 1;`;
+HAVING COUNT(DISTINCT geo_country_code) > 1`;
 
 // --- SQL Syntax Highlighting ---
 
@@ -202,7 +228,7 @@ function saveHistory(entries: HistoryEntry[]): void {
 export function QueryPage() {
   const [sql, setSql] = useState(DEFAULT_SQL);
   const [results, setResults] = useState<QueryRunResponse | null>(null);
-  const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set(['audit_events', 'detections', 'workflow_runs']));
+  const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set(['events', 'detections', 'events_hourly', 'events_daily_actor', 'detections_daily']));
   const [history, setHistory] = useState<HistoryEntry[]>(loadHistory);
   const [showHistory, setShowHistory] = useState(false);
   const [showExecModal, setShowExecModal] = useState(false);

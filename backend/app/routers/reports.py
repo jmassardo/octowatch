@@ -50,6 +50,7 @@ async def report_catalog(
             "description": "Unique actors performing audit-logged actions per time bucket.",
             "generated_at": None,
             "status": "available",
+            "tags": ["usage", "activity"],
         },
         {
             "id": "seat-utilization",
@@ -58,6 +59,7 @@ async def report_catalog(
             "description": "Active vs. provisioned GitHub Copilot seats over time.",
             "generated_at": None,
             "status": "available",
+            "tags": ["licensing", "copilot"],
         },
         {
             "id": "actions-volume",
@@ -66,6 +68,7 @@ async def report_catalog(
             "description": "GitHub Actions workflow run volume and trends.",
             "generated_at": None,
             "status": "available",
+            "tags": ["ci-cd", "actions"],
         },
         {
             "id": "copilot-seats",
@@ -74,6 +77,7 @@ async def report_catalog(
             "description": "Copilot seat assignment, revocation, and net change.",
             "generated_at": None,
             "status": "available",
+            "tags": ["licensing", "copilot"],
         },
         {
             "id": "repo-creation-rate",
@@ -82,6 +86,7 @@ async def report_catalog(
             "description": "New repository creation volume over time.",
             "generated_at": None,
             "status": "available",
+            "tags": ["repos", "growth"],
         },
         {
             "id": "pat-counts",
@@ -90,6 +95,7 @@ async def report_catalog(
             "description": "PAT creation and revocation events over time.",
             "generated_at": None,
             "status": "available",
+            "tags": ["security", "tokens"],
         },
         {
             "id": "webhook-counts",
@@ -98,6 +104,7 @@ async def report_catalog(
             "description": "Webhook creation and delivery events over time.",
             "generated_at": None,
             "status": "available",
+            "tags": ["integrations", "webhooks"],
         },
         {
             "id": "codespace-hours",
@@ -106,6 +113,7 @@ async def report_catalog(
             "description": "GitHub Codespaces usage hours over time.",
             "generated_at": None,
             "status": "available",
+            "tags": ["usage", "codespaces"],
         },
     ]
 

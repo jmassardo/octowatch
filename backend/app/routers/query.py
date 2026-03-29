@@ -38,6 +38,11 @@ async def run_query(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Query execution error: {exc}",
+        ) from exc
 
 
 @router.post("/validate", response_model=dict)

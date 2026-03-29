@@ -151,6 +151,9 @@ def validate_and_prepare(sql: str, scope: OrgRepoScope) -> tuple[str, dict[str, 
     Returns (rewritten_sql, bind_params).
     Raises QueryValidationError on any violation.
     """
+    # 0. Strip trailing semicolons — they break CTE wrapping
+    sql = sql.rstrip().rstrip(";").rstrip()
+
     # 1. Parse
     try:
         stmts = pglast.parse_sql(sql)
