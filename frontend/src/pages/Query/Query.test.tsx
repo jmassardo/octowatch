@@ -589,7 +589,7 @@ describe('QueryPage', () => {
 
     // --- Live Validation ---
 
-    it('calls validateQuery after 800ms debounce and shows valid badge', async () => {
+    it('calls validateQuery after 800ms debounce and shows valid dot', async () => {
       const { validateQuery } = await import('../../api/query');
       vi.mocked(validateQuery).mockResolvedValue({ valid: true });
 
@@ -601,10 +601,10 @@ describe('QueryPage', () => {
       });
 
       expect(validateQuery).toHaveBeenCalledWith(expect.stringContaining('SELECT'));
-      expect(screen.getByText(/✓ Valid/)).toBeInTheDocument();
+      expect(document.querySelector('.validDot')).toBeInTheDocument();
     });
 
-    it('shows invalid badge with error message when validation fails', async () => {
+    it('shows invalid dot and error bar when validation fails', async () => {
       const { validateQuery } = await import('../../api/query');
       vi.mocked(validateQuery).mockResolvedValue({ valid: false, error: 'Syntax error at position 5' });
 
@@ -614,25 +614,28 @@ describe('QueryPage', () => {
         vi.advanceTimersByTime(800);
       });
 
-      expect(screen.getByText(/✗/)).toBeInTheDocument();
+      expect(document.querySelector('.invalidDot')).toBeInTheDocument();
       expect(screen.getByText(/Syntax error at position 5/)).toBeInTheDocument();
     });
 
-    it('truncates long validation errors to ~80 chars with full tooltip', async () => {
+    it('shows full validation error in error bar with tooltip on dot', async () => {
       const { validateQuery } = await import('../../api/query');
       const longError = 'A'.repeat(120);
       vi.mocked(validateQuery).mockResolvedValue({ valid: false, error: longError });
 
-      const { container } = renderWithProviders(<QueryPage />);
+      renderWithProviders(<QueryPage />);
 
       await act(async () => {
         vi.advanceTimersByTime(800);
       });
 
-      const badge = container.querySelector('.invalidBadge');
-      expect(badge).not.toBeNull();
-      expect(badge!.textContent!.length).toBeLessThan(120);
-      expect(badge!.getAttribute('title')).toBe(longError);
+      const dot = document.querySelector('.invalidDot');
+      expect(dot).not.toBeNull();
+      expect(dot!.getAttribute('title')).toBe(longError);
+
+      const errorBar = document.querySelector('.errorBar');
+      expect(errorBar).not.toBeNull();
+      expect(errorBar!.textContent).toContain(longError);
     });
 
     it('does not validate empty or whitespace-only queries', async () => {
@@ -661,7 +664,7 @@ describe('QueryPage', () => {
       expect(validateQuery).not.toHaveBeenCalled();
     });
 
-    it('shows validating indicator while validation is in progress', async () => {
+    it('shows validating dot while validation is in progress', async () => {
       const { validateQuery } = await import('../../api/query');
 
       let resolveValidation!: (val: { valid: boolean }) => void;
@@ -669,20 +672,20 @@ describe('QueryPage', () => {
         new Promise((resolve) => { resolveValidation = resolve; }),
       );
 
-      const { container } = renderWithProviders(<QueryPage />);
+      renderWithProviders(<QueryPage />);
 
       await act(async () => {
         vi.advanceTimersByTime(800);
       });
 
-      const badge = container.querySelector('.validatingBadge');
-      expect(badge).not.toBeNull();
+      const dot = document.querySelector('.validatingDot');
+      expect(dot).not.toBeNull();
 
       await act(async () => {
         resolveValidation({ valid: true });
       });
 
-      expect(screen.getByText(/✓ Valid/)).toBeInTheDocument();
+      expect(document.querySelector('.validDot')).toBeInTheDocument();
     });
 
     // --- Keyboard Shortcut ---
@@ -906,8 +909,8 @@ describe('QueryPage', () => {
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
     });
 
-    it('navigates autocomplete suggestions with ArrowDown/ArrowUp', async () => {
-      const { container } = renderWithProviders(<QueryPage />);
+    it('dismisses autocomplete on ArrowDown and lets cursor navigate', async () => {
+      renderWithProviders(<QueryPage />);
 
       const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
 
@@ -923,26 +926,18 @@ describe('QueryPage', () => {
 
       expect(screen.queryByRole('listbox')).toBeInTheDocument();
 
-      let activeItems = container.querySelectorAll('.acItemActive');
-      expect(activeItems.length).toBe(1);
-
-      // Press ArrowDown to move to second item
+      // Press ArrowDown — should dismiss autocomplete and let cursor move
       await act(async () => {
         textarea.dispatchEvent(new KeyboardEvent('keydown', {
           key: 'ArrowDown', bubbles: true,
         }));
       });
 
-      activeItems = container.querySelectorAll('.acItemActive');
-      expect(activeItems.length).toBe(1);
-      const selected = screen.getAllByRole('option').filter(
-        (o) => o.getAttribute('aria-selected') === 'true',
-      );
-      expect(selected).toHaveLength(1);
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
     });
 
     it('shows suggestion type labels (KW, FN, TBL, COL)', async () => {
-      const { container } = renderWithProviders(<QueryPage />);
+      renderWithProviders(<QueryPage />);
 
       const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
 
@@ -956,14 +951,14 @@ describe('QueryPage', () => {
         textarea.dispatchEvent(new Event('change', { bubbles: true }));
       });
 
-      const typeLabels = container.querySelectorAll('.acItemType');
+      const typeLabels = document.querySelectorAll('.acItemType');
       expect(typeLabels.length).toBeGreaterThan(0);
       const labelTexts = Array.from(typeLabels).map((el) => el.textContent);
       expect(labelTexts.some((t) => t === 'KW')).toBe(true);
     });
 
     it('highlights the matching portion of suggestions', async () => {
-      const { container } = renderWithProviders(<QueryPage />);
+      renderWithProviders(<QueryPage />);
 
       const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
 
@@ -977,7 +972,7 @@ describe('QueryPage', () => {
         textarea.dispatchEvent(new Event('change', { bubbles: true }));
       });
 
-      const highlights = container.querySelectorAll('.acHighlight');
+      const highlights = document.querySelectorAll('.acHighlight');
       expect(highlights.length).toBeGreaterThan(0);
       expect(Array.from(highlights).some((el) => el.textContent === 'SE')).toBe(true);
     });

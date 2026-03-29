@@ -302,37 +302,68 @@
   margin-top: 4px;
 }
 
-/* Validation indicator */
+/* Validation status dots */
 
-.validBadge,
-.invalidBadge,
-.validatingBadge {
-  font-size: 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 4px;
+.validDot,
+.invalidDot,
+.validatingDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: 4px;
+  flex-shrink: 0;
 }
 
-.validBadge { color: #3fb950; }
+.validDot { background: #3fb950; }
+.invalidDot { background: #f85149; }
 
-.invalidBadge {
+.validatingDot {
+  background: var(--fg-subtle);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+/* Error underline and bar */
+
+.errorUnderline {
+  text-decoration: underline wavy #f85149;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+}
+
+.errorBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
   color: #f85149;
-  cursor: help;
-  max-width: 300px;
+  background: rgba(248, 81, 73, 0.08);
+  border: 1px solid rgba(248, 81, 73, 0.2);
+  border-radius: 0 0 6px 6px;
+  margin-top: -1px;
+}
+
+.errorBarIcon {
+  flex-shrink: 0;
+}
+
+.errorBarText {
+  font-family: ui-monospace, SFMono-Regular, monospace;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.validatingBadge { color: var(--fg-subtle); }
-
 /* Autocomplete dropdown */
 
 .acDropdown {
-  position: absolute;
-  z-index: 20;
+  z-index: 9999;
   min-width: 200px;
   max-width: 400px;
   max-height: 280px;

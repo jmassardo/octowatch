@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { runQuery, validateQuery, listTemplates, createTemplate } from '../../api/query';
 import type { QueryRunResponse } from '../../types/query';
@@ -188,18 +189,83 @@ const TOKEN_STYLES: Record<TokenType, string | undefined> = {
   plain: undefined,
 };
 
-function renderHighlightedSql(sqlText: string) {
-  return tokenizeSql(sqlText).map((token, i) => {
+/** Extract the range of the problematic token from a validation error message */
+function getErrorRange(sql: string, error: string): { start: number; end: number } | null {
+  const patterns = [
+    /Table '([^']+)'/,
+    /Function\(s\) not permitted: \['?([^'"\]]+)/,
+    /syntax error at or near "([^"]+)"/,
+    /Statement type not permitted: (\w+)/,
+    /Schema-qualified.*: ([^\s]+)/,
+  ];
+
+  for (const pat of patterns) {
+    const m = error.match(pat);
+    if (m) {
+      const token = m[1];
+      const sqlLower = sql.toLowerCase();
+      const idx = sqlLower.indexOf(token.toLowerCase());
+      if (idx !== -1) {
+        return { start: idx, end: idx + token.length };
+      }
+    }
+  }
+  return null;
+}
+
+function renderHighlightedSql(
+  sqlText: string,
+  errorRange?: { start: number; end: number } | null,
+) {
+  const tokens = tokenizeSql(sqlText);
+  const elements: React.ReactNode[] = [];
+  let pos = 0;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    const tokenStart = pos;
+    const tokenEnd = pos + token.value.length;
     const cls = TOKEN_STYLES[token.type];
-    if (cls) {
-      return (
+
+    if (errorRange && tokenStart < errorRange.end && tokenEnd > errorRange.start) {
+      const overlapStart = Math.max(tokenStart, errorRange.start) - tokenStart;
+      const overlapEnd = Math.min(tokenEnd, errorRange.end) - tokenStart;
+
+      const before = token.value.slice(0, overlapStart);
+      const errorPart = token.value.slice(overlapStart, overlapEnd);
+      const after = token.value.slice(overlapEnd);
+
+      if (before) {
+        elements.push(
+          cls ? <span key={`${i}a`} className={cls}>{before}</span> : before,
+        );
+      }
+      elements.push(
+        <span
+          key={`${i}e`}
+          className={`${cls ?? ''} ${styles.errorUnderline}`.trim()}
+        >
+          {errorPart}
+        </span>,
+      );
+      if (after) {
+        elements.push(
+          cls ? <span key={`${i}z`} className={cls}>{after}</span> : after,
+        );
+      }
+    } else if (cls) {
+      elements.push(
         <span key={i} className={cls}>
           {token.value}
-        </span>
+        </span>,
       );
+    } else {
+      elements.push(token.value);
     }
-    return token.value;
-  });
+    pos = tokenEnd;
+  }
+
+  return elements;
 }
 
 // --- Validation & Autocomplete ---
@@ -377,24 +443,30 @@ function getCursorPixelPosition(textarea: HTMLTextAreaElement): { top: number; l
   };
 }
 
-/** Positioned autocomplete dropdown rendered inside the editor code area */
+/** Positioned autocomplete dropdown rendered via portal to avoid overflow clipping */
 function SqlAutocomplete({
   items,
   activeIndex,
   position,
   partial,
   onAccept,
+  editorRect,
 }: {
   items: readonly Suggestion[];
   activeIndex: number;
   position: { top: number; left: number };
   partial: string;
   onAccept: (text: string) => void;
+  editorRect: DOMRect;
 }) {
-  return (
+  return createPortal(
     <div
       className={styles.acDropdown}
-      style={{ top: position.top + 22, left: position.left }}
+      style={{
+        position: 'fixed',
+        top: editorRect.top + position.top + 22,
+        left: editorRect.left + position.left,
+      }}
       role="listbox"
     >
       {items.map((item, i) => (
@@ -417,7 +489,8 @@ function SqlAutocomplete({
           </span>
         </div>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -469,6 +542,7 @@ export function QueryPage() {
   const [acIndex, setAcIndex] = useState(0);
   const [acPosition, setAcPosition] = useState({ top: 0, left: 0 });
   const [acPartial, setAcPartial] = useState('');
+  const [acEditorRect, setAcEditorRect] = useState<DOMRect | null>(null);
   const cursorPosRef = useRef(0);
   const acDismissedRef = useRef(false);
 
@@ -525,6 +599,7 @@ export function QueryPage() {
     isValidating ? 'validating' :
     (validationResult?.sql === sql) ? (validationResult.valid ? 'valid' : 'invalid') : 'idle';
   const validationError = (validationResult?.sql === sql) ? validationResult.error : '';
+  const errorRange = validationStatus === 'invalid' ? getErrorRange(sql, validationError) : null;
 
   const lines = sql.split('\n');
 
@@ -542,6 +617,7 @@ export function QueryPage() {
     setAcIndex(0);
     if (items.length > 0 && textareaRef.current) {
       setAcPosition(getCursorPixelPosition(textareaRef.current));
+      setAcEditorRect(textareaRef.current.getBoundingClientRect());
     }
   }
 
@@ -600,18 +676,17 @@ export function QueryPage() {
       return;
     }
 
-    // Autocomplete keyboard navigation
+    // Arrow keys always control cursor — dismiss autocomplete if open
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (acItems.length > 0) {
+        setAcItems([]);
+        acDismissedRef.current = true;
+      }
+      return;
+    }
+
+    // Autocomplete accept/dismiss (Tab, Enter, Escape)
     if (acItems.length > 0) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setAcIndex((prev) => (prev + 1) % acItems.length);
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setAcIndex((prev) => (prev - 1 + acItems.length) % acItems.length);
-        return;
-      }
       if (e.key === 'Tab' || e.key === 'Enter') {
         e.preventDefault();
         acceptSuggestion(acItems[acIndex].text);
@@ -711,15 +786,13 @@ export function QueryPage() {
             <div className={styles.editorToolbar}>
               <span className={styles.editorFilename}>query.sql</span>
               {validationStatus === 'valid' && (
-                <span className={styles.validBadge}>✓ Valid</span>
+                <span className={styles.validDot} title="Query is valid" />
               )}
               {validationStatus === 'invalid' && (
-                <span className={styles.invalidBadge} title={validationError}>
-                  ✗ {validationError.length > 80 ? `${validationError.slice(0, 80)}…` : validationError}
-                </span>
+                <span className={styles.invalidDot} title={validationError} />
               )}
               {validationStatus === 'validating' && (
-                <span className={styles.validatingBadge}>…</span>
+                <span className={styles.validatingDot} title="Validating…" />
               )}
               <div className={styles.toolbarActions}>
                 <Button size="sm" variant="primary" onClick={() => runMutation.mutate(sql)} disabled={runMutation.isPending}>
@@ -770,7 +843,7 @@ export function QueryPage() {
                   className={styles.editorHighlight}
                   aria-hidden="true"
                 >
-                  {renderHighlightedSql(sql)}
+                  {renderHighlightedSql(sql, errorRange)}
                 </pre>
                 <textarea
                   ref={textareaRef}
@@ -782,18 +855,26 @@ export function QueryPage() {
                   spellCheck={false}
                   rows={lines.length}
                 />
-                {acItems.length > 0 && (
+                {acItems.length > 0 && acEditorRect && (
                   <SqlAutocomplete
                     items={acItems}
                     activeIndex={acIndex}
                     position={acPosition}
                     partial={acPartial}
                     onAccept={acceptSuggestion}
+                    editorRect={acEditorRect}
                   />
                 )}
               </div>
             </div>
           </div>
+
+          {validationStatus === 'invalid' && validationError && (
+            <div className={styles.errorBar}>
+              <span className={styles.errorBarIcon}>⚠</span>
+              <span className={styles.errorBarText}>{validationError}</span>
+            </div>
+          )}
 
           {runMutation.isError && (
             <ErrorBanner message="Query failed" onRetry={() => runMutation.mutate(sql)} />
