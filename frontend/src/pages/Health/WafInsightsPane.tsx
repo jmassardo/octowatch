@@ -190,7 +190,6 @@ export function WafInsightsPane() {
       {/* Evaluated findings grouped by pillar */}
       {PILLAR_ORDER.map((pillar) => {
         const findings = findingsByPillar[pillar];
-        if (findings.length === 0 && pillar !== 'productivity') return null;
         const meta = PILLAR_META[pillar];
 
         return (
@@ -208,9 +207,9 @@ export function WafInsightsPane() {
               </a>
             </div>
 
-            {pillar === 'productivity' && findings.length === 0 && (
+            {findings.length === 0 && (
               <div className={styles.productivityOk}>
-                <strong style={{ color: 'var(--success)' }}>✓ No productivity anti-patterns detected</strong>
+                <strong style={{ color: 'var(--success)' }}>✓ No {meta.label.toLowerCase()} anti-patterns detected</strong>
               </div>
             )}
 
