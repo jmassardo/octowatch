@@ -116,7 +116,7 @@
                ▼                                              ▼
 ┌──────────────────────────────────┐         ┌───────────────────────────┐
 │         WEB FRONTEND             │         │   EXTERNAL CONSUMERS      │
-│  React 18 + TypeScript + Vite    │         │  • Programmatic REST API  │
+│  React 19 + TypeScript + Vite    │         │  • Programmatic REST API  │
 │  TailwindCSS + Apache ECharts    │         │    (JWT auth required)    │
 │  TanStack Query + QueryBuilder   │         │  • Read-only PostgreSQL   │
 │  ────────────────────────────── │         │    connection (BI tools)  │
@@ -283,7 +283,7 @@ For all modes, each Ingestion Worker acquires a source lock using `SELECT id FRO
 | Attribute | Detail |
 |-----------|--------|
 | **Responsibility** | Browser SPA: metric dashboards, detection lifecycle viewer, self-service query builder, WYSIWYG rule editor, admin portal |
-| **Technology** | React 18.3 (MIT), TypeScript 5.4, Vite 5.4 (MIT), TailwindCSS 3.4 (MIT), TanStack Query v5 (MIT), Apache ECharts 5.5 (Apache 2.0), @react-querybuilder/react-querybuilder 7.x (MIT), Monaco Editor 0.49 (MIT) |
+| **Technology** | React 19 (MIT), TypeScript 5.8, Vite 8 (MIT), TanStack Query v5 (MIT), Apache ECharts 5.5 (Apache 2.0), @react-querybuilder/react-querybuilder 7.x (MIT), Monaco Editor 0.49 (MIT) |
 | **Key Interfaces** | REST API Layer exclusively; no direct database access; all JSONB rendered through React's default HTML escaping |
 | **Scalability** | Static asset bundle; served by nginx container; CDN-cacheable (content-hash filenames); no SSR required |
 
