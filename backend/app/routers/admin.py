@@ -9,6 +9,7 @@ from fastapi.responses import Response
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.deps import AuthenticatedUser, get_db, require_role
 from app.models.user import RbacRole, UserRoleAssignment
 from app.schemas.integration import (
@@ -18,6 +19,7 @@ from app.schemas.integration import (
     RoleAssignmentResponse,
 )
 from app.services.report_service import get_top_actors_report
+from app.services.settings_service import get_setting, set_setting
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -379,4 +381,82 @@ async def get_ingest_job(
         "file_name": (row.parameters or {}).get("file_name", "unknown"),
         "file_type": (row.parameters or {}).get("type", "unknown"),
         "events_processed": (row.parameters or {}).get("events_processed", 0),
+    }
+
+
+@router.get("/audit-stream/config")
+async def get_audit_stream_config(
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Get current audit log streaming configuration."""
+    stream_user = await get_setting(db, "minio_stream_user")
+    stream_password = await get_setting(db, "minio_stream_password")
+
+    base_url = settings.AUTH.APP_BASE_URL
+    bucket = settings.MINIO.MINIO_AUDIT_BUCKET
+
+    return {
+        "configured": bool(stream_user and stream_password),
+        "stream_user": stream_user or "",
+        "s3_endpoint": f"{base_url}/s3",
+        "bucket": bucket,
+        "region": "us-east-1",
+        "instructions": {
+            "step_1": "Go to GitHub Enterprise → Settings → Audit Log → Log Streaming",
+            "step_2": "Select 'Amazon S3' as the provider",
+            "step_3": f"S3 Endpoint: {base_url}/s3",
+            "step_4": f"Bucket: {bucket}",
+            "step_5": f"Access Key ID: {stream_user or '<configure first>'}",
+            "step_6": "Secret Access Key: <use the password configured in the vault>",
+            "step_7": "Region: us-east-1",
+        },
+    }
+
+
+@router.put("/audit-stream/config")
+async def update_audit_stream_config(
+    payload: dict[str, str],
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Update audit log streaming credentials in the vault."""
+    stream_user = payload.get("stream_user", "").strip()
+    stream_password = payload.get("stream_password", "").strip()
+
+    if not stream_user or not stream_password:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Both stream_user and stream_password are required",
+        )
+    if len(stream_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="stream_password must be at least 8 characters (MinIO requirement)",
+        )
+
+    await set_setting(
+        db,
+        "minio_stream_user",
+        stream_user,
+        category="audit_stream",
+        sensitivity="sensitive",
+        description="MinIO streaming service account username",
+        changed_by=current_user.github_login,
+    )
+    await set_setting(
+        db,
+        "minio_stream_password",
+        stream_password,
+        category="audit_stream",
+        sensitivity="critical",
+        description="MinIO streaming service account password",
+        changed_by=current_user.github_login,
+    )
+
+    return {
+        "status": "ok",
+        "message": (
+            "Streaming credentials updated. Restart minio-setup to provision the user in MinIO."
+        ),
     }

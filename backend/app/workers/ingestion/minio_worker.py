@@ -40,21 +40,31 @@ class MinioIngestWorker(AbstractIngestWorker):
                 logger.error("minio_worker.processing_error", error=str(exc))
 
     async def _process_notification(self, notification: dict[str, Any]) -> None:
-        """Validate HMAC signature and ingest the referenced object."""
-        # Verify HMAC-SHA256 signature
-        signature = notification.get("signature", "")
-        payload_bytes = json.dumps(
-            {k: v for k, v in notification.items() if k != "signature"}, sort_keys=True
-        ).encode()
-        expected = hmac.new(
-            (settings.MINIO.MINIO_HMAC_SECRET or "").encode(),
-            payload_bytes,
-            hashlib.sha256,
-        ).hexdigest()
+        """Validate optional HMAC signature and ingest the referenced object.
 
-        if not hmac.compare_digest(signature, expected):
-            logger.warning("minio_worker.hmac_invalid")
-            return
+        HMAC verification is only performed when ``MINIO_HMAC_SECRET`` is
+        configured.  MinIO native bucket notifications do not include HMAC
+        signatures, so the check is skipped by default.
+        """
+        hmac_secret = settings.MINIO.MINIO_HMAC_SECRET
+        if hmac_secret:
+            # Verify HMAC-SHA256 signature
+            signature = notification.get("signature", "")
+            payload_bytes = json.dumps(
+                {k: v for k, v in notification.items() if k != "signature"},
+                sort_keys=True,
+            ).encode()
+            expected = hmac.new(
+                hmac_secret.encode(),
+                payload_bytes,
+                hashlib.sha256,
+            ).hexdigest()
+
+            if not hmac.compare_digest(signature, expected):
+                logger.warning("minio_worker.hmac_invalid")
+                return
+        else:
+            logger.debug("minio_worker.hmac_skip", reason="MINIO_HMAC_SECRET not configured")
 
         # Extract object key
         records = notification.get("Records", [])

@@ -85,12 +85,13 @@ services:
   # ---------------------------------------------------------------------------
   # MinIO RELEASE.2024-06-13T22-53-53Z (AGPL-3.0)
   # Self-hosted S3-compatible object store. GitHub streams audit logs directly
-  # here. Bucket event notifications are published to Valkey pub/sub channel
+  # here via the nginx /s3/ reverse proxy (TLS-terminated).
+  # Bucket event notifications are published to Valkey pub/sub channel
   # `minio:events` on every new .json.gz PUT, triggering near-real-time
   # ingestion without waiting for the Celery Beat polling tick.
   #
-  # Ports exposed only on 127.0.0.1 — MinIO must be placed behind a
-  # TLS-terminating reverse proxy (nginx/Caddy) for GitHub SSL validation.
+  # Ports exposed only on 127.0.0.1 — nginx proxies public S3 traffic from
+  # /s3/ → minio:9000. Do not expose MinIO ports directly.
   # See architecture.md §2.1 MinIO mode requirement.
   # ---------------------------------------------------------------------------
   minio:
@@ -104,8 +105,10 @@ services:
       MINIO_NOTIFY_REDIS_ADDRESS_PRIMARY: valkey:6379
       MINIO_NOTIFY_REDIS_PASSWORD_PRIMARY: ${VALKEY_PASSWORD}
       MINIO_NOTIFY_REDIS_KEY_PRIMARY: minio:events
-      # namespace format: each notification includes the object key and bucket
-      MINIO_NOTIFY_REDIS_FORMAT_PRIMARY: namespace
+      # access format: publishes the full S3 event notification JSON (Records
+      # array) to the Valkey channel via PUBLISH, which the MinioIngestWorker
+      # consumes via pub/sub.  (The "namespace" format uses SET, not PUBLISH.)
+      MINIO_NOTIFY_REDIS_FORMAT_PRIMARY: access
     volumes:
       - minio_data:/data
     ports:
@@ -144,6 +147,8 @@ services:
       MINIO_AUDIT_BUCKET: ${MINIO_AUDIT_BUCKET}
       MINIO_INGEST_USER: ${MINIO_INGEST_USER}
       MINIO_INGEST_PASSWORD: ${MINIO_INGEST_PASSWORD}
+      MINIO_STREAM_USER: ${MINIO_STREAM_USER:-github-stream}
+      MINIO_STREAM_PASSWORD: ${MINIO_STREAM_PASSWORD:-}
     networks:
       - internal
     entrypoint: ["/bin/sh", "-c"]
@@ -180,6 +185,41 @@ services:
         # Create scoped service account for ingestion workers
         mc admin user add local $${MINIO_INGEST_USER} $${MINIO_INGEST_PASSWORD} || true
         mc admin policy attach local ingestion-ro --user $${MINIO_INGEST_USER} || true
+
+        # Create write policy for GitHub audit log streaming (PutObject + required S3 ops)
+        cat > /tmp/stream-policy.json <<EOF
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:PutObject",
+                "s3:GetBucketLocation",
+                "s3:ListBucket",
+                "s3:ListBucketMultipartUploads",
+                "s3:ListMultipartUploadParts",
+                "s3:AbortMultipartUpload"
+              ],
+              "Resource": [
+                "arn:aws:s3:::$${MINIO_AUDIT_BUCKET}",
+                "arn:aws:s3:::$${MINIO_AUDIT_BUCKET}/*"
+              ]
+            }
+          ]
+        }
+        EOF
+        mc admin policy create local streaming-write /tmp/stream-policy.json || true
+
+        # Create GitHub streaming service account (only if password is configured)
+        if [ -n "$${MINIO_STREAM_PASSWORD}" ]; then
+          mc admin user add local $${MINIO_STREAM_USER} $${MINIO_STREAM_PASSWORD} || true
+          mc admin policy attach local streaming-write --user $${MINIO_STREAM_USER} || true
+          echo "minio-setup: streaming user '$${MINIO_STREAM_USER}' provisioned"
+        else
+          echo "minio-setup: MINIO_STREAM_PASSWORD not set, skipping streaming user creation"
+          echo "minio-setup: configure via OctoWatch admin UI → Audit Log Streaming"
+        fi
 
         echo "minio-setup: completed successfully"
     restart: on-failure
@@ -421,6 +461,7 @@ services:
   # ---------------------------------------------------------------------------
   # nginx 1.26 — TLS termination and reverse proxy
   # Proxies: /api/  → api:8000
+  #          /s3/   → minio:9000 (GitHub audit log streaming)
   #          /      → frontend:3001
   # HTTP → HTTPS redirect enforced. HSTS header applied.
   # Mount your TLS certificates into ./nginx/ssl/ before starting.

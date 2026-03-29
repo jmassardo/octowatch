@@ -41,6 +41,8 @@ SETTING_MAP: dict[str, tuple[str | None, str]] = {
     "minio_ingest_user": ("MINIO", "MINIO_INGEST_USER"),
     "minio_ingest_password": ("MINIO", "MINIO_INGEST_PASSWORD"),
     "minio_audit_bucket": ("MINIO", "MINIO_AUDIT_BUCKET"),
+    "minio_stream_user": ("MINIO", "MINIO_STREAM_USER"),
+    "minio_stream_password": ("MINIO", "MINIO_STREAM_PASSWORD"),
     # App config
     "app_base_url": ("AUTH", "APP_BASE_URL"),
     "detection_confidence_threshold": (None, "DETECTION_CONFIDENCE_THRESHOLD"),

@@ -42,6 +42,21 @@ class TLSSetup(BaseModel):
     generate_self_signed: bool = False
 
 
+class AuditStreamSetup(BaseModel):
+    """Payload for ``POST /setup/audit-stream``."""
+
+    stream_user: str = Field(
+        default="github-stream",
+        min_length=3,
+        description="MinIO service account username for GitHub audit log streaming",
+    )
+    stream_password: str = Field(
+        ...,
+        min_length=8,
+        description="MinIO service account password (min 8 chars, required by MinIO)",
+    )
+
+
 class SettingUpdate(BaseModel):
     """Payload for ``PUT /admin/settings/{key}``."""
 

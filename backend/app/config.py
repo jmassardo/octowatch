@@ -96,6 +96,15 @@ class MinIOSettings(BaseSettings):
         description="HMAC secret for MinIO bucket notification signature verification",
     )
 
+    MINIO_STREAM_USER: str = Field(
+        default="github-stream",
+        description="MinIO service account for GitHub audit log streaming (write access)",
+    )
+    MINIO_STREAM_PASSWORD: str = Field(
+        default="",
+        description="Password for the MinIO streaming service account",
+    )
+
     @field_validator("MINIO_ENDPOINT_URL")
     @classmethod
     def validate_minio_endpoint(cls, v: str) -> str:

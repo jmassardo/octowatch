@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.deps import AuthenticatedUser, get_db, get_valkey, require_role
 from app.schemas.setup import (
+    AuditStreamSetup,
     GitHubAppSetup,
     GitHubOAuthSetup,
     SetupLoginRequest,
@@ -312,6 +313,40 @@ async def setup_tls(
         changed_by=current_user.github_login,
     )
     return {"status": "ok", "message": "TLS configured"}
+
+
+@router.post("/audit-stream")
+async def setup_audit_stream(
+    payload: AuditStreamSetup,
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Step 4: Configure audit log streaming credentials.
+
+    Saves the MinIO streaming service account credentials to the vault.
+    The minio-setup sidecar provisions these credentials in MinIO on next restart.
+    """
+    await _require_setup_incomplete(db)
+
+    await set_setting(
+        db,
+        "minio_stream_user",
+        payload.stream_user,
+        category="audit_stream",
+        sensitivity="sensitive",
+        description="MinIO streaming service account username",
+        changed_by=current_user.github_login,
+    )
+    await set_setting(
+        db,
+        "minio_stream_password",
+        payload.stream_password,
+        category="audit_stream",
+        sensitivity="critical",
+        description="MinIO streaming service account password",
+        changed_by=current_user.github_login,
+    )
+    return {"status": "ok", "message": "Audit log streaming credentials saved"}
 
 
 @router.post("/complete")
