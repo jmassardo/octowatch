@@ -511,10 +511,17 @@ class TestFetchMetricsRaw:
     @pytest.mark.asyncio
     async def test_returns_error_when_no_enterprise_slug(self) -> None:
         db = AsyncMock(spec=AsyncSession)
-        with patch.object(
-            copilot_metrics_service.settings.github_app,
-            "GITHUB_ENTERPRISE_SLUG",
-            None,
+        with (
+            patch(
+                "app.services.settings_service.get_setting",
+                new_callable=AsyncMock,
+                return_value="true",
+            ),
+            patch.object(
+                copilot_metrics_service.settings.github_app,
+                "GITHUB_ENTERPRISE_SLUG",
+                None,
+            ),
         ):
             result = await copilot_metrics_service._fetch_metrics_raw(db)
         assert isinstance(result, dict)
@@ -524,6 +531,11 @@ class TestFetchMetricsRaw:
     async def test_returns_error_when_no_app_id(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         with (
+            patch(
+                "app.services.settings_service.get_setting",
+                new_callable=AsyncMock,
+                return_value="true",
+            ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
                 "GITHUB_ENTERPRISE_SLUG",
@@ -547,6 +559,11 @@ class TestFetchMetricsRaw:
         db.execute = AsyncMock(return_value=mock_result)
 
         with (
+            patch(
+                "app.services.settings_service.get_setting",
+                new_callable=AsyncMock,
+                return_value="true",
+            ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
                 "GITHUB_ENTERPRISE_SLUG",
@@ -580,6 +597,11 @@ class TestFetchMetricsRaw:
         cached_data = json.dumps(_make_sample_days(2))
 
         with (
+            patch(
+                "app.services.settings_service.get_setting",
+                new_callable=AsyncMock,
+                return_value="true",
+            ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
                 "GITHUB_ENTERPRISE_SLUG",
@@ -676,6 +698,16 @@ class TestMissingFields:
 class TestFetchMetricsRawFullPaths:
     """Test the token-exchange and HTTP call paths in _fetch_metrics_raw."""
 
+    @pytest.fixture(autouse=True)
+    def _enable_copilot_feature(self):
+        """Patch the feature toggle to 'true' for all tests in this class."""
+        with patch(
+            "app.services.settings_service.get_setting",
+            new_callable=AsyncMock,
+            return_value="true",
+        ):
+            yield
+
     def _build_mocks(self) -> tuple[AsyncMock, AsyncMock, MagicMock]:
         """Build standard mocks: db, valkey, and a mock config row."""
         db = AsyncMock(spec=AsyncSession)
@@ -712,17 +744,15 @@ class TestFetchMetricsRawFullPaths:
             ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
-                "GITHUB_APP_PRIVATE_KEY_PATH",
-                "/tmp/test-key.pem",
+                "GITHUB_APP_PRIVATE_KEY_PEM",
+                "FAKE_KEY",
             ),
             patch("app.services.copilot_metrics_service.aioredis") as mock_aioredis,
-            patch("app.services.copilot_metrics_service.Path") as mock_path,
             patch(
                 "app.services.copilot_metrics_service.GitHubAppTokenManager"
             ) as mock_token_mgr_cls,
         ):
             mock_aioredis.Redis.from_url.return_value = mock_valkey
-            mock_path.return_value.read_text.return_value = "FAKE_KEY"
             mock_token_mgr = AsyncMock()
             mock_token_mgr.get_installation_token = AsyncMock(
                 side_effect=GitHubAuthError("Auth failed")
@@ -733,7 +763,7 @@ class TestFetchMetricsRawFullPaths:
 
         assert isinstance(result, dict)
         assert result["error"] == "copilot_not_available"
-        assert "Auth failed" in result["message"]
+        assert "Check App credentials" in result["message"]
 
     @pytest.mark.asyncio
     async def test_returns_error_on_unexpected_token_error(self) -> None:
@@ -753,17 +783,15 @@ class TestFetchMetricsRawFullPaths:
             ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
-                "GITHUB_APP_PRIVATE_KEY_PATH",
-                "/tmp/test-key.pem",
+                "GITHUB_APP_PRIVATE_KEY_PEM",
+                "FAKE_KEY",
             ),
             patch("app.services.copilot_metrics_service.aioredis") as mock_aioredis,
-            patch("app.services.copilot_metrics_service.Path") as mock_path,
             patch(
                 "app.services.copilot_metrics_service.GitHubAppTokenManager"
             ) as mock_token_mgr_cls,
         ):
             mock_aioredis.Redis.from_url.return_value = mock_valkey
-            mock_path.return_value.read_text.return_value = "FAKE_KEY"
             mock_token_mgr = AsyncMock()
             mock_token_mgr.get_installation_token = AsyncMock(
                 side_effect=RuntimeError("Something broke")
@@ -774,7 +802,7 @@ class TestFetchMetricsRawFullPaths:
 
         assert isinstance(result, dict)
         assert result["error"] == "copilot_not_available"
-        assert "Something broke" in result["message"]
+        assert "Check server logs" in result["message"]
 
     @pytest.mark.asyncio
     async def test_returns_error_on_403_response(self) -> None:
@@ -797,18 +825,16 @@ class TestFetchMetricsRawFullPaths:
             ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
-                "GITHUB_APP_PRIVATE_KEY_PATH",
-                "/tmp/test-key.pem",
+                "GITHUB_APP_PRIVATE_KEY_PEM",
+                "FAKE_KEY",
             ),
             patch("app.services.copilot_metrics_service.aioredis") as mock_aioredis,
-            patch("app.services.copilot_metrics_service.Path") as mock_path,
             patch(
                 "app.services.copilot_metrics_service.GitHubAppTokenManager"
             ) as mock_token_mgr_cls,
             patch("app.services.copilot_metrics_service.httpx") as mock_httpx,
         ):
             mock_aioredis.Redis.from_url.return_value = mock_valkey
-            mock_path.return_value.read_text.return_value = "FAKE_KEY"
             mock_token_mgr = AsyncMock()
             mock_token_mgr.get_installation_token = AsyncMock(return_value="fake-token")
             mock_token_mgr_cls.return_value = mock_token_mgr
@@ -846,18 +872,16 @@ class TestFetchMetricsRawFullPaths:
             ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
-                "GITHUB_APP_PRIVATE_KEY_PATH",
-                "/tmp/test-key.pem",
+                "GITHUB_APP_PRIVATE_KEY_PEM",
+                "FAKE_KEY",
             ),
             patch("app.services.copilot_metrics_service.aioredis") as mock_aioredis,
-            patch("app.services.copilot_metrics_service.Path") as mock_path,
             patch(
                 "app.services.copilot_metrics_service.GitHubAppTokenManager"
             ) as mock_token_mgr_cls,
             patch("app.services.copilot_metrics_service.httpx") as mock_httpx,
         ):
             mock_aioredis.Redis.from_url.return_value = mock_valkey
-            mock_path.return_value.read_text.return_value = "FAKE_KEY"
             mock_token_mgr = AsyncMock()
             mock_token_mgr.get_installation_token = AsyncMock(return_value="fake-token")
             mock_token_mgr_cls.return_value = mock_token_mgr
@@ -898,18 +922,16 @@ class TestFetchMetricsRawFullPaths:
             ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
-                "GITHUB_APP_PRIVATE_KEY_PATH",
-                "/tmp/test-key.pem",
+                "GITHUB_APP_PRIVATE_KEY_PEM",
+                "FAKE_KEY",
             ),
             patch("app.services.copilot_metrics_service.aioredis") as mock_aioredis,
-            patch("app.services.copilot_metrics_service.Path") as mock_path,
             patch(
                 "app.services.copilot_metrics_service.GitHubAppTokenManager"
             ) as mock_token_mgr_cls,
             patch("app.services.copilot_metrics_service.httpx") as mock_httpx,
         ):
             mock_aioredis.Redis.from_url.return_value = mock_valkey
-            mock_path.return_value.read_text.return_value = "FAKE_KEY"
             mock_token_mgr = AsyncMock()
             mock_token_mgr.get_installation_token = AsyncMock(return_value="fake-token")
             mock_token_mgr_cls.return_value = mock_token_mgr
@@ -948,18 +970,16 @@ class TestFetchMetricsRawFullPaths:
             ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
-                "GITHUB_APP_PRIVATE_KEY_PATH",
-                "/tmp/test-key.pem",
+                "GITHUB_APP_PRIVATE_KEY_PEM",
+                "FAKE_KEY",
             ),
             patch("app.services.copilot_metrics_service.aioredis") as mock_aioredis,
-            patch("app.services.copilot_metrics_service.Path") as mock_path,
             patch(
                 "app.services.copilot_metrics_service.GitHubAppTokenManager"
             ) as mock_token_mgr_cls,
             patch("app.services.copilot_metrics_service.httpx") as mock_httpx,
         ):
             mock_aioredis.Redis.from_url.return_value = mock_valkey
-            mock_path.return_value.read_text.return_value = "FAKE_KEY"
             mock_token_mgr = AsyncMock()
             mock_token_mgr.get_installation_token = AsyncMock(return_value="fake-token")
             mock_token_mgr_cls.return_value = mock_token_mgr
@@ -1005,18 +1025,16 @@ class TestFetchMetricsRawFullPaths:
             ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
-                "GITHUB_APP_PRIVATE_KEY_PATH",
-                "/tmp/test-key.pem",
+                "GITHUB_APP_PRIVATE_KEY_PEM",
+                "FAKE_KEY",
             ),
             patch("app.services.copilot_metrics_service.aioredis") as mock_aioredis,
-            patch("app.services.copilot_metrics_service.Path") as mock_path,
             patch(
                 "app.services.copilot_metrics_service.GitHubAppTokenManager"
             ) as mock_token_mgr_cls,
             patch("app.services.copilot_metrics_service.httpx") as mock_httpx,
         ):
             mock_aioredis.Redis.from_url.return_value = mock_valkey
-            mock_path.return_value.read_text.return_value = "FAKE_KEY"
             mock_token_mgr = AsyncMock()
             mock_token_mgr.get_installation_token = AsyncMock(return_value="fake-token")
             mock_token_mgr_cls.return_value = mock_token_mgr
@@ -1032,7 +1050,7 @@ class TestFetchMetricsRawFullPaths:
 
         assert isinstance(result, dict)
         assert result["error"] == "copilot_not_available"
-        assert "Network down" in result["message"]
+        assert "Check server logs" in result["message"]
 
     @pytest.mark.asyncio
     async def test_cache_write_failure_does_not_crash(self) -> None:
@@ -1059,18 +1077,16 @@ class TestFetchMetricsRawFullPaths:
             ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
-                "GITHUB_APP_PRIVATE_KEY_PATH",
-                "/tmp/test-key.pem",
+                "GITHUB_APP_PRIVATE_KEY_PEM",
+                "FAKE_KEY",
             ),
             patch("app.services.copilot_metrics_service.aioredis") as mock_aioredis,
-            patch("app.services.copilot_metrics_service.Path") as mock_path,
             patch(
                 "app.services.copilot_metrics_service.GitHubAppTokenManager"
             ) as mock_token_mgr_cls,
             patch("app.services.copilot_metrics_service.httpx") as mock_httpx,
         ):
             mock_aioredis.Redis.from_url.return_value = mock_valkey
-            mock_path.return_value.read_text.return_value = "FAKE_KEY"
             mock_token_mgr = AsyncMock()
             mock_token_mgr.get_installation_token = AsyncMock(return_value="fake-token")
             mock_token_mgr_cls.return_value = mock_token_mgr

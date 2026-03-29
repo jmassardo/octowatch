@@ -111,6 +111,27 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
     Returns either the parsed JSON array on success, or an error dict.
     Results are cached in Valkey for ``_CACHE_TTL_SECONDS``.
     """
+    # Check feature toggle first
+    from app.services.settings_service import get_setting
+
+    copilot_enabled = await get_setting(db, "feature_copilot_insights")
+    if copilot_enabled is not None and copilot_enabled.lower() not in (
+        "true",
+        "1",
+        "yes",
+        "on",
+    ):
+        return {
+            "error": "feature_disabled",
+            "message": "Copilot Insights is disabled. Enable it in Settings → Features.",
+        }
+    elif copilot_enabled is None:
+        # Default is False for copilot_insights
+        return {
+            "error": "feature_disabled",
+            "message": "Copilot Insights is disabled. Enable it in Settings → Features.",
+        }
+
     enterprise_slug = settings.github_app.GITHUB_ENTERPRISE_SLUG
     if not enterprise_slug:
         return {"error": "no_enterprise_config", "message": "GITHUB_ENTERPRISE_SLUG is not set."}

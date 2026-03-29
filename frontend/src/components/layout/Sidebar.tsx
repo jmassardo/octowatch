@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { listDetections } from '../../api/detections';
 import { getHealthSummary } from '../../api/healthSignals';
+import { useFeatures } from '../../hooks/useFeatures';
 import styles from './Sidebar.module.css';
 
 function NavItem({
@@ -32,6 +33,8 @@ function NavItem({
 }
 
 export function Sidebar() {
+  const { features } = useFeatures();
+
   const { data: detections } = useQuery({
     queryKey: ['threats', 'open-count'],
     queryFn: () => listDetections({ status: 'investigating', page_size: 1 }),
@@ -108,6 +111,7 @@ export function Sidebar() {
 
       <div className={styles.navSection}>
         <div className={styles.navLabel}>Platform Intelligence</div>
+        {features.velocity && (
         <NavItem
           to="/velocity"
           icon={
@@ -119,6 +123,8 @@ export function Sidebar() {
         >
           Engineering Velocity
         </NavItem>
+        )}
+        {features.dev_activity && (
         <NavItem
           to="/devactivity"
           icon={
@@ -129,6 +135,8 @@ export function Sidebar() {
         >
           Developer Activity
         </NavItem>
+        )}
+        {features.copilot_insights && (
         <NavItem
           to="/copilot"
           icon={
@@ -139,6 +147,8 @@ export function Sidebar() {
         >
           Copilot Insights
         </NavItem>
+        )}
+        {features.org_health && (
         <NavItem
           to="/health"
           badge={healthBadge}
@@ -150,6 +160,7 @@ export function Sidebar() {
         >
           Org Health
         </NavItem>
+        )}
       </div>
 
       <div className={styles.navSection}>

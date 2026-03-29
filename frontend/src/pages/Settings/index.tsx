@@ -13,6 +13,7 @@ import { Modal } from '../../components/primitives/Modal';
 import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { useFeatures } from '../../hooks/useFeatures';
 import styles from './Settings.module.css';
 
 /* ------------------------------------------------------------------ */
@@ -22,7 +23,7 @@ import styles from './Settings.module.css';
 const CATEGORIES = ['All', 'GitHub', 'Security', 'Storage', 'Notifications', 'System'] as const;
 type Category = (typeof CATEGORIES)[number];
 
-const SLUG_TO_TAB: Record<string, Category | 'Audit'> = {
+const SLUG_TO_TAB: Record<string, Category | 'Audit' | 'Features'> = {
   all: 'All',
   github: 'GitHub',
   security: 'Security',
@@ -30,6 +31,7 @@ const SLUG_TO_TAB: Record<string, Category | 'Audit'> = {
   notifications: 'Notifications',
   system: 'System',
   audit: 'Audit',
+  features: 'Features',
 };
 
 const TAB_TO_SLUG: Record<string, string> = Object.fromEntries(
@@ -179,6 +181,69 @@ function AuditTrailTable() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Features Pane                                                      */
+/* ------------------------------------------------------------------ */
+
+const FEATURE_INFO = [
+  {
+    key: 'copilot_insights' as const,
+    label: 'Copilot Insights',
+    description:
+      'GitHub Copilot adoption, seat utilization, and model usage analytics. Requires Copilot subscription and Metrics API access enabled in enterprise settings.',
+  },
+  {
+    key: 'velocity' as const,
+    label: 'Engineering Velocity',
+    description:
+      'CI/CD pipeline metrics, deployment frequency, lead time, and DORA metrics derived from GitHub Actions workflow data.',
+  },
+  {
+    key: 'dev_activity' as const,
+    label: 'Developer Activity',
+    description:
+      'Individual and team contribution analytics including commits, pull requests, and code review activity.',
+  },
+  {
+    key: 'org_health' as const,
+    label: 'Org Health',
+    description:
+      'Repository health signals, access auditing, license optimization, and GitHub Well-Architected Framework alignment.',
+  },
+];
+
+function FeaturesPane() {
+  const { features, toggleFeature, isToggling } = useFeatures();
+
+  return (
+    <div className={styles.featuresPane}>
+      <p className={styles.featuresDescription}>
+        Enable or disable optional platform features. Disabled features are hidden from the sidebar
+        and will not make API calls.
+      </p>
+      <div className={styles.featuresList}>
+        {FEATURE_INFO.map(({ key, label, description }) => (
+          <div key={key} className={styles.featureRow}>
+            <div className={styles.featureInfo}>
+              <div className={styles.featureLabel}>{label}</div>
+              <div className={styles.featureDescription}>{description}</div>
+            </div>
+            <label className={styles.toggleSwitch}>
+              <input
+                type="checkbox"
+                checked={features[key]}
+                onChange={(e) => toggleFeature(key, e.target.checked)}
+                disabled={isToggling}
+              />
+              <span className={styles.toggleSlider} />
+            </label>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Settings Page                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -186,7 +251,7 @@ export function SettingsPage() {
   const qc = useQueryClient();
   const { tab: tabSlug } = useParams<{ tab: string }>();
   const navigate = useNavigate();
-  const activeTab: Category | 'Audit' = SLUG_TO_TAB[tabSlug ?? 'all'] ?? 'All';
+  const activeTab: Category | 'Audit' | 'Features' = SLUG_TO_TAB[tabSlug ?? 'all'] ?? 'All';
   const [editTarget, setEditTarget] = useState<AppSetting | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppSetting | null>(null);
 
@@ -218,7 +283,7 @@ export function SettingsPage() {
     (s: AppSetting) => activeTab === 'All' || s.category.toLowerCase() === (activeTab as string).toLowerCase(),
   ) ?? [];
 
-  const isCategory = activeTab !== 'Audit';
+  const isCategory = activeTab !== 'Audit' && activeTab !== 'Features';
 
   return (
     <div className={styles.page}>
@@ -246,10 +311,18 @@ export function SettingsPage() {
         >
           Audit Trail
         </button>
+        <button
+          className={activeTab === 'Features' ? styles.tabActive : styles.tab}
+          onClick={() => navigate('/settings/features')}
+        >
+          Features
+        </button>
       </div>
 
       {/* Content */}
-      {activeTab === 'Audit' ? (
+      {activeTab === 'Features' ? (
+        <FeaturesPane />
+      ) : activeTab === 'Audit' ? (
         <AuditTrailTable />
       ) : (
         <>
