@@ -366,12 +366,12 @@ async def get_external_collaborators(
     result = await session.execute(
         text("""
             SELECT
-                ec.github_login,
+                ec.login        AS github_login,
                 ec.org,
                 ec.repo,
                 ec.role,
-                ec.granted_at,
-                ec.granted_by,
+                ec.added_at     AS granted_at,
+                ec.added_by     AS granted_by,
                 ec.last_event_at,
                 CASE
                     WHEN ec.last_event_at IS NULL THEN NULL
@@ -381,10 +381,10 @@ async def get_external_collaborators(
                 ia.employment_status        AS idp_employment_status
             FROM external_collaborators ec
             LEFT JOIN idp_actor_enrichments ia
-                ON ia.github_login = ec.github_login
+                ON ia.github_login = ec.login
             WHERE ec.org       = ANY(:scoped_orgs)
               AND ec.status    = 'active'
-            ORDER BY ec.granted_at DESC
+            ORDER BY ec.added_at DESC
             LIMIT :limit
         """),
         {"scoped_orgs": scoped_orgs, "limit": limit},
@@ -430,11 +430,11 @@ async def get_dormant_collaborators(
     result = await session.execute(
         text("""
             SELECT
-                github_login, org, repo, role,
-                granted_at, last_event_at,
+                login AS github_login, org, repo, role,
+                added_at AS granted_at, last_event_at,
                 CASE
                     WHEN last_event_at IS NULL
-                        THEN EXTRACT(DAY FROM NOW() - granted_at)::INT
+                        THEN EXTRACT(DAY FROM NOW() - added_at)::INT
                     ELSE EXTRACT(DAY FROM NOW() - last_event_at)::INT
                 END AS days_inactive
             FROM external_collaborators
