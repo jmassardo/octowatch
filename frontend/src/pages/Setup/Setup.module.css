@@ -230,3 +230,33 @@
   color: var(--fg-muted);
   margin: 0;
 }
+
+.syncHeading {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0 0 8px;
+}
+
+.syncDescription {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.syncProgress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-top: 12px;
+}
+
+.syncSuccess {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--success);
+  margin: 0 0 8px;
+}

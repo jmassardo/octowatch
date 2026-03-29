@@ -800,3 +800,50 @@
   border-radius: 6px;
   text-align: center;
 }
+
+/* ===== Schedule section ===== */
+
+.scheduleSection {
+  border-top: 1px solid var(--border-muted);
+  padding-top: 16px;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scheduleTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.scheduleInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--canvas-inset);
+  border-radius: 6px;
+}
+
+.scheduleInfoRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.scheduleInfoLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.scheduleInfoValue {
+  color: var(--fg);
+  font-size: 13px;
+}

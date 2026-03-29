@@ -46,6 +46,20 @@ vi.mock('../../api/sync', () => ({
   updateSyncConfig: (...args: unknown[]) => mockUpdateSyncConfig(...args),
   listSyncRuns: vi.fn().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 10, has_next: false }),
   getSyncRun: vi.fn().mockResolvedValue(null),
+  getSyncSchedule: vi.fn().mockResolvedValue({
+    enabled: false,
+    interval_hours: 24,
+    scope: 'full',
+    next_run_at: null,
+    last_completed_at: null,
+  }),
+  updateSyncSchedule: vi.fn().mockResolvedValue({
+    enabled: false,
+    interval_hours: 24,
+    scope: 'full',
+    next_run_at: null,
+    last_completed_at: null,
+  }),
 }));
 
 vi.mock('../../api/ingest', () => ({

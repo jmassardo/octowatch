@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   setupLogin,
@@ -13,6 +13,7 @@ import type {
   GitHubAppSetup,
   TLSSetup,
 } from '../../api/setup';
+import { triggerSync, getSyncStatus } from '../../api/sync';
 import { Button } from '../../components/primitives/Button';
 import { Spinner } from '../../components/primitives/Spinner';
 import styles from './Setup.module.css';
@@ -21,7 +22,7 @@ import styles from './Setup.module.css';
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const STEP_LABELS = ['Authenticate', 'GitHub OAuth', 'GitHub App', 'TLS', 'Review'];
+const STEP_LABELS = ['Authenticate', 'GitHub OAuth', 'GitHub App', 'Initial Sync', 'TLS', 'Review'];
 const TOTAL_STEPS = STEP_LABELS.length;
 
 /* ------------------------------------------------------------------ */
@@ -319,7 +320,166 @@ function GitHubAppStep({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step 4: TLS                                                        */
+/*  Step 4: Initial Sync                                               */
+/* ------------------------------------------------------------------ */
+
+type SyncPhase = 'idle' | 'syncing' | 'completed' | 'failed';
+
+function InitialSyncStep({
+  onComplete,
+  onBack,
+  onSkip,
+  appConfigured,
+}: {
+  onComplete: () => void;
+  onBack: () => void;
+  onSkip: () => void;
+  appConfigured: boolean;
+}) {
+  const [phase, setPhase] = useState<SyncPhase>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [entityProgress, setEntityProgress] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current !== null) {
+        clearInterval(pollRef.current);
+      }
+    };
+  }, []);
+
+  function stopPolling() {
+    if (pollRef.current !== null) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }
+
+  function startPolling() {
+    pollRef.current = setInterval(async () => {
+      try {
+        const status = await getSyncStatus();
+        if (status === null) {
+          return;
+        }
+        if (status.entity_counts) {
+          const parts = Object.entries(status.entity_counts).map(
+            ([entity, count]) => `${entity}: ${count}`,
+          );
+          setEntityProgress(parts.join(', '));
+        }
+        if (status.status === 'completed') {
+          stopPolling();
+          setPhase('completed');
+        } else if (status.status === 'failed') {
+          stopPolling();
+          setPhase('failed');
+          setError(status.error_message ?? 'Sync failed. Please try again.');
+        }
+      } catch {
+        stopPolling();
+        setPhase('failed');
+        setError('Failed to check sync status.');
+      }
+    }, 5000);
+  }
+
+  async function handleStartSync() {
+    setPhase('syncing');
+    setError(null);
+    setEntityProgress(null);
+    try {
+      await triggerSync('full');
+      startPolling();
+    } catch {
+      setPhase('failed');
+      setError('Failed to start sync. Please try again.');
+    }
+  }
+
+  if (!appConfigured) {
+    return (
+      <div>
+        <p className={styles.hint}>
+          Configure a GitHub App first to enable enterprise sync.
+        </p>
+        <div className={styles.actions}>
+          <Button type="button" onClick={onBack}>
+            Back
+          </Button>
+          <Button type="button" onClick={onSkip}>
+            Skip
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'completed') {
+    return (
+      <div>
+        <p className={styles.syncSuccess}>✓ Sync complete!</p>
+        {entityProgress && (
+          <p className={styles.hint}>{entityProgress}</p>
+        )}
+        <div className={styles.actions}>
+          <Button type="button" onClick={onBack}>
+            Back
+          </Button>
+          <Button variant="primary" onClick={onComplete}>
+            Continue
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h2 className={styles.syncHeading}>Initial Enterprise Sync</h2>
+      <p className={styles.syncDescription}>
+        Sync your GitHub enterprise metadata (organizations, repositories, members, teams) to
+        establish a baseline for security monitoring.
+      </p>
+      <p className={styles.hint}>
+        Audit log events can be imported separately via S3/MinIO file export.
+      </p>
+      {phase === 'syncing' && (
+        <div className={styles.syncProgress}>
+          <Spinner size={16} />
+          <span>Syncing…{entityProgress ? ` (${entityProgress})` : ''}</span>
+        </div>
+      )}
+      <StepError message={error} />
+      <div className={styles.actions}>
+        <Button type="button" onClick={onBack} disabled={phase === 'syncing'}>
+          Back
+        </Button>
+        <div className={styles.actionsRight}>
+          <Button type="button" onClick={onSkip} disabled={phase === 'syncing'}>
+            Skip
+          </Button>
+          {phase === 'failed' ? (
+            <Button variant="primary" onClick={handleStartSync}>
+              Retry
+            </Button>
+          ) : (
+            <Button variant="primary" onClick={handleStartSync} disabled={phase === 'syncing'}>
+              {phase === 'syncing' ? 'Syncing…' : 'Start Sync'}
+            </Button>
+          )}
+        </div>
+      </div>
+      <p className={styles.skipNote}>
+        You can skip this step and run the sync later from the admin settings.
+      </p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Step 5: TLS                                                        */
 /* ------------------------------------------------------------------ */
 
 function TLSStep({
@@ -427,7 +587,7 @@ function TLSStep({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step 5: Review & Complete                                          */
+/*  Step 6: Review & Complete                                          */
 /* ------------------------------------------------------------------ */
 
 function ReviewStep({
@@ -465,6 +625,7 @@ function ReviewStep({
     { label: 'Authentication', key: 'token' },
     { label: 'GitHub OAuth', key: 'oauth' },
     { label: 'GitHub App', key: 'app' },
+    { label: 'Initial Sync', key: 'sync' },
     { label: 'TLS Certificate', key: 'tls' },
   ];
 
@@ -520,6 +681,7 @@ export function SetupPage() {
     token: false,
     oauth: false,
     app: false,
+    sync: false,
     tls: false,
   });
 
@@ -558,6 +720,15 @@ export function SetupPage() {
     goNext();
   }
 
+  function handleSyncComplete() {
+    markComplete('sync');
+    goNext();
+  }
+
+  function handleSyncSkip() {
+    goNext();
+  }
+
   function handleTLSComplete() {
     markComplete('tls');
     goNext();
@@ -576,8 +747,17 @@ export function SetupPage() {
       case 2:
         return <GitHubAppStep onComplete={handleAppComplete} onBack={goBack} onSkip={handleAppSkip} />;
       case 3:
-        return <TLSStep onComplete={handleTLSComplete} onBack={goBack} onSkip={handleTLSSkip} />;
+        return (
+          <InitialSyncStep
+            onComplete={handleSyncComplete}
+            onBack={goBack}
+            onSkip={handleSyncSkip}
+            appConfigured={completedSteps['app'] === true}
+          />
+        );
       case 4:
+        return <TLSStep onComplete={handleTLSComplete} onBack={goBack} onSkip={handleTLSSkip} />;
+      case 5:
         return <ReviewStep completedSteps={completedSteps} onBack={goBack} />;
       default:
         return null;

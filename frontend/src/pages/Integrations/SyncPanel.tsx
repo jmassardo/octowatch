@@ -1,6 +1,13 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { getSyncStatus, triggerSync, cancelSyncRun, getSyncConfig } from '../../api/sync';
+import {
+  getSyncStatus,
+  triggerSync,
+  cancelSyncRun,
+  getSyncConfig,
+  getSyncSchedule,
+  updateSyncSchedule,
+} from '../../api/sync';
 import { Button } from '../../components/primitives/Button';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
@@ -140,6 +147,213 @@ function ProgressBar({ cursors }: { cursors: EntityStatus[] }) {
       </span>
     </div>
   );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Interval options                                                   */
+/* ------------------------------------------------------------------ */
+
+const INTERVAL_OPTIONS = [
+  { value: 6, label: 'Every 6 hours' },
+  { value: 12, label: 'Every 12 hours' },
+  { value: 24, label: 'Daily (24h)' },
+  { value: 48, label: 'Every 2 days' },
+  { value: 72, label: 'Every 3 days' },
+  { value: 168, label: 'Weekly' },
+] as const;
+
+const SCOPE_OPTIONS = [
+  { value: 'full', label: 'Full' },
+  { value: 'orgs', label: 'Organizations' },
+  { value: 'enterprise_members', label: 'Enterprise Members' },
+  { value: 'org_members', label: 'Org Members' },
+  { value: 'repositories', label: 'Repositories' },
+  { value: 'teams', label: 'Teams' },
+  { value: 'team_members', label: 'Team Members' },
+  { value: 'branch_protections', label: 'Branch Protections' },
+  { value: 'installations', label: 'Installations' },
+] as const;
+
+/* ------------------------------------------------------------------ */
+/*  Schedule section                                                   */
+/* ------------------------------------------------------------------ */
+
+function ScheduleSection() {
+  const queryClient = useQueryClient();
+
+  const {
+    data: schedule,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ['sync-schedule'],
+    queryFn: getSyncSchedule,
+  });
+
+  const [localEnabled, setLocalEnabled] = useState<boolean | null>(null);
+  const [localInterval, setLocalInterval] = useState<number | null>(null);
+  const [localScope, setLocalScope] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+
+  // Resolve displayed values: local edits take precedence over server data
+  const enabled = localEnabled ?? schedule?.enabled ?? false;
+  const intervalHours = localInterval ?? schedule?.interval_hours ?? 24;
+  const scope = localScope ?? schedule?.scope ?? 'full';
+
+  const hasChanges =
+    schedule != null &&
+    (localEnabled !== null || localInterval !== null || localScope !== null);
+
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      const updates: { enabled?: boolean; interval_hours?: number; scope?: string } = {};
+      if (localEnabled !== null) updates.enabled = localEnabled;
+      if (localInterval !== null) updates.interval_hours = localInterval;
+      if (localScope !== null) updates.scope = localScope;
+      return updateSyncSchedule(updates);
+    },
+    onSuccess: () => {
+      setLocalEnabled(null);
+      setLocalInterval(null);
+      setLocalScope(null);
+      setSaveSuccess('Schedule saved successfully.');
+      queryClient.invalidateQueries({ queryKey: ['sync-schedule'] });
+      queryClient.invalidateQueries({ queryKey: ['sync-status'] });
+      setTimeout(() => setSaveSuccess(null), 3000);
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className={styles.scheduleSection} data-testid="schedule-section">
+        <div className={styles.syncLoading}>
+          <Spinner />
+          <span>Loading schedule…</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className={styles.scheduleSection} data-testid="schedule-section">
+        <ErrorBanner message="Failed to load schedule" onRetry={() => refetch()} />
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.scheduleSection} data-testid="schedule-section">
+      <h3 className={styles.scheduleTitle}>Schedule</h3>
+
+      {/* Enable toggle */}
+      <div className={styles.configField}>
+        <div className={styles.configToggleRow}>
+          <label className={styles.configLabel} htmlFor="schedule-enabled-toggle">
+            Enable automatic sync schedule
+          </label>
+          <input
+            id="schedule-enabled-toggle"
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => setLocalEnabled(e.target.checked)}
+          />
+        </div>
+      </div>
+
+      {/* Interval picker */}
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="schedule-interval-select">
+          Schedule interval
+        </label>
+        <select
+          id="schedule-interval-select"
+          className={styles.configInput}
+          value={intervalHours}
+          onChange={(e) => setLocalInterval(Number(e.target.value))}
+        >
+          {INTERVAL_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Scope selector */}
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="schedule-scope-select">
+          Sync scope
+        </label>
+        <select
+          id="schedule-scope-select"
+          className={styles.configInput}
+          value={scope}
+          onChange={(e) => setLocalScope(e.target.value)}
+        >
+          {SCOPE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Schedule info */}
+      <div className={styles.scheduleInfo}>
+        <div className={styles.scheduleInfoRow}>
+          <span className={styles.scheduleInfoLabel}>Next scheduled sync</span>
+          <span className={styles.scheduleInfoValue}>
+            {schedule?.next_run_at
+              ? formatScheduleDate(schedule.next_run_at)
+              : 'Not scheduled'}
+          </span>
+        </div>
+        <div className={styles.scheduleInfoRow}>
+          <span className={styles.scheduleInfoLabel}>Last completed sync</span>
+          <span className={styles.scheduleInfoValue}>
+            {schedule?.last_completed_at
+              ? formatScheduleDate(schedule.last_completed_at)
+              : 'Never'}
+          </span>
+        </div>
+      </div>
+
+      {/* Success / error messages */}
+      {saveSuccess && (
+        <div className={styles.configSuccess} role="status" aria-live="polite">
+          {saveSuccess}
+        </div>
+      )}
+      {saveMutation.isError && (
+        <div className={styles.configError}>
+          Failed to save schedule. Please try again.
+        </div>
+      )}
+
+      {/* Save button */}
+      <div className={styles.configActions}>
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={!hasChanges || saveMutation.isPending}
+          onClick={() => saveMutation.mutate()}
+        >
+          {saveMutation.isPending ? 'Saving…' : 'Save Schedule'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function formatScheduleDate(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -328,6 +542,9 @@ export function SyncPanel() {
           )}
         </div>
       )}
+
+      {/* Schedule section */}
+      <ScheduleSection />
     </Card>
   );
 }

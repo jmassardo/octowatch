@@ -46,3 +46,11 @@ export interface SyncConfig {
   readonly interval_days: number;
   readonly orgs: string[];
 }
+
+export interface SyncSchedule {
+  readonly enabled: boolean;
+  readonly interval_hours: number;
+  readonly scope: string;
+  readonly next_run_at: string | null;
+  readonly last_completed_at: string | null;
+}

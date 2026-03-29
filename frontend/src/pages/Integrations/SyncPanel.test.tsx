@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { SyncPanel } from './SyncPanel';
-import type { SyncRun, SyncConfig } from '../../types/sync';
+import type { SyncRun, SyncConfig, SyncSchedule } from '../../types/sync';
 
 /* ------------------------------------------------------------------ */
 /*  Mocks                                                              */
@@ -13,12 +13,16 @@ const mockGetSyncStatus = vi.fn<() => Promise<SyncRun>>();
 const mockTriggerSync = vi.fn<() => Promise<{ run_id: string; status: string }>>();
 const mockCancelSyncRun = vi.fn<(runId: string) => Promise<void>>();
 const mockGetSyncConfig = vi.fn<() => Promise<SyncConfig>>();
+const mockGetSyncSchedule = vi.fn<() => Promise<SyncSchedule>>();
+const mockUpdateSyncSchedule = vi.fn<() => Promise<SyncSchedule>>();
 
 vi.mock('../../api/sync', () => ({
   getSyncStatus: (...args: unknown[]) => mockGetSyncStatus(...(args as [])),
   triggerSync: (...args: unknown[]) => mockTriggerSync(...(args as [])),
   cancelSyncRun: (...args: unknown[]) => mockCancelSyncRun(...(args as [string])),
   getSyncConfig: (...args: unknown[]) => mockGetSyncConfig(...(args as [])),
+  getSyncSchedule: (...args: unknown[]) => mockGetSyncSchedule(...(args as [])),
+  updateSyncSchedule: (...args: unknown[]) => mockUpdateSyncSchedule(...(args as [])),
 }));
 
 /* ------------------------------------------------------------------ */
@@ -82,6 +86,22 @@ const syncConfig: SyncConfig = {
   orgs: ['acme'],
 };
 
+const defaultSchedule: SyncSchedule = {
+  enabled: false,
+  interval_hours: 24,
+  scope: 'full',
+  next_run_at: null,
+  last_completed_at: null,
+};
+
+const enabledSchedule: SyncSchedule = {
+  enabled: true,
+  interval_hours: 12,
+  scope: 'repositories',
+  next_run_at: '2025-07-01T20:00:00Z',
+  last_completed_at: '2025-07-01T08:00:00Z',
+};
+
 /* ------------------------------------------------------------------ */
 /*  Tests                                                              */
 /* ------------------------------------------------------------------ */
@@ -89,6 +109,7 @@ const syncConfig: SyncConfig = {
 beforeEach(() => {
   vi.clearAllMocks();
   mockGetSyncConfig.mockResolvedValue(syncConfig);
+  mockGetSyncSchedule.mockResolvedValue(defaultSchedule);
 });
 
 describe('SyncPanel', () => {
@@ -202,5 +223,146 @@ describe('SyncPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('Queued')).toBeInTheDocument();
     });
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Schedule section tests                                             */
+/* ------------------------------------------------------------------ */
+
+describe('ScheduleSection', () => {
+  it('renders the schedule section with default values', async () => {
+    mockGetSyncStatus.mockResolvedValue(completedRun);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText('Enable automatic sync schedule')).not.toBeChecked();
+    expect(screen.getByText('Not scheduled')).toBeInTheDocument();
+    expect(screen.getByText('Never')).toBeInTheDocument();
+  });
+
+  it('renders schedule with enabled schedule data', async () => {
+    mockGetSyncStatus.mockResolvedValue(completedRun);
+    mockGetSyncSchedule.mockResolvedValue(enabledSchedule);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText('Enable automatic sync schedule')).toBeChecked();
+    // Check the dropdowns have the right values
+    const intervalSelect = screen.getByLabelText('Schedule interval') as HTMLSelectElement;
+    expect(intervalSelect.value).toBe('12');
+    const scopeSelect = screen.getByLabelText('Sync scope') as HTMLSelectElement;
+    expect(scopeSelect.value).toBe('repositories');
+  });
+
+  it('save button is disabled when no changes made', async () => {
+    mockGetSyncStatus.mockResolvedValue(completedRun);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Save Schedule' })).toBeDisabled();
+  });
+
+  it('save button enables after toggling enabled checkbox', async () => {
+    const user = userEvent.setup();
+    mockGetSyncStatus.mockResolvedValue(completedRun);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+    });
+    await user.click(screen.getByLabelText('Enable automatic sync schedule'));
+    expect(screen.getByRole('button', { name: 'Save Schedule' })).toBeEnabled();
+  });
+
+  it('calls updateSyncSchedule on save', async () => {
+    const user = userEvent.setup();
+    mockGetSyncStatus.mockResolvedValue(completedRun);
+    mockUpdateSyncSchedule.mockResolvedValue({
+      ...defaultSchedule,
+      enabled: true,
+    });
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+    });
+    await user.click(screen.getByLabelText('Enable automatic sync schedule'));
+    await user.click(screen.getByRole('button', { name: 'Save Schedule' }));
+    expect(mockUpdateSyncSchedule).toHaveBeenCalledOnce();
+  });
+
+  it('shows success message after saving', async () => {
+    const user = userEvent.setup();
+    mockGetSyncStatus.mockResolvedValue(completedRun);
+    mockUpdateSyncSchedule.mockResolvedValue({
+      ...defaultSchedule,
+      enabled: true,
+    });
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+    });
+    await user.click(screen.getByLabelText('Enable automatic sync schedule'));
+    await user.click(screen.getByRole('button', { name: 'Save Schedule' }));
+    await waitFor(() => {
+      expect(screen.getByText('Schedule saved successfully.')).toBeInTheDocument();
+    });
+  });
+
+  it('shows error message when save fails', async () => {
+    const user = userEvent.setup();
+    mockGetSyncStatus.mockResolvedValue(completedRun);
+    mockUpdateSyncSchedule.mockRejectedValue(new Error('Server error'));
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+    });
+    await user.click(screen.getByLabelText('Enable automatic sync schedule'));
+    await user.click(screen.getByRole('button', { name: 'Save Schedule' }));
+    await waitFor(() => {
+      expect(screen.getByText('Failed to save schedule. Please try again.')).toBeInTheDocument();
+    });
+  });
+
+  it('renders schedule loading state', async () => {
+    mockGetSyncStatus.mockResolvedValue(completedRun);
+    mockGetSyncSchedule.mockReturnValue(new Promise(() => {}));
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByText('Loading schedule…')).toBeInTheDocument();
+    });
+  });
+
+  it('renders schedule error state', async () => {
+    mockGetSyncStatus.mockResolvedValue(completedRun);
+    mockGetSyncSchedule.mockRejectedValue(new Error('Network error'));
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByText('Failed to load schedule')).toBeInTheDocument();
+    });
+  });
+
+  it('changing interval enables save button', async () => {
+    const user = userEvent.setup();
+    mockGetSyncStatus.mockResolvedValue(completedRun);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+    });
+    await user.selectOptions(screen.getByLabelText('Schedule interval'), '48');
+    expect(screen.getByRole('button', { name: 'Save Schedule' })).toBeEnabled();
+  });
+
+  it('changing scope enables save button', async () => {
+    const user = userEvent.setup();
+    mockGetSyncStatus.mockResolvedValue(completedRun);
+    renderWithProviders(<SyncPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+    });
+    await user.selectOptions(screen.getByLabelText('Sync scope'), 'teams');
+    expect(screen.getByRole('button', { name: 'Save Schedule' })).toBeEnabled();
   });
 });

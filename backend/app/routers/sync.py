@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -25,9 +25,12 @@ from app.schemas.github_sync import (
     SyncRunDetail,
     SyncRunsResponse,
     SyncRunSummary,
+    SyncScheduleResponse,
+    SyncScheduleUpdateRequest,
     SyncTriggerRequest,
     SyncTriggerResponse,
 )
+from app.services.settings_service import get_setting, set_setting
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/sync", tags=["sync"])
@@ -110,9 +113,7 @@ async def get_sync_status(
         return None
 
     cursors_result = await db.execute(
-        select(EnterpriseSyncEntityCursor).where(
-            EnterpriseSyncEntityCursor.run_id == run.id
-        )
+        select(EnterpriseSyncEntityCursor).where(EnterpriseSyncEntityCursor.run_id == run.id)
     )
     cursors = cursors_result.scalars().all()
     detail = SyncRunDetail.model_validate(run)
@@ -155,17 +156,13 @@ async def get_run_detail(
     db: AsyncSession = Depends(get_db),
 ) -> SyncRunDetail:
     """Return full detail for a single sync run including cursor state."""
-    result = await db.execute(
-        select(EnterpriseSyncRun).where(EnterpriseSyncRun.id == run_id)
-    )
+    result = await db.execute(select(EnterpriseSyncRun).where(EnterpriseSyncRun.id == run_id))
     run = result.scalar_one_or_none()
     if not run:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found.")
 
     cursors_result = await db.execute(
-        select(EnterpriseSyncEntityCursor).where(
-            EnterpriseSyncEntityCursor.run_id == run_id
-        )
+        select(EnterpriseSyncEntityCursor).where(EnterpriseSyncEntityCursor.run_id == run_id)
     )
     cursors = cursors_result.scalars().all()
     detail = SyncRunDetail.model_validate(run)
@@ -183,9 +180,7 @@ async def cancel_run(
 
     Revokes the Celery task and marks the run as "cancelled".
     """
-    result = await db.execute(
-        select(EnterpriseSyncRun).where(EnterpriseSyncRun.id == run_id)
-    )
+    result = await db.execute(select(EnterpriseSyncRun).where(EnterpriseSyncRun.id == run_id))
     run = result.scalar_one_or_none()
     if not run:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found.")
@@ -234,9 +229,7 @@ async def get_sync_config(
         select(GitHubAppConfig).where(GitHubAppConfig.enabled == True)  # noqa: E712
     )
     configs = configs_result.scalars().all()
-    installation_ids = [
-        {"org": c.org_login, "installation_id": c.installation_id} for c in configs
-    ]
+    installation_ids = [{"org": c.org_login, "installation_id": c.installation_id} for c in configs]
     return SyncConfigResponse(
         app_id=settings.github_app.GITHUB_APP_ID,
         enterprise_slug=settings.github_app.GITHUB_ENTERPRISE_SLUG,
@@ -281,3 +274,131 @@ async def update_sync_config(
     )
     await db.commit()
     return await get_sync_config(current_user=current_user, db=db)
+
+
+# ── Schedule endpoints ────────────────────────────────────────────────────────
+
+_SCHEDULE_KEYS = (
+    "sync_schedule_enabled",
+    "sync_schedule_interval_hours",
+    "sync_schedule_scope",
+)
+_SCHEDULE_DEFAULTS: dict[str, str] = {
+    "sync_schedule_enabled": "false",
+    "sync_schedule_interval_hours": "24",
+    "sync_schedule_scope": "full",
+}
+
+
+@router.get("/schedule", response_model=SyncScheduleResponse)
+async def get_sync_schedule(
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> SyncScheduleResponse:
+    """Get current sync schedule configuration.
+
+    Reads from app_settings table using keys prefixed with ``sync_schedule_``.
+    Returns sensible defaults when no DB settings exist.
+    """
+    raw: dict[str, str] = {}
+    for key in _SCHEDULE_KEYS:
+        value = await get_setting(db, key)
+        raw[key] = value if value is not None else _SCHEDULE_DEFAULTS[key]
+
+    enabled = raw["sync_schedule_enabled"].lower() == "true"
+    interval_hours = int(raw["sync_schedule_interval_hours"])
+    scope = raw["sync_schedule_scope"]
+
+    # Compute next_run_at and last_completed_at from EnterpriseSyncRun table
+    last_result = await db.execute(
+        select(EnterpriseSyncRun)
+        .where(EnterpriseSyncRun.status == "completed")
+        .order_by(EnterpriseSyncRun.completed_at.desc())
+        .limit(1)
+    )
+    last_run = last_result.scalar_one_or_none()
+
+    last_completed_at = last_run.completed_at if last_run else None
+    next_run_at = None
+    if enabled and last_completed_at:
+        next_run_at = last_completed_at + timedelta(hours=interval_hours)
+
+    return SyncScheduleResponse(
+        enabled=enabled,
+        interval_hours=interval_hours,
+        scope=scope,
+        next_run_at=next_run_at,
+        last_completed_at=last_completed_at,
+    )
+
+
+@router.put("/schedule", response_model=SyncScheduleResponse)
+async def update_sync_schedule(
+    body: SyncScheduleUpdateRequest,
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> SyncScheduleResponse:
+    """Update sync schedule configuration.
+
+    Writes to app_settings and logs to audit trail. Only provided fields
+    are updated; omitted fields retain their current value.
+    """
+    changes: dict[str, str] = {}
+
+    if body.enabled is not None:
+        value = "true" if body.enabled else "false"
+        await set_setting(
+            db,
+            "sync_schedule_enabled",
+            value,
+            category="sync",
+            sensitivity="config",
+            description="Whether scheduled sync is enabled",
+            changed_by=current_user.github_login,
+        )
+        changes["enabled"] = value
+
+    if body.interval_hours is not None:
+        value = str(body.interval_hours)
+        await set_setting(
+            db,
+            "sync_schedule_interval_hours",
+            value,
+            category="sync",
+            sensitivity="config",
+            description="Sync schedule interval in hours",
+            changed_by=current_user.github_login,
+        )
+        changes["interval_hours"] = value
+
+    if body.scope is not None:
+        await set_setting(
+            db,
+            "sync_schedule_scope",
+            body.scope,
+            category="sync",
+            sensitivity="config",
+            description="Scope for scheduled sync runs",
+            changed_by=current_user.github_login,
+        )
+        changes["scope"] = body.scope
+
+    # Operational audit trail entry
+    db.add(
+        AuditTrail(
+            user_login=current_user.github_login,
+            action_type="github_sync.schedule_update",
+            resource_type="sync_schedule",
+            parameters=changes,
+            outcome="success",
+        )
+    )
+    await db.commit()
+
+    logger.info(
+        "sync.schedule_updated",
+        changes=changes,
+        user=current_user.github_login,
+    )
+
+    return await get_sync_schedule(current_user=current_user, db=db)

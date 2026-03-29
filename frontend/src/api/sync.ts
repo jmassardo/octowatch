@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { SyncRun, SyncRunsResponse, SyncConfig } from '../types/sync';
+import type { SyncRun, SyncRunsResponse, SyncConfig, SyncSchedule } from '../types/sync';
 
 export function triggerSync(scope: string = 'full'): Promise<{ run_id: string; status: string }> {
   return api.post('/admin/sync/trigger', { scope });
@@ -31,4 +31,16 @@ export function updateSyncConfig(updates: {
   orgs?: string[];
 }): Promise<SyncConfig> {
   return api.put<SyncConfig>('/admin/sync/config', updates);
+}
+
+export function getSyncSchedule(): Promise<SyncSchedule> {
+  return api.get<SyncSchedule>('/admin/sync/schedule');
+}
+
+export function updateSyncSchedule(updates: {
+  enabled?: boolean;
+  interval_hours?: number;
+  scope?: string;
+}): Promise<SyncSchedule> {
+  return api.put<SyncSchedule>('/admin/sync/schedule', updates);
 }

@@ -89,6 +89,9 @@ class EnterpriseSyncRun(Base):
     # {"orgs": 3, "members": 412, "repositories": 1804, ...}
     entity_counts: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
+    # null | "pending" | "running" | "completed" | "failed"
+    post_processing_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     __table_args__ = (
         Index("idx_enterprise_sync_runs_status", "status"),
         Index("idx_enterprise_sync_runs_created_at", "created_at"),

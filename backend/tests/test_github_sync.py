@@ -17,12 +17,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.deps import get_db, get_valkey
 from app.routers import sync as sync_router_module
 from app.schemas.github_sync import (
+    VALID_INTERVAL_HOURS,
     CursorRow,
     SyncConfigResponse,
     SyncConfigUpdateRequest,
     SyncRunDetail,
     SyncRunsResponse,
     SyncRunSummary,
+    SyncScheduleResponse,
+    SyncScheduleUpdateRequest,
     SyncTriggerRequest,
     SyncTriggerResponse,
 )
@@ -628,3 +631,260 @@ class TestUpdateSyncConfig:
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.put("/api/v1/admin/sync/config", json={"sync_enabled": True})
         assert resp.status_code == 401
+
+
+# ─── Schedule Schema Tests ────────────────────────────────────────────────────
+
+
+class TestSyncScheduleResponse:
+    def test_default_values(self) -> None:
+        resp = SyncScheduleResponse()
+        assert resp.enabled is False
+        assert resp.interval_hours == 24
+        assert resp.scope == "full"
+        assert resp.next_run_at is None
+        assert resp.last_completed_at is None
+
+    def test_with_all_fields(self) -> None:
+        now = datetime.now(UTC)
+        resp = SyncScheduleResponse(
+            enabled=True,
+            interval_hours=12,
+            scope="repositories",
+            next_run_at=now,
+            last_completed_at=now,
+        )
+        assert resp.enabled is True
+        assert resp.interval_hours == 12
+        assert resp.scope == "repositories"
+        assert resp.next_run_at == now
+        assert resp.last_completed_at == now
+
+
+class TestSyncScheduleUpdateRequest:
+    def test_all_fields_optional(self) -> None:
+        req = SyncScheduleUpdateRequest()
+        assert req.enabled is None
+        assert req.interval_hours is None
+        assert req.scope is None
+
+    def test_valid_interval_values(self) -> None:
+        for hours in sorted(VALID_INTERVAL_HOURS):
+            req = SyncScheduleUpdateRequest(interval_hours=hours)
+            assert req.interval_hours == hours
+
+    def test_invalid_interval_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            SyncScheduleUpdateRequest(interval_hours=10)
+
+    def test_invalid_interval_rejected_zero(self) -> None:
+        with pytest.raises(ValidationError):
+            SyncScheduleUpdateRequest(interval_hours=0)
+
+    def test_valid_scope_values(self) -> None:
+        for scope in [
+            "full",
+            "orgs",
+            "enterprise_members",
+            "org_members",
+            "repositories",
+            "teams",
+            "team_members",
+            "branch_protections",
+            "installations",
+        ]:
+            req = SyncScheduleUpdateRequest(scope=scope)
+            assert req.scope == scope
+
+    def test_invalid_scope_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            SyncScheduleUpdateRequest(scope="invalid_scope")
+
+    def test_partial_update(self) -> None:
+        req = SyncScheduleUpdateRequest(enabled=True)
+        assert req.enabled is True
+        assert req.interval_hours is None
+        assert req.scope is None
+
+
+# ─── Schedule Router Tests ────────────────────────────────────────────────────
+
+
+class TestGetSyncSchedule:
+    """Tests for GET /sync/schedule endpoint."""
+
+    def test_schedule_unauthenticated_returns_401(self) -> None:
+        app, _, _ = _build_sync_app()
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get("/api/v1/admin/sync/schedule")
+        assert resp.status_code == 401
+
+    def test_schedule_non_admin_returns_403(self) -> None:
+        app, _, _ = _build_sync_app(valkey_session=_make_analyst_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt(sub="analyst", jti="analyst-jti")
+        client.cookies.set("access_token", token)
+        resp = client.get("/api/v1/admin/sync/schedule")
+        assert resp.status_code == 403
+
+    @patch("app.routers.sync.get_setting", new_callable=AsyncMock)
+    def test_schedule_returns_defaults_when_no_db_settings(
+        self, mock_get_setting: AsyncMock
+    ) -> None:
+        mock_get_setting.return_value = None
+
+        app, mock_db, _ = _build_sync_app(valkey_session=_make_admin_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        client.cookies.set("access_token", token)
+
+        resp = client.get("/api/v1/admin/sync/schedule")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["enabled"] is False
+        assert data["interval_hours"] == 24
+        assert data["scope"] == "full"
+        assert data["next_run_at"] is None
+        assert data["last_completed_at"] is None
+
+    @patch("app.routers.sync.get_setting", new_callable=AsyncMock)
+    def test_schedule_returns_db_settings(self, mock_get_setting: AsyncMock) -> None:
+        settings_map = {
+            "sync_schedule_enabled": "true",
+            "sync_schedule_interval_hours": "12",
+            "sync_schedule_scope": "repositories",
+        }
+        mock_get_setting.side_effect = lambda db, key: settings_map.get(key)
+
+        app, mock_db, _ = _build_sync_app(valkey_session=_make_admin_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        client.cookies.set("access_token", token)
+
+        resp = client.get("/api/v1/admin/sync/schedule")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["enabled"] is True
+        assert data["interval_hours"] == 12
+        assert data["scope"] == "repositories"
+
+
+class TestUpdateSyncSchedule:
+    """Tests for PUT /sync/schedule endpoint."""
+
+    def test_schedule_update_unauthenticated_returns_401(self) -> None:
+        app, _, _ = _build_sync_app()
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.put("/api/v1/admin/sync/schedule", json={"enabled": True})
+        assert resp.status_code == 401
+
+    @patch("app.routers.sync.get_setting", new_callable=AsyncMock)
+    @patch("app.routers.sync.set_setting", new_callable=AsyncMock)
+    def test_schedule_update_enabled(
+        self,
+        mock_set_setting: AsyncMock,
+        mock_get_setting: AsyncMock,
+    ) -> None:
+        # After update, get_setting returns the new values for the GET call
+        settings_map = {
+            "sync_schedule_enabled": "true",
+            "sync_schedule_interval_hours": "24",
+            "sync_schedule_scope": "full",
+        }
+        mock_get_setting.side_effect = lambda db, key: settings_map.get(key)
+
+        app, mock_db, _ = _build_sync_app(valkey_session=_make_admin_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        client.cookies.set("access_token", token)
+
+        resp = client.put(
+            "/api/v1/admin/sync/schedule",
+            json={"enabled": True},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["enabled"] is True
+
+        # Verify set_setting was called
+        mock_set_setting.assert_called_once()
+        call_args = mock_set_setting.call_args
+        assert call_args[0][1] == "sync_schedule_enabled"
+        assert call_args[0][2] == "true"
+
+    @patch("app.routers.sync.get_setting", new_callable=AsyncMock)
+    @patch("app.routers.sync.set_setting", new_callable=AsyncMock)
+    def test_schedule_update_all_fields(
+        self,
+        mock_set_setting: AsyncMock,
+        mock_get_setting: AsyncMock,
+    ) -> None:
+        settings_map = {
+            "sync_schedule_enabled": "true",
+            "sync_schedule_interval_hours": "48",
+            "sync_schedule_scope": "teams",
+        }
+        mock_get_setting.side_effect = lambda db, key: settings_map.get(key)
+
+        app, mock_db, _ = _build_sync_app(valkey_session=_make_admin_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        client.cookies.set("access_token", token)
+
+        resp = client.put(
+            "/api/v1/admin/sync/schedule",
+            json={"enabled": True, "interval_hours": 48, "scope": "teams"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["interval_hours"] == 48
+        assert data["scope"] == "teams"
+
+        # set_setting called 3 times (enabled, interval_hours, scope)
+        assert mock_set_setting.call_count == 3
+
+    def test_schedule_update_invalid_interval_returns_422(self) -> None:
+        app, _, _ = _build_sync_app(valkey_session=_make_admin_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        client.cookies.set("access_token", token)
+
+        resp = client.put(
+            "/api/v1/admin/sync/schedule",
+            json={"interval_hours": 15},
+        )
+        assert resp.status_code == 422
+
+    def test_schedule_update_invalid_scope_returns_422(self) -> None:
+        app, _, _ = _build_sync_app(valkey_session=_make_admin_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        client.cookies.set("access_token", token)
+
+        resp = client.put(
+            "/api/v1/admin/sync/schedule",
+            json={"scope": "invalid_scope"},
+        )
+        assert resp.status_code == 422
+
+    @patch("app.routers.sync.get_setting", new_callable=AsyncMock)
+    @patch("app.routers.sync.set_setting", new_callable=AsyncMock)
+    def test_schedule_update_empty_body_no_settings_changed(
+        self,
+        mock_set_setting: AsyncMock,
+        mock_get_setting: AsyncMock,
+    ) -> None:
+        mock_get_setting.return_value = None
+
+        app, mock_db, _ = _build_sync_app(valkey_session=_make_admin_session())
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        client.cookies.set("access_token", token)
+
+        resp = client.put(
+            "/api/v1/admin/sync/schedule",
+            json={},
+        )
+        assert resp.status_code == 200
+        # No settings should have been written
+        mock_set_setting.assert_not_called()

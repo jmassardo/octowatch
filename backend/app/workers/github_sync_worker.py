@@ -19,11 +19,12 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Literal
 
 import structlog
 from celery import Task
+from celery.result import AsyncResult
 
 from app.celery_app import celery_app
 
@@ -49,6 +50,7 @@ def _make_session_factory() -> async_sessionmaker[AsyncSession]:
         autoflush=False,
         autocommit=False,
     )
+
 
 if TYPE_CHECKING:
     from app.services.github_rate_limiter import GitHubRateLimiter
@@ -158,9 +160,7 @@ def sync_entity(
     cursor:
         Initial pagination cursor. Overridden by database state on retry.
     """
-    return asyncio.run(
-        _sync_entity_async(self, run_id, entity_type, org, installation_id, cursor)
-    )
+    return asyncio.run(_sync_entity_async(self, run_id, entity_type, org, installation_id, cursor))
 
 
 @celery_app.task(
@@ -178,6 +178,29 @@ def check_sync_schedule() -> dict:
     Skips if sync is disabled or if a run is already pending/running.
     """
     return asyncio.run(_check_sync_schedule_async())
+
+
+@celery_app.task(
+    name="app.workers.github_sync.run_post_sync_pipeline",
+    bind=True,
+    max_retries=0,
+    queue="github_sync",
+    soft_time_limit=3600,  # 1 hour
+    time_limit=3900,
+)
+def run_post_sync_pipeline(self: Task, run_id: str) -> dict[str, object]:
+    """Post-sync pipeline: dispatch detection rules + baseline computation.
+
+    Fires automatically after a successful enterprise sync. Queries events
+    from the last 30 days, batches them into groups of 500 event IDs, and
+    dispatches ``run_detection_pipeline_task`` for each batch. After all
+    detection batches are dispatched, triggers a rolling baseline
+    recomputation.
+
+    This task is fire-and-forget — it does not wait for detection or
+    baseline tasks to complete.
+    """
+    return asyncio.run(_run_post_sync_pipeline_async(run_id))
 
 
 # ── Internal async implementations ────────────────────────────────────────────
@@ -264,13 +287,14 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
     org_configs = [c for c in configs if c.org_login]
 
     dispatched: list[tuple[str, str | None]] = []
+    child_results: list[AsyncResult[dict[str, object]]] = []
 
     # Enterprise-level entities: use enterprise installation
     for config in enterprise_configs:
         for entity_type in entity_types:
             if entity_type not in _ENTERPRISE_ENTITIES:
                 continue
-            sync_entity.apply_async(
+            result = sync_entity.apply_async(
                 kwargs={
                     "run_id": run_id,
                     "entity_type": entity_type,
@@ -280,6 +304,7 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
                 },
                 queue="github_sync",
             )
+            child_results.append(result)
             dispatched.append((entity_type, config.enterprise_slug))
 
     # Org-level entities: prefer org-specific installations (broader access),
@@ -289,7 +314,7 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
 
     for config in org_configs:
         for entity_type in org_entity_types:
-            sync_entity.apply_async(
+            result = sync_entity.apply_async(
                 kwargs={
                     "run_id": run_id,
                     "entity_type": entity_type,
@@ -299,6 +324,7 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
                 },
                 queue="github_sync",
             )
+            child_results.append(result)
             dispatched.append((entity_type, config.org_login))
         dispatched_orgs.add(config.org_login)
 
@@ -307,7 +333,7 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         remaining_orgs = [o for o in sync_orgs if o not in dispatched_orgs]
         for org in remaining_orgs:
             for entity_type in org_entity_types:
-                sync_entity.apply_async(
+                result = sync_entity.apply_async(
                     kwargs={
                         "run_id": run_id,
                         "entity_type": entity_type,
@@ -317,6 +343,7 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
                     },
                     queue="github_sync",
                 )
+                child_results.append(result)
                 dispatched.append((entity_type, org))
 
     logger.info(
@@ -324,7 +351,158 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         run_id=run_id,
         task_count=len(dispatched),
     )
-    return {"status": "dispatched", "tasks": len(dispatched)}
+
+    # ── Wait for all child tasks to reach terminal state ───────────────────
+    _TERMINAL_STATES = {"SUCCESS", "FAILURE", "REVOKED"}
+
+    if child_results:
+        logger.info(
+            "github_sync.orchestrator_waiting",
+            run_id=run_id,
+            task_count=len(child_results),
+        )
+        while True:
+            terminal_count = sum(1 for r in child_results if r.state in _TERMINAL_STATES)
+            if terminal_count >= len(child_results):
+                break
+            await asyncio.sleep(15)
+
+    # ── Aggregate results and mark run completed ──────────────────────────
+    entity_counts: dict[str, int] = {}
+    failed_entities: list[str] = []
+
+    for (entity_type, org_name), child in zip(dispatched, child_results, strict=True):
+        if child.state == "SUCCESS" and child.result:
+            items = child.result.get("items", 0)
+            entity_counts[entity_type] = entity_counts.get(entity_type, 0) + items
+        elif child.state in ("FAILURE", "REVOKED"):
+            failed_entities.append(f"{entity_type}:{org_name}")
+
+    has_failures = len(failed_entities) > 0
+    final_status = "failed" if has_failures else "completed"
+    error_msg = f"Failed entities: {', '.join(failed_entities)}" if has_failures else None
+
+    async with _make_session_factory()() as session:
+        await session.execute(
+            update(EnterpriseSyncRun)
+            .where(EnterpriseSyncRun.id == run_uuid)
+            .values(
+                status=final_status,
+                completed_at=datetime.now(UTC),
+                entity_counts=entity_counts or None,
+                error_message=error_msg,
+                post_processing_status=("pending" if final_status == "completed" else None),
+            )
+        )
+        await session.commit()
+
+    # ── Dispatch post-sync pipeline (fire-and-forget) ─────────────────────
+    if final_status == "completed":
+        run_post_sync_pipeline.apply_async(
+            kwargs={"run_id": run_id},
+            queue="github_sync",
+        )
+        logger.info("github_sync.post_sync_pipeline_dispatched", run_id=run_id)
+
+    return {
+        "status": final_status,
+        "tasks": len(dispatched),
+        "entity_counts": entity_counts,
+    }
+
+
+async def _run_post_sync_pipeline_async(run_id: str) -> dict[str, object]:
+    """Async implementation of the post-sync detection + baseline pipeline."""
+    from sqlalchemy import select, update
+
+    from app.models.audit_event import AuditEvent
+    from app.models.github_sync import EnterpriseSyncRun
+
+    run_uuid = uuid.UUID(run_id)
+
+    try:
+        # Mark post-processing as running
+        async with _make_session_factory()() as session:
+            await session.execute(
+                update(EnterpriseSyncRun)
+                .where(EnterpriseSyncRun.id == run_uuid)
+                .values(post_processing_status="running")
+            )
+            await session.commit()
+
+        # Query event IDs from the last 30 days
+        cutoff = datetime.now(UTC) - timedelta(days=30)
+        async with _make_session_factory()() as session:
+            result = await session.execute(
+                select(AuditEvent.id).where(AuditEvent.created_at >= cutoff).order_by(AuditEvent.id)
+            )
+            event_ids: list[int] = [row[0] for row in result.fetchall()]
+
+        # Batch event IDs and dispatch detection pipeline tasks
+        from app.workers.detection_worker import run_detection_pipeline_task
+
+        batch_size = 500
+        detection_batches = 0
+        for i in range(0, len(event_ids), batch_size):
+            batch = event_ids[i : i + batch_size]
+            run_detection_pipeline_task.apply_async(
+                args=[batch],
+                queue="detection",
+            )
+            detection_batches += 1
+
+        # Dispatch rolling baseline computation
+        from app.workers.baseline_worker import compute_rolling_baselines_task
+
+        compute_rolling_baselines_task.apply_async(queue="baseline")
+
+        # Mark post-processing as completed
+        async with _make_session_factory()() as session:
+            await session.execute(
+                update(EnterpriseSyncRun)
+                .where(EnterpriseSyncRun.id == run_uuid)
+                .values(post_processing_status="completed")
+            )
+            await session.commit()
+
+        logger.info(
+            "github_sync.post_sync_pipeline_completed",
+            run_id=run_id,
+            event_count=len(event_ids),
+            detection_batches=detection_batches,
+        )
+
+        return {
+            "status": "completed",
+            "event_count": len(event_ids),
+            "detection_batches": detection_batches,
+        }
+
+    except Exception as exc:
+        logger.error(
+            "github_sync.post_sync_pipeline_failed",
+            run_id=run_id,
+            error=str(exc),
+        )
+        # Attempt to mark status as failed
+        try:
+            async with _make_session_factory()() as session:
+                await session.execute(
+                    update(EnterpriseSyncRun)
+                    .where(EnterpriseSyncRun.id == run_uuid)
+                    .values(post_processing_status="failed")
+                )
+                await session.commit()
+        except Exception as update_exc:
+            logger.error(
+                "github_sync.post_sync_status_update_failed",
+                run_id=run_id,
+                error=str(update_exc),
+            )
+        return {
+            "status": "failed",
+            "error": str(exc),
+        }
 
 
 async def _sync_entity_async(
@@ -364,9 +542,7 @@ async def _sync_entity_async(
     # Create a fresh Valkey connection per task to avoid event-loop binding
     # issues (the module-level pool binds to the first loop and fails on
     # subsequent asyncio.run() calls).
-    valkey = aioredis.Redis.from_url(
-        settings.VALKEY_URL, decode_responses=True, max_connections=5
-    )
+    valkey = aioredis.Redis.from_url(settings.VALKEY_URL, decode_responses=True, max_connections=5)
     token_manager = GitHubAppTokenManager(
         app_id=settings.github_app.GITHUB_APP_ID,
         private_key_pem=_load_private_key(),
@@ -374,9 +550,7 @@ async def _sync_entity_async(
     )
     # Create a fresh rate limiter per task — the asyncio.Semaphore inside
     # binds to the current event loop and can't survive across asyncio.run()
-    rate_limiter = GitHubRateLimiter(
-        rate_per_hour=15_000, max_burst=50, max_concurrent=80
-    )
+    rate_limiter = GitHubRateLimiter(rate_per_hour=15_000, max_burst=50, max_concurrent=80)
 
     try:
         # ── Paginate and upsert ───────────────────────────────────────────
@@ -447,9 +621,7 @@ async def _sync_entity_async(
                     run_id=run_uuid,
                     entity_type=entity_type,
                     org=org,
-                    last_cursor=(
-                        current_cursor if "current_cursor" in dir() else initial_cursor
-                    ),
+                    last_cursor=(current_cursor if "current_cursor" in dir() else initial_cursor),
                     items_synced=items_synced,
                     status="failed",
                 )
@@ -482,15 +654,41 @@ async def _sync_entity_async(
 
 
 async def _check_sync_schedule_async() -> dict:
-    """Async implementation of the daily heartbeat schedule check."""
+    """Async implementation of the daily heartbeat schedule check.
+
+    Reads schedule configuration from the ``app_settings`` table (keys
+    ``sync_schedule_enabled``, ``sync_schedule_interval_hours``,
+    ``sync_schedule_scope``).  Falls back to the legacy env-var-based
+    ``GITHUB_SYNC_ENABLED`` / ``GITHUB_SYNC_INTERVAL_DAYS`` when no DB
+    settings exist.
+    """
     from sqlalchemy import select
 
     from app.config import settings  # noqa: F811 — deferred import for testability
     from app.models.github_sync import EnterpriseSyncRun
+    from app.services.settings_service import get_setting
 
-    if not settings.github_app.GITHUB_SYNC_ENABLED:
+    # --- Read schedule config from DB, with env-var fallback ----------------
+    async with _make_session_factory()() as session:
+        db_enabled = await get_setting(session, "sync_schedule_enabled")
+        db_interval = await get_setting(session, "sync_schedule_interval_hours")
+        db_scope = await get_setting(session, "sync_schedule_scope")
+
+    if db_enabled is not None:
+        schedule_enabled = db_enabled.lower() == "true"
+    else:
+        schedule_enabled = settings.github_app.GITHUB_SYNC_ENABLED
+
+    if not schedule_enabled:
         logger.debug("github_sync.schedule_check_skipped", reason="sync_disabled")
         return {"status": "skipped", "reason": "sync_disabled"}
+
+    if db_interval is not None:
+        interval = timedelta(hours=int(db_interval))
+    else:
+        interval = timedelta(days=settings.github_app.GITHUB_SYNC_INTERVAL_DAYS)
+
+    scope: str = db_scope if db_scope is not None else "full"
 
     async with _make_session_factory()() as session:
         # Check for already pending/running run
@@ -512,7 +710,6 @@ async def _check_sync_schedule_async() -> dict:
         )
         last_run = last_result.scalar_one_or_none()
 
-    interval = timedelta(days=settings.github_app.GITHUB_SYNC_INTERVAL_DAYS)
     now = datetime.now(timezone.utc)
 
     if last_run and last_run.completed_at and (now - last_run.completed_at) < interval:
@@ -532,17 +729,17 @@ async def _check_sync_schedule_async() -> dict:
             status="pending",
             trigger_type="scheduled",
             triggered_by=None,
-            scope="full",
+            scope=scope,
         )
         session.add(run)
         await session.commit()
 
     run_enterprise_sync.apply_async(
-        kwargs={"run_id": str(run_id), "scope": "full"},
+        kwargs={"run_id": str(run_id), "scope": scope},
         queue="github_sync",
     )
 
-    logger.info("github_sync.schedule_triggered", run_id=str(run_id))
+    logger.info("github_sync.schedule_triggered", run_id=str(run_id), scope=scope)
     return {"status": "triggered", "run_id": str(run_id)}
 
 
@@ -686,9 +883,7 @@ async def _graphql_page(
         await rate_limiter.acquire()
     try:
         async with httpx.AsyncClient(follow_redirects=False) as client:
-            resp = await client.post(
-                _GRAPHQL_URL, json=payload, headers=headers, timeout=30
-            )
+            resp = await client.post(_GRAPHQL_URL, json=payload, headers=headers, timeout=30)
         if rate_limiter is not None:
             rate_limiter.update_from_headers(resp.headers)
     finally:
@@ -704,9 +899,7 @@ async def _graphql_page(
     return resp.json()
 
 
-async def _graphql_list_enterprise_orgs(
-    token: str, enterprise_slug: str
-) -> list[str]:
+async def _graphql_list_enterprise_orgs(token: str, enterprise_slug: str) -> list[str]:
     """Return all org logins under *enterprise_slug* via the GraphQL API."""
     orgs: list[str] = []
     cursor: str | None = None
@@ -947,40 +1140,39 @@ async def _fetch_page(
             if repo.get("archived"):
                 continue
             branch = repo.get("default_branch") or "main"
-            prot_url = (
-                f"{_GITHUB_API_BASE}/repos/{org}/{repo['name']}"
-                f"/branches/{branch}/protection"
-            )
+            prot_url = f"{_GITHUB_API_BASE}/repos/{org}/{repo['name']}/branches/{branch}/protection"
             prot_resp = await _github_get(prot_url, headers, {}, rate_limiter)
             if prot_resp.status_code == 200:
                 prot = prot_resp.json()
                 pr_reviews = prot.get("required_pull_request_reviews") or {}
                 status_checks = prot.get("required_status_checks")
                 enforce = prot.get("enforce_admins") or {}
-                items.append({
-                    "_repo_name": repo["name"],
-                    "_branch": branch,
-                    "required_reviews": pr_reviews.get(
-                        "required_approving_review_count", 0
-                    ),
-                    "required_status_checks": (
-                        {
-                            "contexts": status_checks.get("contexts", []),
-                            "strict": status_checks.get("strict", False),
-                        }
-                        if status_checks
-                        else None
-                    ),
-                    "enforce_admins": enforce.get("enabled", False),
-                })
+                items.append(
+                    {
+                        "_repo_name": repo["name"],
+                        "_branch": branch,
+                        "required_reviews": pr_reviews.get("required_approving_review_count", 0),
+                        "required_status_checks": (
+                            {
+                                "contexts": status_checks.get("contexts", []),
+                                "strict": status_checks.get("strict", False),
+                            }
+                            if status_checks
+                            else None
+                        ),
+                        "enforce_admins": enforce.get("enabled", False),
+                    }
+                )
             elif prot_resp.status_code == 404:
-                items.append({
-                    "_repo_name": repo["name"],
-                    "_branch": branch,
-                    "required_reviews": 0,
-                    "required_status_checks": None,
-                    "enforce_admins": False,
-                })
+                items.append(
+                    {
+                        "_repo_name": repo["name"],
+                        "_branch": branch,
+                        "required_reviews": 0,
+                        "required_status_checks": None,
+                        "enforce_admins": False,
+                    }
+                )
             # 403 (no permission) — skip silently
 
         next_cursor = str(page + 1) if _has_next_page(resp.headers) else None
@@ -1040,11 +1232,13 @@ async def _fetch_page(
         items = []
         for node in org_conn.get("nodes", []):
             if node and node.get("login"):
-                items.append({
-                    "_enterprise_slug": enterprise_slug,
-                    "login": node["login"],
-                    "databaseId": node.get("databaseId", 0),
-                })
+                items.append(
+                    {
+                        "_enterprise_slug": enterprise_slug,
+                        "login": node["login"],
+                        "databaseId": node.get("databaseId", 0),
+                    }
+                )
         page_info = org_conn.get("pageInfo", {})
         next_cursor = page_info.get("endCursor") if page_info.get("hasNextPage") else None
         return items, next_cursor
@@ -1078,11 +1272,13 @@ async def _fetch_page(
                 continue
             # GraphQL returns either EnterpriseUserAccount or User
             db_id = node.get("databaseId") or (node.get("user") or {}).get("databaseId", 0)
-            items.append({
-                "_enterprise_slug": enterprise_slug,
-                "login": node["login"],
-                "databaseId": db_id,
-            })
+            items.append(
+                {
+                    "_enterprise_slug": enterprise_slug,
+                    "login": node["login"],
+                    "databaseId": db_id,
+                }
+            )
         page_info = member_conn.get("pageInfo", {})
         next_cursor = page_info.get("endCursor") if page_info.get("hasNextPage") else None
         return items, next_cursor
@@ -1094,9 +1290,7 @@ async def _fetch_page(
 # ── Upsert helpers (one per entity type) ──────────────────────────────────────
 
 
-async def _upsert_org_members(
-    session: AsyncSession, org: str, items: list[dict]
-) -> None:
+async def _upsert_org_members(session: AsyncSession, org: str, items: list[dict]) -> None:
     from sqlalchemy import text
     from sqlalchemy.dialects.postgresql import insert
 
@@ -1124,9 +1318,7 @@ async def _upsert_org_members(
     await session.commit()
 
 
-async def _upsert_repositories(
-    session: AsyncSession, org: str, items: list[dict]
-) -> None:
+async def _upsert_repositories(session: AsyncSession, org: str, items: list[dict]) -> None:
     from datetime import datetime as _dt
 
     from sqlalchemy import text
@@ -1136,9 +1328,7 @@ async def _upsert_repositories(
 
     for item in items:
         pushed = item.get("pushed_at")
-        pushed_dt = (
-            _dt.fromisoformat(pushed.replace("Z", "+00:00")) if pushed else None
-        )
+        pushed_dt = _dt.fromisoformat(pushed.replace("Z", "+00:00")) if pushed else None
         stmt = (
             insert(Repository)
             .values(
@@ -1168,9 +1358,7 @@ async def _upsert_repositories(
     await session.commit()
 
 
-async def _upsert_teams(
-    session: AsyncSession, org: str, items: list[dict]
-) -> None:
+async def _upsert_teams(session: AsyncSession, org: str, items: list[dict]) -> None:
     from sqlalchemy import text
     from sqlalchemy.dialects.postgresql import insert
 
@@ -1203,9 +1391,7 @@ async def _upsert_teams(
     await session.commit()
 
 
-async def _upsert_team_members(
-    session: AsyncSession, org: str, items: list[dict]
-) -> None:
+async def _upsert_team_members(session: AsyncSession, org: str, items: list[dict]) -> None:
     from sqlalchemy import text
     from sqlalchemy.dialects.postgresql import insert
 
@@ -1235,9 +1421,7 @@ async def _upsert_team_members(
     await session.commit()
 
 
-async def _upsert_branch_protections(
-    session: AsyncSession, org: str, items: list[dict]
-) -> None:
+async def _upsert_branch_protections(session: AsyncSession, org: str, items: list[dict]) -> None:
     from sqlalchemy import text
     from sqlalchemy.dialects.postgresql import insert
 
@@ -1268,9 +1452,7 @@ async def _upsert_branch_protections(
     await session.commit()
 
 
-async def _upsert_installations(
-    session: AsyncSession, _org: str | None, items: list[dict]
-) -> None:
+async def _upsert_installations(session: AsyncSession, _org: str | None, items: list[dict]) -> None:
     from sqlalchemy import text
     from sqlalchemy.dialects.postgresql import insert
 
@@ -1387,9 +1569,7 @@ async def _upsert_items(
     await handler(session, org, items)
 
 
-async def _sync_installation_configs(
-    existing_configs: list, settings: object
-) -> list:
+async def _sync_installation_configs(existing_configs: list, settings: object) -> list:
     """Promote org-level installations into github_app_configs.
 
     Compares ``github_app_installations`` (synced from the API) with
@@ -1514,9 +1694,7 @@ async def _bootstrap_app_configs(settings: object) -> list:
                 enterprise_slug=acct.get("slug") or acct.get("login")
                 if target == "Enterprise"
                 else None,
-                org_login=acct.get("login")
-                if target == "Organization"
-                else None,
+                org_login=acct.get("login") if target == "Organization" else None,
                 enabled=True,
             )
             session.add(config)

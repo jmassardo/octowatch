@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal  # noqa: TC003
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ── Request schemas ───────────────────────────────────────────────────────────
 
@@ -59,6 +59,7 @@ class SyncRunDetail(BaseModel):
     completed_at: datetime | None
     error_message: str | None
     entity_counts: dict[str, Any] | None
+    post_processing_status: str | None = None
     cursors: list[CursorRow] = []
 
     model_config = {"from_attributes": True}
@@ -71,6 +72,7 @@ class SyncRunSummary(BaseModel):
     triggered_by: str | None
     started_at: datetime | None
     completed_at: datetime | None
+    post_processing_status: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -91,3 +93,53 @@ class SyncConfigResponse(BaseModel):
     interval_days: int
     orgs: list[str]
     # NEVER includes private_key_path or any token value
+
+
+# ── Schedule schemas ───────────────────────────────────────────────────────────
+
+VALID_INTERVAL_HOURS = frozenset({6, 12, 24, 48, 72, 168})
+
+
+class SyncScheduleResponse(BaseModel):
+    """Current sync schedule configuration."""
+
+    enabled: bool = False
+    interval_hours: int = 24
+    scope: str = "full"
+    next_run_at: datetime | None = None
+    last_completed_at: datetime | None = None
+
+
+class SyncScheduleUpdateRequest(BaseModel):
+    """Update request for sync schedule configuration."""
+
+    enabled: bool | None = None
+    interval_hours: int | None = None
+    scope: str | None = None
+
+    @field_validator("interval_hours")
+    @classmethod
+    def validate_interval_hours(cls, v: int | None) -> int | None:
+        if v is not None and v not in VALID_INTERVAL_HOURS:
+            msg = f"interval_hours must be one of {sorted(VALID_INTERVAL_HOURS)}"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("scope")
+    @classmethod
+    def validate_scope(cls, v: str | None) -> str | None:
+        valid_scopes = {
+            "full",
+            "orgs",
+            "enterprise_members",
+            "org_members",
+            "repositories",
+            "teams",
+            "team_members",
+            "branch_protections",
+            "installations",
+        }
+        if v is not None and v not in valid_scopes:
+            msg = f"scope must be one of {sorted(valid_scopes)}"
+            raise ValueError(msg)
+        return v
