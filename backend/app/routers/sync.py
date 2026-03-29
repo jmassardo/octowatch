@@ -47,6 +47,21 @@ async def trigger_sync(
     Returns 409 Conflict if a run is already in "pending" or "running" state.
     Writes an audit trail entry before dispatching the Celery task.
     """
+    # Auto-expire stale runs (stuck > 2 hours with no worker processing)
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(hours=2)
+    await db.execute(
+        update(EnterpriseSyncRun)
+        .where(
+            EnterpriseSyncRun.status.in_(["pending", "running"]),
+            EnterpriseSyncRun.created_at < stale_cutoff,
+        )
+        .values(
+            status="failed",
+            completed_at=datetime.now(timezone.utc),
+            error_message="Auto-expired: no progress for 2+ hours",
+        )
+    )
+
     # Check for in-progress run
     running = await db.execute(
         select(EnterpriseSyncRun)
