@@ -135,8 +135,12 @@ function validateSqlLocally(sql: string): ValidationResult {
   const trimmed = sql.trim().replace(/;+$/, '').trim();
   if (!trimmed) return { valid: true, error: '' };
 
+  // Strip leading SQL comments before determining the first keyword
+  const withoutLeadingComments = trimmed.replace(/^(\s*--[^\n]*\n)+/g, '').trim();
+  if (!withoutLeadingComments) return { valid: true, error: '' };
+
   // 1. Check for write statements
-  const firstWord = trimmed.split(/\s+/)[0].toUpperCase();
+  const firstWord = withoutLeadingComments.split(/\s+/)[0].toUpperCase();
   const writeStatements = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'CREATE', 'TRUNCATE', 'GRANT', 'REVOKE'];
   if (writeStatements.includes(firstWord)) {
     return { valid: false, error: `Only SELECT statements are permitted (found ${firstWord})` };

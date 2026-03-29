@@ -90,6 +90,7 @@ async def run_query(
     except Exception as exc:
         # Audit log: query execution error
         try:
+            await db.rollback()
             trail = AuditTrail(
                 user_login=current_user.github_login,
                 user_github_id=current_user.github_id,
@@ -108,9 +109,24 @@ async def run_query(
                 user=current_user.github_login,
                 action="query.error",
             )
+        # Clean the error message for the client
+        error_msg = str(exc)
+        for prefix in ["(sqlalchemy.dialects.postgresql.asyncpg.Error)", "(asyncpg."]:
+            if prefix in error_msg:
+                parts = error_msg.split(">: ", 1)
+                if len(parts) > 1:
+                    error_msg = parts[1]
+        sql_idx = error_msg.find("\n[SQL:")
+        if sql_idx == -1:
+            sql_idx = error_msg.find("[SQL:")
+        if sql_idx != -1:
+            error_msg = error_msg[:sql_idx].strip()
+        bg_idx = error_msg.find("(Background on this error")
+        if bg_idx != -1:
+            error_msg = error_msg[:bg_idx].strip()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Query execution error: {exc}",
+            detail=f"Query execution error: {error_msg}",
         ) from exc
 
 

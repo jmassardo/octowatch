@@ -386,4 +386,12 @@ async def execute_query(
     finally:
         # Always reset role, even on error, to avoid leaking the role change
         # to subsequent operations on this session.
-        await session.execute(text("RESET ROLE"))
+        try:
+            await session.execute(text("RESET ROLE"))
+        except Exception:
+            # Transaction may be aborted; rollback first then reset
+            try:
+                await session.rollback()
+                await session.execute(text("RESET ROLE"))
+            except Exception:
+                pass
