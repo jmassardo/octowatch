@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,7 +33,7 @@ async def run_query(
     try:
         result = await execute_query(db, sql=payload.sql, scope=scope)
         return result
-    except QueryValidationError as exc:
+    except (QueryValidationError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
@@ -84,6 +86,7 @@ async def create_template(
         description=payload.description,
         sql=payload.sql,
         created_by=current_user.github_login,
+        created_at=datetime.now(UTC).isoformat(),
     )
     _QUERY_TEMPLATES[_template_counter] = template.model_dump()
     return template
@@ -131,5 +134,5 @@ async def run_template(
     scope = await get_user_scope(db, current_user.github_login, current_user.roles)
     try:
         return await execute_query(db, sql=t["sql"], scope=scope)
-    except QueryValidationError as exc:
+    except (QueryValidationError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

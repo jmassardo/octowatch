@@ -207,10 +207,7 @@ async def execute_query(
     scope: OrgRepoScope,
 ) -> dict[str, Any]:
     """Execute a validated user SQL query and return results."""
-    try:
-        rewritten_sql, params = validate_and_prepare(sql, scope)
-    except QueryValidationError as exc:
-        raise ValueError(str(exc)) from exc
+    rewritten_sql, params = validate_and_prepare(sql, scope)
 
     query_id = str(uuid.uuid4())
     start = time.monotonic()
