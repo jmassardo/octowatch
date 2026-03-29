@@ -22,6 +22,7 @@ export function ReportsPage() {
   const { selectedOrg } = useOrg();
   const [windowDays, setWindowDays] = useState<30 | 60 | 90>(30);
   const [bucketModal, setBucketModal] = useState<string | null>(null);
+  const [viewReport, setViewReport] = useState<string | null>(null);
   const params: ReportParams = { window_days: windowDays, granularity: 'daily' };
 
   const { data: mauData, isLoading: mauLoading, isError: mauError } = useQuery({
@@ -57,6 +58,15 @@ export function ReportsPage() {
   ];
 
   const activeBucket = summaries.find((s) => s.key === bucketModal);
+
+  const reportDataMap: Record<string, { title: string; data: readonly Record<string, unknown>[] | undefined }> = {
+    'mau': { title: 'Monthly Active Users', data: mauData?.data },
+    'actions-volume': { title: 'Actions Volume', data: actionsData?.data },
+    'seat-utilization': { title: 'Seat Utilization', data: seatData?.data },
+    'copilot-seats': { title: 'Copilot Seats', data: copilotData?.data },
+  };
+
+  const activeReport = viewReport ? reportDataMap[viewReport] : undefined;
 
   return (
     <div className={styles.page}>
@@ -128,8 +138,8 @@ export function ReportsPage() {
                   className={`${styles.reportTitle} ${styles.reportTitleClickable}`}
                   role="button"
                   tabIndex={0}
-                  onClick={() => exportReport(r.type, 'pdf')}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') exportReport(r.type, 'pdf'); }}
+                  onClick={() => setViewReport(r.type)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setViewReport(r.type); }}
                 >
                   {r.title}
                 </div>
@@ -178,6 +188,38 @@ export function ReportsPage() {
         ) : (
           <p>No data available.</p>
         )}
+      </Modal>
+
+      <Modal
+        open={viewReport !== null}
+        onClose={() => setViewReport(null)}
+        title={activeReport?.title ?? 'Report Data'}
+        width={800}
+      >
+        <div className={styles.reportTableContainer}>
+          {activeReport?.data && activeReport.data.length > 0 ? (
+            <table className={styles.bucketTable}>
+              <thead>
+                <tr>
+                  {Object.keys(activeReport.data[0]).map((col) => (
+                    <th key={col}>{col}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {activeReport.data.map((row: Record<string, unknown>, i: number) => (
+                  <tr key={i}>
+                    {Object.values(row).map((val, j) => (
+                      <td key={j}>{String(val)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p>No data available for this report type.</p>
+          )}
+        </div>
       </Modal>
     </div>
   );

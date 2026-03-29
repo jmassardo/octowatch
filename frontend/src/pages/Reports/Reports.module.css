@@ -145,3 +145,8 @@
 .bucketTable tbody tr:last-child td {
   border-bottom: none;
 }
+
+.reportTableContainer {
+  max-height: 500px;
+  overflow: auto;
+}

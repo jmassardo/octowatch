@@ -281,4 +281,120 @@ describe('ReportsPage', () => {
       expect(el.getAttribute('role')).toBe('button');
     });
   });
+
+  it('clicking a report title does not call exportReport', async () => {
+    const { exportReport, getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-1',
+        type: 'mau',
+        title: 'MAU Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    const title = await screen.findByText('MAU Report');
+    await user.click(title);
+    expect(exportReport).not.toHaveBeenCalled();
+  });
+
+  it('clicking a report title opens a modal with report data', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-1',
+        type: 'mau',
+        title: 'MAU Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    const title = await screen.findByText('MAU Report');
+    await user.click(title);
+
+    expect(screen.getByText('Monthly Active Users')).toBeInTheDocument();
+    const tables = screen.getAllByRole('table');
+    expect(tables.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('report view modal shows "no data" message for unknown report types', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-1',
+        type: 'unknown_type',
+        title: 'Unknown Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    const title = await screen.findByText('Unknown Report');
+    await user.click(title);
+
+    expect(screen.getByText('No data available for this report type.')).toBeInTheDocument();
+  });
+
+  it('renders without crashing when catalog entries have no tags field', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-no-tags',
+        type: 'mau',
+        title: 'Report Without Tags',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'available',
+      } as import('../../types/reports').ReportCatalogEntry,
+    ]);
+    renderWithProviders(<ReportsPage />);
+    expect(await screen.findByText('Report Without Tags')).toBeInTheDocument();
+    expect(screen.getByText('All orgs')).toBeInTheDocument();
+  });
+
+  it('renders without crashing when generated_at is null', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-null-date',
+        type: 'mau',
+        title: 'Report With Null Date',
+        generated_at: null,
+        status: 'available',
+        tags: ['usage'],
+      },
+    ]);
+    renderWithProviders(<ReportsPage />);
+    expect(await screen.findByText('Report With Null Date')).toBeInTheDocument();
+    expect(screen.getByText('available')).toBeInTheDocument();
+    expect(screen.getByText('usage')).toBeInTheDocument();
+  });
+
+  it('renders tag labels from catalog entry tags', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-with-tags',
+        type: 'mau',
+        title: 'Tagged Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: ['security', 'automated'],
+      },
+    ]);
+    renderWithProviders(<ReportsPage />);
+    await screen.findByText('Tagged Report');
+    expect(screen.getByText('security')).toBeInTheDocument();
+    expect(screen.getByText('automated')).toBeInTheDocument();
+  });
 });
