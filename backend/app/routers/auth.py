@@ -280,7 +280,8 @@ async def dev_login(
 
     roles = await resolve_roles(db, username)
     if not roles:
-        roles = ["viewer"]
+        # In dev mode, default to sys_admin so the dev user can access everything
+        roles = ["sys_admin"]
     scope = await get_user_scope(db, username, roles)
     scope_type = "global" if scope.is_global else "scoped"
 

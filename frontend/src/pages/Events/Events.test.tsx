@@ -542,4 +542,43 @@ describe('EventsPage', () => {
     expect(jsonPre.textContent).toContain('"actor": "bob"');
     expect(jsonPre.textContent).toContain('"source_ip": "192.168.1.1"');
   });
+
+  // -------------------------------------------------------------------------
+  // URL query param initialization
+  // -------------------------------------------------------------------------
+
+  it('initializes chips from URL query params on mount', async () => {
+    renderWithProviders(<EventsPage />, { route: '/events?repo=my-repo' });
+
+    // The chip should appear in the filter area
+    expect(await screen.findByText('repo:my-repo')).toBeInTheDocument();
+  });
+
+  it('initializes multiple chips from URL query params', async () => {
+    renderWithProviders(<EventsPage />, {
+      route: '/events?repo=my-repo&actor=alice',
+    });
+
+    expect(await screen.findByText('repo:my-repo')).toBeInTheDocument();
+    expect(screen.getByText('actor:alice')).toBeInTheDocument();
+  });
+
+  it('passes URL-sourced chip filters to the API call', async () => {
+    renderWithProviders(<EventsPage />, { route: '/events?repo=my-repo' });
+
+    await screen.findByText('repo:my-repo');
+
+    // The listEvents mock should have been called with the repo filter
+    expect(listEventsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ repo: 'my-repo' }),
+    );
+  });
+
+  it('ignores unsupported URL query params', () => {
+    renderWithProviders(<EventsPage />, { route: '/events?unsupported=value' });
+
+    // No chip should appear for unsupported params
+    const chips = screen.queryAllByText(/unsupported:value/);
+    expect(chips).toHaveLength(0);
+  });
 });

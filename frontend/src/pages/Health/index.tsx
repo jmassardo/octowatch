@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getHealthSummary, getWafFindings } from '../../api/healthSignals';
+import { useFeatures } from '../../hooks/useFeatures';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { HealthTabBar } from './HealthTabBar';
 import type { HealthTab } from './HealthTabBar';
@@ -32,6 +33,7 @@ const TAB_TO_SLUG: Record<HealthTab, string> = Object.fromEntries(
 export function HealthPage() {
   const { tab: tabSlug } = useParams<{ tab: string }>();
   const navigate = useNavigate();
+  const { features } = useFeatures();
 
   const activeTab: HealthTab = SLUG_TO_TAB[tabSlug ?? 'repos'] ?? 'repo-health';
 
@@ -46,6 +48,17 @@ export function HealthPage() {
     queryFn: getWafFindings,
     staleTime: 60_000,
   });
+
+  if (!features.org_health) {
+    return (
+      <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--fg-muted)' }}>
+        <h2>Org Health is disabled</h2>
+        <p style={{ marginTop: '0.75rem' }}>
+          Enable it in <a href="/settings/features" style={{ color: 'var(--accent)' }}>Settings → Features</a>.
+        </p>
+      </div>
+    );
+  }
 
   const totalFindings = summary
     ? summary.stale_repos +

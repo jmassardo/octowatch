@@ -219,7 +219,7 @@ describe('SettingsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'GitHub' }));
 
-    expect(screen.getByText(/no settings in the github category/i)).toBeInTheDocument();
+    expect(screen.getByText(/no settings configured in the github category/i)).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */

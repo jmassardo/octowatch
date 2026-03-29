@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { CopilotPage } from './index';
+import { useFeatures } from '../../hooks/useFeatures';
 
 vi.mock('echarts-for-react', () => ({
   default: () => null,
@@ -21,6 +22,30 @@ vi.mock('../../api/reports', () => ({
     ],
   }),
   getCopilotSeatsReport: vi.fn().mockResolvedValue({ data: [] }),
+}));
+
+vi.mock('../../api/features', () => ({
+  getFeatures: vi.fn().mockResolvedValue({
+    copilot_insights: true,
+    velocity: true,
+    dev_activity: true,
+    org_health: true,
+  }),
+  updateFeatures: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('../../hooks/useFeatures', () => ({
+  useFeatures: vi.fn().mockReturnValue({
+    features: {
+      copilot_insights: true,
+      velocity: true,
+      dev_activity: true,
+      org_health: true,
+    },
+    isLoading: false,
+    toggleFeature: vi.fn(),
+    isToggling: false,
+  }),
 }));
 
 vi.mock('../../api/copilotMetrics', () => ({
@@ -199,5 +224,37 @@ describe('CopilotPage', () => {
     await user.click(screen.getByRole('tab', { name: /Overview/ }));
     expect(await screen.findByText(/Seat waste detected/)).toBeInTheDocument();
     expect(screen.queryByText('Adoption tiers')).not.toBeInTheDocument();
+  });
+
+  it('shows disabled message when copilot_insights feature is off', () => {
+    vi.mocked(useFeatures).mockReturnValue({
+      features: {
+        copilot_insights: false,
+        velocity: true,
+        dev_activity: true,
+        org_health: true,
+      },
+      isLoading: false,
+      toggleFeature: vi.fn(),
+      isToggling: false,
+    });
+
+    renderPage();
+
+    expect(screen.getByText('Copilot Insights is disabled')).toBeInTheDocument();
+    expect(screen.getByText(/Settings → Features/)).toBeInTheDocument();
+
+    // Restore mock for other tests
+    vi.mocked(useFeatures).mockReturnValue({
+      features: {
+        copilot_insights: true,
+        velocity: true,
+        dev_activity: true,
+        org_health: true,
+      },
+      isLoading: false,
+      toggleFeature: vi.fn(),
+      isToggling: false,
+    });
   });
 });

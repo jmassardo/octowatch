@@ -229,13 +229,13 @@ export function DashboardPage() {
           value={String(healthSummary?.unresolved_secret_alerts ?? '—')}
           label="unresolved secrets"
           variant={healthSummary != null && healthSummary.unresolved_secret_alerts > 0 ? 'danger' : undefined}
-          onClick={() => navigate('/health?tab=security-posture')}
+          onClick={() => navigate('/health/security')}
         />
         <StatPill
           value={String(healthSummary?.security_feature_disables_7d ?? '—')}
           label="feature disables (7d)"
           variant={healthSummary != null && healthSummary.security_feature_disables_7d > 0 ? 'danger' : undefined}
-          onClick={() => navigate('/health?tab=security-posture')}
+          onClick={() => navigate('/health/security')}
         />
       </div>
 

@@ -13,6 +13,7 @@ import { Label } from '../../components/primitives/Label';
 import { Modal } from '../../components/primitives/Modal';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { useFeatures } from '../../hooks/useFeatures';
 import type { ActionsVolumeBucket } from '../../types/reports';
 import type { EventResponse } from '../../types/events';
 import type { WorkflowRow } from '../../api/healthSignals';
@@ -239,6 +240,7 @@ function BranchProtectionSection({ branchProt }: BranchProtectionProps) {
 
 export function VelocityPage() {
   const navigate = useNavigate();
+  const { features } = useFeatures();
   const [doraModalOpen, setDoraModalOpen] = useState(false);
   const [failureBucket, setFailureBucket] = useState<ActionsVolumeBucket | null>(null);
   const changeFailureRef = useRef<HTMLDivElement>(null);
@@ -406,6 +408,17 @@ export function VelocityPage() {
     .filter((b) => (b.workflow_runs_failed ?? 0) > 0)
     .slice(-7)
     .reverse();
+
+  if (!features.velocity) {
+    return (
+      <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--fg-muted)' }}>
+        <h2>Engineering Velocity is disabled</h2>
+        <p style={{ marginTop: '0.75rem' }}>
+          Enable it in <a href="/settings/features" style={{ color: 'var(--accent)' }}>Settings → Features</a>.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>

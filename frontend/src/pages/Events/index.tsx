@@ -1,4 +1,6 @@
-import { useRef, useState } from 'react';import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { listEvents } from '../../api/events';
 import type { EventResponse } from '../../types/events';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -25,11 +27,35 @@ function formatTs(iso: string): string {
 }
 
 export function EventsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [chips, setChips] = useState<string[]>([]);
+  const [chips, setChips] = useState<string[]>(() => {
+    // Initialize chips from URL query params on first render
+    const urlChips: string[] = [];
+    const supportedParams = ['repo', 'actor', 'action', 'org'];
+    for (const param of supportedParams) {
+      const val = searchParams.get(param);
+      if (val) {
+        urlChips.push(`${param}:${val}`);
+      }
+    }
+    return urlChips;
+  });
   const [page, setPage] = useState(1);
   const [detailEvent, setDetailEvent] = useState<EventResponse | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const clearedUrlParams = useRef(false);
+
+  // Clear URL params after they have been applied as initial chips
+  useEffect(() => {
+    if (clearedUrlParams.current) return;
+    clearedUrlParams.current = true;
+    const supportedParams = ['repo', 'actor', 'action', 'org'];
+    const hasParams = supportedParams.some((p) => searchParams.has(p));
+    if (hasParams) {
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const debouncedSearch = useDebounce(search, 400);
 

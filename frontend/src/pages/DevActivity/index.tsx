@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { listEvents } from '../../api/events';
 import { listDetections } from '../../api/detections';
 import { getTeams } from '../../api/healthSignals';
+import { useFeatures } from '../../hooks/useFeatures';
 import { Avatar } from '../../components/primitives/Avatar';
 import { Label } from '../../components/primitives/Label';
 import { Card, CardHeader } from '../../components/primitives/Card';
@@ -26,6 +27,7 @@ interface ActorStats {
 
 export function DevActivityPage() {
   const navigate = useNavigate();
+  const { features } = useFeatures();
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [othersModalOpen, setOthersModalOpen] = useState(false);
   const [concentrationModalOpen, setConcentrationModalOpen] = useState(false);
@@ -196,6 +198,17 @@ export function DevActivityPage() {
     })
     .sort((a, b) => b.eventCount - a.eventCount)
     .slice(0, 12);
+
+  if (!features.dev_activity) {
+    return (
+      <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--fg-muted)' }}>
+        <h2>Developer Activity is disabled</h2>
+        <p style={{ marginTop: '0.75rem' }}>
+          Enable it in <a href="/settings/features" style={{ color: 'var(--accent)' }}>Settings → Features</a>.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>

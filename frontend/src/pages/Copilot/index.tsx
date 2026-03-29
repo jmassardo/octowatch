@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getSeatUtilizationReport, getCopilotSeatsReport } from '../../api/reports';
 import { getCopilotAnomalies } from '../../api/copilotMetrics';
 import type { SeatUtilizationBucket, CopilotSeatsBucket } from '../../types/reports';
+import { useFeatures } from '../../hooks/useFeatures';
 import { CopilotTabBar } from './CopilotTabBar';
 import type { CopilotTab } from './CopilotTabBar';
 import { OverviewPane } from './OverviewPane';
@@ -17,6 +18,7 @@ const VALID_TABS: readonly CopilotTab[] = ['overview', 'adoption', 'models', 'li
 export function CopilotPage() {
   const { tab } = useParams<{ tab: string }>();
   const navigate = useNavigate();
+  const { features } = useFeatures();
 
   const activeTab: CopilotTab = VALID_TABS.includes(tab as CopilotTab)
     ? (tab as CopilotTab)
@@ -42,6 +44,17 @@ export function CopilotPage() {
     queryFn: getCopilotAnomalies,
     staleTime: 300_000,
   });
+
+  if (!features.copilot_insights) {
+    return (
+      <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--fg-muted)' }}>
+        <h2>Copilot Insights is disabled</h2>
+        <p style={{ marginTop: '0.75rem' }}>
+          Enable it in <a href="/settings/features" style={{ color: 'var(--accent)' }}>Settings → Features</a> to view Copilot metrics.
+        </p>
+      </div>
+    );
+  }
 
   const seatBuckets = (seatUtilData?.data ?? []) as unknown as SeatUtilizationBucket[];
   const copilotBuckets = (copilotData?.data ?? []) as unknown as CopilotSeatsBucket[];

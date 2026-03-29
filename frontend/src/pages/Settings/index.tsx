@@ -332,7 +332,10 @@ export function SettingsPage() {
             <Spinner />
           ) : isCategory && filteredSettings.length === 0 ? (
             <div className={styles.empty}>
-              No settings in {activeTab === 'All' ? 'any category' : `the ${activeTab} category`}
+              <p>No settings configured in {activeTab === 'All' ? 'any category' : `the ${activeTab} category`} yet.</p>
+              <p style={{ color: 'var(--fg-subtle)', fontSize: '0.8125rem', marginTop: '0.5rem' }}>
+                Settings are automatically populated during setup and sync. You can also add custom settings using the admin API.
+              </p>
             </div>
           ) : (
             <div className={styles.tableWrap}>
