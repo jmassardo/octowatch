@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { renderWithProviders } from '../../test/utils';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { SettingsPage } from './index';
 
 const mockListSettings = vi.fn().mockResolvedValue([
@@ -106,6 +107,21 @@ vi.mock('../../api/setup', () => ({
   getSetupCurrentConfig: vi.fn().mockResolvedValue({}),
 }));
 
+function renderPage(initialTab = 'all') {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[`/settings/${initialTab}`]}>
+        <Routes>
+          <Route path="/settings/:tab" element={<SettingsPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
 describe('SettingsPage', () => {
   beforeEach(() => {
     mockListSettings.mockClear();
@@ -119,14 +135,14 @@ describe('SettingsPage', () => {
   /* ---------------------------------------------------------------- */
 
   it('renders page title and subtitle', () => {
-    renderWithProviders(<SettingsPage />);
+    renderPage();
 
     expect(screen.getByRole('heading', { level: 1, name: /settings/i })).toBeInTheDocument();
     expect(screen.getByText(/manage application settings/i)).toBeInTheDocument();
   });
 
   it('renders category tabs', () => {
-    renderWithProviders(<SettingsPage />);
+    renderPage();
 
     expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'GitHub' })).toBeInTheDocument();
@@ -142,7 +158,7 @@ describe('SettingsPage', () => {
   /* ---------------------------------------------------------------- */
 
   it('renders all settings in the All tab', async () => {
-    renderWithProviders(<SettingsPage />);
+    renderPage();
 
     expect(await screen.findByText('github.client_id')).toBeInTheDocument();
     expect(screen.getByText('github.app_id')).toBeInTheDocument();
@@ -153,14 +169,14 @@ describe('SettingsPage', () => {
   });
 
   it('shows masked values for settings', async () => {
-    renderWithProviders(<SettingsPage />);
+    renderPage();
 
     expect(await screen.findByText('Ov23li****')).toBeInTheDocument();
     expect(screen.getByText('****')).toBeInTheDocument();
   });
 
   it('shows sensitivity badges', async () => {
-    renderWithProviders(<SettingsPage />);
+    renderPage();
 
     await screen.findByText('github.client_id');
 
@@ -175,7 +191,7 @@ describe('SettingsPage', () => {
 
   it('filters settings by category when tab is clicked', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<SettingsPage />);
+    renderPage();
 
     await screen.findByText('github.client_id');
 
@@ -195,7 +211,7 @@ describe('SettingsPage', () => {
   it('shows empty state when category has no settings', async () => {
     mockListSettings.mockResolvedValueOnce([]);
     const user = userEvent.setup();
-    renderWithProviders(<SettingsPage />);
+    renderPage();
 
     await waitFor(() => {
       expect(mockListSettings).toHaveBeenCalled();
@@ -212,7 +228,7 @@ describe('SettingsPage', () => {
 
   it('opens edit modal when Edit is clicked', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<SettingsPage />);
+    renderPage();
 
     await screen.findByText('system.log_level');
 
@@ -231,7 +247,7 @@ describe('SettingsPage', () => {
 
   it('calls updateSetting when form is submitted', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<SettingsPage />);
+    renderPage();
 
     await screen.findByText('system.log_level');
 
@@ -258,7 +274,7 @@ describe('SettingsPage', () => {
 
   it('opens confirm dialog when Reset is clicked', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<SettingsPage />);
+    renderPage();
 
     await screen.findByText('system.log_level');
 
@@ -278,7 +294,7 @@ describe('SettingsPage', () => {
 
   it('renders audit trail when Audit Trail tab is clicked', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<SettingsPage />);
+    renderPage();
 
     await screen.findByText('github.client_id');
 

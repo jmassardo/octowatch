@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   listSettings,
@@ -20,6 +21,20 @@ import styles from './Settings.module.css';
 
 const CATEGORIES = ['All', 'GitHub', 'Security', 'Storage', 'Notifications', 'System'] as const;
 type Category = (typeof CATEGORIES)[number];
+
+const SLUG_TO_TAB: Record<string, Category | 'Audit'> = {
+  all: 'All',
+  github: 'GitHub',
+  security: 'Security',
+  storage: 'Storage',
+  notifications: 'Notifications',
+  system: 'System',
+  audit: 'Audit',
+};
+
+const TAB_TO_SLUG: Record<string, string> = Object.fromEntries(
+  Object.entries(SLUG_TO_TAB).map(([slug, tab]) => [tab, slug]),
+);
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -169,7 +184,9 @@ function AuditTrailTable() {
 
 export function SettingsPage() {
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<Category | 'Audit'>('All');
+  const { tab: tabSlug } = useParams<{ tab: string }>();
+  const navigate = useNavigate();
+  const activeTab: Category | 'Audit' = SLUG_TO_TAB[tabSlug ?? 'all'] ?? 'All';
   const [editTarget, setEditTarget] = useState<AppSetting | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppSetting | null>(null);
 
@@ -218,14 +235,14 @@ export function SettingsPage() {
           <button
             key={cat}
             className={activeTab === cat ? styles.tabActive : styles.tab}
-            onClick={() => setActiveTab(cat)}
+            onClick={() => navigate(`/settings/${TAB_TO_SLUG[cat]}`)}
           >
             {cat}
           </button>
         ))}
         <button
           className={activeTab === 'Audit' ? styles.tabActive : styles.tab}
-          onClick={() => setActiveTab('Audit')}
+          onClick={() => navigate('/settings/audit')}
         >
           Audit Trail
         </button>

@@ -44,7 +44,8 @@ export const router = createBrowserRouter([
       { path: '/rules', element: <RulesPage /> },
       { path: '/users', element: <UsersPage /> },
       { path: '/integrations', element: <IntegrationsPage /> },
-      { path: '/settings', element: <SettingsPage /> },
+      { path: '/settings', element: <Navigate to="/settings/all" replace /> },
+      { path: '/settings/:tab', element: <SettingsPage /> },
     ],
   },
 ]);
