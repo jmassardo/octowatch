@@ -407,39 +407,24 @@ function computeSuggestions(sql: string, cursorPos: number): Suggestion[] {
   return results.slice(0, 8);
 }
 
-/** Calculate pixel position of cursor in textarea using a mirror div */
+/** Calculate pixel position of cursor in textarea relative to viewport (fixed positioning) */
 function getCursorPixelPosition(textarea: HTMLTextAreaElement): { top: number; left: number } {
-  const div = document.createElement('div');
   const cs = getComputedStyle(textarea);
-
-  div.style.fontFamily = cs.fontFamily;
-  div.style.fontSize = cs.fontSize;
-  div.style.lineHeight = cs.lineHeight;
-  div.style.padding = cs.padding;
-  div.style.border = cs.border;
-  div.style.letterSpacing = cs.letterSpacing;
-  div.style.wordSpacing = cs.wordSpacing;
-  div.style.position = 'absolute';
-  div.style.visibility = 'hidden';
-  div.style.whiteSpace = 'pre-wrap';
-  div.style.wordWrap = 'break-word';
-  div.style.width = cs.width;
-  div.style.overflow = 'hidden';
+  const lineHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.7;
+  const charWidth = parseFloat(cs.fontSize) * 0.6; // monospace approximation
+  const paddingTop = parseFloat(cs.paddingTop) || 0;
+  const paddingLeft = parseFloat(cs.paddingLeft) || 0;
 
   const textBeforeCursor = textarea.value.substring(0, textarea.selectionStart);
-  div.textContent = textBeforeCursor;
-  const span = document.createElement('span');
-  span.textContent = '|';
-  div.appendChild(span);
-  document.body.appendChild(div);
+  const linesBeforeCursor = textBeforeCursor.split('\n');
+  const row = linesBeforeCursor.length - 1;
+  const col = linesBeforeCursor[linesBeforeCursor.length - 1].length;
 
-  const spanRect = span.getBoundingClientRect();
-  const textareaRect = textarea.getBoundingClientRect();
-  document.body.removeChild(div);
+  const rect = textarea.getBoundingClientRect();
 
   return {
-    top: spanRect.top - textareaRect.top + textarea.scrollTop,
-    left: spanRect.left - textareaRect.left + textarea.scrollLeft,
+    top: rect.top + paddingTop + (row * lineHeight) - textarea.scrollTop + lineHeight,
+    left: rect.left + paddingLeft + (col * charWidth) - textarea.scrollLeft,
   };
 }
 
@@ -450,22 +435,20 @@ function SqlAutocomplete({
   position,
   partial,
   onAccept,
-  editorRect,
 }: {
   items: readonly Suggestion[];
   activeIndex: number;
   position: { top: number; left: number };
   partial: string;
   onAccept: (text: string) => void;
-  editorRect: DOMRect;
 }) {
   return createPortal(
     <div
       className={styles.acDropdown}
       style={{
         position: 'fixed',
-        top: editorRect.top + position.top + 22,
-        left: editorRect.left + position.left,
+        top: position.top,
+        left: position.left,
       }}
       role="listbox"
     >
@@ -542,7 +525,6 @@ export function QueryPage() {
   const [acIndex, setAcIndex] = useState(0);
   const [acPosition, setAcPosition] = useState({ top: 0, left: 0 });
   const [acPartial, setAcPartial] = useState('');
-  const [acEditorRect, setAcEditorRect] = useState<DOMRect | null>(null);
   const cursorPosRef = useRef(0);
   const acDismissedRef = useRef(false);
 
@@ -617,7 +599,6 @@ export function QueryPage() {
     setAcIndex(0);
     if (items.length > 0 && textareaRef.current) {
       setAcPosition(getCursorPixelPosition(textareaRef.current));
-      setAcEditorRect(textareaRef.current.getBoundingClientRect());
     }
   }
 
@@ -855,14 +836,13 @@ export function QueryPage() {
                   spellCheck={false}
                   rows={lines.length}
                 />
-                {acItems.length > 0 && acEditorRect && (
+                {acItems.length > 0 && (
                   <SqlAutocomplete
                     items={acItems}
                     activeIndex={acIndex}
                     position={acPosition}
                     partial={acPartial}
                     onAccept={acceptSuggestion}
-                    editorRect={acEditorRect}
                   />
                 )}
               </div>
