@@ -128,6 +128,55 @@ async def validate_query(
     scope = await get_user_scope(db, current_user.github_login, current_user.roles)
     try:
         rewritten_sql, params = validate_and_prepare(payload.sql, scope)
+
+        # Use PREPARE to validate against the actual schema without executing
+        import uuid
+        from sqlalchemy import text as sa_text
+
+        stmt_name = f"_validate_{uuid.uuid4().hex[:12]}"
+        try:
+            await db.execute(sa_text("SET LOCAL ROLE readonly_query_user"))
+            # Substitute bind params for PREPARE (it doesn't support named params)
+            prepare_sql = rewritten_sql
+            for key, val in params.items():
+                if isinstance(val, int):
+                    prepare_sql = prepare_sql.replace(f":{key}", str(val))
+                elif isinstance(val, list):
+                    arr = "ARRAY[" + ",".join(f"'{v}'" for v in val) + "]::text[]"
+                    prepare_sql = prepare_sql.replace(f":{key}", arr)
+            await db.execute(sa_text(f"PREPARE {stmt_name} AS {prepare_sql}"))
+            await db.execute(sa_text(f"DEALLOCATE {stmt_name}"))
+        except Exception as db_exc:
+            error_msg = str(db_exc)
+            # Extract the useful PostgreSQL error message
+            clean = error_msg
+            # Strip asyncpg class prefix
+            if "<class 'asyncpg" in clean:
+                parts = clean.split(">: ", 1)
+                if len(parts) > 1:
+                    clean = parts[1]
+            # Strip SQLAlchemy wrapper
+            if "(sqlalchemy" in clean:
+                parts = clean.split(">: ", 1)
+                if len(parts) > 1:
+                    clean = parts[1]
+            # Strip the [SQL: ...] suffix
+            sql_idx = clean.find("\n[SQL:")
+            if sql_idx == -1:
+                sql_idx = clean.find("[SQL:")
+            if sql_idx != -1:
+                clean = clean[:sql_idx].strip()
+            # Strip Background link
+            bg_idx = clean.find("(Background on this error")
+            if bg_idx != -1:
+                clean = clean[:bg_idx].strip()
+            return {"valid": False, "error": clean}
+        finally:
+            try:
+                await db.execute(sa_text("RESET ROLE"))
+            except Exception:
+                pass
+
         return {
             "valid": True,
             "rewritten_sql": rewritten_sql,

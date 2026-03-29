@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { runQuery, validateQuery, listTemplates, createTemplate } from '../../api/query';
+import { runQuery, listTemplates, createTemplate } from '../../api/query';
 import type { QueryRunResponse } from '../../types/query';
 import { Button } from '../../components/primitives/Button';
 import { Modal } from '../../components/primitives/Modal';
@@ -101,7 +101,175 @@ const SQL_FUNCTIONS = new Set([
   'ROW_NUMBER', 'RANK', 'DENSE_RANK',
 ]);
 
-const COLUMN_NAMES = new Set(SCHEMA.flatMap((s) => s.cols.map((c) => c.name)));
+// --- Client-side SQL Validation ---
+
+const TABLE_NAMES = new Set(SCHEMA.map((s) => s.table.toLowerCase()));
+const ALL_COLUMNS = new Map<string, Set<string>>();
+for (const s of SCHEMA) {
+  ALL_COLUMNS.set(s.table.toLowerCase(), new Set(s.cols.map((c) => c.name.toLowerCase())));
+}
+const EVERY_COLUMN = new Set(SCHEMA.flatMap((s) => s.cols.map((c) => c.name.toLowerCase())));
+
+// Backend-aligned allowed functions (lowercase)
+const VALID_FUNCTIONS = new Set([
+  'count', 'sum', 'avg', 'min', 'max', 'string_agg', 'array_agg', 'bool_or', 'bool_and',
+  'date_trunc', 'time_bucket', 'to_char', 'to_timestamp', 'date_part', 'extract', 'now',
+  'timezone', 'age', 'date', 'make_interval', 'justify_interval',
+  'lower', 'upper', 'length', 'substr', 'substring', 'regexp_replace', 'regexp_matches',
+  'concat', 'trim', 'btrim', 'ltrim', 'rtrim', 'replace', 'left', 'right', 'position',
+  'strpos', 'split_part',
+  'coalesce', 'nullif', 'greatest', 'least',
+  'abs', 'ceil', 'floor', 'round', 'trunc',
+  'jsonb_extract_path_text', 'jsonb_array_elements',
+  'row_number', 'rank', 'dense_rank', 'lag', 'lead', 'first_value', 'last_value',
+  'ntile', 'percent_rank', 'cume_dist',
+  'cast', 'unnest', 'generate_series',
+]);
+
+interface ValidationResult {
+  valid: boolean;
+  error: string;
+}
+
+function validateSqlLocally(sql: string): ValidationResult {
+  const trimmed = sql.trim().replace(/;+$/, '').trim();
+  if (!trimmed) return { valid: true, error: '' };
+
+  // 1. Check for write statements
+  const firstWord = trimmed.split(/\s+/)[0].toUpperCase();
+  const writeStatements = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'CREATE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  if (writeStatements.includes(firstWord)) {
+    return { valid: false, error: `Only SELECT statements are permitted (found ${firstWord})` };
+  }
+
+  // 2. Check balanced parentheses
+  let parenDepth = 0;
+  let inString = false;
+  let inComment = false;
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i];
+    if (inComment) {
+      if (ch === '\n') inComment = false;
+      continue;
+    }
+    if (ch === '-' && i + 1 < trimmed.length && trimmed[i + 1] === '-') {
+      inComment = true;
+      continue;
+    }
+    if (ch === "'") {
+      if (inString && i + 1 < trimmed.length && trimmed[i + 1] === "'") {
+        i++; // skip escaped quote
+        continue;
+      }
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === '(') parenDepth++;
+    if (ch === ')') parenDepth--;
+    if (parenDepth < 0) {
+      return { valid: false, error: 'Unmatched closing parenthesis ")"' };
+    }
+  }
+  if (parenDepth > 0) {
+    return { valid: false, error: `Unmatched opening parenthesis — ${parenDepth} unclosed "("` };
+  }
+  if (inString) {
+    return { valid: false, error: 'Unterminated string literal — missing closing quote' };
+  }
+
+  // 3. Extract and check table references (FROM / JOIN)
+  const tablePattern = /\b(?:FROM|JOIN)\s+([a-zA-Z_]\w*)/gi;
+  let match;
+  const referencedTables: string[] = [];
+  while ((match = tablePattern.exec(trimmed)) !== null) {
+    const tbl = match[1].toLowerCase();
+    referencedTables.push(tbl);
+    if (!TABLE_NAMES.has(tbl)) {
+      return { valid: false, error: `Table '${match[1]}' is not in allowed tables: ${[...TABLE_NAMES].sort().join(', ')}` };
+    }
+  }
+
+  // 4. Extract and check function calls
+  const funcPattern = /\b([a-zA-Z_]\w*)\s*\(/g;
+  while ((match = funcPattern.exec(trimmed)) !== null) {
+    const fn = match[1].toLowerCase();
+    // Skip SQL keywords that use parens (e.g., IN(...), EXISTS(...))
+    if (SQL_KEYWORDS.has(fn.toUpperCase())) continue;
+    // Skip type casts (e.g., INTERVAL, TIMESTAMP)
+    if (['interval', 'timestamp', 'date', 'time', 'integer', 'bigint', 'text', 'boolean', 'numeric', 'float', 'real', 'double'].includes(fn)) continue;
+    if (!VALID_FUNCTIONS.has(fn)) {
+      return { valid: false, error: `Function '${match[1]}' is not permitted` };
+    }
+  }
+
+  // 5. Check for likely missing commas in SELECT list
+  // Two consecutive column names without a comma suggests a missing comma
+  const selectFromMatch = trimmed.match(/\bSELECT\b\s+([\s\S]*?)\bFROM\b/i);
+  if (selectFromMatch) {
+    const selectRaw = selectFromMatch[1]
+      .replace(/--[^\n]*/g, ' ')
+      .replace(/'[^']*'/g, ' ')
+      .replace(/\b\w+\s*\([^)]*\)/g, ' ');
+    const consecutivePattern = /\b([a-zA-Z_]\w*)\s+([a-zA-Z_]\w*)\b/g;
+    let cm;
+    while ((cm = consecutivePattern.exec(selectRaw)) !== null) {
+      const first = cm[1].toLowerCase();
+      const second = cm[2].toLowerCase();
+      if (SQL_KEYWORDS.has(cm[1].toUpperCase()) || SQL_KEYWORDS.has(cm[2].toUpperCase())) continue;
+      if (VALID_FUNCTIONS.has(first) || VALID_FUNCTIONS.has(second)) continue;
+      if (EVERY_COLUMN.has(first) && EVERY_COLUMN.has(second)) {
+        return { valid: false, error: `Possible missing comma between '${cm[1]}' and '${cm[2]}'` };
+      }
+    }
+  }
+
+  // 6. Check identifiers in SELECT list for unknown columns
+  if (selectFromMatch) {
+    const selectList = selectFromMatch[1];
+    // Extract bare identifiers (not part of functions, not aliases after AS, not *)
+    const identTokens = selectList
+      .replace(/--[^\n]*/g, '')           // strip comments
+      .replace(/'[^']*'/g, '')            // strip string literals
+      .replace(/\b\w+\s*\([^)]*\)/g, '') // strip function calls (simple)
+      .replace(/\bAS\s+\w+/gi, '')        // strip aliases
+      .replace(/\bDISTINCT\b/gi, '')      // strip DISTINCT
+      .split(/[,\s]+/)
+      .map((t) => t.trim().toLowerCase())
+      .filter((t) => t && /^[a-z_]\w*$/.test(t) && t !== '*');
+
+    // Get columns available from referenced tables
+    const availableCols = new Set<string>();
+    if (referencedTables.length > 0) {
+      for (const tbl of referencedTables) {
+        const cols = ALL_COLUMNS.get(tbl);
+        if (cols) cols.forEach((c) => availableCols.add(c));
+      }
+    } else {
+      EVERY_COLUMN.forEach((c) => availableCols.add(c));
+    }
+
+    for (const ident of identTokens) {
+      // Skip if it's a known keyword, function, or table name
+      if (SQL_KEYWORDS.has(ident.toUpperCase())) continue;
+      if (VALID_FUNCTIONS.has(ident)) continue;
+      if (TABLE_NAMES.has(ident)) continue;
+      // Skip numeric literals
+      if (/^\d+$/.test(ident)) continue;
+
+      if (!availableCols.has(ident)) {
+        return { valid: false, error: `Column '${ident}' does not exist in ${referencedTables.length > 0 ? referencedTables.join(', ') : 'any table'}` };
+      }
+    }
+  }
+
+  // 6. Check for missing SELECT keyword
+  if (!firstWord || firstWord !== 'SELECT' && firstWord !== 'WITH') {
+    return { valid: false, error: `Query must start with SELECT or WITH (found '${firstWord}')` };
+  }
+
+  return { valid: true, error: '' };
+}
 
 type TokenType = 'keyword' | 'function' | 'column' | 'string' | 'comment' | 'plain';
 
@@ -154,7 +322,7 @@ function tokenizeSql(sql: string): SqlToken[] {
         tokens.push({ type: 'keyword', value: word });
       } else if (SQL_FUNCTIONS.has(upper)) {
         tokens.push({ type: 'function', value: word });
-      } else if (COLUMN_NAMES.has(word)) {
+      } else if (EVERY_COLUMN.has(word.toLowerCase())) {
         tokens.push({ type: 'column', value: word });
       } else {
         tokens.push({ type: 'plain', value: word });
@@ -191,12 +359,20 @@ const TOKEN_STYLES: Record<TokenType, string | undefined> = {
 
 /** Extract the range of the problematic token from a validation error message */
 function getErrorRange(sql: string, error: string): { start: number; end: number } | null {
-  const patterns = [
+  const patterns: RegExp[] = [
     /Table '([^']+)'/,
     /Function\(s\) not permitted: \['?([^'"\]]+)/,
+    /Function '([^']+)' is not permitted/,
     /syntax error at or near "([^"]+)"/,
     /Statement type not permitted: (\w+)/,
     /Schema-qualified.*: ([^\s]+)/,
+    /Column '([^']+)' does not exist/,
+    /Possible missing comma between '([^']+)'/,
+    // PostgreSQL runtime errors
+    /column "(?:\w+\.)?(\w+)" must appear/,
+    /column "(\w+)" does not exist/,
+    /relation "(\w+)" does not exist/,
+    /function (\w+)\(.*?\) does not exist/,
   ];
 
   for (const pat of patterns) {
@@ -270,7 +446,7 @@ function renderHighlightedSql(
 
 // --- Validation & Autocomplete ---
 
-type ValidationStatus = 'idle' | 'validating' | 'valid' | 'invalid';
+type ValidationStatus = 'idle' | 'valid' | 'invalid';
 
 type SuggestionKind = 'keyword' | 'function' | 'table' | 'column';
 
@@ -512,15 +688,13 @@ export function QueryPage() {
   const resultsTableRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
-  // Validation state — stores the API response keyed to the SQL it validated
-  const [validationResult, setValidationResult] = useState<{
-    sql: string;
-    valid: boolean;
-    error: string;
-  } | null>(null);
-  const [isValidating, setIsValidating] = useState(false);
-
-  // Autocomplete state
+  // Instant client-side validation — no API calls needed
+  const localValidation = validateSqlLocally(sql);
+  const validationStatus: ValidationStatus =
+    !sql.trim() ? 'idle' :
+    localValidation.valid ? 'valid' : 'invalid';
+  const validationError = localValidation.error;
+  const errorRange = validationStatus === 'invalid' ? getErrorRange(sql, validationError) : null;
   const [acItems, setAcItems] = useState<Suggestion[]>([]);
   const [acIndex, setAcIndex] = useState(0);
   const [acPosition, setAcPosition] = useState({ top: 0, left: 0 });
@@ -552,36 +726,6 @@ export function QueryPage() {
       void queryClient.invalidateQueries({ queryKey: ['query-templates'] });
     },
   });
-
-  // Debounced live validation — only calls setState inside async callbacks
-  useEffect(() => {
-    if (!sql.trim()) return;
-
-    const timer = setTimeout(() => {
-      setIsValidating(true);
-      validateQuery(sql)
-        .then((result) => {
-          setValidationResult({
-            sql,
-            valid: result.valid,
-            error: result.error ?? '',
-          });
-          setIsValidating(false);
-        })
-        .catch(() => {
-          setIsValidating(false);
-        });
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [sql]);
-
-  // Derive validation display from current SQL and last API result
-  const validationStatus: ValidationStatus =
-    !sql.trim() ? 'idle' :
-    isValidating ? 'validating' :
-    (validationResult?.sql === sql) ? (validationResult.valid ? 'valid' : 'invalid') : 'idle';
-  const validationError = (validationResult?.sql === sql) ? validationResult.error : '';
-  const errorRange = validationStatus === 'invalid' ? getErrorRange(sql, validationError) : null;
 
   const lines = sql.split('\n');
 
@@ -771,9 +915,6 @@ export function QueryPage() {
               )}
               {validationStatus === 'invalid' && (
                 <span className={styles.invalidDot} title={validationError} />
-              )}
-              {validationStatus === 'validating' && (
-                <span className={styles.validatingDot} title="Validating…" />
               )}
               <div className={styles.toolbarActions}>
                 <Button size="sm" variant="primary" onClick={() => runMutation.mutate(sql)} disabled={runMutation.isPending}>
