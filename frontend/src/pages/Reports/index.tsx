@@ -133,9 +133,9 @@ export function ReportsPage() {
                 >
                   {r.title}
                 </div>
-                <div className={styles.reportDate}>Generated {new Date(r.generated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {r.status}</div>
+                <div className={styles.reportDate}>{r.generated_at ? `Generated ${new Date(r.generated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ` : ''}{r.status}</div>
                 <div className={styles.reportTags}>
-                  {r.tags.map((tag) => (
+                  {(r.tags ?? []).map((tag) => (
                     <Label key={tag} variant="muted">{tag}</Label>
                   ))}
                   <Label variant="muted">{selectedOrg || 'All orgs'}</Label>

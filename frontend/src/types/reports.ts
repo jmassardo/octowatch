@@ -69,7 +69,7 @@ export interface ReportCatalogEntry {
   readonly id: string;
   readonly type: string;
   readonly title: string;
-  readonly generated_at: string;
+  readonly generated_at: string | null;
   readonly status: string;
-  readonly tags: readonly string[];
+  readonly tags?: readonly string[];
 }
