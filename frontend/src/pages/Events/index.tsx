@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { listEvents } from '../../api/events';
+import { getSuggestedActions, getSuggestedActors } from '../../api/suggestions';
 import type { EventResponse } from '../../types/events';
 import { useDebounce } from '../../hooks/useDebounce';
 import { Label } from '../../components/primitives/Label';
@@ -9,6 +10,7 @@ import { Button } from '../../components/primitives/Button';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Modal } from '../../components/primitives/Modal';
+import { EventSearchInput } from './EventSearchInput';
 import { SEARCH_KEY_MAP, parseSearchFilters, downloadCsv } from './utils';
 import styles from './Events.module.css';
 
@@ -43,8 +45,22 @@ export function EventsPage() {
   });
   const [page, setPage] = useState(1);
   const [detailEvent, setDetailEvent] = useState<EventResponse | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const clearedUrlParams = useRef(false);
+
+  const { data: actionsData } = useQuery({
+    queryKey: ['suggestions', 'actions'],
+    queryFn: getSuggestedActions,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: actorsData } = useQuery({
+    queryKey: ['suggestions', 'actors'],
+    queryFn: getSuggestedActors,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const actionSuggestions = actionsData?.actions ?? [];
+  const actorSuggestions = actorsData?.actors ?? [];
 
   // Clear URL params after they have been applied as initial chips
   useEffect(() => {
@@ -88,14 +104,6 @@ export function EventsPage() {
     setChips((prev) => prev.filter((c) => c !== chip));
   }
 
-  function handleSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' && search.trim()) {
-      const val = search.trim();
-      if (!chips.includes(val)) setChips((prev) => [...prev, val]);
-      setSearch('');
-    }
-  }
-
   return (
     <div className={styles.page}>
       <div className={styles.pageTitle}>Events Explorer</div>
@@ -105,13 +113,19 @@ export function EventsPage() {
         <svg width="16" height="16" fill="var(--fg-subtle)" viewBox="0 0 16 16">
           <path d="M10.68 11.74a6 6 0 01-7.922-8.982 6 6 0 018.982 7.922l3.04 3.04a.749.749 0 11-1.06 1.06zm-3.18.26a4.5 4.5 0 100-9 4.5 4.5 0 000 9z" />
         </svg>
-        <input
-          ref={searchInputRef}
-          type="text"
+        <EventSearchInput
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={handleSearchKey}
+          onChange={setSearch}
+          onSubmit={(val) => {
+            if (val.trim() && !chips.includes(val.trim())) {
+              setChips((prev) => [...prev, val.trim()]);
+            }
+            setSearch('');
+          }}
+          actionSuggestions={actionSuggestions}
+          actorSuggestions={actorSuggestions}
           placeholder='Search events... e.g. action:repo.create actor:@suspicious.*'
+          id="events-search-input"
         />
       </div>
 
@@ -122,7 +136,7 @@ export function EventsPage() {
             <span className={styles.chipX} onClick={() => removeChip(c)}>&#215;</span>
           </span>
         ))}
-        <Button size="sm" style={{ borderRadius: 12 }} onClick={() => searchInputRef.current?.focus()}>+ Add filter</Button>
+        <Button size="sm" style={{ borderRadius: 12 }} onClick={() => document.getElementById('events-search-input')?.focus()}>+ Add filter</Button>
       </div>
 
       <div className={styles.tableHeader}>

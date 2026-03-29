@@ -1,6 +1,9 @@
 import { useCallback } from 'react';
 import type { ChangeEvent } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { FieldCondition } from './types';
+import { getSuggestedFields } from '../../../api/suggestions';
+import { Autocomplete } from '../../../components/primitives/Autocomplete';
 import styles from './LogicConfigEditor.module.css';
 
 const OPERATORS = [
@@ -29,6 +32,14 @@ interface FieldConditionsProps {
 }
 
 export function FieldConditions({ conditions, onChange }: FieldConditionsProps) {
+  const { data: suggestionsData } = useQuery({
+    queryKey: ['suggestions', 'fields'],
+    queryFn: getSuggestedFields,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const fieldSuggestions = suggestionsData?.fields ?? [];
+
   const updateCondition = useCallback(
     (index: number, patch: Partial<FieldCondition>) => {
       const updated = conditions.map((cond, i) => {
@@ -56,8 +67,8 @@ export function FieldConditions({ conditions, onChange }: FieldConditionsProps) 
   );
 
   const handleFieldChange = useCallback(
-    (index: number, e: ChangeEvent<HTMLInputElement>) => {
-      updateCondition(index, { field: e.target.value });
+    (index: number, value: string) => {
+      updateCondition(index, { field: value });
     },
     [updateCondition],
   );
@@ -90,13 +101,13 @@ export function FieldConditions({ conditions, onChange }: FieldConditionsProps) 
 
         return (
           <div key={index} className={styles.conditionRow}>
-            <input
-              type="text"
-              className={styles.conditionField}
+            <Autocomplete
               value={cond.field}
-              onChange={(e) => handleFieldChange(index, e)}
+              onChange={(value) => handleFieldChange(index, value)}
+              suggestions={fieldSuggestions}
               placeholder="e.g., data.scope"
-              aria-label={`Condition ${index + 1} field`}
+              className={styles.conditionField}
+              ariaLabel={`Condition ${index + 1} field`}
             />
             <select
               className={styles.conditionOperator}

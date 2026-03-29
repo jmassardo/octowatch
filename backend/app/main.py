@@ -28,6 +28,7 @@ from app.routers import (
     auth,
     copilot,
     detections,
+    dev_activity,
     events,
     features,
     health,
@@ -40,7 +41,6 @@ from app.routers import (
     setup,
     suggestions,
     sync,
-    dev_activity,
 )
 from app.services.geoip_service import close_geoip_db, load_geoip_db
 

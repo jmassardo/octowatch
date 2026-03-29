@@ -1,5 +1,8 @@
 import { useState, useCallback } from 'react';
-import type { KeyboardEvent, ChangeEvent } from 'react';
+import type { KeyboardEvent } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getSuggestedActions } from '../../../api/suggestions';
+import { Autocomplete } from '../../../components/primitives/Autocomplete';
 import styles from './LogicConfigEditor.module.css';
 
 interface ActionFiltersProps {
@@ -9,6 +12,17 @@ interface ActionFiltersProps {
 
 export function ActionFilters({ actions, onChange }: ActionFiltersProps) {
   const [inputValue, setInputValue] = useState('');
+
+  const { data: suggestionsData } = useQuery({
+    queryKey: ['suggestions', 'actions'],
+    queryFn: getSuggestedActions,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const allSuggestions = suggestionsData?.actions ?? [];
+
+  // Filter out actions that are already selected
+  const availableSuggestions = allSuggestions.filter((s) => !actions.includes(s));
 
   const addAction = useCallback(
     (raw: string) => {
@@ -28,9 +42,17 @@ export function ActionFilters({ actions, onChange }: ActionFiltersProps) {
     [actions, onChange],
   );
 
+  const handleCommit = useCallback(
+    (value: string) => {
+      addAction(value);
+      setInputValue('');
+    },
+    [addAction],
+  );
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter' || e.key === ',') {
+      if (e.key === ',') {
         e.preventDefault();
         addAction(inputValue);
         setInputValue('');
@@ -42,10 +64,9 @@ export function ActionFilters({ actions, onChange }: ActionFiltersProps) {
     [inputValue, actions, addAction, removeAction],
   );
 
-  const handleChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    if (val.includes(',')) {
-      const parts = val.split(',');
+  const handleChange = useCallback((value: string) => {
+    if (value.includes(',')) {
+      const parts = value.split(',');
       for (const part of parts.slice(0, -1)) {
         const trimmed = part.trim();
         if (trimmed) {
@@ -54,12 +75,17 @@ export function ActionFilters({ actions, onChange }: ActionFiltersProps) {
       }
       setInputValue(parts[parts.length - 1] ?? '');
     } else {
-      setInputValue(val);
+      setInputValue(value);
     }
   }, [addAction]);
 
   return (
-    <div className={styles.chipContainer} role="group" aria-label="Action filters">
+    <div
+      className={styles.chipContainer}
+      role="group"
+      aria-label="Action filters"
+      onKeyDown={handleKeyDown}
+    >
       {actions.map((action, index) => (
         <span key={`${action}-${index}`} className={styles.chip}>
           <span className={styles.chipText}>{action}</span>
@@ -73,14 +99,14 @@ export function ActionFilters({ actions, onChange }: ActionFiltersProps) {
           </button>
         </span>
       ))}
-      <input
-        type="text"
-        className={styles.chipInput}
+      <Autocomplete
         value={inputValue}
         onChange={handleChange}
-        onKeyDown={handleKeyDown}
+        suggestions={availableSuggestions}
+        onCommit={handleCommit}
         placeholder={actions.length === 0 ? 'e.g., git.clone' : ''}
-        aria-label="Add action filter"
+        className={styles.chipInput}
+        ariaLabel="Add action filter"
       />
     </div>
   );
