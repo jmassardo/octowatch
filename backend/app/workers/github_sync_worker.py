@@ -723,14 +723,30 @@ async def _sync_entity_async(
         # No exception — enrich org settings while valkey is still open
         if entity_type == "orgs":
             try:
-                enrich_token = await token_manager.get_installation_token(
-                    installation_id,
-                )
+                # Find org-level installations that have administration:read
+                from sqlalchemy import select as sa_select
+
+                from app.models.github_sync import GitHubAppInstallation
+
+                org_inst_map: dict[str, int] = {}
+                async with sf() as session:
+                    inst_result = await session.execute(
+                        sa_select(GitHubAppInstallation).where(
+                            GitHubAppInstallation.target_type == "Organization",
+                        )
+                    )
+                    for inst in inst_result.scalars().all():
+                        perms = inst.permissions or {}
+                        if perms.get("administration") in ("read", "write"):
+                            org_inst_map[inst.target_login] = inst.installation_id
+
                 enriched = await _enrich_org_settings(
                     sf,
                     run_id,
-                    enrich_token,
+                    token_manager,
                     rate_limiter,
+                    org_inst_map,
+                    fallback_installation_id=installation_id,
                 )
                 await _write_sync_log(
                     sf,
@@ -800,9 +816,13 @@ async def _maybe_finalize_run(sf: async_sessionmaker[AsyncSession], run_id: str)
         final_status = "failed" if has_failures else "completed"
         error_msg = f"Failed entities: {', '.join(failed_entities)}" if has_failures else None
 
-        await session.execute(
+        # Atomic claim: only the first caller to finalize succeeds
+        result = await session.execute(
             sa_update(EnterpriseSyncRun)
-            .where(EnterpriseSyncRun.id == run_uuid)
+            .where(
+                EnterpriseSyncRun.id == run_uuid,
+                EnterpriseSyncRun.status == "running",
+            )
             .values(
                 status=final_status,
                 completed_at=datetime.now(UTC),
@@ -812,6 +832,10 @@ async def _maybe_finalize_run(sf: async_sessionmaker[AsyncSession], run_id: str)
             )
         )
         await session.commit()
+
+    # If no row was updated, another task already finalized — bail out
+    if result.rowcount == 0:
+        return
 
     if has_failures:
         await _write_sync_log(
@@ -1731,13 +1755,18 @@ async def _upsert_enterprise_members(
 async def _enrich_org_settings(
     sf: async_sessionmaker[AsyncSession],
     run_id: str,
-    token: str,
+    token_manager: "GitHubAppTokenManager",
     rate_limiter: GitHubRateLimiter,
+    org_inst_map: dict[str, int],
+    fallback_installation_id: int,
 ) -> int:
-    """Fetch org security settings via REST and update EnterpriseOrg rows.
+    """Supplement org security settings via REST API.
 
-    Makes a ``GET /orgs/{login}`` call for each org synced from the
-    enterprise GraphQL query.  Returns the number of orgs enriched.
+    Uses org-level installation tokens (which have ``administration:read``)
+    to fetch fields like ``two_factor_requirement_enabled`` that require
+    elevated permissions.  Falls back to the enterprise installation token
+    for orgs without their own installation.
+    Returns the number of orgs enriched.
     """
     from sqlalchemy import select, update
 
@@ -1747,15 +1776,25 @@ async def _enrich_org_settings(
         result = await session.execute(select(EnterpriseOrg))
         org_list = list(result.scalars().all())
 
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
+    await _write_sync_log(
+        sf,
+        run_id,
+        f"Enrichment: found {len(org_list)} org(s) to enrich",
+        entity_type="orgs",
+    )
 
     enriched = 0
     for org_row in org_list:
         try:
+            # Use org-level installation token if available (has admin:read)
+            inst_id = org_inst_map.get(org_row.org_login, fallback_installation_id)
+            token = await token_manager.get_installation_token(inst_id)
+            headers = {
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            }
+
             resp = await _github_get(
                 f"{_GITHUB_API_BASE}/orgs/{org_row.org_login}",
                 headers,
@@ -1770,26 +1809,53 @@ async def _enrich_org_settings(
                 )
                 continue
             data = resp.json()
+
+            # Always update from REST — this is the primary source for
+            # org security settings (GraphQL requires org-admin perms)
+            settings_update: dict[str, object] = {}
+            rest_fields = {
+                "two_factor_required": "two_factor_requirement_enabled",
+                "default_repo_permission": "default_repository_permission",
+                "members_can_fork_private_repos": "members_can_fork_private_repositories",
+                "members_can_create_public_repos": "members_can_create_public_repositories",
+            }
+            for db_col, api_key in rest_fields.items():
+                api_val = data.get(api_key)
+                if api_val is not None:
+                    settings_update[db_col] = api_val
+
+            # Log available keys for diagnostics
+            security_keys = [
+                k for k in data
+                if any(x in k.lower() for x in (
+                    "member", "fork", "two_factor", "default_repo",
+                    "allow", "permission",
+                ))
+            ]
+            await _write_sync_log(
+                sf,
+                run_id,
+                f"REST enrichment for {org_row.org_login}: {len(settings_update)} fields"
+                f" (status={resp.status_code}, keys={security_keys})",
+                entity_type="orgs",
+                org=org_row.org_login,
+            )
+
+            if not settings_update:
+                continue
+
             async with sf() as session:
                 await session.execute(
                     update(EnterpriseOrg)
                     .where(EnterpriseOrg.id == org_row.id)
-                    .values(
-                        two_factor_required=data.get(
-                            "two_factor_requirement_enabled",
-                        ),
-                        default_repo_permission=data.get(
-                            "default_repository_permission",
-                        ),
-                        members_can_fork_private_repos=data.get(
-                            "members_can_fork_private_repositories",
-                        ),
-                        members_can_create_public_repos=data.get(
-                            "members_can_create_public_repositories",
-                        ),
-                    )
+                    .values(**settings_update)
                 )
                 await session.commit()
+            logger.info(
+                "github_sync.org_enriched",
+                org=org_row.org_login,
+                fields=list(settings_update.keys()),
+            )
             enriched += 1
         except Exception as exc:
             logger.warning(
