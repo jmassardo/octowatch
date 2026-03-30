@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select, text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import AuthenticatedUser, get_db, require_role
 from app.models.detection import Detection, RuleDefinition
-from app.models.github_sync import EnterpriseOrg, RepoBranchProtection, Repository
+from app.models.github_sync import EnterpriseOrg, Repository
 from app.schemas.posture import (
     BreadcrumbItem,
     OrgPosture,
@@ -30,9 +30,7 @@ def _compute_score(checks: list[PostureCheckResult]) -> float:
     if not checks:
         return 100.0
     total = sum(_SEVERITY_WEIGHT.get(c.severity, 1) for c in checks)
-    passing = sum(
-        _SEVERITY_WEIGHT.get(c.severity, 1) for c in checks if c.status == "pass"
-    )
+    passing = sum(_SEVERITY_WEIGHT.get(c.severity, 1) for c in checks if c.status == "pass")
     return round((passing / total) * 100, 1) if total else 100.0
 
 
@@ -65,9 +63,7 @@ def _check_pass(rule: RuleDefinition) -> PostureCheckResult:
 
 async def _load_rules(db: AsyncSession) -> dict[str, list[RuleDefinition]]:
     """Load all enabled rules, bucketed by logic_type group."""
-    result = await db.execute(
-        select(RuleDefinition).where(RuleDefinition.enabled.is_(True))
-    )
+    result = await db.execute(select(RuleDefinition).where(RuleDefinition.enabled.is_(True)))
     rules = result.scalars().all()
     posture = [r for r in rules if r.logic_type == "posture"]
     event_based = [r for r in rules if r.logic_type != "posture"]
@@ -109,9 +105,7 @@ def _build_repo_posture(
     # Event-based detections for this repo
     event_det_ids = {r.id for r in event_rules}
     event_checks = [
-        _check_from_detection(
-            next(r for r in event_rules if r.id == d.rule_id), d
-        )
+        _check_from_detection(next(r for r in event_rules if r.id == d.rule_id), d)
         for d in repo_dets
         if d.rule_id in event_det_ids
     ]
@@ -146,34 +140,25 @@ def _build_org_posture(
     # Org-level posture checks
     checks: list[PostureCheckResult] = []
     for rule in org_rules:
-        det = next(
-            (d for d in org_dets if d.rule_id == rule.id and not d.repo), None
-        )
+        det = next((d for d in org_dets if d.rule_id == rule.id and not d.repo), None)
         checks.append(_check_from_detection(rule, det) if det else _check_pass(rule))
 
     # Org-level event detections (no repo)
     event_det_ids = {r.id for r in event_rules}
     org_event_checks = [
-        _check_from_detection(
-            next(r for r in event_rules if r.id == d.rule_id), d
-        )
+        _check_from_detection(next(r for r in event_rules if r.id == d.rule_id), d)
         for d in org_dets
         if d.rule_id in event_det_ids and not d.repo
     ]
     checks.extend(org_event_checks)
 
     org_repos = [r for r in repos if r.org == org.org_login]
-    repo_postures = [
-        _build_repo_posture(r, repo_rules, event_rules, detections)
-        for r in org_repos
-    ]
+    repo_postures = [_build_repo_posture(r, repo_rules, event_rules, detections) for r in org_repos]
 
     # Score: 40% org checks, 60% repo avg
     org_check_score = _compute_score(checks)
     repo_avg = (
-        sum(rp.score for rp in repo_postures) / len(repo_postures)
-        if repo_postures
-        else 100.0
+        sum(rp.score for rp in repo_postures) / len(repo_postures) if repo_postures else 100.0
     )
     score = round(org_check_score * 0.4 + repo_avg * 0.6, 1)
 
@@ -222,6 +207,9 @@ def _classify_rules(
 async def get_posture(
     org: str | None = Query(None, description="Filter to a specific org"),
     repo: str | None = Query(None, description="Filter to a specific repo"),
+    search: str | None = Query(None, description="Search by name"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(25, ge=1, le=100, description="Items per page"),
     current_user: AuthenticatedUser = Depends(
         require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
     ),
@@ -237,18 +225,14 @@ async def get_posture(
 
     # Last sync timestamp
     sync_result = await db.execute(
-        text(
-            "SELECT MAX(completed_at) FROM enterprise_sync_runs WHERE status = 'completed'"
-        )
+        text("SELECT MAX(completed_at) FROM enterprise_sync_runs WHERE status = 'completed'")
     )
     last_sync_at = sync_result.scalar_one_or_none()
 
     # ── Repo-level drill-down ──────────────────────────────────────────
     if org and repo:
         repo_result = await db.execute(
-            select(Repository).where(
-                Repository.org == org, Repository.repo_name == repo
-            )
+            select(Repository).where(Repository.org == org, Repository.repo_name == repo)
         )
         repo_obj = repo_result.scalar_one_or_none()
         if not repo_obj:
@@ -269,22 +253,34 @@ async def get_posture(
 
     # ── Org-level drill-down ───────────────────────────────────────────
     if org:
-        org_result = await db.execute(
-            select(EnterpriseOrg).where(EnterpriseOrg.org_login == org)
-        )
+        org_result = await db.execute(select(EnterpriseOrg).where(EnterpriseOrg.org_login == org))
         org_obj = org_result.scalar_one_or_none()
         if not org_obj:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Organization not found")
 
-        repos_result = await db.execute(
-            select(Repository).where(Repository.org == org)
-        )
+        repos_result = await db.execute(select(Repository).where(Repository.org == org))
         repos = list(repos_result.scalars().all())
 
         op = _build_org_posture(
-            org_obj, org_rules, repo_rules, event_rules, repos, detections,
+            org_obj,
+            org_rules,
+            repo_rules,
+            event_rules,
+            repos,
+            detections,
             include_repos=True,
         )
+
+        # Paginate repos within the org posture
+        all_repos = op.repos or []
+        if search:
+            q = search.lower()
+            all_repos = [r for r in all_repos if q in r.repo_name.lower()]
+
+        total = len(all_repos)
+        offset = (page - 1) * page_size
+        op.repos = all_repos[offset : offset + page_size]
+
         return PostureResponse(
             level="org",
             score=op.score,
@@ -294,6 +290,10 @@ async def get_posture(
                 BreadcrumbItem(label=org),
             ],
             last_sync_at=last_sync_at,
+            page=page,
+            page_size=page_size,
+            total=total,
+            has_next=(offset + page_size < total),
         )
 
     # ── Enterprise-level overview ──────────────────────────────────────
@@ -307,21 +307,35 @@ async def get_posture(
     if scope.scoped_orgs:
         repos = [r for r in repos if r.org in scope.scoped_orgs]
 
-    org_postures = [
-        _build_org_posture(o, org_rules, repo_rules, event_rules, repos, detections)
-        for o in orgs
+    # Build all org postures (needed for enterprise score)
+    all_org_postures = [
+        _build_org_posture(o, org_rules, repo_rules, event_rules, repos, detections) for o in orgs
     ]
 
     enterprise_score = (
-        round(sum(op.score for op in org_postures) / len(org_postures), 1)
-        if org_postures
+        round(sum(op.score for op in all_org_postures) / len(all_org_postures), 1)
+        if all_org_postures
         else 100.0
     )
+
+    # Apply search filter
+    filtered = all_org_postures
+    if search:
+        q = search.lower()
+        filtered = [op for op in filtered if q in op.org_login.lower()]
+
+    total = len(filtered)
+    offset = (page - 1) * page_size
+    paginated = filtered[offset : offset + page_size]
 
     return PostureResponse(
         level="enterprise",
         score=enterprise_score,
-        orgs=org_postures,
+        orgs=paginated,
         breadcrumb=[BreadcrumbItem(label="Posture")],
         last_sync_at=last_sync_at,
+        page=page,
+        page_size=page_size,
+        total=total,
+        has_next=(offset + page_size < total),
     )

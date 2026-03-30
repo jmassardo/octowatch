@@ -1,8 +1,8 @@
 import { api } from './client';
 import type { RuleResponse, RuleListResponse, RuleCreate } from '../types/detections';
 
-export function listRules(): Promise<RuleListResponse> {
-  return api.get<RuleListResponse>('/rules');
+export function listRules(params?: { limit?: number; offset?: number; search?: string }): Promise<RuleListResponse> {
+  return api.get<RuleListResponse>('/rules', params as Record<string, string | number>);
 }
 
 export function createRule(r: RuleCreate): Promise<RuleResponse> {

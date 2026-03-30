@@ -10,6 +10,7 @@ import { Modal } from '../../components/primitives/Modal';
 import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { Pagination } from '../../components/primitives/Pagination';
 import { RuleConfigEditorContainer } from './editor/RuleConfigEditorContainer';
 import { JsonConfigEditor } from './editor/JsonConfigEditor';
 import { TestRuleModal } from './TestRuleModal';
@@ -324,11 +325,14 @@ export function RulesPage() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [versionRule, setVersionRule] = useState<RuleResponse | null>(null);
   const [testRuleTarget, setTestRuleTarget] = useState<RuleResponse | null>(null);
+  const [page, setPage] = useState(1);
   const navigate = useNavigate();
 
+  const PAGE_SIZE = 25;
+
   const { data: rules, isLoading, isError, refetch } = useQuery({
-    queryKey: ['rules'],
-    queryFn: listRules,
+    queryKey: ['rules', page],
+    queryFn: () => listRules({ limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
   });
 
   const createMutation = useMutation({
@@ -446,6 +450,9 @@ export function RulesPage() {
               )}
             </tbody>
           </table>
+          {rules && (
+            <Pagination page={page} pageSize={PAGE_SIZE} total={rules.total} onPageChange={setPage} />
+          )}
         </div>
       )}
 

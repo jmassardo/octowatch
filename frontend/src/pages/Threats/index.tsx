@@ -9,6 +9,7 @@ import { Button } from '../../components/primitives/Button';
 import { CodeBlock } from '../../components/primitives/CodeBlock';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { Pagination } from '../../components/primitives/Pagination';
 import styles from './Threats.module.css';
 
 function formatTime(iso: string): string {
@@ -27,6 +28,7 @@ export function ThreatsPage() {
   const [selected, setSelected] = useState<DetectionResponse | null>(null);
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [severityFilter, setSeverityFilter] = useState('');
+  const [page, setPage] = useState(1);
   const qc = useQueryClient();
   const navigate = useNavigate();
 
@@ -38,9 +40,11 @@ export function ThreatsPage() {
     all: undefined,
   };
 
+  const PAGE_SIZE = 25;
+
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['detections', tab, severityFilter],
-    queryFn: () => listDetections({ status: statusMap[tab], severity: severityFilter || undefined }),
+    queryKey: ['detections', tab, severityFilter, page],
+    queryFn: () => listDetections({ status: statusMap[tab], severity: severityFilter || undefined, page, page_size: PAGE_SIZE }),
   });
 
   // Fetch counts for each tab so badges stay current
@@ -114,7 +118,7 @@ export function ThreatsPage() {
           <div className={styles.topActions} style={{ gap: 8 }}>
             <select
               value={severityFilter}
-              onChange={(e) => setSeverityFilter(e.target.value)}
+              onChange={(e) => { setSeverityFilter(e.target.value); setPage(1); }}
               style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--canvas-subtle)', color: 'var(--fg)', fontSize: 13 }}
             >
               <option value="">All severities</option>
@@ -141,7 +145,7 @@ export function ThreatsPage() {
                 <button
                   key={t}
                   className={[styles.ilTab, tab === t && styles.active].filter(Boolean).join(' ')}
-                  onClick={() => setTab(t)}
+                  onClick={() => { setTab(t); setPage(1); }}
                 >
                   {tabLabel}
                   {count != null && (
@@ -191,6 +195,10 @@ export function ThreatsPage() {
               <div className={styles.ilTime}>{formatTime(d.triggered_at)}</div>
             </div>
           ))}
+
+          {data && (
+            <Pagination page={page} pageSize={PAGE_SIZE} total={data.total} hasNext={data.has_next} onPageChange={setPage} />
+          )}
         </div>
       </div>
 

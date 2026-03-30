@@ -69,3 +69,7 @@ class PostureResponse(BaseModel):
     repo: RepoPosture | None = None
     breadcrumb: list[BreadcrumbItem]
     last_sync_at: datetime | None = None
+    page: int = 1
+    page_size: int = 25
+    total: int = 0
+    has_next: bool = False

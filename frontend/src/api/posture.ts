@@ -61,8 +61,12 @@ export interface PostureResponse {
   repo: RepoPosture | null;
   breadcrumb: BreadcrumbItem[];
   last_sync_at: string | null;
+  page: number;
+  page_size: number;
+  total: number;
+  has_next: boolean;
 }
 
-export function getPosture(params?: { org?: string; repo?: string }): Promise<PostureResponse> {
+export function getPosture(params?: { org?: string; repo?: string; search?: string; page?: number; page_size?: number }): Promise<PostureResponse> {
   return api.get<PostureResponse>('/posture', params as Record<string, string>);
 }

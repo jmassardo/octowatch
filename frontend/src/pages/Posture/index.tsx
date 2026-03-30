@@ -6,6 +6,7 @@ import type { PostureResponse, PostureCheckResult } from '../../api/posture';
 import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { Pagination } from '../../components/primitives/Pagination';
 import styles from './Posture.module.css';
 
 /* ── Helpers ───────────────────────────────────────────────────────── */
@@ -151,7 +152,9 @@ function filterChecks(checks: PostureCheckResult[], severity: string, statusFilt
 
 /* ── Enterprise View ───────────────────────────────────────────────── */
 
-function EnterpriseView({ data }: { data: PostureResponse }) {
+function EnterpriseView({ data, search, setSearch, page, setPage }: {
+  data: PostureResponse; search: string; setSearch: (v: string) => void; page: number; setPage: (p: number) => void;
+}) {
   const navigate = useNavigate();
   const [severity, setSeverity] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -170,11 +173,20 @@ function EnterpriseView({ data }: { data: PostureResponse }) {
         <div className={styles.headerInfo}>
           <div className={styles.headerTitle}>Enterprise Security Posture</div>
           <div className={styles.headerSub}>
-            {orgs.length} org{orgs.length !== 1 ? 's' : ''} · Last synced {formatTime(data.last_sync_at)}
+            {data.total} org{data.total !== 1 ? 's' : ''} · Last synced {formatTime(data.last_sync_at)}
           </div>
         </div>
       </div>
       <div className={styles.content}>
+        <div className={styles.filters}>
+          <input
+            type="text"
+            placeholder="Search organizations..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--canvas-subtle)', color: 'var(--fg)', fontSize: 13, width: 220 }}
+          />
+        </div>
         <Filters severity={severity} setSeverity={setSeverity} statusFilter={statusFilter} setStatusFilter={setStatusFilter} />
         <div className={styles.orgGrid}>
           {filteredOrgs.map((org) => (
@@ -207,6 +219,8 @@ function EnterpriseView({ data }: { data: PostureResponse }) {
           ))}
         </div>
 
+        <Pagination page={page} pageSize={data.page_size} total={data.total} hasNext={data.has_next} onPageChange={setPage} />
+
         {/* Top findings across enterprise */}
         {(() => {
           const allChecks = orgs.flatMap((o) => o.checks.filter((c) => c.status !== 'pass'));
@@ -233,7 +247,9 @@ function EnterpriseView({ data }: { data: PostureResponse }) {
 
 /* ── Org View ──────────────────────────────────────────────────────── */
 
-function OrgView({ data }: { data: PostureResponse }) {
+function OrgView({ data, search, setSearch, page, setPage, onNavigate }: {
+  data: PostureResponse; search: string; setSearch: (v: string) => void; page: number; setPage: (p: number) => void; onNavigate: () => void;
+}) {
   const navigate = useNavigate();
   const org = data.org!;
   const [severity, setSeverity] = useState('');
@@ -308,6 +324,15 @@ function OrgView({ data }: { data: PostureResponse }) {
         {/* Repos table */}
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Repositories</div>
+          <div className={styles.filters}>
+            <input
+              type="text"
+              placeholder="Search repositories..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--canvas-subtle)', color: 'var(--fg)', fontSize: 13, width: 220 }}
+            />
+          </div>
           <Filters
             severity="" setSeverity={() => {}}
             statusFilter="" setStatusFilter={() => {}}
@@ -328,7 +353,7 @@ function OrgView({ data }: { data: PostureResponse }) {
                 const failing = r.checks.filter((c) => c.status !== 'pass').length;
                 const passing = r.checks.filter((c) => c.status === 'pass').length;
                 return (
-                  <tr key={r.repo_name} onClick={() => navigate(`/posture/${r.org}/${r.repo_name}`)}>
+                  <tr key={r.repo_name} onClick={() => { onNavigate(); navigate(`/posture/${r.org}/${r.repo_name}`); }}>
                     <td>
                       <span className={styles.repoName}>{r.repo_name}</span>
                       {r.archived && <span style={{ marginLeft: 6 }}><Label variant="muted">archived</Label></span>}
@@ -351,6 +376,7 @@ function OrgView({ data }: { data: PostureResponse }) {
               )}
             </tbody>
           </table>
+          <Pagination page={page} pageSize={data.page_size} total={data.total} hasNext={data.has_next} onPageChange={setPage} />
         </div>
       </div>
     </>
@@ -427,11 +453,18 @@ function RepoView({ data }: { data: PostureResponse }) {
 
 export function PosturePage() {
   const { org, repo } = useParams<{ org?: string; repo?: string }>();
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+
+  const PAGE_SIZE = 25;
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['posture', org ?? '', repo ?? ''],
-    queryFn: () => getPosture({ org, repo }),
+    queryKey: ['posture', org ?? '', repo ?? '', page, search],
+    queryFn: () => getPosture({ org, repo, search: search || undefined, page, page_size: PAGE_SIZE }),
   });
+
+  // Reset page when navigating to different level
+  const resetPage = () => { setPage(1); setSearch(''); };
 
   if (isLoading) return <div className={styles.loading}><Spinner /></div>;
   if (isError || !data) return <div className={styles.content}><ErrorBanner message="Failed to load posture data" onRetry={refetch} /></div>;
@@ -439,8 +472,8 @@ export function PosturePage() {
   return (
     <div className={styles.page}>
       <Breadcrumb items={data.breadcrumb} />
-      {data.level === 'enterprise' && <EnterpriseView data={data} />}
-      {data.level === 'org' && <OrgView data={data} />}
+      {data.level === 'enterprise' && <EnterpriseView data={data} search={search} setSearch={(v) => { setSearch(v); setPage(1); }} page={page} setPage={setPage} />}
+      {data.level === 'org' && <OrgView data={data} search={search} setSearch={(v) => { setSearch(v); setPage(1); }} page={page} setPage={setPage} onNavigate={resetPage} />}
       {data.level === 'repo' && <RepoView data={data} />}
     </div>
   );
