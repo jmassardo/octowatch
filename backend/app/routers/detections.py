@@ -111,9 +111,9 @@ async def update_detection_status(
     detection = await _get_detection_or_404(db, detection_id, scope.org_allowlist)
 
     valid_transitions = {
-        "open": {"investigating", "closed", "false_positive"},
-        "investigating": {"open", "closed", "false_positive"},
-        "closed": {"open"},
+        "open": {"investigating", "resolved", "false_positive"},
+        "investigating": {"open", "resolved", "false_positive"},
+        "resolved": {"open"},
         "false_positive": {"open"},
     }
     if payload.status not in valid_transitions.get(detection.status, set()):
@@ -141,7 +141,7 @@ async def assign_detection(
     scope = await get_user_scope(db, current_user.github_login)
     detection = await _get_detection_or_404(db, detection_id, scope.org_allowlist)
 
-    detection.assigned_to = payload.assignee
+    detection.assigned_to = payload.assigned_to
     await db.flush()
     return DetectionResponse.model_validate(detection)
 

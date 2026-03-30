@@ -20,7 +20,7 @@ function formatTime(iso: string): string {
   return `${Math.floor(hr / 24)}d ago`;
 }
 
-type TabFilter = 'open' | 'closed' | 'acknowledged' | 'all';
+type TabFilter = 'open' | 'investigating' | 'closed' | 'acknowledged' | 'all';
 
 export function ThreatsPage() {
   const [tab, setTab] = useState<TabFilter>('open');
@@ -31,7 +31,8 @@ export function ThreatsPage() {
   const navigate = useNavigate();
 
   const statusMap: Record<TabFilter, string | undefined> = {
-    open: 'investigating',
+    open: 'open',
+    investigating: 'investigating',
     closed: 'resolved',
     acknowledged: 'false_positive',
     all: undefined,
@@ -45,6 +46,10 @@ export function ThreatsPage() {
   // Fetch counts for each tab so badges stay current
   const { data: openData } = useQuery({
     queryKey: ['detections', 'count-open'],
+    queryFn: () => listDetections({ status: 'open', page_size: 1 }),
+  });
+  const { data: investData } = useQuery({
+    queryKey: ['detections', 'count-investigating'],
     queryFn: () => listDetections({ status: 'investigating', page_size: 1 }),
   });
   const { data: closedData } = useQuery({
@@ -62,6 +67,7 @@ export function ThreatsPage() {
 
   const tabCounts: Record<TabFilter, number | null> = {
     open: openData?.total ?? null,
+    investigating: investData?.total ?? null,
     closed: closedData?.total ?? null,
     acknowledged: ackData?.total ?? null,
     all: allData?.total ?? null,
@@ -122,11 +128,12 @@ export function ThreatsPage() {
 
         <div className={styles.issueList}>
           <div className={styles.ilFilters}>
-            {(['open', 'closed', 'acknowledged', 'all'] as TabFilter[]).map((t) => {
+            {(['open', 'investigating', 'closed', 'acknowledged', 'all'] as TabFilter[]).map((t) => {
               const count = tabCounts[t];
               const countStr = count != null ? ` (${count})` : '';
               const tabLabel =
                 t === 'open' ? 'Open' :
+                t === 'investigating' ? 'Investigating' :
                 t === 'closed' ? 'Closed' :
                 t === 'acknowledged' ? 'Acknowledged' :
                 'All';
