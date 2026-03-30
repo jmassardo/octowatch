@@ -674,6 +674,26 @@ async def _sync_entity_async(
             current_cursor = next_cursor
             page_num += 1
 
+        # Clean up stale branch protection rows for repos that lost protection
+        if entity_type == "branch_protections" and items_synced == 0 and org:
+            from sqlalchemy import delete as sa_delete
+
+            from app.models.github_sync import RepoBranchProtection
+
+            async with _make_session_factory()() as session:
+                result = await session.execute(
+                    sa_delete(RepoBranchProtection).where(RepoBranchProtection.org == org)
+                )
+                if result.rowcount:
+                    await _write_sync_log(
+                        sf,
+                        run_id,
+                        f"Removed {result.rowcount} stale branch protection record(s)",
+                        entity_type=entity_type,
+                        org=org,
+                    )
+                await session.commit()
+
     except Exception as exc:
         # Mark cursor row as failed
         async with _make_session_factory()() as session:
@@ -1375,15 +1395,10 @@ async def _fetch_page(
                     }
                 )
             elif prot_resp.status_code == 404:
-                items.append(
-                    {
-                        "_repo_name": repo["name"],
-                        "_branch": branch,
-                        "required_reviews": 0,
-                        "required_status_checks": None,
-                        "enforce_admins": False,
-                    }
-                )
+                # No branch protection — don't create a record.
+                # The posture rule "missing_protection" detects repos
+                # that have no corresponding row in repo_branch_protections.
+                pass
             # 403 (no permission) — skip silently
 
         next_cursor = str(page + 1) if _has_next_page(resp.headers) else None
@@ -1633,10 +1648,29 @@ async def _upsert_team_members(session: AsyncSession, org: str, items: list[dict
 
 
 async def _upsert_branch_protections(session: AsyncSession, org: str, items: list[dict]) -> None:
-    from sqlalchemy import text
+    from sqlalchemy import delete, text
     from sqlalchemy.dialects.postgresql import insert
 
     from app.models.github_sync import RepoBranchProtection
+
+    # Remove stale protection rows for this org — only repos with real
+    # protection will be re-inserted below.  This ensures the
+    # "missing_protection" posture rule can detect unprotected repos by
+    # looking for repos WITHOUT a corresponding row.
+    protected_repos = {item["_repo_name"] for item in items}
+    if not protected_repos:
+        # No protected repos at all — delete everything for this org
+        await session.execute(
+            delete(RepoBranchProtection).where(RepoBranchProtection.org == org)
+        )
+    else:
+        # Delete rows for repos that lost their protection
+        await session.execute(
+            delete(RepoBranchProtection).where(
+                RepoBranchProtection.org == org,
+                RepoBranchProtection.repo_name.notin_(protected_repos),
+            )
+        )
 
     for item in items:
         stmt = (
