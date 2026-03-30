@@ -49,7 +49,7 @@ export function DevActivityPage() {
 
   const { data: detectionData } = useQuery({
     queryKey: ['detections', 'dev-activity'],
-    queryFn: () => listDetections({ page_size: 200, status: 'investigating' }),
+    queryFn: () => listDetections({ page_size: 200, status: 'open' }),
   });
 
   const { data: teamsData } = useQuery({

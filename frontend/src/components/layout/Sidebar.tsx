@@ -37,7 +37,7 @@ export function Sidebar() {
 
   const { data: detections } = useQuery({
     queryKey: ['threats', 'open-count'],
-    queryFn: () => listDetections({ status: 'investigating', page_size: 1 }),
+    queryFn: () => listDetections({ status: 'open', page_size: 1 }),
     staleTime: 60_000,
   });
 

@@ -14,7 +14,9 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.detection import (
+    AssignDetectionRequest,
     FieldCondition,
+    UpdateDetectionStatusRequest,
     ValidateConfigRequest,
     ValidateConfigResponse,
 )
@@ -241,3 +243,66 @@ class TestSeedRuleConfigs:
         """Seed should contain exactly 11 rules."""
         rules = self._get_rules()
         assert len(rules) == 11
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# UpdateDetectionStatusRequest schema tests
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+class TestUpdateDetectionStatusRequest:
+    """Verify that all valid detection lifecycle statuses are accepted."""
+
+    @pytest.mark.parametrize(
+        "status_value",
+        ["open", "investigating", "resolved", "false_positive"],
+    )
+    def test_valid_statuses_accepted(self, status_value: str) -> None:
+        req = UpdateDetectionStatusRequest(status=status_value)
+        assert req.status == status_value
+
+    @pytest.mark.parametrize(
+        "status_value",
+        ["closed", "pending", "new", "OPEN", "Investigating", "", "open "],
+    )
+    def test_invalid_statuses_rejected(self, status_value: str) -> None:
+        with pytest.raises(ValidationError):
+            UpdateDetectionStatusRequest(status=status_value)
+
+    def test_resolution_note_optional(self) -> None:
+        req = UpdateDetectionStatusRequest(status="resolved")
+        assert req.resolution_note is None
+
+    def test_resolution_note_accepted(self) -> None:
+        req = UpdateDetectionStatusRequest(status="resolved", resolution_note="Fixed via patch")
+        assert req.resolution_note == "Fixed via patch"
+
+    def test_resolution_note_max_length(self) -> None:
+        with pytest.raises(ValidationError):
+            UpdateDetectionStatusRequest(status="resolved", resolution_note="x" * 2001)
+
+    def test_reopen_from_resolved(self) -> None:
+        """The 'open' status must be accepted so detections can be reopened."""
+        req = UpdateDetectionStatusRequest(status="open")
+        assert req.status == "open"
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# AssignDetectionRequest schema tests
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+class TestAssignDetectionRequest:
+    """Verify the assign detection request schema."""
+
+    def test_valid_assignment(self) -> None:
+        req = AssignDetectionRequest(assigned_to="octocat")
+        assert req.assigned_to == "octocat"
+
+    def test_assigned_to_required(self) -> None:
+        with pytest.raises(ValidationError):
+            AssignDetectionRequest()  # type: ignore[call-arg]
+
+    def test_assigned_to_max_length(self) -> None:
+        with pytest.raises(ValidationError):
+            AssignDetectionRequest(assigned_to="x" * 256)

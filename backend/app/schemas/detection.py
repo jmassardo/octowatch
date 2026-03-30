@@ -73,7 +73,7 @@ class DetectionListResponse(BaseModel):
 
 
 class UpdateDetectionStatusRequest(BaseModel):
-    status: str = Field(..., pattern=r"^(investigating|resolved|false_positive)$")
+    status: str = Field(..., pattern=r"^(open|investigating|resolved|false_positive)$")
     resolution_note: str | None = Field(None, max_length=2000)
 
 

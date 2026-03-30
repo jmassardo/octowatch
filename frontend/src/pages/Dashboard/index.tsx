@@ -117,7 +117,7 @@ export function DashboardPage() {
 
   const { data: detections, isLoading: loadingThreats, refetch: refetchThreats, isError: threatError } = useQuery({
     queryKey: ['detections', 'open'],
-    queryFn: () => listDetections({ status: 'investigating', page_size: 100 }),
+    queryFn: () => listDetections({ status: 'open', page_size: 100 }),
     refetchInterval: 60_000,
   });
 

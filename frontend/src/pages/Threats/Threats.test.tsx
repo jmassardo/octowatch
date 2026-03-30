@@ -47,9 +47,10 @@ describe('ThreatsPage', () => {
   /*  Tab buttons                                                      */
   /* ---------------------------------------------------------------- */
 
-  it('renders all four tabs', () => {
+  it('renders all five tabs', () => {
     renderWithProviders(<ThreatsPage />);
     expect(screen.getByText('Open')).toBeInTheDocument();
+    expect(screen.getByText('Investigating')).toBeInTheDocument();
     expect(screen.getByText('Closed')).toBeInTheDocument();
     expect(screen.getByText('Acknowledged')).toBeInTheDocument();
     expect(screen.getByText('All')).toBeInTheDocument();
@@ -277,23 +278,25 @@ describe('ThreatsPage tab count badges', () => {
   it('shows different counts for different tabs', async () => {
     // Mock returns different totals based on status param
     mockListDetections.mockImplementation((params: Record<string, unknown>) => {
+      if (params.status === 'open') return Promise.resolve({ items: [], total: 5 });
       if (params.status === 'investigating') return Promise.resolve({ items: [], total: 3 });
       if (params.status === 'resolved') return Promise.resolve({ items: [], total: 7 });
       if (params.status === 'false_positive') return Promise.resolve({ items: [], total: 2 });
-      return Promise.resolve({ items: [], total: 12 });
+      return Promise.resolve({ items: [], total: 17 });
     });
 
     renderWithProviders(<ThreatsPage />);
 
     // Wait for tab counts to appear
+    expect(await screen.findByText('5')).toBeInTheDocument();
     expect(await screen.findByText('3')).toBeInTheDocument();
     expect(await screen.findByText('7')).toBeInTheDocument();
     expect(await screen.findByText('2')).toBeInTheDocument();
-    expect(await screen.findByText('12')).toBeInTheDocument();
+    expect(await screen.findByText('17')).toBeInTheDocument();
 
     // Verify the badges are inside tab buttons
     const openTab = screen.getByText('Open').closest('button');
     expect(openTab).toBeInTheDocument();
-    expect(within(openTab!).getByText('3')).toBeInTheDocument();
+    expect(within(openTab!).getByText('5')).toBeInTheDocument();
   });
 });

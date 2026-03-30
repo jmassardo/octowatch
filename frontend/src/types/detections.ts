@@ -1,4 +1,4 @@
-export type DetectionStatus = 'investigating' | 'resolved' | 'false_positive';
+export type DetectionStatus = 'open' | 'investigating' | 'resolved' | 'false_positive';
 export type DetectionSeverity = 'critical' | 'high' | 'medium' | 'low';
 
 export interface TicketSummary {
