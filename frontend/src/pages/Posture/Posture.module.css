@@ -1,0 +1,251 @@
+.page { padding: 0; }
+
+/* ── Breadcrumb ────────────────────────────────────────────────────── */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  padding: 16px 24px 0;
+}
+.breadcrumb a {
+  color: var(--accent-fg);
+  text-decoration: none;
+}
+.breadcrumb a:hover { text-decoration: underline; }
+.breadcrumbSep { color: var(--fg-muted); }
+
+/* ── Header ────────────────────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.headerInfo { flex: 1; }
+.headerTitle {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.headerSub {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+}
+
+/* ── Score Gauge ───────────────────────────────────────────────────── */
+.scoreGauge {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  border: 3px solid var(--border);
+  flex-shrink: 0;
+}
+.scoreGauge.good { border-color: var(--success); }
+.scoreGauge.warn { border-color: var(--attention); }
+.scoreGauge.bad { border-color: var(--danger); }
+.scoreValue {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+.scoreLabel {
+  font-size: 10px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Content area ──────────────────────────────────────────────────── */
+.content { padding: 20px 24px; }
+
+/* ── Filters ───────────────────────────────────────────────────────── */
+.filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.filters select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--canvas-subtle);
+  color: var(--fg);
+  font-size: 13px;
+}
+
+/* ── Org cards grid ────────────────────────────────────────────────── */
+.orgGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+.orgCard {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--canvas-default);
+  padding: 16px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.orgCard:hover { border-color: var(--accent-fg); }
+.orgCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.orgName {
+  font-weight: 600;
+  font-size: 15px;
+  flex: 1;
+}
+.orgMiniScore {
+  font-size: 18px;
+  font-weight: 700;
+}
+.orgMeta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+/* ── Score bar ─────────────────────────────────────────────────────── */
+.scoreBar {
+  height: 6px;
+  background: var(--canvas-subtle);
+  border-radius: 3px;
+  margin: 8px 0;
+  overflow: hidden;
+}
+.scoreBarFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+/* ── Check list ────────────────────────────────────────────────────── */
+.section {
+  margin-top: 20px;
+}
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.checkList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--canvas-default);
+}
+.checkRow:hover { background: var(--canvas-subtle); }
+.checkIcon { width: 18px; text-align: center; flex-shrink: 0; }
+.checkPass { color: var(--success); }
+.checkFail { color: var(--danger); }
+.checkInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.checkTitle { font-weight: 500; }
+.checkDesc {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 1px;
+}
+.checkMeta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ── Repo table ────────────────────────────────────────────────────── */
+.repoTable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.repoTable th {
+  text-align: left;
+  padding: 8px 10px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  user-select: none;
+}
+.repoTable th:hover { color: var(--fg); }
+.repoTable td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.repoTable tr { cursor: pointer; }
+.repoTable tr:hover td { background: var(--canvas-subtle); }
+.repoName { font-weight: 500; }
+
+/* ── Metadata card ─────────────────────────────────────────────────── */
+.metaCard {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--canvas-default);
+  padding: 16px;
+}
+.metaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.metaItem {}
+.metaLabel {
+  font-size: 11px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.metaValue {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
+  margin-top: 2px;
+}
+
+/* ── Loading / empty ───────────────────────────────────────────────── */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+}
+.empty {
+  text-align: center;
+  padding: 40px;
+  color: var(--fg-muted);
+  font-size: 14px;
+}

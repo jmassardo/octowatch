@@ -35,6 +35,7 @@ from app.routers import (
     health_signals,
     integrations,
     org_config,
+    posture,
     query,
     reports,
     rules,
@@ -384,6 +385,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix=API_PREFIX)
     app.include_router(events.router, prefix=API_PREFIX)
     app.include_router(detections.router, prefix=API_PREFIX)
+    app.include_router(posture.router, prefix=API_PREFIX)
     app.include_router(reports.router, prefix=API_PREFIX)
     app.include_router(query.router, prefix=API_PREFIX)
     app.include_router(rules.router, prefix=API_PREFIX)

@@ -98,6 +98,16 @@ export function Sidebar() {
           Threat Detections
         </NavItem>
         <NavItem
+          to="/posture"
+          icon={
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M8 0a8 8 0 100 16A8 8 0 008 0zM1.5 8a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0zm5.024-3.382a.75.75 0 01.476.476l.75 2.108 2.108.75a.75.75 0 010 1.416l-2.108.75-.75 2.108a.75.75 0 01-1.416 0l-.75-2.108-2.108-.75a.75.75 0 010-1.416l2.108-.75.75-2.108a.75.75 0 01.94-.476z" />
+            </svg>
+          }
+        >
+          Posture
+        </NavItem>
+        <NavItem
           to="/events"
           icon={
             <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">

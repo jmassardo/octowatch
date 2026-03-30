@@ -16,6 +16,7 @@ import { UsersPage } from './pages/Users';
 import { IntegrationsPage } from './pages/Integrations';
 import { HealthPage } from './pages/Health';
 import { HealthSettingsPage } from './pages/Health/HealthSettings';
+import { PosturePage } from './pages/Posture';
 import { SettingsPage } from './pages/Settings';
 
 export const router = createBrowserRouter([
@@ -31,6 +32,9 @@ export const router = createBrowserRouter([
     children: [
       { path: '/dashboard', element: <DashboardPage /> },
       { path: '/threats', element: <ThreatsPage /> },
+      { path: '/posture', element: <PosturePage /> },
+      { path: '/posture/:org', element: <PosturePage /> },
+      { path: '/posture/:org/:repo', element: <PosturePage /> },
       { path: '/events', element: <EventsPage /> },
       { path: '/velocity', element: <VelocityPage /> },
       { path: '/devactivity', element: <DevActivityPage /> },
