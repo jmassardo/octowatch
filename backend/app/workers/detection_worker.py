@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import secrets
 
 import structlog
 from celery import Task
@@ -17,7 +18,6 @@ logger = structlog.get_logger(__name__)
     name="workers.run_detection_pipeline",
     bind=True,
     max_retries=3,
-    default_retry_delay=30,
 )
 def run_detection_pipeline_task(self: Task, event_ids: list[int]) -> dict:
     """Celery task that runs the detection pipeline for a list of event IDs."""
@@ -30,7 +30,9 @@ def run_detection_pipeline_task(self: Task, event_ids: list[int]) -> dict:
             event_ids=event_ids[:5],  # log first 5 only
             error=str(exc),
         )
-        raise self.retry(exc=exc) from exc
+        backoff = min(30 * (2**self.request.retries), 600)
+        jitter = secrets.randbelow(max(int(backoff * 0.1), 1))
+        raise self.retry(exc=exc, countdown=backoff + jitter) from exc
 
 
 async def _run_pipeline(event_ids: list[int]) -> int:
@@ -39,9 +41,9 @@ async def _run_pipeline(event_ids: list[int]) -> int:
 
     async with AsyncSessionLocal() as session:
         try:
-            count = await run_detection_pipeline(session, event_ids=event_ids)
+            result = await run_detection_pipeline(session, event_ids=event_ids)
             await session.commit()
-            return count
+            return result.detections_written
         except Exception:
             await session.rollback()
             raise

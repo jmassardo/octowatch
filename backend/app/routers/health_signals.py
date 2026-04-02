@@ -34,7 +34,7 @@ async def _resolve_orgs(
     return scoped_orgs
 
 
-@router.get("/summary")
+@router.get("/summary", response_model=dict[str, Any])
 async def health_summary(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -64,7 +64,7 @@ async def health_summary(
     return summary
 
 
-@router.get("/pat-health")
+@router.get("/pat-health", response_model=dict[str, Any])
 async def pat_health(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -82,7 +82,7 @@ async def pat_health(
     return {"summary": summary, "tokens": tokens, "dormant": dormant}
 
 
-@router.get("/bypass-offenders")
+@router.get("/bypass-offenders", response_model=dict[str, Any])
 async def bypass_offenders(
     lookback_days: int = Query(default=90, ge=7, le=365),
     limit: int = Query(default=20, ge=1, le=100),
@@ -97,7 +97,7 @@ async def bypass_offenders(
     return {"offenders": offenders}
 
 
-@router.get("/repo-health")
+@router.get("/repo-health", response_model=dict[str, Any])
 async def repo_health(
     stale_threshold_days: int = Query(default=90, ge=7, le=365),
     limit: int = Query(default=50, ge=1, le=100),
@@ -118,7 +118,7 @@ async def repo_health(
     return {"stale": stale, "archived": archived, "abandoned_forks": forks}
 
 
-@router.get("/external-collaborators")
+@router.get("/external-collaborators", response_model=dict[str, Any])
 async def external_collaborators(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -135,7 +135,7 @@ async def external_collaborators(
     return {"summary": summary, "collaborators": collaborators}
 
 
-@router.get("/dormant-collaborators")
+@router.get("/dormant-collaborators", response_model=dict[str, Any])
 async def dormant_collaborators(
     dormancy_days: int = Query(default=60, ge=7, le=365),
     limit: int = Query(default=50, ge=1, le=100),
@@ -150,7 +150,7 @@ async def dormant_collaborators(
     return {"dormant": dormant}
 
 
-@router.get("/security-posture")
+@router.get("/security-posture", response_model=dict[str, Any])
 async def security_posture(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -164,7 +164,7 @@ async def security_posture(
     return {"coverage": coverage}
 
 
-@router.get("/secret-scanning")
+@router.get("/secret-scanning", response_model=dict[str, Any])
 async def secret_scanning(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -178,7 +178,7 @@ async def secret_scanning(
     return {"alerts": alerts}
 
 
-@router.get("/sso")
+@router.get("/sso", response_model=dict[str, Any])
 async def sso_health(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -190,7 +190,7 @@ async def sso_health(
     return {"sso": sso}
 
 
-@router.get("/ip-allowlist")
+@router.get("/ip-allowlist", response_model=dict[str, Any])
 async def ip_allowlist(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -204,7 +204,7 @@ async def ip_allowlist(
     return {"stream_status": stream_status}
 
 
-@router.get("/privilege-changes")
+@router.get("/privilege-changes", response_model=dict[str, Any])
 async def privilege_changes(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -218,7 +218,7 @@ async def privilege_changes(
     return {"changes": changes}
 
 
-@router.get("/code-scanning")
+@router.get("/code-scanning", response_model=dict[str, Any])
 async def code_scanning(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -232,7 +232,7 @@ async def code_scanning(
     return {"alerts": alerts}
 
 
-@router.get("/vulnerabilities")
+@router.get("/vulnerabilities", response_model=dict[str, Any])
 async def vulnerabilities(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -246,7 +246,7 @@ async def vulnerabilities(
     return {"aging": aging}
 
 
-@router.get("/app-governance")
+@router.get("/app-governance", response_model=dict[str, Any])
 async def app_governance(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -260,7 +260,7 @@ async def app_governance(
     return {"governance": governance}
 
 
-@router.get("/workflows")
+@router.get("/workflows", response_model=dict[str, Any])
 async def workflows(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -274,7 +274,7 @@ async def workflows(
     return {"workflows": workflow_health}
 
 
-@router.get("/copilot-governance")
+@router.get("/copilot-governance", response_model=dict[str, Any])
 async def copilot_governance(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -288,7 +288,7 @@ async def copilot_governance(
     return {"seats": seats}
 
 
-@router.get("/codespaces")
+@router.get("/codespaces", response_model=dict[str, Any])
 async def codespaces(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -302,7 +302,7 @@ async def codespaces(
     return {"codespaces": cost_signals}
 
 
-@router.get("/runners")
+@router.get("/runners", response_model=dict[str, Any])
 async def runners(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -316,7 +316,7 @@ async def runners(
     return {"runners": fleet}
 
 
-@router.get("/branch-protection")
+@router.get("/branch-protection", response_model=dict[str, Any])
 async def branch_protection(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -330,7 +330,7 @@ async def branch_protection(
     return {"protection": protection}
 
 
-@router.get("/system")
+@router.get("/system", response_model=dict[str, Any])
 async def system_health(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -354,7 +354,7 @@ async def system_health(
     }
 
 
-@router.get("/settings")
+@router.get("/settings", response_model=dict[str, Any])
 async def get_health_settings(
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
@@ -390,7 +390,7 @@ async def get_health_settings(
     return defaults
 
 
-@router.put("/settings", dependencies=[Depends(verify_csrf)])
+@router.put("/settings", response_model=dict[str, Any], dependencies=[Depends(verify_csrf)])
 async def update_health_settings(
     body: dict[str, Any],
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -421,7 +421,7 @@ async def update_health_settings(
     return body
 
 
-@router.get("/ghost-members")
+@router.get("/ghost-members", response_model=dict[str, Any])
 async def ghost_members(
     dormancy_days: int = Query(default=90, ge=30, le=365),
     limit: int = Query(default=50, ge=1, le=100),
@@ -436,7 +436,7 @@ async def ghost_members(
     return {"ghost_members": members}
 
 
-@router.get("/stale-prs")
+@router.get("/stale-prs", response_model=dict[str, Any])
 async def stale_prs(
     stale_days: int = Query(default=30, ge=7, le=365),
     limit: int = Query(default=50, ge=1, le=100),
@@ -451,7 +451,7 @@ async def stale_prs(
     return {"stale_prs": prs}
 
 
-@router.get("/unhealthy-hooks")
+@router.get("/unhealthy-hooks", response_model=dict[str, Any])
 async def unhealthy_hooks(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -465,7 +465,7 @@ async def unhealthy_hooks(
     return {"unhealthy_hooks": hooks}
 
 
-@router.get("/skipped-workflows")
+@router.get("/skipped-workflows", response_model=dict[str, Any])
 async def skipped_workflows(
     limit: int = Query(default=50, ge=1, le=100),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -479,7 +479,7 @@ async def skipped_workflows(
     return {"skipped_workflows": wfs}
 
 
-@router.get("/waf-findings")
+@router.get("/waf-findings", response_model=dict[str, Any])
 async def waf_findings(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -490,7 +490,7 @@ async def waf_findings(
     return {"findings": findings}
 
 
-@router.get("/teams")
+@router.get("/teams", response_model=dict[str, Any])
 async def list_teams(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -520,7 +520,7 @@ async def list_teams(
 # ── License consumption (from GHEC enterprise sync) ──────────────────────────
 
 
-@router.get("/license-consumption")
+@router.get("/license-consumption", response_model=dict[str, Any])
 async def license_consumption(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -569,7 +569,7 @@ async def license_consumption(
 # ── Outside collaborators (from enterprise sync) ────────────────────────────
 
 
-@router.get("/outside-collaborators-sync")
+@router.get("/outside-collaborators-sync", response_model=dict[str, Any])
 async def outside_collaborators_sync(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -595,7 +595,7 @@ async def outside_collaborators_sync(
 # ── Security alerts summary (from enterprise sync) ──────────────────────────
 
 
-@router.get("/security-alerts-summary")
+@router.get("/security-alerts-summary", response_model=dict[str, Any])
 async def security_alerts_summary(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

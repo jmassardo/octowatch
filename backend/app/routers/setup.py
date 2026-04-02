@@ -10,6 +10,7 @@ import json
 import secrets
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -59,7 +60,7 @@ async def setup_status(db: AsyncSession = Depends(get_db)) -> SetupStatusRespons
     )
 
 
-@router.post("/login")
+@router.post("/login", response_model=dict[str, Any])
 @limiter.limit("5/minute")
 async def setup_login(
     payload: SetupLoginRequest,
@@ -134,7 +135,7 @@ async def setup_login(
     return {"status": "ok", "message": "Setup session created"}
 
 
-@router.get("/current")
+@router.get("/current", response_model=dict[str, Any])
 async def setup_current_config(
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
@@ -152,7 +153,7 @@ async def setup_current_config(
     }
 
 
-@router.post("/github-oauth")
+@router.post("/github-oauth", response_model=dict[str, Any])
 async def setup_github_oauth(
     payload: GitHubOAuthSetup,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -182,7 +183,7 @@ async def setup_github_oauth(
     return {"status": "ok", "message": "GitHub OAuth configured"}
 
 
-@router.post("/github-app")
+@router.post("/github-app", response_model=dict[str, Any])
 async def setup_github_app(
     payload: GitHubAppSetup,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -249,7 +250,7 @@ async def setup_github_app(
     return {"status": "ok", "message": "GitHub App configured"}
 
 
-@router.post("/tls")
+@router.post("/tls", response_model=dict[str, Any])
 async def setup_tls(
     payload: TLSSetup,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -318,7 +319,7 @@ async def setup_tls(
     return {"status": "ok", "message": "TLS configured"}
 
 
-@router.post("/audit-stream")
+@router.post("/audit-stream", response_model=dict[str, Any])
 async def setup_audit_stream(
     payload: AuditStreamSetup,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -352,7 +353,7 @@ async def setup_audit_stream(
     return {"status": "ok", "message": "Audit log streaming credentials saved"}
 
 
-@router.post("/complete")
+@router.post("/complete", response_model=dict[str, Any])
 @limiter.limit("3/minute")
 async def setup_complete_endpoint(
     request: Request,

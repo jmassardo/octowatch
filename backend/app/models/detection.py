@@ -50,7 +50,8 @@ class RuleDefinition(Base):
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()"),
+        onupdate=text("NOW()")
     )
 
     versions: Mapped[list[RuleVersion]] = relationship(
@@ -105,7 +106,8 @@ class DetectionSuppression(Base):
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()"),
+        onupdate=text("NOW()")
     )
 
     __table_args__ = (
@@ -156,7 +158,8 @@ class Detection(Base):
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()"),
+        onupdate=text("NOW()")
     )
 
     rule: Mapped[RuleDefinition] = relationship("RuleDefinition", back_populates="detections")
@@ -181,7 +184,8 @@ class SeverityConfig(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     updated_by: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()"),
+        onupdate=text("NOW()")
     )
 
 

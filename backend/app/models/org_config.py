@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, Text, text
+from sqlalchemy import DateTime, Integer, Numeric, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.audit_event import Base
@@ -23,10 +23,13 @@ class OrgConfig(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     org_slug: Mapped[str] = mapped_column(Text, nullable=False, unique=True, index=True)
-    copilot_cost_per_seat: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    copilot_cost_per_seat: Mapped[float | None] = mapped_column(
+        Numeric(precision=10, scale=2), nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()"),
+        onupdate=text("NOW()")
     )

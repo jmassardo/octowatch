@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import fnmatch
 import re
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -26,6 +27,14 @@ from app.models.github_sync import (
 from app.services.geoip_service import haversine_km, is_impossible_travel
 
 logger = structlog.get_logger(__name__)
+
+
+@dataclass
+class PipelineResult:
+    """Result of a detection pipeline run."""
+
+    detections_written: int = 0
+    failed_rules: list[int] = field(default_factory=list)
 
 
 # ─── Confidence scoring ───────────────────────────────────────────────────────
@@ -786,13 +795,14 @@ async def run_detection_pipeline(
     session: AsyncSession,
     event_ids: list[int],
     scoped_orgs: list[str] | None = None,
-) -> int:
+) -> PipelineResult:
     """Run the full 8-step detection pipeline for a batch of event IDs.
 
-    Returns the number of new detections written.
+    Returns a :class:`PipelineResult` containing the number of new detections
+    written and a list of rule IDs that failed evaluation.
     """
     if not event_ids:
-        return 0
+        return PipelineResult()
 
     # Step 1: Fetch events
     stmt = (
@@ -801,7 +811,7 @@ async def run_detection_pipeline(
     result = await session.execute(stmt)
     events = list(result.scalars().all())
     if not events:
-        return 0
+        return PipelineResult()
 
     # Step 2: Load active rules
     rules_stmt = select(RuleDefinition).where(
@@ -812,10 +822,11 @@ async def run_detection_pipeline(
     rules = list(rules_result.scalars().all())
 
     if not rules:
-        return 0
+        return PipelineResult()
 
     orgs = scoped_orgs or list({e.org for e in events if e.org})
     detections_written = 0
+    failed_rules: list[int] = []
 
     for rule in rules:
         config = rule.logic_config
@@ -860,13 +871,28 @@ async def run_detection_pipeline(
 
         except Exception as exc:
             logger.error(
-                "detection.pipeline_error",
+                "detection.rule_evaluation_failed",
                 rule_id=rule.id,
+                rule_name=rule.name,
                 rule_slug=rule.slug,
+                logic_type=rule.logic_type,
                 error=str(exc),
+                exc_info=True,
             )
+            failed_rules.append(rule.id)
 
-    return detections_written
+    if failed_rules:
+        logger.warning(
+            "detection.coverage_reduced",
+            failed_rule_count=len(failed_rules),
+            failed_rule_ids=failed_rules,
+            total_rules=len(rules),
+        )
+
+    return PipelineResult(
+        detections_written=detections_written,
+        failed_rules=failed_rules,
+    )
 
 
 async def _write_detection_for_event(

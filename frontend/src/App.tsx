@@ -28,6 +28,15 @@ export const router = createBrowserRouter([
         <AppShell />
       </AuthGuard>
     ),
+    errorElement: (
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <h2>Page Error</h2>
+        <p>
+          This page encountered an error.{' '}
+          <a href="/dashboard">Return to Dashboard</a>
+        </p>
+      </div>
+    ),
     children: [
       { path: '/dashboard', element: <DashboardPage /> },
       { path: '/threats', element: <ThreatsPage /> },

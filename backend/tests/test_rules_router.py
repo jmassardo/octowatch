@@ -162,7 +162,7 @@ class TestListRules:
         app, _, _ = _build_rules_app(valkey_session=_make_session(roles=["analyst"]))
         with patch(
             "app.routers.rules.rule_service.list_rules",
-            AsyncMock(return_value=[]),
+            AsyncMock(return_value=([], 0)),
         ):
             client = TestClient(app, raise_server_exceptions=True)
             resp = client.get("/api/v1/rules", cookies={"access_token": token})
@@ -174,7 +174,7 @@ class TestListRules:
         fake_rule = FakeRuleModel()
         with patch(
             "app.routers.rules.rule_service.list_rules",
-            AsyncMock(return_value=[fake_rule]),
+            AsyncMock(return_value=([fake_rule], 1)),
         ):
             client = TestClient(app, raise_server_exceptions=True)
             resp = client.get("/api/v1/rules", cookies={"access_token": token})
@@ -190,7 +190,7 @@ class TestListRules:
         app, _, _ = _build_rules_app(valkey_session=_make_session(roles=["analyst"]))
         with patch(
             "app.routers.rules.rule_service.list_rules",
-            AsyncMock(return_value=[]),
+            AsyncMock(return_value=([], 0)),
         ):
             client = TestClient(app, raise_server_exceptions=True)
             resp = client.get("/api/v1/rules", cookies={"access_token": token})
@@ -205,7 +205,7 @@ class TestListRules:
         app, _, _ = _build_rules_app(valkey_session=_make_session(roles=["analyst"]))
         with patch(
             "app.routers.rules.rule_service.list_rules",
-            AsyncMock(return_value=[]),
+            AsyncMock(return_value=([], 0)),
         ) as mock_list:
             client = TestClient(app, raise_server_exceptions=True)
             client.get("/api/v1/rules?limit=10", cookies={"access_token": token})

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -35,7 +36,9 @@ class AzureBlobIngestWorker(AbstractIngestWorker):
         total_inserted = 0
 
         try:
-            blobs = list(container_client.list_blobs(name_starts_with=""))
+            blobs = await asyncio.to_thread(
+                lambda: list(container_client.list_blobs(name_starts_with=""))
+            )
         except Exception as exc:
             logger.error("azure_worker.list_failed", error=str(exc))
             return
@@ -69,7 +72,7 @@ class AzureBlobIngestWorker(AbstractIngestWorker):
         if total_inserted:
             logger.info("azure_worker.poll_complete", inserted=total_inserted)
 
-        container_client.close()
+        await asyncio.to_thread(container_client.close)
 
     async def _download_and_parse_blob(
         self,
@@ -81,7 +84,7 @@ class AzureBlobIngestWorker(AbstractIngestWorker):
 
         try:
             blob_client = container_client.get_blob_client(blob_name)
-            data = blob_client.download_blob().readall()
+            data = await asyncio.to_thread(lambda: blob_client.download_blob().readall())
         except Exception as exc:
             logger.error("azure_worker.download_failed", blob=blob_name, error=str(exc))
             return []

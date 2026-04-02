@@ -143,7 +143,7 @@ services:
   # restart: on-failure ensures it retries if MinIO is not yet fully ready.
   # ---------------------------------------------------------------------------
   minio-setup:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2024-06-12T14-34-03Z
     depends_on:
       minio:
         condition: service_healthy
@@ -238,7 +238,7 @@ services:
   # restart: on-failure retries up to 3 times if db is temporarily unavailable.
   # ---------------------------------------------------------------------------
   migrate:
-    image: audit-log-analyzer-api:latest
+    image: octowatch-api:latest
     command: ["alembic", "upgrade", "head"]
     environment:
       DATABASE_URL: ${DATABASE_URL}
@@ -256,7 +256,7 @@ services:
   # Update nginx upstream block to list all api instances if scaling manually.
   # ---------------------------------------------------------------------------
   api:
-    image: audit-log-analyzer-api:latest
+    image: octowatch-api:latest
     environment:
       <<: *app-env
       # Ingestion mode determines which storage backend to use
@@ -312,7 +312,7 @@ services:
   # from parallel gzip decompression of large audit log files).
   # ---------------------------------------------------------------------------
   worker-ingestion:
-    image: audit-log-analyzer-worker:latest
+    image: octowatch-worker:latest
     command: ["celery", "-A", "app.celery_app", "worker", "-Q", "ingestion", "-c", "4", "--loglevel", "${LOG_LEVEL:-INFO}"]
     environment:
       <<: *app-env
@@ -350,7 +350,7 @@ services:
   # Includes all IdP enrichment, notification, and ticketing credentials.
   # ---------------------------------------------------------------------------
   worker-detection:
-    image: audit-log-analyzer-worker:latest
+    image: octowatch-worker:latest
     command: ["celery", "-A", "app.celery_app", "worker", "-Q", "detection", "-c", "8", "--loglevel", "${LOG_LEVEL:-INFO}"]
     environment:
       <<: *app-env
@@ -392,7 +392,7 @@ services:
   # low concurrency prevents it from competing with detection workers).
   # ---------------------------------------------------------------------------
   worker-baseline:
-    image: audit-log-analyzer-worker:latest
+    image: octowatch-worker:latest
     command: ["celery", "-A", "app.celery_app", "worker", "-Q", "baseline", "-c", "2", "--loglevel", "${LOG_LEVEL:-INFO}"]
     environment:
       <<: *app-env
@@ -412,7 +412,7 @@ services:
   # local resources; 4 workers allow parallel sync of independent orgs).
   # ---------------------------------------------------------------------------
   worker-sync:
-    image: audit-log-analyzer-worker:latest
+    image: octowatch-worker:latest
     command: ["celery", "-A", "app.celery_app", "worker", "-Q", "github_sync", "--pool=solo", "--loglevel", "${LOG_LEVEL:-INFO}"]
     environment:
       <<: *app-env
@@ -446,7 +446,7 @@ services:
   # PersistentScheduler stores the schedule state in /tmp/celerybeat-schedule.
   # ---------------------------------------------------------------------------
   beat:
-    image: audit-log-analyzer-worker:latest
+    image: octowatch-worker:latest
     command: ["celery", "-A", "app.celery_app", "beat", "--scheduler", "celery.beat:PersistentScheduler", "--loglevel", "${LOG_LEVEL:-INFO}"]
     environment:
       <<: *app-env
@@ -463,7 +463,7 @@ services:
   # Not exposed directly; nginx proxies / → frontend:3001
   # ---------------------------------------------------------------------------
   frontend:
-    image: audit-log-analyzer-frontend:latest
+    image: octowatch-frontend:latest
     networks:
       - frontend
     depends_on:

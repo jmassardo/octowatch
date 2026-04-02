@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import secrets
 from datetime import UTC, datetime, timedelta
 
 import structlog
@@ -26,7 +27,9 @@ def compute_rolling_baselines_task(self: Task) -> dict:
         return {"status": "ok", "updated": result}
     except Exception as exc:
         logger.error("baseline_worker.task_failed", error=str(exc))
-        raise self.retry(exc=exc) from exc
+        backoff = min(30 * (2**self.request.retries), 600)
+        jitter = secrets.randbelow(max(int(backoff * 0.1), 1))
+        raise self.retry(exc=exc, countdown=backoff + jitter) from exc
 
 
 async def _compute_baselines() -> int:

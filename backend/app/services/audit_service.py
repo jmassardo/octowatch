@@ -28,8 +28,9 @@ async def log_action(
 ) -> AuditTrail:
     """Write an immutable audit trail entry.
 
-    Uses a separate flush to ensure the audit record is persisted even if the
-    caller's transaction rolls back.
+    Note: this uses the caller's session and transaction. If the caller
+    rolls back, the audit entry is also rolled back.  For critical audit
+    records, ensure the caller commits before returning.
     """
     entry = AuditTrail(
         user_login=user_login,

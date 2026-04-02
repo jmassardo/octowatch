@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +24,7 @@ _STATIC_FIELDS: list[str] = [
 ]
 
 
-@router.get("/actions")
+@router.get("/actions", response_model=dict[str, Any])
 async def suggest_actions(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -40,7 +42,7 @@ async def suggest_actions(
     return {"actions": actions}
 
 
-@router.get("/fields")
+@router.get("/fields", response_model=dict[str, Any])
 async def suggest_fields(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -66,7 +68,7 @@ async def suggest_fields(
     return {"fields": list(_STATIC_FIELDS) + dynamic_keys}
 
 
-@router.get("/actors")
+@router.get("/actors", response_model=dict[str, Any])
 async def suggest_actors(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

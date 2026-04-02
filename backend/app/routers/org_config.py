@@ -24,7 +24,7 @@ COST_PER_SEAT_DEFAULT = 19.0
 router = APIRouter(prefix="/orgs", tags=["org-config"])
 
 
-@router.get("/{org_slug}/config")
+@router.get("/{org_slug}/config", response_model=OrgConfigResponse)
 async def get_org_config(
     org_slug: str,
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -53,7 +53,11 @@ async def get_org_config(
     )
 
 
-@router.patch("/{org_slug}/config", dependencies=[Depends(verify_csrf)])
+@router.patch(
+    "/{org_slug}/config",
+    response_model=OrgConfigResponse,
+    dependencies=[Depends(verify_csrf)],
+)
 async def update_org_config(
     org_slug: str,
     payload: OrgConfigUpdate,

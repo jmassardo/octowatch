@@ -18,6 +18,7 @@ sync twice leaves the database in the same final state (idempotent).
 from __future__ import annotations
 
 import asyncio
+import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Literal
@@ -79,9 +80,9 @@ async def _write_sync_log(
         run_uuid = uuid.UUID(run_id)
         async with session_factory() as session:
             result = await session.execute(
-                select(func.coalesce(func.max(SyncLogEntry.seq), 0) + 1).where(
-                    SyncLogEntry.run_id == run_uuid
-                )
+                select(func.coalesce(func.max(SyncLogEntry.seq), 0) + 1)
+                .where(SyncLogEntry.run_id == run_uuid)
+                .with_for_update()
             )
             seq = result.scalar_one()
             entry = SyncLogEntry(
@@ -165,7 +166,6 @@ def run_enterprise_sync(
     name="app.workers.github_sync.sync_entity",
     bind=True,
     max_retries=3,
-    default_retry_delay=30,  # seconds; callers may override with countdown
     queue="github_sync",
     soft_time_limit=3600,  # 1 hour per entity/org chunk
     time_limit=3900,
@@ -762,7 +762,9 @@ async def _sync_entity_async(
             org=org,
         )
         try:
-            raise task.retry(exc=exc) from exc
+            backoff = min(30 * (2**task.request.retries), 600)
+            jitter = secrets.randbelow(max(int(backoff * 0.1), 1))
+            raise task.retry(exc=exc, countdown=backoff + jitter) from exc
         except task.MaxRetriesExceededError:
             # Retries exhausted — check if this was the last entity
             await _maybe_finalize_run(sf, run_id)

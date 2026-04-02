@@ -30,6 +30,15 @@ export function parseSearchFilters(input: string): Partial<EventListParams> {
   return filters;
 }
 
+/** Sanitize a cell value to prevent spreadsheet formula injection. */
+function sanitizeCell(value: string): string {
+  const s = String(value);
+  if (/^[=+\-@\t\r]/.test(s)) {
+    return "'" + s;
+  }
+  return s;
+}
+
 /** Build a CSV string from event data and trigger a browser download. */
 export function downloadCsv(events: readonly EventResponse[]): void {
   const headers = ['Timestamp', 'Action', 'Actor', 'Repository', 'Organization', 'IP', 'Country'];
@@ -43,7 +52,7 @@ export function downloadCsv(events: readonly EventResponse[]): void {
     e.geo_country_code ?? '',
   ]);
   const csv = [headers, ...rows]
-    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .map((row) => row.map((cell) => `"${sanitizeCell(String(cell)).replace(/"/g, '""')}"`).join(','))
     .join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

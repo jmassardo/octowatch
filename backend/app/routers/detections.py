@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
 from app.models.detection import Detection
@@ -25,7 +26,9 @@ router = APIRouter(prefix="/detections", tags=["detections"])
 async def _get_detection_or_404(
     db: AsyncSession, detection_id: int, scope_orgs: list[str] | None = None
 ) -> Detection:
-    stmt = select(Detection).where(Detection.id == detection_id)
+    stmt = (
+        select(Detection).options(selectinload(Detection.rule)).where(Detection.id == detection_id)
+    )
     if scope_orgs:
         stmt = stmt.where(Detection.org.in_(scope_orgs))
     result = await db.execute(stmt)
@@ -46,7 +49,11 @@ async def list_detections(
     """List detections with filtering and pagination."""
     scope = await get_user_scope(db, current_user.github_login, current_user.roles)
 
-    stmt = select(Detection).order_by(Detection.triggered_at.desc())
+    stmt = (
+        select(Detection)
+        .options(selectinload(Detection.rule))
+        .order_by(Detection.triggered_at.desc())
+    )
 
     if params.status:
         stmt = stmt.where(Detection.status == params.status)

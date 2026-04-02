@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -43,12 +44,18 @@ class S3IngestWorker(AbstractIngestWorker):
 
         paginator = s3_client.get_paginator("list_objects_v2")
 
-        for page in paginator.paginate(
-            Bucket=s3_cfg.S3_AUDIT_BUCKET,
-            Prefix="",
-            StartAfter=start_after,
-            PaginationConfig={"PageSize": page_size},
-        ):
+        pages = await asyncio.to_thread(
+            lambda: list(
+                paginator.paginate(
+                    Bucket=s3_cfg.S3_AUDIT_BUCKET,
+                    Prefix="",
+                    StartAfter=start_after,
+                    PaginationConfig={"PageSize": page_size},
+                )
+            )
+        )
+
+        for page in pages:
             objects = page.get("Contents", [])
             if not objects:
                 break
@@ -84,8 +91,8 @@ class S3IngestWorker(AbstractIngestWorker):
         import gzip
 
         try:
-            response = s3_client.get_object(Bucket=bucket, Key=key)
-            body = response["Body"].read()
+            response = await asyncio.to_thread(s3_client.get_object, Bucket=bucket, Key=key)
+            body = await asyncio.to_thread(response["Body"].read)
         except Exception as exc:
             logger.error("s3_worker.download_failed", key=key, error=str(exc))
             return []

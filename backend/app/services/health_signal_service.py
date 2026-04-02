@@ -466,7 +466,7 @@ async def get_audit_stream_status(
         text("""
             SELECT DISTINCT ON (org)
                 org, action, actor, created_at,
-                EXTRACT(HOURS FROM NOW() - created_at)::INT AS hours_ago
+                EXTRACT(EPOCH FROM NOW() - created_at)::INT / 3600 AS hours_ago
             FROM events
             WHERE action LIKE 'audit_log_streaming.%%'
               AND org = ANY(:scoped_orgs)

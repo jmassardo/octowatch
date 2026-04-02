@@ -209,7 +209,7 @@ async def list_rules(
     db: AsyncSession = Depends(get_db),
 ) -> RuleListResponse:
     """List detection rules with optional filtering."""
-    rules = await rule_service.list_rules(
+    rules, total = await rule_service.list_rules(
         db,
         enabled=enabled,
         logic_type=logic_type,
@@ -219,7 +219,7 @@ async def list_rules(
     )
     return RuleListResponse(
         items=[RuleResponse.model_validate(r) for r in rules],
-        total=len(rules),
+        total=total,
         limit=limit,
         offset=offset,
     )

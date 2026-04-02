@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import structlog
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +24,7 @@ FEATURE_DEFAULTS: dict[str, bool] = {
 }
 
 
-@router.get("")
+@router.get("", response_model=dict[str, Any])
 async def get_features(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -38,7 +40,7 @@ async def get_features(
     return result
 
 
-@router.put("", dependencies=[Depends(verify_csrf)])
+@router.put("", response_model=dict[str, Any], dependencies=[Depends(verify_csrf)])
 async def update_features(
     payload: dict[str, bool],
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),

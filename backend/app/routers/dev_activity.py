@@ -382,7 +382,7 @@ async def _developer_stats(
     return developers
 
 
-@router.get("/developers")
+@router.get("/developers", response_model=dict[str, Any])
 async def list_developers(
     lookback_days: int = Query(default=90, ge=1, le=365),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -398,7 +398,7 @@ async def list_developers(
     return {"developers": developers, "lookback_days": lookback_days}
 
 
-@router.get("/usage-stats")
+@router.get("/usage-stats", response_model=dict[str, Any])
 async def usage_stats(
     lookback_days: int = Query(default=30, ge=1, le=365),
     current_user: AuthenticatedUser = Depends(get_current_user),

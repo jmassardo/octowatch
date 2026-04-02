@@ -101,17 +101,23 @@ async def list_rules(
     status: str | None = None,
     limit: int = 50,
     offset: int = 0,
-) -> list[RuleDefinition]:
-    stmt = select(RuleDefinition).order_by(RuleDefinition.created_at.desc())
+) -> tuple[list[RuleDefinition], int]:
+    base = select(RuleDefinition)
     if enabled is not None:
-        stmt = stmt.where(RuleDefinition.enabled.is_(enabled))
+        base = base.where(RuleDefinition.enabled.is_(enabled))
     if logic_type:
-        stmt = stmt.where(RuleDefinition.logic_type == logic_type)
+        base = base.where(RuleDefinition.logic_type == logic_type)
     if status:
-        stmt = stmt.where(RuleDefinition.status == status)
-    stmt = stmt.limit(limit).offset(offset)
+        base = base.where(RuleDefinition.status == status)
+
+    from sqlalchemy import func
+
+    count_result = await session.execute(select(func.count()).select_from(base.subquery()))
+    total = count_result.scalar_one()
+
+    stmt = base.order_by(RuleDefinition.created_at.desc()).limit(limit).offset(offset)
     result = await session.execute(stmt)
-    return list(result.scalars().all())
+    return list(result.scalars().all()), total
 
 
 async def get_rule_by_id(session: AsyncSession, rule_id: int) -> RuleDefinition | None:

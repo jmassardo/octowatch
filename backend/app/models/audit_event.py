@@ -11,6 +11,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     Index,
+    String,
     Text,
     text,
 )
@@ -57,7 +58,7 @@ class AuditEvent(Base):
     user_agent: Mapped[str | None] = mapped_column(Text)
 
     # GeoIP
-    geo_country_code: Mapped[str | None] = mapped_column(Text)
+    geo_country_code: Mapped[str | None] = mapped_column(String(2))
     geo_city: Mapped[str | None] = mapped_column(Text)
     geo_latitude: Mapped[float | None] = mapped_column()
     geo_longitude: Mapped[float | None] = mapped_column()

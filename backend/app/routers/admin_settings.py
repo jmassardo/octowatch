@@ -6,6 +6,8 @@ based on their sensitivity level.
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,7 +25,7 @@ from app.services.settings_service import (
 router = APIRouter(prefix="/admin/settings", tags=["admin-settings"])
 
 
-@router.get("")
+@router.get("", response_model=list[dict[str, Any]])
 async def list_all_settings(
     category: str | None = Query(None, description="Filter by category"),
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -33,7 +35,7 @@ async def list_all_settings(
     return await list_settings(db, category=category)
 
 
-@router.get("/audit/trail")
+@router.get("/audit/trail", response_model=list[dict[str, Any]])
 async def get_audit_trail_endpoint(
     setting_key: str | None = Query(None, description="Filter by setting key"),
     limit: int = Query(100, ge=1, le=1000),
@@ -45,7 +47,7 @@ async def get_audit_trail_endpoint(
     return await get_audit_trail(db, setting_key=setting_key, limit=limit, offset=offset)
 
 
-@router.get("/{key}")
+@router.get("/{key}", response_model=dict[str, Any])
 async def get_setting_endpoint(
     key: str,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -62,7 +64,7 @@ async def get_setting_endpoint(
     )
 
 
-@router.put("/{key}", dependencies=[Depends(verify_csrf)])
+@router.put("/{key}", response_model=dict[str, Any], dependencies=[Depends(verify_csrf)])
 async def update_setting_endpoint(
     key: str,
     payload: SettingUpdate,
@@ -101,7 +103,7 @@ async def update_setting_endpoint(
     return {"status": "ok", "message": f"Setting '{key}' updated"}
 
 
-@router.delete("/{key}", dependencies=[Depends(verify_csrf)])
+@router.delete("/{key}", response_model=dict[str, Any], dependencies=[Depends(verify_csrf)])
 async def delete_setting_endpoint(
     key: str,
     request: Request,

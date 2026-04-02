@@ -38,7 +38,7 @@ async def _check_gaps() -> dict[str, Any]:
                     GROUP BY org
                 )
                 SELECT org, last_event_at,
-                       EXTRACT(MINUTES FROM NOW() - last_event_at)::INT AS minutes_gap
+                       EXTRACT(EPOCH FROM NOW() - last_event_at)::INT / 60 AS minutes_gap
                 FROM org_last_event
                 WHERE last_event_at < NOW() - INTERVAL '90 minutes'
             """)

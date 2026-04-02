@@ -11,6 +11,8 @@ the field lives directly on the root settings object.
 
 from __future__ import annotations
 
+import threading
+
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +20,9 @@ from app.config import settings
 from app.services.settings_service import get_all_settings_decrypted
 
 logger = structlog.get_logger(__name__)
+
+# Prevents concurrent overlay refreshes from exposing partially-updated config
+_overlay_lock = threading.Lock()
 
 # Mapping from DB key → (nested_attr_on_settings, field_name)
 # None as first element means the field lives on the root Settings object.
@@ -124,12 +129,13 @@ def _apply_setting(db_key: str, value: str) -> bool:
         return False
 
     try:
-        if nested_attr is None:
-            # Root-level setting
-            object.__setattr__(settings, field_name, coerced)
-        else:
-            target = getattr(settings, nested_attr)
-            object.__setattr__(target, field_name, coerced)
+        with _overlay_lock:
+            if nested_attr is None:
+                # Root-level setting
+                object.__setattr__(settings, field_name, coerced)
+            else:
+                target = getattr(settings, nested_attr)
+                object.__setattr__(target, field_name, coerced)
         return True
     except Exception:
         logger.warning("config_overlay.apply_failed", key=db_key, field=field_name, exc_info=True)

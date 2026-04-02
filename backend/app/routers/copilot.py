@@ -15,7 +15,7 @@ router = APIRouter(prefix="/copilot", tags=["copilot"])
 _REQUIRED_ROLES = ["viewer", "analyst", "sys_admin"]
 
 
-@router.get("/overview")
+@router.get("/overview", response_model=dict[str, Any])
 async def copilot_overview(
     current_user: AuthenticatedUser = Depends(require_role(_REQUIRED_ROLES)),
     db: AsyncSession = Depends(get_db),
@@ -24,7 +24,7 @@ async def copilot_overview(
     return await copilot_metrics_service.get_copilot_overview(db)
 
 
-@router.get("/adoption")
+@router.get("/adoption", response_model=dict[str, Any])
 async def copilot_adoption(
     current_user: AuthenticatedUser = Depends(require_role(_REQUIRED_ROLES)),
     db: AsyncSession = Depends(get_db),
@@ -33,7 +33,7 @@ async def copilot_adoption(
     return await copilot_metrics_service.get_copilot_adoption(db)
 
 
-@router.get("/models")
+@router.get("/models", response_model=dict[str, Any])
 async def copilot_models(
     current_user: AuthenticatedUser = Depends(require_role(_REQUIRED_ROLES)),
     db: AsyncSession = Depends(get_db),
@@ -42,7 +42,7 @@ async def copilot_models(
     return await copilot_metrics_service.get_copilot_models(db)
 
 
-@router.get("/anomalies")
+@router.get("/anomalies", response_model=dict[str, Any])
 async def copilot_anomalies(
     current_user: AuthenticatedUser = Depends(require_role(_REQUIRED_ROLES)),
     db: AsyncSession = Depends(get_db),
