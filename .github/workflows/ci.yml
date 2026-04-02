@@ -165,11 +165,6 @@ jobs:
           name: coverage-xml
           path: backend/coverage.xml
           retention-days: 7
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad  # v5.5.3
-        with:
-          files: backend/coverage.xml
-          fail_ci_if_error: false
 
   frontend-test:
     name: Frontend Tests (vitest)
