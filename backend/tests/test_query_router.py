@@ -415,7 +415,8 @@ class TestValidateQuery:
         resp = client.post(
             "/api/v1/query/validate",
             json={"sql": "SELECT * FROM pg_stat_activity"},
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
         data = resp.json()

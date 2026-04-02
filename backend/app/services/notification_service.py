@@ -65,9 +65,8 @@ async def send_detection_notifications(
     if not detection.rule_id:
         return
 
-    # Load notification configs for this rule
+    # Load notification configs for enabled channels
     stmt = select(NotificationConfig).where(
-        NotificationConfig.rule_id == detection.rule_id,
         NotificationConfig.enabled.is_(True),
     )
     result = await session.execute(stmt)
@@ -86,6 +85,8 @@ async def send_detection_notifications(
         return
 
     for config in configs:
+        if detection.severity not in (config.notify_severities or []):
+            continue
         try:
             if config.channel_type == "slack":
                 await _send_slack_notification(config, detection)

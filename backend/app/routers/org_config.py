@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db, require_role
+from app.deps import AuthenticatedUser, get_current_user, get_db, require_role, verify_csrf
 from app.models.org_config import OrgConfig
 from app.schemas.org_config import OrgConfigResponse, OrgConfigUpdate
 
@@ -53,7 +53,7 @@ async def get_org_config(
     )
 
 
-@router.patch("/{org_slug}/config")
+@router.patch("/{org_slug}/config", dependencies=[Depends(verify_csrf)])
 async def update_org_config(
     org_slug: str,
     payload: OrgConfigUpdate,

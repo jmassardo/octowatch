@@ -5,12 +5,14 @@ from __future__ import annotations
 import secrets
 import uuid
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db, get_valkey
+from app.deps import AuthenticatedUser, get_current_user, get_db, get_valkey, verify_csrf
+from app.rate_limit import limiter
 from app.schemas.auth import LogoutResponse, MeResponse
 from app.services.auth_service import (
     build_github_authorize_url,
@@ -25,6 +27,8 @@ from app.services.auth_service import (
     store_session,
 )
 from app.services.rbac_service import get_user_scope, resolve_roles
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -47,6 +51,7 @@ async def github_login(request: Request) -> RedirectResponse:
 
 
 @router.get("/github/callback")
+@limiter.limit("10/minute")
 async def github_callback(
     request: Request,
     code: str,
@@ -159,7 +164,7 @@ async def _hydrate_global_orgs(db: AsyncSession) -> list[str]:
     return orgs
 
 
-@router.post("/logout", response_model=LogoutResponse)
+@router.post("/logout", response_model=LogoutResponse, dependencies=[Depends(verify_csrf)])
 async def logout(
     response: Response,
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -181,7 +186,8 @@ async def saml_login(request: Request) -> RedirectResponse:
     return RedirectResponse(url=auth.login())
 
 
-@router.post("/saml/acs")
+@router.post("/saml/acs", dependencies=[Depends(verify_csrf)])
+@limiter.limit("10/minute")
 async def saml_acs(
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -248,6 +254,7 @@ async def saml_metadata(request: Request) -> Response:
 
 
 @router.post("/dev-login")
+@limiter.limit("5/minute")
 async def dev_login(
     request: Request,
     valkey: Redis = Depends(get_valkey),
@@ -259,6 +266,8 @@ async def dev_login(
     "password": "..."}`` and returns auth cookies.  The username must match
     a known user in the RBAC tables; the password must equal the username
     (trivial check — security is irrelevant in dev/test).
+
+    Rate-limited to 5 requests per minute per client IP.
     """
     from app.config import settings as cfg
 
@@ -274,6 +283,12 @@ async def dev_login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid dev credentials",
         )
+
+    logger.warning(
+        "auth.dev_login_used",
+        username=username,
+        remote_ip=request.client.host if request.client else "unknown",
+    )
 
     roles = await resolve_roles(db, username)
     scope = await get_user_scope(db, username, roles)

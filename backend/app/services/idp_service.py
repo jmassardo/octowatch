@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -13,6 +14,20 @@ from app.config import settings
 from app.models.integration import IdpActorEnrichment
 
 logger = structlog.get_logger(__name__)
+
+
+def _sanitize_filter_value(value: str) -> str:
+    """Sanitize a value for use in IdP filter expressions.
+
+    Removes characters that could break filter syntax: quotes, parentheses,
+    semicolons, and other filter operators.
+    """
+    # Allow only alphanumeric, dash, underscore, dot, @, plus
+    sanitized = re.sub(r"[^a-zA-Z0-9@._\-+]", "", value)
+    if not sanitized:
+        raise ValueError(f"Actor value '{value}' contains no valid characters after sanitization")
+    return sanitized
+
 
 # ─── Cache helpers ─────────────────────────────────────────────────────────────
 
@@ -29,7 +44,7 @@ async def get_enrichment(
     )
     enrichment = result.scalar_one_or_none()
     if enrichment:
-        age = (datetime.now(UTC) - enrichment.updated_at).total_seconds()
+        age = (datetime.now(UTC) - enrichment.last_synced_at).total_seconds()
         if age < _IDP_CACHE_TTL:
             return enrichment
     return None
@@ -52,10 +67,10 @@ async def upsert_enrichment(
         enrichment.department = data.get("department") or enrichment.department
         enrichment.title = data.get("title") or enrichment.title
         enrichment.manager_login = data.get("manager_login") or enrichment.manager_login
-        enrichment.is_active = data.get("is_active", True)
-        enrichment.idp_source = data.get("idp_source") or enrichment.idp_source
-        enrichment.raw_profile = data.get("raw_profile") or {}
-        enrichment.updated_at = datetime.now(UTC)
+        enrichment.employment_status = "active" if data.get("is_active", True) else "inactive"
+        enrichment.idp_provider = data.get("idp_source") or enrichment.idp_provider
+        enrichment.raw_attributes = data.get("raw_profile") or {}
+        enrichment.last_synced_at = datetime.now(UTC)
     else:
         enrichment = IdpActorEnrichment(
             github_login=actor,
@@ -64,9 +79,9 @@ async def upsert_enrichment(
             department=data.get("department"),
             title=data.get("title"),
             manager_login=data.get("manager_login"),
-            is_active=data.get("is_active", True),
-            idp_source=data.get("idp_source", "unknown"),
-            raw_profile=data.get("raw_profile") or {},
+            employment_status="active" if data.get("is_active", True) else "inactive",
+            idp_provider=data.get("idp_source", "unknown"),
+            raw_attributes=data.get("raw_profile") or {},
         )
         session.add(enrichment)
 
@@ -93,12 +108,15 @@ async def enrich_from_okta(actor: str) -> dict[str, Any] | None:
             }
         )
 
+        # Sanitize actor to prevent SCIM filter injection
+        safe_actor = _sanitize_filter_value(actor)
+
         # Search by login (assume GitHub login == Okta login or email prefix)
-        users, _, err = await client.list_users(query_params={"search": f'login eq "{actor}"'})
+        users, _, err = await client.list_users(query_params={"search": f'login eq "{safe_actor}"'})
         if err or not users:
             # Fallback: search by profile.githubUsername custom attribute
             users, _, err = await client.list_users(
-                query_params={"search": f'profile.githubUsername eq "{actor}"'}
+                query_params={"search": f'profile.githubUsername eq "{safe_actor}"'}
             )
 
         if err or not users:
@@ -151,7 +169,9 @@ async def enrich_from_entra(actor: str) -> dict[str, Any] | None:
         import aiohttp
 
         headers = {"Authorization": f"Bearer {token_result['access_token']}"}
-        filter_param = f"userPrincipalName eq '{actor}' or displayName eq '{actor}'"
+        # Sanitize actor to prevent OData filter injection
+        safe_actor = _sanitize_filter_value(actor)
+        filter_param = f"userPrincipalName eq '{safe_actor}' or displayName eq '{safe_actor}'"
         url = f"https://graph.microsoft.com/v1.0/users?$filter={filter_param}&$select=id,displayName,mail,department,jobTitle,accountEnabled,manager"
 
         async with aiohttp.ClientSession() as http_session:
@@ -200,12 +220,15 @@ async def enrich_from_google(actor: str) -> dict[str, Any] | None:
         )
         service = build("admin", "directory_v1", credentials=credentials)
 
+        # Sanitize actor to prevent query injection
+        safe_actor = _sanitize_filter_value(actor)
+
         # Search by primaryEmail
         result = (
             service.users()
             .list(
                 customer="my_customer",
-                query=f"email={actor} OR externalId={actor}",
+                query=f"email={safe_actor} OR externalId={safe_actor}",
                 maxResults=1,
             )
             .execute()

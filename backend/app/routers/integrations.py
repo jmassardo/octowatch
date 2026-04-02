@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role
+from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
 from app.models.integration import NotificationConfig, TicketingConfig
 from app.schemas.integration import (
     IdpEnrichmentResponse,
@@ -36,7 +36,10 @@ async def list_ticketing_configs(
 
 
 @router.post(
-    "/ticketing", response_model=TicketingConfigResponse, status_code=status.HTTP_201_CREATED
+    "/ticketing",
+    response_model=TicketingConfigResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_csrf)],
 )
 async def create_ticketing_config(
     payload: TicketingConfigCreate,
@@ -62,7 +65,7 @@ async def create_ticketing_config(
     return TicketingConfigResponse.model_validate(config)
 
 
-@router.delete("/ticketing/{config_id}")
+@router.delete("/ticketing/{config_id}", dependencies=[Depends(verify_csrf)])
 async def delete_ticketing_config(
     config_id: int,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -93,7 +96,10 @@ async def list_notification_configs(
 
 
 @router.post(
-    "/notifications", response_model=NotificationConfigResponse, status_code=status.HTTP_201_CREATED
+    "/notifications",
+    response_model=NotificationConfigResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_csrf)],
 )
 async def create_notification_config(
     payload: NotificationConfigCreate,
@@ -116,7 +122,7 @@ async def create_notification_config(
     return NotificationConfigResponse.model_validate(config)
 
 
-@router.delete("/notifications/{config_id}")
+@router.delete("/notifications/{config_id}", dependencies=[Depends(verify_csrf)])
 async def delete_notification_config(
     config_id: int,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -151,7 +157,11 @@ async def get_actor_enrichment(
     return IdpEnrichmentResponse.model_validate(enrichment)
 
 
-@router.post("/idp/{github_login}/refresh", response_model=IdpEnrichmentResponse)
+@router.post(
+    "/idp/{github_login}/refresh",
+    response_model=IdpEnrichmentResponse,
+    dependencies=[Depends(verify_csrf)],
+)
 async def refresh_actor_enrichment(
     github_login: str,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),

@@ -12,12 +12,13 @@ import uuid
 from datetime import UTC, datetime
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.deps import AuthenticatedUser, get_db, get_valkey, require_role
+from app.rate_limit import limiter
 from app.schemas.setup import (
     AuditStreamSetup,
     GitHubAppSetup,
@@ -59,8 +60,10 @@ async def setup_status(db: AsyncSession = Depends(get_db)) -> SetupStatusRespons
 
 
 @router.post("/login")
+@limiter.limit("5/minute")
 async def setup_login(
     payload: SetupLoginRequest,
+    request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
     valkey: Redis = Depends(get_valkey),
@@ -350,7 +353,9 @@ async def setup_audit_stream(
 
 
 @router.post("/complete")
+@limiter.limit("3/minute")
 async def setup_complete_endpoint(
+    request: Request,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | int]:

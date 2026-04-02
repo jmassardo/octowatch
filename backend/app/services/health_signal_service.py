@@ -60,7 +60,7 @@ async def get_health_summary(
                     COUNT(*) AS total_active,
                     COUNT(*) FILTER (WHERE role IN ('admin', 'maintain')) AS elevated
                 FROM external_collaborators
-                WHERE org = ANY(:scoped_orgs) AND status = 'active'
+                WHERE org = ANY(:scoped_orgs) AND is_active = TRUE
             )
             SELECT
                 (SELECT COUNT(*) FROM stale) AS stale_repos,
@@ -366,12 +366,12 @@ async def get_external_collaborators(
     result = await session.execute(
         text("""
             SELECT
-                ec.login        AS github_login,
+                ec.github_login,
                 ec.org,
                 ec.repo,
                 ec.role,
-                ec.added_at     AS granted_at,
-                ec.added_by     AS granted_by,
+                ec.granted_at,
+                ec.granted_by,
                 ec.last_event_at,
                 CASE
                     WHEN ec.last_event_at IS NULL THEN NULL
@@ -381,10 +381,10 @@ async def get_external_collaborators(
                 ia.employment_status        AS idp_employment_status
             FROM external_collaborators ec
             LEFT JOIN idp_actor_enrichments ia
-                ON ia.github_login = ec.login
+                ON ia.github_login = ec.github_login
             WHERE ec.org       = ANY(:scoped_orgs)
-              AND ec.status    = 'active'
-            ORDER BY ec.added_at DESC
+              AND ec.is_active = TRUE
+            ORDER BY ec.granted_at DESC
             LIMIT :limit
         """),
         {"scoped_orgs": scoped_orgs, "limit": limit},
@@ -409,7 +409,7 @@ async def get_external_collaborator_summary(
                        OR last_event_at < NOW() - INTERVAL '60 days'
                 ) AS dormant_count
             FROM external_collaborators
-            WHERE org = ANY(:scoped_orgs) AND status = 'active'
+            WHERE org = ANY(:scoped_orgs) AND is_active = TRUE
         """),
         {"scoped_orgs": scoped_orgs},
     )
@@ -430,16 +430,16 @@ async def get_dormant_collaborators(
     result = await session.execute(
         text("""
             SELECT
-                login AS github_login, org, repo, role,
-                added_at AS granted_at, last_event_at,
+                github_login, org, repo, role,
+                granted_at, last_event_at,
                 CASE
                     WHEN last_event_at IS NULL
-                        THEN EXTRACT(DAY FROM NOW() - added_at)::INT
+                        THEN EXTRACT(DAY FROM NOW() - granted_at)::INT
                     ELSE EXTRACT(DAY FROM NOW() - last_event_at)::INT
                 END AS days_inactive
             FROM external_collaborators
             WHERE org = ANY(:scoped_orgs)
-              AND status = 'active'
+              AND is_active = TRUE
               AND (
                   last_event_at IS NULL
                   OR last_event_at < NOW() - make_interval(days => :dormancy_days)

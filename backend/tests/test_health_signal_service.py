@@ -553,14 +553,12 @@ class TestRouterEndpoints:
                     return_value=[],
                 ):
                     with patch(
-                        "app.routers.health_signals.health_signal_service"
-                        ".get_security_coverage",
+                        "app.routers.health_signals.health_signal_service.get_security_coverage",
                         new_callable=AsyncMock,
                         return_value=[],
                     ):
                         with patch(
-                            "app.routers.health_signals.health_signal_service"
-                            ".get_sso_health",
+                            "app.routers.health_signals.health_signal_service.get_sso_health",
                             new_callable=AsyncMock,
                             return_value=[],
                         ):
@@ -770,14 +768,12 @@ class TestRbacServiceIntegration:
                     return_value=[],
                 ):
                     with patch(
-                        "app.routers.health_signals.health_signal_service"
-                        ".get_security_coverage",
+                        "app.routers.health_signals.health_signal_service.get_security_coverage",
                         new_callable=AsyncMock,
                         return_value=[],
                     ):
                         with patch(
-                            "app.routers.health_signals.health_signal_service"
-                            ".get_sso_health",
+                            "app.routers.health_signals.health_signal_service.get_sso_health",
                             new_callable=AsyncMock,
                             return_value=[],
                         ):
@@ -807,14 +803,12 @@ class TestRbacServiceIntegration:
                     return_value=[],
                 ):
                     with patch(
-                        "app.routers.health_signals.health_signal_service"
-                        ".get_security_coverage",
+                        "app.routers.health_signals.health_signal_service.get_security_coverage",
                         new_callable=AsyncMock,
                         return_value=[],
                     ):
                         with patch(
-                            "app.routers.health_signals.health_signal_service"
-                            ".get_sso_health",
+                            "app.routers.health_signals.health_signal_service.get_sso_health",
                             new_callable=AsyncMock,
                             return_value=[],
                         ):

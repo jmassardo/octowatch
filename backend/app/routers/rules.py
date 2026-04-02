@@ -9,7 +9,7 @@ from fastapi.responses import Response
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, get_valkey, require_role
+from app.deps import AuthenticatedUser, get_db, get_valkey, require_role, verify_csrf
 from app.schemas.detection import (
     RuleCreate,
     RuleListResponse,
@@ -225,7 +225,12 @@ async def list_rules(
     )
 
 
-@router.post("", response_model=RuleResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=RuleResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_csrf)],
+)
 async def create_rule(
     payload: RuleCreate,
     request: Request,
@@ -270,7 +275,9 @@ async def create_rule(
     return RuleResponse.model_validate(rule)
 
 
-@router.post("/validate-config", response_model=ValidateConfigResponse)
+@router.post(
+    "/validate-config", response_model=ValidateConfigResponse, dependencies=[Depends(verify_csrf)]
+)
 async def validate_config(
     payload: ValidateConfigRequest,
     current_user: AuthenticatedUser = Depends(
@@ -300,7 +307,7 @@ async def get_rule(
     return RuleResponse.model_validate(rule)
 
 
-@router.put("/{rule_id}", response_model=RuleResponse)
+@router.put("/{rule_id}", response_model=RuleResponse, dependencies=[Depends(verify_csrf)])
 async def update_rule(
     rule_id: int,
     payload: RuleCreate,
@@ -349,7 +356,7 @@ async def update_rule(
     return RuleResponse.model_validate(updated)
 
 
-@router.patch("/{rule_id}/status", response_model=RuleResponse)
+@router.patch("/{rule_id}/status", response_model=RuleResponse, dependencies=[Depends(verify_csrf)])
 async def update_rule_status(
     rule_id: int,
     payload: RuleStatusUpdate,
@@ -386,7 +393,7 @@ async def update_rule_status(
     return RuleResponse.model_validate(updated)
 
 
-@router.delete("/{rule_id}")
+@router.delete("/{rule_id}", dependencies=[Depends(verify_csrf)])
 async def delete_rule(
     rule_id: int,
     request: Request,
@@ -436,7 +443,9 @@ async def get_rule_versions(
     return [RuleVersionResponse.model_validate(v) for v in versions]
 
 
-@router.post("/{rule_id}/test", response_model=RuleTestEventResponse)
+@router.post(
+    "/{rule_id}/test", response_model=RuleTestEventResponse, dependencies=[Depends(verify_csrf)]
+)
 async def test_rule(
     rule_id: int,
     payload: RuleTestEventRequest,
@@ -492,6 +501,7 @@ async def list_suppressions(
     "/{rule_id}/suppressions",
     response_model=SuppressionResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_csrf)],
 )
 async def create_suppression(
     rule_id: int,
@@ -521,7 +531,7 @@ async def create_suppression(
     return SuppressionResponse.model_validate(suppression)
 
 
-@router.delete("/{rule_id}/suppressions/{suppression_id}")
+@router.delete("/{rule_id}/suppressions/{suppression_id}", dependencies=[Depends(verify_csrf)])
 async def delete_suppression(
     rule_id: int,
     suppression_id: int,

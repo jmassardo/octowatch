@@ -21,9 +21,15 @@ x-app-env: &app-env
   INITIAL_ADMIN_LOGINS: ${INITIAL_ADMIN_LOGINS:-}
 
 networks:
-  # Single internal bridge network. Only nginx exposes ports to the host.
-  # All inter-service communication stays on this network.
-  internal:
+  # Segmented networks — least-privilege connectivity between services.
+  # frontend: nginx ↔ frontend SPA container
+  # backend:  nginx ↔ api; workers & beat coordinate via api
+  # data:     api/workers/beat ↔ db, valkey, minio
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+  data:
     driver: bridge
 
 volumes:
@@ -46,7 +52,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
     networks:
-      - internal
+      - data
     # No ports exposed to host; application connects via internal network.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -72,7 +78,7 @@ services:
     volumes:
       - valkey_data:/data
     networks:
-      - internal
+      - data
     # No ports exposed to host.
     healthcheck:
       test: ["CMD", "valkey-cli", "-a", "${VALKEY_PASSWORD}", "ping"]
@@ -117,7 +123,7 @@ services:
       # MinIO console — bound to localhost only; never expose publicly
       - "127.0.0.1:9001:9001"
     networks:
-      - internal
+      - data
     depends_on:
       valkey:
         condition: service_healthy
@@ -150,7 +156,7 @@ services:
       MINIO_STREAM_USER: ${MINIO_STREAM_USER:-github-stream}
       MINIO_STREAM_PASSWORD: ${MINIO_STREAM_PASSWORD:-}
     networks:
-      - internal
+      - data
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -237,7 +243,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
     networks:
-      - internal
+      - data
     depends_on:
       db:
         condition: service_healthy
@@ -282,7 +288,8 @@ services:
     volumes:
       - ${GITHUB_APP_PRIVATE_KEY_PATH:-/dev/null}:/app/secrets/github-app-key.pem:ro
     networks:
-      - internal
+      - backend
+      - data
     # No ports exposed to host; nginx proxies /api/ → api:8000
     depends_on:
       db:
@@ -325,7 +332,8 @@ services:
       AZURE_AUDIT_CONTAINER: ${AZURE_AUDIT_CONTAINER:-}
       MAXMIND_LICENSE_KEY: ${MAXMIND_LICENSE_KEY:-}
     networks:
-      - internal
+      - backend
+      - data
     depends_on:
       db:
         condition: service_healthy
@@ -369,7 +377,8 @@ services:
       JIRA_USERNAME: ${JIRA_USERNAME:-}
       JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
     networks:
-      - internal
+      - backend
+      - data
     depends_on:
       db:
         condition: service_healthy
@@ -388,7 +397,8 @@ services:
     environment:
       <<: *app-env
     networks:
-      - internal
+      - backend
+      - data
     depends_on:
       db:
         condition: service_healthy
@@ -420,7 +430,8 @@ services:
     volumes:
       - ${GITHUB_APP_PRIVATE_KEY_PATH:-/dev/null}:/app/secrets/github-app-key.pem:ro
     networks:
-      - internal
+      - backend
+      - data
     depends_on:
       db:
         condition: service_healthy
@@ -440,7 +451,8 @@ services:
     environment:
       <<: *app-env
     networks:
-      - internal
+      - backend
+      - data
     depends_on:
       valkey:
         condition: service_healthy
@@ -453,7 +465,7 @@ services:
   frontend:
     image: audit-log-analyzer-frontend:latest
     networks:
-      - internal
+      - frontend
     depends_on:
       - api
     restart: unless-stopped
@@ -477,7 +489,8 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
     networks:
-      - internal
+      - frontend
+      - backend
     depends_on:
       api:
         condition: service_healthy

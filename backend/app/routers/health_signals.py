@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db
+from app.deps import AuthenticatedUser, get_current_user, get_db, require_role, verify_csrf
 from app.services import health_signal_service, rbac_service
 
 router = APIRouter(prefix="/health-signals", tags=["health-signals"])
@@ -356,7 +356,7 @@ async def system_health(
 
 @router.get("/settings")
 async def get_health_settings(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Return persisted health settings, merged with defaults."""
@@ -390,10 +390,10 @@ async def get_health_settings(
     return defaults
 
 
-@router.put("/settings")
+@router.put("/settings", dependencies=[Depends(verify_csrf)])
 async def update_health_settings(
     body: dict[str, Any],
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Persist health settings."""

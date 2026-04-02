@@ -184,7 +184,11 @@ class TestLogout:
         token = _make_jwt(jti=jti)
         app, _, mock_valkey = _build_auth_app(valkey_get_return=_make_session())
         client = TestClient(app, raise_server_exceptions=True)
-        resp = client.post("/api/v1/auth/logout", cookies={"access_token": token})
+        resp = client.post(
+            "/api/v1/auth/logout",
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
+        )
         assert resp.status_code == 200
         assert resp.json()["status"] == "logged_out"
 
@@ -194,7 +198,11 @@ class TestLogout:
         token = _make_jwt(jti=jti)
         app, _, mock_valkey = _build_auth_app(valkey_get_return=_make_session())
         client = TestClient(app, raise_server_exceptions=True)
-        client.post("/api/v1/auth/logout", cookies={"access_token": token})
+        client.post(
+            "/api/v1/auth/logout",
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
+        )
         # revoke_session calls valkey.delete(f"session:{jti}")
         mock_valkey.delete.assert_called_once_with(f"session:{jti}")
 

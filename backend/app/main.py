@@ -14,14 +14,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
 from app.database import dispose_pool, warm_up_pool
+from app.rate_limit import limiter
 from app.routers import (
     admin,
     admin_settings,
@@ -49,8 +49,8 @@ logger = structlog.get_logger(__name__)
 
 
 # ─── Rate limiter ───────────────────────────────────────────────────────────────
-
-limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+# The shared limiter instance lives in app.rate_limit to avoid circular imports
+# between main.py and routers. Re-exported here for backward compatibility.
 
 
 # ─── Custom middleware ──────────────────────────────────────────────────────────

@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role
+from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
 from app.models.detection import Detection
 from app.schemas.detection import (
     AssignDetectionRequest,
@@ -100,7 +100,9 @@ async def get_detection(
     return DetectionResponse.model_validate(detection)
 
 
-@router.patch("/{detection_id}/status", response_model=DetectionResponse)
+@router.patch(
+    "/{detection_id}/status", response_model=DetectionResponse, dependencies=[Depends(verify_csrf)]
+)
 async def update_detection_status(
     detection_id: int,
     payload: UpdateDetectionStatusRequest,
@@ -150,7 +152,9 @@ async def update_detection_status(
     return DetectionResponse.model_validate(detection)
 
 
-@router.patch("/{detection_id}/assign", response_model=DetectionResponse)
+@router.patch(
+    "/{detection_id}/assign", response_model=DetectionResponse, dependencies=[Depends(verify_csrf)]
+)
 async def assign_detection(
     detection_id: int,
     payload: AssignDetectionRequest,
@@ -184,7 +188,7 @@ async def assign_detection(
     return DetectionResponse.model_validate(detection)
 
 
-@router.post("/{detection_id}/suppress", response_model=dict)
+@router.post("/{detection_id}/suppress", response_model=dict, dependencies=[Depends(verify_csrf)])
 async def suppress_from_detection(
     detection_id: int,
     current_user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
@@ -209,7 +213,7 @@ async def suppress_from_detection(
     return {"suppression_id": suppression.id, "detection_id": detection_id}
 
 
-@router.delete("/{detection_id}")
+@router.delete("/{detection_id}", dependencies=[Depends(verify_csrf)])
 async def delete_detection(
     detection_id: int,
     request: Request,

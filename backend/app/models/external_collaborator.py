@@ -46,6 +46,11 @@ class ExternalCollaborator(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
     )
+    data_source: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'audit_event'")
+    )
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sync_run_id: Mapped[str | None] = mapped_column(Text)
 
     __table_args__ = (
         CheckConstraint(

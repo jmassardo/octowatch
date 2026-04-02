@@ -9,7 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role
+from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
 from app.schemas.setup import SettingUpdate
 from app.services.audit_service import log_action
 from app.services.config_overlay import load_settings_overlay
@@ -62,7 +62,7 @@ async def get_setting_endpoint(
     )
 
 
-@router.put("/{key}")
+@router.put("/{key}", dependencies=[Depends(verify_csrf)])
 async def update_setting_endpoint(
     key: str,
     payload: SettingUpdate,
@@ -101,7 +101,7 @@ async def update_setting_endpoint(
     return {"status": "ok", "message": f"Setting '{key}' updated"}
 
 
-@router.delete("/{key}")
+@router.delete("/{key}", dependencies=[Depends(verify_csrf)])
 async def delete_setting_endpoint(
     key: str,
     request: Request,

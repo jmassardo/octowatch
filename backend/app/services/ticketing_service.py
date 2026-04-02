@@ -59,17 +59,17 @@ async def create_ticket_for_detection(
     external_url: str | None = None
 
     try:
-        if config.platform == "jira":
+        if config.provider == "jira":
             external_id, external_url = await _create_jira_issue(detection, config)
-        elif config.platform == "github":
+        elif config.provider == "github":
             external_id, external_url = await _create_github_issue(detection, config)
         else:
-            logger.warning("ticketing.unsupported_platform", platform=config.platform)
-            raise ValueError(f"Unsupported ticketing platform: {config.platform}")
+            logger.warning("ticketing.unsupported_platform", platform=config.provider)
+            raise ValueError(f"Unsupported ticketing platform: {config.provider}")
     except Exception as exc:
         logger.error(
             "ticketing.create_failed",
-            platform=config.platform,
+            platform=config.provider,
             detection_id=detection.id,
             error=str(exc),
         )
@@ -78,10 +78,9 @@ async def create_ticket_for_detection(
     ticket = Ticket(
         detection_id=detection.id,
         ticketing_config_id=config.id,
-        platform=config.platform,
         external_id=external_id,
         external_url=external_url,
-        status="open",
+        external_status="open",
         created_by=created_by,
     )
     session.add(ticket)
@@ -89,7 +88,7 @@ async def create_ticket_for_detection(
 
     logger.info(
         "ticketing.ticket_created",
-        platform=config.platform,
+        platform=config.provider,
         external_id=external_id,
         detection_id=detection.id,
     )
@@ -98,7 +97,7 @@ async def create_ticket_for_detection(
 
 async def sync_ticket_statuses(session: AsyncSession) -> int:
     """Sync ticket status from external platforms. Returns count of updated tickets."""
-    stmt = select(Ticket).where(Ticket.status.notin_(["closed", "resolved", "done"]))
+    stmt = select(Ticket).where(Ticket.external_status.notin_(["closed", "resolved", "done"]))
     result = await session.execute(stmt)
     tickets = result.scalars().all()
 
@@ -110,16 +109,16 @@ async def sync_ticket_statuses(session: AsyncSession) -> int:
         if not config or not config.enabled:
             continue
         try:
-            if config.platform == "jira":
+            if config.provider == "jira":
                 new_status = await _get_jira_issue_status(ticket, config)
-            elif config.platform == "github":
+            elif config.provider == "github":
                 new_status = await _get_github_issue_status(ticket, config)
             else:
                 continue
 
-            if new_status and new_status != ticket.status:
-                ticket.status = new_status
-                ticket.updated_at = datetime.now(UTC)
+            if new_status and new_status != ticket.external_status:
+                ticket.external_status = new_status
+                ticket.last_synced_at = datetime.now(UTC)
                 updated += 1
         except Exception as exc:
             logger.warning(

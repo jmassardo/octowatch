@@ -204,15 +204,19 @@ async def find_existing_detection(
     rule_id: int,
     aggregation_key_value: str,
     time_window_minutes: int,
+    org: str | None = None,
 ) -> Detection | None:
     """Check Step 2 of suppression: existing OPEN/INVESTIGATING detection in window."""
     cutoff = datetime.now(UTC) - timedelta(minutes=time_window_minutes)
-    stmt = select(Detection).where(
+    conditions = [
         Detection.rule_id == rule_id,
         Detection.actor == aggregation_key_value,
         Detection.status.in_(["open", "investigating"]),
         Detection.triggered_at >= cutoff,
-    )
+    ]
+    if org is not None:
+        conditions.append(Detection.org == org)
+    stmt = select(Detection).where(*conditions)
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
 
@@ -357,46 +361,50 @@ async def evaluate_threshold_rule(
     results = []
     window_start = datetime.now(UTC) - timedelta(minutes=window_minutes)
 
+    # §1.2: Build group column expression for batched SQL
+    # Column names are validated against a whitelist to prevent SQL injection
+    if agg_key in _SAFE_DISTINCT_COLUMNS:
+        group_col = agg_key
+    elif agg_key.startswith("data."):
+        sub_key = agg_key[5:]
+        if not re.match(r"^[a-zA-Z0-9_]+$", sub_key):
+            logger.warning("detection.invalid_agg_key", agg_key=agg_key)
+            return []
+        group_col = f"data->>'{sub_key}'"
+    else:
+        # Should not reach here due to early validation, but guard anyway
+        logger.warning("detection.unsupported_agg_key", agg_key=agg_key)
+        return []
+
+    # §1.3: Count expression — raw count or distinct column values
+    count_expr = (
+        "COUNT(DISTINCT " + distinct_count_field + ")" if distinct_count_field else "COUNT(*)"
+    )
+
+    # Batch query: count per aggregation key value in one query
+    batch_sql = (
+        "SELECT " + group_col + " AS agg_val, " + count_expr + " AS cnt "
+        "FROM events "
+        "WHERE created_at >= :window_start "
+        "AND " + group_col + " = ANY(:agg_values) "
+        "AND action = ANY(:actions) "
+        "AND org = ANY(:scoped_orgs) "
+        "GROUP BY " + group_col
+    )
+
+    batch_result = await session.execute(
+        text(batch_sql),
+        {
+            "window_start": window_start,
+            "agg_values": list(agg_values),
+            "actions": cleaned_actions,
+            "scoped_orgs": scoped_orgs if scoped_orgs else [""],
+        },
+    )
+    counts_by_agg = {row.agg_val: row.cnt for row in batch_result.fetchall()}
+
     for agg_value in agg_values:
-        # §1.2: Build aggregation key filter clause for SQL
-        # Column names are validated against a whitelist to prevent SQL injection
-        if agg_key in _SAFE_DISTINCT_COLUMNS:
-            agg_filter_clause = "AND " + agg_key + " = :agg_value "
-        elif agg_key.startswith("data."):
-            sub_key = agg_key[5:]
-            if not re.match(r"^[a-zA-Z0-9_]+$", sub_key):
-                logger.warning("detection.invalid_agg_key", agg_key=agg_key)
-                continue
-            agg_filter_clause = "AND data->>'" + sub_key + "' = :agg_value "
-        else:
-            # Should not reach here due to early validation, but guard anyway
-            logger.warning("detection.unsupported_agg_key", agg_key=agg_key)
-            continue
-
-        # §1.3: Count expression — raw count or distinct column values
-        count_expr = (
-            "COUNT(DISTINCT " + distinct_count_field + ")" if distinct_count_field else "COUNT(*)"
-        )
-
-        # Build SQL query — column names are from _SAFE_DISTINCT_COLUMNS whitelist
-        query_sql = (
-            "SELECT " + count_expr + " AS cnt "
-            "FROM events "
-            "WHERE created_at >= :window_start " + agg_filter_clause + " AND action = ANY(:actions)"
-            " AND org = ANY(:scoped_orgs)"
-        )
-
-        result = await session.execute(
-            text(query_sql),
-            {
-                "window_start": window_start,
-                "agg_value": agg_value,
-                "actions": cleaned_actions,
-                "scoped_orgs": scoped_orgs if scoped_orgs else [""],
-            },
-        )
-        row = result.fetchone()
-        count = row[0] if row else 0
+        count = counts_by_agg.get(agg_value, 0)
 
         if count >= threshold:
             results.append(
@@ -445,7 +453,7 @@ async def evaluate_impossible_travel(
         if any(e.actor_is_bot for e in actor_evs):
             continue
 
-        # Fetch all events for this actor in window
+        # Fetch all events for this actor in window (scoped to orgs)
         window_start = datetime.now(UTC) - timedelta(minutes=window_minutes)
         stmt = text("""
             SELECT id, created_at, source_ip,
@@ -456,9 +464,18 @@ async def evaluate_impossible_travel(
               AND source_ip IS NOT NULL
               AND geo_latitude IS NOT NULL
               AND geo_longitude IS NOT NULL
+              AND (:no_org_filter OR org = ANY(:scoped_orgs))
             ORDER BY created_at ASC
         """)
-        result = await session.execute(stmt, {"actor": actor, "window_start": window_start})
+        result = await session.execute(
+            stmt,
+            {
+                "actor": actor,
+                "window_start": window_start,
+                "no_org_filter": not scoped_orgs,
+                "scoped_orgs": scoped_orgs if scoped_orgs else [""],
+            },
+        )
         recent_rows = result.fetchall()
 
         if len(recent_rows) < 2:

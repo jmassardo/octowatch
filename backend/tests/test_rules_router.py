@@ -144,7 +144,9 @@ class TestRulesUnauthenticated:
     def test_create_rule_without_auth_returns_401(self):
         app, _, _ = _build_rules_app(valkey_session=None)
         client = TestClient(app, raise_server_exceptions=False)
-        resp = client.post("/api/v1/rules", json=VALID_RULE_PAYLOAD,
+        resp = client.post(
+            "/api/v1/rules",
+            json=VALID_RULE_PAYLOAD,
             cookies={"csrf_token": "tok"},
             headers={"X-CSRF-Token": "tok"},
         )

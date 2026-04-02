@@ -352,7 +352,9 @@ class TestSyncRouterAuth:
     def test_trigger_unauthenticated_returns_401(self) -> None:
         app, _, _ = _build_sync_app()
         client = TestClient(app, raise_server_exceptions=False)
-        resp = client.post("/api/v1/admin/sync/trigger", json={"scope": "full"},
+        resp = client.post(
+            "/api/v1/admin/sync/trigger",
+            json={"scope": "full"},
             headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 401
@@ -363,7 +365,9 @@ class TestSyncRouterAuth:
         token = _make_jwt(sub="analyst", jti="analyst-jti")
         client.cookies.set("access_token", token)
         client.cookies.set("csrf_token", "tok")
-        resp = client.post("/api/v1/admin/sync/trigger", json={"scope": "full"},
+        resp = client.post(
+            "/api/v1/admin/sync/trigger",
+            json={"scope": "full"},
             headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 403
@@ -411,7 +415,9 @@ class TestTriggerSync:
 
         with patch("app.workers.github_sync_worker.run_enterprise_sync") as mock_task:
             mock_task.apply_async = MagicMock()
-            resp = client.post("/api/v1/admin/sync/trigger", json={"scope": "full"},
+            resp = client.post(
+                "/api/v1/admin/sync/trigger",
+                json={"scope": "full"},
                 headers={"X-CSRF-Token": "tok"},
             )
 
@@ -432,7 +438,9 @@ class TestTriggerSync:
         mock_result.scalar_one_or_none.return_value = MagicMock(status="running")
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        resp = client.post("/api/v1/admin/sync/trigger", json={"scope": "full"},
+        resp = client.post(
+            "/api/v1/admin/sync/trigger",
+            json={"scope": "full"},
             headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 409
@@ -526,7 +534,8 @@ class TestCancelRun:
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         run_id = uuid.uuid4()
-        resp = client.delete(f"/api/v1/admin/sync/runs/{run_id}/cancel",
+        resp = client.delete(
+            f"/api/v1/admin/sync/runs/{run_id}/cancel",
             headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 404
@@ -546,7 +555,8 @@ class TestCancelRun:
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         run_id = uuid.uuid4()
-        resp = client.delete(f"/api/v1/admin/sync/runs/{run_id}/cancel",
+        resp = client.delete(
+            f"/api/v1/admin/sync/runs/{run_id}/cancel",
             headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 409
@@ -661,7 +671,9 @@ class TestUpdateSyncConfig:
     def test_update_config_unauthenticated_returns_401(self) -> None:
         app, _, _ = _build_sync_app()
         client = TestClient(app, raise_server_exceptions=False)
-        resp = client.put("/api/v1/admin/sync/config", json={"sync_enabled": True},
+        resp = client.put(
+            "/api/v1/admin/sync/config",
+            json={"sync_enabled": True},
             headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 401
@@ -816,7 +828,9 @@ class TestUpdateSyncSchedule:
     def test_schedule_update_unauthenticated_returns_401(self) -> None:
         app, _, _ = _build_sync_app()
         client = TestClient(app, raise_server_exceptions=False)
-        resp = client.put("/api/v1/admin/sync/schedule", json={"enabled": True},
+        resp = client.put(
+            "/api/v1/admin/sync/schedule",
+            json={"enabled": True},
             headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 401

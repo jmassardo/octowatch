@@ -554,7 +554,7 @@ class TestEvaluateThresholdRuleValidation:
 
     @_pytest.mark.anyio
     async def test_agg_key_filter_appears_in_sql(self):
-        """§1.2: The SQL query must include AND {agg_key} = :agg_value."""
+        """§1.2: The batched SQL query must include AND {agg_key} = ANY(:agg_values)."""
         from unittest.mock import AsyncMock, MagicMock
 
         from app.services.detection_service import evaluate_threshold_rule
@@ -571,21 +571,22 @@ class TestEvaluateThresholdRuleValidation:
         ev.id = 42
 
         mock_row = MagicMock()
-        mock_row.__getitem__ = MagicMock(return_value=5)
+        mock_row.agg_val = "alice"
+        mock_row.cnt = 5
         mock_result = MagicMock()
-        mock_result.fetchone.return_value = mock_row
+        mock_result.fetchall.return_value = [mock_row]
         mock_session = AsyncMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
 
         await evaluate_threshold_rule(mock_session, rule, [ev], ["my-org"])  # type: ignore[arg-type]
 
-        # Verify the SQL query was called with the agg_key filter
+        # Verify the batched SQL query was called with the agg_key filter
         call_args = mock_session.execute.call_args
         sql_text = str(call_args[0][0])
-        assert "AND actor = :agg_value" in sql_text
-        # Verify agg_value param was passed
+        assert "AND actor = ANY(:agg_values)" in sql_text
+        # Verify agg_values param was passed as a list
         params = call_args[0][1]
-        assert params["agg_value"] == "alice"
+        assert params["agg_values"] == ["alice"]
 
     @_pytest.mark.anyio
     async def test_distinct_count_field_in_sql(self):
@@ -606,9 +607,10 @@ class TestEvaluateThresholdRuleValidation:
         ev = FakeEvent(action="repos.create", actor="alice")
 
         mock_row = MagicMock()
-        mock_row.__getitem__ = MagicMock(return_value=0)
+        mock_row.agg_val = "alice"
+        mock_row.cnt = 0
         mock_result = MagicMock()
-        mock_result.fetchone.return_value = mock_row
+        mock_result.fetchall.return_value = [mock_row]
         mock_session = AsyncMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
 
@@ -652,9 +654,10 @@ class TestEvaluateThresholdRuleValidation:
         ev = FakeEvent(action="repos.create", actor="alice", data={"visibility": "private"})
 
         mock_row = MagicMock()
-        mock_row.__getitem__ = MagicMock(return_value=0)
+        mock_row.agg_val = "private"
+        mock_row.cnt = 0
         mock_result = MagicMock()
-        mock_result.fetchone.return_value = mock_row
+        mock_result.fetchall.return_value = [mock_row]
         mock_session = AsyncMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
 

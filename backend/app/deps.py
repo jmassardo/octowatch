@@ -155,11 +155,53 @@ async def get_current_user(
         )
 
     import json
+    import time
+    from typing import Any
 
-    session_data = json.loads(session_data_raw)
+    session_data: dict[str, Any] = json.loads(session_data_raw)
 
-    github_login = session_data["github_login"]
-    roles: list[str] = list(session_data.get("roles", []))
+    github_login: str = session_data["github_login"]
+
+    # ── Periodic role refresh (H4) ──────────────────────────────────────────
+    # Roles are cached in Valkey at login.  Re-resolve from the database every
+    # 5 minutes so that revoked roles take effect without waiting for JWT expiry.
+    last_refresh = float(session_data.get("roles_refreshed_at", 0) or 0)
+    if time.time() - last_refresh > 300:  # 5 minutes
+        try:
+            from app.database import AsyncSessionLocal
+            from app.services.rbac_service import get_user_scope, resolve_roles
+
+            async with AsyncSessionLocal() as db_session:
+                fresh_roles = await resolve_roles(db_session, github_login)
+                session_data["roles"] = fresh_roles
+                session_data["roles_refreshed_at"] = time.time()
+                # Re-resolve org/repo scope based on fresh roles
+                scope = await get_user_scope(db_session, github_login, fresh_roles)
+                session_data["scoped_orgs"] = scope.scoped_orgs
+                session_data["scoped_repos"] = scope.scoped_repos
+                session_data["scope_type"] = "global" if scope.is_global else "scoped"
+
+            # Persist updated session to Valkey, preserving existing TTL
+            ttl = await valkey.ttl(session_key)
+            if ttl > 0:
+                await valkey.setex(session_key, ttl, json.dumps(session_data))
+
+            roles = list(fresh_roles)
+            logger.debug(
+                "rbac.roles_refreshed",
+                user=github_login,
+                roles=roles,
+            )
+        except Exception as exc:
+            # Fall back to cached roles if refresh fails (DB down, etc.)
+            logger.warning(
+                "rbac.role_refresh_failed",
+                user=github_login,
+                error=str(exc),
+            )
+            roles = list(session_data.get("roles", []))
+    else:
+        roles = list(session_data.get("roles", []))
 
     # Bootstrap: always grant sys_admin at request time for logins in INITIAL_ADMIN_LOGINS.
     # This means existing sessions get the role without needing to re-login.

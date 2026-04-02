@@ -204,6 +204,12 @@ class BehavioralBaseline(Base):
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
     )
+    push_bypass_hourly_mean: Mapped[float | None] = mapped_column(Double)
+    push_bypass_hourly_stddev: Mapped[float | None] = mapped_column(Double)
+    alert_dismiss_daily_mean: Mapped[float | None] = mapped_column(Double)
+    alert_dismiss_daily_stddev: Mapped[float | None] = mapped_column(Double)
+    admin_action_daily_mean: Mapped[float | None] = mapped_column(Double)
+    admin_action_daily_stddev: Mapped[float | None] = mapped_column(Double)
 
     __table_args__ = (
         Index(

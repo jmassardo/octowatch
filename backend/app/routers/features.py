@@ -6,7 +6,7 @@ import structlog
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db, require_role
+from app.deps import AuthenticatedUser, get_current_user, get_db, require_role, verify_csrf
 from app.services.settings_service import get_setting, set_setting
 
 logger = structlog.get_logger(__name__)
@@ -38,7 +38,7 @@ async def get_features(
     return result
 
 
-@router.put("")
+@router.put("", dependencies=[Depends(verify_csrf)])
 async def update_features(
     payload: dict[str, bool],
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),

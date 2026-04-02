@@ -11,7 +11,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.deps import AuthenticatedUser, get_db, require_role
+from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
 from app.models.audit_trail import AuditTrail
 from app.models.github_sync import (
     EnterpriseSyncEntityCursor,
@@ -40,7 +40,12 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/sync", tags=["sync"])
 
 
-@router.post("/trigger", response_model=SyncTriggerResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/trigger",
+    response_model=SyncTriggerResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(verify_csrf)],
+)
 async def trigger_sync(
     body: SyncTriggerRequest,
     request: Request,
@@ -231,7 +236,12 @@ async def get_sync_logs(
     )
 
 
-@router.delete("/runs/{run_id}/cancel", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+@router.delete(
+    "/runs/{run_id}/cancel",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    dependencies=[Depends(verify_csrf)],
+)
 async def cancel_run(
     run_id: uuid.UUID,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -301,7 +311,7 @@ async def get_sync_config(
     )
 
 
-@router.put("/config", response_model=SyncConfigResponse)
+@router.put("/config", response_model=SyncConfigResponse, dependencies=[Depends(verify_csrf)])
 async def update_sync_config(
     body: SyncConfigUpdateRequest,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -393,7 +403,7 @@ async def get_sync_schedule(
     )
 
 
-@router.put("/schedule", response_model=SyncScheduleResponse)
+@router.put("/schedule", response_model=SyncScheduleResponse, dependencies=[Depends(verify_csrf)])
 async def update_sync_schedule(
     body: SyncScheduleUpdateRequest,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),

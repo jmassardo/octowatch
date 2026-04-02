@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
 from app.models.audit_trail import AuditTrail
+from app.rate_limit import limiter
 from app.schemas.query import QueryRunRequest, QueryRunResponse, QueryTemplate, QueryTemplateCreate
 from app.services.query_service import QueryValidationError, execute_query
 from app.services.rbac_service import get_user_scope
@@ -30,6 +31,7 @@ def _get_client_ip(request: Request) -> str | None:
 
 
 @router.post("/run", response_model=QueryRunResponse, dependencies=[Depends(verify_csrf)])
+@limiter.limit("30/minute")
 async def run_query(
     payload: QueryRunRequest,
     request: Request,
@@ -130,7 +132,7 @@ async def run_query(
         ) from exc
 
 
-@router.post("/validate", response_model=dict)
+@router.post("/validate", response_model=dict, dependencies=[Depends(verify_csrf)])
 async def validate_query(
     payload: QueryRunRequest,
     current_user: AuthenticatedUser = Depends(
@@ -213,7 +215,12 @@ async def list_templates(
     return [QueryTemplate(**t) for t in _QUERY_TEMPLATES.values()]
 
 
-@router.post("/templates", response_model=QueryTemplate, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/templates",
+    response_model=QueryTemplate,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_csrf)],
+)
 async def create_template(
     payload: QueryTemplateCreate,
     current_user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
@@ -247,7 +254,7 @@ async def get_template(
     return QueryTemplate(**t)
 
 
-@router.delete("/templates/{template_id}")
+@router.delete("/templates/{template_id}", dependencies=[Depends(verify_csrf)])
 async def delete_template(
     template_id: int,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -259,7 +266,11 @@ async def delete_template(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/templates/{template_id}/run", response_model=QueryRunResponse)
+@router.post(
+    "/templates/{template_id}/run",
+    response_model=QueryRunResponse,
+    dependencies=[Depends(verify_csrf)],
+)
 async def run_template(
     template_id: int,
     current_user: AuthenticatedUser = Depends(

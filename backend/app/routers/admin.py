@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
-from app.deps import AuthenticatedUser, get_db, require_role
+from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
 from app.models.user import RbacRole, UserRoleAssignment
 from app.schemas.integration import (
     IngestionSourceCreate,
@@ -74,7 +74,10 @@ async def list_role_assignments(
 
 
 @router.post(
-    "/assignments", response_model=RoleAssignmentResponse, status_code=status.HTTP_201_CREATED
+    "/assignments",
+    response_model=RoleAssignmentResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_csrf)],
 )
 async def create_role_assignment(
     payload: RoleAssignmentCreate,
@@ -153,7 +156,7 @@ async def create_role_assignment(
     )
 
 
-@router.delete("/assignments/{assignment_id}")
+@router.delete("/assignments/{assignment_id}", dependencies=[Depends(verify_csrf)])
 async def delete_role_assignment(
     assignment_id: int,
     request: Request,
@@ -216,7 +219,12 @@ async def list_ingestion_sources(
     ]
 
 
-@router.post("/ingestion-sources", response_model=dict, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/ingestion-sources",
+    response_model=dict,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_csrf)],
+)
 async def create_ingestion_source(
     payload: IngestionSourceCreate,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -240,7 +248,7 @@ async def create_ingestion_source(
     }
 
 
-@router.delete("/ingestion-sources/{source_id}")
+@router.delete("/ingestion-sources/{source_id}", dependencies=[Depends(verify_csrf)])
 async def delete_ingestion_source(
     source_id: int,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -284,7 +292,7 @@ async def get_retention(
     )
 
 
-@router.put("/retention", response_model=RetentionConfig)
+@router.put("/retention", response_model=RetentionConfig, dependencies=[Depends(verify_csrf)])
 async def update_retention(
     payload: RetentionConfig,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
@@ -340,7 +348,7 @@ async def get_event_trend(
     )
 
 
-@router.post("/audit-trail/export", response_model=dict)
+@router.post("/audit-trail/export", response_model=dict, dependencies=[Depends(verify_csrf)])
 async def export_audit_trail(
     from_date: str,
     to_date: str,
@@ -556,7 +564,7 @@ async def get_audit_stream_config(
     }
 
 
-@router.put("/audit-stream/config")
+@router.put("/audit-stream/config", dependencies=[Depends(verify_csrf)])
 async def update_audit_stream_config(
     payload: dict[str, str],
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
