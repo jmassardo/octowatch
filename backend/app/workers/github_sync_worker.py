@@ -23,6 +23,10 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Literal
 
+if TYPE_CHECKING:
+    from app.services.github_token_service import GitHubAppTokenManager
+
+import httpx
 import structlog
 from celery import Task
 from celery.result import AsyncResult
@@ -1240,8 +1244,6 @@ async def _github_get(
     max_retries: int = 3,
 ) -> httpx.Response:
     """Rate-limited GET with automatic retry on 429/403 rate limit responses."""
-    import httpx
-
     resp: httpx.Response | None = None
     for _attempt in range(max_retries):
         await rate_limiter.acquire()

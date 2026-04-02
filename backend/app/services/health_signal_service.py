@@ -1466,7 +1466,12 @@ async def get_waf_findings(
             "detail": (
                 f"{stream_count} streaming events in last 30 days — audit log forwarding is active."
                 if stream_count > 0
-                else "No audit log streaming events detected. Configure audit log streaming in your enterprise settings to forward events to OctoWatch in real time. Without streaming, security analysis relies solely on periodic imports."
+                else "No audit log streaming events detected. "
+                "Configure audit log streaming in your "
+                "enterprise settings to forward events to "
+                "OctoWatch in real time. Without streaming, "
+                "security analysis relies solely on "
+                "periodic imports."
             ),
             "evidence_count": stream_count,
             "evidence": None,
@@ -1513,7 +1518,10 @@ async def get_waf_findings(
                 else (
                     f"{enabled_count} repos enabled secret scanning in last 90 days."
                     if has_secret_events
-                    else "No secret scanning enable/disable events in audit log. Enable secret scanning org-wide in Settings → Code security."
+                    else "No secret scanning enable/disable "
+                    "events in audit log. Enable secret "
+                    "scanning org-wide in Settings → "
+                    "Code security."
                 )
             ),
             "evidence_count": enabled_count + disabled_count,
@@ -1563,9 +1571,13 @@ async def get_waf_findings(
                 "More removals than creations indicates weakening branch security."
                 if bp_removed > bp_created
                 else (
-                    f"{bp_created} branch protections created, {bp_removed} removed in last 90 days."
+                    f"{bp_created} branch protections created, "
+                    f"{bp_removed} removed in last 90 days."
                     if has_bp_events
-                    else "No branch protection events in audit log. Use repository rulesets or branch protection rules to enforce review requirements."
+                    else "No branch protection events in "
+                    "audit log. Use repository rulesets or "
+                    "branch protection rules to enforce "
+                    "review requirements."
                 )
             ),
             "evidence_count": bp_created + bp_removed,
@@ -1607,12 +1619,19 @@ async def get_waf_findings(
             "status": ("fail" if sso_disabled > 0 else ("pass" if sso_events > 0 else "warning")),
             "evaluated": has_sso_events or sso_disabled > 0,
             "detail": (
-                f"{sso_disabled} SSO disable events detected — organization authentication may be weakened."
+                f"{sso_disabled} SSO disable events "
+                "detected — organization authentication "
+                "may be weakened."
                 if sso_disabled > 0
                 else (
-                    f"{sso_events} SSO configuration events in last 90 days — SSO is actively managed."
+                    f"{sso_events} SSO configuration events "
+                    "in last 90 days — SSO is actively "
+                    "managed."
                     if sso_events > 0
-                    else "No SSO-related events in audit log. If SSO is not configured, enforce SAML SSO in enterprise settings to prevent credential-based attacks."
+                    else "No SSO-related events in audit "
+                    "log. If SSO is not configured, enforce "
+                    "SAML SSO in enterprise settings to "
+                    "prevent credential-based attacks."
                 )
             ),
             "evidence_count": sso_events,
@@ -1640,9 +1659,14 @@ async def get_waf_findings(
             "status": "pass" if ip_count > 0 else "warning",
             "evaluated": True,
             "detail": (
-                f"{ip_count} IP allowlist events in last 90 days — network restrictions are actively managed."
+                f"{ip_count} IP allowlist events in last "
+                "90 days — network restrictions are "
+                "actively managed."
                 if ip_count > 0
-                else "No IP allowlist events detected. Consider configuring IP allowlists in enterprise settings to restrict API and UI access to trusted networks."
+                else "No IP allowlist events detected. "
+                "Consider configuring IP allowlists in "
+                "enterprise settings to restrict API and "
+                "UI access to trusted networks."
             ),
             "evidence_count": ip_count,
             "evidence": None,
@@ -1681,12 +1705,17 @@ async def get_waf_findings(
             "status": "warning" if dep_disabled > 0 else "pass",
             "evaluated": has_dep_events,
             "detail": (
-                f"{dep_disabled} repos disabled Dependabot alerts — vulnerable dependencies may go undetected."
+                f"{dep_disabled} repos disabled Dependabot "
+                "alerts — vulnerable dependencies may "
+                "go undetected."
                 if dep_disabled > 0
                 else (
                     f"{dep_enabled} repos enabled Dependabot alerts in last 90 days."
                     if has_dep_events
-                    else "No Dependabot enable/disable events in audit log. Enable Dependabot alerts org-wide in Settings → Code security."
+                    else "No Dependabot enable/disable "
+                    "events in audit log. Enable Dependabot "
+                    "alerts org-wide in Settings → "
+                    "Code security."
                 )
             ),
             "evidence_count": dep_enabled + dep_disabled,
@@ -1714,9 +1743,15 @@ async def get_waf_findings(
             "status": "pass" if cs_count > 0 else "warning",
             "evaluated": True,
             "detail": (
-                f"{cs_count} code scanning events in last 90 days — CodeQL or third-party scanning is active."
+                f"{cs_count} code scanning events in last "
+                "90 days — CodeQL or third-party scanning "
+                "is active."
                 if cs_count > 0
-                else "No code scanning events detected. Enable CodeQL or a third-party SAST tool via GitHub Actions to detect vulnerabilities in source code before they reach production."
+                else "No code scanning events detected. "
+                "Enable CodeQL or a third-party SAST "
+                "tool via GitHub Actions to detect "
+                "vulnerabilities in source code before "
+                "they reach production."
             ),
             "evidence_count": cs_count,
             "evidence": None,
@@ -1754,7 +1789,12 @@ async def get_waf_findings(
             "evaluated": has_wh_events,
             "detail": (
                 f"{wh_created} webhooks created, {wh_destroyed} destroyed in last 90 days."
-                + (" More deletions than creations may indicate integration instability." if wh_destroyed > wh_created else "")
+                + (
+                    " More deletions than creations may "
+                    "indicate integration instability."
+                    if wh_destroyed > wh_created
+                    else ""
+                )
                 if has_wh_events
                 else "No webhook lifecycle events in audit log."
             ),
@@ -1783,7 +1823,11 @@ async def get_waf_findings(
             "status": "fail" if bypass_count > 0 else "pass",
             "evaluated": bypass_count > 0,
             "detail": (
-                f"{bypass_count} push protection bypasses in last 90 days — developers are overriding secret detection. Review bypass reasons and consider restricting bypass permissions."
+                f"{bypass_count} push protection bypasses "
+                "in last 90 days — developers are "
+                "overriding secret detection. Review "
+                "bypass reasons and consider restricting "
+                "bypass permissions."
                 if bypass_count > 0
                 else "No push protection bypass events — secret push protection is enforced."
             ),

@@ -195,7 +195,7 @@ async def validate_query(
             try:
                 await db.execute(sa_text("RESET ROLE"))
             except Exception:
-                pass
+                logger.debug("query.reset_role_failed_after_validation")
 
         return {
             "valid": True,

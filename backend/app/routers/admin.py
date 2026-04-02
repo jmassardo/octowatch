@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 from sqlalchemy import select, text
@@ -11,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
-from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, get_valkey, require_role, verify_csrf
 from app.models.user import RbacRole, UserRoleAssignment
 from app.schemas.integration import (
     IngestionSourceCreate,
@@ -610,3 +611,50 @@ async def update_audit_stream_config(
             "Streaming credentials updated. Restart minio-setup to provision the user in MinIO."
         ),
     }
+
+
+# ─── GitHub IP allowlist ─────────────────────────────────────────────────────
+
+
+@router.get("/github-ip-allowlist")
+async def github_ip_allowlist_status(
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+) -> dict[str, object]:
+    """Return the current status of the GitHub IP allowlist."""
+    from app.services.github_ip_allowlist import GitHubIPAllowlist
+
+    return {
+        "enabled": settings.github_app.GITHUB_IP_ALLOWLIST_ENABLED,
+        "loaded": GitHubIPAllowlist.is_loaded(),
+        "network_count": GitHubIPAllowlist.network_count(),
+    }
+
+
+@router.post("/github-ip-allowlist/refresh", dependencies=[Depends(verify_csrf)])
+async def refresh_github_ip_allowlist(
+    request: Request,
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    valkey: aioredis.Redis = Depends(get_valkey),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, object]:
+    """Force-refresh the GitHub IP allowlist from the /meta endpoint."""
+    from app.services.github_ip_allowlist import GitHubIPAllowlist
+
+    count = await GitHubIPAllowlist.refresh(valkey)
+
+    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if not ip:
+        ip = request.client.host if request.client else None
+    await log_action(
+        db,
+        user_login=current_user.github_login,
+        user_github_id=current_user.github_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        action_type="admin.github_ip_allowlist.refresh",
+        resource_type="github_ip_allowlist",
+        parameters={"network_count": count},
+    )
+    await db.commit()
+
+    return {"refreshed": True, "network_count": count}

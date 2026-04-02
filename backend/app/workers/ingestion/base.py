@@ -121,7 +121,8 @@ class AbstractIngestWorker(ABC):
                         ) VALUES (
                             :document_id, :action, :actor, :actor_id, :actor_is_bot,
                             :org, :repo, :source_ip, :created_at, CAST(:data AS jsonb),
-                            :geo_country_code, :geo_city, :geo_latitude, :geo_longitude, :geo_is_proxy,
+                            :geo_country_code, :geo_city,
+                            :geo_latitude, :geo_longitude, :geo_is_proxy,
                             :user_agent, :ingestion_source, :source_file_path
                         )
                         RETURNING id

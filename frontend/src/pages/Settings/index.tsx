@@ -12,6 +12,7 @@ import { listNotificationConfigs } from '../../api/integrations';
 import { SyncPanel } from '../Integrations/SyncPanel';
 import { SyncRunHistory } from '../Integrations/SyncRunHistory';
 import { ManualIngestPanel } from '../Integrations/ManualIngestPanel';
+import { AuditStreamPanel } from './AuditStreamPanel';
 import { Button } from '../../components/primitives/Button';
 import { Modal } from '../../components/primitives/Modal';
 import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
@@ -252,6 +253,14 @@ function GitHubPane() {
         GitHub Enterprise connection and data import settings. Connection credentials
         are configured during initial setup.
       </p>
+
+      <div className={styles.integrationsSectionDivider}>
+        <h3 className={styles.integrationsSectionTitle}>Audit Log Streaming</h3>
+        <p className={styles.featuresDescription}>
+          Stream audit log events from GitHub Enterprise into OctoWatch via an S3-compatible endpoint.
+        </p>
+      </div>
+      <AuditStreamPanel />
 
       <div className={styles.integrationsSectionDivider}>
         <h3 className={styles.integrationsSectionTitle}>Data Import</h3>

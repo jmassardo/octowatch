@@ -397,4 +397,4 @@ async def execute_query(
                 await session.rollback()
                 await session.execute(text("RESET ROLE"))
             except Exception:
-                pass
+                logger.debug("query.reset_role_cleanup_failed")

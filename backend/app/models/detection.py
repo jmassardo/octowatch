@@ -163,7 +163,9 @@ class Detection(Base):
     )
 
     rule: Mapped[RuleDefinition] = relationship("RuleDefinition", back_populates="detections")
-    tickets: Mapped[list[Ticket]] = relationship("Ticket", back_populates="detection", lazy="selectin")  # type: ignore[name-defined]
+    tickets: Mapped[list[Ticket]] = relationship(  # type: ignore[name-defined]
+        "Ticket", back_populates="detection", lazy="selectin",
+    )
 
     __table_args__ = (
         Index("idx_detections_status", "status", "triggered_at"),

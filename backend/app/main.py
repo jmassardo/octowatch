@@ -205,6 +205,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         r = redis_client.Redis(connection_pool=pool)
         await r.ping()
         logger.info("app.valkey_connected")
+
+        # Load GitHub IP allowlist from Valkey cache on startup
+        if settings.github_app.GITHUB_IP_ALLOWLIST_ENABLED:
+            try:
+                from app.services.github_ip_allowlist import GitHubIPAllowlist
+
+                loaded = await GitHubIPAllowlist.load_from_cache(r)
+                if not loaded:
+                    await GitHubIPAllowlist.refresh(r)
+                logger.info(
+                    "github_ip_allowlist.startup",
+                    loaded=GitHubIPAllowlist.is_loaded(),
+                    network_count=GitHubIPAllowlist.network_count(),
+                )
+            except Exception as exc:
+                logger.warning("github_ip_allowlist.startup_failed", error=str(exc))
+
     except Exception as exc:
         logger.error("app.valkey_failed", error=str(exc))
 
@@ -242,17 +259,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                             "retrieve it from the setup endpoint or container logs at startup only"
                         ),
                     )
-                    # Print token to stderr only (not structured logs that may be shipped)
                     import sys
 
-                    print(
+                    sys.stderr.write(  # noqa: T201
                         f"\n{'=' * 60}\n"
                         f"  SETUP TOKEN: {token}\n"
                         f"  Use this to complete initial setup at /setup\n"
-                        f"{'=' * 60}\n",
-                        file=sys.stderr,
-                        flush=True,
+                        f"{'=' * 60}\n\n"
                     )
+                    sys.stderr.flush()
                 else:
                     logger.info("setup.already_complete")
         except Exception as exc:
@@ -320,6 +335,12 @@ def create_app() -> FastAPI:
 
     # Audit trail
     app.add_middleware(AuditTrailMiddleware)
+
+    # GitHub IP allowlist (only when enabled)
+    if settings.github_app.GITHUB_IP_ALLOWLIST_ENABLED:
+        from app.middleware.ip_allowlist import GitHubIPAllowlistMiddleware
+
+        app.add_middleware(GitHubIPAllowlistMiddleware)
 
     # Request ID correlation
     app.add_middleware(RequestIdMiddleware)

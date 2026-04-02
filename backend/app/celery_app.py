@@ -105,5 +105,17 @@ if settings.github_app.GITHUB_SYNC_ENABLED:
         "options": {"queue": "github_sync"},
     }
 
+# GitHub IP allowlist refresh — every 6 hours
+if settings.github_app.GITHUB_IP_ALLOWLIST_ENABLED:
+    app.conf.beat_schedule["refresh-github-ip-allowlist"] = {
+        "task": "app.workers.github_ip_allowlist_worker.refresh_github_ip_allowlist",
+        "schedule": crontab(minute=0, hour="*/6"),
+        "options": {"queue": "baseline"},
+    }
+    # Include the task module so Celery can discover it
+    app.conf.include = list(app.conf.include or []) + [
+        "app.workers.github_ip_allowlist_worker",
+    ]
+
 # Alias for import convenience: `from app.celery_app import celery_app`
 celery_app = app

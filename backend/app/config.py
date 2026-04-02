@@ -241,6 +241,13 @@ class GitHubAppSettings(BaseSettings):
         default=False,
         description="Enable/disable the scheduled enterprise sync",
     )
+    GITHUB_IP_ALLOWLIST_ENABLED: bool = Field(
+        default=False,
+        description=(
+            "Enable/disable IP filtering for webhook/stream endpoints "
+            "using GitHub's published IP ranges"
+        ),
+    )
     GITHUB_SYNC_ORGS: str = Field(
         default="",
         description="Comma-separated org logins to include (empty = all enterprise orgs)",
