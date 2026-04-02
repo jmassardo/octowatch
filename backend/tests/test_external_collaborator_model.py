@@ -34,6 +34,9 @@ class TestExternalCollaboratorTableMetadata:
             "source_event_id",
             "created_at",
             "updated_at",
+            "sync_run_id",
+            "data_source",
+            "last_synced_at",
         }
         assert column_names == expected
 

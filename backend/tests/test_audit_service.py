@@ -295,7 +295,8 @@ class TestRulesAuditLogging:
             resp = client.post(
                 "/api/v1/rules",
                 json=VALID_RULE_PAYLOAD,
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 201
@@ -334,7 +335,8 @@ class TestRulesAuditLogging:
             resp = client.put(
                 "/api/v1/rules/1",
                 json=VALID_RULE_PAYLOAD,
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 200
@@ -372,7 +374,8 @@ class TestRulesAuditLogging:
             resp = client.put(
                 "/api/v1/rules/1",
                 json=payload,
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 200
@@ -406,7 +409,8 @@ class TestRulesAuditLogging:
             resp = client.patch(
                 "/api/v1/rules/1/status",
                 json={"status": "active"},
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 200
@@ -436,7 +440,8 @@ class TestRulesAuditLogging:
             client = TestClient(app, raise_server_exceptions=True)
             resp = client.delete(
                 "/api/v1/rules/1",
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 204
@@ -468,7 +473,8 @@ class TestAdminSettingsAuditLogging:
             resp = client.put(
                 "/api/v1/admin/settings/my_key",
                 json={"value": "new_value"},
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 200
@@ -495,7 +501,8 @@ class TestAdminSettingsAuditLogging:
             client = TestClient(app, raise_server_exceptions=True)
             resp = client.delete(
                 "/api/v1/admin/settings/my_key",
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 200
@@ -529,7 +536,8 @@ class TestSyncAuditLogging:
             resp = client.post(
                 "/api/v1/sync/trigger",
                 json={"scope": "full"},
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 202
@@ -566,8 +574,8 @@ class TestAuditLoggingIPExtraction:
             client = TestClient(app, raise_server_exceptions=True)
             resp = client.delete(
                 "/api/v1/rules/1",
-                cookies={"access_token": token},
-                headers={"X-Forwarded-For": "203.0.113.50, 10.0.0.1"},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-Forwarded-For": "203.0.113.50, 10.0.0.1", "X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 204
@@ -596,8 +604,8 @@ class TestAuditLoggingIPExtraction:
             client = TestClient(app, raise_server_exceptions=True)
             resp = client.delete(
                 "/api/v1/rules/1",
-                cookies={"access_token": token},
-                headers={"User-Agent": "OctoWatch-CLI/2.0"},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"User-Agent": "OctoWatch-CLI/2.0", "X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 204

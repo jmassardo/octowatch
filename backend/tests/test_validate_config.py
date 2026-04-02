@@ -433,6 +433,8 @@ class TestValidateConfigEndpoint:
         resp = client.post(
             "/api/v1/rules/validate-config",
             json={"logic_type": "pattern", "logic_config": {}},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 401
 
@@ -443,7 +445,8 @@ class TestValidateConfigEndpoint:
         resp = client.post(
             "/api/v1/rules/validate-config",
             json={"logic_type": "pattern", "logic_config": {}},
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -456,7 +459,8 @@ class TestValidateConfigEndpoint:
         resp = client.post(
             "/api/v1/rules/validate-config",
             json={"logic_type": "pattern", "logic_config": {}},
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
 
@@ -477,7 +481,8 @@ class TestValidateConfigEndpoint:
                     "confidence": 0.5,
                 },
             },
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -494,7 +499,8 @@ class TestValidateConfigEndpoint:
                 "logic_type": "threshold",
                 "logic_config": {},
             },
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -511,7 +517,8 @@ class TestValidateConfigEndpoint:
                 "logic_type": "invalid_type",
                 "logic_config": {},
             },
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
@@ -522,7 +529,8 @@ class TestValidateConfigEndpoint:
         resp = client.post(
             "/api/v1/rules/validate-config",
             json={"logic_config": {}},
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
@@ -533,7 +541,8 @@ class TestValidateConfigEndpoint:
         resp = client.post(
             "/api/v1/rules/validate-config",
             json={"logic_type": "pattern"},
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
@@ -554,7 +563,8 @@ class TestValidateConfigEndpoint:
                     "time_window_minutes": 120,
                 },
             },
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -572,7 +582,8 @@ class TestValidateConfigEndpoint:
                     "x_config": {"engine": "zscore"},
                 },
             },
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -585,7 +596,8 @@ class TestValidateConfigEndpoint:
         resp = client.post(
             "/api/v1/rules/validate-config",
             json={"logic_type": "pattern", "logic_config": {}},
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         data = resp.json()
         assert "warnings" in data

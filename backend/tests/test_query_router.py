@@ -399,7 +399,8 @@ class TestValidateQuery:
         resp = client.post(
             "/api/v1/query/validate",
             json={"sql": "SELECT id FROM events LIMIT 10"},
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
         assert resp.json()["valid"] is True
@@ -461,7 +462,8 @@ class TestQueryTemplates:
                 "name": "Test Query",
                 "sql": "SELECT id FROM events LIMIT 10",
             },
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 201
         data = resp.json()
@@ -500,14 +502,16 @@ class TestQueryTemplates:
         create_resp = client.post(
             "/api/v1/query/templates",
             json={"name": "To Delete", "sql": "SELECT id FROM events LIMIT 10"},
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         template_id = create_resp.json()["id"]
 
         # Delete it
         del_resp = client.delete(
             f"/api/v1/query/templates/{template_id}",
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert del_resp.status_code == 204
 

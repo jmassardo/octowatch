@@ -369,6 +369,8 @@ class TestTestRuleEndpoint:
         resp = client.post(
             "/api/v1/rules/1/test",
             json={"event": {"action": "repos.create"}},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 401
 
@@ -384,7 +386,8 @@ class TestTestRuleEndpoint:
             resp = client.post(
                 "/api/v1/rules/1/test",
                 json={"event": {"action": "repos.create", "actor": "octocat"}},
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
         assert resp.status_code == 200
         data = resp.json()
@@ -404,7 +407,8 @@ class TestTestRuleEndpoint:
             resp = client.post(
                 "/api/v1/rules/1/test",
                 json={"event": {"action": "repos.create"}},
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
         assert resp.status_code == 200
         assert resp.json()["matched"] is True
@@ -421,7 +425,8 @@ class TestTestRuleEndpoint:
             resp = client.post(
                 "/api/v1/rules/1/test",
                 json={"event": {"action": "repos.create"}},
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
         assert resp.status_code == 200
 
@@ -436,7 +441,8 @@ class TestTestRuleEndpoint:
             resp = client.post(
                 "/api/v1/rules/9999/test",
                 json={"event": {"action": "repos.create"}},
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
         assert resp.status_code == 404
 
@@ -460,7 +466,8 @@ class TestTestRuleEndpoint:
             resp = client.post(
                 "/api/v1/rules/1/test",
                 json={"event": {"action": "repos.create", "actor": "octocat"}},
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
         data = resp.json()
         assert data["matched"] is True
@@ -485,7 +492,8 @@ class TestTestRuleEndpoint:
             resp = client.post(
                 "/api/v1/rules/1/test",
                 json={"event": {"action": "team.add_member"}},
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
         data = resp.json()
         assert data["matched"] is False
@@ -498,7 +506,8 @@ class TestTestRuleEndpoint:
         resp = client.post(
             "/api/v1/rules/1/test",
             json={},
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
@@ -514,7 +523,8 @@ class TestTestRuleEndpoint:
             resp = client.post(
                 "/api/v1/rules/1/test",
                 json={"event": {"action": "repos.create"}},
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
         data = resp.json()
         assert "matched" in data

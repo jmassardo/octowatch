@@ -277,6 +277,8 @@ class TestSetupAuditStreamAuth:
         resp = client.post(
             "/api/v1/setup/audit-stream",
             json={"stream_user": "github-stream", "stream_password": "password123"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 401
 
@@ -285,9 +287,12 @@ class TestSetupAuditStreamAuth:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt(sub="analyst", jti="analyst-jti")
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
         resp = client.post(
             "/api/v1/setup/audit-stream",
             json={"stream_user": "github-stream", "stream_password": "password123"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 403
 
@@ -308,10 +313,13 @@ class TestSetupAuditStreamEndpoint:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.post(
             "/api/v1/setup/audit-stream",
             json={"stream_user": "my-stream-user", "stream_password": "mysecretpw"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -349,10 +357,13 @@ class TestSetupAuditStreamEndpoint:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.post(
             "/api/v1/setup/audit-stream",
             json={"stream_password": "mysecretpw"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
 
@@ -371,10 +382,13 @@ class TestSetupAuditStreamEndpoint:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.post(
             "/api/v1/setup/audit-stream",
             json={"stream_user": "github-stream", "stream_password": "password123"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 403
 
@@ -383,10 +397,13 @@ class TestSetupAuditStreamEndpoint:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.post(
             "/api/v1/setup/audit-stream",
             json={"stream_user": "github-stream", "stream_password": "short"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
@@ -395,10 +412,13 @@ class TestSetupAuditStreamEndpoint:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.post(
             "/api/v1/setup/audit-stream",
             json={"stream_user": "github-stream"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
@@ -420,6 +440,7 @@ class TestAdminAuditStreamAuth:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt(sub="analyst", jti="analyst-jti")
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
         resp = client.get("/api/v1/admin/audit-stream/config")
         assert resp.status_code == 403
 
@@ -429,6 +450,8 @@ class TestAdminAuditStreamAuth:
         resp = client.put(
             "/api/v1/admin/audit-stream/config",
             json={"stream_user": "u", "stream_password": "password123"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 401
 
@@ -437,9 +460,12 @@ class TestAdminAuditStreamAuth:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt(sub="analyst", jti="analyst-jti")
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
         resp = client.put(
             "/api/v1/admin/audit-stream/config",
             json={"stream_user": "u", "stream_password": "password123"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 403
 
@@ -470,6 +496,7 @@ class TestGetAuditStreamConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.get("/api/v1/admin/audit-stream/config")
         assert resp.status_code == 200
@@ -498,6 +525,7 @@ class TestGetAuditStreamConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.get("/api/v1/admin/audit-stream/config")
         assert resp.status_code == 200
@@ -520,6 +548,7 @@ class TestGetAuditStreamConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.get("/api/v1/admin/audit-stream/config")
         assert resp.status_code == 200
@@ -539,10 +568,13 @@ class TestUpdateAuditStreamConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/audit-stream/config",
             json={"stream_user": "my-user", "stream_password": "mypassword123"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -568,10 +600,13 @@ class TestUpdateAuditStreamConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/audit-stream/config",
             json={"stream_password": "mypassword123"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
@@ -580,10 +615,13 @@ class TestUpdateAuditStreamConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/audit-stream/config",
             json={"stream_user": "my-user"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
@@ -592,10 +630,13 @@ class TestUpdateAuditStreamConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/audit-stream/config",
             json={"stream_user": "", "stream_password": "mypassword123"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
@@ -604,10 +645,13 @@ class TestUpdateAuditStreamConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/audit-stream/config",
             json={"stream_user": "my-user", "stream_password": ""},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
@@ -616,10 +660,13 @@ class TestUpdateAuditStreamConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/audit-stream/config",
             json={"stream_user": "my-user", "stream_password": "short"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
         data = resp.json()
@@ -630,10 +677,13 @@ class TestUpdateAuditStreamConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/audit-stream/config",
             json={},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
@@ -646,10 +696,13 @@ class TestUpdateAuditStreamConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/audit-stream/config",
             json={"stream_user": "  my-user  ", "stream_password": "  mypassword123  "},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
 
@@ -666,10 +719,13 @@ class TestUpdateAuditStreamConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/audit-stream/config",
             json={"stream_user": "my-user", "stream_password": "password123"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
 
@@ -685,9 +741,12 @@ class TestUpdateAuditStreamConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/audit-stream/config",
             json={"stream_user": "my-user", "stream_password": "12345678"},
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200

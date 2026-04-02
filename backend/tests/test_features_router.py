@@ -188,6 +188,8 @@ class TestUpdateFeatures:
                 resp = await client.put(
                     "/api/v1/features",
                     json={"copilot_insights": True, "velocity": False},
+                    cookies={"csrf_token": "tok"},
+                    headers={"X-CSRF-Token": "tok"},
                 )
 
         assert resp.status_code == 200
@@ -210,6 +212,8 @@ class TestUpdateFeatures:
                 await client.put(
                     "/api/v1/features",
                     json={"copilot_insights": True},
+                    cookies={"csrf_token": "tok"},
+                    headers={"X-CSRF-Token": "tok"},
                 )
 
         mock_set.assert_called_once_with(
@@ -236,6 +240,8 @@ class TestUpdateFeatures:
                 resp = await client.put(
                     "/api/v1/features",
                     json={"unknown_feature": True, "copilot_insights": True},
+                    cookies={"csrf_token": "tok"},
+                    headers={"X-CSRF-Token": "tok"},
                 )
 
         assert resp.status_code == 200
@@ -259,6 +265,8 @@ class TestUpdateFeatures:
                 resp = await client.put(
                     "/api/v1/features",
                     json={},
+                    cookies={"csrf_token": "tok"},
+                    headers={"X-CSRF-Token": "tok"},
                 )
 
         assert resp.status_code == 200
@@ -272,6 +280,8 @@ class TestUpdateFeatures:
             resp = await client.put(
                 "/api/v1/features",
                 json={"copilot_insights": True},
+                cookies={"csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 403

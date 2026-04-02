@@ -352,7 +352,9 @@ class TestSyncRouterAuth:
     def test_trigger_unauthenticated_returns_401(self) -> None:
         app, _, _ = _build_sync_app()
         client = TestClient(app, raise_server_exceptions=False)
-        resp = client.post("/api/v1/admin/sync/trigger", json={"scope": "full"})
+        resp = client.post("/api/v1/admin/sync/trigger", json={"scope": "full"},
+            headers={"X-CSRF-Token": "tok"},
+        )
         assert resp.status_code == 401
 
     def test_trigger_non_admin_returns_403(self) -> None:
@@ -360,7 +362,10 @@ class TestSyncRouterAuth:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt(sub="analyst", jti="analyst-jti")
         client.cookies.set("access_token", token)
-        resp = client.post("/api/v1/admin/sync/trigger", json={"scope": "full"})
+        client.cookies.set("csrf_token", "tok")
+        resp = client.post("/api/v1/admin/sync/trigger", json={"scope": "full"},
+            headers={"X-CSRF-Token": "tok"},
+        )
         assert resp.status_code == 403
 
     def test_status_unauthenticated_returns_401(self) -> None:
@@ -397,6 +402,7 @@ class TestTriggerSync:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         # Mock: no active run found
         mock_result = MagicMock()
@@ -405,7 +411,9 @@ class TestTriggerSync:
 
         with patch("app.workers.github_sync_worker.run_enterprise_sync") as mock_task:
             mock_task.apply_async = MagicMock()
-            resp = client.post("/api/v1/admin/sync/trigger", json={"scope": "full"})
+            resp = client.post("/api/v1/admin/sync/trigger", json={"scope": "full"},
+                headers={"X-CSRF-Token": "tok"},
+            )
 
         assert resp.status_code == 202
         data = resp.json()
@@ -417,13 +425,16 @@ class TestTriggerSync:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         # Mock: an active run exists
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = MagicMock(status="running")
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        resp = client.post("/api/v1/admin/sync/trigger", json={"scope": "full"})
+        resp = client.post("/api/v1/admin/sync/trigger", json={"scope": "full"},
+            headers={"X-CSRF-Token": "tok"},
+        )
         assert resp.status_code == 409
 
 
@@ -435,6 +446,7 @@ class TestGetSyncStatus:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         # Mock: no runs found
         mock_result = MagicMock()
@@ -453,6 +465,7 @@ class TestListSyncRuns:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         # Mock: count returns 0, runs returns empty list
         mock_count_result = MagicMock()
@@ -487,6 +500,7 @@ class TestGetRunDetail:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
@@ -505,13 +519,16 @@ class TestCancelRun:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         run_id = uuid.uuid4()
-        resp = client.delete(f"/api/v1/admin/sync/runs/{run_id}/cancel")
+        resp = client.delete(f"/api/v1/admin/sync/runs/{run_id}/cancel",
+            headers={"X-CSRF-Token": "tok"},
+        )
         assert resp.status_code == 404
 
     def test_cancel_terminal_state_returns_409(self) -> None:
@@ -519,6 +536,7 @@ class TestCancelRun:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         # Mock: run exists but is completed
         mock_run = MagicMock()
@@ -528,7 +546,9 @@ class TestCancelRun:
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         run_id = uuid.uuid4()
-        resp = client.delete(f"/api/v1/admin/sync/runs/{run_id}/cancel")
+        resp = client.delete(f"/api/v1/admin/sync/runs/{run_id}/cancel",
+            headers={"X-CSRF-Token": "tok"},
+        )
         assert resp.status_code == 409
 
 
@@ -547,6 +567,7 @@ class TestUpdateSyncConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         # Mock the GET config call after update
         mock_configs_result = MagicMock()
@@ -556,6 +577,7 @@ class TestUpdateSyncConfig:
         resp = client.put(
             "/api/v1/admin/sync/config",
             json={"sync_enabled": True, "interval_days": 75, "orgs": ["acme", "widgets"]},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
 
@@ -576,6 +598,7 @@ class TestUpdateSyncConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         mock_configs_result = MagicMock()
         mock_configs_result.scalars.return_value.all.return_value = []
@@ -584,6 +607,7 @@ class TestUpdateSyncConfig:
         resp = client.put(
             "/api/v1/admin/sync/config",
             json={"interval_days": 80},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
 
@@ -605,6 +629,7 @@ class TestUpdateSyncConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         mock_configs_result = MagicMock()
         mock_configs_result.scalars.return_value.all.return_value = []
@@ -613,6 +638,7 @@ class TestUpdateSyncConfig:
         resp = client.put(
             "/api/v1/admin/sync/config",
             json={"orgs": ["org-a", "org-b"]},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
         assert mock_settings.github_app.GITHUB_SYNC_ORGS == ["org-a", "org-b"]
@@ -623,17 +649,21 @@ class TestUpdateSyncConfig:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/sync/config",
             json={"interval_days": 30},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
     def test_update_config_unauthenticated_returns_401(self) -> None:
         app, _, _ = _build_sync_app()
         client = TestClient(app, raise_server_exceptions=False)
-        resp = client.put("/api/v1/admin/sync/config", json={"sync_enabled": True})
+        resp = client.put("/api/v1/admin/sync/config", json={"sync_enabled": True},
+            headers={"X-CSRF-Token": "tok"},
+        )
         assert resp.status_code == 401
 
 
@@ -732,6 +762,7 @@ class TestGetSyncSchedule:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt(sub="analyst", jti="analyst-jti")
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
         resp = client.get("/api/v1/admin/sync/schedule")
         assert resp.status_code == 403
 
@@ -745,6 +776,7 @@ class TestGetSyncSchedule:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.get("/api/v1/admin/sync/schedule")
         assert resp.status_code == 200
@@ -768,6 +800,7 @@ class TestGetSyncSchedule:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.get("/api/v1/admin/sync/schedule")
         assert resp.status_code == 200
@@ -783,7 +816,9 @@ class TestUpdateSyncSchedule:
     def test_schedule_update_unauthenticated_returns_401(self) -> None:
         app, _, _ = _build_sync_app()
         client = TestClient(app, raise_server_exceptions=False)
-        resp = client.put("/api/v1/admin/sync/schedule", json={"enabled": True})
+        resp = client.put("/api/v1/admin/sync/schedule", json={"enabled": True},
+            headers={"X-CSRF-Token": "tok"},
+        )
         assert resp.status_code == 401
 
     @patch("app.routers.sync.get_setting", new_callable=AsyncMock)
@@ -805,10 +840,12 @@ class TestUpdateSyncSchedule:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/sync/schedule",
             json={"enabled": True},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -838,10 +875,12 @@ class TestUpdateSyncSchedule:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/sync/schedule",
             json={"enabled": True, "interval_hours": 48, "scope": "teams"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -856,10 +895,12 @@ class TestUpdateSyncSchedule:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/sync/schedule",
             json={"interval_hours": 15},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
@@ -868,10 +909,12 @@ class TestUpdateSyncSchedule:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/sync/schedule",
             json={"scope": "invalid_scope"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
@@ -888,10 +931,12 @@ class TestUpdateSyncSchedule:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         resp = client.put(
             "/api/v1/admin/sync/schedule",
             json={},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
         # No settings should have been written
@@ -1018,6 +1063,7 @@ class TestGetSyncLogs:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         # Mock: run not found
         mock_result = MagicMock()
@@ -1033,6 +1079,7 @@ class TestGetSyncLogs:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         # First execute: run exists. Second execute: empty logs.
         mock_run_result = MagicMock()
@@ -1055,6 +1102,7 @@ class TestGetSyncLogs:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt()
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
 
         mock_run_result = MagicMock()
         mock_run_result.scalar_one_or_none.return_value = MagicMock()
@@ -1100,6 +1148,7 @@ class TestGetSyncLogs:
         client = TestClient(app, raise_server_exceptions=False)
         token = _make_jwt(sub="analyst", jti="analyst-jti")
         client.cookies.set("access_token", token)
+        client.cookies.set("csrf_token", "tok")
         run_id = str(uuid.uuid4())
         resp = client.get(f"/api/v1/admin/sync/runs/{run_id}/logs")
         assert resp.status_code == 403

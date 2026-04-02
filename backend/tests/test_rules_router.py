@@ -144,7 +144,10 @@ class TestRulesUnauthenticated:
     def test_create_rule_without_auth_returns_401(self):
         app, _, _ = _build_rules_app(valkey_session=None)
         client = TestClient(app, raise_server_exceptions=False)
-        resp = client.post("/api/v1/rules", json=VALID_RULE_PAYLOAD)
+        resp = client.post("/api/v1/rules", json=VALID_RULE_PAYLOAD,
+            cookies={"csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
+        )
         assert resp.status_code == 401
 
 
@@ -229,7 +232,8 @@ class TestCreateRule:
                 resp = client.post(
                     "/api/v1/rules",
                     json=VALID_RULE_PAYLOAD,
-                    cookies={"access_token": token},
+                    cookies={"access_token": token, "csrf_token": "tok"},
+                    headers={"X-CSRF-Token": "tok"},
                 )
         assert resp.status_code == 201
         data = resp.json()
@@ -244,7 +248,8 @@ class TestCreateRule:
         resp = client.post(
             "/api/v1/rules",
             json=VALID_RULE_PAYLOAD,
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 403
 
@@ -255,7 +260,8 @@ class TestCreateRule:
         resp = client.post(
             "/api/v1/rules",
             json=VALID_RULE_PAYLOAD,
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 403
 
@@ -275,7 +281,8 @@ class TestCreateRule:
                 resp = client.post(
                     "/api/v1/rules",
                     json=VALID_RULE_PAYLOAD,
-                    cookies={"access_token": token},
+                    cookies={"access_token": token, "csrf_token": "tok"},
+                    headers={"X-CSRF-Token": "tok"},
                 )
         assert resp.status_code == 201
 
@@ -291,7 +298,8 @@ class TestCreateRule:
             resp = client.post(
                 "/api/v1/rules",
                 json=VALID_RULE_PAYLOAD,
-                cookies={"access_token": token},
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
         assert resp.status_code == 409
 
@@ -311,7 +319,8 @@ class TestCreateRule:
         resp = client.post(
             "/api/v1/rules",
             json=bad_payload,
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
 
@@ -331,7 +340,8 @@ class TestCreateRule:
         resp = client.post(
             "/api/v1/rules",
             json=payload,
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
         assert "distinct_count_field" in resp.json()["detail"]
@@ -362,7 +372,8 @@ class TestCreateRule:
                 resp = client.post(
                     "/api/v1/rules",
                     json=payload,
-                    cookies={"access_token": token},
+                    cookies={"access_token": token, "csrf_token": "tok"},
+                    headers={"X-CSRF-Token": "tok"},
                 )
         assert resp.status_code == 201
 
@@ -387,7 +398,8 @@ class TestUpdateRuleValidation:
         resp = client.put(
             "/api/v1/rules/1",
             json=payload,
-            cookies={"access_token": token},
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 422
         assert "distinct_count_field" in resp.json()["detail"]
@@ -419,7 +431,8 @@ class TestUpdateRuleValidation:
                     resp = client.put(
                         "/api/v1/rules/1",
                         json=payload,
-                        cookies={"access_token": token},
+                        cookies={"access_token": token, "csrf_token": "tok"},
+                        headers={"X-CSRF-Token": "tok"},
                     )
         assert resp.status_code == 200
 

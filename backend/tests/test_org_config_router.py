@@ -138,6 +138,8 @@ class TestUpdateOrgConfig:
             resp = await client.patch(
                 "/api/v1/orgs/my-org/config",
                 json={"copilot_cost_per_seat": 39.0},
+                cookies={"csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 200
@@ -166,6 +168,8 @@ class TestUpdateOrgConfig:
             resp = await client.patch(
                 "/api/v1/orgs/my-org/config",
                 json={"copilot_cost_per_seat": 42.0},
+                cookies={"csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 200
@@ -192,6 +196,8 @@ class TestUpdateOrgConfig:
             resp = await client.patch(
                 "/api/v1/orgs/my-org/config",
                 json={"copilot_cost_per_seat": None},
+                cookies={"csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 200
