@@ -314,14 +314,14 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Start stack
         run: |
-          # Pull freshly built images
-          export API_IMAGE=ghcr.io/${{ github.repository }}/api:${{ github.sha }}
+          # Build images locally for E2E testing
+          docker compose build api frontend
           docker compose up -d db valkey minio
           sleep 15
           docker compose run --rm \
             -e DATABASE_URL=postgresql+asyncpg://test:test@db:5432/auditlogs \
             migrate || true
-          docker compose up -d api
+          docker compose up -d api frontend nginx
           sleep 10
         env:
           DATABASE_URL: postgresql+asyncpg://test:test@db:5432/auditlogs
