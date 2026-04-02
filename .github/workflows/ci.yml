@@ -315,7 +315,9 @@ jobs:
       - name: Start stack
         run: |
           # Build images locally for E2E testing
-          docker compose build api frontend
+          docker build -t octowatch-api:latest backend/
+          docker build -t octowatch-worker:latest backend/
+          docker build -t octowatch-frontend:latest frontend/
           docker compose up -d db valkey minio
           sleep 15
           docker compose run --rm \
