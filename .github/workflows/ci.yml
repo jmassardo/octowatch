@@ -340,8 +340,8 @@ jobs:
           # Remove leading spaces from heredoc
           sed -i 's/^          //' .env
           # Build images locally for E2E testing
-          docker build -t octowatch-api:latest backend/
-          docker build -t octowatch-worker:latest backend/
+          docker build --target production -t octowatch-api:latest backend/
+          docker build --target worker -t octowatch-worker:latest backend/
           docker build -t octowatch-frontend:latest frontend/
           docker compose up -d db valkey minio
           sleep 15
