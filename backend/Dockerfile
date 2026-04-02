@@ -65,5 +65,16 @@ USER appuser
 EXPOSE 8000
 
 # Default: run the API server
-# Override CMD for workers: celery -A app.celery_app worker ...
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 3: Named targets for CI matrix builds
+# ─────────────────────────────────────────────────────────────────────────────
+FROM runtime AS production
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+
+FROM runtime AS worker
+CMD ["celery", "-A", "app.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+
+FROM runtime AS beat
+CMD ["celery", "-A", "app.celery_app", "beat", "--loglevel=info"]
