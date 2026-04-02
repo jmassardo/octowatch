@@ -1,234 +1,94 @@
 # =============================================================================
-# Deploy — Build Docker images → Push to Azure Container Registry → Deploy VM
+# Publish — Build Docker images and push to GitHub Container Registry (GHCR)
 #
 # Triggers:
-#   1. Automatically after a successful CI run on main (workflow_run).
-#   2. Manually via workflow_dispatch (e.g. to redeploy a specific tag).
+#   1. Automatically after a successful CI run on main.
+#   2. On version tags (v*).
+#   3. Manually via workflow_dispatch.
 #
-# Prerequisites (configure in GitHub repo settings):
-#   Secrets:
-#     AZURE_CLIENT_ID          — App registration with AcrPush role
-#     AZURE_TENANT_ID          — Azure AD tenant
-#     AZURE_SUBSCRIPTION_ID    — Azure subscription
-#     VM_HOST                  — Target VM hostname/IP
-#     VM_USERNAME              — SSH user on the VM
-#     VM_SSH_PRIVATE_KEY       — SSH private key for VM access
-#   Variables:
-#     ACR_NAME                 — Azure Container Registry name (e.g. octowatchacr)
-#     ACR_LOGIN_SERVER         — ACR login server (e.g. octowatchacr.azurecr.io)
-#   Environment:
-#     production               — (optional) configure required reviewers for
-#                                approval gates before deploy
+# Images are published to ghcr.io/<owner>/octowatch-{api,worker,frontend}
+# tagged with both the commit SHA and "latest".  Version tags also get the
+# semver tag (e.g. v1.2.3).
 # =============================================================================
-name: Deploy
+name: Publish
 
 on:
-  # Trigger automatically when the CI workflow completes on main.
-  # The build-and-push job checks that CI actually succeeded before running.
   workflow_run:
     workflows: ["CI"]
     types: [completed]
     branches: [main]
 
-  # Allow manual deployment with an optional image tag override.
+  push:
+    tags: ["v*"]
+
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Image tag to deploy (defaults to commit SHA)"
+        description: "Image tag to publish (defaults to commit SHA)"
         required: false
-        default: "latest"
+        default: ""
 
-# Only one deploy runs at a time. Never cancel an in-progress deployment —
-# partial deploys can leave the system in an inconsistent state.
 concurrency:
-  group: deploy-production
-  cancel-in-progress: false
+  group: publish-images
+  cancel-in-progress: true
 
 env:
-  ACR_NAME: ${{ vars.ACR_NAME }}
-  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
-  # Manual dispatch uses the provided tag; CI-triggered uses the commit SHA.
-  IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
 
 jobs:
-  # ─────────────────────────────────────────────────────────────────────────
-  # Stage 1: Build all Docker images and push to Azure Container Registry
-  #
-  # Uses OIDC federated credentials — no stored Azure passwords.
-  # The backend produces three images (api, worker, beat) from the same
-  # Dockerfile via multi-stage build targets. The frontend is built
-  # separately.
-  # ─────────────────────────────────────────────────────────────────────────
-  build-and-push:
-    name: Build & Push (${{ matrix.config.name }})
+  publish:
+    name: Build & Push (${{ matrix.image.name }})
     runs-on: ubuntu-latest
-    # Only run if CI succeeded (workflow_run) or this is a manual dispatch.
     if: >-
+      github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: read
-      id-token: write  # Required for OIDC federated auth to Azure
+      packages: write
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
-        config:
+        image:
           - name: api
             context: backend
-            target: production
           - name: worker
             context: backend
-            target: worker
-          - name: beat
-            context: backend
-            target: beat
+          - name: frontend
+            context: frontend
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
-      # Authenticate to Azure using OIDC (OpenID Connect). This avoids
-      # storing long-lived credentials — the GitHub Actions OIDC provider
-      # issues a short-lived token that Azure validates via federation.
-      - name: Azure Login (OIDC)
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5  # v2.3.0
+      - name: Login to GHCR
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2  # v4.0.0
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to ACR
-        run: az acr login --name "$ACR_NAME"
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@70b2cdc6480c1a8b86edf1777157f8f437c17571  # v5.7.0
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/octowatch-${{ matrix.image.name }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ github.event.inputs.image_tag }},enable=${{ github.event.inputs.image_tag != '' }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4.0.0
 
-      # Build the image using the multi-stage target and push to ACR.
-      # Each image is tagged with both the commit SHA (immutable) and
-      # "latest" (mutable convenience tag for manual deploys).
-      # GitHub Actions cache (GHA) speeds up subsequent builds.
-      - name: Build & push ${{ matrix.config.name }} image
+      - name: Build & push
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7.0.0
         with:
-          context: ${{ matrix.config.context }}
-          target: ${{ matrix.config.target }}
+          context: ${{ matrix.image.context }}
           push: true
-          tags: |
-            ${{ env.ACR_LOGIN_SERVER }}/octowatch-${{ matrix.config.name }}:${{ env.IMAGE_TAG }}
-            ${{ env.ACR_LOGIN_SERVER }}/octowatch-${{ matrix.config.name }}:latest
-          labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-          cache-from: type=gha,scope=deploy-${{ matrix.config.name }}
-          cache-to: type=gha,mode=max,scope=deploy-${{ matrix.config.name }}
-
-  # Frontend is built separately (different Dockerfile, no build targets).
-  build-and-push-frontend:
-    name: Build & Push (frontend)
-    runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-
-      - name: Azure Login (OIDC)
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5  # v2.3.0
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Login to ACR
-        run: az acr login --name "$ACR_NAME"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4.0.0
-
-      - name: Build & push frontend image
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7.0.0
-        with:
-          context: frontend
-          push: true
-          tags: |
-            ${{ env.ACR_LOGIN_SERVER }}/octowatch-frontend:${{ env.IMAGE_TAG }}
-            ${{ env.ACR_LOGIN_SERVER }}/octowatch-frontend:latest
-          labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-          cache-from: type=gha,scope=deploy-frontend
-          cache-to: type=gha,mode=max,scope=deploy-frontend
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # Stage 2: Deploy to the production VM via SSH
-  #
-  # The VM runs Docker Compose and has a deploy script at
-  # /opt/octowatch/deploy.sh that:
-  #   1. Pulls the new images from ACR
-  #   2. Runs database migrations
-  #   3. Restarts services with zero-downtime rolling update
-  #
-  # The "production" environment enables optional approval gates — configure
-  # required reviewers in GitHub repo Settings → Environments → production.
-  # ─────────────────────────────────────────────────────────────────────────
-  deploy:
-    name: Deploy to Production
-    needs: [build-and-push, build-and-push-frontend]
-    runs-on: ubuntu-latest
-    environment: production  # Approval gate — requires reviewer if configured
-
-    steps:
-      # SSH into the VM and run the deploy script. The script receives the
-      # ACR name and image tag so it can pull the correct images.
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2  # v1.2.5
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USERNAME }}
-          key: ${{ secrets.VM_SSH_PRIVATE_KEY }}
-          # Pass ACR login server and image tag to the deploy script.
-          # The script handles: docker login, image pull, migration, restart.
-          script: |
-            set -euo pipefail
-            echo "Deploying OctoWatch image tag: ${{ env.IMAGE_TAG }}"
-            /opt/octowatch/deploy.sh "${{ vars.ACR_LOGIN_SERVER }}" "${{ env.IMAGE_TAG }}"
-
-      # Verify the application is responding after deployment.
-      # The nginx reverse proxy exposes /health → api:8000/health.
-      # Retries up to 6 times (30s intervals) to allow for container startup.
-      - name: Health check
-        run: |
-          echo "Waiting for services to stabilize..."
-          MAX_RETRIES=6
-          RETRY_INTERVAL=30
-          for i in $(seq 1 "$MAX_RETRIES"); do
-            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
-              --connect-timeout 10 --max-time 30 \
-              "https://${{ secrets.VM_HOST }}/health" || echo "000")
-
-            if [ "$STATUS" = "200" ]; then
-              echo "✅ Health check passed (HTTP $STATUS) on attempt $i"
-              exit 0
-            fi
-
-            echo "⏳ Attempt $i/$MAX_RETRIES — HTTP $STATUS, retrying in ${RETRY_INTERVAL}s..."
-            sleep "$RETRY_INTERVAL"
-          done
-
-          echo "❌ Health check failed after $MAX_RETRIES attempts"
-          exit 1
-
-      - name: Deployment summary
-        if: success()
-        run: |
-          echo "## 🚀 Deployment Successful" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Detail | Value |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| **Image Tag** | \`${{ env.IMAGE_TAG }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| **Registry** | \`${{ vars.ACR_LOGIN_SERVER }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| **Target** | \`${{ secrets.VM_HOST }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| **Commit** | \`${{ github.sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| **Triggered by** | ${{ github.event_name }} |" >> "$GITHUB_STEP_SUMMARY"
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=publish-${{ matrix.image.name }}
+          cache-to: type=gha,mode=max,scope=publish-${{ matrix.image.name }}
