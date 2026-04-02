@@ -87,7 +87,11 @@ const ENTERPRISE_RESPONSE: PostureResponse = {
   org: null,
   repo: null,
   breadcrumb: [{ label: 'Posture', href: null }],
-  last_sync_at: '2024-06-01T10:00:00Z', page: 1, page_size: 25, total: 1, has_next: false,
+  last_sync_at: '2024-06-01T10:00:00Z',
+  page: 1,
+  page_size: 25,
+  total: 1,
+  has_next: false,
 };
 
 const ORG_RESPONSE: PostureResponse = {
@@ -165,7 +169,11 @@ const ORG_RESPONSE: PostureResponse = {
     { label: 'Posture', href: '/posture' },
     { label: 'iadopt-apps', href: null },
   ],
-  last_sync_at: '2024-06-01T10:00:00Z', page: 1, page_size: 25, total: 1, has_next: false,
+  last_sync_at: '2024-06-01T10:00:00Z',
+  page: 1,
+  page_size: 25,
+  total: 1,
+  has_next: false,
 };
 
 const REPO_RESPONSE: PostureResponse = {
@@ -216,7 +224,11 @@ const REPO_RESPONSE: PostureResponse = {
     { label: 'iadopt-apps', href: '/posture/iadopt-apps' },
     { label: 'legacy-app', href: null },
   ],
-  last_sync_at: '2024-06-01T10:00:00Z', page: 1, page_size: 25, total: 1, has_next: false,
+  last_sync_at: '2024-06-01T10:00:00Z',
+  page: 1,
+  page_size: 25,
+  total: 1,
+  has_next: false,
 };
 
 /* ── Test suites ───────────────────────────────────────────────────── */

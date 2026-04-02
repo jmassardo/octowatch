@@ -6,7 +6,7 @@ export function useCurrentUser() {
     queryKey: ['me'],
     queryFn: getMe,
     retry: false,
-    staleTime: 60 * 1000,       // re-validate after 1 min
+    staleTime: 60 * 1000, // re-validate after 1 min
     refetchOnWindowFocus: true, // detect invalidated sessions on tab re-focus
   });
 }

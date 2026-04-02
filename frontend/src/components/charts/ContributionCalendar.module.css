@@ -57,9 +57,21 @@
   border-radius: 2px;
 }
 
-.cell[data-level="0"] { background: #161b22; }
-.cell[data-level="1"] { background: #0e4429; }
-.cell[data-level="2"] { background: #006d32; }
-.cell[data-level="3"] { background: #26a641; }
-.cell[data-level="4"] { background: #39d353; }
-.cell[data-alert] { background: rgba(248, 81, 73, 0.8); }
+.cell[data-level='0'] {
+  background: #161b22;
+}
+.cell[data-level='1'] {
+  background: #0e4429;
+}
+.cell[data-level='2'] {
+  background: #006d32;
+}
+.cell[data-level='3'] {
+  background: #26a641;
+}
+.cell[data-level='4'] {
+  background: #39d353;
+}
+.cell[data-alert] {
+  background: rgba(248, 81, 73, 0.8);
+}

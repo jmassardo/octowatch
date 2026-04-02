@@ -79,8 +79,20 @@ const TERMINAL_STATUSES = new Set<IngestJobStatus>(['completed', 'failed']);
 function UploadIcon() {
   return (
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 16V4m0 0l-4 4m4-4l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M12 16V4m0 0l-4 4m4-4l4 4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -288,9 +300,7 @@ function IngestJobHistory() {
               <td>{job.ingest_type.replace(/_/g, ' ')}</td>
               <td>{formatFileSize(job.file_size_bytes)}</td>
               <td>{formatShortDateTime(job.created_at)}</td>
-              <td>
-                {job.rows_processed > 0 ? job.rows_processed.toLocaleString() : '—'}
-              </td>
+              <td>{job.rows_processed > 0 ? job.rows_processed.toLocaleString() : '—'}</td>
               <td>
                 <Label variant={statusVariant(job.status)}>{job.status}</Label>
               </td>
@@ -311,8 +321,8 @@ export function ManualIngestPanel() {
     <Card data-testid="manual-ingest-panel">
       <CardHeader>Import Data Files</CardHeader>
       <p className={styles.ingestIntro}>
-        Upload exported data files to analyze without live API access — great for
-        evaluating OctoWatch or filling historical gaps.
+        Upload exported data files to analyze without live API access — great for evaluating
+        OctoWatch or filling historical gaps.
       </p>
       <div className={styles.ingestGrid}>
         {INGEST_CARDS.map((config) => (

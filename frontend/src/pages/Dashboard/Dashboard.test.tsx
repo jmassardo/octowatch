@@ -72,9 +72,7 @@ describe('DashboardPage', () => {
     renderWithProviders(<DashboardPage />);
 
     // systemHealth resolves asynchronously with last_event_at
-    expect(
-      await screen.findByText(/last synced:/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/last synced:/i)).toBeInTheDocument();
   });
 
   it('shows fallback subtitle when no system health data', () => {
@@ -228,7 +226,31 @@ describe('DashboardPage with data', () => {
     });
     mockListDetections.mockResolvedValue({
       items: [
-        { id: 1, rule_id: 1, rule_name: 'Test Rule', rule_version: 1, severity: 'critical', confidence: 'high', confidence_score: 0.95, status: 'investigating', title: 'Test', description: '', actor: null, org: 'org', repo: null, source_ip: null, window_start: null, window_end: null, event_ids: [1], context_data: {}, triggered_at: '2024-01-15T00:00:00Z', assigned_to: null, resolved_at: null, resolution_note: null, tickets: [] },
+        {
+          id: 1,
+          rule_id: 1,
+          rule_name: 'Test Rule',
+          rule_version: 1,
+          severity: 'critical',
+          confidence: 'high',
+          confidence_score: 0.95,
+          status: 'investigating',
+          title: 'Test',
+          description: '',
+          actor: null,
+          org: 'org',
+          repo: null,
+          source_ip: null,
+          window_start: null,
+          window_end: null,
+          event_ids: [1],
+          context_data: {},
+          triggered_at: '2024-01-15T00:00:00Z',
+          assigned_to: null,
+          resolved_at: null,
+          resolution_note: null,
+          tickets: [],
+        },
       ],
       total: 1,
       page: 1,
@@ -289,8 +311,56 @@ describe('DashboardPage severity row clicks', () => {
     mockGetActionsVolumeReport.mockResolvedValue({ data: [] });
     mockListDetections.mockResolvedValue({
       items: [
-        { id: 1, rule_id: 1, rule_name: 'R1', rule_version: 1, severity: 'critical', confidence: 'high', confidence_score: 0.9, status: 'investigating', title: 'T1', description: '', actor: null, org: 'o', repo: null, source_ip: null, window_start: null, window_end: null, event_ids: [], context_data: {}, triggered_at: '2024-01-15T00:00:00Z', assigned_to: null, resolved_at: null, resolution_note: null, tickets: [] },
-        { id: 2, rule_id: 2, rule_name: 'R2', rule_version: 1, severity: 'high', confidence: 'medium', confidence_score: 0.7, status: 'investigating', title: 'T2', description: '', actor: null, org: 'o', repo: null, source_ip: null, window_start: null, window_end: null, event_ids: [], context_data: {}, triggered_at: '2024-01-15T00:00:00Z', assigned_to: null, resolved_at: null, resolution_note: null, tickets: [] },
+        {
+          id: 1,
+          rule_id: 1,
+          rule_name: 'R1',
+          rule_version: 1,
+          severity: 'critical',
+          confidence: 'high',
+          confidence_score: 0.9,
+          status: 'investigating',
+          title: 'T1',
+          description: '',
+          actor: null,
+          org: 'o',
+          repo: null,
+          source_ip: null,
+          window_start: null,
+          window_end: null,
+          event_ids: [],
+          context_data: {},
+          triggered_at: '2024-01-15T00:00:00Z',
+          assigned_to: null,
+          resolved_at: null,
+          resolution_note: null,
+          tickets: [],
+        },
+        {
+          id: 2,
+          rule_id: 2,
+          rule_name: 'R2',
+          rule_version: 1,
+          severity: 'high',
+          confidence: 'medium',
+          confidence_score: 0.7,
+          status: 'investigating',
+          title: 'T2',
+          description: '',
+          actor: null,
+          org: 'o',
+          repo: null,
+          source_ip: null,
+          window_start: null,
+          window_end: null,
+          event_ids: [],
+          context_data: {},
+          triggered_at: '2024-01-15T00:00:00Z',
+          assigned_to: null,
+          resolved_at: null,
+          resolution_note: null,
+          tickets: [],
+        },
       ],
       total: 2,
       page: 1,
@@ -343,17 +413,45 @@ describe('DashboardPage platform alerts clicks', () => {
   beforeEach(() => {
     mockNavigate.mockClear();
     mockGetActionsVolumeReport.mockResolvedValue({
-      data: [{
-        bucket: '2024-01-15',
-        workflow_runs_total: 100,
-        workflow_runs_succeeded: 90,
-        workflow_runs_failed: 10,
-        success_rate_pct: 90.0,
-        unique_workflows: 5,
-      }],
+      data: [
+        {
+          bucket: '2024-01-15',
+          workflow_runs_total: 100,
+          workflow_runs_succeeded: 90,
+          workflow_runs_failed: 10,
+          success_rate_pct: 90.0,
+          unique_workflows: 5,
+        },
+      ],
     });
     mockListDetections.mockResolvedValue({
-      items: [{ id: 1, rule_id: 1, rule_name: 'R', rule_version: 1, severity: 'high', confidence: 'high', confidence_score: 0.9, status: 'investigating', title: 'T', description: '', actor: null, org: 'o', repo: null, source_ip: null, window_start: null, window_end: null, event_ids: [], context_data: {}, triggered_at: '2024-01-15T00:00:00Z', assigned_to: null, resolved_at: null, resolution_note: null, tickets: [] }],
+      items: [
+        {
+          id: 1,
+          rule_id: 1,
+          rule_name: 'R',
+          rule_version: 1,
+          severity: 'high',
+          confidence: 'high',
+          confidence_score: 0.9,
+          status: 'investigating',
+          title: 'T',
+          description: '',
+          actor: null,
+          org: 'o',
+          repo: null,
+          source_ip: null,
+          window_start: null,
+          window_end: null,
+          event_ids: [],
+          context_data: {},
+          triggered_at: '2024-01-15T00:00:00Z',
+          assigned_to: null,
+          resolved_at: null,
+          resolution_note: null,
+          tickets: [],
+        },
+      ],
       total: 1,
       page: 1,
       page_size: 100,

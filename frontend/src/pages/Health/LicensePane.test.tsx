@@ -7,7 +7,12 @@ import { LicensePane } from './LicensePane';
 const COST_PER_SEAT_DEFAULT = 19;
 
 vi.mock('../../hooks/useOrgConfig', () => ({
-  useOrgConfig: () => ({ costPerSeat: COST_PER_SEAT_DEFAULT, isLoading: false, isError: false, orgConfig: undefined }),
+  useOrgConfig: () => ({
+    costPerSeat: COST_PER_SEAT_DEFAULT,
+    isLoading: false,
+    isError: false,
+    orgConfig: undefined,
+  }),
 }));
 
 vi.mock('../../hooks/useOrg', () => ({
@@ -25,15 +30,11 @@ vi.mock('../../api/healthSignals', () => ({
 }));
 
 const mockSeatData = {
-  data: [
-    { provisioned_seat_count: 100, active_seat_count: 82, utilization_pct: 82 },
-  ],
+  data: [{ provisioned_seat_count: 100, active_seat_count: 82, utilization_pct: 82 }],
 };
 
 const mockCopilotData = {
-  data: [
-    { seats_net: 45 },
-  ],
+  data: [{ seats_net: 45 }],
 };
 
 const mockGhostMembers = {
@@ -54,12 +55,20 @@ const mockQueryReturns: Array<{
 }> = [];
 
 vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
+  const actual =
+    await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
   return {
     ...actual,
     useQuery: () => {
       const idx = useQueryCallIndex++;
-      return mockQueryReturns[idx] || { data: undefined, isLoading: false, isError: false, refetch: vi.fn() };
+      return (
+        mockQueryReturns[idx] || {
+          data: undefined,
+          isLoading: false,
+          isError: false,
+          refetch: vi.fn(),
+        }
+      );
     },
   };
 });
@@ -90,13 +99,28 @@ const mockLicenseConsumption = {
 function setDefaultData() {
   mockQueryReturns.length = 0;
   // Call 0: license consumption (first query in the component)
-  mockQueryReturns.push({ data: mockLicenseConsumption, isLoading: false, isError: false, refetch: vi.fn() });
+  mockQueryReturns.push({
+    data: mockLicenseConsumption,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  });
   // Call 1: seat utilization
   mockQueryReturns.push({ data: mockSeatData, isLoading: false, isError: false, refetch: vi.fn() });
   // Call 2: copilot seats
-  mockQueryReturns.push({ data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() });
+  mockQueryReturns.push({
+    data: mockCopilotData,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  });
   // Call 3: ghost members
-  mockQueryReturns.push({ data: mockGhostMembers, isLoading: false, isError: false, refetch: vi.fn() });
+  mockQueryReturns.push({
+    data: mockGhostMembers,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  });
 }
 
 describe('LicensePane', () => {
@@ -130,7 +154,9 @@ describe('LicensePane', () => {
 
   it('renders ghost member table with 2 columns (Member, Last active)', () => {
     renderWithProviders();
-    expect(screen.getByText('Ghost members — consuming seats with no activity')).toBeInTheDocument();
+    expect(
+      screen.getByText('Ghost members — consuming seats with no activity'),
+    ).toBeInTheDocument();
     const table = screen.getByText('Member').closest('table')!;
     const headers = within(table).getAllByRole('columnheader');
     expect(headers).toHaveLength(2);
@@ -146,10 +172,30 @@ describe('LicensePane', () => {
 
   it('shows "No ghost members detected" when empty', () => {
     mockQueryReturns.length = 0;
-    mockQueryReturns.push({ data: mockLicenseConsumption, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: mockSeatData, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: { ghost_members: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({
+      data: mockLicenseConsumption,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: mockSeatData,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: mockCopilotData,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: { ghost_members: [] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
     renderWithProviders();
     expect(screen.getByText('No ghost members detected')).toBeInTheDocument();
   });
@@ -177,9 +223,24 @@ describe('LicensePane', () => {
 
   it('shows loading spinner for ghost members', () => {
     mockQueryReturns.length = 0;
-    mockQueryReturns.push({ data: mockLicenseConsumption, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: mockSeatData, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({
+      data: mockLicenseConsumption,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: mockSeatData,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: mockCopilotData,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
     mockQueryReturns.push({ data: undefined, isLoading: true, isError: false, refetch: vi.fn() });
     renderWithProviders();
     expect(document.querySelector('[class*="spinner"]')).toBeTruthy();
@@ -187,9 +248,24 @@ describe('LicensePane', () => {
 
   it('shows error banner for ghost members on error', () => {
     mockQueryReturns.length = 0;
-    mockQueryReturns.push({ data: mockLicenseConsumption, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: mockSeatData, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({
+      data: mockLicenseConsumption,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: mockSeatData,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: mockCopilotData,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
     mockQueryReturns.push({ data: undefined, isLoading: false, isError: true, refetch: vi.fn() });
     renderWithProviders();
     expect(screen.getByText('Failed to load ghost members')).toBeInTheDocument();
@@ -198,10 +274,30 @@ describe('LicensePane', () => {
   it('shows sample data banner when all API queries return empty data', () => {
     mockQueryReturns.length = 0;
     // All queries return empty/no data (license consumption with 0 seats = no GHEC data)
-    mockQueryReturns.push({ data: { total_seats_purchased: 0 }, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: { data: [] }, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: { data: [] }, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: { ghost_members: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({
+      data: { total_seats_purchased: 0 },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: { data: [] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: { data: [] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: { ghost_members: [] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
     renderWithProviders();
     expect(screen.getByText(/This data is illustrative/)).toBeInTheDocument();
   });
@@ -246,9 +342,24 @@ describe('LicensePane', () => {
       isError: false,
       refetch: vi.fn(),
     });
-    mockQueryReturns.push({ data: mockSeatData, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: mockGhostMembers, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({
+      data: mockSeatData,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: mockCopilotData,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: mockGhostMembers,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
     renderWithProviders();
     // Falls back to showing report-derived source note (not GHEC API)
     expect(screen.queryByText(/consumed-licenses/)).not.toBeInTheDocument();

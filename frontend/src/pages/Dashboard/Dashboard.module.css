@@ -41,7 +41,9 @@
 
 .pillClickable {
   cursor: pointer;
-  transition: opacity 0.15s, border-color 0.15s;
+  transition:
+    opacity 0.15s,
+    border-color 0.15s;
 }
 
 .pillClickable:hover {
@@ -55,10 +57,18 @@
   margin-left: 2px;
 }
 
-.danger .pillVal { color: var(--danger); }
-.success .pillVal { color: var(--success); }
-.accent .pillVal { color: var(--accent); }
-.done .pillVal { color: var(--done); }
+.danger .pillVal {
+  color: var(--danger);
+}
+.success .pillVal {
+  color: var(--success);
+}
+.accent .pillVal {
+  color: var(--accent);
+}
+.done .pillVal {
+  color: var(--done);
+}
 
 .calCard {
   margin-bottom: 20px;
@@ -122,10 +132,18 @@
   border: 2px solid var(--canvas-subtle);
 }
 
-.security { background: var(--danger); }
-.platform { background: var(--success); }
-.info { background: var(--accent); }
-.warning { background: var(--attention); }
+.security {
+  background: var(--danger);
+}
+.platform {
+  background: var(--success);
+}
+.info {
+  background: var(--accent);
+}
+.warning {
+  background: var(--attention);
+}
 
 .tlBody {
   font-size: 13px;
@@ -133,7 +151,9 @@
   line-height: 1.5;
 }
 
-.tlBody strong { color: var(--fg); }
+.tlBody strong {
+  color: var(--fg);
+}
 
 .tlTime {
   font-size: 11px;
@@ -167,10 +187,18 @@
   flex-shrink: 0;
 }
 
-.critical { background: var(--danger); }
-.high { background: var(--severe); }
-.medium { background: var(--attention); }
-.low { background: var(--success); }
+.critical {
+  background: var(--danger);
+}
+.high {
+  background: var(--severe);
+}
+.medium {
+  background: var(--attention);
+}
+.low {
+  background: var(--success);
+}
 
 .sevLbl {
   flex: 1;

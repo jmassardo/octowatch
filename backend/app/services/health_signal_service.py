@@ -1790,8 +1790,7 @@ async def get_waf_findings(
             "detail": (
                 f"{wh_created} webhooks created, {wh_destroyed} destroyed in last 90 days."
                 + (
-                    " More deletions than creations may "
-                    "indicate integration instability."
+                    " More deletions than creations may indicate integration instability."
                     if wh_destroyed > wh_created
                     else ""
                 )
@@ -1888,11 +1887,13 @@ async def get_waf_findings(
             "evaluated": has_push_events,
             "detail": (
                 f"{push_count} direct pushes to main/master in last 90 days. "
-                + ("This exceeds the recommended threshold. "
-                   "Enforce branch protection rules "
-                   "requiring pull request reviews."
-                   if push_count > 5
-                   else "Volume is within acceptable range.")
+                + (
+                    "This exceeds the recommended threshold. "
+                    "Enforce branch protection rules "
+                    "requiring pull request reviews."
+                    if push_count > 5
+                    else "Volume is within acceptable range."
+                )
                 if has_push_events
                 else "No direct pushes to default branches detected in audit log."
             ),
@@ -2079,11 +2080,13 @@ async def get_waf_findings(
             "detail": (
                 f"{pr_merged} PRs merged vs. {pr_created} PRs created in last 90 days "
                 f"(ratio: {merge_ratio:.2f}). "
-                + ("More merges than creates is unexpected "
-                   "— check for merges of "
-                   "externally-created PRs or data gaps."
-                   if pr_anomaly
-                   else "Merge ratio is within expected range.")
+                + (
+                    "More merges than creates is unexpected "
+                    "— check for merges of "
+                    "externally-created PRs or data gaps."
+                    if pr_anomaly
+                    else "Merge ratio is within expected range."
+                )
                 if has_pr_events
                 else "No pull request events in audit log."
             ),
@@ -2357,11 +2360,13 @@ async def get_waf_findings(
             "evaluated": has_wf_events,
             "detail": (
                 f"{wf_failures}/{wf_total} workflow runs failed in last 30 days ({failure_pct}%). "
-                + ("Failure rate exceeds 20% threshold. "
-                   "Investigate flaky tests, misconfigured "
-                   "workflows, or infrastructure issues."
-                   if failure_rate > 0.20
-                   else "Failure rate is within acceptable range.")
+                + (
+                    "Failure rate exceeds 20% threshold. "
+                    "Investigate flaky tests, misconfigured "
+                    "workflows, or infrastructure issues."
+                    if failure_rate > 0.20
+                    else "Failure rate is within acceptable range."
+                )
                 if has_wf_events
                 else "No completed workflow run events in last 30 days."
             ),
@@ -2435,11 +2440,13 @@ async def get_waf_findings(
                 f"{rerun_count} reruns out of "
                 f"{wf_created_count} workflow runs "
                 f"in last 30 days ({rerun_pct}%). "
-                + ("Rerun rate exceeds 15% threshold. "
-                   "High rerun rates indicate flaky "
-                   "workflows or transient failures."
-                   if rerun_rate > 0.15
-                   else "Rerun rate is within acceptable range.")
+                + (
+                    "Rerun rate exceeds 15% threshold. "
+                    "High rerun rates indicate flaky "
+                    "workflows or transient failures."
+                    if rerun_rate > 0.15
+                    else "Rerun rate is within acceptable range."
+                )
                 if has_rerun_events
                 else "No workflow run events in last 30 days."
             ),
@@ -2464,13 +2471,13 @@ async def get_waf_findings(
     clone_rows = [dict(row) for row in clone_result.mappings().all()]
     total_cloners = len(clone_rows)
     avg_clone_count = (
-        sum(r["clone_count"] for r in clone_rows) / total_cloners
-        if total_cloners > 0
-        else 0.0
+        sum(r["clone_count"] for r in clone_rows) / total_cloners if total_cloners > 0 else 0.0
     )
-    anomalous_cloners = [
-        r for r in clone_rows if r["clone_count"] > avg_clone_count * 3
-    ] if avg_clone_count > 0 else []
+    anomalous_cloners = (
+        [r for r in clone_rows if r["clone_count"] > avg_clone_count * 3]
+        if avg_clone_count > 0
+        else []
+    )
     has_clone_anomaly = len(anomalous_cloners) > 0
 
     clone_evidence: list[dict[str, Any]] | None = None

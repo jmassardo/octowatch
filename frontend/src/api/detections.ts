@@ -15,18 +15,27 @@ export interface DetectionListParams {
 }
 
 export function listDetections(params: DetectionListParams = {}): Promise<DetectionListResponse> {
-  return api.get<DetectionListResponse>('/detections', params as Record<string, string | number | boolean | undefined>);
+  return api.get<DetectionListResponse>(
+    '/detections',
+    params as Record<string, string | number | boolean | undefined>,
+  );
 }
 
 export function getDetection(id: number): Promise<DetectionResponse> {
   return api.get<DetectionResponse>(`/detections/${id}`);
 }
 
-export function updateDetectionStatus(id: number, req: UpdateDetectionStatusRequest): Promise<DetectionResponse> {
+export function updateDetectionStatus(
+  id: number,
+  req: UpdateDetectionStatusRequest,
+): Promise<DetectionResponse> {
   return api.patch<DetectionResponse>(`/detections/${id}/status`, req);
 }
 
-export function assignDetection(id: number, req: AssignDetectionRequest): Promise<DetectionResponse> {
+export function assignDetection(
+  id: number,
+  req: AssignDetectionRequest,
+): Promise<DetectionResponse> {
   return api.patch<DetectionResponse>(`/detections/${id}/assign`, req);
 }
 

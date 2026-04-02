@@ -1,5 +1,10 @@
 import { api } from './client';
-import type { QueryRunRequest, QueryRunResponse, QueryTemplate, QueryTemplateCreate } from '../types/query';
+import type {
+  QueryRunRequest,
+  QueryRunResponse,
+  QueryTemplate,
+  QueryTemplateCreate,
+} from '../types/query';
 
 export function runQuery(req: QueryRunRequest): Promise<QueryRunResponse> {
   return api.post<QueryRunResponse>('/query/run', req);

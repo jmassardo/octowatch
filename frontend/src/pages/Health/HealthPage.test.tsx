@@ -25,7 +25,12 @@ vi.mock('../../api/healthSignals', () => ({
   }),
   getRepoHealth: vi.fn().mockResolvedValue({
     stale: [
-      { org: 'acme', repo: 'test-repo', last_event_at: '2024-01-01T00:00:00Z', days_since_activity: 200 },
+      {
+        org: 'acme',
+        repo: 'test-repo',
+        last_event_at: '2024-01-01T00:00:00Z',
+        days_since_activity: 200,
+      },
     ],
     archived: [],
     abandoned_forks: [],
@@ -132,9 +137,7 @@ describe('HealthPage', () => {
     renderPage();
     expect(screen.getByText('Org Health')).toBeInTheDocument();
     expect(
-      screen.getByText(
-        /Audit-log-derived health signals across repositories, access, licenses/,
-      ),
+      screen.getByText(/Audit-log-derived health signals across repositories, access, licenses/),
     ).toBeInTheDocument();
   });
 
@@ -149,9 +152,7 @@ describe('HealthPage', () => {
     renderPage();
     const repoTab = screen.getByRole('tab', { name: /Repository Health/ });
     expect(repoTab).toHaveAttribute('aria-selected', 'true');
-    expect(
-      await screen.findByText(/Additional repository health data/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Additional repository health data/)).toBeInTheDocument();
   });
 
   it('switches to Access & Identity tab', async () => {

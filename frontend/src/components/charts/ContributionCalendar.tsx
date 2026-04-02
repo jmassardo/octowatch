@@ -16,7 +16,12 @@ function generateDemoData(): CalendarDay[] {
   for (let i = 90; i >= 0; i--) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
-    const level = (Math.random() > 0.3 ? Math.floor(Math.random() * 4) + 1 : 0) as 0 | 1 | 2 | 3 | 4;
+    const level = (Math.random() > 0.3 ? Math.floor(Math.random() * 4) + 1 : 0) as
+      | 0
+      | 1
+      | 2
+      | 3
+      | 4;
     days.push({
       date: d.toISOString().slice(0, 10),
       level,
@@ -72,7 +77,9 @@ export function ContributionCalendar({ data }: ContributionCalendarProps) {
       <div className={styles.body}>
         <div className={styles.dayLabels}>
           {DAYS.map((d, i) => (
-            <span key={i} className={styles.dayLabel}>{d}</span>
+            <span key={i} className={styles.dayLabel}>
+              {d}
+            </span>
           ))}
         </div>
         <div className={styles.cols}>

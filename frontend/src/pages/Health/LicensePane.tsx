@@ -5,7 +5,11 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { getSeatUtilizationReport, getCopilotSeatsReport } from '../../api/reports';
 import { getGhostMembers, getLicenseConsumption } from '../../api/healthSignals';
-import type { SeatUtilizationBucket, CopilotSeatsBucket, ReportEnvelope } from '../../types/reports';
+import type {
+  SeatUtilizationBucket,
+  CopilotSeatsBucket,
+  ReportEnvelope,
+} from '../../types/reports';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { useOrgConfig } from '../../hooks/useOrgConfig';
 import { formatDateOnly } from '../../utils/dates';
@@ -120,7 +124,8 @@ export function LicensePane() {
             />
           </div>
           <div className={styles.cardSub}>
-            {utilPct}% utilized · <span style={{ color: 'var(--attention)' }}>{seatsRemaining} seats until limit</span>
+            {utilPct}% utilized ·{' '}
+            <span style={{ color: 'var(--attention)' }}>{seatsRemaining} seats until limit</span>
           </div>
         </Card>
 
@@ -144,9 +149,7 @@ export function LicensePane() {
           <div className={styles.cardValue} style={{ color: 'var(--attention)' }}>
             {activeSeats}
           </div>
-          <div className={styles.cardSub}>
-            Members with recent activity
-          </div>
+          <div className={styles.cardSub}>Members with recent activity</div>
           <div style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 2 }}>
             Based on <code className={styles.sourceCode}>org.add_member</code> event frequency
           </div>
@@ -175,7 +178,10 @@ export function LicensePane() {
             <tbody>
               {ghostMembers.length === 0 && (
                 <tr>
-                  <td colSpan={2} style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}>
+                  <td
+                    colSpan={2}
+                    style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
+                  >
                     No ghost members detected
                   </td>
                 </tr>
@@ -184,9 +190,7 @@ export function LicensePane() {
                 <tr key={m.actor}>
                   <td style={{ fontWeight: 500 }}>{m.actor}</td>
                   <td style={{ color: 'var(--fg-muted)' }}>
-                    {m.last_active
-                      ? formatDateOnly(m.last_active)
-                      : 'Never'}
+                    {m.last_active ? formatDateOnly(m.last_active) : 'Never'}
                   </td>
                 </tr>
               ))}
@@ -198,10 +202,8 @@ export function LicensePane() {
       {/* Copilot seat cross-reference */}
       <div className={styles.sectionTitle}>Copilot seat cross-reference</div>
       <div className={styles.copilotCrossRef}>
-        <strong style={{ color: 'var(--fg)' }}>
-          {copilotTotal} Copilot seats
-        </strong>{' '}
-        provisioned — see Copilot Insights → License Optimization for full detail.
+        <strong style={{ color: 'var(--fg)' }}>{copilotTotal} Copilot seats</strong> provisioned —
+        see Copilot Insights → License Optimization for full detail.
       </div>
 
       <div className={styles.sourceNote}>
@@ -209,9 +211,7 @@ export function LicensePane() {
         {hasLicenseSync ? (
           <>
             the GHEC <code className={styles.sourceCode}>consumed-licenses</code> API
-            {licenseData?.synced_at && (
-              <> (last synced: {formatDateOnly(licenseData.synced_at)})</>
-            )}
+            {licenseData?.synced_at && <> (last synced: {formatDateOnly(licenseData.synced_at)})</>}
             .
           </>
         ) : (

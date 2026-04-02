@@ -67,7 +67,8 @@ let mockQueryReturn: {
 };
 
 vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
+  const actual =
+    await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
   return {
     ...actual,
     useQuery: () => mockQueryReturn,
@@ -151,9 +152,7 @@ describe('RepoHealthPane', () => {
 
   it('renders the stale trend section title', () => {
     renderPane();
-    expect(
-      screen.getByText('Stale repository trend — last 6 months'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Stale repository trend — last 6 months')).toBeInTheDocument();
   });
 
   it('renders the ECharts chart mock', () => {
@@ -167,9 +166,7 @@ describe('RepoHealthPane', () => {
     expect(
       screen.getByText('Repos with no branch protection on default branch'),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText('Repos with secret scanning disabled'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Repos with secret scanning disabled')).toBeInTheDocument();
   });
 
   it('renders archive/delete candidates section', () => {

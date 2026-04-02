@@ -154,7 +154,9 @@ function MemberActivityOverview({ dormant }: { dormant: DormantCollaborator[] })
               aria-label={`${dormantCount} dormant members – click to view details`}
               onKeyDown={(e) => handleKeyDown(e, 'dormant')}
             >
-              <strong>{dormantCount} {dormantCount === 1 ? 'member' : 'members'}</strong>
+              <strong>
+                {dormantCount} {dormantCount === 1 ? 'member' : 'members'}
+              </strong>
             </span>{' '}
             no activity in 90+ days
           </div>
@@ -171,7 +173,9 @@ function MemberActivityOverview({ dormant }: { dormant: DormantCollaborator[] })
               aria-label={`${atRiskCount} at-risk members – click to view details`}
               onKeyDown={(e) => handleKeyDown(e, 'at-risk')}
             >
-              <strong>{atRiskCount} {atRiskCount === 1 ? 'member' : 'members'}</strong>
+              <strong>
+                {atRiskCount} {atRiskCount === 1 ? 'member' : 'members'}
+              </strong>
             </span>{' '}
             no activity in 60–90 days
           </div>
@@ -188,7 +192,9 @@ function MemberActivityOverview({ dormant }: { dormant: DormantCollaborator[] })
               aria-label={`${newCount} new members – click to view details`}
               onKeyDown={(e) => handleKeyDown(e, 'new')}
             >
-              <strong>{newCount} {newCount === 1 ? 'member' : 'members'}</strong>
+              <strong>
+                {newCount} {newCount === 1 ? 'member' : 'members'}
+              </strong>
             </span>{' '}
             joined in last 30 days
           </div>
@@ -287,7 +293,9 @@ function PatHealthSnapshot({
               aria-label={`${noExpiryCount} tokens with no expiry – click to view details`}
               onKeyDown={(e) => handleKeyDown(e, 'no-expiry')}
             >
-              <strong>{noExpiryCount} {noExpiryCount === 1 ? 'token' : 'tokens'}</strong>
+              <strong>
+                {noExpiryCount} {noExpiryCount === 1 ? 'token' : 'tokens'}
+              </strong>
             </span>{' '}
             with no expiration date
           </div>
@@ -304,7 +312,9 @@ function PatHealthSnapshot({
               aria-label={`${expiredCount} tokens expiring soon – click to view details`}
               onKeyDown={(e) => handleKeyDown(e, 'expiring')}
             >
-              <strong>{expiredCount} {expiredCount === 1 ? 'token' : 'tokens'}</strong>
+              <strong>
+                {expiredCount} {expiredCount === 1 ? 'token' : 'tokens'}
+              </strong>
             </span>{' '}
             expire within 30 days
           </div>
@@ -321,7 +331,9 @@ function PatHealthSnapshot({
               aria-label={`${stale90dCount} stale tokens – click to view details`}
               onKeyDown={(e) => handleKeyDown(e, 'stale')}
             >
-              <strong>{stale90dCount} {stale90dCount === 1 ? 'token' : 'tokens'}</strong>
+              <strong>
+                {stale90dCount} {stale90dCount === 1 ? 'token' : 'tokens'}
+              </strong>
             </span>{' '}
             not used in 90+ days
           </div>
@@ -363,7 +375,10 @@ function BypassOffendersTable({ offenders }: { offenders: BypassOffender[] }) {
           <tbody>
             {offenders.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}>
+                <td
+                  colSpan={6}
+                  style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
+                >
                   No bypass offenders found
                 </td>
               </tr>
@@ -374,7 +389,15 @@ function BypassOffendersTable({ offenders }: { offenders: BypassOffender[] }) {
                   <span className={styles.mention}>@{o.actor}</span>
                 </td>
                 <td className={styles.numCol}>
-                  <Label variant={o.total_bypasses > 10 ? 'danger' : o.total_bypasses > 5 ? 'attention' : 'muted'}>
+                  <Label
+                    variant={
+                      o.total_bypasses > 10
+                        ? 'danger'
+                        : o.total_bypasses > 5
+                          ? 'attention'
+                          : 'muted'
+                    }
+                  >
                     {o.total_bypasses}
                   </Label>
                 </td>
@@ -423,7 +446,10 @@ function ExternalCollaboratorsTable({
           <tbody>
             {collaborators.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}>
+                <td
+                  colSpan={6}
+                  style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
+                >
                   No external collaborators found
                 </td>
               </tr>
@@ -438,7 +464,9 @@ function ExternalCollaboratorsTable({
                   <Label variant={c.role === 'admin' ? 'danger' : 'severe'}>{c.role}</Label>
                 </td>
                 <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(c.granted_at)}</td>
-                <td style={{ color: 'var(--fg-muted)' }}>{formatDaysAgo(c.days_since_last_event)}</td>
+                <td style={{ color: 'var(--fg-muted)' }}>
+                  {formatDaysAgo(c.days_since_last_event)}
+                </td>
                 <td>
                   <Label variant={riskBadgeVariant(c)}>{riskBadgeText(c)}</Label>
                 </td>
@@ -472,7 +500,10 @@ function DormantMembersTable({ dormant }: { dormant: DormantCollaborator[] }) {
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}>
+                <td
+                  colSpan={6}
+                  style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
+                >
                   No dormant members found
                 </td>
               </tr>

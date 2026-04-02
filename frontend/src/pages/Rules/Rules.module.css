@@ -1,4 +1,9 @@
-.page { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+.page {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 
 .pageHeader {
   display: flex;
@@ -7,10 +12,22 @@
   gap: 12px;
 }
 
-.pageTitle { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
-.pageSub { font-size: 13px; color: var(--fg-muted); margin: 0; }
+.pageTitle {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.pageSub {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0;
+}
 
-.headerActions { display: flex; gap: 8px; align-items: center; }
+.headerActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 
 .tableWrap {
   border: 1px solid var(--border);
@@ -42,24 +59,45 @@
   vertical-align: middle;
 }
 
-.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
 
-.table tbody tr:hover td { background: rgba(177, 186, 196, 0.04); }
+.table tbody tr:hover td {
+  background: rgba(177, 186, 196, 0.04);
+}
 
-.ruleName { font-weight: 500; }
+.ruleName {
+  font-weight: 500;
+}
 
-.muted { color: var(--fg-muted); font-size: 12px; }
+.muted {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
 .versionMono {
   font-family: ui-monospace, SFMono-Regular, monospace;
   font-size: 12px;
   color: var(--fg-muted);
 }
-.empty { text-align: center; color: var(--fg-muted); padding: 40px !important; }
+.empty {
+  text-align: center;
+  color: var(--fg-muted);
+  padding: 40px !important;
+}
 
 /* Form */
-.ruleForm { display: flex; flex-direction: column; gap: 16px; }
+.ruleForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 
-.formRow { display: flex; flex-direction: column; gap: 4px; }
+.formRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 
 .formRowGrid {
   display: grid;
@@ -67,7 +105,11 @@
   gap: 16px;
 }
 
-.formLabel { font-size: 12px; font-weight: 600; color: var(--fg-muted); }
+.formLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
 
 .formInput,
 .formSelect,
@@ -86,14 +128,33 @@
 
 .formInput:focus,
 .formSelect:focus,
-.formTextarea:focus { border-color: var(--accent); }
+.formTextarea:focus {
+  border-color: var(--accent);
+}
 
-.formTextarea { resize: vertical; }
+.formTextarea {
+  resize: vertical;
+}
 
-.formRowCheck { display: flex; align-items: center; }
-.checkLabel { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.formRowCheck {
+  display: flex;
+  align-items: center;
+}
+.checkLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
 
-.formActions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; border-top: 1px solid var(--border-muted); }
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-muted);
+}
 
 /* Clickable numbers */
 .clickableCount {
@@ -226,7 +287,9 @@
   tab-size: 2;
 }
 
-.testJsonEditor:focus { border-color: var(--accent); }
+.testJsonEditor:focus {
+  border-color: var(--accent);
+}
 
 .testError {
   padding: 8px 12px;
@@ -256,8 +319,12 @@
   margin-bottom: 4px;
 }
 
-.testResultMatch .testResultHeading { color: var(--success, #2ea043); }
-.testResultNoMatch .testResultHeading { color: var(--attention, #d4a018); }
+.testResultMatch .testResultHeading {
+  color: var(--success, #2ea043);
+}
+.testResultNoMatch .testResultHeading {
+  color: var(--attention, #d4a018);
+}
 
 .testResultReason {
   font-size: 13px;
@@ -283,4 +350,6 @@
   font-size: 12px;
 }
 
-.testMatchedFieldsList li { margin: 2px 0; }
+.testMatchedFieldsList li {
+  margin: 2px 0;
+}

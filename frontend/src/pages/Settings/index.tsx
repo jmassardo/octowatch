@@ -1,12 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  listSettings,
-  updateSetting,
-  deleteSetting,
-  getSettingsAuditTrail,
-} from '../../api/setup';
+import { listSettings, updateSetting, deleteSetting, getSettingsAuditTrail } from '../../api/setup';
 import type { AppSetting, SettingAuditEntry } from '../../api/setup';
 import { listNotificationConfigs } from '../../api/integrations';
 import { SyncPanel } from '../Integrations/SyncPanel';
@@ -96,7 +91,9 @@ function EditSettingForm({
         <input className={styles.formInput} value={setting.value} disabled />
       </div>
       <div className={styles.formRow}>
-        <label className={styles.formLabel} htmlFor="setting-value">New value</label>
+        <label className={styles.formLabel} htmlFor="setting-value">
+          New value
+        </label>
         <input
           id="setting-value"
           className={styles.formInput}
@@ -111,7 +108,9 @@ function EditSettingForm({
         </span>
       </div>
       <div className={styles.formRow}>
-        <label className={styles.formLabel} htmlFor="setting-description">Description (optional)</label>
+        <label className={styles.formLabel} htmlFor="setting-description">
+          Description (optional)
+        </label>
         <input
           id="setting-description"
           className={styles.formInput}
@@ -121,8 +120,12 @@ function EditSettingForm({
         />
       </div>
       <div className={styles.formActions}>
-        <Button type="button" onClick={onCancel}>Cancel</Button>
-        <Button variant="primary" type="submit" disabled={!value.trim()}>Save</Button>
+        <Button type="button" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button variant="primary" type="submit" disabled={!value.trim()}>
+          Save
+        </Button>
       </div>
     </form>
   );
@@ -133,13 +136,19 @@ function EditSettingForm({
 /* ------------------------------------------------------------------ */
 
 function AuditTrailTable() {
-  const { data: entries, isLoading, isError, refetch } = useQuery({
+  const {
+    data: entries,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['settings', 'audit-trail'],
     queryFn: getSettingsAuditTrail,
   });
 
   if (isLoading) return <Spinner />;
-  if (isError) return <ErrorBanner message="Failed to load audit trail" onRetry={() => refetch()} />;
+  if (isError)
+    return <ErrorBanner message="Failed to load audit trail" onRetry={() => refetch()} />;
 
   if (!entries || entries.length === 0) {
     return <div className={styles.empty}>No audit trail entries yet</div>;
@@ -250,14 +259,15 @@ function GitHubPane() {
   return (
     <div className={styles.featuresPane}>
       <p className={styles.featuresDescription}>
-        GitHub Enterprise connection and data import settings. Connection credentials
-        are configured during initial setup.
+        GitHub Enterprise connection and data import settings. Connection credentials are configured
+        during initial setup.
       </p>
 
       <div className={styles.integrationsSectionDivider}>
         <h3 className={styles.integrationsSectionTitle}>Audit Log Streaming</h3>
         <p className={styles.featuresDescription}>
-          Stream audit log events from GitHub Enterprise into OctoWatch via an S3-compatible endpoint.
+          Stream audit log events from GitHub Enterprise into OctoWatch via an S3-compatible
+          endpoint.
         </p>
       </div>
       <AuditStreamPanel />
@@ -287,26 +297,22 @@ const INTEGRATION_INFO: {
   {
     key: 'slack',
     label: 'Slack',
-    description:
-      'Send real-time alerts and weekly digest reports to Slack channels.',
+    description: 'Send real-time alerts and weekly digest reports to Slack channels.',
   },
   {
     key: 'sentinel',
     label: 'Microsoft Sentinel',
-    description:
-      'Forward normalized security events to Microsoft Sentinel for SIEM correlation.',
+    description: 'Forward normalized security events to Microsoft Sentinel for SIEM correlation.',
   },
   {
     key: 'splunk',
     label: 'Splunk',
-    description:
-      'Stream audit events and Copilot metrics to Splunk via HEC.',
+    description: 'Stream audit events and Copilot metrics to Splunk via HEC.',
   },
   {
     key: 'pagerduty',
     label: 'PagerDuty',
-    description:
-      'Trigger PagerDuty incidents for critical security detections.',
+    description: 'Trigger PagerDuty incidents for critical security detections.',
   },
 ];
 
@@ -350,15 +356,11 @@ function IntegrationsPane() {
         return configs.some((c) => c.channel_type === 'slack');
       case 'sentinel':
         return configs.some(
-          (c) =>
-            c.channel_type === 'webhook' &&
-            c.display_name.toLowerCase().includes('sentinel'),
+          (c) => c.channel_type === 'webhook' && c.display_name.toLowerCase().includes('sentinel'),
         );
       case 'splunk':
         return configs.some(
-          (c) =>
-            c.channel_type === 'webhook' &&
-            c.display_name.toLowerCase().includes('splunk'),
+          (c) => c.channel_type === 'webhook' && c.display_name.toLowerCase().includes('splunk'),
         );
       case 'pagerduty':
         return configs.some((c) => c.channel_type === 'pagerduty');
@@ -370,8 +372,8 @@ function IntegrationsPane() {
   return (
     <div className={styles.featuresPane}>
       <p className={styles.featuresDescription}>
-        Connect external services to extend OctoWatch capabilities. GitHub Enterprise
-        is always connected and managed via setup configuration.
+        Connect external services to extend OctoWatch capabilities. GitHub Enterprise is always
+        connected and managed via setup configuration.
       </p>
       <div className={styles.featuresList}>
         {INTEGRATION_INFO.map(({ key, label, description }) => {
@@ -391,10 +393,7 @@ function IntegrationsPane() {
                     </span>
                   )}
                   {!configured && (
-                    <span
-                      className={styles.integrationStatus}
-                      data-status="inactive"
-                    >
+                    <span className={styles.integrationStatus} data-status="inactive">
                       Not configured
                     </span>
                   )}
@@ -406,7 +405,11 @@ function IntegrationsPane() {
                   Configure
                 </Button>
               ) : (
-                <Button size="sm" variant="primary" onClick={() => navigate('/settings/integrations')}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => navigate('/settings/integrations')}
+                >
                   Set up
                 </Button>
               )}
@@ -414,7 +417,6 @@ function IntegrationsPane() {
           );
         })}
       </div>
-
     </div>
   );
 }
@@ -465,18 +467,31 @@ export function SettingsPage() {
   const qc = useQueryClient();
   const { tab: tabSlug } = useParams<{ tab: string }>();
   const navigate = useNavigate();
-  const activeTab: Category | 'Audit' | 'Features' | 'Integrations' = SLUG_TO_TAB[tabSlug ?? 'all'] ?? 'All';
+  const activeTab: Category | 'Audit' | 'Features' | 'Integrations' =
+    SLUG_TO_TAB[tabSlug ?? 'all'] ?? 'All';
   const [editTarget, setEditTarget] = useState<AppSetting | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppSetting | null>(null);
 
-  const { data: settings, isLoading, isError, refetch } = useQuery({
+  const {
+    data: settings,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['settings'],
     queryFn: listSettings,
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ key, value, description }: { key: string; value: string; description?: string }) =>
-      updateSetting(key, value, description),
+    mutationFn: ({
+      key,
+      value,
+      description,
+    }: {
+      key: string;
+      value: string;
+      description?: string;
+    }) => updateSetting(key, value, description),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings'] });
       qc.invalidateQueries({ queryKey: ['settings', 'audit-trail'] });
@@ -493,11 +508,17 @@ export function SettingsPage() {
     },
   });
 
-  const filteredSettings = settings?.filter(
-    (s: AppSetting) => activeTab === 'All' || s.category.toLowerCase() === (activeTab as string).toLowerCase(),
-  ) ?? [];
+  const filteredSettings =
+    settings?.filter(
+      (s: AppSetting) =>
+        activeTab === 'All' || s.category.toLowerCase() === (activeTab as string).toLowerCase(),
+    ) ?? [];
 
-  const isCategory = activeTab !== 'Audit' && activeTab !== 'Features' && activeTab !== 'Integrations' && activeTab !== 'GitHub';
+  const isCategory =
+    activeTab !== 'Audit' &&
+    activeTab !== 'Features' &&
+    activeTab !== 'Integrations' &&
+    activeTab !== 'GitHub';
 
   return (
     <div className={styles.page}>
@@ -588,8 +609,12 @@ export function SettingsPage() {
                       </td>
                       <td>
                         <div className={styles.cellActions}>
-                          <Button size="sm" onClick={() => setEditTarget(s)}>Edit</Button>
-                          <Button size="sm" variant="danger" onClick={() => setDeleteTarget(s)}>Reset</Button>
+                          <Button size="sm" onClick={() => setEditTarget(s)}>
+                            Edit
+                          </Button>
+                          <Button size="sm" variant="danger" onClick={() => setDeleteTarget(s)}>
+                            Reset
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -602,7 +627,11 @@ export function SettingsPage() {
       )}
 
       {/* Edit modal */}
-      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title={`Edit: ${editTarget?.key ?? ''}`}>
+      <Modal
+        open={!!editTarget}
+        onClose={() => setEditTarget(null)}
+        title={`Edit: ${editTarget?.key ?? ''}`}
+      >
         {editTarget && (
           <EditSettingForm
             setting={editTarget}

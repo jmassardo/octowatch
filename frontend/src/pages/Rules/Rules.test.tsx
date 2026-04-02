@@ -84,7 +84,15 @@ describe('RulesPage', () => {
     const headers = within(headerRow).getAllByRole('columnheader');
     const headerTexts = headers.map((h) => h.textContent?.replace(/[⇅↑↓]/g, '').trim());
 
-    expect(headerTexts).toEqual(['Status', 'Rule name', 'Logic', 'Severity', 'Detections (30d)', 'Version', '']);
+    expect(headerTexts).toEqual([
+      'Status',
+      'Rule name',
+      'Logic',
+      'Severity',
+      'Detections (30d)',
+      'Version',
+      '',
+    ]);
   });
 
   it('renders all 3 rules with names', async () => {

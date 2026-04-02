@@ -1,7 +1,9 @@
 import { api } from './client';
 import type { ReportEnvelope, ReportParams, ReportCatalogEntry } from '../types/reports';
 
-function toQueryParams(params: ReportParams): Record<string, string | number | boolean | undefined> {
+function toQueryParams(
+  params: ReportParams,
+): Record<string, string | number | boolean | undefined> {
   const { window_days, granularity, org } = params;
   return { window_days, granularity, org } as Record<string, string | number | boolean | undefined>;
 }

@@ -19,7 +19,8 @@ let mockQueryReturn: {
 };
 
 vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
+  const actual =
+    await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
   return {
     ...actual,
     useQuery: () => mockQueryReturn,
@@ -91,9 +92,7 @@ describe('HealthSettingsPage', () => {
     renderPage();
     expect(screen.getByText('Health Settings')).toBeInTheDocument();
     expect(
-      screen.getByText(
-        /Configure thresholds, escalation behavior, and data source options/,
-      ),
+      screen.getByText(/Configure thresholds, escalation behavior, and data source options/),
     ).toBeInTheDocument();
   });
 
@@ -199,9 +198,7 @@ describe('HealthSettingsPage', () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getByRole('button', { name: /Save settings/ }));
-    expect(mockMutate).toHaveBeenCalledWith(
-      expect.objectContaining({ staleRepoDays: 90 }),
-    );
+    expect(mockMutate).toHaveBeenCalledWith(expect.objectContaining({ staleRepoDays: 90 }));
   });
 
   it('shows toast after saving', async () => {

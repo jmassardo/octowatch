@@ -40,8 +40,10 @@ class TicketingConfig(Base):
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=text("NOW()"),
-        onupdate=text("NOW()")
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        onupdate=text("NOW()"),
     )
 
     tickets: Mapped[list[Ticket]] = relationship("Ticket", back_populates="config")
@@ -90,8 +92,10 @@ class NotificationConfig(Base):
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=text("NOW()"),
-        onupdate=text("NOW()")
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        onupdate=text("NOW()"),
     )
 
 

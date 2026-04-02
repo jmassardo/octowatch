@@ -32,7 +32,11 @@ function sevVariant(sev: string) {
   return 'success' as const;
 }
 
-function boolDisplay(val: boolean | null | undefined, trueLabel = 'Enabled', falseLabel = 'Disabled') {
+function boolDisplay(
+  val: boolean | null | undefined,
+  trueLabel = 'Enabled',
+  falseLabel = 'Disabled',
+) {
   if (val === null || val === undefined) return 'Unknown';
   return val ? trueLabel : falseLabel;
 }
@@ -65,7 +69,13 @@ function Breadcrumb({ items }: { items: PostureResponse['breadcrumb'] }) {
 
 /* ── Check row ─────────────────────────────────────────────────────── */
 
-function CheckRow({ check, navigate }: { check: PostureCheckResult; navigate: (path: string) => void }) {
+function CheckRow({
+  check,
+  navigate,
+}: {
+  check: PostureCheckResult;
+  navigate: (path: string) => void;
+}) {
   const passing = check.status === 'pass';
   return (
     <div
@@ -91,10 +101,11 @@ function CheckRow({ check, navigate }: { check: PostureCheckResult; navigate: (p
       </div>
       <div className={styles.checkMeta}>
         <Label variant={sevVariant(check.severity)}>{check.severity}</Label>
-        {passing
-          ? <Label variant="success">Passing</Label>
-          : <Label variant={sevVariant(check.severity)}>{check.status}</Label>
-        }
+        {passing ? (
+          <Label variant="success">Passing</Label>
+        ) : (
+          <Label variant={sevVariant(check.severity)}>{check.status}</Label>
+        )}
       </div>
     </div>
   );
@@ -103,12 +114,21 @@ function CheckRow({ check, navigate }: { check: PostureCheckResult; navigate: (p
 /* ── Filter bar ────────────────────────────────────────────────────── */
 
 function Filters({
-  severity, setSeverity, statusFilter, setStatusFilter, showVisibility, visibility, setVisibility,
+  severity,
+  setSeverity,
+  statusFilter,
+  setStatusFilter,
+  showVisibility,
+  visibility,
+  setVisibility,
 }: {
-  severity: string; setSeverity: (v: string) => void;
-  statusFilter: string; setStatusFilter: (v: string) => void;
+  severity: string;
+  setSeverity: (v: string) => void;
+  statusFilter: string;
+  setStatusFilter: (v: string) => void;
   showVisibility?: boolean;
-  visibility?: string; setVisibility?: (v: string) => void;
+  visibility?: string;
+  setVisibility?: (v: string) => void;
 }) {
   return (
     <div className={styles.filters}>
@@ -147,8 +167,18 @@ function filterChecks(checks: PostureCheckResult[], severity: string, statusFilt
 
 /* ── Enterprise View ───────────────────────────────────────────────── */
 
-function EnterpriseView({ data, search, setSearch, page, setPage }: {
-  data: PostureResponse; search: string; setSearch: (v: string) => void; page: number; setPage: (p: number) => void;
+function EnterpriseView({
+  data,
+  search,
+  setSearch,
+  page,
+  setPage,
+}: {
+  data: PostureResponse;
+  search: string;
+  setSearch: (v: string) => void;
+  page: number;
+  setPage: (p: number) => void;
 }) {
   const navigate = useNavigate();
   const [severity, setSeverity] = useState('');
@@ -168,7 +198,8 @@ function EnterpriseView({ data, search, setSearch, page, setPage }: {
         <div className={styles.headerInfo}>
           <div className={styles.headerTitle}>Enterprise Security Posture</div>
           <div className={styles.headerSub}>
-            {data.total} org{data.total !== 1 ? 's' : ''} · Last synced {formatDateOnly(data.last_sync_at)}
+            {data.total} org{data.total !== 1 ? 's' : ''} · Last synced{' '}
+            {formatDateOnly(data.last_sync_at)}
           </div>
         </div>
       </div>
@@ -179,13 +210,30 @@ function EnterpriseView({ data, search, setSearch, page, setPage }: {
             placeholder="Search organizations..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--canvas-subtle)', color: 'var(--fg)', fontSize: 13, width: 220 }}
+            style={{
+              padding: '4px 8px',
+              borderRadius: 6,
+              border: '1px solid var(--border)',
+              background: 'var(--canvas-subtle)',
+              color: 'var(--fg)',
+              fontSize: 13,
+              width: 220,
+            }}
           />
         </div>
-        <Filters severity={severity} setSeverity={setSeverity} statusFilter={statusFilter} setStatusFilter={setStatusFilter} />
+        <Filters
+          severity={severity}
+          setSeverity={setSeverity}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+        />
         <div className={styles.orgGrid}>
           {filteredOrgs.map((org) => (
-            <div key={org.org_login} className={styles.orgCard} onClick={() => navigate(`/posture/${org.org_login}`)}>
+            <div
+              key={org.org_login}
+              className={styles.orgCard}
+              onClick={() => navigate(`/posture/${org.org_login}`)}
+            >
               <div className={styles.orgCardHeader}>
                 <span className={styles.orgName}>{org.org_login}</span>
                 <span className={styles.orgMiniScore} style={{ color: scoreColor(org.score) }}>
@@ -193,28 +241,48 @@ function EnterpriseView({ data, search, setSearch, page, setPage }: {
                 </span>
               </div>
               <div className={styles.scoreBar}>
-                <div className={styles.scoreBarFill} style={{ width: `${org.score}%`, background: scoreColor(org.score) }} />
+                <div
+                  className={styles.scoreBarFill}
+                  style={{ width: `${org.score}%`, background: scoreColor(org.score) }}
+                />
               </div>
               <div className={styles.orgMeta}>
                 {org.repo_summary && (
                   <>
                     <span>{org.repo_summary.total} repos</span>
-                    {org.repo_summary.failing > 0 && <span style={{ color: 'var(--danger)' }}>{org.repo_summary.failing} failing</span>}
-                    {org.repo_summary.warning > 0 && <span style={{ color: 'var(--attention)' }}>{org.repo_summary.warning} warning</span>}
-                    <span style={{ color: 'var(--success)' }}>{org.repo_summary.passing} passing</span>
+                    {org.repo_summary.failing > 0 && (
+                      <span style={{ color: 'var(--danger)' }}>
+                        {org.repo_summary.failing} failing
+                      </span>
+                    )}
+                    {org.repo_summary.warning > 0 && (
+                      <span style={{ color: 'var(--attention)' }}>
+                        {org.repo_summary.warning} warning
+                      </span>
+                    )}
+                    <span style={{ color: 'var(--success)' }}>
+                      {org.repo_summary.passing} passing
+                    </span>
                   </>
                 )}
               </div>
               {severity && (
                 <div style={{ marginTop: 8, fontSize: 12, color: 'var(--fg-muted)' }}>
-                  {org.checks.filter((c) => c.severity === severity && c.status !== 'pass').length} {severity} finding(s)
+                  {org.checks.filter((c) => c.severity === severity && c.status !== 'pass').length}{' '}
+                  {severity} finding(s)
                 </div>
               )}
             </div>
           ))}
         </div>
 
-        <Pagination page={page} pageSize={data.page_size} total={data.total} hasNext={data.has_next} onPageChange={setPage} />
+        <Pagination
+          page={page}
+          pageSize={data.page_size}
+          total={data.total}
+          hasNext={data.has_next}
+          onPageChange={setPage}
+        />
 
         {/* Top findings across enterprise */}
         {(() => {
@@ -222,7 +290,13 @@ function EnterpriseView({ data, search, setSearch, page, setPage }: {
           const sorted = allChecks
             .filter((c) => !severity || c.severity === severity)
             .sort((a, b) => {
-              const w: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+              const w: Record<string, number> = {
+                critical: 0,
+                high: 1,
+                medium: 2,
+                low: 3,
+                info: 4,
+              };
               return (w[a.severity] ?? 5) - (w[b.severity] ?? 5);
             });
           if (!sorted.length) return null;
@@ -230,7 +304,9 @@ function EnterpriseView({ data, search, setSearch, page, setPage }: {
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Top Findings</div>
               <div className={styles.checkList}>
-                {sorted.slice(0, 20).map((c, i) => <CheckRow key={`${c.rule_id}-${i}`} check={c} navigate={navigate} />)}
+                {sorted.slice(0, 20).map((c, i) => (
+                  <CheckRow key={`${c.rule_id}-${i}`} check={c} navigate={navigate} />
+                ))}
               </div>
             </div>
           );
@@ -242,8 +318,20 @@ function EnterpriseView({ data, search, setSearch, page, setPage }: {
 
 /* ── Org View ──────────────────────────────────────────────────────── */
 
-function OrgView({ data, search, setSearch, page, setPage, onNavigate }: {
-  data: PostureResponse; search: string; setSearch: (v: string) => void; page: number; setPage: (p: number) => void; onNavigate: () => void;
+function OrgView({
+  data,
+  search,
+  setSearch,
+  page,
+  setPage,
+  onNavigate,
+}: {
+  data: PostureResponse;
+  search: string;
+  setSearch: (v: string) => void;
+  page: number;
+  setPage: (p: number) => void;
+  onNavigate: () => void;
 }) {
   const navigate = useNavigate();
   const org = data.org!;
@@ -254,8 +342,11 @@ function OrgView({ data, search, setSearch, page, setPage, onNavigate }: {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const toggleSort = (col: typeof sortCol) => {
-    if (sortCol === col) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
-    else { setSortCol(col); setSortDir(col === 'score' ? 'asc' : 'asc'); }
+    if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setSortCol(col);
+      setSortDir(col === 'score' ? 'asc' : 'asc');
+    }
   };
 
   const checks = filterChecks(org.checks, severity, statusFilter);
@@ -264,7 +355,8 @@ function OrgView({ data, search, setSearch, page, setPage, onNavigate }: {
   repos = [...repos].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1;
     if (sortCol === 'score') return (a.score - b.score) * dir;
-    if (sortCol === 'visibility') return (a.visibility ?? '').localeCompare(b.visibility ?? '') * dir;
+    if (sortCol === 'visibility')
+      return (a.visibility ?? '').localeCompare(b.visibility ?? '') * dir;
     return a.repo_name.localeCompare(b.repo_name) * dir;
   });
 
@@ -285,7 +377,9 @@ function OrgView({ data, search, setSearch, page, setPage, onNavigate }: {
           <div className={styles.metaGrid}>
             <div className={styles.metaItem}>
               <div className={styles.metaLabel}>2FA Required</div>
-              <div className={styles.metaValue}>{boolDisplay(org.two_factor_required, 'Required', 'Not Required')}</div>
+              <div className={styles.metaValue}>
+                {boolDisplay(org.two_factor_required, 'Required', 'Not Required')}
+              </div>
             </div>
             <div className={styles.metaItem}>
               <div className={styles.metaLabel}>Default Repo Permission</div>
@@ -293,11 +387,15 @@ function OrgView({ data, search, setSearch, page, setPage, onNavigate }: {
             </div>
             <div className={styles.metaItem}>
               <div className={styles.metaLabel}>Private Fork</div>
-              <div className={styles.metaValue}>{boolDisplay(org.members_can_fork_private_repos, 'Allowed', 'Blocked')}</div>
+              <div className={styles.metaValue}>
+                {boolDisplay(org.members_can_fork_private_repos, 'Allowed', 'Blocked')}
+              </div>
             </div>
             <div className={styles.metaItem}>
               <div className={styles.metaLabel}>Public Repo Creation</div>
-              <div className={styles.metaValue}>{boolDisplay(org.members_can_create_public_repos, 'Allowed', 'Blocked')}</div>
+              <div className={styles.metaValue}>
+                {boolDisplay(org.members_can_create_public_repos, 'Allowed', 'Blocked')}
+              </div>
             </div>
             <div className={styles.metaItem}>
               <div className={styles.metaLabel}>IP Allow List</div>
@@ -309,9 +407,16 @@ function OrgView({ data, search, setSearch, page, setPage, onNavigate }: {
         {/* Org-level checks */}
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Organization Security Checks</div>
-          <Filters severity={severity} setSeverity={setSeverity} statusFilter={statusFilter} setStatusFilter={setStatusFilter} />
+          <Filters
+            severity={severity}
+            setSeverity={setSeverity}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+          />
           <div className={styles.checkList}>
-            {checks.map((c, i) => <CheckRow key={`${c.rule_id}-${i}`} check={c} navigate={navigate} />)}
+            {checks.map((c, i) => (
+              <CheckRow key={`${c.rule_id}-${i}`} check={c} navigate={navigate} />
+            ))}
             {checks.length === 0 && <div className={styles.empty}>No checks match filters</div>}
           </div>
         </div>
@@ -325,20 +430,38 @@ function OrgView({ data, search, setSearch, page, setPage, onNavigate }: {
               placeholder="Search repositories..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--canvas-subtle)', color: 'var(--fg)', fontSize: 13, width: 220 }}
+              style={{
+                padding: '4px 8px',
+                borderRadius: 6,
+                border: '1px solid var(--border)',
+                background: 'var(--canvas-subtle)',
+                color: 'var(--fg)',
+                fontSize: 13,
+                width: 220,
+              }}
             />
           </div>
           <Filters
-            severity="" setSeverity={() => {}}
-            statusFilter="" setStatusFilter={() => {}}
-            showVisibility visibility={visibility} setVisibility={setVisibility}
+            severity=""
+            setSeverity={() => {}}
+            statusFilter=""
+            setStatusFilter={() => {}}
+            showVisibility
+            visibility={visibility}
+            setVisibility={setVisibility}
           />
           <table className={styles.repoTable}>
             <thead>
               <tr>
-                <th onClick={() => toggleSort('name')}>Repository {sortCol === 'name' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                <th onClick={() => toggleSort('score')}>Score {sortCol === 'score' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                <th onClick={() => toggleSort('visibility')}>Visibility {sortCol === 'visibility' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                <th onClick={() => toggleSort('name')}>
+                  Repository {sortCol === 'name' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
+                <th onClick={() => toggleSort('score')}>
+                  Score {sortCol === 'score' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
+                <th onClick={() => toggleSort('visibility')}>
+                  Visibility {sortCol === 'visibility' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
                 <th>Checks</th>
                 <th>Detections</th>
               </tr>
@@ -348,30 +471,62 @@ function OrgView({ data, search, setSearch, page, setPage, onNavigate }: {
                 const failing = r.checks.filter((c) => c.status !== 'pass').length;
                 const passing = r.checks.filter((c) => c.status === 'pass').length;
                 return (
-                  <tr key={r.repo_name} onClick={() => { onNavigate(); navigate(`/posture/${r.org}/${r.repo_name}`); }}>
+                  <tr
+                    key={r.repo_name}
+                    onClick={() => {
+                      onNavigate();
+                      navigate(`/posture/${r.org}/${r.repo_name}`);
+                    }}
+                  >
                     <td>
                       <span className={styles.repoName}>{r.repo_name}</span>
-                      {r.archived && <span style={{ marginLeft: 6 }}><Label variant="muted">archived</Label></span>}
-                      {r.fork && <span style={{ marginLeft: 6 }}><Label variant="muted">fork</Label></span>}
+                      {r.archived && (
+                        <span style={{ marginLeft: 6 }}>
+                          <Label variant="muted">archived</Label>
+                        </span>
+                      )}
+                      {r.fork && (
+                        <span style={{ marginLeft: 6 }}>
+                          <Label variant="muted">fork</Label>
+                        </span>
+                      )}
                     </td>
                     <td>
-                      <span style={{ color: scoreColor(r.score), fontWeight: 600 }}>{Math.round(r.score)}</span>
+                      <span style={{ color: scoreColor(r.score), fontWeight: 600 }}>
+                        {Math.round(r.score)}
+                      </span>
                     </td>
-                    <td><Label variant={r.visibility === 'public' ? 'attention' : 'muted'}>{r.visibility ?? '—'}</Label></td>
+                    <td>
+                      <Label variant={r.visibility === 'public' ? 'attention' : 'muted'}>
+                        {r.visibility ?? '—'}
+                      </Label>
+                    </td>
                     <td>
                       <span style={{ color: 'var(--success)' }}>{passing}✓</span>
-                      {failing > 0 && <span style={{ color: 'var(--danger)', marginLeft: 6 }}>{failing}✕</span>}
+                      {failing > 0 && (
+                        <span style={{ color: 'var(--danger)', marginLeft: 6 }}>{failing}✕</span>
+                      )}
                     </td>
                     <td>{r.detection_count || '—'}</td>
                   </tr>
                 );
               })}
               {repos.length === 0 && (
-                <tr><td colSpan={5} className={styles.empty}>No repositories found</td></tr>
+                <tr>
+                  <td colSpan={5} className={styles.empty}>
+                    No repositories found
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
-          <Pagination page={page} pageSize={data.page_size} total={data.total} hasNext={data.has_next} onPageChange={setPage} />
+          <Pagination
+            page={page}
+            pageSize={data.page_size}
+            total={data.total}
+            hasNext={data.has_next}
+            onPageChange={setPage}
+          />
         </div>
       </div>
     </>
@@ -433,9 +588,16 @@ function RepoView({ data }: { data: PostureResponse }) {
         {/* All checks */}
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Security Checks</div>
-          <Filters severity={severity} setSeverity={setSeverity} statusFilter={statusFilter} setStatusFilter={setStatusFilter} />
+          <Filters
+            severity={severity}
+            setSeverity={setSeverity}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+          />
           <div className={styles.checkList}>
-            {checks.map((c, i) => <CheckRow key={`${c.rule_id}-${i}`} check={c} navigate={navigate} />)}
+            {checks.map((c, i) => (
+              <CheckRow key={`${c.rule_id}-${i}`} check={c} navigate={navigate} />
+            ))}
             {checks.length === 0 && <div className={styles.empty}>No checks match filters</div>}
           </div>
         </div>
@@ -455,20 +617,57 @@ export function PosturePage() {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['posture', org ?? '', repo ?? '', page, search],
-    queryFn: () => getPosture({ org, repo, search: search || undefined, page, page_size: PAGE_SIZE }),
+    queryFn: () =>
+      getPosture({ org, repo, search: search || undefined, page, page_size: PAGE_SIZE }),
   });
 
   // Reset page when navigating to different level
-  const resetPage = () => { setPage(1); setSearch(''); };
+  const resetPage = () => {
+    setPage(1);
+    setSearch('');
+  };
 
-  if (isLoading) return <div className={styles.loading}><Spinner /></div>;
-  if (isError || !data) return <div className={styles.content}><ErrorBanner message="Failed to load posture data" onRetry={refetch} /></div>;
+  if (isLoading)
+    return (
+      <div className={styles.loading}>
+        <Spinner />
+      </div>
+    );
+  if (isError || !data)
+    return (
+      <div className={styles.content}>
+        <ErrorBanner message="Failed to load posture data" onRetry={refetch} />
+      </div>
+    );
 
   return (
     <div className={styles.page}>
       <Breadcrumb items={data.breadcrumb} />
-      {data.level === 'enterprise' && <EnterpriseView data={data} search={search} setSearch={(v) => { setSearch(v); setPage(1); }} page={page} setPage={setPage} />}
-      {data.level === 'org' && <OrgView data={data} search={search} setSearch={(v) => { setSearch(v); setPage(1); }} page={page} setPage={setPage} onNavigate={resetPage} />}
+      {data.level === 'enterprise' && (
+        <EnterpriseView
+          data={data}
+          search={search}
+          setSearch={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          page={page}
+          setPage={setPage}
+        />
+      )}
+      {data.level === 'org' && (
+        <OrgView
+          data={data}
+          search={search}
+          setSearch={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          page={page}
+          setPage={setPage}
+          onNavigate={resetPage}
+        />
+      )}
       {data.level === 'repo' && <RepoView data={data} />}
     </div>
   );

@@ -26,7 +26,11 @@ export function ReportsPage() {
   const [viewReport, setViewReport] = useState<string | null>(null);
   const params: ReportParams = { window_days: windowDays, granularity: 'daily' };
 
-  const { data: mauData, isLoading: mauLoading, isError: mauError } = useQuery({
+  const {
+    data: mauData,
+    isLoading: mauLoading,
+    isError: mauError,
+  } = useQuery({
     queryKey: ['reports', 'mau', windowDays],
     queryFn: () => getMauReport(params),
   });
@@ -88,7 +92,7 @@ export function ReportsPage() {
     string,
     { title: string; dataSource: string; data: readonly Record<string, unknown>[] | undefined }
   > = {
-    'mau': {
+    mau: {
       title: 'Monthly Active Users',
       dataSource: mauData?.data_source ?? 'Audit Events',
       data: mauData?.data,
@@ -193,13 +197,9 @@ export function ReportsPage() {
                 >
                   {r.title}
                 </div>
-                {r.description && (
-                  <div className={styles.reportDescription}>{r.description}</div>
-                )}
+                {r.description && <div className={styles.reportDescription}>{r.description}</div>}
                 <div className={styles.reportDate}>
-                  {r.generated_at
-                    ? `Generated ${formatDateOnly(r.generated_at)} · `
-                    : ''}
+                  {r.generated_at ? `Generated ${formatDateOnly(r.generated_at)} · ` : ''}
                   {r.status}
                 </div>
                 <div className={styles.reportTags}>

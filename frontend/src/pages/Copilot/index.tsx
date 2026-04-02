@@ -13,7 +13,13 @@ import { LicensePane } from './LicensePane';
 import { AnomaliesPane } from './AnomaliesPane';
 import styles from './Copilot.module.css';
 
-const VALID_TABS: readonly CopilotTab[] = ['overview', 'adoption', 'models', 'license', 'anomalies'];
+const VALID_TABS: readonly CopilotTab[] = [
+  'overview',
+  'adoption',
+  'models',
+  'license',
+  'anomalies',
+];
 
 export function CopilotPage() {
   const { tab } = useParams<{ tab: string }>();
@@ -50,7 +56,11 @@ export function CopilotPage() {
       <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--fg-muted)' }}>
         <h2>Copilot Insights is disabled</h2>
         <p style={{ marginTop: '0.75rem' }}>
-          Enable it in <a href="/settings/features" style={{ color: 'var(--accent)' }}>Settings → Features</a> to view Copilot metrics.
+          Enable it in{' '}
+          <a href="/settings/features" style={{ color: 'var(--accent)' }}>
+            Settings → Features
+          </a>{' '}
+          to view Copilot metrics.
         </p>
       </div>
     );
@@ -88,4 +98,3 @@ export function CopilotPage() {
     </div>
   );
 }
-

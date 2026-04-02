@@ -11,12 +11,66 @@ import { DevActivityPage } from './index';
 const { mockDevelopers } = vi.hoisted(() => {
   // alice has ~53% share (10/19) to trigger the >40% warning
   const mockDevelopers = [
-    { login: 'alice', event_count: 10, pr_count: 10, review_count: 0, top_repos: ['repo-a'], repo_count: 1, last_active: new Date(Date.now() - 86_400_000).toISOString(), weekly_counts: [0, 0, 2, 2, 2, 2, 2] },
-    { login: 'bob', event_count: 3, pr_count: 3, review_count: 0, top_repos: ['repo-b'], repo_count: 1, last_active: new Date(Date.now() - 2 * 86_400_000).toISOString(), weekly_counts: [0, 0, 1, 1, 1, 0, 0] },
-    { login: 'carol', event_count: 2, pr_count: 2, review_count: 0, top_repos: ['repo-c'], repo_count: 1, last_active: new Date(Date.now() - 3 * 86_400_000).toISOString(), weekly_counts: [0, 0, 1, 1, 0, 0, 0] },
-    { login: 'dave', event_count: 2, pr_count: 0, review_count: 0, top_repos: ['repo-d'], repo_count: 1, last_active: new Date(Date.now() - 4 * 86_400_000).toISOString(), weekly_counts: [0, 0, 0, 1, 1, 0, 0] },
-    { login: 'eve', event_count: 1, pr_count: 0, review_count: 0, top_repos: ['repo-e'], repo_count: 1, last_active: new Date(Date.now() - 5 * 86_400_000).toISOString(), weekly_counts: [0, 0, 0, 0, 1, 0, 0] },
-    { login: 'frank', event_count: 1, pr_count: 0, review_count: 0, top_repos: ['repo-f'], repo_count: 1, last_active: new Date(Date.now() - 6 * 86_400_000).toISOString(), weekly_counts: [0, 0, 0, 0, 0, 1, 0] },
+    {
+      login: 'alice',
+      event_count: 10,
+      pr_count: 10,
+      review_count: 0,
+      top_repos: ['repo-a'],
+      repo_count: 1,
+      last_active: new Date(Date.now() - 86_400_000).toISOString(),
+      weekly_counts: [0, 0, 2, 2, 2, 2, 2],
+    },
+    {
+      login: 'bob',
+      event_count: 3,
+      pr_count: 3,
+      review_count: 0,
+      top_repos: ['repo-b'],
+      repo_count: 1,
+      last_active: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+      weekly_counts: [0, 0, 1, 1, 1, 0, 0],
+    },
+    {
+      login: 'carol',
+      event_count: 2,
+      pr_count: 2,
+      review_count: 0,
+      top_repos: ['repo-c'],
+      repo_count: 1,
+      last_active: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+      weekly_counts: [0, 0, 1, 1, 0, 0, 0],
+    },
+    {
+      login: 'dave',
+      event_count: 2,
+      pr_count: 0,
+      review_count: 0,
+      top_repos: ['repo-d'],
+      repo_count: 1,
+      last_active: new Date(Date.now() - 4 * 86_400_000).toISOString(),
+      weekly_counts: [0, 0, 0, 1, 1, 0, 0],
+    },
+    {
+      login: 'eve',
+      event_count: 1,
+      pr_count: 0,
+      review_count: 0,
+      top_repos: ['repo-e'],
+      repo_count: 1,
+      last_active: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+      weekly_counts: [0, 0, 0, 0, 1, 0, 0],
+    },
+    {
+      login: 'frank',
+      event_count: 1,
+      pr_count: 0,
+      review_count: 0,
+      top_repos: ['repo-f'],
+      repo_count: 1,
+      last_active: new Date(Date.now() - 6 * 86_400_000).toISOString(),
+      weekly_counts: [0, 0, 0, 0, 0, 1, 0],
+    },
   ];
 
   return { mockDevelopers };
@@ -53,9 +107,7 @@ vi.mock('../../api/devActivity', () => ({
         { actor: 'github-actions[bot]', count: 352, is_bot: true },
         { actor: 'jmassardo', count: 1, is_bot: false },
       ],
-      top_pushers: [
-        { actor: 'jmassardo', count: 158, repos: ['org/repo-a', 'org/repo-b'] },
-      ],
+      top_pushers: [{ actor: 'jmassardo', count: 158, repos: ['org/repo-a', 'org/repo-b'] }],
       daily_trend: [
         { date: '2026-03-20', clones: 10, pushes: 5, fetches: 1 },
         { date: '2026-03-21', clones: 8, pushes: 3, fetches: 0 },
@@ -102,7 +154,12 @@ describe('DevActivityPage', () => {
     const { getTeams } = await import('../../api/healthSignals');
     vi.mocked(getTeams).mockResolvedValueOnce({
       teams: [
-        { org: 'test-org', team_slug: 'platform', team_name: 'platform-team', members: ['alice', 'bob'] },
+        {
+          org: 'test-org',
+          team_slug: 'platform',
+          team_name: 'platform-team',
+          members: ['alice', 'bob'],
+        },
         { org: 'test-org', team_slug: 'backend', team_name: 'backend-team', members: ['carol'] },
       ],
     });
@@ -117,9 +174,7 @@ describe('DevActivityPage', () => {
   it('renders "Work distribution" section title', async () => {
     renderWithProviders(<DevActivityPage />);
 
-    expect(
-      await screen.findByText(/Work distribution — last 30 days/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Work distribution — last 30 days/)).toBeInTheDocument();
   });
 
   it('PR authorship bars are clickable with role="button" and clickableBar class', async () => {
@@ -206,9 +261,7 @@ describe('DevActivityPage', () => {
 
     renderWithProviders(<DevActivityPage />);
 
-    expect(
-      await screen.findByText('No developer activity data found.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('No developer activity data found.')).toBeInTheDocument();
   });
 
   it('opens developer detail drawer when a card is clicked', async () => {
@@ -345,9 +398,7 @@ describe('DevActivityPage', () => {
   it('renders "Platform usage" section title', async () => {
     renderWithProviders(<DevActivityPage />);
 
-    expect(
-      await screen.findByText(/Platform usage — last 30 days/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Platform usage — last 30 days/)).toBeInTheDocument();
   });
 
   it('renders Git operations card with metric values', async () => {
@@ -428,9 +479,7 @@ describe('DevActivityPage', () => {
           { actor: 'admin-user', count: 200 },
           { actor: 'dev-user', count: 100 },
         ],
-        top_endpoints: [
-          { endpoint: 'GET /repos', count: 300 },
-        ],
+        top_endpoints: [{ endpoint: 'GET /repos', count: 300 }],
         daily_trend: [
           { date: '2026-03-20', requests: 250 },
           { date: '2026-03-21', requests: 250 },

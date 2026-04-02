@@ -49,7 +49,10 @@ function WorkflowHealthTable({ workflows }: { workflows: WorkflowRow[] }) {
           <tbody>
             {workflows.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}>
+                <td
+                  colSpan={7}
+                  style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
+                >
                   No workflow data available
                 </td>
               </tr>
@@ -98,7 +101,10 @@ function RunnerFleetTable({ runners }: { runners: RunnerRow[] }) {
           <tbody>
             {runners.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}>
+                <td
+                  colSpan={5}
+                  style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
+                >
                   No runner data available
                 </td>
               </tr>
@@ -216,14 +222,8 @@ export function OpsHealthPane() {
             label="Policy overrides"
             accent={branch != null && branch.policy_overrides > 0}
           />
-          <MetricCard
-            value={String(branch?.modified ?? 0)}
-            label="Modified"
-          />
-          <MetricCard
-            value={String(branch?.distinct_repos_affected ?? 0)}
-            label="Repos affected"
-          />
+          <MetricCard value={String(branch?.modified ?? 0)} label="Modified" />
+          <MetricCard value={String(branch?.distinct_repos_affected ?? 0)} label="Repos affected" />
         </div>
       </div>
 
@@ -231,22 +231,13 @@ export function OpsHealthPane() {
       <div>
         <div className={styles.sectionTitle}>Copilot governance</div>
         <div className={styles.sectionSub}>
-          Seat management events derived from{' '}
-          <code className={styles.codeSnippet}>copilot.*</code> events.
+          Seat management events derived from <code className={styles.codeSnippet}>copilot.*</code>{' '}
+          events.
         </div>
         <div className={styles.metricGrid}>
-          <MetricCard
-            value={String(copilot?.seats_granted_90d ?? 0)}
-            label="Seats granted (90d)"
-          />
-          <MetricCard
-            value={String(copilot?.seats_removed ?? 0)}
-            label="Seats removed"
-          />
-          <MetricCard
-            value={String(copilot?.unique_users ?? 0)}
-            label="Unique users"
-          />
+          <MetricCard value={String(copilot?.seats_granted_90d ?? 0)} label="Seats granted (90d)" />
+          <MetricCard value={String(copilot?.seats_removed ?? 0)} label="Seats removed" />
+          <MetricCard value={String(copilot?.unique_users ?? 0)} label="Unique users" />
         </div>
       </div>
 
@@ -267,10 +258,7 @@ export function OpsHealthPane() {
             value={String(codespaces?.large_machine_count ?? 0)}
             label="Large machine count"
           />
-          <MetricCard
-            value={String(codespaces?.unique_users ?? 0)}
-            label="Unique users"
-          />
+          <MetricCard value={String(codespaces?.unique_users ?? 0)} label="Unique users" />
         </div>
       </div>
 

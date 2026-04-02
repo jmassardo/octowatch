@@ -54,7 +54,9 @@
   border-radius: 16px;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .orgTab:hover {
@@ -85,7 +87,9 @@
   border-radius: 6px;
   cursor: pointer;
   white-space: nowrap;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .addOrgBtn:hover {
@@ -176,7 +180,9 @@
   border: none;
   cursor: pointer;
   text-align: left;
-  transition: background 0.1s, color 0.1s;
+  transition:
+    background 0.1s,
+    color 0.1s;
 }
 
 .orgDropdownItem:hover {
@@ -299,7 +305,9 @@
   cursor: pointer;
   font-family: inherit;
   text-align: left;
-  transition: background 0.1s, color 0.1s;
+  transition:
+    background 0.1s,
+    color 0.1s;
 }
 
 .menuItem:hover {

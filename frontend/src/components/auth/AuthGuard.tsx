@@ -16,7 +16,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (setupLoading || isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <div
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}
+      >
         <Spinner size={32} />
       </div>
     );

@@ -35,7 +35,10 @@ interface MarketplaceIntegration {
 function GitHubEnterpriseIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 2a10 10 0 00-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.56 9.56 0 0112 6.84c.85 0 1.71.12 2.51.34 1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0012 2z" fill="white" />
+      <path
+        d="M12 2a10 10 0 00-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.56 9.56 0 0112 6.84c.85 0 1.71.12 2.51.34 1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0012 2z"
+        fill="white"
+      />
     </svg>
   );
 }
@@ -81,8 +84,20 @@ function PagerDutyIcon() {
 function JiraIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 13l4-4 2 2 6-6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M14 5h6v6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M6 13l4-4 2 2 6-6"
+        stroke="white"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 5h6v6"
+        stroke="white"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -102,12 +117,21 @@ function statusMeta(status: IntegrationStatus): { label: string; className: stri
   }
 }
 
-function MktCard({ integration, onConfigure }: { integration: MarketplaceIntegration; onConfigure?: () => void }) {
+function MktCard({
+  integration,
+  onConfigure,
+}: {
+  integration: MarketplaceIntegration;
+  onConfigure?: () => void;
+}) {
   const { label, className } = statusMeta(integration.status);
   const isInstalled = integration.status !== 'not_installed';
 
   return (
-    <div className={styles.mktCard} data-testid={`mkt-card-${integration.name.toLowerCase().replace(/\s+/g, '-')}`}>
+    <div
+      className={styles.mktCard}
+      data-testid={`mkt-card-${integration.name.toLowerCase().replace(/\s+/g, '-')}`}
+    >
       <div className={styles.mktCardHeader}>
         <div className={styles.mktCardIcon} style={{ backgroundColor: integration.iconBg }}>
           {integration.icon}
@@ -134,9 +158,13 @@ function MktCard({ integration, onConfigure }: { integration: MarketplaceIntegra
           {label}
         </span>
         {isInstalled ? (
-          <Button size="sm" onClick={onConfigure}>Configure</Button>
+          <Button size="sm" onClick={onConfigure}>
+            Configure
+          </Button>
         ) : (
-          <Button variant="primary" size="sm" onClick={onConfigure}>Configure</Button>
+          <Button variant="primary" size="sm" onClick={onConfigure}>
+            Configure
+          </Button>
         )}
       </div>
     </div>
@@ -154,13 +182,21 @@ function GitHubEnterpriseConfigForm({ onClose }: { onClose: () => void }) {
   });
 
   if (isLoading || !config) {
-    return <p style={{ margin: 0, color: 'var(--fg-muted)', fontSize: 13 }}>Loading configuration…</p>;
+    return (
+      <p style={{ margin: 0, color: 'var(--fg-muted)', fontSize: 13 }}>Loading configuration…</p>
+    );
   }
 
   return <ConfigFormFields config={config} onClose={onClose} />;
 }
 
-function ConfigFormFields({ config, onClose }: { config: import('../../types/sync').SyncConfig; onClose: () => void }) {
+function ConfigFormFields({
+  config,
+  onClose,
+}: {
+  config: import('../../types/sync').SyncConfig;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
 
   const [syncEnabled, setSyncEnabled] = useState(config.sync_enabled);
@@ -265,18 +301,16 @@ function ConfigFormFields({ config, onClose }: { config: import('../../types/syn
         </dd>
       </dl>
 
-      {successMessage && (
-        <div className={styles.configSuccess}>{successMessage}</div>
-      )}
+      {successMessage && <div className={styles.configSuccess}>{successMessage}</div>}
       {saveMutation.isError && (
-        <div className={styles.configError}>
-          Failed to save configuration. Please try again.
-        </div>
+        <div className={styles.configError}>Failed to save configuration. Please try again.</div>
       )}
 
       {/* Actions */}
       <div className={styles.configActions}>
-        <Button size="sm" onClick={handleCancel}>Cancel</Button>
+        <Button size="sm" onClick={handleCancel}>
+          Cancel
+        </Button>
         <Button
           size="sm"
           variant="primary"
@@ -326,7 +360,9 @@ function SlackConfigForm({ onClose }: { onClose: () => void }) {
       }}
     >
       <div className={styles.configField}>
-        <label className={styles.configLabel} htmlFor="slack-display-name">Display Name</label>
+        <label className={styles.configLabel} htmlFor="slack-display-name">
+          Display Name
+        </label>
         <input
           id="slack-display-name"
           className={styles.configInput}
@@ -336,7 +372,9 @@ function SlackConfigForm({ onClose }: { onClose: () => void }) {
         />
       </div>
       <div className={styles.configField}>
-        <label className={styles.configLabel} htmlFor="slack-webhook-url">Webhook URL</label>
+        <label className={styles.configLabel} htmlFor="slack-webhook-url">
+          Webhook URL
+        </label>
         <input
           id="slack-webhook-url"
           className={styles.configInput}
@@ -350,7 +388,16 @@ function SlackConfigForm({ onClose }: { onClose: () => void }) {
         <span className={styles.configLabel}>Alert severities</span>
         <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
           {['critical', 'high', 'medium', 'low'].map((s) => (
-            <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg)' }}>
+            <label
+              key={s}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 12,
+                color: 'var(--fg)',
+              }}
+            >
               <input
                 type="checkbox"
                 checked={severities.includes(s)}
@@ -366,7 +413,9 @@ function SlackConfigForm({ onClose }: { onClose: () => void }) {
         </div>
       </div>
       <div className={styles.configField}>
-        <label className={styles.configLabel} htmlFor="slack-cooldown">Cooldown (seconds)</label>
+        <label className={styles.configLabel} htmlFor="slack-cooldown">
+          Cooldown (seconds)
+        </label>
         <input
           id="slack-cooldown"
           className={styles.configInput}
@@ -382,7 +431,9 @@ function SlackConfigForm({ onClose }: { onClose: () => void }) {
         <div className={styles.configError}>Failed to save configuration. Please try again.</div>
       )}
       <div className={styles.configActions}>
-        <Button size="sm" onClick={onClose}>Cancel</Button>
+        <Button size="sm" onClick={onClose}>
+          Cancel
+        </Button>
         <Button variant="primary" size="sm" disabled={!webhookUrl || createMutation.isPending}>
           {createMutation.isPending ? 'Saving…' : 'Save'}
         </Button>
@@ -431,7 +482,9 @@ function JiraConfigForm({ onClose }: { onClose: () => void }) {
       }}
     >
       <div className={styles.configField}>
-        <label className={styles.configLabel} htmlFor="jira-display-name">Display Name</label>
+        <label className={styles.configLabel} htmlFor="jira-display-name">
+          Display Name
+        </label>
         <input
           id="jira-display-name"
           className={styles.configInput}
@@ -441,7 +494,9 @@ function JiraConfigForm({ onClose }: { onClose: () => void }) {
         />
       </div>
       <div className={styles.configField}>
-        <label className={styles.configLabel} htmlFor="jira-base-url">Jira Base URL</label>
+        <label className={styles.configLabel} htmlFor="jira-base-url">
+          Jira Base URL
+        </label>
         <input
           id="jira-base-url"
           className={styles.configInput}
@@ -452,7 +507,9 @@ function JiraConfigForm({ onClose }: { onClose: () => void }) {
         />
       </div>
       <div className={styles.configField}>
-        <label className={styles.configLabel} htmlFor="jira-project-key">Project Key</label>
+        <label className={styles.configLabel} htmlFor="jira-project-key">
+          Project Key
+        </label>
         <input
           id="jira-project-key"
           className={styles.configInput}
@@ -463,7 +520,9 @@ function JiraConfigForm({ onClose }: { onClose: () => void }) {
         <span className={styles.configHelp}>Jira project key for issue creation.</span>
       </div>
       <div className={styles.configField}>
-        <label className={styles.configLabel} htmlFor="jira-credential">API Token Environment Variable</label>
+        <label className={styles.configLabel} htmlFor="jira-credential">
+          API Token Environment Variable
+        </label>
         <input
           id="jira-credential"
           className={styles.configInput}
@@ -472,7 +531,9 @@ function JiraConfigForm({ onClose }: { onClose: () => void }) {
           placeholder="JIRA_API_TOKEN"
           required
         />
-        <span className={styles.configHelp}>Name of the environment variable holding the Jira API token.</span>
+        <span className={styles.configHelp}>
+          Name of the environment variable holding the Jira API token.
+        </span>
       </div>
       <div className={styles.configField}>
         <div className={styles.configToggleRow}>
@@ -491,8 +552,14 @@ function JiraConfigForm({ onClose }: { onClose: () => void }) {
         <div className={styles.configError}>Failed to save configuration. Please try again.</div>
       )}
       <div className={styles.configActions}>
-        <Button size="sm" onClick={onClose}>Cancel</Button>
-        <Button variant="primary" size="sm" disabled={!baseUrl || !credentialEnvVar || createMutation.isPending}>
+        <Button size="sm" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={!baseUrl || !credentialEnvVar || createMutation.isPending}
+        >
           {createMutation.isPending ? 'Saving…' : 'Save'}
         </Button>
       </div>
@@ -546,7 +613,9 @@ function WebhookConfigForm({ name, onClose }: { name: string; onClose: () => voi
       }}
     >
       <div className={styles.configField}>
-        <label className={styles.configLabel} htmlFor="webhook-display-name">Display Name</label>
+        <label className={styles.configLabel} htmlFor="webhook-display-name">
+          Display Name
+        </label>
         <input
           id="webhook-display-name"
           className={styles.configInput}
@@ -556,7 +625,9 @@ function WebhookConfigForm({ name, onClose }: { name: string; onClose: () => voi
         />
       </div>
       <div className={styles.configField}>
-        <label className={styles.configLabel} htmlFor="webhook-url">Endpoint URL</label>
+        <label className={styles.configLabel} htmlFor="webhook-url">
+          Endpoint URL
+        </label>
         <input
           id="webhook-url"
           className={styles.configInput}
@@ -567,7 +638,9 @@ function WebhookConfigForm({ name, onClose }: { name: string; onClose: () => voi
         />
       </div>
       <div className={styles.configField}>
-        <label className={styles.configLabel} htmlFor="webhook-credential">Auth Token Environment Variable</label>
+        <label className={styles.configLabel} htmlFor="webhook-credential">
+          Auth Token Environment Variable
+        </label>
         <input
           id="webhook-credential"
           className={styles.configInput}
@@ -575,13 +648,24 @@ function WebhookConfigForm({ name, onClose }: { name: string; onClose: () => voi
           onChange={(e) => setCredentialEnvVar(e.target.value)}
           placeholder={`${name.toUpperCase().replace(/\s+/g, '_')}_TOKEN`}
         />
-        <span className={styles.configHelp}>Optional. Name of the environment variable holding the auth token.</span>
+        <span className={styles.configHelp}>
+          Optional. Name of the environment variable holding the auth token.
+        </span>
       </div>
       <div className={styles.configField}>
         <span className={styles.configLabel}>Alert severities</span>
         <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
           {['critical', 'high', 'medium', 'low'].map((s) => (
-            <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg)' }}>
+            <label
+              key={s}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 12,
+                color: 'var(--fg)',
+              }}
+            >
               <input
                 type="checkbox"
                 checked={severities.includes(s)}
@@ -597,7 +681,9 @@ function WebhookConfigForm({ name, onClose }: { name: string; onClose: () => voi
         </div>
       </div>
       <div className={styles.configField}>
-        <label className={styles.configLabel} htmlFor="webhook-cooldown">Cooldown (seconds)</label>
+        <label className={styles.configLabel} htmlFor="webhook-cooldown">
+          Cooldown (seconds)
+        </label>
         <input
           id="webhook-cooldown"
           className={styles.configInput}
@@ -613,7 +699,9 @@ function WebhookConfigForm({ name, onClose }: { name: string; onClose: () => voi
         <div className={styles.configError}>Failed to save configuration. Please try again.</div>
       )}
       <div className={styles.configActions}>
-        <Button size="sm" onClick={onClose}>Cancel</Button>
+        <Button size="sm" onClick={onClose}>
+          Cancel
+        </Button>
         <Button variant="primary" size="sm" disabled={!webhookUrl || createMutation.isPending}>
           {createMutation.isPending ? 'Saving…' : 'Save'}
         </Button>
@@ -630,8 +718,14 @@ export function IntegrationsPage() {
   const [configTarget, setConfigTarget] = useState<string | null>(null);
 
   /* Keep API hooks alive so integration data is cached for future use */
-  const { data: ticketingConfigs } = useQuery({ queryKey: ['ticketing-configs'], queryFn: listTicketingConfigs });
-  const { data: notificationConfigs } = useQuery({ queryKey: ['notification-configs'], queryFn: listNotificationConfigs });
+  const { data: ticketingConfigs } = useQuery({
+    queryKey: ['ticketing-configs'],
+    queryFn: listTicketingConfigs,
+  });
+  const { data: notificationConfigs } = useQuery({
+    queryKey: ['notification-configs'],
+    queryFn: listNotificationConfigs,
+  });
 
   const { data: syncConfig } = useQuery({
     queryKey: ['sync-config'],
@@ -642,15 +736,22 @@ export function IntegrationsPage() {
 
   const slackConfigured = (notificationConfigs ?? []).some((c) => c.channel_type === 'slack');
   const jiraConfigured = (ticketingConfigs ?? []).some((c) => c.provider === 'jira');
-  const pagerdutyConfigured = (notificationConfigs ?? []).some((c) => c.channel_type === 'pagerduty');
+  const pagerdutyConfigured = (notificationConfigs ?? []).some(
+    (c) => c.channel_type === 'pagerduty',
+  );
   const webhookConfigs = (notificationConfigs ?? []).filter((c) => c.channel_type === 'webhook');
-  const sentinelConfigured = webhookConfigs.some((c) => c.display_name.toLowerCase().includes('sentinel'));
-  const splunkConfigured = webhookConfigs.some((c) => c.display_name.toLowerCase().includes('splunk'));
+  const sentinelConfigured = webhookConfigs.some((c) =>
+    c.display_name.toLowerCase().includes('sentinel'),
+  );
+  const splunkConfigured = webhookConfigs.some((c) =>
+    c.display_name.toLowerCase().includes('splunk'),
+  );
 
   const integrations: MarketplaceIntegration[] = [
     {
       name: 'GitHub Enterprise',
-      description: 'Connect your GitHub Enterprise instance for audit log streaming and Copilot metrics.',
+      description:
+        'Connect your GitHub Enterprise instance for audit log streaming and Copilot metrics.',
       icon: <GitHubEnterpriseIcon />,
       status: ghStatus,
       iconBg: '#24292f',
@@ -763,7 +864,10 @@ export function IntegrationsPage() {
 
       {/* Configure modal — Webhook-based integrations (Sentinel, Splunk, PagerDuty) */}
       <Modal
-        open={configTarget !== null && ['Microsoft Sentinel', 'Splunk', 'PagerDuty'].includes(configTarget)}
+        open={
+          configTarget !== null &&
+          ['Microsoft Sentinel', 'Splunk', 'PagerDuty'].includes(configTarget)
+        }
         onClose={() => setConfigTarget(null)}
         title={configTarget ? `Configure ${configTarget}` : ''}
         width={520}

@@ -67,6 +67,12 @@ export interface PostureResponse {
   has_next: boolean;
 }
 
-export function getPosture(params?: { org?: string; repo?: string; search?: string; page?: number; page_size?: number }): Promise<PostureResponse> {
+export function getPosture(params?: {
+  org?: string;
+  repo?: string;
+  search?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<PostureResponse> {
   return api.get<PostureResponse>('/posture', params as Record<string, string>);
 }

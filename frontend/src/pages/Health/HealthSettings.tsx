@@ -76,11 +76,7 @@ const DEFAULTS: HealthSettingsState = {
   escalationDestination: 'Detection queue (internal)',
 };
 
-const ESCALATION_OPTIONS = [
-  'Detection queue (internal)',
-  'Slack — #security-alerts',
-  'PagerDuty',
-];
+const ESCALATION_OPTIONS = ['Detection queue (internal)', 'Slack — #security-alerts', 'PagerDuty'];
 
 /* ------------------------------------------------------------------ */
 /*  Page component                                                      */
@@ -390,8 +386,8 @@ export function HealthSettingsPage() {
 
         <div className={styles.infoBanner}>
           Health signals are <strong>informational only</strong> at this time. The settings below
-          define when signals will be automatically escalated to the detection/alerting pipeline in a
-          future release.
+          define when signals will be automatically escalated to the detection/alerting pipeline in
+          a future release.
         </div>
 
         <div className={styles.settingsRow}>

@@ -198,7 +198,9 @@ describe('downloadCsv', () => {
 
     // Header + 2 data rows
     expect(lines).toHaveLength(3);
-    expect(lines[0]).toBe('"Timestamp","Action","Actor","Repository","Organization","IP","Country"');
+    expect(lines[0]).toBe(
+      '"Timestamp","Action","Actor","Repository","Organization","IP","Country"',
+    );
   });
 
   it('escapes double quotes in cell values', async () => {
@@ -577,9 +579,7 @@ describe('EventsPage', () => {
     await screen.findByText('repo:my-repo');
 
     // The listEvents mock should have been called with the repo filter
-    expect(listEventsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ repo: 'my-repo' }),
-    );
+    expect(listEventsMock).toHaveBeenCalledWith(expect.objectContaining({ repo: 'my-repo' }));
   });
 
   it('ignores unsupported URL query params', () => {

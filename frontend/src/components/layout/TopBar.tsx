@@ -25,22 +25,14 @@ export function TopBar() {
 
   const orgs: readonly string[] = user?.scoped_orgs ?? [];
 
-  const filteredOrgs = orgs.filter((org) =>
-    org.toLowerCase().includes(filterText.toLowerCase()),
-  );
+  const filteredOrgs = orgs.filter((org) => org.toLowerCase().includes(filterText.toLowerCase()));
 
-  const handleClickOutside = useCallback(
-    (e: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
-        setDropdownOpen(false);
-        setFilterText('');
-      }
-    },
-    [],
-  );
+  const handleClickOutside = useCallback((e: MouseEvent) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      setDropdownOpen(false);
+      setFilterText('');
+    }
+  }, []);
 
   useEffect(() => {
     if (dropdownOpen) {
@@ -129,20 +121,14 @@ export function TopBar() {
             aria-haspopup="listbox"
             aria-label="Select organization"
           >
-            <span className={styles.orgDropdownLabel}>
-              {selectedOrg || 'All organizations'}
-            </span>
+            <span className={styles.orgDropdownLabel}>{selectedOrg || 'All organizations'}</span>
             <span className={styles.orgDropdownChevron} aria-hidden="true">
               ▾
             </span>
           </button>
 
           {dropdownOpen && (
-            <div
-              className={styles.orgDropdownPanel}
-              role="listbox"
-              aria-label="Organizations"
-            >
+            <div className={styles.orgDropdownPanel} role="listbox" aria-label="Organizations">
               <input
                 ref={filterInputRef}
                 className={styles.orgDropdownFilter}
@@ -177,10 +163,7 @@ export function TopBar() {
                   >
                     {org}
                     {org === selectedOrg && (
-                      <span
-                        className={styles.orgDropdownCheck}
-                        aria-hidden="true"
-                      >
+                      <span className={styles.orgDropdownCheck} aria-hidden="true">
                         ✓
                       </span>
                     )}

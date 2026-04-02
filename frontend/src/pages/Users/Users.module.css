@@ -1,4 +1,9 @@
-.page { padding: 24px; display: flex; flex-direction: column; gap: 24px; }
+.page {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
 
 .pageHeader {
   display: flex;
@@ -7,8 +12,16 @@
   gap: 12px;
 }
 
-.pageTitle { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
-.pageSub { font-size: 13px; color: var(--fg-muted); margin: 0; }
+.pageTitle {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.pageSub {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0;
+}
 
 .sectionTitle {
   font-size: 14px;
@@ -47,9 +60,13 @@
   vertical-align: middle;
 }
 
-.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
 
-.table tbody tr:hover td { background: rgba(177, 186, 196, 0.04); }
+.table tbody tr:hover td {
+  background: rgba(177, 186, 196, 0.04);
+}
 
 .teamName {
   font-family: ui-monospace, SFMono-Regular, monospace;
@@ -63,13 +80,32 @@
   font-weight: 500;
 }
 
-.muted { color: var(--fg-muted); font-size: 12px; }
-.empty { text-align: center; color: var(--fg-muted); padding: 40px !important; }
+.muted {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.empty {
+  text-align: center;
+  color: var(--fg-muted);
+  padding: 40px !important;
+}
 
 /* Form */
-.addForm { display: flex; flex-direction: column; gap: 16px; }
-.formRow { display: flex; flex-direction: column; gap: 4px; }
-.formLabel { font-size: 12px; font-weight: 600; color: var(--fg-muted); }
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.formRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.formLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
 
 .formInput,
 .formSelect {
@@ -86,9 +122,17 @@
 }
 
 .formInput:focus,
-.formSelect:focus { border-color: var(--accent); }
+.formSelect:focus {
+  border-color: var(--accent);
+}
 
-.formActions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; border-top: 1px solid var(--border-muted); }
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-muted);
+}
 
 .clickableSession {
   cursor: pointer;

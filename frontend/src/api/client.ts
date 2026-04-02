@@ -4,11 +4,7 @@ let csrfToken: string | null = null;
 export class ApiError extends Error {
   readonly status: number;
   readonly body: unknown;
-  constructor(
-    status: number,
-    body: unknown,
-    message: string,
-  ) {
+  constructor(status: number, body: unknown, message: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
@@ -18,10 +14,7 @@ export class ApiError extends Error {
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-export async function apiFetch<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
+export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method ?? 'GET').toUpperCase();
 
   const headers = new Headers(options.headers);
@@ -92,11 +85,19 @@ export const api = {
     return apiFetch<T>(url);
   },
   post: <T>(path: string, body?: unknown) =>
-    apiFetch<T>(path, { method: 'POST', body: body !== undefined ? JSON.stringify(body) : undefined }),
+    apiFetch<T>(path, {
+      method: 'POST',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }),
   put: <T>(path: string, body?: unknown) =>
-    apiFetch<T>(path, { method: 'PUT', body: body !== undefined ? JSON.stringify(body) : undefined }),
+    apiFetch<T>(path, {
+      method: 'PUT',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }),
   patch: <T>(path: string, body?: unknown) =>
-    apiFetch<T>(path, { method: 'PATCH', body: body !== undefined ? JSON.stringify(body) : undefined }),
-  delete: <T>(path: string) =>
-    apiFetch<T>(path, { method: 'DELETE' }),
+    apiFetch<T>(path, {
+      method: 'PATCH',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }),
+  delete: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
 };

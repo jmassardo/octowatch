@@ -147,12 +147,20 @@ function AddMappingForm({
           value={role}
           onChange={(e) => setRole(e.target.value)}
         >
-          {roles.map((r) => <option key={r} value={r}>{displayRoleName(r)}</option>)}
+          {roles.map((r) => (
+            <option key={r} value={r}>
+              {displayRoleName(r)}
+            </option>
+          ))}
         </select>
       </div>
       <div className={styles.formActions}>
-        <Button variant="default" onClick={onCancel} type="button">Cancel</Button>
-        <Button variant="primary" type="submit">Add mapping</Button>
+        <Button variant="default" onClick={onCancel} type="button">
+          Cancel
+        </Button>
+        <Button variant="primary" type="submit">
+          Add mapping
+        </Button>
       </div>
     </form>
   );
@@ -201,12 +209,20 @@ function EditMappingForm({
           value={role}
           onChange={(e) => setRole(e.target.value)}
         >
-          {roles.map((r) => <option key={r} value={r}>{displayRoleName(r)}</option>)}
+          {roles.map((r) => (
+            <option key={r} value={r}>
+              {displayRoleName(r)}
+            </option>
+          ))}
         </select>
       </div>
       <div className={styles.formActions}>
-        <Button variant="default" onClick={onCancel} type="button">Cancel</Button>
-        <Button variant="primary" type="submit">Save</Button>
+        <Button variant="default" onClick={onCancel} type="button">
+          Cancel
+        </Button>
+        <Button variant="primary" type="submit">
+          Save
+        </Button>
       </div>
     </form>
   );
@@ -236,9 +252,7 @@ function TeamMappingsDataTable({
         filterable: true,
         sortValue: (a) => teamSlugFromAssignment(a).toLowerCase(),
         filterValue: (a) => teamSlugFromAssignment(a),
-        render: (a) => (
-          <span className={styles.teamName}>{teamSlugFromAssignment(a)}</span>
-        ),
+        render: (a) => <span className={styles.teamName}>{teamSlugFromAssignment(a)}</span>,
       },
       {
         key: 'role',
@@ -280,9 +294,7 @@ function TeamMappingsDataTable({
         header: 'Last synced',
         sortable: true,
         sortValue: (a) => a.granted_at,
-        render: (a) => (
-          <span className={styles.muted}>{formatRelative(a.granted_at)}</span>
-        ),
+        render: (a) => <span className={styles.muted}>{formatRelative(a.granted_at)}</span>,
       },
       {
         key: 'actions',
@@ -388,11 +400,7 @@ function ActiveUsersDataTable({
         header: 'Last active',
         sortable: true,
         sortValue: (u) => u.last_active_at ?? '',
-        render: (u) => (
-          <span className={styles.muted}>
-            {formatRelative(u.last_active_at)}
-          </span>
-        ),
+        render: (u) => <span className={styles.muted}>{formatRelative(u.last_active_at)}</span>,
       },
       {
         key: 'mfa',
@@ -400,9 +408,7 @@ function ActiveUsersDataTable({
         sortable: true,
         sortValue: (u) => (u.mfa_enabled ? 0 : 1),
         render: (u) => (
-          <Label variant={mfaVariant(u.mfa_enabled)}>
-            {u.mfa_enabled ? 'enabled' : 'pending'}
-          </Label>
+          <Label variant={mfaVariant(u.mfa_enabled)}>{u.mfa_enabled ? 'enabled' : 'pending'}</Label>
         ),
       },
       {
@@ -452,7 +458,12 @@ export function UsersPage() {
   const [deleteTarget, setDeleteTarget] = useState<RoleAssignment | null>(null);
   const [sessionUser, setSessionUser] = useState<ActiveSession | null>(null);
 
-  const { data: assignments, isLoading, isError, refetch } = useQuery({
+  const {
+    data: assignments,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['role-assignments'],
     queryFn: listRoleAssignments,
   });
@@ -476,12 +487,18 @@ export function UsersPage() {
 
   const createMutation = useMutation({
     mutationFn: createRoleAssignment,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['role-assignments'] }); setShowAdd(false); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['role-assignments'] });
+      setShowAdd(false);
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteRoleAssignment(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['role-assignments'] }); setDeleteTarget(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['role-assignments'] });
+      setDeleteTarget(null);
+    },
   });
 
   const editMutation = useMutation({
@@ -489,7 +506,10 @@ export function UsersPage() {
       await deleteRoleAssignment(oldId);
       return createRoleAssignment(data);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['role-assignments'] }); setEditTarget(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['role-assignments'] });
+      setEditTarget(null);
+    },
   });
 
   return (
@@ -499,10 +519,14 @@ export function UsersPage() {
           <h1 className={styles.pageTitle}>Users &amp; roles</h1>
           <p className={styles.pageSub}>Manage team mappings and active user sessions</p>
         </div>
-        <Button variant="primary" onClick={() => setShowAdd(true)}>Add mapping</Button>
+        <Button variant="primary" onClick={() => setShowAdd(true)}>
+          Add mapping
+        </Button>
       </div>
 
-      {isError && <ErrorBanner message="Failed to load role assignments" onRetry={() => refetch()} />}
+      {isError && (
+        <ErrorBanner message="Failed to load role assignments" onRetry={() => refetch()} />
+      )}
 
       {/* ---- Section 1: Team mappings ---- */}
       <section>
@@ -522,7 +546,9 @@ export function UsersPage() {
       {/* ---- Section 2: Active users ---- */}
       <section>
         <h2 className={styles.sectionTitle}>Active users</h2>
-        {sessionsError && <ErrorBanner message="Failed to load active sessions" onRetry={() => refetchSessions()} />}
+        {sessionsError && (
+          <ErrorBanner message="Failed to load active sessions" onRetry={() => refetchSessions()} />
+        )}
         {sessionsLoading ? (
           <Spinner />
         ) : (sessions ?? []).length === 0 ? (
@@ -565,7 +591,11 @@ export function UsersPage() {
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
       />
 
-      <Modal open={!!sessionUser} onClose={() => setSessionUser(null)} title={sessionUser ? `Sessions — @${sessionUser.login}` : 'Sessions'}>
+      <Modal
+        open={!!sessionUser}
+        onClose={() => setSessionUser(null)}
+        title={sessionUser ? `Sessions — @${sessionUser.login}` : 'Sessions'}
+      >
         {sessionUser && (
           <dl className={styles.sessionDetail}>
             <div>
@@ -589,7 +619,8 @@ export function UsersPage() {
               <dd>{sessionUser.mfa_enabled ? 'enabled' : 'pending'}</dd>
             </div>
             <p className={styles.sessionNote}>
-              Detailed session data including IP addresses and user agents requires GitHub API integration.
+              Detailed session data including IP addresses and user agents requires GitHub API
+              integration.
             </p>
           </dl>
         )}

@@ -3,7 +3,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 12px;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, monospace;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace;
   font-size: 12px;
   line-height: 1.6;
   overflow-x: auto;

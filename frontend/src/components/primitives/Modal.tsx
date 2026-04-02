@@ -29,11 +29,7 @@ export function Modal({ open, onClose, title, children, width = 480 }: ModalProp
 
   return createPortal(
     <div className={styles.backdrop} onClick={onClose}>
-      <div
-        className={styles.dialog}
-        style={{ width }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className={styles.dialog} style={{ width }} onClick={(e) => e.stopPropagation()}>
         {title && (
           <div className={styles.header}>
             <span className={styles.title}>{title}</span>

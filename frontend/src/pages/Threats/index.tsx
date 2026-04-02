@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listDetections, updateDetectionStatus, deleteDetection, assignDetection } from '../../api/detections';
+import {
+  listDetections,
+  updateDetectionStatus,
+  deleteDetection,
+  assignDetection,
+} from '../../api/detections';
 import type { DetectionResponse } from '../../types/detections';
 import { SeverityDot } from '../../components/primitives/SeverityDot';
 import { Label } from '../../components/primitives/Label';
@@ -41,7 +46,12 @@ function safeArrayLength(value: unknown): number {
  * `Object.keys(null)` crashes if the API sends null for `context_data`.
  */
 function hasEntries(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.keys(value).length > 0
+  );
 }
 
 type TabFilter = 'open' | 'investigating' | 'closed' | 'acknowledged' | 'all';
@@ -67,7 +77,13 @@ export function ThreatsPage() {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['detections', tab, severityFilter, page],
-    queryFn: () => listDetections({ status: statusMap[tab], severity: severityFilter || undefined, page, page_size: PAGE_SIZE }),
+    queryFn: () =>
+      listDetections({
+        status: statusMap[tab],
+        severity: severityFilter || undefined,
+        page,
+        page_size: PAGE_SIZE,
+      }),
   });
 
   // Fetch counts for each tab so badges stay current
@@ -102,13 +118,17 @@ export function ThreatsPage() {
 
   const acknowledgeMutation = useMutation({
     mutationFn: (id: number) => updateDetectionStatus(id, { status: 'false_positive' }),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['detections'] }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['detections'] });
+    },
   });
 
   const assignMutation = useMutation({
     mutationFn: ({ id, assignee }: { id: number; assignee: string }) =>
       assignDetection(id, { assigned_to: assignee }),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['detections'] }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['detections'] });
+    },
   });
 
   const suspendMutation = useMutation({
@@ -132,17 +152,33 @@ export function ThreatsPage() {
     <div className={styles.splitLayout}>
       <div className={styles.splitMain}>
         <div className={styles.pageTitle}>Threat Detections</div>
-        <div className={styles.pageSub}>Rule-based and ML-powered detections from audit log analysis</div>
+        <div className={styles.pageSub}>
+          Rule-based and ML-powered detections from audit log analysis
+        </div>
         <div className={styles.topActions}>
-          <Button size="sm" onClick={() => setFiltersVisible((v) => !v)}>Filter</Button>
-          <Button size="sm" variant="primary" onClick={() => navigate('/rules')}>New rule</Button>
+          <Button size="sm" onClick={() => setFiltersVisible((v) => !v)}>
+            Filter
+          </Button>
+          <Button size="sm" variant="primary" onClick={() => navigate('/rules')}>
+            New rule
+          </Button>
         </div>
         {filtersVisible && (
           <div className={styles.topActions} style={{ gap: 8 }}>
             <select
               value={severityFilter}
-              onChange={(e) => { setSeverityFilter(e.target.value); setPage(1); }}
-              style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--canvas-subtle)', color: 'var(--fg)', fontSize: 13 }}
+              onChange={(e) => {
+                setSeverityFilter(e.target.value);
+                setPage(1);
+              }}
+              style={{
+                padding: '4px 8px',
+                borderRadius: 6,
+                border: '1px solid var(--border)',
+                background: 'var(--canvas-subtle)',
+                color: 'var(--fg)',
+                fontSize: 13,
+              }}
             >
               <option value="">All severities</option>
               <option value="critical">Critical</option>
@@ -155,33 +191,42 @@ export function ThreatsPage() {
 
         <div className={styles.issueList}>
           <div className={styles.ilFilters}>
-            {(['open', 'investigating', 'closed', 'acknowledged', 'all'] as TabFilter[]).map((t) => {
-              const count = tabCounts[t];
-              const countStr = count != null ? ` (${count})` : '';
-              const tabLabel =
-                t === 'open' ? 'Open' :
-                t === 'investigating' ? 'Investigating' :
-                t === 'closed' ? 'Closed' :
-                t === 'acknowledged' ? 'Acknowledged' :
-                'All';
-              return (
-                <button
-                  key={t}
-                  className={[styles.ilTab, tab === t && styles.active].filter(Boolean).join(' ')}
-                  onClick={() => { setTab(t); setPage(1); }}
-                >
-                  {tabLabel}
-                  {count != null && (
-                    <span className={styles.tabBadge}>{count}</span>
-                  )}
-                  {count == null && countStr}
-                </button>
-              );
-            })}
+            {(['open', 'investigating', 'closed', 'acknowledged', 'all'] as TabFilter[]).map(
+              (t) => {
+                const count = tabCounts[t];
+                const countStr = count != null ? ` (${count})` : '';
+                const tabLabel =
+                  t === 'open'
+                    ? 'Open'
+                    : t === 'investigating'
+                      ? 'Investigating'
+                      : t === 'closed'
+                        ? 'Closed'
+                        : t === 'acknowledged'
+                          ? 'Acknowledged'
+                          : 'All';
+                return (
+                  <button
+                    key={t}
+                    className={[styles.ilTab, tab === t && styles.active].filter(Boolean).join(' ')}
+                    onClick={() => {
+                      setTab(t);
+                      setPage(1);
+                    }}
+                  >
+                    {tabLabel}
+                    {count != null && <span className={styles.tabBadge}>{count}</span>}
+                    {count == null && countStr}
+                  </button>
+                );
+              },
+            )}
           </div>
 
           {isLoading && (
-            <div className={styles.loadingRow}><Spinner /></div>
+            <div className={styles.loadingRow}>
+              <Spinner />
+            </div>
           )}
           {isError && (
             <div className={styles.loadingRow}>
@@ -202,7 +247,9 @@ export function ThreatsPage() {
           {items.map((d) => (
             <div
               key={d.id}
-              className={[styles.ilRow, selected?.id === d.id && styles.selected].filter(Boolean).join(' ')}
+              className={[styles.ilRow, selected?.id === d.id && styles.selected]
+                .filter(Boolean)
+                .join(' ')}
               onClick={() => setSelected(d)}
             >
               <SeverityDot severity={d.severity} style={{ marginTop: 4 }} />
@@ -211,7 +258,11 @@ export function ThreatsPage() {
                 <div className={styles.ilSub}>
                   <Label variant={sevLabelVariant(d.severity)}>{d.severity}</Label>
                   {d.rule_name && <Label variant="muted">{safeText(d.rule_name)}</Label>}
-                  {d.actor && <span>actor: <span className={styles.mention}>@{safeText(d.actor)}</span></span>}
+                  {d.actor && (
+                    <span>
+                      actor: <span className={styles.mention}>@{safeText(d.actor)}</span>
+                    </span>
+                  )}
                   {d.org && <span>· {safeText(d.org)}</span>}
                 </div>
               </div>
@@ -220,7 +271,13 @@ export function ThreatsPage() {
           ))}
 
           {data && (
-            <Pagination page={page} pageSize={PAGE_SIZE} total={data.total} hasNext={data.has_next} onPageChange={setPage} />
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={data.total}
+              hasNext={data.has_next}
+              onPageChange={setPage}
+            />
           )}
         </div>
       </div>
@@ -230,7 +287,9 @@ export function ThreatsPage() {
           <>
             <div className={styles.panelHeader}>
               <div style={{ fontWeight: 600 }}>{safeText(selected.title)}</div>
-              <button className={styles.panelClose} onClick={() => setSelected(null)}>&#215;</button>
+              <button className={styles.panelClose} onClick={() => setSelected(null)}>
+                &#215;
+              </button>
             </div>
 
             <div className={styles.panelLabels}>
@@ -265,7 +324,8 @@ export function ThreatsPage() {
                     }
                   }}
                 >
-                  {safeArrayLength(selected.event_ids)} event{safeArrayLength(selected.event_ids) === 1 ? '' : 's'} →
+                  {safeArrayLength(selected.event_ids)} event
+                  {safeArrayLength(selected.event_ids) === 1 ? '' : 's'} →
                 </span>
               </div>
             )}

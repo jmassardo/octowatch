@@ -153,7 +153,9 @@
 /* DORA badge clickable */
 .doraBadgeClickable {
   cursor: pointer;
-  transition: opacity 0.15s, border-color 0.15s;
+  transition:
+    opacity 0.15s,
+    border-color 0.15s;
 }
 
 .doraBadgeClickable:hover {
@@ -204,7 +206,8 @@
 
 /* Workflow name monospace */
 .workflowName {
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
   font-size: 12px;
 }
 
@@ -232,15 +235,24 @@
 /* Chart skeleton loading state */
 .chartSkeleton {
   height: 160px;
-  background: linear-gradient(90deg, var(--canvas-inset) 25%, var(--canvas-subtle) 50%, var(--canvas-inset) 75%);
+  background: linear-gradient(
+    90deg,
+    var(--canvas-inset) 25%,
+    var(--canvas-subtle) 50%,
+    var(--canvas-inset) 75%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
   border-radius: 4px;
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* DORA tier badge variants */

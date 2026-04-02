@@ -99,11 +99,7 @@ export function Drawer({ open, onClose, title, titleId, children }: DrawerProps)
           <span className={styles.title} id={labelId}>
             {title}
           </span>
-          <button
-            className={styles.close}
-            onClick={onClose}
-            aria-label="Close"
-          >
+          <button className={styles.close} onClick={onClose} aria-label="Close">
             &#215;
           </button>
         </div>

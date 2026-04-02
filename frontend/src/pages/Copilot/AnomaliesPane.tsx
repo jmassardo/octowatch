@@ -17,7 +17,11 @@ const SEVERITY_VARIANT = {
 type SeverityFilter = 'high' | 'medium' | 'low' | null;
 
 export function AnomaliesPane() {
-  const { data: anomalyData, isLoading, isError } = useQuery({
+  const {
+    data: anomalyData,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ['copilot', 'anomalies'],
     queryFn: getCopilotAnomalies,
     staleTime: 300_000,
@@ -61,112 +65,151 @@ export function AnomaliesPane() {
 
       {!isLoading && !isError && anomalies.length > 0 && (
         <>
-      <div className={styles.insightNote}>
-        <span
-          className={styles.anomalyCountClickable}
-          role="button"
-          tabIndex={0}
-          onClick={handleCountClick}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCountClick(); } }}
-        >
-          {anomalies.length} anomalies
-        </span>
-        {' '}detected in the last 7 days based on usage pattern analysis
-        {severityFilter && (
-          <span style={{ marginLeft: 8, fontSize: 11 }}>
-            (filtered: {severityFilter})
-            {' '}
+          <div className={styles.insightNote}>
             <span
-              className={styles.clickableStat}
+              className={styles.anomalyCountClickable}
               role="button"
               tabIndex={0}
-              onClick={() => setSeverityFilter(null)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSeverityFilter(null); } }}
-              style={{ fontSize: 11 }}
+              onClick={handleCountClick}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleCountClick();
+                }
+              }}
             >
-              clear
-            </span>
-          </span>
-        )}
-      </div>
-
-      <div className={styles.anomalyList} ref={anomalyListRef}>
-        {filteredAnomalies.map((anomaly) => (
-          <div key={anomaly.id} className={styles.anomalyCard}>
-            <div className={styles.anomalyHeader}>
-              <span
-                className={styles.severityBadgeClickable}
-                role="button"
-                tabIndex={0}
-                onClick={() => handleSeverityClick(anomaly.severity)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSeverityClick(anomaly.severity); } }}
-              >
-                <Label variant={SEVERITY_VARIANT[anomaly.severity]}>
-                  {anomaly.severity.toUpperCase()}
-                </Label>
+              {anomalies.length} anomalies
+            </span>{' '}
+            detected in the last 7 days based on usage pattern analysis
+            {severityFilter && (
+              <span style={{ marginLeft: 8, fontSize: 11 }}>
+                (filtered: {severityFilter}){' '}
+                <span
+                  className={styles.clickableStat}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSeverityFilter(null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSeverityFilter(null);
+                    }
+                  }}
+                  style={{ fontSize: 11 }}
+                >
+                  clear
+                </span>
               </span>
-              <span className={styles.anomalyTime}>{anomaly.timestamp}</span>
-            </div>
-            <div className={styles.anomalyTitle}>{anomaly.title}</div>
-            <div className={styles.anomalyDesc}>{anomaly.description}</div>
-            <div className={styles.anomalyMeta}>
-              Team:{' '}
-              <span
-                className={styles.anomalyTeamClickable}
-                role="button"
-                tabIndex={0}
-                onClick={() => setTeamModal(anomaly.team)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTeamModal(anomaly.team); } }}
-              >
-                {anomaly.team}
-              </span>
-            </div>
+            )}
           </div>
-        ))}
-      </div>
 
-      {/* Team anomaly context modal */}
-      <Modal open={teamModal !== null} onClose={() => setTeamModal(null)} title={teamModal ? `${teamModal} team — anomaly context` : 'Team context'} width={520}>
-        <div className={styles.sampleDataNote}>
-          ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
-        </div>
-        {selectedAnomaly && (
-          <div>
-            <table className={styles.modalTable}>
-              <thead>
-                <tr>
-                  <th>Detail</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={{ color: 'var(--fg-muted)' }}>Team</td>
-                  <td style={{ fontWeight: 500 }}>{selectedAnomaly.team}</td>
-                </tr>
-                <tr>
-                  <td style={{ color: 'var(--fg-muted)' }}>Anomaly</td>
-                  <td>{selectedAnomaly.title}</td>
-                </tr>
-                <tr>
-                  <td style={{ color: 'var(--fg-muted)' }}>Severity</td>
-                  <td>{selectedAnomaly.severity.toUpperCase()}</td>
-                </tr>
-                <tr>
-                  <td style={{ color: 'var(--fg-muted)' }}>Detected</td>
-                  <td>{selectedAnomaly.timestamp}</td>
-                </tr>
-              </tbody>
-            </table>
-            <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: '12px 0 0' }}>
-              {selectedAnomaly.description}
-            </p>
-            <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: '12px 0 0' }}>
-              Team-level Copilot usage trends, member-specific breakdowns, and historical anomaly patterns require the Copilot Metrics API integration.
-            </p>
+          <div className={styles.anomalyList} ref={anomalyListRef}>
+            {filteredAnomalies.map((anomaly) => (
+              <div key={anomaly.id} className={styles.anomalyCard}>
+                <div className={styles.anomalyHeader}>
+                  <span
+                    className={styles.severityBadgeClickable}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleSeverityClick(anomaly.severity)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleSeverityClick(anomaly.severity);
+                      }
+                    }}
+                  >
+                    <Label variant={SEVERITY_VARIANT[anomaly.severity]}>
+                      {anomaly.severity.toUpperCase()}
+                    </Label>
+                  </span>
+                  <span className={styles.anomalyTime}>{anomaly.timestamp}</span>
+                </div>
+                <div className={styles.anomalyTitle}>{anomaly.title}</div>
+                <div className={styles.anomalyDesc}>{anomaly.description}</div>
+                <div className={styles.anomalyMeta}>
+                  Team:{' '}
+                  <span
+                    className={styles.anomalyTeamClickable}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setTeamModal(anomaly.team)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setTeamModal(anomaly.team);
+                      }
+                    }}
+                  >
+                    {anomaly.team}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-      </Modal>
+
+          {/* Team anomaly context modal */}
+          <Modal
+            open={teamModal !== null}
+            onClose={() => setTeamModal(null)}
+            title={teamModal ? `${teamModal} team — anomaly context` : 'Team context'}
+            width={520}
+          >
+            <div className={styles.sampleDataNote}>
+              ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
+            </div>
+            {selectedAnomaly && (
+              <div>
+                <table className={styles.modalTable}>
+                  <thead>
+                    <tr>
+                      <th>Detail</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ color: 'var(--fg-muted)' }}>Team</td>
+                      <td style={{ fontWeight: 500 }}>{selectedAnomaly.team}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ color: 'var(--fg-muted)' }}>Anomaly</td>
+                      <td>{selectedAnomaly.title}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ color: 'var(--fg-muted)' }}>Severity</td>
+                      <td>{selectedAnomaly.severity.toUpperCase()}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ color: 'var(--fg-muted)' }}>Detected</td>
+                      <td>{selectedAnomaly.timestamp}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p
+                  style={{
+                    fontSize: 13,
+                    color: 'var(--fg-muted)',
+                    lineHeight: 1.6,
+                    margin: '12px 0 0',
+                  }}
+                >
+                  {selectedAnomaly.description}
+                </p>
+                <p
+                  style={{
+                    fontSize: 13,
+                    color: 'var(--fg-muted)',
+                    lineHeight: 1.6,
+                    margin: '12px 0 0',
+                  }}
+                >
+                  Team-level Copilot usage trends, member-specific breakdowns, and historical
+                  anomaly patterns require the Copilot Metrics API integration.
+                </p>
+              </div>
+            )}
+          </Modal>
         </>
       )}
     </>

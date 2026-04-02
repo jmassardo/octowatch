@@ -1,7 +1,20 @@
 /* ===== Page layout ===== */
-.page { padding: 24px; display: flex; flex-direction: column; gap: 28px; }
-.pageTitle { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
-.pageSub { font-size: 13px; color: var(--fg-muted); margin: 0; }
+.page {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.pageTitle {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.pageSub {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0;
+}
 
 /* ===== Section headings ===== */
 .sectionTitle {
@@ -103,14 +116,26 @@
   display: inline-block;
 }
 
-.statusConnected .statusDot { background: var(--success); }
-.statusConnected { color: var(--success); }
+.statusConnected .statusDot {
+  background: var(--success);
+}
+.statusConnected {
+  color: var(--success);
+}
 
-.statusConfigured .statusDot { background: var(--attention); }
-.statusConfigured { color: var(--attention); }
+.statusConfigured .statusDot {
+  background: var(--attention);
+}
+.statusConfigured {
+  color: var(--attention);
+}
 
-.statusNotInstalled .statusDot { background: var(--fg-subtle); }
-.statusNotInstalled { color: var(--fg-muted); }
+.statusNotInstalled .statusDot {
+  background: var(--fg-subtle);
+}
+.statusNotInstalled {
+  color: var(--fg-muted);
+}
 
 /* ===== Data import section ===== */
 .importGrid {
@@ -238,10 +263,26 @@
 }
 
 /* ===== Form styles (kept for modals) ===== */
-.intForm { display: flex; flex-direction: column; gap: 16px; }
-.formRow { display: flex; flex-direction: column; gap: 4px; }
-.formLabel { font-size: 12px; font-weight: 600; color: var(--fg-muted); }
-.formHint { font-size: 11px; color: var(--fg-subtle); margin-top: 2px; }
+.intForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.formRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.formLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+.formHint {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-top: 2px;
+}
 
 .formInput {
   background: var(--canvas-inset);
@@ -256,9 +297,17 @@
   font-family: inherit;
 }
 
-.formInput:focus { border-color: var(--accent); }
+.formInput:focus {
+  border-color: var(--accent);
+}
 
-.formActions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; border-top: 1px solid var(--border-muted); }
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-muted);
+}
 
 /* ===== Clickable record count ===== */
 .clickableRecord {
@@ -851,8 +900,12 @@
 /* ===== Indeterminate progress bar ===== */
 
 @keyframes progressIndeterminate {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(300%); }
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
 }
 
 .progressIndeterminate {

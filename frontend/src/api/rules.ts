@@ -1,7 +1,11 @@
 import { api } from './client';
 import type { RuleResponse, RuleListResponse, RuleCreate } from '../types/detections';
 
-export function listRules(params?: { limit?: number; offset?: number; search?: string }): Promise<RuleListResponse> {
+export function listRules(params?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+}): Promise<RuleListResponse> {
   return api.get<RuleListResponse>('/rules', params as Record<string, string | number>);
 }
 
@@ -13,7 +17,11 @@ export function updateRule(id: number, r: Partial<RuleCreate>): Promise<RuleResp
   return api.put<RuleResponse>(`/rules/${id}`, r);
 }
 
-export function updateRuleStatus(id: number, status: string, enabled?: boolean): Promise<RuleResponse> {
+export function updateRuleStatus(
+  id: number,
+  status: string,
+  enabled?: boolean,
+): Promise<RuleResponse> {
   return api.patch<RuleResponse>(`/rules/${id}/status`, { status, enabled });
 }
 
@@ -62,6 +70,9 @@ export interface RuleTestEventResponse {
   matched_fields: string[];
 }
 
-export function testRule(ruleId: number, event: Record<string, unknown>): Promise<RuleTestEventResponse> {
+export function testRule(
+  ruleId: number,
+  event: Record<string, unknown>,
+): Promise<RuleTestEventResponse> {
   return api.post<RuleTestEventResponse>(`/rules/${ruleId}/test`, { event });
 }

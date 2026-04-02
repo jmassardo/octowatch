@@ -250,7 +250,9 @@ describe('SetupPage', () => {
     await user.click(screen.getByRole('button', { name: /authenticate/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/skipping oauth means users won't be able to sign in/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/skipping oauth means users won't be able to sign in/i),
+      ).toBeInTheDocument();
     });
   });
 
@@ -271,7 +273,9 @@ describe('SetupPage', () => {
     });
 
     // Should show disabled message since app was skipped
-    expect(screen.getByText(/configure a github app first to enable enterprise sync/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/configure a github app first to enable enterprise sync/i),
+    ).toBeInTheDocument();
 
     // Skip and Back buttons should be available
     expect(screen.getByRole('button', { name: /skip/i })).toBeInTheDocument();
@@ -296,7 +300,10 @@ describe('SetupPage', () => {
 
     // Fill in GitHub App step (configure, not skip)
     await user.type(screen.getByLabelText(/app id/i), '12345');
-    await user.type(screen.getByLabelText(/private key/i), '-----BEGIN RSA PRIVATE KEY-----\ntest\n-----END RSA PRIVATE KEY-----');
+    await user.type(
+      screen.getByLabelText(/private key/i),
+      '-----BEGIN RSA PRIVATE KEY-----\ntest\n-----END RSA PRIVATE KEY-----',
+    );
     await user.click(screen.getByRole('button', { name: /next/i }));
 
     await waitFor(() => {

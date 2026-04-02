@@ -6,7 +6,9 @@ import styles from './AppShell.module.css';
 export function AppShell() {
   return (
     <div className={styles.layout}>
-      <a href="#main-content" className={styles.skipNav}>Skip to main content</a>
+      <a href="#main-content" className={styles.skipNav}>
+        Skip to main content
+      </a>
       <aside>
         <Sidebar />
       </aside>

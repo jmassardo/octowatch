@@ -15,7 +15,13 @@ interface LineAreaChartProps {
   yAxisFormatter?: (v: number) => string;
 }
 
-export function LineAreaChart({ title, xAxisData, series, height = 160, yAxisFormatter }: LineAreaChartProps) {
+export function LineAreaChart({
+  title,
+  xAxisData,
+  series,
+  height = 160,
+  yAxisFormatter,
+}: LineAreaChartProps) {
   const option: EChartsOption = {
     backgroundColor: 'transparent',
     textStyle: { color: '#8b949e', fontFamily: 'inherit', fontSize: 11 },
@@ -56,10 +62,29 @@ export function LineAreaChart({ title, xAxisData, series, height = 160, yAxisFor
       symbol: 'none',
       areaStyle:
         s.areaOpacity !== undefined
-          ? { color: { type: 'linear' as const, x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: (s.color ?? '#58a6ff').replace(')', `, ${s.areaOpacity})`).replace('rgb', 'rgba') }, { offset: 1, color: 'transparent' }] } }
+          ? {
+              color: {
+                type: 'linear' as const,
+                x: 0,
+                y: 0,
+                x2: 0,
+                y2: 1,
+                colorStops: [
+                  {
+                    offset: 0,
+                    color: (s.color ?? '#58a6ff')
+                      .replace(')', `, ${s.areaOpacity})`)
+                      .replace('rgb', 'rgba'),
+                  },
+                  { offset: 1, color: 'transparent' },
+                ],
+              },
+            }
           : undefined,
     })),
-    ...(title ? { title: { text: title, textStyle: { color: '#8b949e', fontSize: 12, fontWeight: 500 } } } : {}),
+    ...(title
+      ? { title: { text: title, textStyle: { color: '#8b949e', fontSize: 12, fontWeight: 500 } } }
+      : {}),
   };
 
   return <ReactECharts option={option} style={{ height }} />;

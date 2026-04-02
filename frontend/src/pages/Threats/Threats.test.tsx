@@ -92,7 +92,9 @@ describe('ThreatsPage', () => {
     const closedTab = screen.getByText('Closed');
     await user.click(closedTab);
 
-    expect(await screen.findByText('No closed detections. Resolved detections will appear here.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('No closed detections. Resolved detections will appear here.'),
+    ).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
@@ -192,13 +194,9 @@ describe('ThreatsPage with data', () => {
     const link = screen.getByText('3 events →');
     await user.click(link);
 
-    expect(mockNavigate).toHaveBeenCalledWith(
-      expect.stringContaining('/events?'),
-    );
+    expect(mockNavigate).toHaveBeenCalledWith(expect.stringContaining('/events?'));
     // Should include actor param
-    expect(mockNavigate).toHaveBeenCalledWith(
-      expect.stringContaining('actor=mallory'),
-    );
+    expect(mockNavigate).toHaveBeenCalledWith(expect.stringContaining('actor=mallory'));
   });
 
   it('renders evidence section for detection with context data', async () => {

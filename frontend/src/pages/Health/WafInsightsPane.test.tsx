@@ -73,7 +73,8 @@ let mockQueryReturn: {
 };
 
 vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
+  const actual =
+    await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
   return {
     ...actual,
     useQuery: () => mockQueryReturn,
@@ -221,9 +222,7 @@ describe('WafInsightsPane', () => {
       refetch: vi.fn(),
     };
     renderPane();
-    expect(
-      screen.getByText(/No WAF findings available/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/No WAF findings available/)).toBeInTheDocument();
   });
 
   it('renders productivity section with no issues message when no productivity findings', () => {

@@ -14,25 +14,52 @@ interface MetricCardProps {
 }
 
 /** Internal presentational card — does NOT use router hooks. */
-function MetricCardBase({ value, label, delta, deltaDir = 'neutral', accent, className, style, onClick }: Omit<MetricCardProps, 'to'>) {
+function MetricCardBase({
+  value,
+  label,
+  delta,
+  deltaDir = 'neutral',
+  accent,
+  className,
+  style,
+  onClick,
+}: Omit<MetricCardProps, 'to'>) {
   const isClickable = !!onClick;
 
   return (
     <div
-      className={[styles.metric, accent && styles.accented, isClickable && styles.clickable, className].filter(Boolean).join(' ')}
+      className={[
+        styles.metric,
+        accent && styles.accented,
+        isClickable && styles.clickable,
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
       style={style}
       onClick={isClickable ? onClick : undefined}
       role={isClickable ? 'button' : undefined}
       aria-label={isClickable ? label : undefined}
       tabIndex={isClickable ? 0 : undefined}
-      onKeyDown={isClickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+      onKeyDown={
+        isClickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
     >
-      {isClickable && <span className={styles.arrow} aria-hidden="true">→</span>}
+      {isClickable && (
+        <span className={styles.arrow} aria-hidden="true">
+          →
+        </span>
+      )}
       <div className={styles.val}>{value}</div>
       <div className={styles.lbl}>{label}</div>
-      {delta && (
-        <div className={[styles.delta, styles[deltaDir]].join(' ')}>{delta}</div>
-      )}
+      {delta && <div className={[styles.delta, styles[deltaDir]].join(' ')}>{delta}</div>}
     </div>
   );
 }

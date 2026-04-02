@@ -6,7 +6,15 @@
   display: inline-block;
 }
 
-.critical { background: var(--danger); }
-.high { background: var(--severe); }
-.medium { background: var(--attention); }
-.low { background: var(--success); }
+.critical {
+  background: var(--danger);
+}
+.high {
+  background: var(--severe);
+}
+.medium {
+  background: var(--attention);
+}
+.low {
+  background: var(--success);
+}

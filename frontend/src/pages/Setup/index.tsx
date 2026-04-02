@@ -38,11 +38,7 @@ function StepError({ message }: { message: string | null }) {
 /*  Step 1: Token Login                                                */
 /* ------------------------------------------------------------------ */
 
-function TokenLoginStep({
-  onComplete,
-}: {
-  onComplete: () => void;
-}) {
+function TokenLoginStep({ onComplete }: { onComplete: () => void }) {
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +78,9 @@ function TokenLoginStep({
         />
         <p className={styles.hint}>
           Find your setup token in the container logs:{' '}
-          <code className={styles.hintCode}>docker compose logs api | grep &quot;Setup token&quot;</code>
+          <code className={styles.hintCode}>
+            docker compose logs api | grep &quot;Setup token&quot;
+          </code>
         </p>
       </div>
       <StepError message={error} />
@@ -188,7 +186,8 @@ function GitHubOAuthStep({
         </div>
       </div>
       <p className={styles.skipNote}>
-        Skipping OAuth means users won&apos;t be able to sign in with GitHub until it&apos;s configured later.
+        Skipping OAuth means users won&apos;t be able to sign in with GitHub until it&apos;s
+        configured later.
       </p>
     </form>
   );
@@ -280,7 +279,9 @@ function GitHubAppStep({
           placeholder="my-enterprise"
           disabled={loading}
         />
-        <p className={styles.hint}>The slug from your GitHub Enterprise URL (e.g., github.com/enterprises/my-enterprise).</p>
+        <p className={styles.hint}>
+          The slug from your GitHub Enterprise URL (e.g., github.com/enterprises/my-enterprise).
+        </p>
       </div>
       <div className={styles.checkboxRow}>
         <input
@@ -313,7 +314,8 @@ function GitHubAppStep({
         </div>
       </div>
       <p className={styles.skipNote}>
-        Skipping the GitHub App means audit log sync and advanced features won&apos;t be available until configured.
+        Skipping the GitHub App means audit log sync and advanced features won&apos;t be available
+        until configured.
       </p>
     </form>
   );
@@ -401,9 +403,7 @@ function InitialSyncStep({
   if (!appConfigured) {
     return (
       <div>
-        <p className={styles.hint}>
-          Configure a GitHub App first to enable enterprise sync.
-        </p>
+        <p className={styles.hint}>Configure a GitHub App first to enable enterprise sync.</p>
         <div className={styles.actions}>
           <Button type="button" onClick={onBack}>
             Back
@@ -420,9 +420,7 @@ function InitialSyncStep({
     return (
       <div>
         <p className={styles.syncSuccess}>✓ Sync complete!</p>
-        {entityProgress && (
-          <p className={styles.hint}>{entityProgress}</p>
-        )}
+        {entityProgress && <p className={styles.hint}>{entityProgress}</p>}
         <div className={styles.actions}>
           <Button type="button" onClick={onBack}>
             Back
@@ -580,7 +578,8 @@ function TLSStep({
         </div>
       </div>
       <p className={styles.skipNote}>
-        Skipping TLS will keep the existing self-signed certificate. You can update it later in settings.
+        Skipping TLS will keep the existing self-signed certificate. You can update it later in
+        settings.
       </p>
     </form>
   );
@@ -631,7 +630,10 @@ function ReviewStep({
     }
     poll();
     const iv = setInterval(poll, 5000);
-    return () => { cancelled = true; clearInterval(iv); };
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
   }, [completedSteps.sync]);
 
   async function handleComplete() {
@@ -660,7 +662,13 @@ function ReviewStep({
       <div className={styles.completeBanner}>
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
           <circle cx="12" cy="12" r="10" stroke="var(--success)" strokeWidth="2" />
-          <path d="M8 12l3 3 5-5" stroke="var(--success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M8 12l3 3 5-5"
+            stroke="var(--success)"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
         <h2 className={styles.completeTitle}>Setup Complete!</h2>
         <p className={styles.completeSubtitle}>Redirecting to login page in a few seconds…</p>
@@ -786,9 +794,17 @@ export function SetupPage() {
       case 0:
         return <TokenLoginStep onComplete={handleTokenComplete} />;
       case 1:
-        return <GitHubOAuthStep onComplete={handleOAuthComplete} onBack={goBack} onSkip={handleOAuthSkip} />;
+        return (
+          <GitHubOAuthStep
+            onComplete={handleOAuthComplete}
+            onBack={goBack}
+            onSkip={handleOAuthSkip}
+          />
+        );
       case 2:
-        return <GitHubAppStep onComplete={handleAppComplete} onBack={goBack} onSkip={handleAppSkip} />;
+        return (
+          <GitHubAppStep onComplete={handleAppComplete} onBack={goBack} onSkip={handleAppSkip} />
+        );
       case 3:
         return (
           <InitialSyncStep
@@ -814,11 +830,51 @@ export function SetupPage() {
           <div className={styles.logo}>
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="3.5" fill="#bc8cff" />
-              <ellipse cx="12" cy="12" rx="9" ry="5.5" stroke="#bc8cff" strokeWidth="1.5" fill="none" />
-              <line x1="12" y1="2" x2="12" y2="5" stroke="#bc8cff" strokeWidth="1.5" strokeLinecap="round" />
-              <line x1="12" y1="19" x2="12" y2="22" stroke="#bc8cff" strokeWidth="1.5" strokeLinecap="round" />
-              <line x1="2" y1="12" x2="5" y2="12" stroke="#bc8cff" strokeWidth="1.5" strokeLinecap="round" />
-              <line x1="19" y1="12" x2="22" y2="12" stroke="#bc8cff" strokeWidth="1.5" strokeLinecap="round" />
+              <ellipse
+                cx="12"
+                cy="12"
+                rx="9"
+                ry="5.5"
+                stroke="#bc8cff"
+                strokeWidth="1.5"
+                fill="none"
+              />
+              <line
+                x1="12"
+                y1="2"
+                x2="12"
+                y2="5"
+                stroke="#bc8cff"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <line
+                x1="12"
+                y1="19"
+                x2="12"
+                y2="22"
+                stroke="#bc8cff"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <line
+                x1="2"
+                y1="12"
+                x2="5"
+                y2="12"
+                stroke="#bc8cff"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <line
+                x1="19"
+                y1="12"
+                x2="22"
+                y2="12"
+                stroke="#bc8cff"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
             </svg>
           </div>
           <h1 className={styles.title}>OctoWatch Setup</h1>

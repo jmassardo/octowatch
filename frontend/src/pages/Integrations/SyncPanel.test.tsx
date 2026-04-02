@@ -43,7 +43,13 @@ const completedRun: SyncRun = {
   entity_counts: { repos: 500, users: 100 },
   post_processing_status: null,
   cursors: [
-    { entity_type: 'repos', org: 'acme', status: 'completed', items_synced: 500, last_cursor: null },
+    {
+      entity_type: 'repos',
+      org: 'acme',
+      status: 'completed',
+      items_synced: 500,
+      last_cursor: null,
+    },
     { entity_type: 'users', org: null, status: 'completed', items_synced: 100, last_cursor: null },
   ],
 };
@@ -60,8 +66,20 @@ const runningRun: SyncRun = {
   entity_counts: null,
   post_processing_status: null,
   cursors: [
-    { entity_type: 'repos', org: 'acme', status: 'completed', items_synced: 300, last_cursor: 'abc' },
-    { entity_type: 'users', org: null, status: 'in_progress', items_synced: 50, last_cursor: 'def' },
+    {
+      entity_type: 'repos',
+      org: 'acme',
+      status: 'completed',
+      items_synced: 300,
+      last_cursor: 'abc',
+    },
+    {
+      entity_type: 'users',
+      org: null,
+      status: 'in_progress',
+      items_synced: 50,
+      last_cursor: 'def',
+    },
     { entity_type: 'teams', org: 'acme', status: 'pending', items_synced: 0, last_cursor: null },
   ],
 };

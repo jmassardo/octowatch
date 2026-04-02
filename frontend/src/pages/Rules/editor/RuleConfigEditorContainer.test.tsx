@@ -23,9 +23,7 @@ vi.mock('./LogicConfigEditor', () => ({
   }) => (
     <div data-testid="visual-editor">
       <span>Visual editor for {logicType}</span>
-      {errors && errors.length > 0 && (
-        <div data-testid="visual-errors">{errors.join(', ')}</div>
-      )}
+      {errors && errors.length > 0 && <div data-testid="visual-errors">{errors.join(', ')}</div>}
     </div>
   ),
 }));
@@ -210,11 +208,7 @@ describe('RuleConfigEditorContainer', () => {
 
   it('shows correct logic type in visual editor', () => {
     renderWithProviders(
-      <RuleConfigEditorContainer
-        logicType="pattern"
-        config={defaultConfig}
-        onChange={() => {}}
-      />,
+      <RuleConfigEditorContainer logicType="pattern" config={defaultConfig} onChange={() => {}} />,
     );
 
     expect(screen.getByText('Visual editor for pattern')).toBeInTheDocument();

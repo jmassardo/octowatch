@@ -17,7 +17,8 @@ import { formatCompact } from '../../utils/dates';
 import styles from './Events.module.css';
 
 function actionVariant(action: string) {
-  if (action.includes('destroy') || action.includes('delete') || action.includes('visibility')) return 'danger' as const;
+  if (action.includes('destroy') || action.includes('delete') || action.includes('visibility'))
+    return 'danger' as const;
   if (action.includes('access') || action.includes('rename')) return 'attention' as const;
   return 'muted' as const;
 }
@@ -101,7 +102,9 @@ export function EventsPage() {
   return (
     <div className={styles.page}>
       <div className={styles.pageTitle}>Events Explorer</div>
-      <div className={styles.pageSub}>Search and explore raw audit log events across all organizations</div>
+      <div className={styles.pageSub}>
+        Search and explore raw audit log events across all organizations
+      </div>
 
       <div className={styles.searchBar}>
         <svg width="16" height="16" fill="var(--fg-subtle)" viewBox="0 0 16 16">
@@ -118,7 +121,7 @@ export function EventsPage() {
           }}
           actionSuggestions={actionSuggestions}
           actorSuggestions={actorSuggestions}
-          placeholder='Search events... e.g. action:repo.create actor:@suspicious.*'
+          placeholder="Search events... e.g. action:repo.create actor:@suspicious.*"
           id="events-search-input"
         />
       </div>
@@ -127,16 +130,26 @@ export function EventsPage() {
         {chips.map((c) => (
           <span key={c} className={styles.chip}>
             {c}
-            <span className={styles.chipX} onClick={() => removeChip(c)}>&#215;</span>
+            <span className={styles.chipX} onClick={() => removeChip(c)}>
+              &#215;
+            </span>
           </span>
         ))}
-        <Button size="sm" style={{ borderRadius: 12 }} onClick={() => document.getElementById('events-search-input')?.focus()}>+ Add filter</Button>
+        <Button
+          size="sm"
+          style={{ borderRadius: 12 }}
+          onClick={() => document.getElementById('events-search-input')?.focus()}
+        >
+          + Add filter
+        </Button>
       </div>
 
       <div className={styles.tableHeader}>
         <span className={styles.resultCount}>{total.toLocaleString()} events matching filters</span>
         <div className={styles.tableActions}>
-          <Button size="sm" onClick={() => downloadCsv(items)} disabled={items.length === 0}>Export CSV</Button>
+          <Button size="sm" onClick={() => downloadCsv(items)} disabled={items.length === 0}>
+            Export CSV
+          </Button>
           <Button
             size="sm"
             onClick={() => {
@@ -171,22 +184,43 @@ export function EventsPage() {
           </thead>
           <tbody>
             {isLoading && (
-              <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center' }}><Spinner /></td></tr>
+              <tr>
+                <td colSpan={6} style={{ padding: 24, textAlign: 'center' }}>
+                  <Spinner />
+                </td>
+              </tr>
             )}
             {!isLoading && items.length === 0 && (
-              <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--fg-muted)' }}>No events found</td></tr>
+              <tr>
+                <td
+                  colSpan={6}
+                  style={{ padding: 24, textAlign: 'center', color: 'var(--fg-muted)' }}
+                >
+                  No events found
+                </td>
+              </tr>
             )}
             {items.map((e) => (
               <tr key={e.id}>
                 <td className={styles.ts}>{formatCompact(e.created_at)}</td>
-                <td><Label variant={actionVariant(e.action)}>{e.action}</Label></td>
-                <td><span className={styles.mention}>@{e.actor ?? '—'}</span></td>
+                <td>
+                  <Label variant={actionVariant(e.action)}>{e.action}</Label>
+                </td>
+                <td>
+                  <span className={styles.mention}>@{e.actor ?? '—'}</span>
+                </td>
                 <td>{e.repo ?? e.org ?? '—'}</td>
                 <td>
                   {e.source_ip && <code style={{ fontSize: 11 }}>{e.source_ip}</code>}
-                  {e.geo_country_code && <span className={styles.country}>{e.geo_country_code}</span>}
+                  {e.geo_country_code && (
+                    <span className={styles.country}>{e.geo_country_code}</span>
+                  )}
                 </td>
-                <td><Button size="sm" onClick={() => setDetailEvent(e)}>Details</Button></td>
+                <td>
+                  <Button size="sm" onClick={() => setDetailEvent(e)}>
+                    Details
+                  </Button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -195,9 +229,15 @@ export function EventsPage() {
 
       {data && data.total > 20 && (
         <div className={styles.pagination}>
-          <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Prev</Button>
-          <span className={styles.pageInfo}>Page {page} of {Math.ceil(total / 20)}</span>
-          <Button size="sm" disabled={!data.has_next} onClick={() => setPage((p) => p + 1)}>Next →</Button>
+          <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            ← Prev
+          </Button>
+          <span className={styles.pageInfo}>
+            Page {page} of {Math.ceil(total / 20)}
+          </span>
+          <Button size="sm" disabled={!data.has_next} onClick={() => setPage((p) => p + 1)}>
+            Next →
+          </Button>
         </div>
       )}
 
@@ -207,9 +247,7 @@ export function EventsPage() {
         title={detailEvent ? `Event: ${detailEvent.action}` : ''}
         width={640}
       >
-        {detailEvent && (
-          <EventDetail event={detailEvent} />
-        )}
+        {detailEvent && <EventDetail event={detailEvent} />}
       </Modal>
     </div>
   );

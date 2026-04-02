@@ -2,7 +2,10 @@ import { api } from './client';
 import type { EventResponse, EventListResponse, EventListParams } from '../types/events';
 
 export function listEvents(params: EventListParams = {}): Promise<EventListResponse> {
-  return api.get<EventListResponse>('/events', params as Record<string, string | number | boolean | undefined>);
+  return api.get<EventListResponse>(
+    '/events',
+    params as Record<string, string | number | boolean | undefined>,
+  );
 }
 
 export function getEvent(id: number): Promise<EventResponse> {

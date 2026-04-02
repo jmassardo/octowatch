@@ -2,11 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
-import {
-  getAppGovernance,
-  getCodeScanning,
-  getVulnerabilities,
-} from '../../api/healthSignals';
+import { getAppGovernance, getCodeScanning, getVulnerabilities } from '../../api/healthSignals';
 import styles from './AppGovernancePane.module.css';
 
 /* ---------- main pane ---------- */
@@ -66,27 +62,15 @@ export function AppGovernancePane() {
           <code className={styles.codeSnippet}>oauth_authorization.*</code> events.
         </div>
         <div className={styles.metricGrid}>
-          <MetricCard
-            value={String(app?.apps_installed ?? 0)}
-            label="Apps installed"
-          />
-          <MetricCard
-            value={String(app?.apps_removed ?? 0)}
-            label="Apps removed"
-          />
-          <MetricCard
-            value={String(app?.oauth_approved ?? 0)}
-            label="OAuth approved"
-          />
+          <MetricCard value={String(app?.apps_installed ?? 0)} label="Apps installed" />
+          <MetricCard value={String(app?.apps_removed ?? 0)} label="Apps removed" />
+          <MetricCard value={String(app?.oauth_approved ?? 0)} label="OAuth approved" />
           <MetricCard
             value={String(app?.oauth_denied ?? 0)}
             label="OAuth denied"
             accent={app != null && app.oauth_denied > 0}
           />
-          <MetricCard
-            value={String(app?.token_revocations ?? 0)}
-            label="Token revocations"
-          />
+          <MetricCard value={String(app?.token_revocations ?? 0)} label="Token revocations" />
         </div>
       </div>
 
@@ -107,10 +91,7 @@ export function AppGovernancePane() {
             value={codeScan != null ? `${Math.round(codeScan.avg_hours_to_close)}h` : '—'}
             label="Avg hours to close"
           />
-          <MetricCard
-            value={String(codeScan?.dismissed_count ?? 0)}
-            label="Dismissed"
-          />
+          <MetricCard value={String(codeScan?.dismissed_count ?? 0)} label="Dismissed" />
           <MetricCard
             value={String(codeScan?.reappeared_count ?? 0)}
             label="Reappeared"
@@ -137,14 +118,8 @@ export function AppGovernancePane() {
             label="Critical open"
             accent={vuln != null && vuln.critical_open > 0}
           />
-          <MetricCard
-            value={String(vuln?.high_open ?? 0)}
-            label="High open"
-          />
-          <MetricCard
-            value={String(vuln?.open_gt_30d ?? 0)}
-            label="Open > 30 days"
-          />
+          <MetricCard value={String(vuln?.high_open ?? 0)} label="High open" />
+          <MetricCard value={String(vuln?.open_gt_30d ?? 0)} label="Open > 30 days" />
           <MetricCard
             value={String(vuln?.critical_open_gt_14d ?? 0)}
             label="Critical > 14 days"
@@ -167,18 +142,9 @@ export function AppGovernancePane() {
           <code className={styles.codeSnippet}>hook.config_changed</code> events.
         </div>
         <div className={styles.metricGrid}>
-          <MetricCard
-            value={String(app?.webhooks_created ?? 0)}
-            label="Created"
-          />
-          <MetricCard
-            value={String(app?.webhooks_removed ?? 0)}
-            label="Removed"
-          />
-          <MetricCard
-            value={String(app?.webhooks_modified ?? 0)}
-            label="Modified"
-          />
+          <MetricCard value={String(app?.webhooks_created ?? 0)} label="Created" />
+          <MetricCard value={String(app?.webhooks_removed ?? 0)} label="Removed" />
+          <MetricCard value={String(app?.webhooks_modified ?? 0)} label="Modified" />
         </div>
       </div>
     </div>

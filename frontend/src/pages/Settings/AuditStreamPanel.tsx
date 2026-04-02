@@ -36,7 +36,15 @@ function CopyButton({ text }: { text: string }) {
 /*  Config detail row                                                  */
 /* ------------------------------------------------------------------ */
 
-function ConfigRow({ label, value, copyable }: { label: string; value: string; copyable?: boolean }) {
+function ConfigRow({
+  label,
+  value,
+  copyable,
+}: {
+  label: string;
+  value: string;
+  copyable?: boolean;
+}) {
   return (
     <div className={styles.configRow}>
       <span className={styles.configLabel}>{label}</span>
@@ -168,9 +176,7 @@ function CredentialsForm({ currentUser }: { currentUser: string }) {
         />
       )}
 
-      {successMsg && (
-        <div className={styles.successBanner}>{successMsg}</div>
-      )}
+      {successMsg && <div className={styles.successBanner}>{successMsg}</div>}
 
       <div className={styles.formActions}>
         <Button type="submit" variant="primary" disabled={!formValid || mutation.isPending}>

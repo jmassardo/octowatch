@@ -115,19 +115,14 @@ export function getBypassOffenders(
   });
 }
 
-export function getRepoHealth(
-  staleThresholdDays = 90,
-  limit = 50,
-): Promise<RepoHealthResponse> {
+export function getRepoHealth(staleThresholdDays = 90, limit = 50): Promise<RepoHealthResponse> {
   return api.get<RepoHealthResponse>('/health-signals/repo-health', {
     stale_threshold_days: staleThresholdDays,
     limit,
   });
 }
 
-export function getExternalCollaborators(
-  limit = 50,
-): Promise<ExternalCollabResponse> {
+export function getExternalCollaborators(limit = 50): Promise<ExternalCollabResponse> {
   return api.get<ExternalCollabResponse>('/health-signals/external-collaborators', {
     limit,
   });
@@ -354,10 +349,7 @@ export interface GhostMembersResponse {
   ghost_members: GhostMember[];
 }
 
-export function getGhostMembers(
-  dormancyDays = 90,
-  limit = 50,
-): Promise<GhostMembersResponse> {
+export function getGhostMembers(dormancyDays = 90, limit = 50): Promise<GhostMembersResponse> {
   return api.get<GhostMembersResponse>('/health-signals/ghost-members', {
     dormancy_days: dormancyDays,
     limit,
@@ -376,10 +368,7 @@ export interface StalePrResponse {
   days_open: number;
 }
 
-export function getStalePrs(
-  staleDays = 30,
-  limit = 50,
-): Promise<{ stale_prs: StalePrResponse[] }> {
+export function getStalePrs(staleDays = 30, limit = 50): Promise<{ stale_prs: StalePrResponse[] }> {
   return api.get('/health-signals/stale-prs', {
     stale_days: staleDays,
     limit,
@@ -397,9 +386,7 @@ export interface UnhealthyHook {
   created_at: string;
 }
 
-export function getUnhealthyHooks(
-  limit = 50,
-): Promise<{ unhealthy_hooks: UnhealthyHook[] }> {
+export function getUnhealthyHooks(limit = 50): Promise<{ unhealthy_hooks: UnhealthyHook[] }> {
   return api.get('/health-signals/unhealthy-hooks', { limit });
 }
 

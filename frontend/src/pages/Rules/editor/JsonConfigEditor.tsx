@@ -31,10 +31,7 @@ function extractErrorPosition(message: string): { line: number; column: number }
   return null;
 }
 
-function positionToLineCol(
-  text: string,
-  position: number,
-): { line: number; column: number } {
+function positionToLineCol(text: string, position: number): { line: number; column: number } {
   let line = 1;
   let col = 1;
   for (let i = 0; i < position && i < text.length; i++) {
@@ -101,10 +98,7 @@ export function JsonConfigEditor({
         const msg = err instanceof Error ? err.message : String(err);
         const pos = extractErrorPosition(msg);
         if (pos) {
-          const loc =
-            pos.line === -1
-              ? positionToLineCol(value, pos.column)
-              : pos;
+          const loc = pos.line === -1 ? positionToLineCol(value, pos.column) : pos;
           setParseError(`${msg} (line ${loc.line}, column ${loc.column})`);
         } else {
           setParseError(msg);
@@ -115,27 +109,24 @@ export function JsonConfigEditor({
     [onChange, onValidityChange],
   );
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Tab') {
-        e.preventDefault();
-        const ta = e.currentTarget;
-        const start = ta.selectionStart;
-        const end = ta.selectionEnd;
-        const value = ta.value;
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const ta = e.currentTarget;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const value = ta.value;
 
-        const newValue = value.substring(0, start) + '  ' + value.substring(end);
-        setText(newValue);
+      const newValue = value.substring(0, start) + '  ' + value.substring(end);
+      setText(newValue);
 
-        // Restore cursor position after React re-renders
-        requestAnimationFrame(() => {
-          ta.selectionStart = start + 2;
-          ta.selectionEnd = start + 2;
-        });
-      }
-    },
-    [],
-  );
+      // Restore cursor position after React re-renders
+      requestAnimationFrame(() => {
+        ta.selectionStart = start + 2;
+        ta.selectionEnd = start + 2;
+      });
+    }
+  }, []);
 
   const handleFormat = useCallback(() => {
     try {
@@ -192,20 +183,14 @@ export function JsonConfigEditor({
             >
               Format
             </button>
-            <button
-              type="button"
-              className={styles.toolBtn}
-              onClick={handleCopy}
-            >
+            <button type="button" className={styles.toolBtn} onClick={handleCopy}>
               {copyLabel}
             </button>
           </div>
         )}
       </div>
 
-      <div
-        className={`${styles.editorWrap}${parseError ? ` ${styles.hasError}` : ''}`}
-      >
+      <div className={`${styles.editorWrap}${parseError ? ` ${styles.hasError}` : ''}`}>
         <div className={styles.gutter} aria-hidden="true">
           {lineNumbers}
         </div>

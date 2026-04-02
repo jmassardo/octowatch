@@ -14,7 +14,13 @@ import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
-import type { SyncRun, SyncRunStatus, EntityStatus, PostProcessingStatus, SyncLogEntry } from '../../types/sync';
+import type {
+  SyncRun,
+  SyncRunStatus,
+  EntityStatus,
+  PostProcessingStatus,
+  SyncLogEntry,
+} from '../../types/sync';
 import { formatRelativeShort, formatShortDateTime, formatLogTime } from '../../utils/dates';
 import styles from './Integrations.module.css';
 
@@ -120,9 +126,7 @@ function ProgressBar({ cursors, isActive }: { cursors: EntityStatus[]; isActive:
 
   if (total === 0) return null;
 
-  const completed = cursors.filter(
-    (c) => c.status === 'completed' || c.status === 'failed',
-  ).length;
+  const completed = cursors.filter((c) => c.status === 'completed' || c.status === 'failed').length;
   const pct = Math.round((completed / total) * 100);
 
   return (
@@ -355,8 +359,7 @@ function ScheduleSection() {
   const scope = localScope ?? schedule?.scope ?? 'full';
 
   const hasChanges =
-    schedule != null &&
-    (localEnabled !== null || localInterval !== null || localScope !== null);
+    schedule != null && (localEnabled !== null || localInterval !== null || localScope !== null);
 
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -458,9 +461,7 @@ function ScheduleSection() {
         <div className={styles.scheduleInfoRow}>
           <span className={styles.scheduleInfoLabel}>Next scheduled sync</span>
           <span className={styles.scheduleInfoValue}>
-            {schedule?.next_run_at
-              ? formatShortDateTime(schedule.next_run_at)
-              : 'Not scheduled'}
+            {schedule?.next_run_at ? formatShortDateTime(schedule.next_run_at) : 'Not scheduled'}
           </span>
         </div>
         <div className={styles.scheduleInfoRow}>
@@ -480,9 +481,7 @@ function ScheduleSection() {
         </div>
       )}
       {saveMutation.isError && (
-        <div className={styles.configError}>
-          Failed to save schedule. Please try again.
-        </div>
+        <div className={styles.configError}>Failed to save schedule. Please try again.</div>
       )}
 
       {/* Save button */}
@@ -548,9 +547,7 @@ export function SyncPanel() {
     },
   });
 
-  const isActive = syncRun
-    ? !isTerminal(syncRun.status)
-    : false;
+  const isActive = syncRun ? !isTerminal(syncRun.status) : false;
 
   const nextSync = useMemo(() => {
     if (!config?.sync_enabled || !config.interval_days) return null;
@@ -636,9 +633,7 @@ export function SyncPanel() {
         )}
       </div>
 
-      {triggerError && (
-        <ErrorBanner message={triggerError} onRetry={() => setTriggerError(null)} />
-      )}
+      {triggerError && <ErrorBanner message={triggerError} onRetry={() => setTriggerError(null)} />}
 
       {/* Active run progress */}
       {syncRun && isActive && (

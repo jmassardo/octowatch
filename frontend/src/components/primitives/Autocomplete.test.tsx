@@ -75,7 +75,9 @@ describe('Autocomplete', () => {
     renderAutocomplete({ value: 'create' });
     focusInput();
 
-    expect(screen.getByText((_, el) => el?.textContent === 'pull_request.create')).toBeInTheDocument();
+    expect(
+      screen.getByText((_, el) => el?.textContent === 'pull_request.create'),
+    ).toBeInTheDocument();
     expect(screen.getByText((_, el) => el?.textContent === 'repo.create')).toBeInTheDocument();
   });
 

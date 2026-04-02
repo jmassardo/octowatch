@@ -85,12 +85,15 @@ interface MockQueryReturn<T> {
 let queryResults: Record<string, MockQueryReturn<unknown>>;
 
 vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
+  const actual =
+    await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
   return {
     ...actual,
     useQuery: (opts: { queryKey: string[] }) => {
       const key = opts.queryKey.join('/');
-      return queryResults[key] ?? { data: undefined, isLoading: true, isError: false, refetch: vi.fn() };
+      return (
+        queryResults[key] ?? { data: undefined, isLoading: true, isError: false, refetch: vi.fn() }
+      );
     },
   };
 });
@@ -109,22 +112,57 @@ function renderPane() {
 describe('OpsHealthPane', () => {
   beforeEach(() => {
     queryResults = {
-      'health/workflows': { data: mockWorkflowData, isLoading: false, isError: false, refetch: vi.fn() },
-      'health/branch-protection': { data: mockBranchData, isLoading: false, isError: false, refetch: vi.fn() },
-      'health/copilot-governance': { data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() },
-      'health/codespaces': { data: mockCodespacesData, isLoading: false, isError: false, refetch: vi.fn() },
-      'health/runners': { data: mockRunnerData, isLoading: false, isError: false, refetch: vi.fn() },
+      'health/workflows': {
+        data: mockWorkflowData,
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      },
+      'health/branch-protection': {
+        data: mockBranchData,
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      },
+      'health/copilot-governance': {
+        data: mockCopilotData,
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      },
+      'health/codespaces': {
+        data: mockCodespacesData,
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      },
+      'health/runners': {
+        data: mockRunnerData,
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      },
     };
   });
 
   it('renders loading spinner when any query is loading', () => {
-    queryResults['health/workflows'] = { data: undefined, isLoading: true, isError: false, refetch: vi.fn() };
+    queryResults['health/workflows'] = {
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      refetch: vi.fn(),
+    };
     renderPane();
     expect(document.querySelector('[class*="spinner"]')).toBeTruthy();
   });
 
   it('renders error banner when any query fails', () => {
-    queryResults['health/runners'] = { data: undefined, isLoading: false, isError: true, refetch: vi.fn() };
+    queryResults['health/runners'] = {
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      refetch: vi.fn(),
+    };
     renderPane();
     expect(screen.getByText('Failed to load operations health data')).toBeInTheDocument();
   });

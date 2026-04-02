@@ -99,7 +99,9 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
         <MetricCard
           value={activeSeats > 0 ? String(activeSeats) : '—'}
           label="Active seats"
-          delta={totalSeats > 0 ? `${Math.round((activeSeats / totalSeats) * 100)}% utilization` : '—'}
+          delta={
+            totalSeats > 0 ? `${Math.round((activeSeats / totalSeats) * 100)}% utilization` : '—'
+          }
           deltaDir="neutral"
           onClick={() => setDrillDown('active')}
         />
@@ -113,7 +115,9 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
         <MetricCard
           value={monthlyWaste > 0 ? `$${monthlyWaste.toLocaleString()}` : '—'}
           label="Monthly waste"
-          delta={annualSavings > 0 ? `$${annualSavings.toLocaleString()}/year potential savings` : '—'}
+          delta={
+            annualSavings > 0 ? `$${annualSavings.toLocaleString()}/year potential savings` : '—'
+          }
           deltaDir={monthlyWaste > 0 ? 'down' : 'neutral'}
           accent
           onClick={() => {
@@ -125,17 +129,40 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
       </div>
 
       {/* Drill-down modal */}
-      <Modal open={drillDown !== null} onClose={() => setDrillDown(null)} title={drillDownTitle()} width={600}>
-        {(drillDown === 'total' || drillDown === 'active' || drillDown === 'inactive' || drillDown === 'waste') && (
+      <Modal
+        open={drillDown !== null}
+        onClose={() => setDrillDown(null)}
+        title={drillDownTitle()}
+        width={600}
+      >
+        {(drillDown === 'total' ||
+          drillDown === 'active' ||
+          drillDown === 'inactive' ||
+          drillDown === 'waste') && (
           <div className={styles.tableWrap}>
             <table>
               <thead>
                 <tr>
                   <th>Date</th>
                   {drillDown === 'total' && <th>Provisioned</th>}
-                  {drillDown === 'active' && <><th>Active</th><th>Utilization %</th></>}
-                  {drillDown === 'inactive' && <><th>Inactive</th><th>Provisioned</th></>}
-                  {drillDown === 'waste' && <><th>Inactive</th><th>Monthly cost</th></>}
+                  {drillDown === 'active' && (
+                    <>
+                      <th>Active</th>
+                      <th>Utilization %</th>
+                    </>
+                  )}
+                  {drillDown === 'inactive' && (
+                    <>
+                      <th>Inactive</th>
+                      <th>Provisioned</th>
+                    </>
+                  )}
+                  {drillDown === 'waste' && (
+                    <>
+                      <th>Inactive</th>
+                      <th>Monthly cost</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -145,24 +172,34 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
                     <tr key={i}>
                       <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
                       {drillDown === 'total' && (
-                        <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count ?? '—'}</td>
+                        <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {b.provisioned_seat_count ?? '—'}
+                        </td>
                       )}
                       {drillDown === 'active' && (
                         <>
-                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count ?? '—'}</td>
-                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}</td>
+                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            {b.active_seat_count ?? '—'}
+                          </td>
+                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            {b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}
+                          </td>
                         </>
                       )}
                       {drillDown === 'inactive' && (
                         <>
                           <td style={{ fontVariantNumeric: 'tabular-nums' }}>{bucketInactive}</td>
-                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count ?? '—'}</td>
+                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            {b.provisioned_seat_count ?? '—'}
+                          </td>
                         </>
                       )}
                       {drillDown === 'waste' && (
                         <>
                           <td style={{ fontVariantNumeric: 'tabular-nums' }}>{bucketInactive}</td>
-                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>${(bucketInactive * costPerSeat).toLocaleString()}</td>
+                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            ${(bucketInactive * costPerSeat).toLocaleString()}
+                          </td>
                         </>
                       )}
                     </tr>
@@ -178,27 +215,30 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
       <div ref={costSectionRef}>
         <Card style={{ marginBottom: 20 }}>
           <CardHeader>Cost optimization summary</CardHeader>
-        <div className={styles.costSummary}>
-          <div className={styles.costRow}>
-            <span className={styles.costLabel}>Current monthly spend</span>
-            <span className={styles.costValue}>
-              ${(totalSeats * costPerSeat).toLocaleString()}
-            </span>
+          <div className={styles.costSummary}>
+            <div className={styles.costRow}>
+              <span className={styles.costLabel}>Current monthly spend</span>
+              <span className={styles.costValue}>
+                ${(totalSeats * costPerSeat).toLocaleString()}
+              </span>
+            </div>
+            <div className={styles.costRow}>
+              <span className={styles.costLabel}>Optimized monthly spend</span>
+              <span className={styles.costValue} style={{ color: 'var(--success)' }}>
+                ${(activeSeats * costPerSeat).toLocaleString()}
+              </span>
+            </div>
+            <div className={[styles.costRow, styles.costRowHighlight].join(' ')}>
+              <span className={styles.costLabel}>Potential monthly savings</span>
+              <span
+                className={styles.costValue}
+                style={{ color: 'var(--success)', fontWeight: 600 }}
+              >
+                ${monthlyWaste.toLocaleString()}
+              </span>
+            </div>
           </div>
-          <div className={styles.costRow}>
-            <span className={styles.costLabel}>Optimized monthly spend</span>
-            <span className={styles.costValue} style={{ color: 'var(--success)' }}>
-              ${(activeSeats * costPerSeat).toLocaleString()}
-            </span>
-          </div>
-          <div className={[styles.costRow, styles.costRowHighlight].join(' ')}>
-            <span className={styles.costLabel}>Potential monthly savings</span>
-            <span className={styles.costValue} style={{ color: 'var(--success)', fontWeight: 600 }}>
-              ${monthlyWaste.toLocaleString()}
-            </span>
-          </div>
-        </div>
-      </Card>
+        </Card>
       </div>
 
       {/* Recommendations */}

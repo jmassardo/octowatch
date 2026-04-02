@@ -35,7 +35,9 @@ export function formatCompact(iso: string | null | undefined): string {
     minute: '2-digit',
     second: '2-digit',
     hour12: false,
-  }).format(d).replace(',', '');
+  })
+    .format(d)
+    .replace(',', '');
 }
 
 /**

@@ -6,16 +6,12 @@ describe('SampleDataBanner', () => {
   it('renders default message when no message prop is provided', () => {
     render(<SampleDataBanner />);
     expect(
-      screen.getByText(
-        /Connect your GitHub audit log source to see real data/,
-      ),
+      screen.getByText(/Connect your GitHub audit log source to see real data/),
     ).toBeInTheDocument();
   });
 
   it('renders custom message when message prop is provided', () => {
-    render(
-      <SampleDataBanner message="This is a custom banner message." />,
-    );
+    render(<SampleDataBanner message="This is a custom banner message." />);
     expect(screen.getByText('This is a custom banner message.')).toBeInTheDocument();
   });
 

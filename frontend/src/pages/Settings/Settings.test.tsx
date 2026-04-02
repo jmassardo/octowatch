@@ -138,7 +138,9 @@ vi.mock('../../api/sync', () => ({
     orgs: [],
   }),
   updateSyncConfig: vi.fn().mockResolvedValue({}),
-  listSyncRuns: vi.fn().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 10, has_next: false }),
+  listSyncRuns: vi
+    .fn()
+    .mockResolvedValue({ items: [], total: 0, page: 1, page_size: 10, has_next: false }),
   getSyncRun: vi.fn().mockResolvedValue(null),
   getSyncSchedule: vi.fn().mockResolvedValue({
     enabled: false,
@@ -270,7 +272,9 @@ describe('SettingsPage', () => {
     await user.click(screen.getByRole('button', { name: 'GitHub' }));
 
     expect(screen.getByText(/no github settings configured yet/i)).toBeInTheDocument();
-    expect(screen.getByText(/github connection settings are configured during setup/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/github connection settings are configured during setup/i),
+    ).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
@@ -315,7 +319,11 @@ describe('SettingsPage', () => {
     await user.click(screen.getByRole('button', { name: /^save$/i }));
 
     await waitFor(() => {
-      expect(mockUpdateSetting).toHaveBeenCalledWith('system.log_level', 'debug', 'Application log level');
+      expect(mockUpdateSetting).toHaveBeenCalledWith(
+        'system.log_level',
+        'debug',
+        'Application log level',
+      );
     });
   });
 
@@ -390,7 +398,9 @@ describe('SettingsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Storage' }));
 
     expect(screen.getByText(/no storage settings configured yet/i)).toBeInTheDocument();
-    expect(screen.getByText(/object storage.*configuration for audit log archives/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/object storage.*configuration for audit log archives/i),
+    ).toBeInTheDocument();
   });
 
   it('shows Notifications placeholder when category is empty', async () => {
@@ -420,7 +430,9 @@ describe('SettingsPage', () => {
     await user.click(screen.getByRole('button', { name: 'System' }));
 
     expect(screen.getByText(/no system settings configured yet/i)).toBeInTheDocument();
-    expect(screen.getByText(/system-level configuration including data retention/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/system-level configuration including data retention/i),
+    ).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */

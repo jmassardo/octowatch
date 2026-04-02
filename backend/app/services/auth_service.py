@@ -142,7 +142,7 @@ async def exchange_github_code(code: str) -> dict[str, Any]:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="GitHub token exchange failed. Ensure your OAuth App callback URL is set to "
-                       f"{settings.AUTH.APP_BASE_URL}/api/v1/auth/github/callback",
+                f"{settings.AUTH.APP_BASE_URL}/api/v1/auth/github/callback",
             ) from exc
     data = resp.json()
     if "error" in data:

@@ -36,9 +36,7 @@ describe('QueryPage', () => {
   it('renders page title and subtitle', () => {
     renderWithProviders(<QueryPage />);
     expect(screen.getByText('Query Explorer')).toBeInTheDocument();
-    expect(
-      screen.getByText('Write SQL against the audit events database'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Write SQL against the audit events database')).toBeInTheDocument();
   });
 
   it('renders editor filename in toolbar', () => {
@@ -50,17 +48,13 @@ describe('QueryPage', () => {
     renderWithProviders(<QueryPage />);
     expect(screen.getByRole('button', { name: /Run/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'History' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'History' })).toBeInTheDocument();
   });
 
   it('renders textarea with default SQL', () => {
     renderWithProviders(<QueryPage />);
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
-    expect(textarea.value).toContain(
-      'Actors with logins from 2+ countries',
-    );
+    expect(textarea.value).toContain('Actors with logins from 2+ countries');
   });
 
   it('renders line numbers in the gutter', () => {
@@ -191,9 +185,7 @@ describe('QueryPage', () => {
     const cmtSpans = container.querySelectorAll('.sqlCmt');
     const cmtTexts = Array.from(cmtSpans).map((s) => s.textContent);
     expect(cmtTexts.length).toBeGreaterThanOrEqual(1);
-    expect(
-      cmtTexts.some((t) => t?.includes('Actors with logins')),
-    ).toBe(true);
+    expect(cmtTexts.some((t) => t?.includes('Actors with logins'))).toBe(true);
   });
 
   it('does not highlight plain identifiers with syntax classes', () => {
@@ -201,12 +193,8 @@ describe('QueryPage', () => {
     const pre = container.querySelector('.editorHighlight');
     expect(pre).not.toBeNull();
     // The arrow operator text '>>' should not be wrapped in a syntax span
-    const allHighlighted = container.querySelectorAll(
-      '.sqlKw, .sqlFn, .sqlCol, .sqlLit, .sqlCmt',
-    );
-    const highlightedTexts = Array.from(allHighlighted).map(
-      (s) => s.textContent,
-    );
+    const allHighlighted = container.querySelectorAll('.sqlKw, .sqlFn, .sqlCol, .sqlLit, .sqlCmt');
+    const highlightedTexts = Array.from(allHighlighted).map((s) => s.textContent);
     expect(highlightedTexts).not.toContain('>>');
   });
 
@@ -246,10 +234,7 @@ describe('QueryPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
-    expect(window.prompt).toHaveBeenCalledWith(
-      'Query name:',
-      'Untitled query',
-    );
+    expect(window.prompt).toHaveBeenCalledWith('Query name:', 'Untitled query');
     expect(createTemplate).toHaveBeenCalledWith({
       name: 'My saved query',
       sql: expect.stringContaining('SELECT'),
@@ -290,9 +275,7 @@ describe('QueryPage', () => {
     expect(backdrop).not.toBeNull();
     await user.click(backdrop!);
 
-    expect(
-      screen.queryByText('No queries run yet'),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText('No queries run yet')).not.toBeInTheDocument();
   });
 
   it('toggles history dropdown on repeated button clicks', async () => {
@@ -305,9 +288,7 @@ describe('QueryPage', () => {
     expect(screen.getByText('No queries run yet')).toBeInTheDocument();
 
     await user.click(historyBtn);
-    expect(
-      screen.queryByText('No queries run yet'),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText('No queries run yet')).not.toBeInTheDocument();
   });
 
   it('records a query in history after successful run', async () => {
@@ -323,9 +304,7 @@ describe('QueryPage', () => {
 
     // Should show the query (first 80 chars)
     // The dropdown should not show "No queries run yet" since we just ran one
-    expect(
-      screen.queryByText('No queries run yet'),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText('No queries run yet')).not.toBeInTheDocument();
   });
 
   it('persists history to localStorage after a run', async () => {
@@ -348,13 +327,8 @@ describe('QueryPage', () => {
 
   it('loads history entry into editor when clicked', async () => {
     // Pre-seed localStorage with a history entry
-    const historyData = [
-      { sql: 'SELECT 42 AS answer', timestamp: '2024-06-01T12:00:00Z' },
-    ];
-    localStorage.setItem(
-      'octowatch:query-history',
-      JSON.stringify(historyData),
-    );
+    const historyData = [{ sql: 'SELECT 42 AS answer', timestamp: '2024-06-01T12:00:00Z' }];
+    localStorage.setItem('octowatch:query-history', JSON.stringify(historyData));
 
     const user = userEvent.setup();
     renderWithProviders(<QueryPage />);
@@ -370,13 +344,8 @@ describe('QueryPage', () => {
   });
 
   it('closes history dropdown after selecting an entry', async () => {
-    const historyData = [
-      { sql: 'SELECT 1', timestamp: '2024-06-01T12:00:00Z' },
-    ];
-    localStorage.setItem(
-      'octowatch:query-history',
-      JSON.stringify(historyData),
-    );
+    const historyData = [{ sql: 'SELECT 1', timestamp: '2024-06-01T12:00:00Z' }];
+    localStorage.setItem('octowatch:query-history', JSON.stringify(historyData));
 
     const user = userEvent.setup();
     renderWithProviders(<QueryPage />);
@@ -391,13 +360,8 @@ describe('QueryPage', () => {
   });
 
   it('shows formatted timestamp in history entries', async () => {
-    const historyData = [
-      { sql: 'SELECT now()', timestamp: '2024-06-15T14:30:00Z' },
-    ];
-    localStorage.setItem(
-      'octowatch:query-history',
-      JSON.stringify(historyData),
-    );
+    const historyData = [{ sql: 'SELECT now()', timestamp: '2024-06-15T14:30:00Z' }];
+    localStorage.setItem('octowatch:query-history', JSON.stringify(historyData));
 
     const user = userEvent.setup();
     renderWithProviders(<QueryPage />);
@@ -419,7 +383,7 @@ describe('QueryPage', () => {
         id: 1,
         name: 'Failed logins',
         description: 'Find failed login attempts',
-        sql: 'SELECT * FROM audit_events WHERE action = \'user.login_failed\'',
+        sql: "SELECT * FROM audit_events WHERE action = 'user.login_failed'",
         created_by: 'admin',
         created_at: '2024-01-01T00:00:00Z',
       },
@@ -428,14 +392,11 @@ describe('QueryPage', () => {
     renderWithProviders(<QueryPage />);
 
     expect(await screen.findByText('Templates')).toBeInTheDocument();
-    expect(
-      await screen.findByText('Failed logins'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Failed logins')).toBeInTheDocument();
   });
 
   it('loads template SQL into editor when template is clicked', async () => {
-    const templateSql =
-      "SELECT * FROM audit_events WHERE action = 'user.login_failed'";
+    const templateSql = "SELECT * FROM audit_events WHERE action = 'user.login_failed'";
     const { listTemplates } = await import('../../api/query');
     vi.mocked(listTemplates).mockResolvedValue([
       {
@@ -606,7 +567,10 @@ describe('QueryPage', () => {
 
     it('shows invalid dot and error bar when validation fails', async () => {
       const { validateQuery } = await import('../../api/query');
-      vi.mocked(validateQuery).mockResolvedValue({ valid: false, error: 'Syntax error at position 5' });
+      vi.mocked(validateQuery).mockResolvedValue({
+        valid: false,
+        error: 'Syntax error at position 5',
+      });
 
       renderWithProviders(<QueryPage />);
 
@@ -647,7 +611,8 @@ describe('QueryPage', () => {
       // Clear the textarea via React's controlled input mechanism
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype, 'value',
+          HTMLTextAreaElement.prototype,
+          'value',
         )!.set!;
         setter.call(textarea, '');
         textarea.selectionStart = 0;
@@ -669,7 +634,9 @@ describe('QueryPage', () => {
 
       let resolveValidation!: (val: { valid: boolean }) => void;
       vi.mocked(validateQuery).mockReturnValue(
-        new Promise((resolve) => { resolveValidation = resolve; }),
+        new Promise((resolve) => {
+          resolveValidation = resolve;
+        }),
       );
 
       renderWithProviders(<QueryPage />);
@@ -698,9 +665,13 @@ describe('QueryPage', () => {
 
       await act(async () => {
         textarea.focus();
-        textarea.dispatchEvent(new KeyboardEvent('keydown', {
-          key: 'Enter', ctrlKey: true, bubbles: true,
-        }));
+        textarea.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 'Enter',
+            ctrlKey: true,
+            bubbles: true,
+          }),
+        );
       });
 
       expect(runQuery).toHaveBeenCalled();
@@ -714,9 +685,13 @@ describe('QueryPage', () => {
 
       await act(async () => {
         textarea.focus();
-        textarea.dispatchEvent(new KeyboardEvent('keydown', {
-          key: 'Enter', metaKey: true, bubbles: true,
-        }));
+        textarea.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 'Enter',
+            metaKey: true,
+            bubbles: true,
+          }),
+        );
       });
 
       expect(runQuery).toHaveBeenCalled();
@@ -740,7 +715,8 @@ describe('QueryPage', () => {
       await act(async () => {
         // Use the native setter to change the value (React's onChange won't fire from just setting .value)
         const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype, 'value',
+          HTMLTextAreaElement.prototype,
+          'value',
         )!.set!;
         nativeInputValueSetter.call(textarea, 'SELECT ');
         textarea.dispatchEvent(new Event('input', { bubbles: true }));
@@ -748,9 +724,9 @@ describe('QueryPage', () => {
       });
 
       // Click a schema column — source_ip is unique to events table
-      const colButtons = screen.getAllByRole('button').filter(
-        (el) => el.textContent?.includes('source_ip'),
-      );
+      const colButtons = screen
+        .getAllByRole('button')
+        .filter((el) => el.textContent?.includes('source_ip'));
       expect(colButtons.length).toBeGreaterThanOrEqual(1);
 
       await act(async () => {
@@ -776,7 +752,8 @@ describe('QueryPage', () => {
       // Set value and cursor position to trigger autocomplete
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype, 'value',
+          HTMLTextAreaElement.prototype,
+          'value',
         )!.set!;
         setter.call(textarea, 'SE');
         textarea.selectionStart = 2;
@@ -798,7 +775,8 @@ describe('QueryPage', () => {
 
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype, 'value',
+          HTMLTextAreaElement.prototype,
+          'value',
         )!.set!;
         setter.call(textarea, 'SELECT * FROM e');
         textarea.selectionStart = 15;
@@ -821,7 +799,8 @@ describe('QueryPage', () => {
 
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype, 'value',
+          HTMLTextAreaElement.prototype,
+          'value',
         )!.set!;
         setter.call(textarea, 'SELECT * FROM events WHERE a');
         textarea.selectionStart = 28;
@@ -842,7 +821,8 @@ describe('QueryPage', () => {
 
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype, 'value',
+          HTMLTextAreaElement.prototype,
+          'value',
         )!.set!;
         setter.call(textarea, 'S');
         textarea.selectionStart = 1;
@@ -861,7 +841,8 @@ describe('QueryPage', () => {
       // Type 'SE' to show autocomplete
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype, 'value',
+          HTMLTextAreaElement.prototype,
+          'value',
         )!.set!;
         setter.call(textarea, 'SE');
         textarea.selectionStart = 2;
@@ -873,9 +854,12 @@ describe('QueryPage', () => {
 
       // Press Escape to dismiss
       await act(async () => {
-        textarea.dispatchEvent(new KeyboardEvent('keydown', {
-          key: 'Escape', bubbles: true,
-        }));
+        textarea.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 'Escape',
+            bubbles: true,
+          }),
+        );
       });
 
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
@@ -888,7 +872,8 @@ describe('QueryPage', () => {
 
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype, 'value',
+          HTMLTextAreaElement.prototype,
+          'value',
         )!.set!;
         setter.call(textarea, 'SE');
         textarea.selectionStart = 2;
@@ -900,9 +885,12 @@ describe('QueryPage', () => {
 
       // Press Tab to accept the first suggestion (SELECT)
       await act(async () => {
-        textarea.dispatchEvent(new KeyboardEvent('keydown', {
-          key: 'Tab', bubbles: true,
-        }));
+        textarea.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 'Tab',
+            bubbles: true,
+          }),
+        );
       });
 
       expect(textarea.value).toContain('SELECT');
@@ -916,7 +904,8 @@ describe('QueryPage', () => {
 
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype, 'value',
+          HTMLTextAreaElement.prototype,
+          'value',
         )!.set!;
         setter.call(textarea, 'SE');
         textarea.selectionStart = 2;
@@ -928,9 +917,12 @@ describe('QueryPage', () => {
 
       // Press ArrowDown — should dismiss autocomplete and let cursor move
       await act(async () => {
-        textarea.dispatchEvent(new KeyboardEvent('keydown', {
-          key: 'ArrowDown', bubbles: true,
-        }));
+        textarea.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 'ArrowDown',
+            bubbles: true,
+          }),
+        );
       });
 
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
@@ -943,7 +935,8 @@ describe('QueryPage', () => {
 
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype, 'value',
+          HTMLTextAreaElement.prototype,
+          'value',
         )!.set!;
         setter.call(textarea, 'SE');
         textarea.selectionStart = 2;
@@ -964,7 +957,8 @@ describe('QueryPage', () => {
 
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype, 'value',
+          HTMLTextAreaElement.prototype,
+          'value',
         )!.set!;
         setter.call(textarea, 'SE');
         textarea.selectionStart = 2;
@@ -984,7 +978,8 @@ describe('QueryPage', () => {
 
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype, 'value',
+          HTMLTextAreaElement.prototype,
+          'value',
         )!.set!;
         setter.call(textarea, "SELECT * FROM events WHERE action = 'SE");
         textarea.selectionStart = 39;
@@ -1002,7 +997,8 @@ describe('QueryPage', () => {
 
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype, 'value',
+          HTMLTextAreaElement.prototype,
+          'value',
         )!.set!;
         setter.call(textarea, '-- This is SE');
         textarea.selectionStart = 13;

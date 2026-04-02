@@ -22,7 +22,9 @@ export function listNotificationConfigs(): Promise<NotificationConfigResponse[]>
   return api.get<NotificationConfigResponse[]>('/integrations/notifications');
 }
 
-export function createNotificationConfig(c: NotificationConfigCreate): Promise<NotificationConfigResponse> {
+export function createNotificationConfig(
+  c: NotificationConfigCreate,
+): Promise<NotificationConfigResponse> {
   return api.post<NotificationConfigResponse>('/integrations/notifications', c);
 }
 

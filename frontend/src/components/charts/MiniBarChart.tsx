@@ -5,7 +5,12 @@ interface MiniBarChartProps {
   className?: string;
 }
 
-export function MiniBarChart({ data, color = 'var(--success)', height = 24, className }: MiniBarChartProps) {
+export function MiniBarChart({
+  data,
+  color = 'var(--success)',
+  height = 24,
+  className,
+}: MiniBarChartProps) {
   const max = Math.max(...data, 1);
   return (
     <div

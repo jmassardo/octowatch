@@ -13,9 +13,7 @@ import {
   getSsoHealth,
   getPrivilegeChanges,
 } from '../../api/healthSignals';
-import type {
-  SsoOrgStatus,
-} from '../../api/healthSignals';
+import type { SsoOrgStatus } from '../../api/healthSignals';
 import styles from './SecurityPosturePane.module.css';
 
 /* ---------- helpers ---------- */
@@ -49,7 +47,10 @@ function SsoStatusTable({ orgs }: { orgs: SsoOrgStatus[] }) {
           <tbody>
             {orgs.length === 0 && (
               <tr>
-                <td colSpan={2} style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}>
+                <td
+                  colSpan={2}
+                  style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
+                >
                   No SSO data available
                 </td>
               </tr>
@@ -101,7 +102,10 @@ export function SecurityPosturePane() {
   });
 
   const isLoading =
-    postureQuery.isLoading || secretQuery.isLoading || ssoQuery.isLoading || privilegeQuery.isLoading;
+    postureQuery.isLoading ||
+    secretQuery.isLoading ||
+    ssoQuery.isLoading ||
+    privilegeQuery.isLoading;
   const isError =
     postureQuery.isError || secretQuery.isError || ssoQuery.isError || privilegeQuery.isError;
 
@@ -180,14 +184,8 @@ export function SecurityPosturePane() {
             value={String(posture?.repos_with_dependabot ?? 0)}
             label="Dependabot enabled"
           />
-          <MetricCard
-            value={String(posture?.repos_with_codeql ?? 0)}
-            label="CodeQL enabled"
-          />
-          <MetricCard
-            value={String(posture?.repos_with_ghas ?? 0)}
-            label="GHAS enabled"
-          />
+          <MetricCard value={String(posture?.repos_with_codeql ?? 0)} label="CodeQL enabled" />
+          <MetricCard value={String(posture?.repos_with_ghas ?? 0)} label="GHAS enabled" />
           <MetricCard
             value={String(posture?.features_disabled_count ?? 0)}
             label="Features disabled"
@@ -214,14 +212,8 @@ export function SecurityPosturePane() {
             label="Publicly leaked"
             accent={secrets != null && secrets.publicly_leaked > 0}
           />
-          <MetricCard
-            value={String(secrets?.open_gt_7d ?? 0)}
-            label="Open > 7 days"
-          />
-          <MetricCard
-            value={String(secrets?.open_gt_30d ?? 0)}
-            label="Open > 30 days"
-          />
+          <MetricCard value={String(secrets?.open_gt_7d ?? 0)} label="Open > 7 days" />
+          <MetricCard value={String(secrets?.open_gt_30d ?? 0)} label="Open > 30 days" />
           <MetricCard
             value={secrets != null ? formatHours(secrets.mttr_hours) : '—'}
             label="MTTR"

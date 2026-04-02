@@ -97,24 +97,14 @@ vi.mock('../../api/copilotMetrics', () => ({
       { id: 'never', label: 'Never Used', count: 24, color: '#8b949e', desc: 'Zero activity' },
     ],
     total_adoption: 186,
-    power_users: [
-      { user: 'sarah.chen', days_active: 45, features_used: 5 },
-    ],
-    feature_adoption: [
-      { feature: 'IDE completions', pct: 87, color: '#3fb950' },
-    ],
+    power_users: [{ user: 'sarah.chen', days_active: 45, features_used: 5 }],
+    feature_adoption: [{ feature: 'IDE completions', pct: 87, color: '#3fb950' }],
     minimal_users: [],
   }),
   getCopilotModels: vi.fn().mockResolvedValue({
-    models: [
-      { model: 'GPT-4o', pct: 42, color: '#58a6ff' },
-    ],
-    features: [
-      { feature: 'IDE completions', count: 142, color: '#58a6ff' },
-    ],
-    editors: [
-      { name: 'VS Code', count: 112, pct: 79 },
-    ],
+    models: [{ model: 'GPT-4o', pct: 42, color: '#58a6ff' }],
+    features: [{ feature: 'IDE completions', count: 142, color: '#58a6ff' }],
+    editors: [{ name: 'VS Code', count: 112, pct: 79 }],
   }),
 }));
 
@@ -208,9 +198,14 @@ describe('CopilotPage', () => {
     expect(await screen.findByText('Sudden drop in acceptance rate')).toBeInTheDocument();
     expect(screen.getByText('Unusual seat churn detected')).toBeInTheDocument();
     expect(screen.getByText('Knowledge base usage spike')).toBeInTheDocument();
-    expect(screen.getByText((_content, element) => {
-      return element?.classList?.contains('insightNote') === true && element.textContent?.includes('3 anomalies') === true;
-    })).toBeInTheDocument();
+    expect(
+      screen.getByText((_content, element) => {
+        return (
+          element?.classList?.contains('insightNote') === true &&
+          element.textContent?.includes('3 anomalies') === true
+        );
+      }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Seat waste detected/)).not.toBeInTheDocument();
   });
 

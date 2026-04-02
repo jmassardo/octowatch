@@ -53,7 +53,11 @@ export function HealthPage() {
       <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--fg-muted)' }}>
         <h2>Org Health is disabled</h2>
         <p style={{ marginTop: '0.75rem' }}>
-          Enable it in <a href="/settings/features" style={{ color: 'var(--accent)' }}>Settings → Features</a>.
+          Enable it in{' '}
+          <a href="/settings/features" style={{ color: 'var(--accent)' }}>
+            Settings → Features
+          </a>
+          .
         </p>
       </div>
     );

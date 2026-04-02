@@ -211,9 +211,7 @@ describe('JsonConfigEditor', () => {
   /* ---------------------------------------------------------------- */
 
   it('updates textarea when config prop changes', () => {
-    const { rerender } = render(
-      <JsonConfigEditor config={{ a: 1 }} onChange={() => {}} />,
-    );
+    const { rerender } = render(<JsonConfigEditor config={{ a: 1 }} onChange={() => {}} />);
 
     const textarea = screen.getByTestId('json-textarea');
     expect(textarea).toHaveValue(JSON.stringify({ a: 1 }, null, 2));
@@ -224,9 +222,7 @@ describe('JsonConfigEditor', () => {
   });
 
   it('does not reset textarea when config prop has same content', () => {
-    const { rerender } = render(
-      <JsonConfigEditor config={{ a: 1 }} onChange={() => {}} />,
-    );
+    const { rerender } = render(<JsonConfigEditor config={{ a: 1 }} onChange={() => {}} />);
 
     const textarea = screen.getByTestId('json-textarea');
     // User modifies text to compact form (same JSON content, different formatting)
@@ -258,9 +254,7 @@ describe('JsonConfigEditor', () => {
   });
 
   it('does not render validation errors when errors is empty', () => {
-    render(
-      <JsonConfigEditor config={defaultConfig} onChange={() => {}} errors={[]} />,
-    );
+    render(<JsonConfigEditor config={defaultConfig} onChange={() => {}} errors={[]} />);
 
     expect(screen.queryByText(/must be/)).not.toBeInTheDocument();
   });

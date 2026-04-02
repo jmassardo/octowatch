@@ -46,6 +46,12 @@
   margin-top: 4px;
 }
 
-.up { color: var(--success); }
-.down { color: var(--danger); }
-.neutral { color: var(--fg-muted); }
+.up {
+  color: var(--success);
+}
+.down {
+  color: var(--danger);
+}
+.neutral {
+  color: var(--fg-muted);
+}

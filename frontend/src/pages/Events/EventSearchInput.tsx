@@ -126,10 +126,7 @@ export function EventSearchInput({
   const internalRef = useRef<HTMLInputElement>(null);
 
   // Compute context and suggestions based on tracked cursor position
-  const context = useMemo(
-    () => parseContext(value, cursorPos),
-    [value, cursorPos],
-  );
+  const context = useMemo(() => parseContext(value, cursorPos), [value, cursorPos]);
 
   const suggestions = useMemo(() => {
     if (context.prefix === null) {
@@ -247,13 +244,14 @@ export function EventSearchInput({
   const showDropdown = open && suggestions.length > 0;
 
   // Determine section label
-  const sectionLabel = context.prefix === null
-    ? 'Filter by'
-    : context.prefix === 'action'
-      ? 'Actions'
-      : context.prefix === 'actor'
-        ? 'Actors'
-        : null;
+  const sectionLabel =
+    context.prefix === null
+      ? 'Filter by'
+      : context.prefix === 'action'
+        ? 'Actions'
+        : context.prefix === 'actor'
+          ? 'Actors'
+          : null;
 
   return (
     <div className={styles.wrapper} ref={wrapperRef}>
@@ -285,19 +283,11 @@ export function EventSearchInput({
         autoComplete="off"
       />
       {showDropdown && (
-        <div
-          className={styles.dropdown}
-          ref={listRef}
-          role="listbox"
-        >
-          {sectionLabel && (
-            <div className={styles.sectionLabel}>{sectionLabel}</div>
-          )}
+        <div className={styles.dropdown} ref={listRef} role="listbox">
+          {sectionLabel && <div className={styles.sectionLabel}>{sectionLabel}</div>}
           {suggestions.map((suggestion, index) => {
             const isActive = index === clampedActiveIndex;
-            const cls = [styles.option, isActive && styles.optionActive]
-              .filter(Boolean)
-              .join(' ');
+            const cls = [styles.option, isActive && styles.optionActive].filter(Boolean).join(' ');
 
             return (
               <div
@@ -313,10 +303,7 @@ export function EventSearchInput({
                 }}
                 onMouseEnter={() => setActiveIndex(index)}
               >
-                <HighlightedOption
-                  text={suggestion}
-                  query={context.query}
-                />
+                <HighlightedOption text={suggestion} query={context.query} />
               </div>
             );
           })}

@@ -18,11 +18,23 @@ import { formatAbsolute } from '../../utils/dates';
 import styles from './Rules.module.css';
 
 const CATEGORIES: RuleCategory[] = [
-  'access_control', 'data_exfiltration', 'defense_evasion', 'incident_response',
-  'policy_violation', 'posture_change', 'posture_degradation', 'privilege_escalation',
-  'supply_chain', 'exfiltration', 'account_compromise', 'secret_leakage',
-  'branch_protection_bypass', 'pat_abuse', 'impossible_travel',
-  'off_hours_anomaly', 'other',
+  'access_control',
+  'data_exfiltration',
+  'defense_evasion',
+  'incident_response',
+  'policy_violation',
+  'posture_change',
+  'posture_degradation',
+  'privilege_escalation',
+  'supply_chain',
+  'exfiltration',
+  'account_compromise',
+  'secret_leakage',
+  'branch_protection_bypass',
+  'pat_abuse',
+  'impossible_travel',
+  'off_hours_anomaly',
+  'other',
 ];
 const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'] as const;
 const CONFIDENCES = ['high', 'medium', 'low'] as const;
@@ -40,13 +52,47 @@ function getDefaultConfig(logicType: string): Record<string, unknown> {
     case 'pattern':
       return { action_filters: [], field_conditions: [], confidence: 0.5 };
     case 'threshold':
-      return { action_filters: [], field_conditions: [], threshold: 10, time_window_minutes: 60, aggregation_key: 'actor', confidence: 0.5 };
+      return {
+        action_filters: [],
+        field_conditions: [],
+        threshold: 10,
+        time_window_minutes: 60,
+        aggregation_key: 'actor',
+        confidence: 0.5,
+      };
     case 'sequence':
-      return { action_filters: [], sequence_steps: [{ action: '', min_count: 1 }, { action: '', min_count: 1 }], aggregation_key: 'actor', time_window_minutes: 60, confidence: 0.5 };
+      return {
+        action_filters: [],
+        sequence_steps: [
+          { action: '', min_count: 1 },
+          { action: '', min_count: 1 },
+        ],
+        aggregation_key: 'actor',
+        time_window_minutes: 60,
+        confidence: 0.5,
+      };
     case 'statistical':
-      return { action_filters: [], field_conditions: [], time_window_minutes: 60, confidence: 0.65, x_config: { engine: 'impossible_travel', distance_threshold_km: 500, speed_threshold_kmh: 900, suppress_proxy_ips: true } };
+      return {
+        action_filters: [],
+        field_conditions: [],
+        time_window_minutes: 60,
+        confidence: 0.65,
+        x_config: {
+          engine: 'impossible_travel',
+          distance_threshold_km: 500,
+          speed_threshold_kmh: 900,
+          suppress_proxy_ips: true,
+        },
+      };
     case 'posture':
-      return { entity_type: 'org', check_type: 'field_value', field: '', operator: 'eq', value: '', confidence: 0.85 };
+      return {
+        entity_type: 'org',
+        check_type: 'field_value',
+        field: '',
+        operator: 'eq',
+        value: '',
+        confidence: 0.85,
+      };
     default:
       return {};
   }
@@ -85,9 +131,14 @@ function RuleForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     onSave({
-      name, slug, description: description || undefined, category,
-      default_severity: severity, default_confidence: confidence,
-      logic_type: logicType, logic_config: logicConfig,
+      name,
+      slug,
+      description: description || undefined,
+      category,
+      default_severity: severity,
+      default_confidence: confidence,
+      logic_type: logicType,
+      logic_config: logicConfig,
       enabled,
       ...(initial && changeSummary ? { change_summary: changeSummary } : {}),
     });
@@ -133,7 +184,9 @@ function RuleForm({
             onChange={(e) => setCategory(e.target.value as RuleCategory)}
           >
             {CATEGORIES.map((c) => (
-              <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>
+              <option key={c} value={c}>
+                {c.replace(/_/g, ' ')}
+              </option>
             ))}
           </select>
         </div>
@@ -145,7 +198,9 @@ function RuleForm({
             onChange={(e) => setSeverity(e.target.value)}
           >
             {SEVERITIES.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>
+                {s}
+              </option>
             ))}
           </select>
         </div>
@@ -157,7 +212,9 @@ function RuleForm({
             onChange={(e) => setConfidence(e.target.value)}
           >
             {CONFIDENCES.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>
+                {c}
+              </option>
             ))}
           </select>
         </div>
@@ -169,18 +226,16 @@ function RuleForm({
             onChange={(e) => handleLogicTypeChange(e.target.value)}
           >
             {LOGIC_TYPES.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option key={t} value={t}>
+                {t}
+              </option>
             ))}
           </select>
         </div>
       </div>
       <div className={styles.formRowCheck}>
         <label className={styles.checkLabel}>
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-          />
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
           Enabled
         </label>
       </div>
@@ -208,8 +263,12 @@ function RuleForm({
       )}
 
       <div className={styles.formActions}>
-        <Button variant="default" onClick={onCancel} type="button">Cancel</Button>
-        <Button variant="primary" type="submit">Save rule</Button>
+        <Button variant="default" onClick={onCancel} type="button">
+          Cancel
+        </Button>
+        <Button variant="primary" type="submit">
+          Save rule
+        </Button>
       </div>
     </form>
   );
@@ -218,7 +277,11 @@ function RuleForm({
 function VersionHistory({ rule }: { rule: RuleResponse }) {
   const [viewConfig, setViewConfig] = useState<RuleVersionResponse | null>(null);
 
-  const { data: versions, isLoading, isError } = useQuery({
+  const {
+    data: versions,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ['rule-versions', rule.id],
     queryFn: () => listRuleVersions(rule.id),
   });
@@ -229,7 +292,14 @@ function VersionHistory({ rule }: { rule: RuleResponse }) {
   if (viewConfig) {
     return (
       <div>
-        <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div
+          style={{
+            marginBottom: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
           <span style={{ fontSize: 13, fontWeight: 500 }}>
             Version {viewConfig.version} — Config
           </span>
@@ -238,11 +308,7 @@ function VersionHistory({ rule }: { rule: RuleResponse }) {
           </Button>
         </div>
         <div className={styles.versionConfigWrap}>
-          <JsonConfigEditor
-            config={viewConfig.logic_config}
-            onChange={() => {}}
-            readOnly
-          />
+          <JsonConfigEditor config={viewConfig.logic_config} onChange={() => {}} readOnly />
         </div>
       </div>
     );
@@ -279,19 +345,13 @@ function VersionHistory({ rule }: { rule: RuleResponse }) {
                   <td>{v.change_summary ?? '—'}</td>
                   <td>
                     {v.git_commit_sha ? (
-                      <span className={styles.versionHash}>
-                        {v.git_commit_sha.slice(0, 7)}
-                      </span>
+                      <span className={styles.versionHash}>{v.git_commit_sha.slice(0, 7)}</span>
                     ) : (
                       '—'
                     )}
                   </td>
                   <td>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => setViewConfig(v)}
-                    >
+                    <Button variant="default" size="sm" onClick={() => setViewConfig(v)}>
                       View config
                     </Button>
                   </td>
@@ -320,24 +380,38 @@ export function RulesPage() {
 
   const PAGE_SIZE = 25;
 
-  const { data: rules, isLoading, isError, refetch } = useQuery({
+  const {
+    data: rules,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['rules', page],
     queryFn: () => listRules({ limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
   });
 
   const createMutation = useMutation({
     mutationFn: createRule,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rules'] }); setShowCreate(false); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rules'] });
+      setShowCreate(false);
+    },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: RuleCreate }) => updateRule(id, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rules'] }); setEditRule(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rules'] });
+      setEditRule(null);
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteRule(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rules'] }); setDeleteTarget(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rules'] });
+      setDeleteTarget(null);
+    },
   });
 
   return (
@@ -358,12 +432,24 @@ export function RulesPage() {
           >
             Sync from GitHub
           </Button>
-          <Button variant="primary" size="sm" onClick={() => setShowCreate(true)}>New rule</Button>
+          <Button variant="primary" size="sm" onClick={() => setShowCreate(true)}>
+            New rule
+          </Button>
         </div>
       </div>
 
       {syncMessage && (
-        <div style={{ padding: '8px 12px', marginBottom: 12, borderRadius: 6, background: 'var(--success-subtle, #2ea04333)', color: 'var(--success)', fontSize: 13, fontWeight: 500 }}>
+        <div
+          style={{
+            padding: '8px 12px',
+            marginBottom: 12,
+            borderRadius: 6,
+            background: 'var(--success-subtle, #2ea04333)',
+            color: 'var(--success)',
+            fontSize: 13,
+            fontWeight: 500,
+          }}
+        >
           {syncMessage}
         </div>
       )}
@@ -396,25 +482,35 @@ export function RulesPage() {
                   <td>
                     <div className={styles.ruleName}>{rule.name}</div>
                   </td>
-                  <td><Label variant="muted">{rule.logic_type}</Label></td>
-                  <td><Label variant={SEVERITY_VARIANT[rule.default_severity] ?? 'muted'}>{rule.default_severity}</Label></td>
+                  <td>
+                    <Label variant="muted">{rule.logic_type}</Label>
+                  </td>
+                  <td>
+                    <Label variant={SEVERITY_VARIANT[rule.default_severity] ?? 'muted'}>
+                      {rule.default_severity}
+                    </Label>
+                  </td>
                   <td className={styles.muted}>
-                    {rule.status === 'active' ? (
-                      (() => {
-                        const count = 0;
-                        return count > 0 ? (
-                          <span
-                            className={styles.clickableCount}
-                            role="link"
-                            tabIndex={0}
-                            onClick={() => navigate(`/threats?rule_id=${rule.id}`)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/threats?rule_id=${rule.id}`); }}
-                          >
-                            {count}
-                          </span>
-                        ) : '0';
-                      })()
-                    ) : '—'}
+                    {rule.status === 'active'
+                      ? (() => {
+                          const count = 0;
+                          return count > 0 ? (
+                            <span
+                              className={styles.clickableCount}
+                              role="link"
+                              tabIndex={0}
+                              onClick={() => navigate(`/threats?rule_id=${rule.id}`)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') navigate(`/threats?rule_id=${rule.id}`);
+                              }}
+                            >
+                              {count}
+                            </span>
+                          ) : (
+                            '0'
+                          );
+                        })()
+                      : '—'}
                   </td>
                   <td>
                     <span
@@ -422,35 +518,47 @@ export function RulesPage() {
                       role="link"
                       tabIndex={0}
                       onClick={() => setVersionRule(rule)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') setVersionRule(rule); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setVersionRule(rule);
+                      }}
                     >
                       v{rule.version}.0.0
                     </span>
                   </td>
                   <td>
                     <div className={styles.headerActions}>
-                      <Button size="sm" variant="default" onClick={() => setTestRuleTarget(rule)}>Test</Button>
-                      <Button size="sm" variant="default" onClick={() => setEditRule(rule)}>Edit</Button>
+                      <Button size="sm" variant="default" onClick={() => setTestRuleTarget(rule)}>
+                        Test
+                      </Button>
+                      <Button size="sm" variant="default" onClick={() => setEditRule(rule)}>
+                        Edit
+                      </Button>
                     </div>
                   </td>
                 </tr>
               ))}
               {(rules?.items ?? []).length === 0 && (
-                <tr><td colSpan={7} className={styles.empty}>No rules configured</td></tr>
+                <tr>
+                  <td colSpan={7} className={styles.empty}>
+                    No rules configured
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
           {rules && (
-            <Pagination page={page} pageSize={PAGE_SIZE} total={rules.total} onPageChange={setPage} />
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={rules.total}
+              onPageChange={setPage}
+            />
           )}
         </div>
       )}
 
       <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Create rule" width={720}>
-        <RuleForm
-          onSave={(v) => createMutation.mutate(v)}
-          onCancel={() => setShowCreate(false)}
-        />
+        <RuleForm onSave={(v) => createMutation.mutate(v)} onCancel={() => setShowCreate(false)} />
       </Modal>
 
       <Modal open={!!editRule} onClose={() => setEditRule(null)} title="Edit rule" width={720}>
@@ -463,10 +571,13 @@ export function RulesPage() {
         )}
       </Modal>
 
-      <Modal open={!!versionRule} onClose={() => setVersionRule(null)} title="Version history" width={720}>
-        {versionRule && (
-          <VersionHistory rule={versionRule} />
-        )}
+      <Modal
+        open={!!versionRule}
+        onClose={() => setVersionRule(null)}
+        title="Version history"
+        width={720}
+      >
+        {versionRule && <VersionHistory rule={versionRule} />}
       </Modal>
 
       <ConfirmDialog
@@ -479,10 +590,7 @@ export function RulesPage() {
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
       />
 
-      <TestRuleModal
-        rule={testRuleTarget}
-        onClose={() => setTestRuleTarget(null)}
-      />
+      <TestRuleModal rule={testRuleTarget} onClose={() => setTestRuleTarget(null)} />
     </div>
   );
 }

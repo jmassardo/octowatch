@@ -7,8 +7,30 @@ import { IntegrationsPage } from './index';
 vi.mock('../../api/integrations', () => ({
   listTicketingConfigs: vi.fn().mockResolvedValue([]),
   listNotificationConfigs: vi.fn().mockResolvedValue([]),
-  createNotificationConfig: vi.fn().mockResolvedValue({ id: 1, channel_type: 'slack', display_name: 'Slack', target: 'https://hooks.slack.com/services/test', notify_severities: ['critical', 'high'], cooldown_seconds: 3600, enabled: true, created_by: 'admin', created_at: '2025-01-01T00:00:00Z' }),
-  createTicketingConfig: vi.fn().mockResolvedValue({ id: 1, provider: 'jira', display_name: 'Jira', target: 'https://test.atlassian.net', project_key: 'SEC', default_issue_type: 'Bug', auto_create: false, auto_create_severities: ['critical', 'high'], enabled: true, created_by: 'admin', created_at: '2025-01-01T00:00:00Z' }),
+  createNotificationConfig: vi.fn().mockResolvedValue({
+    id: 1,
+    channel_type: 'slack',
+    display_name: 'Slack',
+    target: 'https://hooks.slack.com/services/test',
+    notify_severities: ['critical', 'high'],
+    cooldown_seconds: 3600,
+    enabled: true,
+    created_by: 'admin',
+    created_at: '2025-01-01T00:00:00Z',
+  }),
+  createTicketingConfig: vi.fn().mockResolvedValue({
+    id: 1,
+    provider: 'jira',
+    display_name: 'Jira',
+    target: 'https://test.atlassian.net',
+    project_key: 'SEC',
+    default_issue_type: 'Bug',
+    auto_create: false,
+    auto_create_severities: ['critical', 'high'],
+    enabled: true,
+    created_by: 'admin',
+    created_at: '2025-01-01T00:00:00Z',
+  }),
 }));
 
 const mockUpdateSyncConfig = vi.fn().mockResolvedValue({
@@ -44,7 +66,9 @@ vi.mock('../../api/sync', () => ({
     orgs: ['acme'],
   }),
   updateSyncConfig: (...args: unknown[]) => mockUpdateSyncConfig(...args),
-  listSyncRuns: vi.fn().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 10, has_next: false }),
+  listSyncRuns: vi
+    .fn()
+    .mockResolvedValue({ items: [], total: 0, page: 1, page_size: 10, has_next: false }),
   getSyncRun: vi.fn().mockResolvedValue(null),
   getSyncSchedule: vi.fn().mockResolvedValue({
     enabled: false,
@@ -121,7 +145,9 @@ describe('IntegrationsPage', () => {
     expect(screen.getByText(/connect your github enterprise instance/i)).toBeInTheDocument();
     expect(screen.getByText(/send real-time alerts and weekly digest/i)).toBeInTheDocument();
     expect(screen.getByText(/forward normalized security events/i)).toBeInTheDocument();
-    expect(screen.getByText(/stream audit events and copilot metrics to splunk/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/stream audit events and copilot metrics to splunk/i),
+    ).toBeInTheDocument();
     expect(screen.getByText(/trigger pagerduty incidents/i)).toBeInTheDocument();
     expect(screen.getByText(/automatically create jira issues/i)).toBeInTheDocument();
   });
@@ -293,7 +319,9 @@ describe('IntegrationsPage', () => {
     await user.click(within(ghCard).getByRole('button', { name: /configure/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/github app credentials are configured via environment variables/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/github app credentials are configured via environment variables/i),
+      ).toBeInTheDocument();
     });
   });
 

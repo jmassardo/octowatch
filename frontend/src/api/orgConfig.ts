@@ -17,8 +17,5 @@ export function updateOrgConfig(
   orgSlug: string,
   update: OrgConfigUpdate,
 ): Promise<OrgConfigResponse> {
-  return api.patch<OrgConfigResponse>(
-    `/orgs/${encodeURIComponent(orgSlug)}/config`,
-    update,
-  );
+  return api.patch<OrgConfigResponse>(`/orgs/${encodeURIComponent(orgSlug)}/config`, update);
 }

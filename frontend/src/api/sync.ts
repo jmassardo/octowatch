@@ -1,5 +1,11 @@
 import { api } from './client';
-import type { SyncRun, SyncRunsResponse, SyncConfig, SyncSchedule, SyncLogsResponse } from '../types/sync';
+import type {
+  SyncRun,
+  SyncRunsResponse,
+  SyncConfig,
+  SyncSchedule,
+  SyncLogsResponse,
+} from '../types/sync';
 
 export function triggerSync(scope: string = 'full'): Promise<{ run_id: string; status: string }> {
   return api.post('/admin/sync/trigger', { scope });

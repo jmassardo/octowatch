@@ -10,5 +10,10 @@ interface SeverityDotProps {
 }
 
 export function SeverityDot({ severity, className, style }: SeverityDotProps) {
-  return <span className={[styles.dot, styles[severity], className].filter(Boolean).join(' ')} style={style} />;
+  return (
+    <span
+      className={[styles.dot, styles[severity], className].filter(Boolean).join(' ')}
+      style={style}
+    />
+  );
 }

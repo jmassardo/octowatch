@@ -1,4 +1,6 @@
-.page { padding: 0; }
+.page {
+  padding: 0;
+}
 
 /* ── Breadcrumb ────────────────────────────────────────────────────── */
 .breadcrumb {
@@ -13,8 +15,12 @@
   color: var(--accent-fg);
   text-decoration: none;
 }
-.breadcrumb a:hover { text-decoration: underline; }
-.breadcrumbSep { color: var(--fg-muted); }
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+.breadcrumbSep {
+  color: var(--fg-muted);
+}
 
 /* ── Header ────────────────────────────────────────────────────────── */
 .header {
@@ -24,7 +30,9 @@
   padding: 12px 24px 16px;
   border-bottom: 1px solid var(--border);
 }
-.headerInfo { flex: 1; }
+.headerInfo {
+  flex: 1;
+}
 .headerTitle {
   font-size: 20px;
   font-weight: 600;
@@ -48,9 +56,15 @@
   border: 3px solid var(--border);
   flex-shrink: 0;
 }
-.scoreGauge.good { border-color: var(--success); }
-.scoreGauge.warn { border-color: var(--attention); }
-.scoreGauge.bad { border-color: var(--danger); }
+.scoreGauge.good {
+  border-color: var(--success);
+}
+.scoreGauge.warn {
+  border-color: var(--attention);
+}
+.scoreGauge.bad {
+  border-color: var(--danger);
+}
 .scoreValue {
   font-size: 22px;
   font-weight: 700;
@@ -64,7 +78,9 @@
 }
 
 /* ── Content area ──────────────────────────────────────────────────── */
-.content { padding: 20px 24px; }
+.content {
+  padding: 20px 24px;
+}
 
 /* ── Filters ───────────────────────────────────────────────────────── */
 .filters {
@@ -96,7 +112,9 @@
   cursor: pointer;
   transition: border-color 0.15s;
 }
-.orgCard:hover { border-color: var(--accent-fg); }
+.orgCard:hover {
+  border-color: var(--accent-fg);
+}
 .orgCardHeader {
   display: flex;
   align-items: center;
@@ -159,16 +177,28 @@
   font-size: 13px;
   background: var(--canvas-default);
 }
-.checkRow:hover { background: var(--canvas-subtle); }
-.checkIcon { width: 18px; text-align: center; flex-shrink: 0; }
-.checkPass { color: var(--success); }
-.checkFail { color: var(--danger); }
+.checkRow:hover {
+  background: var(--canvas-subtle);
+}
+.checkIcon {
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.checkPass {
+  color: var(--success);
+}
+.checkFail {
+  color: var(--danger);
+}
 .checkInfo {
   flex: 1;
   display: flex;
   flex-direction: column;
 }
-.checkTitle { font-weight: 500; }
+.checkTitle {
+  font-weight: 500;
+}
 .checkDesc {
   font-size: 12px;
   color: var(--fg-muted);
@@ -200,15 +230,23 @@
   cursor: pointer;
   user-select: none;
 }
-.repoTable th:hover { color: var(--fg); }
+.repoTable th:hover {
+  color: var(--fg);
+}
 .repoTable td {
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
-.repoTable tr { cursor: pointer; }
-.repoTable tr:hover td { background: var(--canvas-subtle); }
-.repoName { font-weight: 500; }
+.repoTable tr {
+  cursor: pointer;
+}
+.repoTable tr:hover td {
+  background: var(--canvas-subtle);
+}
+.repoName {
+  font-weight: 500;
+}
 
 /* ── Metadata card ─────────────────────────────────────────────────── */
 .metaCard {
@@ -222,7 +260,8 @@
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 10px;
 }
-.metaItem {}
+.metaItem {
+}
 .metaLabel {
   font-size: 11px;
   color: var(--fg-muted);

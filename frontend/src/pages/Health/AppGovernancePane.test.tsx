@@ -49,12 +49,15 @@ interface MockQueryReturn<T> {
 let queryResults: Record<string, MockQueryReturn<unknown>>;
 
 vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
+  const actual =
+    await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
   return {
     ...actual,
     useQuery: (opts: { queryKey: string[] }) => {
       const key = opts.queryKey.join('/');
-      return queryResults[key] ?? { data: undefined, isLoading: true, isError: false, refetch: vi.fn() };
+      return (
+        queryResults[key] ?? { data: undefined, isLoading: true, isError: false, refetch: vi.fn() }
+      );
     },
   };
 });
@@ -73,20 +76,45 @@ function renderPane() {
 describe('AppGovernancePane', () => {
   beforeEach(() => {
     queryResults = {
-      'health/app-governance': { data: mockAppData, isLoading: false, isError: false, refetch: vi.fn() },
-      'health/code-scanning': { data: mockCodeScanData, isLoading: false, isError: false, refetch: vi.fn() },
-      'health/vulnerabilities': { data: mockVulnData, isLoading: false, isError: false, refetch: vi.fn() },
+      'health/app-governance': {
+        data: mockAppData,
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      },
+      'health/code-scanning': {
+        data: mockCodeScanData,
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      },
+      'health/vulnerabilities': {
+        data: mockVulnData,
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      },
     };
   });
 
   it('renders loading spinner when any query is loading', () => {
-    queryResults['health/app-governance'] = { data: undefined, isLoading: true, isError: false, refetch: vi.fn() };
+    queryResults['health/app-governance'] = {
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      refetch: vi.fn(),
+    };
     renderPane();
     expect(document.querySelector('[class*="spinner"]')).toBeTruthy();
   });
 
   it('renders error banner when any query fails', () => {
-    queryResults['health/code-scanning'] = { data: undefined, isLoading: false, isError: true, refetch: vi.fn() };
+    queryResults['health/code-scanning'] = {
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      refetch: vi.fn(),
+    };
     renderPane();
     expect(screen.getByText('Failed to load app governance data')).toBeInTheDocument();
   });

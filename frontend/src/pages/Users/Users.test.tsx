@@ -22,13 +22,15 @@ vi.mock('../../api/admin', () => ({
   ]),
   createRoleAssignment: vi.fn().mockResolvedValue({}),
   deleteRoleAssignment: vi.fn().mockResolvedValue(undefined),
-  listRoles: vi.fn().mockResolvedValue([
-    { name: 'viewer' },
-    { name: 'analyst' },
-    { name: 'rule_author' },
-    { name: 'report_admin' },
-    { name: 'sys_admin' },
-  ]),
+  listRoles: vi
+    .fn()
+    .mockResolvedValue([
+      { name: 'viewer' },
+      { name: 'analyst' },
+      { name: 'rule_author' },
+      { name: 'report_admin' },
+      { name: 'sys_admin' },
+    ]),
   getActiveSessions: vi.fn().mockResolvedValue([
     {
       login: 'jmassardo',
@@ -117,7 +119,8 @@ describe('UsersPage', () => {
     await screen.findByText('@security-team');
 
     // The team mappings table should show the mapped display name
-    const teamTable = screen.getByRole('heading', { level: 2, name: /team mappings/i })
+    const teamTable = screen
+      .getByRole('heading', { level: 2, name: /team mappings/i })
       .closest('section')!;
     expect(within(teamTable).getByText('Sys Admin')).toBeInTheDocument();
   });
@@ -173,7 +176,9 @@ describe('UsersPage', () => {
     const modal = modalTitle.closest('.dialog')!;
 
     expect(within(modal as HTMLElement).getByText('Active sessions')).toBeInTheDocument();
-    expect(within(modal as HTMLElement).getByText(/requires GitHub API integration/i)).toBeInTheDocument();
+    expect(
+      within(modal as HTMLElement).getByText(/requires GitHub API integration/i),
+    ).toBeInTheDocument();
   });
 
   it('session modal shows correct role display name', async () => {
@@ -201,9 +206,9 @@ describe('UsersPage', () => {
 
     // The granted-by @jmassardo in the team mappings table
     // Header text now includes sort icon, so use includes() instead of strict equality
-    const grantedByMention = screen.getAllByText('@jmassardo').find(
-      (el) => el.closest('table')?.querySelector('th')?.textContent?.includes('GitHub team'),
-    );
+    const grantedByMention = screen
+      .getAllByText('@jmassardo')
+      .find((el) => el.closest('table')?.querySelector('th')?.textContent?.includes('GitHub team'));
     expect(grantedByMention).toBeDefined();
     expect(grantedByMention!.classList.contains('clickableMention')).toBe(true);
   });

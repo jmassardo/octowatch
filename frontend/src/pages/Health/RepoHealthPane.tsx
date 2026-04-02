@@ -51,7 +51,20 @@ function buildStaleTrend(stale: StaleRepo[]): { labels: string[]; counts: number
   const now = new Date();
   const labels: string[] = [];
   const counts: number[] = [];
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
 
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -97,7 +110,10 @@ function RepoHealthTable({ repos }: { repos: RepoRow[] }) {
         <tbody>
           {repos.length === 0 && (
             <tr>
-              <td colSpan={3} style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}>
+              <td
+                colSpan={3}
+                style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
+              >
                 No stale repositories found
               </td>
             </tr>
@@ -105,11 +121,17 @@ function RepoHealthTable({ repos }: { repos: RepoRow[] }) {
           {repos.map((r) => {
             const health = classifyRepoHealth(r.daysSinceActivity);
             const pushVariant =
-              r.daysSinceActivity > 180 ? 'danger' : r.daysSinceActivity > 30 ? 'attention' : 'success';
+              r.daysSinceActivity > 180
+                ? 'danger'
+                : r.daysSinceActivity > 30
+                  ? 'attention'
+                  : 'success';
             return (
               <tr key={`${r.org}/${r.repo}`}>
                 <td>
-                  <div className={styles.repoName}>{r.org}/{r.repo}</div>
+                  <div className={styles.repoName}>
+                    {r.org}/{r.repo}
+                  </div>
                   <div className={styles.repoSub}>{r.org}</div>
                 </td>
                 <td>
@@ -117,7 +139,13 @@ function RepoHealthTable({ repos }: { repos: RepoRow[] }) {
                 </td>
                 <td>
                   <Label variant={healthLabelVariant(health)}>
-                    {health === 'critical' ? '⚠ critical' : health === 'good' ? 'healthy' : health === 'high' ? '⚠ high' : 'needs attention'}
+                    {health === 'critical'
+                      ? '⚠ critical'
+                      : health === 'good'
+                        ? 'healthy'
+                        : health === 'high'
+                          ? '⚠ high'
+                          : 'needs attention'}
                   </Label>
                 </td>
               </tr>
@@ -126,7 +154,8 @@ function RepoHealthTable({ repos }: { repos: RepoRow[] }) {
         </tbody>
       </table>
       <div style={{ fontSize: 11, color: 'var(--fg-subtle)', padding: '8px 12px' }}>
-        ℹ️ Additional repository health data (branch protection, secret scanning, Dependabot, CI) requires GitHub API integration.
+        ℹ️ Additional repository health data (branch protection, secret scanning, Dependabot, CI)
+        requires GitHub API integration.
       </div>
     </div>
   );
@@ -232,7 +261,10 @@ function UnhealthySummaryCards({ stale }: { stale: StaleRepo[] }) {
           ℹ Detected via <code className={styles.codeSnippet}>protected_branch.destroy</code> events
           + missing corresponding create events in baseline.
           {critical.length + high.length > 0 && (
-            <> ({critical.length} critical, {high.length} high severity)</>
+            <>
+              {' '}
+              ({critical.length} critical, {high.length} high severity)
+            </>
           )}
         </div>
       </Card>
@@ -299,7 +331,9 @@ function ArchiveCandidatesList({
         {candidates.map((r) => (
           <div key={`stale-${r.org}/${r.repo}`} className={styles.archiveItem}>
             <div>
-              <div className={styles.archiveRepo}>{r.org}/{r.repo}</div>
+              <div className={styles.archiveRepo}>
+                {r.org}/{r.repo}
+              </div>
               <div className={styles.archiveMeta}>
                 No activity for {r.days_since_activity} days — consider archiving
               </div>
@@ -311,7 +345,9 @@ function ArchiveCandidatesList({
         {archived.map((r) => (
           <div key={`arch-${r.org}/${r.repo}`} className={styles.archiveItem}>
             <div>
-              <div className={styles.archiveRepo}>{r.org}/{r.repo}</div>
+              <div className={styles.archiveRepo}>
+                {r.org}/{r.repo}
+              </div>
               <div className={styles.archiveMeta}>
                 Archived {formatDateOnly(r.archived_at)} by {r.archived_by}
               </div>
@@ -323,9 +359,12 @@ function ArchiveCandidatesList({
         {forks.map((f) => (
           <div key={`fork-${f.org}/${f.repo}`} className={styles.archiveItem}>
             <div>
-              <div className={styles.archiveRepo}>{f.org}/{f.repo}</div>
+              <div className={styles.archiveRepo}>
+                {f.org}/{f.repo}
+              </div>
               <div className={styles.archiveMeta}>
-                Forked {formatDateOnly(f.forked_at)} by {f.actor} — no activity since ({f.days_since_fork} days)
+                Forked {formatDateOnly(f.forked_at)} by {f.actor} — no activity since (
+                {f.days_since_fork} days)
               </div>
             </div>
             <Label variant="attention">abandoned fork</Label>
@@ -339,12 +378,7 @@ function ArchiveCandidatesList({
 /* ---------- main pane ---------- */
 
 export function RepoHealthPane() {
-  const {
-    data,
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['health', 'repo-health'],
     queryFn: () => getRepoHealth(),
     staleTime: 60_000,
@@ -359,7 +393,9 @@ export function RepoHealthPane() {
   }
 
   if (isError) {
-    return <ErrorBanner message="Failed to load repository health data" onRetry={() => void refetch()} />;
+    return (
+      <ErrorBanner message="Failed to load repository health data" onRetry={() => void refetch()} />
+    );
   }
 
   const stale = data?.stale ?? [];

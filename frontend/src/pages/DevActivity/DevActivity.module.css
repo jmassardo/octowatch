@@ -1,6 +1,16 @@
-.page { padding: 24px; }
-.pageTitle { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
-.pageSub { font-size: 13px; color: var(--fg-muted); margin-bottom: 16px; }
+.page {
+  padding: 24px;
+}
+.pageTitle {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.pageSub {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-bottom: 16px;
+}
 
 .teamFilters {
   display: flex;
@@ -101,8 +111,12 @@
   cursor: pointer;
 }
 
-.devCard:hover { border-color: var(--accent); }
-.devCard.flagged { border-color: rgba(248, 81, 73, 0.4); }
+.devCard:hover {
+  border-color: var(--accent);
+}
+.devCard.flagged {
+  border-color: rgba(248, 81, 73, 0.4);
+}
 
 .devTop {
   display: flex;
@@ -125,9 +139,15 @@
   height: 16px !important;
 }
 
-.devHandle { font-size: 12px; color: var(--fg-muted); }
+.devHandle {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
 
-.mention { color: var(--done); font-weight: 500; }
+.mention {
+  color: var(--done);
+  font-weight: 500;
+}
 
 .devStats {
   display: flex;

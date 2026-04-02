@@ -78,16 +78,12 @@ describe('ReportsPage', () => {
   it('renders page title and subtitle', () => {
     renderWithProviders(<ReportsPage />);
     expect(screen.getByText('Reports')).toBeInTheDocument();
-    expect(
-      screen.getByText('On-demand metric reports with CSV export'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('On-demand metric reports with CSV export')).toBeInTheDocument();
   });
 
   it('shows empty state when no reports in catalog', async () => {
     renderWithProviders(<ReportsPage />);
-    expect(
-      await screen.findByText(/No reports generated yet/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/No reports generated yet/)).toBeInTheDocument();
   });
 
   it('renders report cards from catalog API data', async () => {
@@ -142,15 +138,9 @@ describe('ReportsPage', () => {
   it('renders window selector with 30d, 60d, 90d buttons', () => {
     renderWithProviders(<ReportsPage />);
     expect(screen.getByText('Window:')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: '30d' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: '60d' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: '90d' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '30d' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '60d' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '90d' })).toBeInTheDocument();
   });
 
   it('calls exportReport with pdf format when PDF button is clicked', async () => {

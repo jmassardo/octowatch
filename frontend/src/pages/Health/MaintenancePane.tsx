@@ -84,7 +84,9 @@ export function MaintenancePane() {
             <ErrorBanner message="Failed to load stale PRs" onRetry={() => void refetchPrs()} />
           )}
           {!isPrError && stalePrs.length === 0 && (
-            <div style={{ color: 'var(--fg-muted)', fontSize: 13, padding: 16, textAlign: 'center' }}>
+            <div
+              style={{ color: 'var(--fg-muted)', fontSize: 13, padding: 16, textAlign: 'center' }}
+            >
               No stale PRs detected
             </div>
           )}
@@ -93,7 +95,9 @@ export function MaintenancePane() {
               {stalePrs.map((pr) => (
                 <div key={`${pr.org}/${pr.repo}-${pr.pr_number}`} className={styles.stalePrItem}>
                   <div>
-                    <strong>{pr.org}/{pr.repo}</strong>
+                    <strong>
+                      {pr.org}/{pr.repo}
+                    </strong>
                     <div className={styles.stalePrTitle}>
                       #{pr.pr_number} · &quot;{pr.title}&quot;
                     </div>
@@ -119,10 +123,15 @@ export function MaintenancePane() {
         <Card>
           <CardHeader>Unhealthy webhooks &amp; apps</CardHeader>
           {isHookError && (
-            <ErrorBanner message="Failed to load webhook data" onRetry={() => void refetchHooks()} />
+            <ErrorBanner
+              message="Failed to load webhook data"
+              onRetry={() => void refetchHooks()}
+            />
           )}
           {!isHookError && unhealthyHooks.length === 0 && (
-            <div style={{ color: 'var(--fg-muted)', fontSize: 13, padding: 16, textAlign: 'center' }}>
+            <div
+              style={{ color: 'var(--fg-muted)', fontSize: 13, padding: 16, textAlign: 'center' }}
+            >
               No unhealthy webhooks detected
             </div>
           )}
@@ -130,12 +139,13 @@ export function MaintenancePane() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
               {unhealthyHooks.map((wh, idx) => {
                 const isDestroy = wh.action.includes('destroy');
-                const variantClass = isDestroy
-                  ? styles.webhookItemDanger
-                  : styles.webhookItemMuted;
+                const variantClass = isDestroy ? styles.webhookItemDanger : styles.webhookItemMuted;
                 const displayName = wh.app_name || wh.hook_id || wh.action;
                 return (
-                  <div key={`${wh.action}-${idx}`} className={`${styles.webhookItem} ${variantClass}`}>
+                  <div
+                    key={`${wh.action}-${idx}`}
+                    className={`${styles.webhookItem} ${variantClass}`}
+                  >
                     <div className={styles.webhookName}>{displayName}</div>
                     <div className={styles.webhookDetail}>
                       {wh.action} · {wh.org}/{wh.repo} · by {wh.actor}
@@ -182,16 +192,16 @@ export function MaintenancePane() {
               {skippedWorkflows.map((wf, idx) => (
                 <tr key={`${wf.org}/${wf.repo}-${wf.workflow_name}-${idx}`}>
                   <td>{wf.workflow_name || '(unnamed)'}</td>
-                  <td>{wf.org}/{wf.repo}</td>
+                  <td>
+                    {wf.org}/{wf.repo}
+                  </td>
                   <td>
                     <Label variant={wf.action.includes('disable') ? 'danger' : 'attention'}>
                       {wf.action.includes('disable') ? 'disabled' : 'deleted'}
                     </Label>
                   </td>
                   <td style={{ color: 'var(--fg-muted)' }}>{wf.actor}</td>
-                  <td style={{ color: 'var(--fg-muted)' }}>
-                    {formatDateOnly(wf.created_at)}
-                  </td>
+                  <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.created_at)}</td>
                 </tr>
               ))}
             </tbody>
@@ -199,8 +209,7 @@ export function MaintenancePane() {
         </div>
       )}
       <div className={styles.sourceNote}>
-        ℹ️ Derived from{' '}
-        <code className={styles.sourceCode}>workflows.disable_workflow</code>,{' '}
+        ℹ️ Derived from <code className={styles.sourceCode}>workflows.disable_workflow</code>,{' '}
         <code className={styles.sourceCode}>workflows.delete_workflow</code> events
       </div>
     </>

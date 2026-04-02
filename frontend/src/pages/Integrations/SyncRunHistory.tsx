@@ -105,9 +105,7 @@ function ExpandedRunDetail({ runId }: { runId: string }) {
 
   return (
     <div className={styles.expandedContent}>
-      {data.error_message && (
-        <p className={styles.syncRunError}>{data.error_message}</p>
-      )}
+      {data.error_message && <p className={styles.syncRunError}>{data.error_message}</p>}
       {data.cursors.length > 0 ? (
         <table className={styles.entityTableNested}>
           <thead>
@@ -124,7 +122,9 @@ function ExpandedRunDetail({ runId }: { runId: string }) {
                 <td>{c.entity_type}</td>
                 <td>{c.org ?? '—'}</td>
                 <td>
-                  <Label variant={statusVariant(c.status as SyncRunStatus)}>{c.status.replace('_', ' ')}</Label>
+                  <Label variant={statusVariant(c.status as SyncRunStatus)}>
+                    {c.status.replace('_', ' ')}
+                  </Label>
                 </td>
                 <td>{c.items_synced.toLocaleString()}</td>
               </tr>

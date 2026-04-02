@@ -67,7 +67,9 @@
   margin-left: 2px;
 }
 
-.chipX:hover { color: var(--fg); }
+.chipX:hover {
+  color: var(--fg);
+}
 
 .tableHeader {
   display: flex;

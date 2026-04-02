@@ -52,7 +52,9 @@ export function downloadCsv(events: readonly EventResponse[]): void {
     e.geo_country_code ?? '',
   ]);
   const csv = [headers, ...rows]
-    .map((row) => row.map((cell) => `"${sanitizeCell(String(cell)).replace(/"/g, '""')}"`).join(','))
+    .map((row) =>
+      row.map((cell) => `"${sanitizeCell(String(cell)).replace(/"/g, '""')}"`).join(','),
+    )
     .join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

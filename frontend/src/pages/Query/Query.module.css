@@ -1,6 +1,19 @@
-.page { padding: 24px; display: flex; flex-direction: column; height: 100%; }
-.pageTitle { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
-.pageSub { font-size: 13px; color: var(--fg-muted); margin-bottom: 16px; }
+.page {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.pageTitle {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.pageSub {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-bottom: 16px;
+}
 
 .queryLayout {
   display: flex;
@@ -36,7 +49,9 @@
   cursor: pointer;
 }
 
-.schemaTable:hover { color: var(--fg); }
+.schemaTable:hover {
+  color: var(--fg);
+}
 
 .schemaCol {
   font-size: 12px;
@@ -178,7 +193,9 @@
   font-size: 12px;
 }
 
-.resultsTable tbody tr:last-child td { border-bottom: none; }
+.resultsTable tbody tr:last-child td {
+  border-bottom: none;
+}
 
 .resultsTable tbody tr:hover td {
   background: rgba(177, 186, 196, 0.04);
@@ -186,11 +203,21 @@
 
 /* SQL Syntax Highlighting */
 
-.sqlKw { color: #ff7b72; }
-.sqlFn { color: #d2a8ff; }
-.sqlCol { color: #79c0ff; }
-.sqlLit { color: #a5d6ff; }
-.sqlCmt { color: var(--fg-subtle); }
+.sqlKw {
+  color: #ff7b72;
+}
+.sqlFn {
+  color: #d2a8ff;
+}
+.sqlCol {
+  color: #79c0ff;
+}
+.sqlLit {
+  color: #a5d6ff;
+}
+.sqlCmt {
+  color: var(--fg-subtle);
+}
 
 /* Toolbar actions */
 
@@ -266,7 +293,9 @@
   border-radius: 3px;
   padding: 1px 4px;
   margin: -1px -4px;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .clickableMeta:hover {
@@ -315,8 +344,12 @@
   flex-shrink: 0;
 }
 
-.validDot { background: #3fb950; }
-.invalidDot { background: #f85149; }
+.validDot {
+  background: #3fb950;
+}
+.invalidDot {
+  background: #f85149;
+}
 
 .validatingDot {
   background: var(--fg-subtle);
@@ -324,8 +357,13 @@
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Error underline and bar */

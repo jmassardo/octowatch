@@ -30,6 +30,8 @@ class OrgConfig(Base):
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=text("NOW()"),
-        onupdate=text("NOW()")
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        onupdate=text("NOW()"),
     )

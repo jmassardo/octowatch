@@ -319,10 +319,7 @@ def validate_and_prepare(sql: str, scope: OrgRepoScope) -> tuple[str, dict[str, 
             "scoped_orgs": scope.scoped_orgs,
             "max_rows": settings.QUERY_MAX_ROWS,
         }
-        rewritten = (
-            "WITH events AS (\n"
-            "  SELECT * FROM events WHERE org = ANY(:scoped_orgs)\n"
-        )
+        rewritten = "WITH events AS (\n  SELECT * FROM events WHERE org = ANY(:scoped_orgs)\n"
         if scope.scoped_repos:
             params["scoped_repos"] = scope.scoped_repos
             rewritten += "    AND (repo IS NULL OR repo = ANY(:scoped_repos))\n"

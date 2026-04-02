@@ -90,12 +90,20 @@ const mockQueryReturns: Array<{
 }> = [];
 
 vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
+  const actual =
+    await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
   return {
     ...actual,
     useQuery: () => {
       const idx = useQueryCallIndex++;
-      return mockQueryReturns[idx] || { data: undefined, isLoading: false, isError: false, refetch: vi.fn() };
+      return (
+        mockQueryReturns[idx] || {
+          data: undefined,
+          isLoading: false,
+          isError: false,
+          refetch: vi.fn(),
+        }
+      );
     },
   };
 });
@@ -117,9 +125,19 @@ function setDefaultData() {
   // Call 0: stale PRs
   mockQueryReturns.push({ data: mockStalePrs, isLoading: false, isError: false, refetch: vi.fn() });
   // Call 1: unhealthy hooks
-  mockQueryReturns.push({ data: mockUnhealthyHooks, isLoading: false, isError: false, refetch: vi.fn() });
+  mockQueryReturns.push({
+    data: mockUnhealthyHooks,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  });
   // Call 2: skipped workflows
-  mockQueryReturns.push({ data: mockSkippedWorkflows, isLoading: false, isError: false, refetch: vi.fn() });
+  mockQueryReturns.push({
+    data: mockSkippedWorkflows,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  });
 }
 
 describe('MaintenancePane', () => {
@@ -147,9 +165,24 @@ describe('MaintenancePane', () => {
 
   it('shows "No stale PRs detected" empty state', () => {
     mockQueryReturns.length = 0;
-    mockQueryReturns.push({ data: { stale_prs: [] }, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: mockUnhealthyHooks, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: mockSkippedWorkflows, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({
+      data: { stale_prs: [] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: mockUnhealthyHooks,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: mockSkippedWorkflows,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
     renderPane();
     expect(screen.getByText('No stale PRs detected')).toBeInTheDocument();
   });
@@ -162,9 +195,24 @@ describe('MaintenancePane', () => {
 
   it('shows "No unhealthy webhooks detected" empty state', () => {
     mockQueryReturns.length = 0;
-    mockQueryReturns.push({ data: mockStalePrs, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: { unhealthy_hooks: [] }, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: mockSkippedWorkflows, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({
+      data: mockStalePrs,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: { unhealthy_hooks: [] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: mockSkippedWorkflows,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
     renderPane();
     expect(screen.getByText('No unhealthy webhooks detected')).toBeInTheDocument();
   });
@@ -204,9 +252,24 @@ describe('MaintenancePane', () => {
 
   it('shows "No disabled or skipped workflows detected" empty state', () => {
     mockQueryReturns.length = 0;
-    mockQueryReturns.push({ data: mockStalePrs, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: mockUnhealthyHooks, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: { skipped_workflows: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({
+      data: mockStalePrs,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: mockUnhealthyHooks,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: { skipped_workflows: [] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
     renderPane();
     expect(screen.getByText('No disabled or skipped workflows detected')).toBeInTheDocument();
   });
@@ -219,9 +282,24 @@ describe('MaintenancePane', () => {
 
   it('shows sample data banner when all API queries return empty data', () => {
     mockQueryReturns.length = 0;
-    mockQueryReturns.push({ data: { stale_prs: [] }, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: { unhealthy_hooks: [] }, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: { skipped_workflows: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({
+      data: { stale_prs: [] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: { unhealthy_hooks: [] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: { skipped_workflows: [] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
     renderPane();
     expect(screen.getByText(/This data is illustrative/)).toBeInTheDocument();
   });
@@ -242,9 +320,24 @@ describe('MaintenancePane', () => {
 
   it('does not show sample data banner when any query has an error', () => {
     mockQueryReturns.length = 0;
-    mockQueryReturns.push({ data: { stale_prs: [] }, isLoading: false, isError: true, refetch: vi.fn() });
-    mockQueryReturns.push({ data: { unhealthy_hooks: [] }, isLoading: false, isError: false, refetch: vi.fn() });
-    mockQueryReturns.push({ data: { skipped_workflows: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({
+      data: { stale_prs: [] },
+      isLoading: false,
+      isError: true,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: { unhealthy_hooks: [] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({
+      data: { skipped_workflows: [] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
     renderPane();
     expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
   });

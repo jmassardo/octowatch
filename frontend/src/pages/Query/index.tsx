@@ -87,19 +87,78 @@ HAVING COUNT(DISTINCT geo_country_code) > 1`;
 // --- SQL Syntax Highlighting ---
 
 const SQL_KEYWORDS = new Set([
-  'SELECT', 'FROM', 'WHERE', 'GROUP', 'BY', 'HAVING', 'AND', 'OR', 'AS',
-  'DISTINCT', 'ORDER', 'LIMIT', 'OFFSET', 'INSERT', 'INTO', 'VALUES',
-  'UPDATE', 'SET', 'DELETE', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER',
-  'ON', 'IN', 'NOT', 'NULL', 'IS', 'LIKE', 'BETWEEN', 'CASE', 'WHEN',
-  'THEN', 'ELSE', 'END', 'INTERVAL', 'TRUE', 'FALSE', 'ASC', 'DESC',
-  'UNION', 'ALL', 'EXISTS', 'WITH', 'OVER', 'PARTITION',
+  'SELECT',
+  'FROM',
+  'WHERE',
+  'GROUP',
+  'BY',
+  'HAVING',
+  'AND',
+  'OR',
+  'AS',
+  'DISTINCT',
+  'ORDER',
+  'LIMIT',
+  'OFFSET',
+  'INSERT',
+  'INTO',
+  'VALUES',
+  'UPDATE',
+  'SET',
+  'DELETE',
+  'JOIN',
+  'LEFT',
+  'RIGHT',
+  'INNER',
+  'OUTER',
+  'ON',
+  'IN',
+  'NOT',
+  'NULL',
+  'IS',
+  'LIKE',
+  'BETWEEN',
+  'CASE',
+  'WHEN',
+  'THEN',
+  'ELSE',
+  'END',
+  'INTERVAL',
+  'TRUE',
+  'FALSE',
+  'ASC',
+  'DESC',
+  'UNION',
+  'ALL',
+  'EXISTS',
+  'WITH',
+  'OVER',
+  'PARTITION',
 ]);
 
 const SQL_FUNCTIONS = new Set([
-  'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'ARRAY_AGG', 'STRING_AGG',
-  'COALESCE', 'NULLIF', 'CAST', 'NOW', 'DATE_TRUNC', 'EXTRACT',
-  'LOWER', 'UPPER', 'TRIM', 'SUBSTRING', 'LENGTH', 'CONCAT',
-  'ROW_NUMBER', 'RANK', 'DENSE_RANK',
+  'COUNT',
+  'SUM',
+  'AVG',
+  'MIN',
+  'MAX',
+  'ARRAY_AGG',
+  'STRING_AGG',
+  'COALESCE',
+  'NULLIF',
+  'CAST',
+  'NOW',
+  'DATE_TRUNC',
+  'EXTRACT',
+  'LOWER',
+  'UPPER',
+  'TRIM',
+  'SUBSTRING',
+  'LENGTH',
+  'CONCAT',
+  'ROW_NUMBER',
+  'RANK',
+  'DENSE_RANK',
 ]);
 
 // --- Client-side SQL Validation ---
@@ -113,18 +172,69 @@ const EVERY_COLUMN = new Set(SCHEMA.flatMap((s) => s.cols.map((c) => c.name.toLo
 
 // Backend-aligned allowed functions (lowercase)
 const VALID_FUNCTIONS = new Set([
-  'count', 'sum', 'avg', 'min', 'max', 'string_agg', 'array_agg', 'bool_or', 'bool_and',
-  'date_trunc', 'time_bucket', 'to_char', 'to_timestamp', 'date_part', 'extract', 'now',
-  'timezone', 'age', 'date', 'make_interval', 'justify_interval',
-  'lower', 'upper', 'length', 'substr', 'substring', 'regexp_replace', 'regexp_matches',
-  'concat', 'trim', 'btrim', 'ltrim', 'rtrim', 'replace', 'left', 'right', 'position',
-  'strpos', 'split_part',
-  'coalesce', 'nullif', 'greatest', 'least',
-  'abs', 'ceil', 'floor', 'round', 'trunc',
-  'jsonb_extract_path_text', 'jsonb_array_elements',
-  'row_number', 'rank', 'dense_rank', 'lag', 'lead', 'first_value', 'last_value',
-  'ntile', 'percent_rank', 'cume_dist',
-  'cast', 'unnest', 'generate_series',
+  'count',
+  'sum',
+  'avg',
+  'min',
+  'max',
+  'string_agg',
+  'array_agg',
+  'bool_or',
+  'bool_and',
+  'date_trunc',
+  'time_bucket',
+  'to_char',
+  'to_timestamp',
+  'date_part',
+  'extract',
+  'now',
+  'timezone',
+  'age',
+  'date',
+  'make_interval',
+  'justify_interval',
+  'lower',
+  'upper',
+  'length',
+  'substr',
+  'substring',
+  'regexp_replace',
+  'regexp_matches',
+  'concat',
+  'trim',
+  'btrim',
+  'ltrim',
+  'rtrim',
+  'replace',
+  'left',
+  'right',
+  'position',
+  'strpos',
+  'split_part',
+  'coalesce',
+  'nullif',
+  'greatest',
+  'least',
+  'abs',
+  'ceil',
+  'floor',
+  'round',
+  'trunc',
+  'jsonb_extract_path_text',
+  'jsonb_array_elements',
+  'row_number',
+  'rank',
+  'dense_rank',
+  'lag',
+  'lead',
+  'first_value',
+  'last_value',
+  'ntile',
+  'percent_rank',
+  'cume_dist',
+  'cast',
+  'unnest',
+  'generate_series',
 ]);
 
 interface ValidationResult {
@@ -142,7 +252,17 @@ function validateSqlLocally(sql: string): ValidationResult {
 
   // 1. Check for write statements
   const firstWord = withoutLeadingComments.split(/\s+/)[0].toUpperCase();
-  const writeStatements = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'CREATE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const writeStatements = [
+    'INSERT',
+    'UPDATE',
+    'DELETE',
+    'DROP',
+    'ALTER',
+    'CREATE',
+    'TRUNCATE',
+    'GRANT',
+    'REVOKE',
+  ];
   if (writeStatements.includes(firstWord)) {
     return { valid: false, error: `Only SELECT statements are permitted (found ${firstWord})` };
   }
@@ -191,7 +311,10 @@ function validateSqlLocally(sql: string): ValidationResult {
     const tbl = match[1].toLowerCase();
     referencedTables.push(tbl);
     if (!TABLE_NAMES.has(tbl)) {
-      return { valid: false, error: `Table '${match[1]}' is not in allowed tables: ${[...TABLE_NAMES].sort().join(', ')}` };
+      return {
+        valid: false,
+        error: `Table '${match[1]}' is not in allowed tables: ${[...TABLE_NAMES].sort().join(', ')}`,
+      };
     }
   }
 
@@ -202,7 +325,23 @@ function validateSqlLocally(sql: string): ValidationResult {
     // Skip SQL keywords that use parens (e.g., IN(...), EXISTS(...))
     if (SQL_KEYWORDS.has(fn.toUpperCase())) continue;
     // Skip type casts (e.g., INTERVAL, TIMESTAMP)
-    if (['interval', 'timestamp', 'date', 'time', 'integer', 'bigint', 'text', 'boolean', 'numeric', 'float', 'real', 'double'].includes(fn)) continue;
+    if (
+      [
+        'interval',
+        'timestamp',
+        'date',
+        'time',
+        'integer',
+        'bigint',
+        'text',
+        'boolean',
+        'numeric',
+        'float',
+        'real',
+        'double',
+      ].includes(fn)
+    )
+      continue;
     if (!VALID_FUNCTIONS.has(fn)) {
       return { valid: false, error: `Function '${match[1]}' is not permitted` };
     }
@@ -234,11 +373,11 @@ function validateSqlLocally(sql: string): ValidationResult {
     const selectList = selectFromMatch[1];
     // Extract bare identifiers (not part of functions, not aliases after AS, not *)
     const identTokens = selectList
-      .replace(/--[^\n]*/g, '')           // strip comments
-      .replace(/'[^']*'/g, '')            // strip string literals
+      .replace(/--[^\n]*/g, '') // strip comments
+      .replace(/'[^']*'/g, '') // strip string literals
       .replace(/\b\w+\s*\([^)]*\)/g, '') // strip function calls (simple)
-      .replace(/\bAS\s+\w+/gi, '')        // strip aliases
-      .replace(/\bDISTINCT\b/gi, '')      // strip DISTINCT
+      .replace(/\bAS\s+\w+/gi, '') // strip aliases
+      .replace(/\bDISTINCT\b/gi, '') // strip DISTINCT
       .split(/[,\s]+/)
       .map((t) => t.trim().toLowerCase())
       .filter((t) => t && /^[a-z_]\w*$/.test(t) && t !== '*');
@@ -263,13 +402,16 @@ function validateSqlLocally(sql: string): ValidationResult {
       if (/^\d+$/.test(ident)) continue;
 
       if (!availableCols.has(ident)) {
-        return { valid: false, error: `Column '${ident}' does not exist in ${referencedTables.length > 0 ? referencedTables.join(', ') : 'any table'}` };
+        return {
+          valid: false,
+          error: `Column '${ident}' does not exist in ${referencedTables.length > 0 ? referencedTables.join(', ') : 'any table'}`,
+        };
       }
     }
   }
 
   // 6. Check for missing SELECT keyword
-  if (!firstWord || firstWord !== 'SELECT' && firstWord !== 'WITH') {
+  if (!firstWord || (firstWord !== 'SELECT' && firstWord !== 'WITH')) {
     return { valid: false, error: `Query must start with SELECT or WITH (found '${firstWord}')` };
   }
 
@@ -394,10 +536,7 @@ function getErrorRange(sql: string, error: string): { start: number; end: number
   return null;
 }
 
-function renderHighlightedSql(
-  sqlText: string,
-  errorRange?: { start: number; end: number } | null,
-) {
+function renderHighlightedSql(sqlText: string, errorRange?: { start: number; end: number } | null) {
   const tokens = tokenizeSql(sqlText);
   const elements: React.ReactNode[] = [];
   let pos = 0;
@@ -418,20 +557,29 @@ function renderHighlightedSql(
 
       if (before) {
         elements.push(
-          cls ? <span key={`${i}a`} className={cls}>{before}</span> : before,
+          cls ? (
+            <span key={`${i}a`} className={cls}>
+              {before}
+            </span>
+          ) : (
+            before
+          ),
         );
       }
       elements.push(
-        <span
-          key={`${i}e`}
-          className={`${cls ?? ''} ${styles.errorUnderline}`.trim()}
-        >
+        <span key={`${i}e`} className={`${cls ?? ''} ${styles.errorUnderline}`.trim()}>
           {errorPart}
         </span>,
       );
       if (after) {
         elements.push(
-          cls ? <span key={`${i}z`} className={cls}>{after}</span> : after,
+          cls ? (
+            <span key={`${i}z`} className={cls}>
+              {after}
+            </span>
+          ) : (
+            after
+          ),
         );
       }
     } else if (cls) {
@@ -491,17 +639,24 @@ function getPartialWord(sql: string, cursorPos: number): string {
 /** Determine what kind of suggestions to show based on the SQL keyword before cursor */
 function getSuggestionContext(sql: string, cursorPos: number): SuggestionContext {
   const beforeCursor = sql.substring(0, cursorPos);
-  const stripped = beforeCursor.replace(/[a-zA-Z0-9_]*$/, '').trimEnd().toUpperCase();
+  const stripped = beforeCursor
+    .replace(/[a-zA-Z0-9_]*$/, '')
+    .trimEnd()
+    .toUpperCase();
 
   if (stripped.endsWith('FROM') || stripped.endsWith('JOIN')) {
     return 'table';
   }
 
   if (
-    stripped.endsWith('SELECT') || stripped.endsWith(',') ||
-    stripped.endsWith('WHERE') || stripped.endsWith('AND') ||
-    stripped.endsWith('OR') || stripped.endsWith('BY') ||
-    stripped.endsWith('ON') || stripped.endsWith('HAVING')
+    stripped.endsWith('SELECT') ||
+    stripped.endsWith(',') ||
+    stripped.endsWith('WHERE') ||
+    stripped.endsWith('AND') ||
+    stripped.endsWith('OR') ||
+    stripped.endsWith('BY') ||
+    stripped.endsWith('ON') ||
+    stripped.endsWith('HAVING')
   ) {
     return 'column';
   }
@@ -545,9 +700,10 @@ function computeSuggestions(sql: string, cursorPos: number): Suggestion[] {
     }
   } else if (context === 'column') {
     const refTables = extractReferencedTables(sql);
-    const tablesToSearch = refTables.length > 0
-      ? SCHEMA.filter((s) => refTables.includes(s.table.toLowerCase()))
-      : SCHEMA;
+    const tablesToSearch =
+      refTables.length > 0
+        ? SCHEMA.filter((s) => refTables.includes(s.table.toLowerCase()))
+        : SCHEMA;
 
     const seen = new Set<string>();
     for (const table of tablesToSearch) {
@@ -604,8 +760,8 @@ function getCursorPixelPosition(textarea: HTMLTextAreaElement): { top: number; l
   const rect = textarea.getBoundingClientRect();
 
   return {
-    top: rect.top + paddingTop + (row * lineHeight) - textarea.scrollTop + lineHeight,
-    left: rect.left + paddingLeft + (col * charWidth) - textarea.scrollLeft,
+    top: rect.top + paddingTop + row * lineHeight - textarea.scrollTop + lineHeight,
+    left: rect.left + paddingLeft + col * charWidth - textarea.scrollLeft,
   };
 }
 
@@ -646,9 +802,7 @@ function SqlAutocomplete({
         >
           <span className={styles.acItemType}>{item.label}</span>
           <span>
-            <span className={styles.acHighlight}>
-              {item.text.slice(0, partial.length)}
-            </span>
+            <span className={styles.acHighlight}>{item.text.slice(0, partial.length)}</span>
             {item.text.slice(partial.length)}
           </span>
         </div>
@@ -684,7 +838,9 @@ function saveHistory(entries: HistoryEntry[]): void {
 export function QueryPage() {
   const [sql, setSql] = useState(DEFAULT_SQL);
   const [results, setResults] = useState<QueryRunResponse | null>(null);
-  const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set(['events', 'detections', 'events_hourly', 'events_daily_actor', 'detections_daily']));
+  const [expandedTables, setExpandedTables] = useState<Set<string>>(
+    new Set(['events', 'detections', 'events_hourly', 'events_daily_actor', 'detections_daily']),
+  );
   const [history, setHistory] = useState<HistoryEntry[]>(loadHistory);
   const [showHistory, setShowHistory] = useState(false);
   const [showExecModal, setShowExecModal] = useState(false);
@@ -695,9 +851,11 @@ export function QueryPage() {
 
   // Instant client-side validation — no API calls needed
   const localValidation = validateSqlLocally(sql);
-  const validationStatus: ValidationStatus =
-    !sql.trim() ? 'idle' :
-    localValidation.valid ? 'valid' : 'invalid';
+  const validationStatus: ValidationStatus = !sql.trim()
+    ? 'idle'
+    : localValidation.valid
+      ? 'valid'
+      : 'invalid';
   const validationError = localValidation.error;
   const errorRange = validationStatus === 'invalid' ? getErrorRange(sql, validationError) : null;
   const [acItems, setAcItems] = useState<Suggestion[]>([]);
@@ -807,7 +965,12 @@ export function QueryPage() {
     }
 
     // Arrow keys always control cursor — dismiss autocomplete if open
-    if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    if (
+      e.key === 'ArrowUp' ||
+      e.key === 'ArrowDown' ||
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowRight'
+    ) {
       if (acItems.length > 0) {
         setAcItems([]);
         acDismissedRef.current = true;
@@ -878,29 +1041,38 @@ export function QueryPage() {
               <div className={styles.schemaTable} onClick={() => toggleTable(s.table)}>
                 {expandedTables.has(s.table) ? '▼' : '▶'} {s.table}
               </div>
-              {expandedTables.has(s.table) && s.cols.map((c) => (
-                <div
-                  key={c.name}
-                  className={`${styles.schemaCol} ${styles.schemaColClickable}`}
-                  onClick={() => insertAtCursor(c.name)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter') insertAtCursor(c.name); }}
-                >
-                  <span className={styles.schemaType}>{c.type}</span>&nbsp;{c.name}
-                </div>
-              ))}
+              {expandedTables.has(s.table) &&
+                s.cols.map((c) => (
+                  <div
+                    key={c.name}
+                    className={`${styles.schemaCol} ${styles.schemaColClickable}`}
+                    onClick={() => insertAtCursor(c.name)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') insertAtCursor(c.name);
+                    }}
+                  >
+                    <span className={styles.schemaType}>{c.type}</span>&nbsp;{c.name}
+                  </div>
+                ))}
             </div>
           ))}
 
           {templates && templates.length > 0 && (
             <>
-              <div className={styles.schemaTitle} style={{ marginTop: 16 }}>Templates</div>
+              <div className={styles.schemaTitle} style={{ marginTop: 16 }}>
+                Templates
+              </div>
               {templates.map((t) => (
                 <div
                   key={t.id}
                   className={styles.schemaTable}
-                  onClick={() => { setSql(t.sql); setAcItems([]); setAcPartial(''); }}
+                  onClick={() => {
+                    setSql(t.sql);
+                    setAcItems([]);
+                    setAcPartial('');
+                  }}
                   title={t.description ?? undefined}
                 >
                   {t.name}
@@ -922,7 +1094,12 @@ export function QueryPage() {
                 <span className={styles.invalidDot} title={validationError} />
               )}
               <div className={styles.toolbarActions}>
-                <Button size="sm" variant="primary" onClick={() => runMutation.mutate(sql)} disabled={runMutation.isPending}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => runMutation.mutate(sql)}
+                  disabled={runMutation.isPending}
+                >
                   {runMutation.isPending ? '…' : '▶ Run'}
                 </Button>
                 <span className={styles.shortcutHint}>{IS_MAC ? '⌘' : 'Ctrl'}+↵</span>
@@ -935,13 +1112,20 @@ export function QueryPage() {
                   </Button>
                   {showHistory && (
                     <>
-                      <div className={styles.historyBackdrop} onClick={() => setShowHistory(false)} />
+                      <div
+                        className={styles.historyBackdrop}
+                        onClick={() => setShowHistory(false)}
+                      />
                       <div className={styles.historyDropdown}>
                         {history.length === 0 ? (
                           <div className={styles.historyEmpty}>No queries run yet</div>
                         ) : (
                           history.map((entry, i) => (
-                            <div key={i} className={styles.historyItem} onClick={() => handleHistorySelect(entry)}>
+                            <div
+                              key={i}
+                              className={styles.historyItem}
+                              onClick={() => handleHistorySelect(entry)}
+                            >
                               <div className={styles.historySql}>
                                 {entry.sql.slice(0, 80)}
                                 {entry.sql.length > 80 ? '…' : ''}
@@ -965,11 +1149,7 @@ export function QueryPage() {
                 ))}
               </div>
               <div className={styles.editorCodeWrap}>
-                <pre
-                  ref={highlightRef}
-                  className={styles.editorHighlight}
-                  aria-hidden="true"
-                >
+                <pre ref={highlightRef} className={styles.editorHighlight} aria-hidden="true">
                   {renderHighlightedSql(sql, errorRange)}
                 </pre>
                 <textarea
@@ -1016,7 +1196,10 @@ export function QueryPage() {
                   role="button"
                   tabIndex={0}
                   onClick={() => resultsTableRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                  onKeyDown={(e) => { if (e.key === 'Enter') resultsTableRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter')
+                      resultsTableRef.current?.scrollIntoView({ behavior: 'smooth' });
+                  }}
                 >
                   {results.row_count} row{results.row_count !== 1 ? 's' : ''}
                 </span>
@@ -1026,16 +1209,24 @@ export function QueryPage() {
                   role="button"
                   tabIndex={0}
                   onClick={() => setShowExecModal(true)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') setShowExecModal(true); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setShowExecModal(true);
+                  }}
                 >
                   {results.execution_ms}ms
                 </span>
-                {results.truncated && <span style={{ color: 'var(--attention)' }}> (truncated)</span>}
+                {results.truncated && (
+                  <span style={{ color: 'var(--attention)' }}> (truncated)</span>
+                )}
               </div>
               <div className={styles.resultsTable} ref={resultsTableRef}>
                 <table>
                   <thead>
-                    <tr>{results.columns.map((c) => <th key={c}>{c}</th>)}</tr>
+                    <tr>
+                      {results.columns.map((c) => (
+                        <th key={c}>{c}</th>
+                      ))}
+                    </tr>
                   </thead>
                   <tbody>
                     {results.rows.map((row, ri) => (
@@ -1054,7 +1245,12 @@ export function QueryPage() {
       </div>
 
       {results && (
-        <Modal open={showExecModal} onClose={() => setShowExecModal(false)} title="Query Execution Details" width={420}>
+        <Modal
+          open={showExecModal}
+          onClose={() => setShowExecModal(false)}
+          title="Query Execution Details"
+          width={420}
+        >
           <dl className={styles.execDetail}>
             <dt>Query ID</dt>
             <dd>{results.query_id}</dd>
@@ -1066,7 +1262,8 @@ export function QueryPage() {
             <dd>{results.truncated ? 'Yes' : 'No'}</dd>
           </dl>
           <p className={styles.execNote}>
-            Additional metrics like rows scanned and bytes processed require query engine instrumentation.
+            Additional metrics like rows scanned and bytes processed require query engine
+            instrumentation.
           </p>
         </Modal>
       )}

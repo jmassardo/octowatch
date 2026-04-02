@@ -10,8 +10,20 @@ vi.mock('../../api/copilotMetrics', () => ({
       { id: 'power', label: 'Power Users', count: 34, color: '#3fb950', desc: 'Active every day' },
       { id: 'regular', label: 'Regular', count: 68, color: '#58a6ff', desc: '3-4 days/week' },
       { id: 'minimal', label: 'Minimal', count: 22, color: '#d29922', desc: '1-2 uses in 30d' },
-      { id: 'inactive', label: 'Inactive', count: 38, color: '#f85149', desc: 'Cold 30d+ (was active)' },
-      { id: 'never', label: 'Never Used', count: 24, color: '#8b949e', desc: 'Seat assigned, zero activity' },
+      {
+        id: 'inactive',
+        label: 'Inactive',
+        count: 38,
+        color: '#f85149',
+        desc: 'Cold 30d+ (was active)',
+      },
+      {
+        id: 'never',
+        label: 'Never Used',
+        count: 24,
+        color: '#8b949e',
+        desc: 'Seat assigned, zero activity',
+      },
     ],
     total_adoption: 186,
     power_users: [
@@ -124,9 +136,9 @@ describe('AdoptionPane clickable stats', () => {
     // Wait for data to load
     await screen.findByText('sarah.chen');
     // The features_used value for sarah.chen is 5 — get the clickable stat
-    const clickableStats = screen.getAllByRole('button').filter(
-      (el) => el.classList.contains('clickableStat'),
-    );
+    const clickableStats = screen
+      .getAllByRole('button')
+      .filter((el) => el.classList.contains('clickableStat'));
     const featBtn = clickableStats.find((el) => el.textContent === '5');
     expect(featBtn).toBeTruthy();
     await user.click(featBtn!);
@@ -159,9 +171,9 @@ describe('AdoptionPane clickable stats', () => {
   it('makes minimal users Days active cells clickable', async () => {
     renderPane();
     await screen.findByText('tom.jones');
-    const clickableStats = screen.getAllByRole('button').filter(
-      (el) => el.classList.contains('clickableStat'),
-    );
+    const clickableStats = screen
+      .getAllByRole('button')
+      .filter((el) => el.classList.contains('clickableStat'));
     // Should have power users stats + minimal users stats
     expect(clickableStats.length).toBeGreaterThanOrEqual(6);
   });
@@ -170,14 +182,16 @@ describe('AdoptionPane clickable stats', () => {
     const user = userEvent.setup();
     renderPane();
     await screen.findByText('tom.jones');
-    const clickableStats = screen.getAllByRole('button').filter(
-      (el) => el.classList.contains('clickableStat'),
-    );
+    const clickableStats = screen
+      .getAllByRole('button')
+      .filter((el) => el.classList.contains('clickableStat'));
     // Find one that represents a days_active count for minimal users (value '2')
     const minimalBtn = clickableStats.find((el) => el.textContent === '2');
     expect(minimalBtn).toBeTruthy();
     await user.click(minimalBtn!);
     const dialog = getDialog();
-    expect(within(dialog).getByText(/Copilot Metrics API for live per-user data/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/Copilot Metrics API for live per-user data/),
+    ).toBeInTheDocument();
   });
 });

@@ -64,20 +64,23 @@ export function ActionFilters({ actions, onChange }: ActionFiltersProps) {
     [inputValue, actions, addAction, removeAction],
   );
 
-  const handleChange = useCallback((value: string) => {
-    if (value.includes(',')) {
-      const parts = value.split(',');
-      for (const part of parts.slice(0, -1)) {
-        const trimmed = part.trim();
-        if (trimmed) {
-          addAction(trimmed);
+  const handleChange = useCallback(
+    (value: string) => {
+      if (value.includes(',')) {
+        const parts = value.split(',');
+        for (const part of parts.slice(0, -1)) {
+          const trimmed = part.trim();
+          if (trimmed) {
+            addAction(trimmed);
+          }
         }
+        setInputValue(parts[parts.length - 1] ?? '');
+      } else {
+        setInputValue(value);
       }
-      setInputValue(parts[parts.length - 1] ?? '');
-    } else {
-      setInputValue(value);
-    }
-  }, [addAction]);
+    },
+    [addAction],
+  );
 
   return (
     <div

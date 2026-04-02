@@ -104,9 +104,7 @@ describe('LogicConfigEditor', () => {
       renderEditor({ logicType: 'threshold' });
 
       expect(screen.getByLabelText('Alert when count exceeds')).toHaveValue(10);
-      expect(
-        screen.getByLabelText('Within time window (minutes)'),
-      ).toHaveValue(60);
+      expect(screen.getByLabelText('Within time window (minutes)')).toHaveValue(60);
     });
 
     it('updates threshold on number input change', () => {
@@ -246,9 +244,7 @@ describe('LogicConfigEditor', () => {
     it('renders existing field conditions', () => {
       renderEditor({
         config: {
-          field_conditions: [
-            { field: 'data.scope', operator: 'eq', value: 'read' },
-          ],
+          field_conditions: [{ field: 'data.scope', operator: 'eq', value: 'read' }],
           confidence: 0.5,
         },
       });
@@ -280,8 +276,8 @@ describe('ActionFilters', () => {
     await userEvent.type(input, 'git.push{Enter}');
 
     const calls = onChange.mock.calls;
-    const matchingCall = calls.find(
-      (call: LogicConfig[]) => call[0]?.action_filters?.includes('git.push'),
+    const matchingCall = calls.find((call: LogicConfig[]) =>
+      call[0]?.action_filters?.includes('git.push'),
     );
     expect(matchingCall).toBeTruthy();
   });
@@ -297,8 +293,8 @@ describe('ActionFilters', () => {
     await userEvent.type(input, 'git.push,');
 
     const calls = onChange.mock.calls;
-    const matchingCall = calls.find(
-      (call: LogicConfig[]) => call[0]?.action_filters?.includes('git.push'),
+    const matchingCall = calls.find((call: LogicConfig[]) =>
+      call[0]?.action_filters?.includes('git.push'),
     );
     expect(matchingCall).toBeTruthy();
   });
@@ -315,12 +311,10 @@ describe('ActionFilters', () => {
 
     // Should not create a call with duplicate
     const calls = onChange.mock.calls;
-    const duplicateCall = calls.find(
-      (call: LogicConfig[]) => {
-        const filters = call[0]?.action_filters;
-        return filters && filters.filter((f: string) => f === 'git.clone').length > 1;
-      },
-    );
+    const duplicateCall = calls.find((call: LogicConfig[]) => {
+      const filters = call[0]?.action_filters;
+      return filters && filters.filter((f: string) => f === 'git.clone').length > 1;
+    });
     expect(duplicateCall).toBeUndefined();
   });
 
@@ -641,25 +635,19 @@ describe('accessibility', () => {
   it('has aria-label on editor form', () => {
     renderEditor();
 
-    expect(
-      screen.getByRole('form', { name: /logic configuration editor/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('form', { name: /logic configuration editor/i })).toBeInTheDocument();
   });
 
   it('has aria-label on action filters group', () => {
     renderEditor();
 
-    expect(
-      screen.getByRole('group', { name: /action filters/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /action filters/i })).toBeInTheDocument();
   });
 
   it('has aria-label on field conditions group', () => {
     renderEditor();
 
-    expect(
-      screen.getByRole('group', { name: /field conditions/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /field conditions/i })).toBeInTheDocument();
   });
 
   it('sequence steps have role list and listitem', () => {
@@ -681,9 +669,7 @@ describe('accessibility', () => {
       },
     });
 
-    expect(
-      screen.getByLabelText('Remove action git.clone'),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Remove action git.clone')).toBeInTheDocument();
     expect(screen.getByLabelText('Remove condition 1')).toBeInTheDocument();
   });
 

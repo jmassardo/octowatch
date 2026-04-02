@@ -1,5 +1,10 @@
 /* ===== Page layout ===== */
-.page { padding: 24px; display: flex; flex-direction: column; gap: 24px; }
+.page {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
 
 .pageHeader {
   display: flex;
@@ -8,8 +13,16 @@
   gap: 12px;
 }
 
-.pageTitle { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
-.pageSub { font-size: 13px; color: var(--fg-muted); margin: 0; }
+.pageTitle {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.pageSub {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0;
+}
 
 /* ===== Tab bar ===== */
 .tabs {
@@ -27,7 +40,9 @@
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
   font-family: inherit;
 }
 
@@ -72,8 +87,12 @@
   vertical-align: middle;
 }
 
-.table tbody tr:last-child td { border-bottom: none; }
-.table tbody tr:hover td { background: rgba(177, 186, 196, 0.04); }
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+.table tbody tr:hover td {
+  background: rgba(177, 186, 196, 0.04);
+}
 
 .settingKey {
   font-family: ui-monospace, SFMono-Regular, monospace;
@@ -175,9 +194,15 @@
   font-weight: 500;
 }
 
-.auditActionCreate { color: var(--success); }
-.auditActionUpdate { color: var(--accent); }
-.auditActionDelete { color: var(--danger); }
+.auditActionCreate {
+  color: var(--success);
+}
+.auditActionUpdate {
+  color: var(--accent);
+}
+.auditActionDelete {
+  color: var(--danger);
+}
 
 .sensitivityBadge {
   display: inline-flex;
@@ -321,17 +346,17 @@
   vertical-align: middle;
 }
 
-.integrationStatus[data-status="active"] {
+.integrationStatus[data-status='active'] {
   background: rgba(63, 185, 80, 0.15);
   color: var(--success);
 }
 
-.integrationStatus[data-status="configured"] {
+.integrationStatus[data-status='configured'] {
   background: rgba(210, 153, 34, 0.15);
   color: var(--attention);
 }
 
-.integrationStatus[data-status="inactive"] {
+.integrationStatus[data-status='inactive'] {
   background: rgba(139, 148, 158, 0.15);
   color: var(--fg-muted);
 }
@@ -406,7 +431,9 @@
   cursor: pointer;
   flex-shrink: 0;
   font-family: inherit;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .copyBtn:hover {

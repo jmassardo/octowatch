@@ -84,10 +84,7 @@ export function Autocomplete({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const filtered = useMemo(
-    () => filterSuggestions(value, suggestions),
-    [value, suggestions],
-  );
+  const filtered = useMemo(() => filterSuggestions(value, suggestions), [value, suggestions]);
 
   // Clamp activeIndex within bounds whenever the filtered list changes.
   // This is derived state, not an effect — we compute the clamped value
@@ -208,16 +205,10 @@ export function Autocomplete({
         autoComplete="off"
       />
       {showDropdown && (
-        <div
-          className={styles.dropdown}
-          ref={listRef}
-          role="listbox"
-        >
+        <div className={styles.dropdown} ref={listRef} role="listbox">
           {filtered.map((suggestion, index) => {
             const isActive = index === clampedActiveIndex;
-            const cls = [styles.option, isActive && styles.optionActive]
-              .filter(Boolean)
-              .join(' ');
+            const cls = [styles.option, isActive && styles.optionActive].filter(Boolean).join(' ');
 
             return (
               <div

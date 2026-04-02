@@ -42,7 +42,9 @@ export function BarChart({ title, xAxisData, series, height = 160 }: BarChartPro
       itemStyle: { color: s.color ?? '#58a6ff', borderRadius: [2, 2, 0, 0] },
       barMaxWidth: 28,
     })),
-    ...(title ? { title: { text: title, textStyle: { color: '#8b949e', fontSize: 12, fontWeight: 500 } } } : {}),
+    ...(title
+      ? { title: { text: title, textStyle: { color: '#8b949e', fontSize: 12, fontWeight: 500 } } }
+      : {}),
   };
 
   return <ReactECharts option={option} style={{ height }} />;

@@ -1,4 +1,6 @@
-.page { padding: 24px; }
+.page {
+  padding: 24px;
+}
 
 .header {
   display: flex;
@@ -7,8 +9,15 @@
   margin-bottom: 20px;
 }
 
-.pageTitle { font-size: 20px; font-weight: 600; }
-.pageSub { font-size: 13px; color: var(--fg-muted); margin: 0; }
+.pageTitle {
+  font-size: 20px;
+  font-weight: 600;
+}
+.pageSub {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0;
+}
 
 /* Window selector button group */
 .windowSelector {
@@ -103,7 +112,9 @@
   border-radius: 4px;
   padding: 2px 6px;
   margin: -2px -6px;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .clickableValue:hover {

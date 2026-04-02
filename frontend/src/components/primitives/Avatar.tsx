@@ -2,8 +2,14 @@ import styles from './Avatar.module.css';
 
 function hashColor(str: string): string {
   const colors = [
-    '#1f6feb', '#238636', '#8b5cf6', '#db6d28',
-    '#bc8cff', '#0969da', '#bf8700', '#cf222e',
+    '#1f6feb',
+    '#238636',
+    '#8b5cf6',
+    '#db6d28',
+    '#bc8cff',
+    '#0969da',
+    '#bf8700',
+    '#cf222e',
   ];
   let hash = 0;
   for (let i = 0; i < str.length; i++) {

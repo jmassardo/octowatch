@@ -1,5 +1,12 @@
 import { api } from './client';
-import type { RoleDefinition, RoleAssignment, RoleAssignmentCreate, IngestionSource, ActiveSession, OrgTeam } from '../types/admin';
+import type {
+  RoleDefinition,
+  RoleAssignment,
+  RoleAssignmentCreate,
+  IngestionSource,
+  ActiveSession,
+  OrgTeam,
+} from '../types/admin';
 
 export function listRoles(): Promise<RoleDefinition[]> {
   return api.get<RoleDefinition[]>('/admin/roles');

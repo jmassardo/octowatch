@@ -25,9 +25,7 @@ describe('MetricCard', () => {
   });
 
   it('does not render delta when not provided', () => {
-    const { container } = renderWithProviders(
-      <MetricCard value="7" label="Items" />,
-    );
+    const { container } = renderWithProviders(<MetricCard value="7" label="Items" />);
 
     expect(container.querySelector('.delta')).not.toBeInTheDocument();
   });
@@ -43,17 +41,13 @@ describe('MetricCard', () => {
   });
 
   it('does not render arrow when not clickable', () => {
-    const { container } = renderWithProviders(
-      <MetricCard value="0" label="Static card" />,
-    );
+    const { container } = renderWithProviders(<MetricCard value="0" label="Static card" />);
 
     expect(container.querySelector('.arrow')).not.toBeInTheDocument();
   });
 
   it('does not apply clickable class when not interactive', () => {
-    const { container } = renderWithProviders(
-      <MetricCard value="0" label="Static" />,
-    );
+    const { container } = renderWithProviders(<MetricCard value="0" label="Static" />);
 
     expect(container.querySelector('.clickable')).not.toBeInTheDocument();
   });
@@ -63,9 +57,7 @@ describe('MetricCard', () => {
   /* ---------------------------------------------------------------- */
 
   it('renders as button role when onClick is provided', () => {
-    renderWithProviders(
-      <MetricCard value="5" label="Clickable" onClick={() => {}} />,
-    );
+    renderWithProviders(<MetricCard value="5" label="Clickable" onClick={() => {}} />);
 
     expect(screen.getByRole('button', { name: 'Clickable' })).toBeInTheDocument();
   });
@@ -91,9 +83,7 @@ describe('MetricCard', () => {
     const user = userEvent.setup();
     const handleClick = vi.fn();
 
-    renderWithProviders(
-      <MetricCard value="5" label="Click me" onClick={handleClick} />,
-    );
+    renderWithProviders(<MetricCard value="5" label="Click me" onClick={handleClick} />);
 
     await user.click(screen.getByRole('button', { name: 'Click me' }));
     expect(handleClick).toHaveBeenCalledOnce();
@@ -103,9 +93,7 @@ describe('MetricCard', () => {
     const user = userEvent.setup();
     const handleClick = vi.fn();
 
-    renderWithProviders(
-      <MetricCard value="3" label="Keyboard card" onClick={handleClick} />,
-    );
+    renderWithProviders(<MetricCard value="3" label="Keyboard card" onClick={handleClick} />);
 
     const card = screen.getByRole('button', { name: 'Keyboard card' });
     card.focus();
@@ -117,9 +105,7 @@ describe('MetricCard', () => {
     const user = userEvent.setup();
     const handleClick = vi.fn();
 
-    renderWithProviders(
-      <MetricCard value="3" label="Space card" onClick={handleClick} />,
-    );
+    renderWithProviders(<MetricCard value="3" label="Space card" onClick={handleClick} />);
 
     const card = screen.getByRole('button', { name: 'Space card' });
     card.focus();
@@ -128,9 +114,7 @@ describe('MetricCard', () => {
   });
 
   it('has tabIndex 0 when clickable', () => {
-    renderWithProviders(
-      <MetricCard value="1" label="Focusable" onClick={() => {}} />,
-    );
+    renderWithProviders(<MetricCard value="1" label="Focusable" onClick={() => {}} />);
 
     const card = screen.getByRole('button', { name: 'Focusable' });
     expect(card).toHaveAttribute('tabindex', '0');
@@ -141,9 +125,7 @@ describe('MetricCard', () => {
   /* ---------------------------------------------------------------- */
 
   it('renders as clickable when `to` is provided', () => {
-    renderWithProviders(
-      <MetricCard value="8" label="Navigate card" to="/events" />,
-    );
+    renderWithProviders(<MetricCard value="8" label="Navigate card" to="/events" />);
 
     expect(screen.getByRole('button', { name: 'Navigate card' })).toBeInTheDocument();
   });
@@ -161,9 +143,7 @@ describe('MetricCard', () => {
   /* ---------------------------------------------------------------- */
 
   it('applies accented class when accent prop is true', () => {
-    const { container } = renderWithProviders(
-      <MetricCard value="99" label="Alert" accent />,
-    );
+    const { container } = renderWithProviders(<MetricCard value="99" label="Alert" accent />);
 
     expect(container.querySelector('.accented')).toBeInTheDocument();
   });

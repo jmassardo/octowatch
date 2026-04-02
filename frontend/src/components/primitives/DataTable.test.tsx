@@ -52,9 +52,7 @@ describe('DataTable', () => {
   /* ---------------------------------------------------------------- */
 
   it('renders a table with column headers', () => {
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     expect(screen.getByRole('table')).toBeInTheDocument();
     // Check header texts (trim sort icons)
@@ -65,9 +63,7 @@ describe('DataTable', () => {
   });
 
   it('renders all data rows', () => {
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     expect(screen.getByText('Alice')).toBeInTheDocument();
     expect(screen.getByText('Bob')).toBeInTheDocument();
@@ -76,30 +72,19 @@ describe('DataTable', () => {
   });
 
   it('renders empty message when data is empty', () => {
-    render(
-      <DataTable
-        columns={COLUMNS}
-        data={[]}
-        rowKey={(r) => r.id}
-        emptyMessage="No rows"
-      />,
-    );
+    render(<DataTable columns={COLUMNS} data={[]} rowKey={(r) => r.id} emptyMessage="No rows" />);
 
     expect(screen.getByText('No rows')).toBeInTheDocument();
   });
 
   it('renders default empty message', () => {
-    render(
-      <DataTable columns={COLUMNS} data={[]} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={[]} rowKey={(r) => r.id} />);
 
     expect(screen.getByText('No data')).toBeInTheDocument();
   });
 
   it('renders filter inputs for filterable columns', () => {
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     // Name and City are filterable, Age is not
     expect(screen.getByLabelText('Filter Name')).toBeInTheDocument();
@@ -113,13 +98,7 @@ describe('DataTable', () => {
       { key: 'age', header: 'Age', render: (r) => String(r.age) },
     ];
 
-    render(
-      <DataTable
-        columns={nonFilterableCols}
-        data={TEST_DATA}
-        rowKey={(r) => r.id}
-      />,
-    );
+    render(<DataTable columns={nonFilterableCols} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     expect(screen.queryByTestId('filter-row')).not.toBeInTheDocument();
   });
@@ -134,9 +113,7 @@ describe('DataTable', () => {
       />,
     );
 
-    expect(container.firstElementChild?.classList.contains('custom-class')).toBe(
-      true,
-    );
+    expect(container.firstElementChild?.classList.contains('custom-class')).toBe(true);
   });
 
   /* ---------------------------------------------------------------- */
@@ -145,86 +122,68 @@ describe('DataTable', () => {
 
   it('sorts ascending on first click', async () => {
     const user = userEvent.setup();
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     // Click Name header to sort asc
     const nameHeader = screen.getByText('Name').closest('th')!;
     await user.click(nameHeader);
 
-    const dataRows = screen.getAllByRole('row').filter(
-      (r) => within(r).queryAllByRole('cell').length > 0,
-    );
-    const names = dataRows.map(
-      (r) => within(r).getAllByRole('cell')[0].textContent,
-    );
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
+    const names = dataRows.map((r) => within(r).getAllByRole('cell')[0].textContent);
     expect(names).toEqual(['Alice', 'Bob', 'Charlie', 'Diana']);
   });
 
   it('sorts descending on second click', async () => {
     const user = userEvent.setup();
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     const nameHeader = screen.getByText('Name').closest('th')!;
     await user.click(nameHeader); // asc
     await user.click(nameHeader); // desc
 
-    const dataRows = screen.getAllByRole('row').filter(
-      (r) => within(r).queryAllByRole('cell').length > 0,
-    );
-    const names = dataRows.map(
-      (r) => within(r).getAllByRole('cell')[0].textContent,
-    );
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
+    const names = dataRows.map((r) => within(r).getAllByRole('cell')[0].textContent);
     expect(names).toEqual(['Diana', 'Charlie', 'Bob', 'Alice']);
   });
 
   it('clears sort on third click', async () => {
     const user = userEvent.setup();
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     const nameHeader = screen.getByText('Name').closest('th')!;
     await user.click(nameHeader); // asc
     await user.click(nameHeader); // desc
     await user.click(nameHeader); // none
 
-    const dataRows = screen.getAllByRole('row').filter(
-      (r) => within(r).queryAllByRole('cell').length > 0,
-    );
-    const names = dataRows.map(
-      (r) => within(r).getAllByRole('cell')[0].textContent,
-    );
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
+    const names = dataRows.map((r) => within(r).getAllByRole('cell')[0].textContent);
     // Back to original order
     expect(names).toEqual(['Alice', 'Bob', 'Charlie', 'Diana']);
   });
 
   it('sorts by numeric column correctly', async () => {
     const user = userEvent.setup();
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     const ageHeader = screen.getByText('Age').closest('th')!;
     await user.click(ageHeader); // asc
 
-    const dataRows = screen.getAllByRole('row').filter(
-      (r) => within(r).queryAllByRole('cell').length > 0,
-    );
-    const ages = dataRows.map(
-      (r) => within(r).getAllByRole('cell')[1].textContent,
-    );
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
+    const ages = dataRows.map((r) => within(r).getAllByRole('cell')[1].textContent);
     expect(ages).toEqual(['25', '28', '30', '35']);
   });
 
   it('shows sort direction indicators', async () => {
     const user = userEvent.setup();
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     const nameHeader = screen.getByText('Name').closest('th')!;
 
@@ -253,24 +212,16 @@ describe('DataTable', () => {
       },
     ];
 
-    render(
-      <DataTable
-        columns={nonSortableCols}
-        data={TEST_DATA}
-        rowKey={(r) => r.id}
-      />,
-    );
+    render(<DataTable columns={nonSortableCols} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     const nameHeader = screen.getByText('Name').closest('th')!;
     await user.click(nameHeader);
 
     // Should have no sort effect - original order preserved
-    const dataRows = screen.getAllByRole('row').filter(
-      (r) => within(r).queryAllByRole('cell').length > 0,
-    );
-    const names = dataRows.map(
-      (r) => within(r).getAllByRole('cell')[0].textContent,
-    );
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
+    const names = dataRows.map((r) => within(r).getAllByRole('cell')[0].textContent);
     expect(names).toEqual(['Alice', 'Bob', 'Charlie', 'Diana']);
   });
 
@@ -280,9 +231,7 @@ describe('DataTable', () => {
 
   it('filters by text input', async () => {
     const user = userEvent.setup();
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     const nameFilter = screen.getByLabelText('Filter Name');
     await user.type(nameFilter, 'ali');
@@ -296,9 +245,7 @@ describe('DataTable', () => {
 
   it('filter is case-insensitive', async () => {
     const user = userEvent.setup();
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     const cityFilter = screen.getByLabelText('Filter City');
     await user.type(cityFilter, 'new york');
@@ -311,9 +258,7 @@ describe('DataTable', () => {
 
   it('multiple filters combine (AND logic)', async () => {
     const user = userEvent.setup();
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     const nameFilter = screen.getByLabelText('Filter Name');
     const cityFilter = screen.getByLabelText('Filter City');
@@ -348,9 +293,7 @@ describe('DataTable', () => {
 
   it('clearing filter restores all rows', async () => {
     const user = userEvent.setup();
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     const nameFilter = screen.getByLabelText('Filter Name');
     await user.type(nameFilter, 'alice');
@@ -371,9 +314,7 @@ describe('DataTable', () => {
 
   it('sorting works on filtered data', async () => {
     const user = userEvent.setup();
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     // Filter to New York (Alice 30, Charlie 35)
     const cityFilter = screen.getByLabelText('Filter City');
@@ -383,12 +324,10 @@ describe('DataTable', () => {
     const ageHeader = screen.getByText('Age').closest('th')!;
     await user.click(ageHeader);
 
-    const dataRows = screen.getAllByRole('row').filter(
-      (r) => within(r).queryAllByRole('cell').length > 0,
-    );
-    const names = dataRows.map(
-      (r) => within(r).getAllByRole('cell')[0].textContent,
-    );
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
+    const names = dataRows.map((r) => within(r).getAllByRole('cell')[0].textContent);
     expect(names).toEqual(['Alice', 'Charlie']); // 30 < 35
   });
 
@@ -401,17 +340,12 @@ describe('DataTable', () => {
     const onClick = vi.fn();
 
     render(
-      <DataTable
-        columns={COLUMNS}
-        data={TEST_DATA}
-        rowKey={(r) => r.id}
-        onRowClick={onClick}
-      />,
+      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} onRowClick={onClick} />,
     );
 
-    const dataRows = screen.getAllByRole('row').filter(
-      (r) => within(r).queryAllByRole('cell').length > 0,
-    );
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
     await user.click(dataRows[1]); // Bob
 
     expect(onClick).toHaveBeenCalledOnce();
@@ -419,13 +353,11 @@ describe('DataTable', () => {
   });
 
   it('does not add clickable styling without onRowClick', () => {
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
-    const dataRows = screen.getAllByRole('row').filter(
-      (r) => within(r).queryAllByRole('cell').length > 0,
-    );
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
     for (const row of dataRows) {
       expect(row.classList.contains('clickableRow')).toBe(false);
     }
@@ -450,9 +382,7 @@ describe('DataTable', () => {
       },
     ];
 
-    render(
-      <DataTable columns={cols} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={cols} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     const nameHeader = screen.getByText('Name').closest('th')!;
     expect(nameHeader.style.width).toBe('200px');
@@ -467,10 +397,7 @@ describe('DataTable', () => {
 
   it('handles null sort values (pushes to end)', async () => {
     const user = userEvent.setup();
-    const dataWithNull: TestRow[] = [
-      ...TEST_DATA,
-      { id: 5, name: 'Eve', age: 0, city: '' },
-    ];
+    const dataWithNull: TestRow[] = [...TEST_DATA, { id: 5, name: 'Eve', age: 0, city: '' }];
 
     const colsWithNull: ColumnDef<TestRow>[] = [
       {
@@ -483,23 +410,15 @@ describe('DataTable', () => {
       { key: 'age', header: 'Age', render: (r) => String(r.age) },
     ];
 
-    render(
-      <DataTable
-        columns={colsWithNull}
-        data={dataWithNull}
-        rowKey={(r) => r.id}
-      />,
-    );
+    render(<DataTable columns={colsWithNull} data={dataWithNull} rowKey={(r) => r.id} />);
 
     const nameHeader = screen.getByText('Name').closest('th')!;
     await user.click(nameHeader); // asc
 
-    const dataRows = screen.getAllByRole('row').filter(
-      (r) => within(r).queryAllByRole('cell').length > 0,
-    );
-    const names = dataRows.map(
-      (r) => within(r).getAllByRole('cell')[0].textContent,
-    );
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
+    const names = dataRows.map((r) => within(r).getAllByRole('cell')[0].textContent);
     // null should be last
     expect(names[names.length - 1]).toBe('Eve');
   });
@@ -510,9 +429,7 @@ describe('DataTable', () => {
 
   it('resets to ascending when switching sort column', async () => {
     const user = userEvent.setup();
-    render(
-      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />,
-    );
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
 
     const nameHeader = screen.getByText('Name').closest('th')!;
     const ageHeader = screen.getByText('Age').closest('th')!;
@@ -527,12 +444,10 @@ describe('DataTable', () => {
     expect(ageHeader.getAttribute('aria-sort')).toBe('ascending');
     expect(nameHeader.getAttribute('aria-sort')).toBeNull();
 
-    const dataRows = screen.getAllByRole('row').filter(
-      (r) => within(r).queryAllByRole('cell').length > 0,
-    );
-    const ages = dataRows.map(
-      (r) => within(r).getAllByRole('cell')[1].textContent,
-    );
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
+    const ages = dataRows.map((r) => within(r).getAllByRole('cell')[1].textContent);
     expect(ages).toEqual(['25', '28', '30', '35']);
   });
 });

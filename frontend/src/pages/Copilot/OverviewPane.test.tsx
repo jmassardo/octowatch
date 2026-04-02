@@ -46,8 +46,20 @@ const mockSeatBuckets = [
 ];
 
 const mockCopilotBuckets = [
-  { bucket: '2024-01-14', seats_assigned: 5, seats_revoked: 1, seats_net: 4, policy_change_count: 0 },
-  { bucket: '2024-01-15', seats_assigned: 3, seats_revoked: 2, seats_net: 1, policy_change_count: 0 },
+  {
+    bucket: '2024-01-14',
+    seats_assigned: 5,
+    seats_revoked: 1,
+    seats_net: 4,
+    policy_change_count: 0,
+  },
+  {
+    bucket: '2024-01-15',
+    seats_assigned: 3,
+    seats_revoked: 2,
+    seats_net: 1,
+    policy_change_count: 0,
+  },
 ];
 
 function renderPane() {
@@ -68,9 +80,7 @@ function renderPane() {
 }
 
 function getClickableStats(): HTMLElement[] {
-  return screen.getAllByRole('button').filter(
-    (el) => el.classList.contains('clickableStat'),
-  );
+  return screen.getAllByRole('button').filter((el) => el.classList.contains('clickableStat'));
 }
 
 describe('OverviewPane clickable stats', () => {
@@ -120,9 +130,7 @@ describe('OverviewPane clickable stats', () => {
     const seatsBtn = screen.getByText('38 seats');
     expect(seatsBtn).toHaveAttribute('role', 'button');
     await user.click(seatsBtn);
-    expect(
-      screen.getByText('Correlation: Active seats with low acceptance'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Correlation: Active seats with low acceptance')).toBeInTheDocument();
     expect(
       screen.getByText(/Connect the Copilot Metrics API for live per-user data/),
     ).toBeInTheDocument();
@@ -134,9 +142,7 @@ describe('OverviewPane clickable stats', () => {
     const pctBtn = screen.getByText('23%');
     expect(pctBtn).toHaveAttribute('role', 'button');
     await user.click(pctBtn);
-    expect(
-      screen.getByText('Correlation: Acceptance rate vs cycle time'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Correlation: Acceptance rate vs cycle time')).toBeInTheDocument();
   });
 
   it('makes language bar rows clickable with proper accessibility', async () => {

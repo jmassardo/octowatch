@@ -54,7 +54,9 @@ export function OverviewPane({
   const latestSeatBucket = seatBuckets[seatBuckets.length - 1];
   const avgUtilPct =
     seatBuckets.length > 0
-      ? (seatBuckets.reduce((s, b) => s + (b.utilization_pct ?? 0), 0) / seatBuckets.length).toFixed(1)
+      ? (
+          seatBuckets.reduce((s, b) => s + (b.utilization_pct ?? 0), 0) / seatBuckets.length
+        ).toFixed(1)
       : null;
 
   const totalAssigned = copilotBuckets.reduce((s, b) => s + (b.seats_assigned ?? 0), 0);
@@ -111,18 +113,20 @@ export function OverviewPane({
   }
 
   // Derive seat utilization trend from real API data
-  const seatTrendDays = seatBuckets.slice(-7).map((b) =>
-    formatWeekday(b.bucket),
-  );
+  const seatTrendDays = seatBuckets.slice(-7).map((b) => formatWeekday(b.bucket));
   const seatTrendActive = seatBuckets.slice(-7).map((b) => b.active_seat_count);
-  const seatTrendInactive = seatBuckets.slice(-7).map((b) =>
-    b.provisioned_seat_count - b.active_seat_count,
-  );
+  const seatTrendInactive = seatBuckets
+    .slice(-7)
+    .map((b) => b.provisioned_seat_count - b.active_seat_count);
 
   return (
     <>
       {overview?.error && (
-        <SampleDataBanner message={overview.message ?? 'Copilot metrics data is unavailable. Displaying limited data.'} />
+        <SampleDataBanner
+          message={
+            overview.message ?? 'Copilot metrics data is unavailable. Displaying limited data.'
+          }
+        />
       )}
 
       {/* Seat waste alert banner — derived from real API data */}
@@ -137,11 +141,16 @@ export function OverviewPane({
                 role="button"
                 tabIndex={0}
                 onClick={() => setOverviewModal('seat-waste')}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOverviewModal('seat-waste'); } }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setOverviewModal('seat-waste');
+                  }
+                }}
               >
                 ${monthlyWaste.toLocaleString()}/month
-              </span>
-              {' '}in unused licenses
+              </span>{' '}
+              in unused licenses
             </div>
             <div className={styles.wasteDesc}>
               <span
@@ -149,12 +158,16 @@ export function OverviewPane({
                 role="button"
                 tabIndex={0}
                 onClick={() => setOverviewModal('seat-waste')}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOverviewModal('seat-waste'); } }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setOverviewModal('seat-waste');
+                  }
+                }}
               >
                 {inactiveSeats} seats
-              </span>
-              {' '}inactive (provisioned but not active in last 30 days) at $
-              {costPerSeat}/seat/month
+              </span>{' '}
+              inactive (provisioned but not active in last 30 days) at ${costPerSeat}/seat/month
             </div>
           </div>
           <Button size="sm" variant="danger" onClick={handleExportInactive}>
@@ -199,20 +212,36 @@ export function OverviewPane({
       </div>
 
       {/* Drill-down modal */}
-      <Modal open={drillDown !== null} onClose={() => setDrillDown(null)} title={drillDownTitle()} width={640}>
+      <Modal
+        open={drillDown !== null}
+        onClose={() => setDrillDown(null)}
+        title={drillDownTitle()}
+        width={640}
+      >
         {drillDown === 'active-seats' && (
           <div className={styles.tableWrap}>
             <table>
               <thead>
-                <tr><th>Date</th><th>Active</th><th>Provisioned</th><th>Utilization %</th></tr>
+                <tr>
+                  <th>Date</th>
+                  <th>Active</th>
+                  <th>Provisioned</th>
+                  <th>Utilization %</th>
+                </tr>
               </thead>
               <tbody>
                 {seatBuckets.map((b, i) => (
                   <tr key={i}>
                     <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count ?? '—'}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count ?? '—'}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {b.active_seat_count ?? '—'}
+                    </td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {b.provisioned_seat_count ?? '—'}
+                    </td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -223,13 +252,18 @@ export function OverviewPane({
           <div className={styles.tableWrap}>
             <table>
               <thead>
-                <tr><th>Date</th><th>Assigned</th></tr>
+                <tr>
+                  <th>Date</th>
+                  <th>Assigned</th>
+                </tr>
               </thead>
               <tbody>
                 {copilotBuckets.map((b, i) => (
                   <tr key={i}>
                     <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
-                    <td style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>+{b.seats_assigned ?? 0}</td>
+                    <td style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
+                      +{b.seats_assigned ?? 0}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -240,13 +274,21 @@ export function OverviewPane({
           <div className={styles.tableWrap}>
             <table>
               <thead>
-                <tr><th>Date</th><th>Revoked</th></tr>
+                <tr>
+                  <th>Date</th>
+                  <th>Revoked</th>
+                </tr>
               </thead>
               <tbody>
                 {copilotBuckets.map((b, i) => (
                   <tr key={i}>
                     <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
-                    <td style={{ color: b.seats_revoked > 0 ? 'var(--danger)' : undefined, fontVariantNumeric: 'tabular-nums' }}>
+                    <td
+                      style={{
+                        color: b.seats_revoked > 0 ? 'var(--danger)' : undefined,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
                       {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
                     </td>
                   </tr>
@@ -259,14 +301,26 @@ export function OverviewPane({
           <div className={styles.tableWrap}>
             <table>
               <thead>
-                <tr><th>Date</th><th>Assigned</th><th>Revoked</th><th>Net</th></tr>
+                <tr>
+                  <th>Date</th>
+                  <th>Assigned</th>
+                  <th>Revoked</th>
+                  <th>Net</th>
+                </tr>
               </thead>
               <tbody>
                 {copilotBuckets.map((b, i) => (
                   <tr key={i}>
                     <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
-                    <td style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>+{b.seats_assigned ?? 0}</td>
-                    <td style={{ color: b.seats_revoked > 0 ? 'var(--danger)' : undefined, fontVariantNumeric: 'tabular-nums' }}>
+                    <td style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
+                      +{b.seats_assigned ?? 0}
+                    </td>
+                    <td
+                      style={{
+                        color: b.seats_revoked > 0 ? 'var(--danger)' : undefined,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
                       {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
                     </td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -346,9 +400,7 @@ export function OverviewPane({
                 <tbody>
                   {seatBuckets.slice(-10).map((b, i) => (
                     <tr key={i}>
-                      <td style={{ color: 'var(--fg-muted)' }}>
-                        {formatBucketDate(b.bucket)}
-                      </td>
+                      <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
                       <td style={{ fontVariantNumeric: 'tabular-nums' }}>
                         {b.active_seat_count ?? '—'}
                       </td>
@@ -389,8 +441,17 @@ export function OverviewPane({
                   className={`${styles.langRow} ${styles.langRowClickable}`}
                   role="button"
                   tabIndex={0}
-                  onClick={() => { setSelectedLang(l.lang); setOverviewModal('language'); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedLang(l.lang); setOverviewModal('language'); } }}
+                  onClick={() => {
+                    setSelectedLang(l.lang);
+                    setOverviewModal('language');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedLang(l.lang);
+                      setOverviewModal('language');
+                    }
+                  }}
                 >
                   <span className={styles.langName}>{l.lang}</span>
                   <div className={styles.langTrack}>
@@ -432,9 +493,7 @@ export function OverviewPane({
                 <tbody>
                   {copilotBuckets.slice(-7).map((b, i) => (
                     <tr key={i}>
-                      <td style={{ color: 'var(--fg-muted)' }}>
-                        {formatBucketDate(b.bucket)}
-                      </td>
+                      <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
                       <td
                         style={{
                           color: 'var(--success)',
@@ -487,12 +546,16 @@ export function OverviewPane({
                   role="button"
                   tabIndex={0}
                   onClick={() => setOverviewModal('correlation-cycle')}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOverviewModal('correlation-cycle'); } }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setOverviewModal('correlation-cycle');
+                    }
+                  }}
                 >
                   23%
-                </span>
-                {' '}shorter cycle times on average compared
-                to teams below 20% acceptance.
+                </span>{' '}
+                shorter cycle times on average compared to teams below 20% acceptance.
               </div>
             </div>
           </div>
@@ -506,12 +569,17 @@ export function OverviewPane({
                   role="button"
                   tabIndex={0}
                   onClick={() => setOverviewModal('correlation-seats')}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOverviewModal('correlation-seats'); } }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setOverviewModal('correlation-seats');
+                    }
+                  }}
                 >
                   38 seats
-                </span>
-                {' '}show activity but acceptance rate is below 10% — suggesting Copilot is
-                active but suggestions are being dismissed. Consider targeted training.
+                </span>{' '}
+                show activity but acceptance rate is below 10% — suggesting Copilot is active but
+                suggestions are being dismissed. Consider targeted training.
               </div>
             </div>
           </div>
@@ -519,9 +587,15 @@ export function OverviewPane({
       </Card>
 
       {/* Seat waste modal */}
-      <Modal open={overviewModal === 'seat-waste'} onClose={() => setOverviewModal(null)} title="Seat utilization breakdown" width={700}>
+      <Modal
+        open={overviewModal === 'seat-waste'}
+        onClose={() => setOverviewModal(null)}
+        title="Seat utilization breakdown"
+        width={700}
+      >
         <div className={styles.sampleDataNote}>
-          ℹ️ Showing all seat utilization buckets from the API. Active, provisioned, and cost data is derived from live seat counts.
+          ℹ️ Showing all seat utilization buckets from the API. Active, provisioned, and cost data
+          is derived from live seat counts.
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table className={styles.modalTable}>
@@ -542,10 +616,23 @@ export function OverviewPane({
                   <tr key={i}>
                     <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums', color: inactive > 0 ? 'var(--danger)' : undefined }}>{inactive}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>${(b.provisioned_seat_count * costPerSeat).toLocaleString()}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {b.provisioned_seat_count}
+                    </td>
+                    <td
+                      style={{
+                        fontVariantNumeric: 'tabular-nums',
+                        color: inactive > 0 ? 'var(--danger)' : undefined,
+                      }}
+                    >
+                      {inactive}
+                    </td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}
+                    </td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      ${(b.provisioned_seat_count * costPerSeat).toLocaleString()}
+                    </td>
                   </tr>
                 );
               })}
@@ -555,47 +642,74 @@ export function OverviewPane({
       </Modal>
 
       {/* Correlation insights modals */}
-      <Modal open={overviewModal === 'correlation-seats'} onClose={() => setOverviewModal(null)} title="Correlation: Active seats with low acceptance" width={520}>
+      <Modal
+        open={overviewModal === 'correlation-seats'}
+        onClose={() => setOverviewModal(null)}
+        title="Correlation: Active seats with low acceptance"
+        width={520}
+      >
         <div className={styles.sampleDataNote}>
           ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
         </div>
         <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
-          <strong>38 seats</strong> show activity (suggestions served) but have an acceptance rate below 10%.
-          This indicates Copilot is active on these seats but suggestions are being dismissed frequently.
-          Per-seat acceptance data requires the Copilot Metrics API to identify specific users and teams for targeted training.
+          <strong>38 seats</strong> show activity (suggestions served) but have an acceptance rate
+          below 10%. This indicates Copilot is active on these seats but suggestions are being
+          dismissed frequently. Per-seat acceptance data requires the Copilot Metrics API to
+          identify specific users and teams for targeted training.
         </p>
       </Modal>
 
-      <Modal open={overviewModal === 'correlation-cycle'} onClose={() => setOverviewModal(null)} title="Correlation: Acceptance rate vs cycle time" width={520}>
+      <Modal
+        open={overviewModal === 'correlation-cycle'}
+        onClose={() => setOverviewModal(null)}
+        title="Correlation: Acceptance rate vs cycle time"
+        width={520}
+      >
         <div className={styles.sampleDataNote}>
           ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
         </div>
         <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
-          Teams with &gt;30% acceptance rate show <strong>23% shorter cycle times</strong> on average compared to teams below 20% acceptance.
-          This correlation suggests that teams effectively using Copilot suggestions deliver faster.
-          Per-team breakdowns require the Copilot Metrics API integration.
+          Teams with &gt;30% acceptance rate show <strong>23% shorter cycle times</strong> on
+          average compared to teams below 20% acceptance. This correlation suggests that teams
+          effectively using Copilot suggestions deliver faster. Per-team breakdowns require the
+          Copilot Metrics API integration.
         </p>
       </Modal>
 
       {/* Language drill-down modal */}
-      <Modal open={overviewModal === 'language'} onClose={() => setOverviewModal(null)} title={selectedLang ? `${selectedLang} — Acceptance rate details` : 'Language details'} width={520}>
+      <Modal
+        open={overviewModal === 'language'}
+        onClose={() => setOverviewModal(null)}
+        title={selectedLang ? `${selectedLang} — Acceptance rate details` : 'Language details'}
+        width={520}
+      >
         <div className={styles.sampleDataNote}>
           ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
         </div>
-        {selectedLang && (() => {
-          const lang = languages.find((l) => l.lang === selectedLang);
-          return lang ? (
-            <div>
-              <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
-                <strong>{lang.lang}</strong> has an acceptance rate of <strong>{lang.pct}%</strong>.
-              </p>
-              <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
-                Per-language acceptance breakdowns by team and user require the Copilot Metrics API.
-                This would show which teams are most effective with {lang.lang} completions and where additional training may help.
-              </p>
-            </div>
-          ) : null;
-        })()}
+        {selectedLang &&
+          (() => {
+            const lang = languages.find((l) => l.lang === selectedLang);
+            return lang ? (
+              <div>
+                <p
+                  style={{
+                    fontSize: 13,
+                    color: 'var(--fg-muted)',
+                    lineHeight: 1.6,
+                    margin: '0 0 12px',
+                  }}
+                >
+                  <strong>{lang.lang}</strong> has an acceptance rate of{' '}
+                  <strong>{lang.pct}%</strong>.
+                </p>
+                <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
+                  Per-language acceptance breakdowns by team and user require the Copilot Metrics
+                  API. This would show which teams are most effective with {lang.lang} completions
+                  and where additional training may help.
+                </p>
+              </div>
+            ) : null;
+          })()}
       </Modal>
     </>
   );

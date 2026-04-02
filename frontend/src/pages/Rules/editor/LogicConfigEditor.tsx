@@ -110,10 +110,7 @@ export function LogicConfigEditor({
   onChange,
   errors,
 }: LogicConfigEditorProps) {
-  const config = useMemo(
-    () => resolveConfig(logicType, rawConfig),
-    [logicType, rawConfig],
-  );
+  const config = useMemo(() => resolveConfig(logicType, rawConfig), [logicType, rawConfig]);
 
   const update = useCallback(
     (patch: Partial<LogicConfig>) => {
@@ -279,12 +276,7 @@ export function LogicConfigEditor({
       )}
 
       {/* Posture-specific */}
-      {logicType === 'posture' && (
-        <PostureSection
-          config={config}
-          onChange={update}
-        />
-      )}
+      {logicType === 'posture' && <PostureSection config={config} onChange={update} />}
     </div>
   );
 }
@@ -532,9 +524,7 @@ function StatisticalSection({
               id="stat-suppress-proxy"
               type="checkbox"
               checked={cfg.suppress_proxy_ips ?? true}
-              onChange={(e) =>
-                onXConfigChange({ suppress_proxy_ips: e.target.checked })
-              }
+              onChange={(e) => onXConfigChange({ suppress_proxy_ips: e.target.checked })}
             />
             Suppress proxy IPs
           </label>
@@ -592,10 +582,14 @@ const BRANCH_PROTECTION_FIELDS = [
 
 function getFieldsForEntityType(entityType: string) {
   switch (entityType) {
-    case 'org': return ORG_FIELDS;
-    case 'repo': return REPO_FIELDS;
-    case 'branch_protection': return BRANCH_PROTECTION_FIELDS;
-    default: return [];
+    case 'org':
+      return ORG_FIELDS;
+    case 'repo':
+      return REPO_FIELDS;
+    case 'branch_protection':
+      return BRANCH_PROTECTION_FIELDS;
+    default:
+      return [];
   }
 }
 
@@ -605,13 +599,13 @@ interface PostureSectionProps {
 }
 
 function PostureSection({ config, onChange }: PostureSectionProps) {
-  const entityType = (config as Record<string, unknown>).entity_type as string ?? 'org';
-  const checkType = (config as Record<string, unknown>).check_type as string ?? 'field_value';
-  const field = (config as Record<string, unknown>).field as string ?? '';
-  const operator = (config as Record<string, unknown>).operator as string ?? 'eq';
+  const entityType = ((config as Record<string, unknown>).entity_type as string) ?? 'org';
+  const checkType = ((config as Record<string, unknown>).check_type as string) ?? 'field_value';
+  const field = ((config as Record<string, unknown>).field as string) ?? '';
+  const operator = ((config as Record<string, unknown>).operator as string) ?? 'eq';
   const expected = (config as Record<string, unknown>).expected;
   const value = (config as Record<string, unknown>).value;
-  const scope = (config as Record<string, unknown>).scope as Record<string, unknown> ?? {};
+  const scope = ((config as Record<string, unknown>).scope as Record<string, unknown>) ?? {};
 
   const availableFields = getFieldsForEntityType(entityType);
   const isMissingProtection = checkType === 'missing_protection';
@@ -633,11 +627,17 @@ function PostureSection({ config, onChange }: PostureSectionProps) {
             className={styles.fieldSelect}
             value={entityType}
             onChange={(e) =>
-              onChange({ ...config, entity_type: e.target.value, field: '' } as unknown as Partial<LogicConfig>)
+              onChange({
+                ...config,
+                entity_type: e.target.value,
+                field: '',
+              } as unknown as Partial<LogicConfig>)
             }
           >
             {POSTURE_ENTITY_TYPES.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
             ))}
           </select>
         </div>
@@ -654,7 +654,9 @@ function PostureSection({ config, onChange }: PostureSectionProps) {
             }
           >
             {POSTURE_CHECK_TYPES.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
             ))}
           </select>
         </div>
@@ -675,7 +677,9 @@ function PostureSection({ config, onChange }: PostureSectionProps) {
               >
                 <option value="">Select a field...</option>
                 {availableFields.map((f) => (
-                  <option key={f.value} value={f.value}>{f.label}</option>
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
                 ))}
               </select>
             </div>
@@ -690,9 +694,19 @@ function PostureSection({ config, onChange }: PostureSectionProps) {
                 value={useExpected ? 'expected' : 'operator'}
                 onChange={(e) => {
                   if (e.target.value === 'expected') {
-                    onChange({ ...config, expected: true, operator: undefined, value: undefined } as unknown as Partial<LogicConfig>);
+                    onChange({
+                      ...config,
+                      expected: true,
+                      operator: undefined,
+                      value: undefined,
+                    } as unknown as Partial<LogicConfig>);
                   } else {
-                    onChange({ ...config, expected: undefined, operator: 'eq', value: '' } as unknown as Partial<LogicConfig>);
+                    onChange({
+                      ...config,
+                      expected: undefined,
+                      operator: 'eq',
+                      value: '',
+                    } as unknown as Partial<LogicConfig>);
                   }
                 }}
               >
@@ -732,11 +746,16 @@ function PostureSection({ config, onChange }: PostureSectionProps) {
                     className={styles.fieldSelect}
                     value={operator}
                     onChange={(e) =>
-                      onChange({ ...config, operator: e.target.value } as unknown as Partial<LogicConfig>)
+                      onChange({
+                        ...config,
+                        operator: e.target.value,
+                      } as unknown as Partial<LogicConfig>)
                     }
                   >
                     {POSTURE_OPERATORS.map((op) => (
-                      <option key={op.value} value={op.value}>{op.label}</option>
+                      <option key={op.value} value={op.value}>
+                        {op.label}
+                      </option>
                     ))}
                   </select>
                 </div>

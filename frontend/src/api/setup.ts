@@ -80,7 +80,11 @@ export function listSettings(): Promise<AppSetting[]> {
   return api.get<AppSetting[]>('/admin/settings');
 }
 
-export function updateSetting(key: string, value: string, description?: string): Promise<AppSetting> {
+export function updateSetting(
+  key: string,
+  value: string,
+  description?: string,
+): Promise<AppSetting> {
   return api.put<AppSetting>(`/admin/settings/${key}`, { value, description });
 }
 

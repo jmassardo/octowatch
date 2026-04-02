@@ -73,7 +73,10 @@ function buildCalendarData(events: readonly EventResponse[]): CalendarDay[] {
 
 /** Compute per-repo activity stats from a list of events. */
 function computeRepoStats(events: readonly EventResponse[]): RepoActivityStats[] {
-  const repoMap = new Map<string, { total: number; pr: number; push: number; actors: Set<string> }>();
+  const repoMap = new Map<
+    string,
+    { total: number; pr: number; push: number; actors: Set<string> }
+  >();
   for (const e of events) {
     if (!e.repo) continue;
     const existing = repoMap.get(e.repo) ?? { total: 0, pr: 0, push: 0, actors: new Set<string>() };
@@ -163,7 +166,10 @@ function WorkflowHealthSection({ workflows }: { workflows: WorkflowRow[] }) {
           <tbody>
             {topFailing.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}>
+                <td
+                  colSpan={6}
+                  style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
+                >
                   No failing workflows detected
                 </td>
               </tr>
@@ -179,9 +185,7 @@ function WorkflowHealthSection({ workflows }: { workflows: WorkflowRow[] }) {
                     {wf.failure_rate_pct.toFixed(1)}%
                   </Label>
                 </td>
-                <td style={{ color: 'var(--fg-muted)' }}>
-                  {formatDateOnly(wf.last_run)}
-                </td>
+                <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.last_run)}</td>
               </tr>
             ))}
           </tbody>
@@ -192,12 +196,14 @@ function WorkflowHealthSection({ workflows }: { workflows: WorkflowRow[] }) {
 }
 
 interface BranchProtectionProps {
-  branchProt: {
-    protections_removed: number;
-    policy_overrides: number;
-    modified: number;
-    distinct_repos_affected: number;
-  } | undefined;
+  branchProt:
+    | {
+        protections_removed: number;
+        policy_overrides: number;
+        modified: number;
+        distinct_repos_affected: number;
+      }
+    | undefined;
 }
 
 function BranchProtectionSection({ branchProt }: BranchProtectionProps) {
@@ -213,14 +219,8 @@ function BranchProtectionSection({ branchProt }: BranchProtectionProps) {
           value={String(branchProt?.protections_removed ?? 0)}
           label="Protections removed"
         />
-        <MetricCard
-          value={String(branchProt?.policy_overrides ?? 0)}
-          label="Policy overrides"
-        />
-        <MetricCard
-          value={String(branchProt?.modified ?? 0)}
-          label="Modified"
-        />
+        <MetricCard value={String(branchProt?.policy_overrides ?? 0)} label="Policy overrides" />
+        <MetricCard value={String(branchProt?.modified ?? 0)} label="Modified" />
         <MetricCard
           value={String(branchProt?.distinct_repos_affected ?? 0)}
           label="Repos affected"
@@ -247,7 +247,12 @@ export function VelocityPage() {
   const calendarRef = useRef<HTMLDivElement>(null);
   const failuresRef = useRef<HTMLDivElement>(null);
 
-  const { data: actionsData, isLoading, isError, refetch } = useQuery({
+  const {
+    data: actionsData,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['reports', 'actions-volume'],
     queryFn: () => getActionsVolumeReport({ window_days: 30, granularity: 'daily' }),
   });
@@ -318,10 +323,14 @@ export function VelocityPage() {
   const wipEstimate = useMemo(() => {
     if (!repoEvents?.items) return null;
     const opened = repoEvents.items.filter(
-      (e) => e.action.includes('pull_request') && (e.action.includes('opened') || e.action.includes('created')),
+      (e) =>
+        e.action.includes('pull_request') &&
+        (e.action.includes('opened') || e.action.includes('created')),
     ).length;
     const closed = repoEvents.items.filter(
-      (e) => e.action.includes('pull_request') && (e.action.includes('closed') || e.action.includes('merged')),
+      (e) =>
+        e.action.includes('pull_request') &&
+        (e.action.includes('closed') || e.action.includes('merged')),
     ).length;
     return opened > 0 || closed > 0 ? Math.max(0, opened - closed) : null;
   }, [repoEvents]);
@@ -360,17 +369,20 @@ export function VelocityPage() {
   });
 
   // Average lead time across the period
-  const avgLeadTime = leadTimeChartData.length > 0
-    ? leadTimeChartData.filter((v) => v > 0).reduce((a, b) => a + b, 0) /
-      Math.max(leadTimeChartData.filter((v) => v > 0).length, 1)
-    : null;
+  const avgLeadTime =
+    leadTimeChartData.length > 0
+      ? leadTimeChartData.filter((v) => v > 0).reduce((a, b) => a + b, 0) /
+        Math.max(leadTimeChartData.filter((v) => v > 0).length, 1)
+      : null;
 
   // MTTR proxy: estimate recovery hours from daily failure rate.
   // Higher failure rates imply longer recovery windows.
   const mttrChartData = buckets.map((b) => {
     if ((b.workflow_runs_failed ?? 0) === 0) return 0;
     const failureRate =
-      (b.workflow_runs_total ?? 0) > 0 ? (b.workflow_runs_failed ?? 0) / (b.workflow_runs_total ?? 1) : 0;
+      (b.workflow_runs_total ?? 0) > 0
+        ? (b.workflow_runs_failed ?? 0) / (b.workflow_runs_total ?? 1)
+        : 0;
     return Math.round(failureRate * 24 * 10) / 10;
   });
 
@@ -381,14 +393,76 @@ export function VelocityPage() {
   const doraTier = hasWorkflowData ? computeDoraTier(deployFreqPerDay, cfrNum) : null;
 
   const metrics = [
-    { value: prMerged != null ? prMerged.toLocaleString() : '—', label: 'PRs merged (30d)', delta: 'last 30 days', dir: 'neutral' as const, scrollRef: 'calendar' as const },
-    { value: avgLeadTime != null && avgLeadTime > 0 ? `${avgLeadTime.toFixed(1)}h` : '—', label: 'Lead time for changes', delta: avgLeadTime != null && avgLeadTime > 0 ? 'estimated from workflow frequency' : 'Insufficient data — requires deployment tracking', dir: 'neutral' as const, scrollRef: null },
-    { value: prReviewCount != null ? prReviewCount.toLocaleString() : '—', label: 'PR activity (30d)', delta: prReviewCount != null ? 'pull_request events from audit log' : 'No PR events found', dir: 'neutral' as const, scrollRef: 'calendar' as const },
-    { value: changeFailureRate != null ? `${changeFailureRate}%` : '—', label: 'Change failure rate', delta: changeFailureRate != null ? (parseFloat(changeFailureRate) < 5 ? '< 5% target ✓' : '≥ 5% target') : '—', dir: changeFailureRate != null && parseFloat(changeFailureRate) < 5 ? 'up' as const : 'down' as const, scrollRef: 'changeFailure' as const },
-    { value: deploymentProxy != null ? deploymentProxy.toLocaleString() : '—', label: 'Successful workflows (30d)', delta: deploymentProxy != null ? 'proxy for deployment frequency' : 'No workflow data', dir: deploymentProxy != null ? 'neutral' as const : 'neutral' as const, scrollRef: 'workflowSuccess' as const },
-    { value: overallSuccessRate != null ? `${overallSuccessRate}%` : '—', label: 'Workflow success', delta: '30-day average', dir: overallSuccessRate != null && parseFloat(overallSuccessRate) >= 90 ? 'up' as const : 'down' as const, scrollRef: 'workflowSuccess' as const },
-    { value: wipEstimate != null ? wipEstimate.toString() : '—', label: 'WIP (items in flight)', delta: wipEstimate != null ? 'estimated from PR events' : 'No PR data available', dir: 'neutral' as const, scrollRef: null },
-    { value: reviewCoverage != null ? `${reviewCoverage}%` : '—', label: 'Review coverage', delta: reviewCoverage != null ? 'reviews per merged PR' : 'No PR data', dir: reviewCoverage != null && reviewCoverage >= 80 ? 'up' as const : 'neutral' as const, scrollRef: null },
+    {
+      value: prMerged != null ? prMerged.toLocaleString() : '—',
+      label: 'PRs merged (30d)',
+      delta: 'last 30 days',
+      dir: 'neutral' as const,
+      scrollRef: 'calendar' as const,
+    },
+    {
+      value: avgLeadTime != null && avgLeadTime > 0 ? `${avgLeadTime.toFixed(1)}h` : '—',
+      label: 'Lead time for changes',
+      delta:
+        avgLeadTime != null && avgLeadTime > 0
+          ? 'estimated from workflow frequency'
+          : 'Insufficient data — requires deployment tracking',
+      dir: 'neutral' as const,
+      scrollRef: null,
+    },
+    {
+      value: prReviewCount != null ? prReviewCount.toLocaleString() : '—',
+      label: 'PR activity (30d)',
+      delta: prReviewCount != null ? 'pull_request events from audit log' : 'No PR events found',
+      dir: 'neutral' as const,
+      scrollRef: 'calendar' as const,
+    },
+    {
+      value: changeFailureRate != null ? `${changeFailureRate}%` : '—',
+      label: 'Change failure rate',
+      delta:
+        changeFailureRate != null
+          ? parseFloat(changeFailureRate) < 5
+            ? '< 5% target ✓'
+            : '≥ 5% target'
+          : '—',
+      dir:
+        changeFailureRate != null && parseFloat(changeFailureRate) < 5
+          ? ('up' as const)
+          : ('down' as const),
+      scrollRef: 'changeFailure' as const,
+    },
+    {
+      value: deploymentProxy != null ? deploymentProxy.toLocaleString() : '—',
+      label: 'Successful workflows (30d)',
+      delta: deploymentProxy != null ? 'proxy for deployment frequency' : 'No workflow data',
+      dir: deploymentProxy != null ? ('neutral' as const) : ('neutral' as const),
+      scrollRef: 'workflowSuccess' as const,
+    },
+    {
+      value: overallSuccessRate != null ? `${overallSuccessRate}%` : '—',
+      label: 'Workflow success',
+      delta: '30-day average',
+      dir:
+        overallSuccessRate != null && parseFloat(overallSuccessRate) >= 90
+          ? ('up' as const)
+          : ('down' as const),
+      scrollRef: 'workflowSuccess' as const,
+    },
+    {
+      value: wipEstimate != null ? wipEstimate.toString() : '—',
+      label: 'WIP (items in flight)',
+      delta: wipEstimate != null ? 'estimated from PR events' : 'No PR data available',
+      dir: 'neutral' as const,
+      scrollRef: null,
+    },
+    {
+      value: reviewCoverage != null ? `${reviewCoverage}%` : '—',
+      label: 'Review coverage',
+      delta: reviewCoverage != null ? 'reviews per merged PR' : 'No PR data',
+      dir: reviewCoverage != null && reviewCoverage >= 80 ? ('up' as const) : ('neutral' as const),
+      scrollRef: null,
+    },
   ];
 
   const refMap = {
@@ -411,7 +485,11 @@ export function VelocityPage() {
       <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--fg-muted)' }}>
         <h2>Engineering Velocity is disabled</h2>
         <p style={{ marginTop: '0.75rem' }}>
-          Enable it in <a href="/settings/features" style={{ color: 'var(--accent)' }}>Settings → Features</a>.
+          Enable it in{' '}
+          <a href="/settings/features" style={{ color: 'var(--accent)' }}>
+            Settings → Features
+          </a>
+          .
         </p>
       </div>
     );
@@ -428,10 +506,16 @@ export function VelocityPage() {
               styles.doraBadge,
               doraTier ? styles[doraTier.cssClass] : '',
               styles.doraBadgeClickable,
-            ].filter(Boolean).join(' ')}
+            ]
+              .filter(Boolean)
+              .join(' ')}
             role="button"
             tabIndex={0}
-            aria-label={doraTier ? `DORA ${doraTier.name} tier — click for details` : 'DORA tier pending — click for details'}
+            aria-label={
+              doraTier
+                ? `DORA ${doraTier.name} tier — click for details`
+                : 'DORA tier pending — click for details'
+            }
             onClick={() => setDoraModalOpen(true)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
@@ -445,16 +529,24 @@ export function VelocityPage() {
         </div>
       </div>
       <div className={styles.pageSub}>
-        Flow metrics, DORA indicators, and delivery throughput — use as conversation starters, not scorecards
+        Flow metrics, DORA indicators, and delivery throughput — use as conversation starters, not
+        scorecards
       </div>
 
       <div className={styles.contextCard}>
-        <svg width="14" height="14" fill="var(--accent)" viewBox="0 0 16 16" style={{ flexShrink: 0, marginTop: 1 }}>
+        <svg
+          width="14"
+          height="14"
+          fill="var(--accent)"
+          viewBox="0 0 16 16"
+          style={{ flexShrink: 0, marginTop: 1 }}
+        >
           <path d="M0 8a8 8 0 1116 0A8 8 0 010 8zm8-6.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 7.75A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 110-2 1 1 0 010 2z" />
         </svg>
         <span>
-          Metrics here measure <strong>system behavior</strong>, not individual performance. A metric moving in an
-          unexpected direction is a question to investigate, not a judgment to make.
+          Metrics here measure <strong>system behavior</strong>, not individual performance. A
+          metric moving in an unexpected direction is a question to investigate, not a judgment to
+          make.
         </span>
       </div>
 
@@ -468,7 +560,13 @@ export function VelocityPage() {
             label={m.label}
             delta={m.delta}
             deltaDir={m.dir}
-            onClick={m.scrollRef ? () => { refMap[m.scrollRef].current?.scrollIntoView({ behavior: 'smooth' }); } : undefined}
+            onClick={
+              m.scrollRef
+                ? () => {
+                    refMap[m.scrollRef].current?.scrollIntoView({ behavior: 'smooth' });
+                  }
+                : undefined
+            }
           />
         ))}
       </div>
@@ -477,7 +575,9 @@ export function VelocityPage() {
 
       <div ref={calendarRef}>
         <Card style={{ marginBottom: 20 }}>
-          <CardHeader actions={<span style={{ fontWeight: 400 }}>commit + PR + deploy activity</span>}>
+          <CardHeader
+            actions={<span style={{ fontWeight: 400 }}>commit + PR + deploy activity</span>}
+          >
             Team contribution calendar — last 13 weeks
           </CardHeader>
           <ContributionCalendar data={calendarData} />
@@ -505,7 +605,16 @@ export function VelocityPage() {
               yAxisFormatter={(v: number) => `${v}h`}
             />
           ) : (
-            <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-muted)', fontSize: 13 }}>
+            <div
+              style={{
+                height: 160,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--fg-muted)',
+                fontSize: 13,
+              }}
+            >
               No workflow data available
             </div>
           )}
@@ -521,13 +630,32 @@ export function VelocityPage() {
             <LineAreaChart
               xAxisData={chartLabels}
               series={[
-                { name: 'CFR', data: changeFailureChartData, color: 'rgb(248, 81, 73)', areaOpacity: 0.15 },
-                { name: 'Threshold (5%)', data: Array.from({ length: chartLabels.length }, () => 5), color: 'rgb(248, 81, 73)', dashed: true },
+                {
+                  name: 'CFR',
+                  data: changeFailureChartData,
+                  color: 'rgb(248, 81, 73)',
+                  areaOpacity: 0.15,
+                },
+                {
+                  name: 'Threshold (5%)',
+                  data: Array.from({ length: chartLabels.length }, () => 5),
+                  color: 'rgb(248, 81, 73)',
+                  dashed: true,
+                },
               ]}
               yAxisFormatter={(v: number) => `${v}%`}
             />
           ) : (
-            <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-muted)', fontSize: 13 }}>
+            <div
+              style={{
+                height: 160,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--fg-muted)',
+                fontSize: 13,
+              }}
+            >
               No workflow data available
             </div>
           )}
@@ -543,12 +671,26 @@ export function VelocityPage() {
             <LineAreaChart
               xAxisData={chartLabels}
               series={[
-                { name: 'Success rate', data: workflowSuccessChartData, color: 'rgb(63, 185, 80)', areaOpacity: 0.15 },
+                {
+                  name: 'Success rate',
+                  data: workflowSuccessChartData,
+                  color: 'rgb(63, 185, 80)',
+                  areaOpacity: 0.15,
+                },
               ]}
               yAxisFormatter={(v: number) => `${v}%`}
             />
           ) : (
-            <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-muted)', fontSize: 13 }}>
+            <div
+              style={{
+                height: 160,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--fg-muted)',
+                fontSize: 13,
+              }}
+            >
               No workflow data available
             </div>
           )}
@@ -569,7 +711,16 @@ export function VelocityPage() {
               ]}
             />
           ) : (
-            <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-muted)', fontSize: 13 }}>
+            <div
+              style={{
+                height: 160,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--fg-muted)',
+                fontSize: 13,
+              }}
+            >
               No workflow data available
             </div>
           )}
@@ -581,7 +732,14 @@ export function VelocityPage() {
           <div className={styles.sectionTitle}>Recent workflow failures — last 30 days</div>
           <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
             <table>
-              <thead><tr><th>Date bucket</th><th>Total runs</th><th>Failed</th><th>Success rate</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Date bucket</th>
+                  <th>Total runs</th>
+                  <th>Failed</th>
+                  <th>Success rate</th>
+                </tr>
+              </thead>
               <tbody>
                 {recentFailingBuckets.map((b, i) => (
                   <tr
@@ -599,9 +757,17 @@ export function VelocityPage() {
                     }}
                   >
                     <td>{formatBucketDate(b.bucket)}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.workflow_runs_total ?? 0}</td>
-                    <td><Label variant={(b.workflow_runs_failed ?? 0) > 10 ? 'danger' : 'attention'}>{b.workflow_runs_failed ?? 0}</Label></td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.success_rate_pct != null ? `${Math.round(b.success_rate_pct)}%` : '—'}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {b.workflow_runs_total ?? 0}
+                    </td>
+                    <td>
+                      <Label variant={(b.workflow_runs_failed ?? 0) > 10 ? 'danger' : 'attention'}>
+                        {b.workflow_runs_failed ?? 0}
+                      </Label>
+                    </td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {b.success_rate_pct != null ? `${Math.round(b.success_rate_pct)}%` : '—'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -631,7 +797,10 @@ export function VelocityPage() {
               if (sorted.length === 0) {
                 return (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}>
+                    <td
+                      colSpan={5}
+                      style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
+                    >
                       No workflow health data available
                     </td>
                   </tr>
@@ -641,10 +810,12 @@ export function VelocityPage() {
                 <tr key={`${wf.repo}/${wf.workflow_name}`}>
                   <td className={styles.workflowName}>{wf.workflow_name}</td>
                   <td>{wf.repo}</td>
-                  <td><Label variant={getFailureRateVariant(wf.failure_rate_pct)}>{wf.failure_rate_pct.toFixed(1)}%</Label></td>
-                  <td style={{ color: 'var(--fg-muted)' }}>
-                    {formatDateOnly(wf.last_run)}
+                  <td>
+                    <Label variant={getFailureRateVariant(wf.failure_rate_pct)}>
+                      {wf.failure_rate_pct.toFixed(1)}%
+                    </Label>
                   </td>
+                  <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.last_run)}</td>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.total_runs}</td>
                 </tr>
               ));
@@ -653,7 +824,9 @@ export function VelocityPage() {
         </table>
       </div>
 
-      <div ref={reposRef} className={styles.sectionTitle}>Most active repositories — last 30 days</div>
+      <div ref={reposRef} className={styles.sectionTitle}>
+        Most active repositories — last 30 days
+      </div>
       <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
         <table>
           <thead>
@@ -682,16 +855,27 @@ export function VelocityPage() {
                     }
                   }}
                 >
-                  <td style={{ fontWeight: 500, color: 'var(--accent)', cursor: 'pointer' }}>{r.name}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.totalEvents.toLocaleString()}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.prEvents.toLocaleString()}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.pushEvents.toLocaleString()}</td>
+                  <td style={{ fontWeight: 500, color: 'var(--accent)', cursor: 'pointer' }}>
+                    {r.name}
+                  </td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {r.totalEvents.toLocaleString()}
+                  </td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {r.prEvents.toLocaleString()}
+                  </td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {r.pushEvents.toLocaleString()}
+                  </td>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.contributors}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={5} style={{ color: 'var(--fg-muted)', textAlign: 'center', padding: 24 }}>
+                <td
+                  colSpan={5}
+                  style={{ color: 'var(--fg-muted)', textAlign: 'center', padding: 24 }}
+                >
                   No repository activity data available
                 </td>
               </tr>
@@ -701,7 +885,9 @@ export function VelocityPage() {
       </div>
 
       {buckets.length === 0 && !isLoading && (
-        <div style={{ color: 'var(--fg-muted)', padding: '16px 0' }}>No workflow run data for the selected period.</div>
+        <div style={{ color: 'var(--fg-muted)', padding: '16px 0' }}>
+          No workflow run data for the selected period.
+        </div>
       )}
 
       {/* Workflow Health from audit logs */}
@@ -710,25 +896,39 @@ export function VelocityPage() {
       {/* Branch Protection Changes */}
       <BranchProtectionSection branchProt={branchProtData} />
 
-      <Modal open={doraModalOpen} onClose={() => setDoraModalOpen(false)} title={`DORA Metrics — ${doraTier ? doraTier.name : 'Pending'} Tier`} width={520}>
+      <Modal
+        open={doraModalOpen}
+        onClose={() => setDoraModalOpen(false)}
+        title={`DORA Metrics — ${doraTier ? doraTier.name : 'Pending'} Tier`}
+        width={520}
+      >
         <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16, lineHeight: 1.5 }}>
-          DORA (DevOps Research and Assessment) metrics measure software delivery performance.
-          Teams are classified into four tiers based on their performance across four key metrics.
+          DORA (DevOps Research and Assessment) metrics measure software delivery performance. Teams
+          are classified into four tiers based on their performance across four key metrics.
         </p>
         <table className={styles.doraTable}>
           <thead>
-            <tr><th>Metric</th><th>Elite threshold</th><th>Current</th></tr>
+            <tr>
+              <th>Metric</th>
+              <th>Elite threshold</th>
+              <th>Current</th>
+            </tr>
           </thead>
           <tbody>
             <tr>
               <td style={{ fontWeight: 500 }}>Deployment Frequency</td>
               <td>On-demand (multiple deploys/day)</td>
-              <td>{deploymentProxy != null ? `${deploymentProxy.toLocaleString()} workflows` : '—'}</td>
+              <td>
+                {deploymentProxy != null ? `${deploymentProxy.toLocaleString()} workflows` : '—'}
+              </td>
             </tr>
             <tr>
               <td style={{ fontWeight: 500 }}>Lead Time for Changes</td>
               <td>&lt; 1 hour</td>
-              <td>{avgLeadTime != null && avgLeadTime > 0 ? `~${avgLeadTime.toFixed(1)}h` : '—'} <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>(estimated)</span></td>
+              <td>
+                {avgLeadTime != null && avgLeadTime > 0 ? `~${avgLeadTime.toFixed(1)}h` : '—'}{' '}
+                <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>(estimated)</span>
+              </td>
             </tr>
             <tr>
               <td style={{ fontWeight: 500 }}>Change Failure Rate</td>
@@ -738,12 +938,20 @@ export function VelocityPage() {
             <tr>
               <td style={{ fontWeight: 500 }}>Time to Restore Service</td>
               <td>&lt; 1 hour</td>
-              <td>{mttrChartData.some((v) => v > 0) ? `~${(mttrChartData.filter((v) => v > 0).reduce((a, b) => a + b, 0) / mttrChartData.filter((v) => v > 0).length).toFixed(1)}h` : '—'} <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>(estimated from failure rate)</span></td>
+              <td>
+                {mttrChartData.some((v) => v > 0)
+                  ? `~${(mttrChartData.filter((v) => v > 0).reduce((a, b) => a + b, 0) / mttrChartData.filter((v) => v > 0).length).toFixed(1)}h`
+                  : '—'}{' '}
+                <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
+                  (estimated from failure rate)
+                </span>
+              </td>
             </tr>
           </tbody>
         </table>
         <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 12, lineHeight: 1.5 }}>
-          Tier is computed from deployment frequency and change failure rate. Full DORA calculation requires deployment and incident tracking integrations.
+          Tier is computed from deployment frequency and change failure rate. Full DORA calculation
+          requires deployment and incident tracking integrations.
         </p>
       </Modal>
 
@@ -761,24 +969,34 @@ export function VelocityPage() {
                 <div className={styles.modalMetricLbl}>Total runs</div>
               </div>
               <div className={styles.modalMetric}>
-                <div className={styles.modalMetricVal} style={{ color: 'var(--success)' }}>{failureBucket.workflow_runs_succeeded}</div>
+                <div className={styles.modalMetricVal} style={{ color: 'var(--success)' }}>
+                  {failureBucket.workflow_runs_succeeded}
+                </div>
                 <div className={styles.modalMetricLbl}>Succeeded</div>
               </div>
               <div className={styles.modalMetric}>
-                <div className={styles.modalMetricVal} style={{ color: 'var(--danger)' }}>{failureBucket.workflow_runs_failed}</div>
+                <div className={styles.modalMetricVal} style={{ color: 'var(--danger)' }}>
+                  {failureBucket.workflow_runs_failed}
+                </div>
                 <div className={styles.modalMetricLbl}>Failed</div>
               </div>
               <div className={styles.modalMetric}>
-                <div className={styles.modalMetricVal}>{failureBucket.success_rate_pct != null ? `${Math.round(failureBucket.success_rate_pct)}%` : '—'}</div>
+                <div className={styles.modalMetricVal}>
+                  {failureBucket.success_rate_pct != null
+                    ? `${Math.round(failureBucket.success_rate_pct)}%`
+                    : '—'}
+                </div>
                 <div className={styles.modalMetricLbl}>Success rate</div>
               </div>
             </div>
             <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 16, lineHeight: 1.5 }}>
-              Date bucket: <strong>{formatBucketDate(failureBucket.bucket)}</strong><br />
+              Date bucket: <strong>{formatBucketDate(failureBucket.bucket)}</strong>
+              <br />
               Unique workflows: <strong>{failureBucket.unique_workflows}</strong>
             </p>
             <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 12, lineHeight: 1.5 }}>
-              Workflow-level failure details require GitHub Actions API integration for individual run data.
+              Workflow-level failure details require GitHub Actions API integration for individual
+              run data.
             </p>
           </div>
         )}

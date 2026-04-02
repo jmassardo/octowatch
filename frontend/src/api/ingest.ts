@@ -1,7 +1,11 @@
 import { apiFetch, api } from './client';
 import type { ManualIngestJob } from '../types/ingest';
 
-export function uploadFile(file: File, type: string, description?: string): Promise<ManualIngestJob> {
+export function uploadFile(
+  file: File,
+  type: string,
+  description?: string,
+): Promise<ManualIngestJob> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('type', type);

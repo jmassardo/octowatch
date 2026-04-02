@@ -9,7 +9,8 @@ import type { ManualIngestJob } from '../../types/ingest';
 /*  Mocks                                                              */
 /* ------------------------------------------------------------------ */
 
-const mockUploadFile = vi.fn<(file: File, type: string, description?: string) => Promise<ManualIngestJob>>();
+const mockUploadFile =
+  vi.fn<(file: File, type: string, description?: string) => Promise<ManualIngestJob>>();
 const mockGetIngestJob = vi.fn<(jobId: string) => Promise<ManualIngestJob>>();
 const mockListIngestJobs = vi.fn<() => Promise<{ items: ManualIngestJob[]; total: number }>>();
 

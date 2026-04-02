@@ -47,7 +47,9 @@ vi.mock('../../components/charts/BarChart', () => ({
 }));
 
 vi.mock('../../components/charts/ContributionCalendar', () => ({
-  ContributionCalendar: (props: Record<string, unknown>) => <div data-testid="contribution-calendar" data-has-data={props.data ? 'true' : 'false'} />,
+  ContributionCalendar: (props: Record<string, unknown>) => (
+    <div data-testid="contribution-calendar" data-has-data={props.data ? 'true' : 'false'} />
+  ),
 }));
 
 describe('VelocityPage', () => {
@@ -84,9 +86,7 @@ describe('VelocityPage', () => {
   it('renders the info banner about system behavior metrics', () => {
     renderWithProviders(<VelocityPage />);
 
-    expect(
-      screen.getByText(/metrics here measure/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/metrics here measure/i)).toBeInTheDocument();
     expect(screen.getByText(/system behavior/i)).toBeInTheDocument();
   });
 
@@ -215,9 +215,7 @@ describe('VelocityPage', () => {
   it('does not show sample data banner for top failing workflows', () => {
     renderWithProviders(<VelocityPage />);
 
-    expect(
-      screen.queryByText(/Top failing workflows display sample data/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Top failing workflows display sample data/)).not.toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
@@ -227,9 +225,7 @@ describe('VelocityPage', () => {
   it('renders the most active repositories section title', () => {
     renderWithProviders(<VelocityPage />);
 
-    expect(
-      screen.getByText('Most active repositories — last 30 days'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Most active repositories — last 30 days')).toBeInTheDocument();
   });
 
   it('renders the repos table with correct column headers', () => {
@@ -242,9 +238,7 @@ describe('VelocityPage', () => {
     const container = sectionTitle.closest('.page') ?? document.body;
     const allTables = within(container as HTMLElement).getAllByRole('table');
     // Find the table that contains "Events" header (the active repos table)
-    const repoTable = allTables.find((t) =>
-      within(t).queryByText('Events') !== null,
-    );
+    const repoTable = allTables.find((t) => within(t).queryByText('Events') !== null);
     expect(repoTable).toBeTruthy();
     const headers = within(repoTable!).getAllByRole('columnheader');
     const headerTexts = headers.map((h) => h.textContent);
@@ -311,9 +305,78 @@ describe('VelocityPage with data', () => {
   ];
 
   const MOCK_EVENTS = [
-    { id: 1, document_id: 'd1', created_at: '2024-01-15T00:00:00Z', ingested_at: '2024-01-15T00:00:00Z', action: 'push', namespace: 'git', actor: 'alice', actor_id: 1, actor_is_bot: false, org: 'myorg', org_id: 1, repo: 'myorg/api-service', repo_id: 1, business: null, source_ip: null, user_agent: null, geo_country_code: null, geo_city: null, geo_is_proxy: null, data: {}, ingestion_source: 'webhook', source_file_path: '' },
-    { id: 2, document_id: 'd2', created_at: '2024-01-15T01:00:00Z', ingested_at: '2024-01-15T01:00:00Z', action: 'push', namespace: 'git', actor: 'bob', actor_id: 2, actor_is_bot: false, org: 'myorg', org_id: 1, repo: 'myorg/api-service', repo_id: 1, business: null, source_ip: null, user_agent: null, geo_country_code: null, geo_city: null, geo_is_proxy: null, data: {}, ingestion_source: 'webhook', source_file_path: '' },
-    { id: 3, document_id: 'd3', created_at: '2024-01-15T02:00:00Z', ingested_at: '2024-01-15T02:00:00Z', action: 'pull_request', namespace: 'git', actor: 'alice', actor_id: 1, actor_is_bot: false, org: 'myorg', org_id: 1, repo: 'myorg/web-app', repo_id: 2, business: null, source_ip: null, user_agent: null, geo_country_code: null, geo_city: null, geo_is_proxy: null, data: {}, ingestion_source: 'webhook', source_file_path: '' },
+    {
+      id: 1,
+      document_id: 'd1',
+      created_at: '2024-01-15T00:00:00Z',
+      ingested_at: '2024-01-15T00:00:00Z',
+      action: 'push',
+      namespace: 'git',
+      actor: 'alice',
+      actor_id: 1,
+      actor_is_bot: false,
+      org: 'myorg',
+      org_id: 1,
+      repo: 'myorg/api-service',
+      repo_id: 1,
+      business: null,
+      source_ip: null,
+      user_agent: null,
+      geo_country_code: null,
+      geo_city: null,
+      geo_is_proxy: null,
+      data: {},
+      ingestion_source: 'webhook',
+      source_file_path: '',
+    },
+    {
+      id: 2,
+      document_id: 'd2',
+      created_at: '2024-01-15T01:00:00Z',
+      ingested_at: '2024-01-15T01:00:00Z',
+      action: 'push',
+      namespace: 'git',
+      actor: 'bob',
+      actor_id: 2,
+      actor_is_bot: false,
+      org: 'myorg',
+      org_id: 1,
+      repo: 'myorg/api-service',
+      repo_id: 1,
+      business: null,
+      source_ip: null,
+      user_agent: null,
+      geo_country_code: null,
+      geo_city: null,
+      geo_is_proxy: null,
+      data: {},
+      ingestion_source: 'webhook',
+      source_file_path: '',
+    },
+    {
+      id: 3,
+      document_id: 'd3',
+      created_at: '2024-01-15T02:00:00Z',
+      ingested_at: '2024-01-15T02:00:00Z',
+      action: 'pull_request',
+      namespace: 'git',
+      actor: 'alice',
+      actor_id: 1,
+      actor_is_bot: false,
+      org: 'myorg',
+      org_id: 1,
+      repo: 'myorg/web-app',
+      repo_id: 2,
+      business: null,
+      source_ip: null,
+      user_agent: null,
+      geo_country_code: null,
+      geo_city: null,
+      geo_is_proxy: null,
+      data: {},
+      ingestion_source: 'webhook',
+      source_file_path: '',
+    },
   ];
 
   beforeEach(() => {
@@ -399,9 +462,7 @@ describe('VelocityPage with data', () => {
     await screen.findByText('92.8%');
 
     // No sample data banners should exist at all
-    expect(
-      screen.queryByText(/display sample data/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/display sample data/)).not.toBeInTheDocument();
   });
 
   it('renders dynamic DORA tier badge based on data', async () => {
@@ -489,7 +550,30 @@ describe('VelocityPage repo row clicks', () => {
     mockGetActionsVolumeReport.mockResolvedValue({ data: [] });
     mockListEvents.mockResolvedValue({
       items: [
-        { id: 1, document_id: 'd1', created_at: '2024-01-15T00:00:00Z', ingested_at: '2024-01-15T00:00:00Z', action: 'push', namespace: 'git', actor: 'alice', actor_id: 1, actor_is_bot: false, org: 'myorg', org_id: 1, repo: 'myorg/api-service', repo_id: 1, business: null, source_ip: null, user_agent: null, geo_country_code: null, geo_city: null, geo_is_proxy: null, data: {}, ingestion_source: 'webhook', source_file_path: '' },
+        {
+          id: 1,
+          document_id: 'd1',
+          created_at: '2024-01-15T00:00:00Z',
+          ingested_at: '2024-01-15T00:00:00Z',
+          action: 'push',
+          namespace: 'git',
+          actor: 'alice',
+          actor_id: 1,
+          actor_is_bot: false,
+          org: 'myorg',
+          org_id: 1,
+          repo: 'myorg/api-service',
+          repo_id: 1,
+          business: null,
+          source_ip: null,
+          user_agent: null,
+          geo_country_code: null,
+          geo_city: null,
+          geo_is_proxy: null,
+          data: {},
+          ingestion_source: 'webhook',
+          source_file_path: '',
+        },
       ],
       total: 1,
       page: 1,
@@ -602,9 +686,33 @@ describe('VelocityPage failure row modal', () => {
 
 describe('Workflow health failure rate variants', () => {
   const MOCK_WORKFLOWS = [
-    { repo: 'acme/api', workflow_name: 'ci.yml', total_runs: 100, successes: 40, failures: 60, failure_rate_pct: 60.0, last_run: '2024-01-15T00:00:00Z' },
-    { repo: 'acme/web', workflow_name: 'deploy.yml', total_runs: 50, successes: 36, failures: 14, failure_rate_pct: 28.0, last_run: '2024-01-14T00:00:00Z' },
-    { repo: 'acme/lib', workflow_name: 'test.yml', total_runs: 80, successes: 68, failures: 12, failure_rate_pct: 15.0, last_run: '2024-01-13T00:00:00Z' },
+    {
+      repo: 'acme/api',
+      workflow_name: 'ci.yml',
+      total_runs: 100,
+      successes: 40,
+      failures: 60,
+      failure_rate_pct: 60.0,
+      last_run: '2024-01-15T00:00:00Z',
+    },
+    {
+      repo: 'acme/web',
+      workflow_name: 'deploy.yml',
+      total_runs: 50,
+      successes: 36,
+      failures: 14,
+      failure_rate_pct: 28.0,
+      last_run: '2024-01-14T00:00:00Z',
+    },
+    {
+      repo: 'acme/lib',
+      workflow_name: 'test.yml',
+      total_runs: 80,
+      successes: 68,
+      failures: 12,
+      failure_rate_pct: 15.0,
+      last_run: '2024-01-13T00:00:00Z',
+    },
   ];
 
   it('renders workflow health data with failure rate badges', async () => {
@@ -625,9 +733,78 @@ describe('Workflow health failure rate variants', () => {
 
 describe('Active repos show real event-derived stats', () => {
   const MOCK_EVENTS = [
-    { id: 1, document_id: 'd1', created_at: '2024-01-15T00:00:00Z', ingested_at: '2024-01-15T00:00:00Z', action: 'git.push', namespace: 'git', actor: 'alice', actor_id: 1, actor_is_bot: false, org: 'myorg', org_id: 1, repo: 'myorg/api-service', repo_id: 1, business: null, source_ip: null, user_agent: null, geo_country_code: null, geo_city: null, geo_is_proxy: null, data: {}, ingestion_source: 'webhook', source_file_path: '' },
-    { id: 2, document_id: 'd2', created_at: '2024-01-15T01:00:00Z', ingested_at: '2024-01-15T01:00:00Z', action: 'pull_request.opened', namespace: 'git', actor: 'bob', actor_id: 2, actor_is_bot: false, org: 'myorg', org_id: 1, repo: 'myorg/api-service', repo_id: 1, business: null, source_ip: null, user_agent: null, geo_country_code: null, geo_city: null, geo_is_proxy: null, data: {}, ingestion_source: 'webhook', source_file_path: '' },
-    { id: 3, document_id: 'd3', created_at: '2024-01-15T02:00:00Z', ingested_at: '2024-01-15T02:00:00Z', action: 'pull_request.merged', namespace: 'git', actor: 'alice', actor_id: 1, actor_is_bot: false, org: 'myorg', org_id: 1, repo: 'myorg/web-app', repo_id: 2, business: null, source_ip: null, user_agent: null, geo_country_code: null, geo_city: null, geo_is_proxy: null, data: {}, ingestion_source: 'webhook', source_file_path: '' },
+    {
+      id: 1,
+      document_id: 'd1',
+      created_at: '2024-01-15T00:00:00Z',
+      ingested_at: '2024-01-15T00:00:00Z',
+      action: 'git.push',
+      namespace: 'git',
+      actor: 'alice',
+      actor_id: 1,
+      actor_is_bot: false,
+      org: 'myorg',
+      org_id: 1,
+      repo: 'myorg/api-service',
+      repo_id: 1,
+      business: null,
+      source_ip: null,
+      user_agent: null,
+      geo_country_code: null,
+      geo_city: null,
+      geo_is_proxy: null,
+      data: {},
+      ingestion_source: 'webhook',
+      source_file_path: '',
+    },
+    {
+      id: 2,
+      document_id: 'd2',
+      created_at: '2024-01-15T01:00:00Z',
+      ingested_at: '2024-01-15T01:00:00Z',
+      action: 'pull_request.opened',
+      namespace: 'git',
+      actor: 'bob',
+      actor_id: 2,
+      actor_is_bot: false,
+      org: 'myorg',
+      org_id: 1,
+      repo: 'myorg/api-service',
+      repo_id: 1,
+      business: null,
+      source_ip: null,
+      user_agent: null,
+      geo_country_code: null,
+      geo_city: null,
+      geo_is_proxy: null,
+      data: {},
+      ingestion_source: 'webhook',
+      source_file_path: '',
+    },
+    {
+      id: 3,
+      document_id: 'd3',
+      created_at: '2024-01-15T02:00:00Z',
+      ingested_at: '2024-01-15T02:00:00Z',
+      action: 'pull_request.merged',
+      namespace: 'git',
+      actor: 'alice',
+      actor_id: 1,
+      actor_is_bot: false,
+      org: 'myorg',
+      org_id: 1,
+      repo: 'myorg/web-app',
+      repo_id: 2,
+      business: null,
+      source_ip: null,
+      user_agent: null,
+      geo_country_code: null,
+      geo_city: null,
+      geo_is_proxy: null,
+      data: {},
+      ingestion_source: 'webhook',
+      source_file_path: '',
+    },
   ];
 
   beforeEach(() => {
