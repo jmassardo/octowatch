@@ -314,36 +314,40 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Start stack
         run: |
+          # Write .env for docker compose
+          cat > .env <<'EOF'
+          DATABASE_URL=postgresql+asyncpg://test:test@db:5432/auditlogs
+          POSTGRES_USER=test
+          POSTGRES_PASSWORD=test
+          POSTGRES_DB=auditlogs
+          VALKEY_URL=redis://valkey:6379/0
+          VALKEY_PASSWORD=test
+          SECRET_KEY=e2e-test-secret-key-not-for-production
+          INGESTION_MODE=minio
+          MINIO_ROOT_USER=minioadmin
+          MINIO_ROOT_PASSWORD=minioadmin123
+          MINIO_AUDIT_BUCKET=audit-logs
+          MINIO_INGEST_USER=ingest
+          MINIO_INGEST_PASSWORD=ingestpass123
+          GEOIP_DB_PATH=/tmp/GeoLite2-City.mmdb
+          GITHUB_CLIENT_ID=dummy
+          GITHUB_CLIENT_SECRET=dummy
+          APP_BASE_URL=http://localhost
+          GITHUB_RULES_REPO=
+          GITHUB_RULES_TOKEN=
+          LOG_LEVEL=WARNING
+          EOF
+          # Remove leading spaces from heredoc
+          sed -i 's/^          //' .env
           # Build images locally for E2E testing
           docker build -t octowatch-api:latest backend/
           docker build -t octowatch-worker:latest backend/
           docker build -t octowatch-frontend:latest frontend/
           docker compose up -d db valkey minio
           sleep 15
-          docker compose run --rm \
-            -e DATABASE_URL=postgresql+asyncpg://test:test@db:5432/auditlogs \
-            migrate || true
+          docker compose run --rm migrate || true
           docker compose up -d api frontend nginx
           sleep 10
-        env:
-          DATABASE_URL: postgresql+asyncpg://test:test@db:5432/auditlogs
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: auditlogs
-          VALKEY_URL: redis://valkey:6379/0
-          VALKEY_PASSWORD: test
-          SECRET_KEY: e2e-test-secret-key-not-for-production
-          INGESTION_MODE: minio
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin123
-          MINIO_AUDIT_BUCKET: audit-logs
-          MINIO_INGEST_USER: ingest
-          MINIO_INGEST_PASSWORD: ingestpass123
-          GEOIP_DB_PATH: /tmp/GeoLite2-City.mmdb
-          GITHUB_CLIENT_ID: dummy
-          GITHUB_CLIENT_SECRET: dummy
-          GITEA_URL: http://gitea:3000
-          GITEA_TOKEN: dummy
       - name: Health check
         run: |
           for i in $(seq 1 10); do
