@@ -280,7 +280,7 @@ services:
       QUERY_TIMEOUT_SECONDS: ${QUERY_TIMEOUT_SECONDS:-30}
       # GitHub App — Enterprise Sync config (optional)
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
-      GITHUB_APP_PRIVATE_KEY_PATH: /app/secrets/github-app-key.pem
+      GITHUB_APP_PRIVATE_KEY_PATH: ${GITHUB_APP_PRIVATE_KEY_PATH:+/app/secrets/github-app-key.pem}
       GITHUB_ENTERPRISE_SLUG: ${GITHUB_ENTERPRISE_SLUG:-}
       GITHUB_SYNC_ENABLED: ${GITHUB_SYNC_ENABLED:-false}
       GITHUB_SYNC_INTERVAL_DAYS: ${GITHUB_SYNC_INTERVAL_DAYS:-60}
@@ -422,7 +422,7 @@ services:
       MINIO_INGEST_PASSWORD: ${MINIO_INGEST_PASSWORD}
       MINIO_AUDIT_BUCKET: ${MINIO_AUDIT_BUCKET}
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
-      GITHUB_APP_PRIVATE_KEY_PATH: /app/secrets/github-app-key.pem
+      GITHUB_APP_PRIVATE_KEY_PATH: ${GITHUB_APP_PRIVATE_KEY_PATH:+/app/secrets/github-app-key.pem}
       GITHUB_ENTERPRISE_SLUG: ${GITHUB_ENTERPRISE_SLUG:-}
       GITHUB_SYNC_ENABLED: ${GITHUB_SYNC_ENABLED:-false}
       GITHUB_SYNC_INTERVAL_DAYS: ${GITHUB_SYNC_INTERVAL_DAYS:-60}
@@ -491,6 +491,7 @@ services:
     networks:
       - frontend
       - backend
+      - data
     depends_on:
       api:
         condition: service_healthy

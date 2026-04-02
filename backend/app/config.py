@@ -275,7 +275,7 @@ class GitHubAppSettings(BaseSettings):
         (which happens transiently during config overlay application —
         the overlay now targets GITHUB_APP_PRIVATE_KEY_PEM instead).
         """
-        if v is None:
+        if v is None or v.strip() == "":
             return None
         if v.strip().startswith("-----BEGIN"):
             return None  # Inline PEM accidentally targeted here; ignore
