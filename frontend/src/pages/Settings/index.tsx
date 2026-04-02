@@ -242,6 +242,31 @@ function FeaturesPane() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  GitHub Pane                                                        */
+/* ------------------------------------------------------------------ */
+
+function GitHubPane() {
+  return (
+    <div className={styles.featuresPane}>
+      <p className={styles.featuresDescription}>
+        GitHub Enterprise connection and data import settings. Connection credentials
+        are configured during initial setup.
+      </p>
+
+      <div className={styles.integrationsSectionDivider}>
+        <h3 className={styles.integrationsSectionTitle}>Data Import</h3>
+        <p className={styles.featuresDescription}>
+          Sync data from GitHub Enterprise or manually import exported files for analysis.
+        </p>
+      </div>
+      <SyncPanel />
+      <SyncRunHistory />
+      <ManualIngestPanel />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Integrations Pane                                                  */
 /* ------------------------------------------------------------------ */
 
@@ -381,16 +406,6 @@ function IntegrationsPane() {
         })}
       </div>
 
-      {/* Data Import section */}
-      <div className={styles.integrationsSectionDivider}>
-        <h3 className={styles.integrationsSectionTitle}>Data Import</h3>
-        <p className={styles.featuresDescription}>
-          Sync data from GitHub Enterprise or manually import exported files for analysis.
-        </p>
-      </div>
-      <SyncPanel />
-      <SyncRunHistory />
-      <ManualIngestPanel />
     </div>
   );
 }
@@ -419,7 +434,7 @@ function getCategoryEmptyMessage(category: string): string {
 function getCategoryEmptyHint(category: string): string {
   switch (category) {
     case 'GitHub':
-      return 'GitHub connection settings are configured during setup. Use the Integrations tab to manage sync and data import settings.';
+      return 'GitHub connection settings are configured during setup. Data import and sync settings are available on this tab.';
     case 'Security':
       return 'Security settings including authentication, session management, and access controls.';
     case 'Storage':
@@ -473,7 +488,7 @@ export function SettingsPage() {
     (s: AppSetting) => activeTab === 'All' || s.category.toLowerCase() === (activeTab as string).toLowerCase(),
   ) ?? [];
 
-  const isCategory = activeTab !== 'Audit' && activeTab !== 'Features' && activeTab !== 'Integrations';
+  const isCategory = activeTab !== 'Audit' && activeTab !== 'Features' && activeTab !== 'Integrations' && activeTab !== 'GitHub';
 
   return (
     <div className={styles.page}>
@@ -522,6 +537,8 @@ export function SettingsPage() {
         <IntegrationsPane />
       ) : activeTab === 'Audit' ? (
         <AuditTrailTable />
+      ) : activeTab === 'GitHub' ? (
+        <GitHubPane />
       ) : (
         <>
           {isError && <ErrorBanner message="Failed to load settings" onRetry={() => refetch()} />}
