@@ -142,6 +142,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.devLastActive {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-top: 4px;
+}
+
 .clickableBar {
   cursor: pointer;
   border-radius: 4px;

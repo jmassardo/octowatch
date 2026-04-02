@@ -306,23 +306,26 @@ def validate_and_prepare(sql: str, scope: OrgRepoScope) -> tuple[str, dict[str, 
     _check_function_allowlist(stmt)
 
     # 3. Build scope CTE wrapper
-    # The user's SQL is wrapped: WITH __scope AS (...) <user_sql_with_limit>
+    # For scoped users, shadow the `events` table with a CTE that pre-filters
+    # by org/repo. In PostgreSQL, a non-recursive CTE with the same name as a
+    # base table shadows it: inside the CTE definition `FROM events` still
+    # refers to the real table, but all later references (including the user
+    # SQL wrapped in __user) resolve to the scoped CTE.
     if scope.is_global:
-        # For global scope, just add row limit
         rewritten = f"WITH __user AS (\n{sql}\n)\nSELECT * FROM __user LIMIT :max_rows"
         params: dict[str, Any] = {"max_rows": settings.QUERY_MAX_ROWS}
     else:
-        # Build scope CTE parameters
         params = {
             "scoped_orgs": scope.scoped_orgs,
             "max_rows": settings.QUERY_MAX_ROWS,
         }
         rewritten = (
-            "WITH __scope AS (\n  SELECT e.id FROM events e\n  WHERE e.org = ANY(:scoped_orgs)\n"
+            "WITH events AS (\n"
+            "  SELECT * FROM events WHERE org = ANY(:scoped_orgs)\n"
         )
         if scope.scoped_repos:
             params["scoped_repos"] = scope.scoped_repos
-            rewritten += "    AND (e.repo IS NULL OR e.repo = ANY(:scoped_repos))\n"
+            rewritten += "    AND (repo IS NULL OR repo = ANY(:scoped_repos))\n"
         rewritten += "),\n"
         rewritten += f"__user AS (\n{sql}\n)\n"
         rewritten += "SELECT * FROM __user LIMIT :max_rows"

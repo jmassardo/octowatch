@@ -26,18 +26,22 @@ class ReportEnvelope(BaseModel):
     org: str | None = None
     granularity: str
     window_days: int
+    data_source: str = "Audit Events"
     generated_at: datetime = Field(default_factory=datetime.utcnow)
     data: list[dict[str, Any]]
 
 
 class MAUBucket(BaseModel):
+    """Monthly Active Users bucket — matches report_service output."""
+
     bucket: datetime
-    unique_actor_count: int
-    unique_bot_actor_count: int
-    new_actor_count: int
+    unique_actors: int
+    total_events: int
 
 
 class SeatUtilizationBucket(BaseModel):
+    """Platform seat utilization based on GHEC audit event actor counts."""
+
     bucket: datetime
     active_seat_count: int
     provisioned_seat_count: int
@@ -45,23 +49,27 @@ class SeatUtilizationBucket(BaseModel):
 
 
 class RepoCreationRateBucket(BaseModel):
+    """Repository creation rate bucket — matches report_service output."""
+
     bucket: datetime
+    org: str | None = None
     repos_created: int
-    repos_deleted: int
-    repos_transferred: int
-    repos_made_public: int
+    unique_creators: int
 
 
 class ActionsVolumeBucket(BaseModel):
+    """GitHub Actions workflow volume bucket — matches report_service output."""
+
     bucket: datetime
-    workflow_runs_total: int
-    workflow_runs_succeeded: int
-    workflow_runs_failed: int
-    success_rate_pct: float
-    unique_workflows: int
+    org: str | None = None
+    workflow_runs: int
+    unique_actors: int
+    unique_repos: int
 
 
 class CopilotSeatsBucket(BaseModel):
+    """Copilot seat assignment/removal bucket from Copilot audit events."""
+
     bucket: datetime
     seats_assigned: int
     seats_revoked: int
@@ -70,27 +78,26 @@ class CopilotSeatsBucket(BaseModel):
 
 
 class CodespaceHoursBucket(BaseModel):
+    """Codespace usage bucket — matches report_service output."""
+
     bucket: datetime
-    codespace_create_count: int
-    codespace_delete_count: int
-    unique_actors: int
-    unique_repos: int
+    org: str | None = None
+    codespace_events: int
+    unique_users: int
+    total_billable_hours: float
 
 
 class PATCountsBucket(BaseModel):
+    """Personal Access Token event bucket — matches report_service output."""
+
     bucket: datetime
-    pats_created: int
-    pats_deleted: int
-    pats_expired: int
-    fine_grained_pats: int
-    classic_pats: int
-    high_access_pats: int
+    org: str | None = None
+    actions: dict[str, int] = Field(default_factory=dict)
 
 
 class WebhookCountsBucket(BaseModel):
+    """Webhook event bucket — matches report_service output."""
+
     bucket: datetime
-    webhooks_created: int
-    webhooks_deleted: int
-    app_installs: int
-    app_uninstalls: int
-    unique_webhook_targets: int
+    org: str | None = None
+    actions: dict[str, int] = Field(default_factory=dict)

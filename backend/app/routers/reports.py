@@ -40,14 +40,16 @@ async def report_catalog(
     """Return the catalog of available report types.
 
     Each entry describes a report that can be generated on-demand via the
-    corresponding ``/reports/{type}`` endpoint or exported via ``/reports/export/{type}``.
+    corresponding ``/reports/{type}`` endpoint or exported via
+    ``/reports/export/{type}``.
     """
     return [
         {
             "id": "mau",
             "type": "mau",
             "title": "Monthly Active Users",
-            "description": "Unique actors performing audit-logged actions per time bucket.",
+            "description": ("Unique actors performing audit-logged actions per time bucket."),
+            "data_source": "Audit Events",
             "generated_at": None,
             "status": "available",
             "tags": ["usage", "activity"],
@@ -55,17 +57,23 @@ async def report_catalog(
         {
             "id": "seat-utilization",
             "type": "seat-utilization",
-            "title": "Seat Utilization",
-            "description": "Active vs. provisioned GitHub Copilot seats over time.",
+            "title": "Platform Seat Utilization",
+            "description": (
+                "Active users vs. peak user count from GHEC"
+                " audit events. Uses distinct actors as a"
+                " proxy for seat usage."
+            ),
+            "data_source": "Audit Events",
             "generated_at": None,
             "status": "available",
-            "tags": ["licensing", "copilot"],
+            "tags": ["licensing", "platform"],
         },
         {
             "id": "actions-volume",
             "type": "actions-volume",
             "title": "Actions Volume",
-            "description": "GitHub Actions workflow run volume and trends.",
+            "description": ("GitHub Actions workflow run volume and trends from audit events."),
+            "data_source": "Audit Events",
             "generated_at": None,
             "status": "available",
             "tags": ["ci-cd", "actions"],
@@ -74,7 +82,10 @@ async def report_catalog(
             "id": "copilot-seats",
             "type": "copilot-seats",
             "title": "Copilot Seats",
-            "description": "Copilot seat assignment, revocation, and net change.",
+            "description": (
+                "Copilot seat assignment, revocation, and net change from Copilot audit events."
+            ),
+            "data_source": "Audit Events (Copilot)",
             "generated_at": None,
             "status": "available",
             "tags": ["licensing", "copilot"],
@@ -83,7 +94,8 @@ async def report_catalog(
             "id": "repo-creation-rate",
             "type": "repo-creation-rate",
             "title": "Repository Creation Rate",
-            "description": "New repository creation volume over time.",
+            "description": ("New repository creation volume over time from audit events."),
+            "data_source": "Audit Events",
             "generated_at": None,
             "status": "available",
             "tags": ["repos", "growth"],
@@ -92,7 +104,8 @@ async def report_catalog(
             "id": "pat-counts",
             "type": "pat-counts",
             "title": "Personal Access Tokens",
-            "description": "PAT creation and revocation events over time.",
+            "description": ("PAT creation and revocation events over time from audit events."),
+            "data_source": "Audit Events",
             "generated_at": None,
             "status": "available",
             "tags": ["security", "tokens"],
@@ -101,7 +114,8 @@ async def report_catalog(
             "id": "webhook-counts",
             "type": "webhook-counts",
             "title": "Webhook Activity",
-            "description": "Webhook creation and delivery events over time.",
+            "description": ("Webhook creation and delivery events over time from audit events."),
+            "data_source": "Audit Events",
             "generated_at": None,
             "status": "available",
             "tags": ["integrations", "webhooks"],
@@ -110,7 +124,8 @@ async def report_catalog(
             "id": "codespace-hours",
             "type": "codespace-hours",
             "title": "Codespace Hours",
-            "description": "GitHub Codespaces usage hours over time.",
+            "description": ("GitHub Codespaces usage hours over time from audit events."),
+            "data_source": "Audit Events",
             "generated_at": None,
             "status": "available",
             "tags": ["usage", "codespaces"],
@@ -131,7 +146,11 @@ async def report_mau(
         db, window_days=window_days, granularity=granularity, org=org
     )
     return ReportEnvelope(
-        report_type="mau", window_days=window_days, granularity=granularity, data=data
+        report_type="mau",
+        window_days=window_days,
+        granularity=granularity,
+        data_source="Audit Events",
+        data=data,
     )
 
 
@@ -148,7 +167,11 @@ async def report_seat_utilization(
         db, window_days=window_days, granularity=granularity, org=org
     )
     return ReportEnvelope(
-        report_type="seat_utilization", window_days=window_days, granularity=granularity, data=data
+        report_type="seat_utilization",
+        window_days=window_days,
+        granularity=granularity,
+        data_source="Audit Events",
+        data=data,
     )
 
 
@@ -168,6 +191,7 @@ async def report_repo_creation(
         report_type="repo_creation_rate",
         window_days=window_days,
         granularity=granularity,
+        data_source="Audit Events",
         data=data,
     )
 
@@ -185,7 +209,11 @@ async def report_actions_volume(
         db, window_days=window_days, granularity=granularity, org=org
     )
     return ReportEnvelope(
-        report_type="actions_volume", window_days=window_days, granularity=granularity, data=data
+        report_type="actions_volume",
+        window_days=window_days,
+        granularity=granularity,
+        data_source="Audit Events",
+        data=data,
     )
 
 
@@ -202,7 +230,11 @@ async def report_copilot_seats(
         db, window_days=window_days, granularity=granularity, org=org
     )
     return ReportEnvelope(
-        report_type="copilot_seats", window_days=window_days, granularity=granularity, data=data
+        report_type="copilot_seats",
+        window_days=window_days,
+        granularity=granularity,
+        data_source="Audit Events (Copilot)",
+        data=data,
     )
 
 
@@ -219,7 +251,11 @@ async def report_codespace_hours(
         db, window_days=window_days, granularity=granularity, org=org
     )
     return ReportEnvelope(
-        report_type="codespace_hours", window_days=window_days, granularity=granularity, data=data
+        report_type="codespace_hours",
+        window_days=window_days,
+        granularity=granularity,
+        data_source="Audit Events",
+        data=data,
     )
 
 
@@ -236,7 +272,11 @@ async def report_pat_counts(
         db, window_days=window_days, granularity=granularity, org=org
     )
     return ReportEnvelope(
-        report_type="pat_counts", window_days=window_days, granularity=granularity, data=data
+        report_type="pat_counts",
+        window_days=window_days,
+        granularity=granularity,
+        data_source="Audit Events",
+        data=data,
     )
 
 
@@ -253,7 +293,11 @@ async def report_webhook_counts(
         db, window_days=window_days, granularity=granularity, org=org
     )
     return ReportEnvelope(
-        report_type="webhook_counts", window_days=window_days, granularity=granularity, data=data
+        report_type="webhook_counts",
+        window_days=window_days,
+        granularity=granularity,
+        data_source="Audit Events",
+        data=data,
     )
 
 
@@ -310,5 +354,7 @@ async def export_report_csv(
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{report_type}_{window_days}d.csv"'},
+        headers={
+            "Content-Disposition": (f'attachment; filename="{report_type}_{window_days}d.csv"')
+        },
     )

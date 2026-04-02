@@ -5,6 +5,7 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { getStalePrs, getUnhealthyHooks, getSkippedWorkflows } from '../../api/healthSignals';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
+import { formatDateOnly } from '../../utils/dates';
 import styles from './MaintenancePane.module.css';
 
 export function MaintenancePane() {
@@ -189,11 +190,7 @@ export function MaintenancePane() {
                   </td>
                   <td style={{ color: 'var(--fg-muted)' }}>{wf.actor}</td>
                   <td style={{ color: 'var(--fg-muted)' }}>
-                    {new Date(wf.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
+                    {formatDateOnly(wf.created_at)}
                   </td>
                 </tr>
               ))}

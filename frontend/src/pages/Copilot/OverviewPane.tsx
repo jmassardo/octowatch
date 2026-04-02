@@ -11,8 +11,8 @@ import { LineAreaChart } from '../../components/charts/LineAreaChart';
 import type { SeatUtilizationBucket, CopilotSeatsBucket } from '../../types/reports';
 import { getCopilotOverview } from '../../api/copilotMetrics';
 import { useOrgConfig } from '../../hooks/useOrgConfig';
+import { formatBucketDate, formatWeekday } from '../../utils/dates';
 import styles from './Copilot.module.css';
-
 type DrillDownType = 'active-seats' | 'assigned' | 'revoked' | 'net' | null;
 type OverviewModal = 'seat-waste' | 'correlation-seats' | 'correlation-cycle' | 'language' | null;
 
@@ -112,7 +112,7 @@ export function OverviewPane({
 
   // Derive seat utilization trend from real API data
   const seatTrendDays = seatBuckets.slice(-7).map((b) =>
-    new Date(b.bucket).toLocaleDateString('en-US', { weekday: 'short' }),
+    formatWeekday(b.bucket),
   );
   const seatTrendActive = seatBuckets.slice(-7).map((b) => b.active_seat_count);
   const seatTrendInactive = seatBuckets.slice(-7).map((b) =>
@@ -209,7 +209,7 @@ export function OverviewPane({
               <tbody>
                 {seatBuckets.map((b, i) => (
                   <tr key={i}>
-                    <td style={{ color: 'var(--fg-muted)' }}>{new Date(b.bucket).toLocaleDateString()}</td>
+                    <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count ?? '—'}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count ?? '—'}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}</td>
@@ -228,7 +228,7 @@ export function OverviewPane({
               <tbody>
                 {copilotBuckets.map((b, i) => (
                   <tr key={i}>
-                    <td style={{ color: 'var(--fg-muted)' }}>{new Date(b.bucket).toLocaleDateString()}</td>
+                    <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
                     <td style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>+{b.seats_assigned ?? 0}</td>
                   </tr>
                 ))}
@@ -245,7 +245,7 @@ export function OverviewPane({
               <tbody>
                 {copilotBuckets.map((b, i) => (
                   <tr key={i}>
-                    <td style={{ color: 'var(--fg-muted)' }}>{new Date(b.bucket).toLocaleDateString()}</td>
+                    <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
                     <td style={{ color: b.seats_revoked > 0 ? 'var(--danger)' : undefined, fontVariantNumeric: 'tabular-nums' }}>
                       {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
                     </td>
@@ -264,7 +264,7 @@ export function OverviewPane({
               <tbody>
                 {copilotBuckets.map((b, i) => (
                   <tr key={i}>
-                    <td style={{ color: 'var(--fg-muted)' }}>{new Date(b.bucket).toLocaleDateString()}</td>
+                    <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
                     <td style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>+{b.seats_assigned ?? 0}</td>
                     <td style={{ color: b.seats_revoked > 0 ? 'var(--danger)' : undefined, fontVariantNumeric: 'tabular-nums' }}>
                       {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
@@ -347,7 +347,7 @@ export function OverviewPane({
                   {seatBuckets.slice(-10).map((b, i) => (
                     <tr key={i}>
                       <td style={{ color: 'var(--fg-muted)' }}>
-                        {new Date(b.bucket).toLocaleDateString()}
+                        {formatBucketDate(b.bucket)}
                       </td>
                       <td style={{ fontVariantNumeric: 'tabular-nums' }}>
                         {b.active_seat_count ?? '—'}
@@ -433,7 +433,7 @@ export function OverviewPane({
                   {copilotBuckets.slice(-7).map((b, i) => (
                     <tr key={i}>
                       <td style={{ color: 'var(--fg-muted)' }}>
-                        {new Date(b.bucket).toLocaleDateString()}
+                        {formatBucketDate(b.bucket)}
                       </td>
                       <td
                         style={{
@@ -540,7 +540,7 @@ export function OverviewPane({
                 const inactive = b.provisioned_seat_count - b.active_seat_count;
                 return (
                   <tr key={i}>
-                    <td style={{ color: 'var(--fg-muted)' }}>{new Date(b.bucket).toLocaleDateString()}</td>
+                    <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums', color: inactive > 0 ? 'var(--danger)' : undefined }}>{inactive}</td>

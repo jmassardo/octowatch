@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +16,7 @@ from app.schemas.detection import (
     DetectionResponse,
     UpdateDetectionStatusRequest,
 )
+from app.services.audit_service import log_action
 from app.services.rbac_service import get_user_scope
 
 router = APIRouter(prefix="/detections", tags=["detections"])
@@ -103,11 +104,12 @@ async def get_detection(
 async def update_detection_status(
     detection_id: int,
     payload: UpdateDetectionStatusRequest,
+    request: Request,
     current_user: AuthenticatedUser = Depends(require_role(["analyst", "sys_admin"])),
     db: AsyncSession = Depends(get_db),
 ) -> DetectionResponse:
     """Update the status of a detection (e.g. open → investigating → closed)."""
-    scope = await get_user_scope(db, current_user.github_login)
+    scope = await get_user_scope(db, current_user.github_login, current_user.roles)
     detection = await _get_detection_or_404(db, detection_id, scope.org_allowlist)
 
     valid_transitions = {
@@ -127,6 +129,24 @@ async def update_detection_status(
         detection.resolution_note = payload.resolution_note
     await db.flush()
 
+    forwarded = request.headers.get("x-forwarded-for")
+    ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else None)
+    )
+    await log_action(
+        db,
+        user_login=current_user.github_login,
+        user_github_id=current_user.github_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        action_type="detection.status_change",
+        resource_type="detection",
+        resource_id=str(detection_id),
+        parameters={"new_status": payload.status},
+    )
+
     return DetectionResponse.model_validate(detection)
 
 
@@ -134,15 +154,33 @@ async def update_detection_status(
 async def assign_detection(
     detection_id: int,
     payload: AssignDetectionRequest,
+    request: Request,
     current_user: AuthenticatedUser = Depends(require_role(["analyst", "sys_admin"])),
     db: AsyncSession = Depends(get_db),
 ) -> DetectionResponse:
     """Assign a detection to a user."""
-    scope = await get_user_scope(db, current_user.github_login)
+    scope = await get_user_scope(db, current_user.github_login, current_user.roles)
     detection = await _get_detection_or_404(db, detection_id, scope.org_allowlist)
 
     detection.assigned_to = payload.assigned_to
     await db.flush()
+    forwarded = request.headers.get("x-forwarded-for")
+    ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else None)
+    )
+    await log_action(
+        db,
+        user_login=current_user.github_login,
+        user_github_id=current_user.github_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        action_type="detection.assign",
+        resource_type="detection",
+        resource_id=str(detection_id),
+        parameters={"assigned_to": payload.assigned_to},
+    )
     return DetectionResponse.model_validate(detection)
 
 
@@ -153,7 +191,7 @@ async def suppress_from_detection(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Create a suppression rule scoped to the actor/org of this detection."""
-    scope = await get_user_scope(db, current_user.github_login)
+    scope = await get_user_scope(db, current_user.github_login, current_user.roles)
     detection = await _get_detection_or_404(db, detection_id, scope.org_allowlist)
 
     from app.models.detection import DetectionSuppression
@@ -174,6 +212,7 @@ async def suppress_from_detection(
 @router.delete("/{detection_id}")
 async def delete_detection(
     detection_id: int,
+    request: Request,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
@@ -182,4 +221,20 @@ async def delete_detection(
     detection = await _get_detection_or_404(db, detection_id, scope.scoped_orgs)
     await db.delete(detection)
     await db.flush()
+    forwarded = request.headers.get("x-forwarded-for")
+    ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else None)
+    )
+    await log_action(
+        db,
+        user_login=current_user.github_login,
+        user_github_id=current_user.github_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        action_type="detection.delete",
+        resource_type="detection",
+        resource_id=str(detection_id),
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

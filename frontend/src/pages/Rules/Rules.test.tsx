@@ -79,8 +79,10 @@ describe('RulesPage', () => {
     renderWithProviders(<RulesPage />);
 
     const table = await screen.findByRole('table');
-    const headers = within(table).getAllByRole('columnheader');
-    const headerTexts = headers.map((h) => h.textContent);
+    // Get only the first row of column headers (skip filter row)
+    const headerRow = within(table).getAllByRole('row')[0];
+    const headers = within(headerRow).getAllByRole('columnheader');
+    const headerTexts = headers.map((h) => h.textContent?.replace(/[⇅↑↓]/g, '').trim());
 
     expect(headerTexts).toEqual(['Status', 'Rule name', 'Logic', 'Severity', 'Detections (30d)', 'Version', '']);
   });
@@ -100,14 +102,16 @@ describe('RulesPage', () => {
 
     const table = screen.getByRole('table');
     const rows = within(table).getAllByRole('row');
-    // rows[0] is header; rows[1..3] are data rows
-    const activeRow1Cells = within(rows[1]).getAllByRole('cell');
+    // rows[0] is header; rows[1] is filter row; rows[2..4] are data rows
+    const dataRows = rows.filter((r) => within(r).queryAllByRole('cell').length > 0);
+
+    const activeRow1Cells = within(dataRows[0]).getAllByRole('cell');
     expect(activeRow1Cells[4].textContent).toBe('0');
 
-    const activeRow2Cells = within(rows[2]).getAllByRole('cell');
+    const activeRow2Cells = within(dataRows[1]).getAllByRole('cell');
     expect(activeRow2Cells[4].textContent).toBe('0');
 
-    const draftRowCells = within(rows[3]).getAllByRole('cell');
+    const draftRowCells = within(dataRows[2]).getAllByRole('cell');
     expect(draftRowCells[4].textContent).toBe('—');
   });
 

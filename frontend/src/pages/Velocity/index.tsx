@@ -17,6 +17,7 @@ import { useFeatures } from '../../hooks/useFeatures';
 import type { ActionsVolumeBucket } from '../../types/reports';
 import type { EventResponse } from '../../types/events';
 import type { WorkflowRow } from '../../api/healthSignals';
+import { formatDateOnly, formatBucketDate } from '../../utils/dates';
 import styles from './Velocity.module.css';
 
 interface CalendarDay {
@@ -179,11 +180,7 @@ function WorkflowHealthSection({ workflows }: { workflows: WorkflowRow[] }) {
                   </Label>
                 </td>
                 <td style={{ color: 'var(--fg-muted)' }}>
-                  {new Date(wf.last_run).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
+                  {formatDateOnly(wf.last_run)}
                 </td>
               </tr>
             ))}
@@ -348,8 +345,8 @@ export function VelocityPage() {
   });
   const workflowSuccessChartData = buckets.map((b) => b.success_rate_pct ?? 0);
   const changeFailureChartData = buckets.map((b) =>
-    b.workflow_runs_total > 0
-      ? Math.round((b.workflow_runs_failed / b.workflow_runs_total) * 1000) / 10
+    (b.workflow_runs_total ?? 0) > 0
+      ? Math.round(((b.workflow_runs_failed ?? 0) / (b.workflow_runs_total ?? 1)) * 1000) / 10
       : 0,
   );
   const dailyRunsChartData = buckets.map((b) => b.workflow_runs_total ?? 0);
@@ -358,8 +355,8 @@ export function VelocityPage() {
   // Lead time proxy: estimate hours-per-change from daily deployment frequency.
   // More frequent deployments imply shorter lead times.
   const leadTimeChartData = buckets.map((b) => {
-    if (b.workflow_runs_succeeded === 0) return 0;
-    return Math.round((24 / Math.max(b.workflow_runs_succeeded, 1)) * 10) / 10;
+    if ((b.workflow_runs_succeeded ?? 0) === 0) return 0;
+    return Math.round((24 / Math.max(b.workflow_runs_succeeded ?? 0, 1)) * 10) / 10;
   });
 
   // Average lead time across the period
@@ -371,9 +368,9 @@ export function VelocityPage() {
   // MTTR proxy: estimate recovery hours from daily failure rate.
   // Higher failure rates imply longer recovery windows.
   const mttrChartData = buckets.map((b) => {
-    if (b.workflow_runs_failed === 0) return 0;
+    if ((b.workflow_runs_failed ?? 0) === 0) return 0;
     const failureRate =
-      b.workflow_runs_total > 0 ? b.workflow_runs_failed / b.workflow_runs_total : 0;
+      (b.workflow_runs_total ?? 0) > 0 ? (b.workflow_runs_failed ?? 0) / (b.workflow_runs_total ?? 1) : 0;
     return Math.round(failureRate * 24 * 10) / 10;
   });
 
@@ -592,7 +589,7 @@ export function VelocityPage() {
                     className={styles.clickableRow}
                     role="button"
                     tabIndex={0}
-                    aria-label={`Failure details for ${new Date(b.bucket).toLocaleDateString()}`}
+                    aria-label={`Failure details for ${formatBucketDate(b.bucket)}`}
                     onClick={() => setFailureBucket(b)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
@@ -601,7 +598,7 @@ export function VelocityPage() {
                       }
                     }}
                   >
-                    <td>{new Date(b.bucket).toLocaleDateString()}</td>
+                    <td>{formatBucketDate(b.bucket)}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.workflow_runs_total ?? 0}</td>
                     <td><Label variant={(b.workflow_runs_failed ?? 0) > 10 ? 'danger' : 'attention'}>{b.workflow_runs_failed ?? 0}</Label></td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.success_rate_pct != null ? `${Math.round(b.success_rate_pct)}%` : '—'}</td>
@@ -646,11 +643,7 @@ export function VelocityPage() {
                   <td>{wf.repo}</td>
                   <td><Label variant={getFailureRateVariant(wf.failure_rate_pct)}>{wf.failure_rate_pct.toFixed(1)}%</Label></td>
                   <td style={{ color: 'var(--fg-muted)' }}>
-                    {new Date(wf.last_run).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
+                    {formatDateOnly(wf.last_run)}
                   </td>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.total_runs}</td>
                 </tr>
@@ -757,7 +750,7 @@ export function VelocityPage() {
       <Modal
         open={failureBucket !== null}
         onClose={() => setFailureBucket(null)}
-        title={`Workflow failures — ${failureBucket ? new Date(failureBucket.bucket).toLocaleDateString() : ''}`}
+        title={`Workflow failures — ${failureBucket ? formatBucketDate(failureBucket.bucket) : ''}`}
         width={560}
       >
         {failureBucket && (
@@ -781,7 +774,7 @@ export function VelocityPage() {
               </div>
             </div>
             <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 16, lineHeight: 1.5 }}>
-              Date bucket: <strong>{new Date(failureBucket.bucket).toLocaleDateString()}</strong><br />
+              Date bucket: <strong>{formatBucketDate(failureBucket.bucket)}</strong><br />
               Unique workflows: <strong>{failureBucket.unique_workflows}</strong>
             </p>
             <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 12, lineHeight: 1.5 }}>

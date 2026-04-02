@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { RoleDefinition, RoleAssignment, RoleAssignmentCreate, IngestionSource, ActiveSession } from '../types/admin';
+import type { RoleDefinition, RoleAssignment, RoleAssignmentCreate, IngestionSource, ActiveSession, OrgTeam } from '../types/admin';
 
 export function listRoles(): Promise<RoleDefinition[]> {
   return api.get<RoleDefinition[]>('/admin/roles');
@@ -31,4 +31,8 @@ export function deleteIngestionSource(id: number): Promise<void> {
 
 export function getActiveSessions(): Promise<ActiveSession[]> {
   return api.get<ActiveSession[]>('/admin/sessions');
+}
+
+export function listSyncedTeams(): Promise<OrgTeam[]> {
+  return api.get<OrgTeam[]>('/admin/teams');
 }

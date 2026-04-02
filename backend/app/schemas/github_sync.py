@@ -22,6 +22,10 @@ class SyncTriggerRequest(BaseModel):
         "team_members",
         "branch_protections",
         "installations",
+        "outside_collaborators",
+        "secret_scanning_alerts",
+        "dependabot_alerts",
+        "license_consumption",
     ] = "full"
 
 
@@ -138,6 +142,10 @@ class SyncScheduleUpdateRequest(BaseModel):
             "team_members",
             "branch_protections",
             "installations",
+            "outside_collaborators",
+            "secret_scanning_alerts",
+            "dependabot_alerts",
+            "license_consumption",
         }
         if v is not None and v not in valid_scopes:
             msg = f"scope must be one of {sorted(valid_scopes)}"

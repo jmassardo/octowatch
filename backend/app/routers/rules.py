@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +24,7 @@ from app.schemas.detection import (
     ValidateConfigResponse,
 )
 from app.services import rule_service
+from app.services.audit_service import log_action
 from app.services.detection_service import _SAFE_DISTINCT_COLUMNS, evaluate_rule_against_event
 from app.services.rule_service import invalidate_rule_cache
 
@@ -227,6 +228,7 @@ async def list_rules(
 @router.post("", response_model=RuleResponse, status_code=status.HTTP_201_CREATED)
 async def create_rule(
     payload: RuleCreate,
+    request: Request,
     current_user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
     db: AsyncSession = Depends(get_db),
     valkey: Redis = Depends(get_valkey),
@@ -248,6 +250,23 @@ async def create_rule(
             detail=f"Rule with slug '{payload.slug}' already exists",
         )
     rule = await rule_service.create_rule(db, payload=payload, created_by=current_user.github_login)
+    forwarded = request.headers.get("x-forwarded-for")
+    ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else None)
+    )
+    await log_action(
+        db,
+        user_login=current_user.github_login,
+        user_github_id=current_user.github_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        action_type="rule.create",
+        resource_type="rule",
+        resource_id=str(rule.id),
+        parameters={"slug": payload.slug, "name": payload.name},
+    )
     return RuleResponse.model_validate(rule)
 
 
@@ -285,6 +304,7 @@ async def get_rule(
 async def update_rule(
     rule_id: int,
     payload: RuleCreate,
+    request: Request,
     current_user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
     db: AsyncSession = Depends(get_db),
     valkey: Redis = Depends(get_valkey),
@@ -301,10 +321,31 @@ async def update_rule(
     rule = await rule_service.get_rule_by_id(db, rule_id)
     if not rule:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+    old_name = rule.name
     updated = await rule_service.update_rule(
         db, rule=rule, payload=payload, updated_by=current_user.github_login
     )
     await invalidate_rule_cache(valkey, rule_id)
+    forwarded = request.headers.get("x-forwarded-for")
+    ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else None)
+    )
+    params: dict[str, Any] = {"slug": payload.slug, "name": payload.name}
+    if old_name != payload.name:
+        params["old_name"] = old_name
+    await log_action(
+        db,
+        user_login=current_user.github_login,
+        user_github_id=current_user.github_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        action_type="rule.update",
+        resource_type="rule",
+        resource_id=str(rule_id),
+        parameters=params,
+    )
     return RuleResponse.model_validate(updated)
 
 
@@ -312,6 +353,7 @@ async def update_rule(
 async def update_rule_status(
     rule_id: int,
     payload: RuleStatusUpdate,
+    request: Request,
     current_user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
     db: AsyncSession = Depends(get_db),
     valkey: Redis = Depends(get_valkey),
@@ -324,12 +366,30 @@ async def update_rule_status(
         db, rule=rule, payload=payload, updated_by=current_user.github_login
     )
     await invalidate_rule_cache(valkey, rule_id)
+    forwarded = request.headers.get("x-forwarded-for")
+    ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else None)
+    )
+    await log_action(
+        db,
+        user_login=current_user.github_login,
+        user_github_id=current_user.github_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        action_type="rule.status_change",
+        resource_type="rule",
+        resource_id=str(rule_id),
+        parameters={"new_status": payload.status},
+    )
     return RuleResponse.model_validate(updated)
 
 
 @router.delete("/{rule_id}")
 async def delete_rule(
     rule_id: int,
+    request: Request,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
     valkey: Redis = Depends(get_valkey),
@@ -340,6 +400,22 @@ async def delete_rule(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
     await rule_service.delete_rule(db, rule=rule, deleted_by=current_user.github_login)
     await invalidate_rule_cache(valkey, rule_id)
+    forwarded = request.headers.get("x-forwarded-for")
+    ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else None)
+    )
+    await log_action(
+        db,
+        user_login=current_user.github_login,
+        user_github_id=current_user.github_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        action_type="rule.delete",
+        resource_type="rule",
+        resource_id=str(rule_id),
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

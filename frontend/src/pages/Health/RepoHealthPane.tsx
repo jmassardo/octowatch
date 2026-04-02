@@ -1,11 +1,15 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { BarChart } from '../../components/charts/BarChart';
+import { DrilldownModal } from '../../components/primitives/DrilldownModal';
+import type { ColumnDef } from '../../components/primitives/DataTable';
 import { getRepoHealth } from '../../api/healthSignals';
 import type { StaleRepo, ArchivedRepo, AbandonedFork } from '../../api/healthSignals';
+import { formatDateOnly } from '../../utils/dates';
 import styles from './RepoHealthPane.module.css';
 
 /* ---------- helpers ---------- */
@@ -36,14 +40,6 @@ function formatDaysAgo(days: number): string {
   if (days === 0) return 'Today';
   if (days === 1) return '1 day';
   return `${days} days`;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
 }
 
 /**
@@ -165,17 +161,67 @@ function StaleTrendChart({ stale }: { stale: StaleRepo[] }) {
 }
 
 function UnhealthySummaryCards({ stale }: { stale: StaleRepo[] }) {
+  const [drilldown, setDrilldown] = useState<'branch-protection' | 'secret-scanning' | null>(null);
+
   const critical = stale.filter((r) => r.days_since_activity > 365);
   const high = stale.filter((r) => r.days_since_activity > 180 && r.days_since_activity <= 365);
 
   const noBranchProtection = stale.filter((r) => r.days_since_activity > 180);
   const noSecretScanning = stale.filter((r) => r.days_since_activity > 90);
 
+  const drilldownData =
+    drilldown === 'branch-protection'
+      ? noBranchProtection
+      : drilldown === 'secret-scanning'
+        ? noSecretScanning
+        : [];
+  const drilldownTitle =
+    drilldown === 'branch-protection'
+      ? 'Repos with no branch protection on default branch'
+      : 'Repos with secret scanning disabled';
+
+  const repoColumns: ColumnDef<StaleRepo>[] = [
+    {
+      key: 'repo',
+      header: 'Repository',
+      sortable: true,
+      filterable: true,
+      render: (r) => `${r.org}/${r.repo}`,
+      sortValue: (r) => `${r.org}/${r.repo}`,
+      filterValue: (r) => `${r.org}/${r.repo}`,
+    },
+    { key: 'org', header: 'Organization', render: (r) => r.org },
+    { key: 'last_event', header: 'Last Activity', render: (r) => formatDateOnly(r.last_event_at) },
+    {
+      key: 'days',
+      header: 'Days Inactive',
+      sortable: true,
+      render: (r) => String(r.days_since_activity),
+      sortValue: (r) => r.days_since_activity,
+    },
+  ];
+
+  function handleKeyDown(e: React.KeyboardEvent, target: 'branch-protection' | 'secret-scanning') {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setDrilldown(target);
+    }
+  }
+
   return (
     <div className={styles.grid2}>
       <Card>
         <CardHeader>Repos with no branch protection on default branch</CardHeader>
-        <div className={styles.bigNumber}>{noBranchProtection.length}</div>
+        <div
+          className={`${styles.bigNumber} ${styles.clickableStat}`}
+          onClick={() => setDrilldown('branch-protection')}
+          role="button"
+          tabIndex={0}
+          aria-label={`${noBranchProtection.length} repos with no branch protection – click to view details`}
+          onKeyDown={(e) => handleKeyDown(e, 'branch-protection')}
+        >
+          {noBranchProtection.length}
+        </div>
         <div className={styles.cardBody}>
           {noBranchProtection
             .slice(0, 4)
@@ -192,7 +238,16 @@ function UnhealthySummaryCards({ stale }: { stale: StaleRepo[] }) {
       </Card>
       <Card>
         <CardHeader>Repos with secret scanning disabled</CardHeader>
-        <div className={styles.bigNumber}>{noSecretScanning.length}</div>
+        <div
+          className={`${styles.bigNumber} ${styles.clickableStat}`}
+          onClick={() => setDrilldown('secret-scanning')}
+          role="button"
+          tabIndex={0}
+          aria-label={`${noSecretScanning.length} repos with secret scanning disabled – click to view details`}
+          onKeyDown={(e) => handleKeyDown(e, 'secret-scanning')}
+        >
+          {noSecretScanning.length}
+        </div>
         <div className={styles.cardBody}>
           {noSecretScanning.length > 0
             ? `${Math.min(noSecretScanning.length, 3)} opted-out, ${Math.max(0, noSecretScanning.length - 3)} not enrolled per baseline import`
@@ -204,6 +259,14 @@ function UnhealthySummaryCards({ stale }: { stale: StaleRepo[] }) {
           <code className={styles.codeSnippet}>disable_secret_scanning</code> events
         </div>
       </Card>
+      <DrilldownModal
+        open={drilldown !== null}
+        onClose={() => setDrilldown(null)}
+        title={drilldownTitle}
+        data={drilldownData}
+        columns={repoColumns}
+        rowKey={(r) => `${r.org}/${r.repo}`}
+      />
     </div>
   );
 }
@@ -250,7 +313,7 @@ function ArchiveCandidatesList({
             <div>
               <div className={styles.archiveRepo}>{r.org}/{r.repo}</div>
               <div className={styles.archiveMeta}>
-                Archived {formatDate(r.archived_at)} by {r.archived_by}
+                Archived {formatDateOnly(r.archived_at)} by {r.archived_by}
               </div>
             </div>
             <Label variant="muted">archived</Label>
@@ -262,7 +325,7 @@ function ArchiveCandidatesList({
             <div>
               <div className={styles.archiveRepo}>{f.org}/{f.repo}</div>
               <div className={styles.archiveMeta}>
-                Forked {formatDate(f.forked_at)} by {f.actor} — no activity since ({f.days_since_fork} days)
+                Forked {formatDateOnly(f.forked_at)} by {f.actor} — no activity since ({f.days_since_fork} days)
               </div>
             </div>
             <Label variant="attention">abandoned fork</Label>

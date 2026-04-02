@@ -10,15 +10,38 @@ import { CodeBlock } from '../../components/primitives/CodeBlock';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Pagination } from '../../components/primitives/Pagination';
+import { formatRelativeShort } from '../../utils/dates';
 import styles from './Threats.module.css';
 
-function formatTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  return `${Math.floor(hr / 24)}d ago`;
+/**
+ * Safely convert any value to a display string.
+ * Prevents `[object Object]` from appearing when the API returns an
+ * object where a string was expected, or when a field typed as
+ * `Record<string, unknown>` is accidentally rendered as JSX text.
+ */
+function safeText(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return JSON.stringify(value);
+}
+
+/**
+ * Safely retrieve the length of an array-like value.
+ * Returns 0 when the value is not actually an array, preventing
+ * runtime errors if the API sends null/undefined for `event_ids`.
+ */
+function safeArrayLength(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
+}
+
+/**
+ * Safely check whether an object has entries.
+ * Returns false when the value is not a plain object, preventing
+ * `Object.keys(null)` crashes if the API sends null for `context_data`.
+ */
+function hasEntries(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
 }
 
 type TabFilter = 'open' | 'investigating' | 'closed' | 'acknowledged' | 'all';
@@ -184,15 +207,15 @@ export function ThreatsPage() {
             >
               <SeverityDot severity={d.severity} style={{ marginTop: 4 }} />
               <div className={styles.ilMeta}>
-                <div className={styles.ilTitle}>{d.title}</div>
+                <div className={styles.ilTitle}>{safeText(d.title)}</div>
                 <div className={styles.ilSub}>
                   <Label variant={sevLabelVariant(d.severity)}>{d.severity}</Label>
-                  {d.rule_name && <Label variant="muted">{d.rule_name}</Label>}
-                  {d.actor && <span>actor: <span className={styles.mention}>@{d.actor}</span></span>}
-                  {d.org && <span>· {d.org}</span>}
+                  {d.rule_name && <Label variant="muted">{safeText(d.rule_name)}</Label>}
+                  {d.actor && <span>actor: <span className={styles.mention}>@{safeText(d.actor)}</span></span>}
+                  {d.org && <span>· {safeText(d.org)}</span>}
                 </div>
               </div>
-              <div className={styles.ilTime}>{formatTime(d.triggered_at)}</div>
+              <div className={styles.ilTime}>{formatRelativeShort(d.triggered_at)}</div>
             </div>
           ))}
 
@@ -206,26 +229,26 @@ export function ThreatsPage() {
         {selected && (
           <>
             <div className={styles.panelHeader}>
-              <div style={{ fontWeight: 600 }}>{selected.title}</div>
+              <div style={{ fontWeight: 600 }}>{safeText(selected.title)}</div>
               <button className={styles.panelClose} onClick={() => setSelected(null)}>&#215;</button>
             </div>
 
             <div className={styles.panelLabels}>
               <Label variant={sevLabelVariant(selected.severity)}>{selected.severity}</Label>
-              {selected.rule_name && <Label variant="muted">{selected.rule_name}</Label>}
-              {selected.confidence && <Label variant="done">{selected.confidence}</Label>}
+              {selected.rule_name && <Label variant="muted">{safeText(selected.rule_name)}</Label>}
+              {selected.confidence && <Label variant="done">{safeText(selected.confidence)}</Label>}
             </div>
 
-            <p className={styles.panelDesc}>{selected.description}</p>
+            <p className={styles.panelDesc}>{safeText(selected.description)}</p>
 
-            {selected.event_ids.length > 0 && (
+            {safeArrayLength(selected.event_ids) > 0 && (
               <div className={styles.relatedEvents}>
                 <span className={styles.evidenceLabel}>Related events</span>
                 <span
                   role="button"
                   tabIndex={0}
                   className={styles.eventCountLink}
-                  aria-label={`${selected.event_ids.length} related events — view in events page`}
+                  aria-label={`${safeArrayLength(selected.event_ids)} related events — view in events page`}
                   onClick={() => {
                     const params = new URLSearchParams();
                     if (selected.actor) params.set('actor', selected.actor);
@@ -242,12 +265,12 @@ export function ThreatsPage() {
                     }
                   }}
                 >
-                  {selected.event_ids.length} event{selected.event_ids.length === 1 ? '' : 's'} →
+                  {safeArrayLength(selected.event_ids)} event{safeArrayLength(selected.event_ids) === 1 ? '' : 's'} →
                 </span>
               </div>
             )}
 
-            {Object.keys(selected.context_data).length > 0 && (
+            {hasEntries(selected.context_data) && (
               <>
                 <div className={styles.evidenceLabel}>Evidence</div>
                 <CodeBlock className={styles.evidence}>

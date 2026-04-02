@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SecurityPosturePane } from './SecurityPosturePane';
 import type {
@@ -225,5 +225,52 @@ describe('SecurityPosturePane', () => {
     // All the "0" values rendered as metric cards
     const zeros = screen.getAllByText('0');
     expect(zeros.length).toBeGreaterThanOrEqual(5);
+  });
+
+  /* ---- SSO Drill-down ---- */
+
+  it('opens SSO drill-down modal when SSO count is clicked', () => {
+    renderPane();
+    const ssoDrilldown = screen.getByRole('button', {
+      name: /orgs with SSO.*click to view/i,
+    });
+    fireEvent.click(ssoDrilldown);
+    // Modal opened — close button appears
+    expect(screen.getByLabelText('Close')).toBeInTheDocument();
+    // Title appears twice: once in the section title, once in the modal
+    const titles = screen.getAllByText('SSO status by organization');
+    expect(titles.length).toBe(2);
+  });
+
+  it('shows SSO org data in drill-down modal', () => {
+    renderPane();
+    const ssoDrilldown = screen.getByRole('button', {
+      name: /orgs with SSO/i,
+    });
+    fireEvent.click(ssoDrilldown);
+    // Modal should show column headers
+    const orgHeaders = screen.getAllByText('Organization');
+    expect(orgHeaders.length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('SSO Status')).toBeInTheDocument();
+  });
+
+  it('closes SSO drill-down modal when close button is clicked', () => {
+    renderPane();
+    const ssoDrilldown = screen.getByRole('button', {
+      name: /orgs with SSO/i,
+    });
+    fireEvent.click(ssoDrilldown);
+    const closeBtn = screen.getByLabelText('Close');
+    fireEvent.click(closeBtn);
+    expect(screen.queryByLabelText('Close')).not.toBeInTheDocument();
+  });
+
+  it('SSO drill-down stat is keyboard accessible', () => {
+    renderPane();
+    const ssoDrilldown = screen.getByRole('button', {
+      name: /orgs with SSO/i,
+    });
+    fireEvent.keyDown(ssoDrilldown, { key: 'Enter' });
+    expect(screen.getByLabelText('Close')).toBeInTheDocument();
   });
 });

@@ -156,3 +156,14 @@
 .numCol {
   font-variant-numeric: tabular-nums;
 }
+
+.clickableStat {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.clickableStat:hover {
+  color: var(--accent);
+  text-decoration: underline solid;
+}

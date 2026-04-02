@@ -234,11 +234,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 if not await is_setup_complete(db_session):
                     token = await generate_setup_token(db_session)
                     await db_session.commit()
+                    masked = token[:4] + "****" + token[-4:] if len(token) > 8 else "****"
                     logger.info(
                         "setup.token_generated",
                         message=(
-                            f"\U0001f511 Setup token: {token} — use this to complete initial setup"
+                            f"\U0001f511 Setup token generated ({masked}) — "
+                            "retrieve it from the setup endpoint or container logs at startup only"
                         ),
+                    )
+                    # Print token to stderr only (not structured logs that may be shipped)
+                    import sys
+
+                    print(
+                        f"\n{'=' * 60}\n"
+                        f"  SETUP TOKEN: {token}\n"
+                        f"  Use this to complete initial setup at /setup\n"
+                        f"{'=' * 60}\n",
+                        file=sys.stderr,
+                        flush=True,
                     )
                 else:
                     logger.info("setup.already_complete")

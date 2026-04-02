@@ -4,10 +4,11 @@ import { MetricCard } from '../../components/primitives/MetricCard';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { getSeatUtilizationReport, getCopilotSeatsReport } from '../../api/reports';
-import { getGhostMembers } from '../../api/healthSignals';
+import { getGhostMembers, getLicenseConsumption } from '../../api/healthSignals';
 import type { SeatUtilizationBucket, CopilotSeatsBucket, ReportEnvelope } from '../../types/reports';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { useOrgConfig } from '../../hooks/useOrgConfig';
+import { formatDateOnly } from '../../utils/dates';
 import styles from './LicensePane.module.css';
 
 /** Extract typed buckets from the generic report envelope. */
@@ -23,6 +24,12 @@ function toCopilotBuckets(env: ReportEnvelope | undefined): CopilotSeatsBucket[]
 
 export function LicensePane() {
   const { costPerSeat } = useOrgConfig();
+
+  const { data: licenseData } = useQuery({
+    queryKey: ['health', 'license-consumption'],
+    queryFn: () => getLicenseConsumption(),
+    staleTime: 60_000,
+  });
 
   const { data: seatEnv } = useQuery({
     queryKey: ['reports', 'seat-util-health'],
@@ -50,13 +57,24 @@ export function LicensePane() {
   const seatBuckets = toSeatBuckets(seatEnv);
   const copilotBuckets = toCopilotBuckets(copilotEnv);
 
-  // Use real data when available
+  // Prefer GHEC license consumption data from enterprise sync; fall back to
+  // the report-based seat utilization buckets when license sync data is
+  // unavailable.
+  const hasLicenseSync = (licenseData?.total_seats_purchased ?? 0) > 0;
   const latestSeat = seatBuckets[seatBuckets.length - 1];
 
-  const totalSeats = latestSeat?.provisioned_seat_count ?? 0;
-  const activeSeats = latestSeat?.active_seat_count ?? 0;
-  const utilPct = latestSeat?.utilization_pct ?? 0;
-  const seatLimit = Math.max(totalSeats, 1);
+  const totalSeats = hasLicenseSync
+    ? licenseData!.total_seats_consumed
+    : (latestSeat?.provisioned_seat_count ?? 0);
+  const seatLimit = hasLicenseSync
+    ? licenseData!.total_seats_purchased
+    : Math.max(latestSeat?.provisioned_seat_count ?? 0, 1);
+  const activeSeats = hasLicenseSync
+    ? licenseData!.total_seats_consumed
+    : (latestSeat?.active_seat_count ?? 0);
+  const utilPct = hasLicenseSync
+    ? licenseData!.utilization_pct
+    : (latestSeat?.utilization_pct ?? 0);
   const seatsRemaining = Math.max(0, seatLimit - totalSeats);
 
   const ghostMembers = ghostData?.ghost_members ?? [];
@@ -72,6 +90,7 @@ export function LicensePane() {
   const isSampleData =
     !isLoadingGhosts &&
     !isGhostError &&
+    !hasLicenseSync &&
     seatBuckets.length === 0 &&
     copilotBuckets.length === 0 &&
     ghostMembers.length === 0;
@@ -166,11 +185,7 @@ export function LicensePane() {
                   <td style={{ fontWeight: 500 }}>{m.actor}</td>
                   <td style={{ color: 'var(--fg-muted)' }}>
                     {m.last_active
-                      ? new Date(m.last_active).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })
+                      ? formatDateOnly(m.last_active)
                       : 'Never'}
                   </td>
                 </tr>
@@ -191,9 +206,21 @@ export function LicensePane() {
 
       <div className={styles.sourceNote}>
         ℹ️ License seat data is derived from{' '}
-        <code className={styles.sourceCode}>org.add_member</code>,{' '}
-        <code className={styles.sourceCode}>org.remove_member</code>, and the one-time baseline
-        import for seat counts.
+        {hasLicenseSync ? (
+          <>
+            the GHEC <code className={styles.sourceCode}>consumed-licenses</code> API
+            {licenseData?.synced_at && (
+              <> (last synced: {formatDateOnly(licenseData.synced_at)})</>
+            )}
+            .
+          </>
+        ) : (
+          <>
+            <code className={styles.sourceCode}>org.add_member</code>,{' '}
+            <code className={styles.sourceCode}>org.remove_member</code>, and the one-time baseline
+            import for seat counts.
+          </>
+        )}
       </div>
 
       {/* Summary metrics row */}

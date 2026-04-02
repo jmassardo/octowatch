@@ -451,3 +451,46 @@ export interface TeamsResponse {
 export function getTeams(): Promise<TeamsResponse> {
   return api.get<TeamsResponse>('/health-signals/teams');
 }
+
+// --- License Consumption (GHEC enterprise sync) ---
+
+export interface LicenseConsumptionResponse {
+  readonly enterprise_slug: string | null;
+  readonly total_seats_purchased: number;
+  readonly total_seats_consumed: number;
+  readonly seats_available: number;
+  readonly utilization_pct: number;
+  readonly synced_at: string | null;
+}
+
+export function getLicenseConsumption(): Promise<LicenseConsumptionResponse> {
+  return api.get<LicenseConsumptionResponse>('/health-signals/license-consumption');
+}
+
+// --- Security Alerts Summary (enterprise sync) ---
+
+export interface SecurityAlertsSummaryResponse {
+  readonly secret_scanning: ReadonlyArray<{
+    org: string;
+    open_count: number;
+    resolved_count: number;
+    total_count: number;
+    synced_at: string;
+  }>;
+  readonly dependabot: ReadonlyArray<{
+    org: string;
+    open_count: number;
+    fixed_count: number;
+    dismissed_count: number;
+    total_count: number;
+    critical_count: number;
+    high_count: number;
+    medium_count: number;
+    low_count: number;
+    synced_at: string;
+  }>;
+}
+
+export function getSecurityAlertsSummary(): Promise<SecurityAlertsSummaryResponse> {
+  return api.get<SecurityAlertsSummaryResponse>('/health-signals/security-alerts-summary');
+}

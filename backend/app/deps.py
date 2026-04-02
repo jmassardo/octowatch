@@ -210,6 +210,15 @@ def require_role(roles: list[str]) -> Callable[..., AuthenticatedUser]:
                 required_roles=roles,
                 user_roles=user.roles,
             )
+            if not user.roles:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=(
+                        "Access denied. Your account has no role assignments. "
+                        "Contact your administrator to be added to an Enterprise Team "
+                        "with appropriate access."
+                    ),
+                )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Role required: one of {roles}",
@@ -248,6 +257,23 @@ async def verify_csrf(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CSRF token mismatch",
         )
+
+
+# ─── Request metadata helpers ────────────────────────────────────────────────
+
+
+async def get_request_meta(request: Request) -> dict[str, str | None]:
+    """Extract IP and user-agent from the request for audit logging."""
+    forwarded = request.headers.get("x-forwarded-for")
+    ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else None)
+    )
+    return {
+        "ip_address": ip,
+        "user_agent": request.headers.get("user-agent"),
+    }
 
 
 # ─── Internal helpers (used by middleware, not DI) ───────────────────────────

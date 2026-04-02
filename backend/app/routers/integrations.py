@@ -45,12 +45,17 @@ async def create_ticketing_config(
 ) -> TicketingConfigResponse:
     """Register a new ticketing platform configuration (Jira or GitHub Issues)."""
     config = TicketingConfig(
-        platform=payload.platform,
-        base_url=str(payload.base_url),
+        provider=payload.provider,
+        display_name=payload.display_name,
+        target=payload.target,
+        project_key=payload.project_key,
+        default_issue_type=payload.default_issue_type,
+        severity_priority_map=payload.severity_priority_map,
+        auto_create=payload.auto_create,
+        auto_create_severities=payload.auto_create_severities,
         credential_env_var=payload.credential_env_var,
-        org=payload.org,
-        extra_config=payload.extra_config or {},
-        enabled=True,
+        enabled=payload.enabled,
+        created_by=current_user.github_login,
     )
     db.add(config)
     await db.flush()
@@ -97,11 +102,14 @@ async def create_notification_config(
 ) -> NotificationConfigResponse:
     """Register a notification channel (Slack or email)."""
     config = NotificationConfig(
-        rule_id=payload.rule_id,
         channel_type=payload.channel_type,
-        destination=payload.destination,
-        credentials=payload.credentials or {},
-        enabled=True,
+        display_name=payload.display_name,
+        target=payload.target,
+        credential_env_var=payload.credential_env_var,
+        notify_severities=payload.notify_severities,
+        cooldown_seconds=payload.cooldown_seconds,
+        enabled=payload.enabled,
+        created_by=current_user.github_login,
     )
     db.add(config)
     await db.flush()

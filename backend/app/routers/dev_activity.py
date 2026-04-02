@@ -287,6 +287,117 @@ async def _bot_vs_human(
     }
 
 
+async def _developer_stats(
+    db: AsyncSession,
+    scoped_orgs: list[str],
+    lookback_days: int,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Aggregate per-developer activity from repo-related audit events.
+
+    Repo-related actions include ``git.push``, ``pull_request.*``,
+    ``pull_request_review*``, and ``repo.*``.  Weekly counts are divided
+    into seven 7-day buckets (oldest → most recent) for the mini bar chart.
+    """
+    result = await db.execute(
+        text("""
+            SELECT
+                actor,
+                COUNT(*) AS event_count,
+                COUNT(*) FILTER (WHERE action LIKE :pr_only) AS pr_count,
+                COUNT(*) FILTER (WHERE action LIKE :review) AS review_count,
+                ARRAY_AGG(DISTINCT repo) FILTER (WHERE repo IS NOT NULL) AS repos,
+                MAX(created_at) AS last_active,
+                COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') AS w6,
+                COUNT(*) FILTER (
+                    WHERE created_at >= NOW() - INTERVAL '14 days'
+                      AND created_at < NOW() - INTERVAL '7 days'
+                ) AS w5,
+                COUNT(*) FILTER (
+                    WHERE created_at >= NOW() - INTERVAL '21 days'
+                      AND created_at < NOW() - INTERVAL '14 days'
+                ) AS w4,
+                COUNT(*) FILTER (
+                    WHERE created_at >= NOW() - INTERVAL '28 days'
+                      AND created_at < NOW() - INTERVAL '21 days'
+                ) AS w3,
+                COUNT(*) FILTER (
+                    WHERE created_at >= NOW() - INTERVAL '35 days'
+                      AND created_at < NOW() - INTERVAL '28 days'
+                ) AS w2,
+                COUNT(*) FILTER (
+                    WHERE created_at >= NOW() - INTERVAL '42 days'
+                      AND created_at < NOW() - INTERVAL '35 days'
+                ) AS w1,
+                COUNT(*) FILTER (
+                    WHERE created_at < NOW() - INTERVAL '42 days'
+                ) AS w0
+            FROM events
+            WHERE actor IS NOT NULL AND actor != ''
+              AND (
+                  action = 'git.push'
+                  OR action LIKE :any_pr
+                  OR action LIKE :repo_action
+              )
+              AND org = ANY(:scoped_orgs)
+              AND created_at >= NOW() - MAKE_INTERVAL(days => :lookback_days)
+            GROUP BY actor
+            ORDER BY event_count DESC
+            LIMIT :limit
+        """),
+        {
+            "scoped_orgs": scoped_orgs,
+            "lookback_days": lookback_days,
+            "limit": limit,
+            "any_pr": "pull_request%",
+            "pr_only": "pull_request.%",
+            "review": "pull_request_review%",
+            "repo_action": "repo.%",
+        },
+    )
+
+    developers: list[dict[str, Any]] = []
+    for row in result.fetchall():
+        all_repos = list(row[4]) if row[4] else []
+        developers.append(
+            {
+                "login": row[0],
+                "event_count": row[1],
+                "pr_count": row[2],
+                "review_count": row[3],
+                "top_repos": all_repos[:5],
+                "repo_count": len(all_repos),
+                "last_active": row[5].isoformat() if row[5] else None,
+                "weekly_counts": [
+                    row[12],
+                    row[11],
+                    row[10],
+                    row[9],
+                    row[8],
+                    row[7],
+                    row[6],
+                ],
+            }
+        )
+    return developers
+
+
+@router.get("/developers")
+async def list_developers(
+    lookback_days: int = Query(default=90, ge=1, le=365),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Return per-developer activity stats based on repo-related audit events.
+
+    Only considers actions that represent real repository work:
+    ``git.push``, ``pull_request.*``, ``pull_request_review*``, ``repo.*``.
+    """
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    developers = await _developer_stats(db, scoped_orgs, lookback_days, limit=50)
+    return {"developers": developers, "lookback_days": lookback_days}
+
+
 @router.get("/usage-stats")
 async def usage_stats(
     lookback_days: int = Query(default=30, ge=1, le=365),

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AccessIdentityPane } from './AccessIdentityPane';
 import type {
@@ -398,5 +398,111 @@ describe('AccessIdentityPane', () => {
     renderPane();
     const tokenTexts = screen.getAllByText(/1 token\b/);
     expect(tokenTexts.length).toBe(3);
+  });
+
+  /* ---- Member activity drill-down ---- */
+
+  it('opens dormant member drill-down when dormant count is clicked', () => {
+    renderPane();
+    const dormantStat = screen.getByRole('button', {
+      name: /dormant members.*click to view/i,
+    });
+    fireEvent.click(dormantStat);
+    // Modal opened — close button appears
+    expect(screen.getByLabelText('Close')).toBeInTheDocument();
+    // Title appears twice: once in DormantMembersTable section, once in the modal
+    const titles = screen.getAllByText('Dormant members (90+ days inactive)');
+    expect(titles.length).toBe(2);
+  });
+
+  it('shows dormant members in drill-down modal', () => {
+    renderPane();
+    const dormantStat = screen.getByRole('button', {
+      name: /dormant members.*click to view/i,
+    });
+    fireEvent.click(dormantStat);
+    // Should show column headers from the DataTable in the modal
+    const memberHeaders = screen.getAllByText('Member');
+    expect(memberHeaders.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Days Inactive')).toBeInTheDocument();
+  });
+
+  it('opens at-risk member drill-down when at-risk count is clicked', () => {
+    renderPane();
+    const atRiskStat = screen.getByRole('button', {
+      name: /at-risk members.*click to view/i,
+    });
+    fireEvent.click(atRiskStat);
+    expect(screen.getByText('At-risk members (60–90 days inactive)')).toBeInTheDocument();
+  });
+
+  it('opens new member drill-down when new count is clicked', () => {
+    renderPane();
+    const newStat = screen.getByRole('button', {
+      name: /new members.*click to view/i,
+    });
+    fireEvent.click(newStat);
+    expect(screen.getByText('New members (joined in last 30 days)')).toBeInTheDocument();
+  });
+
+  /* ---- PAT health drill-down ---- */
+
+  it('opens no-expiry token drill-down when no-expiry count is clicked', () => {
+    renderPane();
+    const noExpiryStat = screen.getByRole('button', {
+      name: /tokens with no expiry.*click to view/i,
+    });
+    fireEvent.click(noExpiryStat);
+    expect(screen.getByText('Tokens with no expiration date')).toBeInTheDocument();
+  });
+
+  it('shows token data in no-expiry drill-down modal', () => {
+    renderPane();
+    const noExpiryStat = screen.getByRole('button', {
+      name: /tokens with no expiry/i,
+    });
+    fireEvent.click(noExpiryStat);
+    // Should show the no_expiry token (user1)
+    expect(screen.getByText('User')).toBeInTheDocument();
+    expect(screen.getByText('Token Name')).toBeInTheDocument();
+    expect(screen.getByText('Age (days)')).toBeInTheDocument();
+  });
+
+  it('opens expiring token drill-down when expiring count is clicked', () => {
+    renderPane();
+    const expiringStat = screen.getByRole('button', {
+      name: /tokens expiring soon.*click to view/i,
+    });
+    fireEvent.click(expiringStat);
+    expect(screen.getByText('Tokens expiring within 30 days')).toBeInTheDocument();
+  });
+
+  it('opens stale token drill-down when stale count is clicked', () => {
+    renderPane();
+    const staleStat = screen.getByRole('button', {
+      name: /stale tokens.*click to view/i,
+    });
+    fireEvent.click(staleStat);
+    expect(screen.getByText('Stale tokens (unused 90+ days)')).toBeInTheDocument();
+  });
+
+  it('closes member drill-down modal when close button is clicked', () => {
+    renderPane();
+    const dormantStat = screen.getByRole('button', {
+      name: /dormant members/i,
+    });
+    fireEvent.click(dormantStat);
+    const closeBtn = screen.getByLabelText('Close');
+    fireEvent.click(closeBtn);
+    expect(screen.queryByLabelText('Close')).not.toBeInTheDocument();
+  });
+
+  it('member drill-down stat is keyboard accessible', () => {
+    renderPane();
+    const dormantStat = screen.getByRole('button', {
+      name: /dormant members/i,
+    });
+    fireEvent.keyDown(dormantStat, { key: 'Enter' });
+    expect(screen.getByLabelText('Close')).toBeInTheDocument();
   });
 });

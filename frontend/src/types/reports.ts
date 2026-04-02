@@ -3,15 +3,15 @@ export interface ReportEnvelope {
   readonly org: string | null;
   readonly granularity: string;
   readonly window_days: number;
+  readonly data_source: string;
   readonly generated_at: string;
   readonly data: readonly Record<string, unknown>[];
 }
 
 export interface MAUBucket {
   readonly bucket: string;
-  readonly unique_actor_count: number;
-  readonly unique_bot_actor_count: number;
-  readonly new_actor_count: number;
+  readonly unique_actors: number;
+  readonly total_events: number;
 }
 
 export interface SeatUtilizationBucket {
@@ -23,11 +23,20 @@ export interface SeatUtilizationBucket {
 
 export interface ActionsVolumeBucket {
   readonly bucket: string;
-  readonly workflow_runs_total: number;
-  readonly workflow_runs_succeeded: number;
-  readonly workflow_runs_failed: number;
-  readonly success_rate_pct: number;
-  readonly unique_workflows: number;
+  readonly org: string | null;
+  readonly workflow_runs: number;
+  readonly unique_actors: number;
+  readonly unique_repos: number;
+  /** @deprecated Not returned by current backend — retained for Velocity/Dashboard compat. */
+  readonly workflow_runs_total?: number;
+  /** @deprecated Not returned by current backend — retained for Velocity/Dashboard compat. */
+  readonly workflow_runs_succeeded?: number;
+  /** @deprecated Not returned by current backend — retained for Velocity/Dashboard compat. */
+  readonly workflow_runs_failed?: number;
+  /** @deprecated Not returned by current backend — retained for Velocity/Dashboard compat. */
+  readonly success_rate_pct?: number;
+  /** @deprecated Not returned by current backend — retained for Velocity/Dashboard compat. */
+  readonly unique_workflows?: number;
 }
 
 export interface CopilotSeatsBucket {
@@ -40,21 +49,14 @@ export interface CopilotSeatsBucket {
 
 export interface PATCountsBucket {
   readonly bucket: string;
-  readonly pats_created: number;
-  readonly pats_deleted: number;
-  readonly pats_expired: number;
-  readonly fine_grained_pats: number;
-  readonly classic_pats: number;
-  readonly high_access_pats: number;
+  readonly org: string | null;
+  readonly actions: Readonly<Record<string, number>>;
 }
 
 export interface WebhookCountsBucket {
   readonly bucket: string;
-  readonly webhooks_created: number;
-  readonly webhooks_deleted: number;
-  readonly app_installs: number;
-  readonly app_uninstalls: number;
-  readonly unique_webhook_targets: number;
+  readonly org: string | null;
+  readonly actions: Readonly<Record<string, number>>;
 }
 
 export type ReportGranularity = 'daily' | 'weekly' | 'monthly';
@@ -69,6 +71,8 @@ export interface ReportCatalogEntry {
   readonly id: string;
   readonly type: string;
   readonly title: string;
+  readonly description?: string;
+  readonly data_source?: string;
   readonly generated_at: string | null;
   readonly status: string;
   readonly tags?: readonly string[];

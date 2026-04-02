@@ -7,6 +7,7 @@ import { Button } from '../../components/primitives/Button';
 import { Modal } from '../../components/primitives/Modal';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { formatAbsolute } from '../../utils/dates';
 import styles from './Query.module.css';
 
 const SCHEMA = [
@@ -946,7 +947,7 @@ export function QueryPage() {
                                 {entry.sql.length > 80 ? '…' : ''}
                               </div>
                               <div className={styles.historyTime}>
-                                {new Date(entry.timestamp).toLocaleString()}
+                                {formatAbsolute(entry.timestamp)}
                               </div>
                             </div>
                           ))

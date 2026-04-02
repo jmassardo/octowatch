@@ -5,6 +5,7 @@ Tests cover:
 - /me endpoint (auth required, session revocation)
 - /logout endpoint (auth required, session deletion)
 - JWT expiry and signature validation
+- RBAC role enforcement (no-access default)
 """
 
 from __future__ import annotations
@@ -196,3 +197,74 @@ class TestLogout:
         client.post("/api/v1/auth/logout", cookies={"access_token": token})
         # revoke_session calls valkey.delete(f"session:{jti}")
         mock_valkey.delete.assert_called_once_with(f"session:{jti}")
+
+
+# ─── RBAC require_role (no-access default) ──────────────────────────────────
+
+
+class TestRequireRoleNoAccess:
+    """Test that users with no roles get a specific 403 message."""
+
+    def test_no_roles_returns_specific_403_message(self):
+        """Users with empty roles list get the 'no role assignments' message."""
+        from fastapi import Depends
+
+        from app.deps import require_role
+
+        jti = "norole-jti"
+        token = _make_jwt(jti=jti)
+        session_data = json.dumps(
+            {
+                "github_login": "newuser",
+                "github_id": 99999,
+                "roles": [],
+                "scoped_orgs": [],
+                "scoped_repos": [],
+                "scope_type": "scoped",
+                "session_expires_at": "2099-01-01T00:00:00+00:00",
+            }
+        )
+        app, _, _ = _build_auth_app(valkey_get_return=session_data)
+
+        @app.get("/test-protected")
+        async def protected_route(
+            user: object = Depends(require_role(["analyst"])),
+        ) -> dict[str, bool]:
+            return {"ok": True}
+
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get("/test-protected", cookies={"access_token": token})
+        assert resp.status_code == 403
+        assert "no role assignments" in resp.json()["detail"]
+
+    def test_wrong_role_returns_generic_403(self):
+        """Users with roles but not the right ones get the generic message."""
+        from fastapi import Depends
+
+        from app.deps import require_role
+
+        jti = "wrongrole-jti"
+        token = _make_jwt(jti=jti)
+        session_data = json.dumps(
+            {
+                "github_login": "someuser",
+                "github_id": 88888,
+                "roles": ["report_admin"],
+                "scoped_orgs": ["org1"],
+                "scoped_repos": [],
+                "scope_type": "scoped",
+                "session_expires_at": "2099-01-01T00:00:00+00:00",
+            }
+        )
+        app, _, _ = _build_auth_app(valkey_get_return=session_data)
+
+        @app.get("/test-protected2")
+        async def protected_route2(
+            user: object = Depends(require_role(["analyst"])),
+        ) -> dict[str, bool]:
+            return {"ok": True}
+
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get("/test-protected2", cookies={"access_token": token})
+        assert resp.status_code == 403
+        assert "Role required" in resp.json()["detail"]

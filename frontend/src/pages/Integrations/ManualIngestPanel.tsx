@@ -6,6 +6,7 @@ import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import type { ManualIngestJob, IngestType, IngestJobStatus } from '../../types/ingest';
+import { formatShortDateTime } from '../../utils/dates';
 import styles from './Integrations.module.css';
 
 /* ------------------------------------------------------------------ */
@@ -67,16 +68,6 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDateTime(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 const TERMINAL_STATUSES = new Set<IngestJobStatus>(['completed', 'failed']);
@@ -296,7 +287,7 @@ function IngestJobHistory() {
               <td className={styles.cellTruncate}>{job.original_filename}</td>
               <td>{job.ingest_type.replace(/_/g, ' ')}</td>
               <td>{formatFileSize(job.file_size_bytes)}</td>
-              <td>{formatDateTime(job.created_at)}</td>
+              <td>{formatShortDateTime(job.created_at)}</td>
               <td>
                 {job.rows_processed > 0 ? job.rows_processed.toLocaleString() : '—'}
               </td>

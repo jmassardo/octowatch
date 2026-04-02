@@ -12,17 +12,10 @@ import {
   getRunnerHealth,
 } from '../../api/healthSignals';
 import type { WorkflowRow, RunnerRow } from '../../api/healthSignals';
+import { formatDateOnly } from '../../utils/dates';
 import styles from './OpsHealthPane.module.css';
 
 /* ---------- helpers ---------- */
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
 
 function failureRateVariant(rate: number): 'danger' | 'attention' | 'success' {
   if (rate > 20) return 'danger';
@@ -73,7 +66,7 @@ function WorkflowHealthTable({ workflows }: { workflows: WorkflowRow[] }) {
                     {wf.failure_rate_pct.toFixed(1)}%
                   </Label>
                 </td>
-                <td style={{ color: 'var(--fg-muted)' }}>{formatDate(wf.last_run)}</td>
+                <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.last_run)}</td>
               </tr>
             ))}
           </tbody>
@@ -116,7 +109,7 @@ function RunnerFleetTable({ runners }: { runners: RunnerRow[] }) {
                 <td>{r.runner_name}</td>
                 <td className={styles.numCol}>{r.version}</td>
                 <td>{r.group}</td>
-                <td style={{ color: 'var(--fg-muted)' }}>{formatDate(r.last_event)}</td>
+                <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(r.last_event)}</td>
               </tr>
             ))}
           </tbody>

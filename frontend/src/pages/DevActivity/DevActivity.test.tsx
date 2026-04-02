@@ -8,57 +8,23 @@ import { DevActivityPage } from './index';
 // Mock helpers (vi.hoisted so they're available inside vi.mock factories)
 // ---------------------------------------------------------------------------
 
-const { mockEvents } = vi.hoisted(() => {
-  const makeEvent = (actor: string, action: string, repo: string, daysAgo: number) => ({
-    id: `evt-${actor}-${action}-${daysAgo}-${Math.random()}`,
-    document_id: `doc-${Math.random()}`,
-    created_at: new Date(Date.now() - daysAgo * 86_400_000).toISOString(),
-    ingested_at: new Date().toISOString(),
-    action,
-    namespace: 'pull_request',
-    actor,
-    actor_id: 1,
-    actor_is_bot: false,
-    org: 'test-org',
-    org_id: 1,
-    repo,
-    repo_id: 1,
-    business: null,
-    source_ip: '1.2.3.4',
-    user_agent: null,
-    geo_country_code: 'US',
-    geo_city: 'SF',
-    geo_is_proxy: false,
-    data: {},
-    ingestion_source: 'webhook',
-    source_file_path: null,
-  });
-
+const { mockDevelopers } = vi.hoisted(() => {
   // alice has ~53% share (10/19) to trigger the >40% warning
-  const mockEvents = [
-    ...Array.from({ length: 10 }, (_, i) => makeEvent('alice', 'pull_request.opened', 'repo-a', i)),
-    ...Array.from({ length: 3 }, (_, i) => makeEvent('bob', 'pull_request.opened', 'repo-b', i)),
-    ...Array.from({ length: 2 }, (_, i) => makeEvent('carol', 'pull_request.opened', 'repo-c', i)),
-    ...Array.from({ length: 2 }, (_, i) => makeEvent('dave', 'push', 'repo-d', i)),
-    ...Array.from({ length: 1 }, (_, i) => makeEvent('eve', 'push', 'repo-e', i)),
-    ...Array.from({ length: 1 }, (_, i) => makeEvent('frank', 'push', 'repo-f', i)),
+  const mockDevelopers = [
+    { login: 'alice', event_count: 10, pr_count: 10, review_count: 0, top_repos: ['repo-a'], repo_count: 1, last_active: new Date(Date.now() - 86_400_000).toISOString(), weekly_counts: [0, 0, 2, 2, 2, 2, 2] },
+    { login: 'bob', event_count: 3, pr_count: 3, review_count: 0, top_repos: ['repo-b'], repo_count: 1, last_active: new Date(Date.now() - 2 * 86_400_000).toISOString(), weekly_counts: [0, 0, 1, 1, 1, 0, 0] },
+    { login: 'carol', event_count: 2, pr_count: 2, review_count: 0, top_repos: ['repo-c'], repo_count: 1, last_active: new Date(Date.now() - 3 * 86_400_000).toISOString(), weekly_counts: [0, 0, 1, 1, 0, 0, 0] },
+    { login: 'dave', event_count: 2, pr_count: 0, review_count: 0, top_repos: ['repo-d'], repo_count: 1, last_active: new Date(Date.now() - 4 * 86_400_000).toISOString(), weekly_counts: [0, 0, 0, 1, 1, 0, 0] },
+    { login: 'eve', event_count: 1, pr_count: 0, review_count: 0, top_repos: ['repo-e'], repo_count: 1, last_active: new Date(Date.now() - 5 * 86_400_000).toISOString(), weekly_counts: [0, 0, 0, 0, 1, 0, 0] },
+    { login: 'frank', event_count: 1, pr_count: 0, review_count: 0, top_repos: ['repo-f'], repo_count: 1, last_active: new Date(Date.now() - 6 * 86_400_000).toISOString(), weekly_counts: [0, 0, 0, 0, 0, 1, 0] },
   ];
 
-  return { mockEvents };
+  return { mockDevelopers };
 });
 
 // ---------------------------------------------------------------------------
 // Mock API modules
 // ---------------------------------------------------------------------------
-
-vi.mock('../../api/events', () => ({
-  listEvents: vi.fn().mockResolvedValue({
-    items: mockEvents,
-    total: mockEvents.length,
-    page: 1,
-    page_size: 500,
-  }),
-}));
 
 vi.mock('../../api/detections', () => ({
   listDetections: vi.fn().mockResolvedValue({
@@ -74,6 +40,10 @@ vi.mock('../../api/healthSignals', () => ({
 }));
 
 vi.mock('../../api/devActivity', () => ({
+  getDevelopers: vi.fn().mockResolvedValue({
+    developers: mockDevelopers,
+    lookback_days: 90,
+  }),
   getUsageStats: vi.fn().mockResolvedValue({
     git_stats: {
       total_clones: 353,
@@ -206,7 +176,7 @@ describe('DevActivityPage', () => {
     expect(clickableElements.length).toBe(2); // @alice and pct%
 
     // Verify the actor name link
-    const actorLink = within(warningContainer).getByText(`@${mockEvents[0].actor}`);
+    const actorLink = within(warningContainer).getByText(`@${mockDevelopers[0].login}`);
     expect(actorLink.getAttribute('role')).toBe('button');
   });
 
@@ -228,13 +198,11 @@ describe('DevActivityPage', () => {
   });
 
   it('shows empty state message when no events', async () => {
-    const { listEvents } = await import('../../api/events');
-    vi.mocked(listEvents).mockResolvedValueOnce({
-      items: [],
-      total: 0,
-      page: 1,
-      page_size: 500,
-    } as never);
+    const { getDevelopers } = await import('../../api/devActivity');
+    vi.mocked(getDevelopers).mockResolvedValueOnce({
+      developers: [],
+      lookback_days: 90,
+    });
 
     renderWithProviders(<DevActivityPage />);
 
@@ -399,7 +367,7 @@ describe('DevActivityPage', () => {
 
     expect(await screen.findByText('Top cloners')).toBeInTheDocument();
     expect(screen.getByText('github-actions[bot]')).toBeInTheDocument();
-    // jmassardo appears in both dev cards and cloners; use getAllByText
+    // jmassardo appears in cloners and pushers widgets
     const jmassardoElements = screen.getAllByText('@jmassardo');
     expect(jmassardoElements.length).toBeGreaterThanOrEqual(1);
   });
@@ -501,5 +469,40 @@ describe('DevActivityPage', () => {
     const barRow = botLabel.closest('.clickableBar');
     expect(barRow).not.toBeNull();
     expect(barRow?.getAttribute('role')).toBe('button');
+  });
+
+  it('developer cards show last active time', async () => {
+    renderWithProviders(<DevActivityPage />);
+
+    await screen.findByText('Developer cards');
+
+    // Developer cards should show last active time
+    const lastActiveElements = screen.getAllByText(/Last active/);
+    expect(lastActiveElements.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('drawer shows top repos when available', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DevActivityPage />);
+
+    await screen.findByText('Developer cards');
+    const aliceCard = screen.getByLabelText('View details for alice');
+    await user.click(aliceCard);
+
+    const drawerPanel = await screen.findByTestId('drawer-panel');
+    expect(within(drawerPanel).getByText('Most Active Repos')).toBeInTheDocument();
+    expect(within(drawerPanel).getByText(/repo-a/)).toBeInTheDocument();
+  });
+
+  it('drawer shows last active time', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DevActivityPage />);
+
+    await screen.findByText('Developer cards');
+    const aliceCard = screen.getByLabelText('View details for alice');
+    await user.click(aliceCard);
+
+    const drawerPanel = await screen.findByTestId('drawer-panel');
+    expect(within(drawerPanel).getByText(/Last active/)).toBeInTheDocument();
   });
 });

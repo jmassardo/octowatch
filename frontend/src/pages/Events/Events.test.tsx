@@ -331,7 +331,7 @@ describe('EventsPage', () => {
     expect(detailButtons).toHaveLength(2);
   });
 
-  it('opens modal with event JSON when Details is clicked', async () => {
+  it('opens modal with event details when Details is clicked', async () => {
     const user = userEvent.setup();
     renderWithProviders(<EventsPage />);
 
@@ -342,10 +342,13 @@ describe('EventsPage', () => {
 
     // Modal should show event action in title
     expect(screen.getByText('Event: repo.create')).toBeInTheDocument();
-    // Modal JSON pre block contains the full event data (source_file_path is unique to JSON)
-    const jsonPre = screen.getByText(/source_file_path/);
-    expect(jsonPre.textContent).toContain('"source_ip": "61.220.19.3"');
-    expect(jsonPre.textContent).toContain('"actor": "alice"');
+    // EventDetail renders structured fields – check labels unique to the detail view
+    expect(screen.getByText('Source IP')).toBeInTheDocument();
+    expect(screen.getByText('Ingested')).toBeInTheDocument();
+    expect(screen.getByText('Source')).toBeInTheDocument();
+    // IP appears both in the table row and in the modal detail
+    const ipElements = screen.getAllByText('61.220.19.3');
+    expect(ipElements.length).toBe(2);
   });
 
   it('closes modal when close button is clicked', async () => {
@@ -537,10 +540,15 @@ describe('EventsPage', () => {
     await user.click(detailButtons[1]);
 
     expect(screen.getByText('Event: repo.destroy')).toBeInTheDocument();
-    // Check the JSON pre block contains second event's data
-    const jsonPre = screen.getByText(/source_file_path.*2\.json/s);
-    expect(jsonPre.textContent).toContain('"actor": "bob"');
-    expect(jsonPre.textContent).toContain('"source_ip": "192.168.1.1"');
+    // EventDetail renders structured fields – check the detail-only labels
+    expect(screen.getByText('Source IP')).toBeInTheDocument();
+    // IP appears both in the table and in the modal
+    const ipElements = screen.getAllByText('192.168.1.1');
+    expect(ipElements.length).toBe(2);
+    // Additional Data section should be present because this event has data.reason
+    expect(screen.getByText('Additional Data')).toBeInTheDocument();
+    expect(screen.getByText('reason')).toBeInTheDocument();
+    expect(screen.getByText('cleanup')).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------

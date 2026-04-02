@@ -107,6 +107,56 @@ vi.mock('../../api/setup', () => ({
   getSetupCurrentConfig: vi.fn().mockResolvedValue({}),
 }));
 
+vi.mock('../../api/integrations', () => ({
+  listTicketingConfigs: vi.fn().mockResolvedValue([]),
+  listNotificationConfigs: vi.fn().mockResolvedValue([]),
+  createNotificationConfig: vi.fn().mockResolvedValue({}),
+  createTicketingConfig: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('../../api/sync', () => ({
+  getSyncStatus: vi.fn().mockResolvedValue({
+    id: 'run-1',
+    status: 'completed',
+    trigger_type: 'manual',
+    triggered_by: 'admin',
+    scope: 'full',
+    started_at: '2025-06-01T08:00:00Z',
+    completed_at: '2025-06-01T08:15:00Z',
+    error_message: null,
+    entity_counts: {},
+    cursors: [],
+  }),
+  triggerSync: vi.fn().mockResolvedValue({ run_id: 'r', status: 'pending' }),
+  cancelSyncRun: vi.fn().mockResolvedValue(undefined),
+  getSyncConfig: vi.fn().mockResolvedValue({
+    app_id: 12345,
+    enterprise_slug: 'my-corp',
+    installation_ids: [],
+    sync_enabled: false,
+    interval_days: 60,
+    orgs: [],
+  }),
+  updateSyncConfig: vi.fn().mockResolvedValue({}),
+  listSyncRuns: vi.fn().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 10, has_next: false }),
+  getSyncRun: vi.fn().mockResolvedValue(null),
+  getSyncSchedule: vi.fn().mockResolvedValue({
+    enabled: false,
+    interval_hours: 24,
+    scope: 'full',
+    next_run_at: null,
+    last_completed_at: null,
+  }),
+  updateSyncSchedule: vi.fn().mockResolvedValue({}),
+  getSyncLogs: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../../api/ingest', () => ({
+  uploadFile: vi.fn().mockResolvedValue(null),
+  getIngestJob: vi.fn().mockResolvedValue(null),
+  listIngestJobs: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+}));
+
 function renderPage(initialTab = 'all') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -219,7 +269,8 @@ describe('SettingsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'GitHub' }));
 
-    expect(screen.getByText(/no settings configured in the github category/i)).toBeInTheDocument();
+    expect(screen.getByText(/no github settings configured yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/github connection settings are configured during setup/i)).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
@@ -306,5 +357,115 @@ describe('SettingsPage', () => {
     });
 
     expect(screen.getByText('set')).toBeInTheDocument();
+  });
+
+  /* ---------------------------------------------------------------- */
+  /*  Category placeholders                                            */
+  /* ---------------------------------------------------------------- */
+
+  it('shows Security placeholder when category is empty', async () => {
+    mockListSettings.mockResolvedValueOnce([]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(mockListSettings).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Security' }));
+
+    expect(screen.getByText(/no security settings configured yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/security settings including authentication/i)).toBeInTheDocument();
+  });
+
+  it('shows Storage placeholder when category is empty', async () => {
+    mockListSettings.mockResolvedValueOnce([]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(mockListSettings).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Storage' }));
+
+    expect(screen.getByText(/no storage settings configured yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/object storage.*configuration for audit log archives/i)).toBeInTheDocument();
+  });
+
+  it('shows Notifications placeholder when category is empty', async () => {
+    mockListSettings.mockResolvedValueOnce([]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(mockListSettings).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Notifications' }));
+
+    expect(screen.getByText(/no notification settings configured yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/notification channel configuration for alerts/i)).toBeInTheDocument();
+  });
+
+  it('shows System placeholder when category is empty', async () => {
+    mockListSettings.mockResolvedValueOnce([]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(mockListSettings).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'System' }));
+
+    expect(screen.getByText(/no system settings configured yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/system-level configuration including data retention/i)).toBeInTheDocument();
+  });
+
+  /* ---------------------------------------------------------------- */
+  /*  Integrations tab                                                 */
+  /* ---------------------------------------------------------------- */
+
+  it('renders Integrations tab button', () => {
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Integrations' })).toBeInTheDocument();
+  });
+
+  it('shows integrations pane when Integrations tab is clicked', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Integrations' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/connect external services/i)).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Slack')).toBeInTheDocument();
+    expect(screen.getByText('Microsoft Sentinel')).toBeInTheDocument();
+    expect(screen.getByText('Splunk')).toBeInTheDocument();
+    expect(screen.getByText('PagerDuty')).toBeInTheDocument();
+  });
+
+  it('renders Integrations tab via direct URL', async () => {
+    renderPage('integrations');
+
+    await waitFor(() => {
+      expect(screen.getByText(/connect external services/i)).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Slack')).toBeInTheDocument();
+  });
+
+  it('shows Data Import section on Integrations tab', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Integrations' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Data Import')).toBeInTheDocument();
+    });
   });
 });

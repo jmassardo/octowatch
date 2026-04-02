@@ -16,6 +16,7 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Modal } from '../../components/primitives/Modal';
 import type { ReportParams } from '../../types/reports';
+import { formatDateOnly } from '../../utils/dates';
 import styles from './Reports.module.css';
 
 export function ReportsPage() {
@@ -51,19 +52,62 @@ export function ReportsPage() {
   });
 
   const summaries = [
-    { key: 'mau', label: 'Total MAU buckets', value: mauData?.data.length ?? '—', data: mauData?.data },
-    { key: 'actions', label: 'Actions buckets', value: actionsData?.data.length ?? '—', data: actionsData?.data },
-    { key: 'seat', label: 'Seat util buckets', value: seatData?.data.length ?? '—', data: seatData?.data },
-    { key: 'copilot', label: 'Copilot seat buckets', value: copilotData?.data.length ?? '—', data: copilotData?.data },
+    {
+      key: 'mau',
+      label: 'Total MAU buckets',
+      dataSource: mauData?.data_source ?? 'Audit Events',
+      value: mauData?.data.length ?? '—',
+      data: mauData?.data,
+    },
+    {
+      key: 'actions',
+      label: 'Actions buckets',
+      dataSource: actionsData?.data_source ?? 'Audit Events',
+      value: actionsData?.data.length ?? '—',
+      data: actionsData?.data,
+    },
+    {
+      key: 'seat',
+      label: 'Platform seat util buckets',
+      dataSource: seatData?.data_source ?? 'Audit Events',
+      value: seatData?.data.length ?? '—',
+      data: seatData?.data,
+    },
+    {
+      key: 'copilot',
+      label: 'Copilot seat buckets',
+      dataSource: copilotData?.data_source ?? 'Audit Events (Copilot)',
+      value: copilotData?.data.length ?? '—',
+      data: copilotData?.data,
+    },
   ];
 
   const activeBucket = summaries.find((s) => s.key === bucketModal);
 
-  const reportDataMap: Record<string, { title: string; data: readonly Record<string, unknown>[] | undefined }> = {
-    'mau': { title: 'Monthly Active Users', data: mauData?.data },
-    'actions-volume': { title: 'Actions Volume', data: actionsData?.data },
-    'seat-utilization': { title: 'Seat Utilization', data: seatData?.data },
-    'copilot-seats': { title: 'Copilot Seats', data: copilotData?.data },
+  const reportDataMap: Record<
+    string,
+    { title: string; dataSource: string; data: readonly Record<string, unknown>[] | undefined }
+  > = {
+    'mau': {
+      title: 'Monthly Active Users',
+      dataSource: mauData?.data_source ?? 'Audit Events',
+      data: mauData?.data,
+    },
+    'actions-volume': {
+      title: 'Actions Volume',
+      dataSource: actionsData?.data_source ?? 'Audit Events',
+      data: actionsData?.data,
+    },
+    'seat-utilization': {
+      title: 'Platform Seat Utilization',
+      dataSource: seatData?.data_source ?? 'Audit Events',
+      data: seatData?.data,
+    },
+    'copilot-seats': {
+      title: 'Copilot Seats',
+      dataSource: copilotData?.data_source ?? 'Audit Events (Copilot)',
+      data: copilotData?.data,
+    },
   };
 
   const activeReport = viewReport ? reportDataMap[viewReport] : undefined;
@@ -108,7 +152,9 @@ export function ReportsPage() {
                       role="button"
                       tabIndex={0}
                       onClick={() => setBucketModal(s.key)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setBucketModal(s.key); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') setBucketModal(s.key);
+                      }}
                     >
                       {s.value}
                     </span>
@@ -117,6 +163,7 @@ export function ReportsPage() {
                   )}
                 </div>
                 <div className={styles.summaryLabel}>{s.label}</div>
+                <div className={styles.dataSourceLabel}>Source: {s.dataSource}</div>
               </div>
             );
           })}
@@ -128,7 +175,8 @@ export function ReportsPage() {
           <Spinner />
         ) : (catalogData ?? []).length === 0 ? (
           <div className={styles.emptyReports}>
-            No reports generated yet. Use the data summary cards above to explore your data, or check back after reports have been generated.
+            No reports generated yet. Use the data summary cards above to explore your data, or
+            check back after reports have been generated.
           </div>
         ) : (
           (catalogData ?? []).map((r) => (
@@ -139,21 +187,38 @@ export function ReportsPage() {
                   role="button"
                   tabIndex={0}
                   onClick={() => setViewReport(r.type)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setViewReport(r.type); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') setViewReport(r.type);
+                  }}
                 >
                   {r.title}
                 </div>
-                <div className={styles.reportDate}>{r.generated_at ? `Generated ${new Date(r.generated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ` : ''}{r.status}</div>
+                {r.description && (
+                  <div className={styles.reportDescription}>{r.description}</div>
+                )}
+                <div className={styles.reportDate}>
+                  {r.generated_at
+                    ? `Generated ${formatDateOnly(r.generated_at)} · `
+                    : ''}
+                  {r.status}
+                </div>
                 <div className={styles.reportTags}>
                   {(r.tags ?? []).map((tag) => (
-                    <Label key={tag} variant="muted">{tag}</Label>
+                    <Label key={tag} variant="muted">
+                      {tag}
+                    </Label>
                   ))}
+                  {r.data_source && <Label variant="accent">{r.data_source}</Label>}
                   <Label variant="muted">{selectedOrg || 'All orgs'}</Label>
                 </div>
               </div>
               <div className={styles.reportActions}>
-                <Button size="sm" onClick={() => exportReport(r.type, 'pdf')}>PDF</Button>
-                <Button size="sm" onClick={() => exportReport(r.type, 'csv')}>CSV</Button>
+                <Button size="sm" onClick={() => exportReport(r.type, 'pdf')}>
+                  PDF
+                </Button>
+                <Button size="sm" onClick={() => exportReport(r.type, 'csv')}>
+                  CSV
+                </Button>
               </div>
             </div>
           ))
@@ -166,6 +231,9 @@ export function ReportsPage() {
         title={activeBucket?.label ?? ''}
         width={600}
       >
+        {activeBucket && (
+          <div className={styles.modalDataSource}>Source: {activeBucket.dataSource}</div>
+        )}
         {activeBucket?.data && activeBucket.data.length > 0 ? (
           <table className={styles.bucketTable}>
             <thead>
@@ -197,6 +265,9 @@ export function ReportsPage() {
         width={800}
       >
         <div className={styles.reportTableContainer}>
+          {activeReport && (
+            <div className={styles.modalDataSource}>Source: {activeReport.dataSource}</div>
+          )}
           {activeReport?.data && activeReport.data.length > 0 ? (
             <table className={styles.bucketTable}>
               <thead>

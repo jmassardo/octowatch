@@ -14,6 +14,7 @@ import { Pagination } from '../../components/primitives/Pagination';
 import { RuleConfigEditorContainer } from './editor/RuleConfigEditorContainer';
 import { JsonConfigEditor } from './editor/JsonConfigEditor';
 import { TestRuleModal } from './TestRuleModal';
+import { formatAbsolute } from '../../utils/dates';
 import styles from './Rules.module.css';
 
 const CATEGORIES: RuleCategory[] = [
@@ -214,17 +215,6 @@ function RuleForm({
   );
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 function VersionHistory({ rule }: { rule: RuleResponse }) {
   const [viewConfig, setViewConfig] = useState<RuleVersionResponse | null>(null);
 
@@ -285,7 +275,7 @@ function VersionHistory({ rule }: { rule: RuleResponse }) {
                 <tr key={v.id}>
                   <td>v{v.version}</td>
                   <td>{v.changed_by}</td>
-                  <td>{formatDate(v.created_at)}</td>
+                  <td>{formatAbsolute(v.created_at)}</td>
                   <td>{v.change_summary ?? '—'}</td>
                   <td>
                     {v.git_commit_sha ? (

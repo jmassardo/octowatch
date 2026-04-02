@@ -52,6 +52,10 @@ class TestSyncTriggerRequest:
             "team_members",
             "branch_protections",
             "installations",
+            "outside_collaborators",
+            "secret_scanning_alerts",
+            "dependabot_alerts",
+            "license_consumption",
         ]:
             req = SyncTriggerRequest(scope=scope)
             assert req.scope == scope
@@ -692,6 +696,10 @@ class TestSyncScheduleUpdateRequest:
             "team_members",
             "branch_protections",
             "installations",
+            "outside_collaborators",
+            "secret_scanning_alerts",
+            "dependabot_alerts",
+            "license_consumption",
         ]:
             req = SyncScheduleUpdateRequest(scope=scope)
             assert req.scope == scope
@@ -979,7 +987,17 @@ class TestSyncLogEntryModel:
         # Verify columns exist on the mapped class
         mapper = SyncLogEntry.__mapper__
         column_names = {c.key for c in mapper.column_attrs}
-        expected = {"id", "run_id", "seq", "timestamp", "level", "message", "entity_type", "org", "details"}
+        expected = {
+            "id",
+            "run_id",
+            "seq",
+            "timestamp",
+            "level",
+            "message",
+            "entity_type",
+            "org",
+            "details",
+        }
         assert expected.issubset(column_names)
 
     def test_model_table_args(self):

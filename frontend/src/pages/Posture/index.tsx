@@ -7,6 +7,7 @@ import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Pagination } from '../../components/primitives/Pagination';
+import { formatDateOnly } from '../../utils/dates';
 import styles from './Posture.module.css';
 
 /* ── Helpers ───────────────────────────────────────────────────────── */
@@ -29,12 +30,6 @@ function sevVariant(sev: string) {
   if (sev === 'medium') return 'attention' as const;
   if (sev === 'info') return 'muted' as const;
   return 'success' as const;
-}
-
-function formatTime(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function boolDisplay(val: boolean | null | undefined, trueLabel = 'Enabled', falseLabel = 'Disabled') {
@@ -173,7 +168,7 @@ function EnterpriseView({ data, search, setSearch, page, setPage }: {
         <div className={styles.headerInfo}>
           <div className={styles.headerTitle}>Enterprise Security Posture</div>
           <div className={styles.headerSub}>
-            {data.total} org{data.total !== 1 ? 's' : ''} · Last synced {formatTime(data.last_sync_at)}
+            {data.total} org{data.total !== 1 ? 's' : ''} · Last synced {formatDateOnly(data.last_sync_at)}
           </div>
         </div>
       </div>
@@ -280,7 +275,7 @@ function OrgView({ data, search, setSearch, page, setPage, onNavigate }: {
         <div className={styles.headerInfo}>
           <div className={styles.headerTitle}>{org.org_login}</div>
           <div className={styles.headerSub}>
-            {(org.repos ?? []).length} repos · Last synced {formatTime(data.last_sync_at)}
+            {(org.repos ?? []).length} repos · Last synced {formatDateOnly(data.last_sync_at)}
           </div>
         </div>
       </div>
@@ -400,7 +395,7 @@ function RepoView({ data }: { data: PostureResponse }) {
         <div className={styles.headerInfo}>
           <div className={styles.headerTitle}>{repo.repo_name}</div>
           <div className={styles.headerSub}>
-            {repo.org} · Last synced {formatTime(data.last_sync_at)}
+            {repo.org} · Last synced {formatDateOnly(data.last_sync_at)}
           </div>
         </div>
       </div>
@@ -422,7 +417,7 @@ function RepoView({ data }: { data: PostureResponse }) {
             </div>
             <div className={styles.metaItem}>
               <div className={styles.metaLabel}>Last Push</div>
-              <div className={styles.metaValue}>{formatTime(repo.pushed_at)}</div>
+              <div className={styles.metaValue}>{formatDateOnly(repo.pushed_at)}</div>
             </div>
             <div className={styles.metaItem}>
               <div className={styles.metaLabel}>Archived</div>

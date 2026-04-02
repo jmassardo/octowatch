@@ -19,17 +19,16 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Literal
 
 import structlog
 from celery import Task
 from celery.result import AsyncResult
-
-from app.celery_app import celery_app
-
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
+
+from app.celery_app import celery_app
 
 
 def _make_session_factory() -> async_sessionmaker[AsyncSession]:
@@ -116,6 +115,10 @@ ScopeType = Literal[
     "team_members",
     "branch_protections",
     "installations",
+    "outside_collaborators",
+    "secret_scanning_alerts",
+    "dependabot_alerts",
+    "license_consumption",
 ]
 
 
@@ -270,7 +273,7 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         await session.execute(
             update(EnterpriseSyncRun)
             .where(EnterpriseSyncRun.id == run_uuid)
-            .values(status="running", started_at=datetime.now(timezone.utc))
+            .values(status="running", started_at=datetime.now(UTC))
         )
         await session.commit()
 
@@ -308,13 +311,16 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         return {"status": "failed", "reason": "no_configs"}
 
     # Determine entity×org matrix
-    _ENTERPRISE_ENTITIES = {"orgs", "enterprise_members", "installations"}
+    _ENTERPRISE_ENTITIES = {"orgs", "enterprise_members", "installations", "license_consumption"}
     _ORG_ENTITIES = {
         "org_members",
         "repositories",
         "teams",
         "team_members",
         "branch_protections",
+        "outside_collaborators",
+        "secret_scanning_alerts",
+        "dependabot_alerts",
     }
 
     entity_types: list[str] = (
@@ -595,6 +601,28 @@ async def _sync_entity_async(
         resume_cursor = cursor_row.last_cursor if cursor_row else initial_cursor
         items_synced = cursor_row.items_synced if cursor_row else 0
 
+    # ── Delta sync: determine cutoff for scheduled runs ───────────────
+    delta_since: datetime | None = None
+    async with sf() as session:
+        from app.models.github_sync import EnterpriseSyncRun
+
+        run_row = await session.get(EnterpriseSyncRun, run_uuid)
+        if run_row and run_row.trigger_type == "scheduled":
+            # Find the most recent *completed* run before this one
+            prev = await session.execute(
+                select(EnterpriseSyncRun.completed_at)
+                .where(
+                    EnterpriseSyncRun.id != run_uuid,
+                    EnterpriseSyncRun.status == "completed",
+                    EnterpriseSyncRun.completed_at.isnot(None),
+                )
+                .order_by(EnterpriseSyncRun.completed_at.desc())
+                .limit(1)
+            )
+            prev_completed = prev.scalar_one_or_none()
+            if prev_completed is not None:
+                delta_since = prev_completed
+
     # ── Set up clients ────────────────────────────────────────────────────
     # Create a fresh Valkey connection per task to avoid event-loop binding
     # issues (the module-level pool binds to the first loop and fails on
@@ -621,6 +649,7 @@ async def _sync_entity_async(
                 token=token,
                 cursor=current_cursor,
                 rate_limiter=rate_limiter,
+                delta_since=delta_since,
             )
             if not items:
                 break
@@ -804,7 +833,8 @@ async def _sync_entity_async(
 
 async def _maybe_finalize_run(sf: async_sessionmaker[AsyncSession], run_id: str) -> None:
     """Check if all entity cursors for this run are terminal. If so, mark run completed."""
-    from sqlalchemy import select, update as sa_update
+    from sqlalchemy import select
+    from sqlalchemy import update as sa_update
 
     from app.models.github_sync import EnterpriseSyncEntityCursor, EnterpriseSyncRun
 
@@ -941,7 +971,7 @@ async def _check_sync_schedule_async() -> dict:
         )
         last_run = last_result.scalar_one_or_none()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if last_run and last_run.completed_at and (now - last_run.completed_at) < interval:
         next_due = last_run.completed_at + interval
@@ -988,9 +1018,8 @@ async def _discover_orgs_from_installation(
 
     Returns a sorted list of org login strings, or an empty list on error.
     """
-    import redis.asyncio as aioredis
-
     import httpx
+    import redis.asyncio as aioredis
 
     from app.config import settings as _settings
     from app.services.github_token_service import GitHubAppTokenManager
@@ -1093,7 +1122,7 @@ async def _graphql_page(
     token: str,
     query: str,
     variables: dict,
-    rate_limiter: "GitHubRateLimiter | None" = None,
+    rate_limiter: GitHubRateLimiter | None = None,
 ) -> dict:
     """Execute a single GraphQL request against the GitHub API.
 
@@ -1196,6 +1225,7 @@ _SIMPLE_ENTITY_URLS: dict[str, str] = {
     "org_members": "/orgs/{org}/members",
     "repositories": "/orgs/{org}/repos",
     "teams": "/orgs/{org}/teams",
+    "outside_collaborators": "/orgs/{org}/outside_collaborators",
 }
 
 
@@ -1206,7 +1236,7 @@ async def _github_get(
     rate_limiter: GitHubRateLimiter,
     *,
     max_retries: int = 3,
-) -> "httpx.Response":
+) -> httpx.Response:
     """Rate-limited GET with automatic retry on 429/403 rate limit responses."""
     import httpx
 
@@ -1229,7 +1259,7 @@ async def _github_get(
     return resp
 
 
-def _has_next_page(headers: "httpx.Headers | dict[str, str]") -> bool:
+def _has_next_page(headers: httpx.Headers | dict[str, str]) -> bool:
     return 'rel="next"' in (headers.get("link") or "")
 
 
@@ -1240,11 +1270,19 @@ async def _fetch_page(
     cursor: str | None,
     rate_limiter: GitHubRateLimiter,
     page_size: int = 100,
+    delta_since: datetime | None = None,
 ) -> tuple[list[dict], str | None]:
     """Fetch one page of *entity_type* from the GitHub API.
 
     Returns ``(items, next_cursor)``.  ``next_cursor`` is ``None`` when there
     are no more pages.
+
+    Parameters
+    ----------
+    delta_since
+        When set (for scheduled delta syncs), fetch_page handlers may apply
+        time-based filters to skip data that hasn't changed since the given
+        timestamp.
 
     Pagination
     ----------
@@ -1272,8 +1310,14 @@ async def _fetch_page(
         url = f"{_GITHUB_API_BASE}{_SIMPLE_ENTITY_URLS[entity_type].format(org=org)}"
         params: dict[str, object] = {"per_page": page_size, "page": page}
         if entity_type == "repositories":
-            params["type"] = "all"
-            params["sort"] = "full_name"
+            if delta_since is not None:
+                # Delta mode: sort by push date descending so we can stop early
+                params["type"] = "all"
+                params["sort"] = "pushed"
+                params["direction"] = "desc"
+            else:
+                params["type"] = "all"
+                params["sort"] = "full_name"
 
         resp = await _github_get(url, headers, params, rate_limiter)
         if resp.status_code == 403:
@@ -1287,6 +1331,22 @@ async def _fetch_page(
             return [], None
         resp.raise_for_status()
         items = resp.json()
+
+        # Delta optimization for repos: stop when items are older than cutoff
+        if entity_type == "repositories" and delta_since is not None and items:
+            cutoff_iso = delta_since.isoformat()
+            filtered: list[dict] = []
+            stop = False
+            for item in items:
+                pushed_at = item.get("pushed_at") or ""
+                if pushed_at < cutoff_iso:
+                    stop = True
+                    break
+                filtered.append(item)
+            if stop or not _has_next_page(resp.headers):
+                return filtered, None
+            return filtered, str(page + 1)
+
         next_cursor = str(page + 1) if items and _has_next_page(resp.headers) else None
         return items, next_cursor
 
@@ -1509,6 +1569,166 @@ async def _fetch_page(
         next_cursor = page_info.get("endCursor") if page_info.get("hasNextPage") else None
         return items, next_cursor
 
+    # ── Secret scanning alerts (aggregated summary) ───────────────────────
+    if entity_type == "secret_scanning_alerts":
+        if cursor == "_done":
+            return [], None
+        url = f"{_GITHUB_API_BASE}/orgs/{org}/secret-scanning/alerts"
+        alert_params: dict[str, object] = {"per_page": page_size, "state": "open"}
+        if delta_since is not None:
+            alert_params["sort"] = "updated"
+            alert_params["direction"] = "desc"
+        open_count = 0
+        resolved_count = 0
+        total_count = 0
+        page = 1
+        while True:
+            alert_params["page"] = page
+            resp = await _github_get(url, headers, alert_params, rate_limiter)
+            if resp.status_code in (403, 404):
+                logger.warning(
+                    "github_sync.secret_scanning_unavailable",
+                    org=org,
+                    status=resp.status_code,
+                )
+                return [], None
+            resp.raise_for_status()
+            alerts = resp.json()
+            if not alerts:
+                break
+            for a in alerts:
+                total_count += 1
+                if a.get("state") == "open":
+                    open_count += 1
+                else:
+                    resolved_count += 1
+            if not _has_next_page(resp.headers):
+                break
+            page += 1
+        # Also count resolved alerts
+        resolved_params: dict[str, object] = {"per_page": page_size, "state": "resolved"}
+        rpage = 1
+        while True:
+            resolved_params["page"] = rpage
+            resp = await _github_get(url, headers, resolved_params, rate_limiter)
+            if resp.status_code in (403, 404):
+                break
+            resp.raise_for_status()
+            alerts = resp.json()
+            if not alerts:
+                break
+            for _a in alerts:
+                total_count += 1
+                resolved_count += 1
+            if not _has_next_page(resp.headers):
+                break
+            rpage += 1
+
+        summary_item = {
+            "_enterprise_slug": org,
+            "_org": org,
+            "open_count": open_count,
+            "resolved_count": resolved_count,
+            "total_count": total_count,
+        }
+        return [summary_item], "_done"
+
+    # ── Dependabot alerts (aggregated summary) ────────────────────────────
+    if entity_type == "dependabot_alerts":
+        if cursor == "_done":
+            return [], None
+        url = f"{_GITHUB_API_BASE}/orgs/{org}/dependabot/alerts"
+        dep_params: dict[str, object] = {"per_page": page_size}
+        if delta_since is not None:
+            dep_params["sort"] = "updated"
+            dep_params["direction"] = "desc"
+        open_count = 0
+        fixed_count = 0
+        dismissed_count = 0
+        total_count = 0
+        critical_count = 0
+        high_count = 0
+        medium_count = 0
+        low_count = 0
+        page = 1
+        while True:
+            dep_params["page"] = page
+            resp = await _github_get(url, headers, dep_params, rate_limiter)
+            if resp.status_code in (403, 404):
+                logger.warning(
+                    "github_sync.dependabot_unavailable",
+                    org=org,
+                    status=resp.status_code,
+                )
+                return [], None
+            resp.raise_for_status()
+            alerts = resp.json()
+            if not alerts:
+                break
+            for a in alerts:
+                total_count += 1
+                state = a.get("state", "")
+                if state == "open":
+                    open_count += 1
+                elif state == "fixed":
+                    fixed_count += 1
+                elif state == "dismissed":
+                    dismissed_count += 1
+                severity = (a.get("security_vulnerability") or {}).get("severity", "").lower()
+                if severity == "critical":
+                    critical_count += 1
+                elif severity == "high":
+                    high_count += 1
+                elif severity == "medium":
+                    medium_count += 1
+                elif severity == "low":
+                    low_count += 1
+            if not _has_next_page(resp.headers):
+                break
+            page += 1
+        summary_item = {
+            "_enterprise_slug": org,
+            "_org": org,
+            "open_count": open_count,
+            "fixed_count": fixed_count,
+            "dismissed_count": dismissed_count,
+            "total_count": total_count,
+            "critical_count": critical_count,
+            "high_count": high_count,
+            "medium_count": medium_count,
+            "low_count": low_count,
+        }
+        return [summary_item], "_done"
+
+    # ── License consumption (enterprise-level) ────────────────────────────
+    if entity_type == "license_consumption":
+        if cursor == "_done":
+            return [], None
+        # org param actually holds the enterprise slug for enterprise entities
+        enterprise_slug = org
+        if not enterprise_slug:
+            logger.warning("github_sync.license_consumption_no_slug")
+            return [], None
+        url = f"{_GITHUB_API_BASE}/enterprises/{enterprise_slug}/consumed-licenses"
+        lic_params: dict[str, object] = {"per_page": page_size}
+        resp = await _github_get(url, headers, lic_params, rate_limiter)
+        if resp.status_code in (403, 404):
+            logger.warning(
+                "github_sync.license_consumption_unavailable",
+                enterprise=enterprise_slug,
+                status=resp.status_code,
+            )
+            return [], None
+        resp.raise_for_status()
+        data = resp.json()
+        license_item = {
+            "_enterprise_slug": enterprise_slug,
+            "total_seats_purchased": data.get("total_seats_purchased", 0),
+            "total_seats_consumed": data.get("total_seats_consumed", 0),
+            "seats": data.get("users", [])[:500],
+        }
+        return [license_item], "_done"
+
     logger.error("github_sync.unknown_entity_type", entity_type=entity_type)
     return [], None
 
@@ -1660,9 +1880,7 @@ async def _upsert_branch_protections(session: AsyncSession, org: str, items: lis
     protected_repos = {item["_repo_name"] for item in items}
     if not protected_repos:
         # No protected repos at all — delete everything for this org
-        await session.execute(
-            delete(RepoBranchProtection).where(RepoBranchProtection.org == org)
-        )
+        await session.execute(delete(RepoBranchProtection).where(RepoBranchProtection.org == org))
     else:
         # Delete rows for repos that lost their protection
         await session.execute(
@@ -1789,7 +2007,7 @@ async def _upsert_enterprise_members(
 async def _enrich_org_settings(
     sf: async_sessionmaker[AsyncSession],
     run_id: str,
-    token_manager: "GitHubAppTokenManager",
+    token_manager: GitHubAppTokenManager,
     rate_limiter: GitHubRateLimiter,
     org_inst_map: dict[str, int],
     fallback_installation_id: int,
@@ -1860,11 +2078,19 @@ async def _enrich_org_settings(
 
             # Log available keys for diagnostics
             security_keys = [
-                k for k in data
-                if any(x in k.lower() for x in (
-                    "member", "fork", "two_factor", "default_repo",
-                    "allow", "permission",
-                ))
+                k
+                for k in data
+                if any(
+                    x in k.lower()
+                    for x in (
+                        "member",
+                        "fork",
+                        "two_factor",
+                        "default_repo",
+                        "allow",
+                        "permission",
+                    )
+                )
             ]
             await _write_sync_log(
                 sf,
@@ -1901,6 +2127,148 @@ async def _enrich_org_settings(
     return enriched
 
 
+async def _upsert_outside_collaborators(session: AsyncSession, org: str, items: list[dict]) -> None:
+    """Upsert outside collaborators for an org."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import OrgOutsideCollaborator
+
+    # The enterprise_slug is not available at this level — use org as a
+    # placeholder.  The orchestrator fans out per (entity_type, org) and
+    # does not pass the enterprise slug through; the org field is what
+    # matters for health queries.
+    for item in items:
+        stmt = (
+            insert(OrgOutsideCollaborator)
+            .values(
+                enterprise_slug=item.get("_enterprise_slug", org),
+                org=org,
+                login=item["login"],
+                github_id=item["id"],
+                avatar_url=item.get("avatar_url"),
+                site_admin=item.get("site_admin", False),
+            )
+            .on_conflict_do_update(
+                constraint="uq_outside_collab_slug_org_login",
+                set_={
+                    "github_id": item["id"],
+                    "avatar_url": item.get("avatar_url"),
+                    "site_admin": item.get("site_admin", False),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_secret_scanning_summary(
+    session: AsyncSession, org: str, items: list[dict]
+) -> None:
+    """Upsert secret scanning alert summary for an org."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import OrgSecretScanningAlertSummary
+
+    for item in items:
+        stmt = (
+            insert(OrgSecretScanningAlertSummary)
+            .values(
+                enterprise_slug=item.get("_enterprise_slug", org),
+                org=item.get("_org", org),
+                open_count=item["open_count"],
+                resolved_count=item["resolved_count"],
+                total_count=item["total_count"],
+            )
+            .on_conflict_do_update(
+                constraint="uq_secret_scanning_summary_slug_org",
+                set_={
+                    "open_count": item["open_count"],
+                    "resolved_count": item["resolved_count"],
+                    "total_count": item["total_count"],
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_dependabot_summary(session: AsyncSession, org: str, items: list[dict]) -> None:
+    """Upsert dependabot alert summary for an org."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import OrgDependabotAlertSummary
+
+    for item in items:
+        stmt = (
+            insert(OrgDependabotAlertSummary)
+            .values(
+                enterprise_slug=item.get("_enterprise_slug", org),
+                org=item.get("_org", org),
+                open_count=item["open_count"],
+                fixed_count=item["fixed_count"],
+                dismissed_count=item["dismissed_count"],
+                total_count=item["total_count"],
+                critical_count=item["critical_count"],
+                high_count=item["high_count"],
+                medium_count=item["medium_count"],
+                low_count=item["low_count"],
+            )
+            .on_conflict_do_update(
+                constraint="uq_dependabot_summary_slug_org",
+                set_={
+                    "open_count": item["open_count"],
+                    "fixed_count": item["fixed_count"],
+                    "dismissed_count": item["dismissed_count"],
+                    "total_count": item["total_count"],
+                    "critical_count": item["critical_count"],
+                    "high_count": item["high_count"],
+                    "medium_count": item["medium_count"],
+                    "low_count": item["low_count"],
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_license_consumption(
+    session: AsyncSession, _org: str | None, items: list[dict]
+) -> None:
+    """Upsert enterprise license consumption data."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import EnterpriseLicenseConsumption
+
+    for item in items:
+        stmt = (
+            insert(EnterpriseLicenseConsumption)
+            .values(
+                enterprise_slug=item["_enterprise_slug"],
+                total_seats_purchased=item["total_seats_purchased"],
+                total_seats_consumed=item["total_seats_consumed"],
+                seats=item.get("seats"),
+            )
+            .on_conflict_do_update(
+                constraint="uq_license_consumption_slug",
+                set_={
+                    "total_seats_purchased": item["total_seats_purchased"],
+                    "total_seats_consumed": item["total_seats_consumed"],
+                    "seats": item.get("seats"),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
 async def _upsert_items(
     session: AsyncSession,
     entity_type: str,
@@ -1921,6 +2289,10 @@ async def _upsert_items(
         "installations": _upsert_installations,
         "orgs": _upsert_enterprise_orgs,
         "enterprise_members": _upsert_enterprise_members,
+        "outside_collaborators": _upsert_outside_collaborators,
+        "secret_scanning_alerts": _upsert_secret_scanning_summary,
+        "dependabot_alerts": _upsert_dependabot_summary,
+        "license_consumption": _upsert_license_consumption,
     }
     handler = _UPSERT_DISPATCH.get(entity_type)
     if handler is None:

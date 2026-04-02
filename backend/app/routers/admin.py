@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.deps import AuthenticatedUser, get_db, require_role
@@ -18,10 +19,14 @@ from app.schemas.integration import (
     RoleAssignmentCreate,
     RoleAssignmentResponse,
 )
+from app.services.audit_service import log_action
 from app.services.report_service import get_top_actors_report
 from app.services.settings_service import get_setting, set_setting
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+# Role priority for determining a user's primary (highest-privilege) role.
+_ROLE_PRIORITY: list[str] = ["sys_admin", "report_admin", "rule_author", "analyst", "viewer"]
 
 
 # ─── Role management ──────────────────────────────────────────────────────────
@@ -45,10 +50,27 @@ async def list_role_assignments(
 ) -> list[RoleAssignmentResponse]:
     """List all user role assignments."""
     result = await db.execute(
-        select(UserRoleAssignment).order_by(UserRoleAssignment.created_at.desc())
+        select(UserRoleAssignment)
+        .options(selectinload(UserRoleAssignment.role))
+        .order_by(UserRoleAssignment.granted_at.desc())
     )
     assignments = result.scalars().all()
-    return [RoleAssignmentResponse.model_validate(a) for a in assignments]
+    return [
+        RoleAssignmentResponse(
+            id=a.id,
+            github_login=a.github_login,
+            github_team_slug=a.github_team_slug,
+            role_id=a.role_id,
+            role_name=a.role.name if a.role else "unknown",
+            scope_type=a.scope_type,
+            scope_value=a.scope_value,
+            granted_by=a.granted_by,
+            granted_at=a.granted_at,
+            expires_at=a.expires_at,
+            active=a.active,
+        )
+        for a in assignments
+    ]
 
 
 @router.post(
@@ -56,6 +78,7 @@ async def list_role_assignments(
 )
 async def create_role_assignment(
     payload: RoleAssignmentCreate,
+    request: Request,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
 ) -> RoleAssignmentResponse:
@@ -74,7 +97,7 @@ async def create_role_assignment(
         select(UserRoleAssignment).where(
             UserRoleAssignment.github_login == payload.github_login,
             UserRoleAssignment.role_id == role.id,
-            UserRoleAssignment.org == payload.org,
+            UserRoleAssignment.scope_type == payload.scope_type,
         )
     )
     if existing_result.scalar_one_or_none():
@@ -85,19 +108,55 @@ async def create_role_assignment(
 
     assignment = UserRoleAssignment(
         github_login=payload.github_login,
+        github_team_id=payload.github_team_id,
+        github_team_slug=payload.github_team_slug,
+        saml_subject=payload.saml_subject,
         role_id=role.id,
-        org=payload.org,
-        repo=payload.repo,
+        scope_type=payload.scope_type,
+        scope_value=payload.scope_value,
         granted_by=current_user.github_login,
     )
     db.add(assignment)
     await db.flush()
-    return RoleAssignmentResponse.model_validate(assignment)
+
+    # Eagerly load the role relationship for the response
+    await db.refresh(assignment, attribute_names=["role"])
+    forwarded = request.headers.get("x-forwarded-for")
+    ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else None)
+    )
+    await log_action(
+        db,
+        user_login=current_user.github_login,
+        user_github_id=current_user.github_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        action_type="role_assignment.create",
+        resource_type="role_assignment",
+        resource_id=str(assignment.id),
+        parameters={"login": payload.github_login, "role": payload.role_name},
+    )
+    return RoleAssignmentResponse(
+        id=assignment.id,
+        github_login=assignment.github_login,
+        github_team_slug=assignment.github_team_slug,
+        role_id=assignment.role_id,
+        role_name=assignment.role.name if assignment.role else payload.role_name,
+        scope_type=assignment.scope_type,
+        scope_value=assignment.scope_value,
+        granted_by=assignment.granted_by,
+        granted_at=assignment.granted_at,
+        expires_at=assignment.expires_at,
+        active=assignment.active,
+    )
 
 
 @router.delete("/assignments/{assignment_id}")
 async def delete_role_assignment(
     assignment_id: int,
+    request: Request,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
@@ -108,8 +167,27 @@ async def delete_role_assignment(
     assignment = result.scalar_one_or_none()
     if not assignment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
+    assignment_login = assignment.github_login
+    assignment_role_id = assignment.role_id
     await db.delete(assignment)
     await db.flush()
+    forwarded = request.headers.get("x-forwarded-for")
+    ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else None)
+    )
+    await log_action(
+        db,
+        user_login=current_user.github_login,
+        user_github_id=current_user.github_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        action_type="role_assignment.delete",
+        resource_type="role_assignment",
+        resource_id=str(assignment_id),
+        parameters={"login": assignment_login, "role_id": assignment_role_id},
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -305,18 +383,82 @@ async def list_active_sessions(
             LIMIT 50
         """)
     )
+    rows = result.fetchall()
+    if not rows:
+        return []
+
+    # Resolve actual RBAC roles for all active users
+    logins = [row.user_login for row in rows]
+    role_result = await db.execute(
+        select(UserRoleAssignment.github_login, RbacRole.name)
+        .join(RbacRole, UserRoleAssignment.role_id == RbacRole.id)
+        .where(
+            UserRoleAssignment.github_login.in_(logins),
+            UserRoleAssignment.active.is_(True),
+            (UserRoleAssignment.expires_at.is_(None))
+            | (UserRoleAssignment.expires_at > text("NOW()")),
+        )
+    )
+
+    # Build login → set of role names
+    login_roles: dict[str, set[str]] = {}
+    for login, role_name in role_result.fetchall():
+        login_roles.setdefault(login, set()).add(role_name)
+
+    # Grant sys_admin to bootstrap admin logins
+    for login in logins:
+        if login.lower() in settings.initial_admin_logins:
+            login_roles.setdefault(login, set()).add("sys_admin")
+
+    def _primary_role(login: str) -> str:
+        """Return the highest-privilege role for a user."""
+        roles = login_roles.get(login, set())
+        for r in _ROLE_PRIORITY:
+            if r in roles:
+                return r
+        return "viewer"
+
     sessions: list[dict[str, Any]] = []
-    for row in result.fetchall():
+    for row in rows:
         sessions.append(
             {
                 "login": row.user_login,
                 "last_active_at": (row.last_active_at.isoformat() if row.last_active_at else None),
                 "session_count": row.session_count,
-                "role": "analyst",
+                "role": _primary_role(row.user_login),
                 "mfa_enabled": True,
             }
         )
     return sessions
+
+
+# ─── Synced teams ─────────────────────────────────────────────────────────────
+
+
+@router.get("/teams", response_model=list[dict[str, Any]])
+async def list_synced_teams(
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """List GitHub teams from the latest enterprise sync.
+
+    Returns teams from the ``org_teams`` table so the frontend can display
+    team names in role assignment forms and validate team slugs.
+    """
+    from app.models.github_sync import OrgTeam
+
+    result = await db.execute(select(OrgTeam).order_by(OrgTeam.org, OrgTeam.team_slug).limit(500))
+    teams = result.scalars().all()
+    return [
+        {
+            "org": t.org,
+            "team_slug": t.team_slug,
+            "name": t.name,
+            "privacy": t.privacy,
+            "synced_at": t.synced_at.isoformat() if t.synced_at else None,
+        }
+        for t in teams
+    ]
 
 
 # ─── Ingest job stubs ─────────────────────────────────────────────────────────

@@ -6,11 +6,12 @@ based on their sensitivity level.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import AuthenticatedUser, get_db, require_role
 from app.schemas.setup import SettingUpdate
+from app.services.audit_service import log_action
 from app.services.config_overlay import load_settings_overlay
 from app.services.settings_service import (
     delete_setting,
@@ -65,6 +66,7 @@ async def get_setting_endpoint(
 async def update_setting_endpoint(
     key: str,
     payload: SettingUpdate,
+    request: Request,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
@@ -80,12 +82,29 @@ async def update_setting_endpoint(
     )
     # Refresh the in-memory overlay so changes take effect immediately
     await load_settings_overlay(db)
+    forwarded = request.headers.get("x-forwarded-for")
+    ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else None)
+    )
+    await log_action(
+        db,
+        user_login=current_user.github_login,
+        user_github_id=current_user.github_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        action_type="setting.update",
+        resource_type="setting",
+        resource_id=key,
+    )
     return {"status": "ok", "message": f"Setting '{key}' updated"}
 
 
 @router.delete("/{key}")
 async def delete_setting_endpoint(
     key: str,
+    request: Request,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
@@ -98,4 +117,20 @@ async def delete_setting_endpoint(
         )
     # Refresh overlay — the env var default will now take effect
     await load_settings_overlay(db)
+    forwarded = request.headers.get("x-forwarded-for")
+    ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else None)
+    )
+    await log_action(
+        db,
+        user_login=current_user.github_login,
+        user_github_id=current_user.github_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        action_type="setting.delete",
+        resource_type="setting",
+        resource_id=key,
+    )
     return {"status": "ok", "message": f"Setting '{key}' deleted, reverted to env var default"}

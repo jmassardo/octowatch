@@ -8,6 +8,7 @@ export interface RoleAssignment {
   readonly github_login: string;
   readonly github_team_slug: string | null;
   readonly role_id: number;
+  readonly role_name: string;
   readonly scope_type: string;
   readonly scope_value: string | null;
   readonly granted_by: string;
@@ -21,6 +22,7 @@ export interface RoleAssignmentCreate {
   role_name: string;
   scope_type: string;
   scope_value?: string;
+  github_team_slug?: string;
   expires_at?: string;
 }
 
@@ -53,4 +55,12 @@ export interface ActiveSession {
   readonly session_count: number;
   readonly role: string;
   readonly mfa_enabled: boolean;
+}
+
+export interface OrgTeam {
+  readonly org: string;
+  readonly team_slug: string;
+  readonly name: string;
+  readonly privacy: string | null;
+  readonly synced_at: string | null;
 }

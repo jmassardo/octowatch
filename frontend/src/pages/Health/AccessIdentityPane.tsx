@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
@@ -5,6 +6,8 @@ import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { BarChart } from '../../components/charts/BarChart';
+import { DrilldownModal } from '../../components/primitives/DrilldownModal';
+import type { ColumnDef } from '../../components/primitives/DataTable';
 import {
   getPatHealth,
   getBypassOffenders,
@@ -18,18 +21,10 @@ import type {
   DormantCollaborator,
   CollabSummary,
 } from '../../api/healthSignals';
+import { formatDateOnly } from '../../utils/dates';
 import styles from './AccessIdentityPane.module.css';
 
 /* ---------- helpers ---------- */
-
-function formatDate(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
 
 function formatDaysAgo(days: number | null): string {
   if (days === null) return '—';
@@ -82,9 +77,67 @@ function buildPatAgeBuckets(tokens: PatToken[]): { labels: string[]; counts: num
 /* ---------- sub-components ---------- */
 
 function MemberActivityOverview({ dormant }: { dormant: DormantCollaborator[] }) {
-  const dormantCount = dormant.filter((d) => d.days_inactive >= 90).length;
-  const atRiskCount = dormant.filter((d) => d.days_inactive >= 60 && d.days_inactive < 90).length;
-  const newCount = dormant.filter((d) => d.days_inactive < 30).length;
+  const [drilldown, setDrilldown] = useState<'dormant' | 'at-risk' | 'new' | null>(null);
+
+  const dormantMembers = dormant.filter((d) => d.days_inactive >= 90);
+  const atRiskMembers = dormant.filter((d) => d.days_inactive >= 60 && d.days_inactive < 90);
+  const newMembers = dormant.filter((d) => d.days_inactive < 30);
+
+  const dormantCount = dormantMembers.length;
+  const atRiskCount = atRiskMembers.length;
+  const newCount = newMembers.length;
+
+  const drilldownData =
+    drilldown === 'dormant'
+      ? dormantMembers
+      : drilldown === 'at-risk'
+        ? atRiskMembers
+        : drilldown === 'new'
+          ? newMembers
+          : [];
+  const drilldownTitle =
+    drilldown === 'dormant'
+      ? 'Dormant members (90+ days inactive)'
+      : drilldown === 'at-risk'
+        ? 'At-risk members (60–90 days inactive)'
+        : 'New members (joined in last 30 days)';
+
+  const memberColumns: ColumnDef<DormantCollaborator>[] = [
+    {
+      key: 'login',
+      header: 'Member',
+      sortable: true,
+      filterable: true,
+      render: (d) => `@${d.github_login}`,
+      sortValue: (d) => d.github_login,
+      filterValue: (d) => d.github_login,
+    },
+    { key: 'org', header: 'Organization', render: (d) => d.org },
+    {
+      key: 'role',
+      header: 'Role',
+      render: (d) => (d.role === 'outside_collaborator' ? 'outside collaborator' : d.role),
+    },
+    {
+      key: 'last_seen',
+      header: 'Last Seen',
+      render: (d) => (d.last_event_at ? formatDateOnly(d.last_event_at) : '—'),
+    },
+    {
+      key: 'days',
+      header: 'Days Inactive',
+      sortable: true,
+      render: (d) => String(d.days_inactive),
+      sortValue: (d) => d.days_inactive,
+    },
+  ];
+
+  function handleKeyDown(e: React.KeyboardEvent, target: 'dormant' | 'at-risk' | 'new') {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setDrilldown(target);
+    }
+  }
 
   return (
     <Card>
@@ -93,21 +146,51 @@ function MemberActivityOverview({ dormant }: { dormant: DormantCollaborator[] })
         <div className={`${styles.statusRow} ${styles.statusRowDanger}`}>
           <Label variant="danger">dormant</Label>
           <div className={styles.statusBody}>
-            <strong>{dormantCount} {dormantCount === 1 ? 'member' : 'members'}</strong> no activity in 90+ days
+            <span
+              className={styles.clickableStat}
+              onClick={() => setDrilldown('dormant')}
+              role="button"
+              tabIndex={0}
+              aria-label={`${dormantCount} dormant members – click to view details`}
+              onKeyDown={(e) => handleKeyDown(e, 'dormant')}
+            >
+              <strong>{dormantCount} {dormantCount === 1 ? 'member' : 'members'}</strong>
+            </span>{' '}
+            no activity in 90+ days
           </div>
           <span className={styles.statusNote}>still licensed</span>
         </div>
         <div className={`${styles.statusRow} ${styles.statusRowAttention}`}>
           <Label variant="attention">at risk</Label>
           <div className={styles.statusBody}>
-            <strong>{atRiskCount} {atRiskCount === 1 ? 'member' : 'members'}</strong> no activity in 60–90 days
+            <span
+              className={styles.clickableStat}
+              onClick={() => setDrilldown('at-risk')}
+              role="button"
+              tabIndex={0}
+              aria-label={`${atRiskCount} at-risk members – click to view details`}
+              onKeyDown={(e) => handleKeyDown(e, 'at-risk')}
+            >
+              <strong>{atRiskCount} {atRiskCount === 1 ? 'member' : 'members'}</strong>
+            </span>{' '}
+            no activity in 60–90 days
           </div>
           <span className={styles.statusNote}>trending dormant</span>
         </div>
         <div className={`${styles.statusRow} ${styles.statusRowSuccess}`}>
           <Label variant="success">new</Label>
           <div className={styles.statusBody}>
-            <strong>{newCount} {newCount === 1 ? 'member' : 'members'}</strong> joined in last 30 days
+            <span
+              className={styles.clickableStat}
+              onClick={() => setDrilldown('new')}
+              role="button"
+              tabIndex={0}
+              aria-label={`${newCount} new members – click to view details`}
+              onKeyDown={(e) => handleKeyDown(e, 'new')}
+            >
+              <strong>{newCount} {newCount === 1 ? 'member' : 'members'}</strong>
+            </span>{' '}
+            joined in last 30 days
           </div>
           <span className={styles.statusNote}>onboarding period</span>
         </div>
@@ -116,6 +199,14 @@ function MemberActivityOverview({ dormant }: { dormant: DormantCollaborator[] })
         ℹ Derived from <code className={styles.codeSnippet}>org.add_member</code>,{' '}
         <code className={styles.codeSnippet}>user.login</code>, and per-actor event timestamps
       </div>
+      <DrilldownModal
+        open={drilldown !== null}
+        onClose={() => setDrilldown(null)}
+        title={drilldownTitle}
+        data={drilldownData}
+        columns={memberColumns}
+        rowKey={(d) => `${d.github_login}-${d.org}`}
+      />
     </Card>
   );
 }
@@ -124,11 +215,63 @@ function PatHealthSnapshot({
   noExpiryCount,
   expiredCount,
   stale90dCount,
+  tokens,
 }: {
   noExpiryCount: number;
   expiredCount: number;
   stale90dCount: number;
+  tokens: PatToken[];
 }) {
+  const [drilldown, setDrilldown] = useState<'no-expiry' | 'expiring' | 'stale' | null>(null);
+
+  const noExpiryTokens = tokens.filter((t) => t.signal_type === 'no_expiry');
+  const expiringTokens = tokens.filter((t) => t.signal_type === 'expired');
+  const staleTokens = tokens.filter((t) => t.signal_type === 'stale_90d');
+
+  const drilldownData =
+    drilldown === 'no-expiry'
+      ? noExpiryTokens
+      : drilldown === 'expiring'
+        ? expiringTokens
+        : drilldown === 'stale'
+          ? staleTokens
+          : [];
+  const drilldownTitle =
+    drilldown === 'no-expiry'
+      ? 'Tokens with no expiration date'
+      : drilldown === 'expiring'
+        ? 'Tokens expiring within 30 days'
+        : 'Stale tokens (unused 90+ days)';
+
+  const tokenColumns: ColumnDef<PatToken>[] = [
+    {
+      key: 'user',
+      header: 'User',
+      sortable: true,
+      filterable: true,
+      render: (t) => t.github_login,
+      sortValue: (t) => t.github_login,
+      filterValue: (t) => t.github_login,
+    },
+    { key: 'token_name', header: 'Token Name', render: (t) => t.token_name ?? '—' },
+    { key: 'token_type', header: 'Type', render: (t) => t.token_type ?? '—' },
+    { key: 'created', header: 'Created', render: (t) => formatDateOnly(t.created_at) },
+    {
+      key: 'age',
+      header: 'Age (days)',
+      sortable: true,
+      render: (t) => String(t.age_days),
+      sortValue: (t) => t.age_days,
+    },
+  ];
+
+  function handleKeyDown(e: React.KeyboardEvent, target: 'no-expiry' | 'expiring' | 'stale') {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setDrilldown(target);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>PAT health snapshot</CardHeader>
@@ -136,21 +279,51 @@ function PatHealthSnapshot({
         <div className={`${styles.statusRow} ${styles.statusRowDanger}`}>
           <Label variant="danger">no expiry</Label>
           <div className={styles.statusBody}>
-            <strong>{noExpiryCount} {noExpiryCount === 1 ? 'token' : 'tokens'}</strong> with no expiration date
+            <span
+              className={styles.clickableStat}
+              onClick={() => setDrilldown('no-expiry')}
+              role="button"
+              tabIndex={0}
+              aria-label={`${noExpiryCount} tokens with no expiry – click to view details`}
+              onKeyDown={(e) => handleKeyDown(e, 'no-expiry')}
+            >
+              <strong>{noExpiryCount} {noExpiryCount === 1 ? 'token' : 'tokens'}</strong>
+            </span>{' '}
+            with no expiration date
           </div>
           <span className={styles.statusNote}>never rotate</span>
         </div>
         <div className={`${styles.statusRow} ${styles.statusRowSevere}`}>
           <Label variant="severe">expiring soon</Label>
           <div className={styles.statusBody}>
-            <strong>{expiredCount} {expiredCount === 1 ? 'token' : 'tokens'}</strong> expire within 30 days
+            <span
+              className={styles.clickableStat}
+              onClick={() => setDrilldown('expiring')}
+              role="button"
+              tabIndex={0}
+              aria-label={`${expiredCount} tokens expiring soon – click to view details`}
+              onKeyDown={(e) => handleKeyDown(e, 'expiring')}
+            >
+              <strong>{expiredCount} {expiredCount === 1 ? 'token' : 'tokens'}</strong>
+            </span>{' '}
+            expire within 30 days
           </div>
           <span className={styles.statusNote}>may break automations</span>
         </div>
         <div className={`${styles.statusRow} ${styles.statusRowMuted}`}>
           <Label variant="muted">stale</Label>
           <div className={styles.statusBody}>
-            <strong>{stale90dCount} {stale90dCount === 1 ? 'token' : 'tokens'}</strong> not used in 90+ days
+            <span
+              className={styles.clickableStat}
+              onClick={() => setDrilldown('stale')}
+              role="button"
+              tabIndex={0}
+              aria-label={`${stale90dCount} stale tokens – click to view details`}
+              onKeyDown={(e) => handleKeyDown(e, 'stale')}
+            >
+              <strong>{stale90dCount} {stale90dCount === 1 ? 'token' : 'tokens'}</strong>
+            </span>{' '}
+            not used in 90+ days
           </div>
           <span className={styles.statusNote}>candidates for revocation</span>
         </div>
@@ -159,6 +332,14 @@ function PatHealthSnapshot({
         ℹ Derived from <code className={styles.codeSnippet}>personal_access_token.*</code> events
         and <code className={styles.codeSnippet}>authentication.token</code> usage in audit log
       </div>
+      <DrilldownModal
+        open={drilldown !== null}
+        onClose={() => setDrilldown(null)}
+        title={drilldownTitle}
+        data={drilldownData}
+        columns={tokenColumns}
+        rowKey={(t) => t.token_id ?? `${t.github_login}-${t.created_at}`}
+      />
     </Card>
   );
 }
@@ -200,7 +381,7 @@ function BypassOffendersTable({ offenders }: { offenders: BypassOffender[] }) {
                 <td className={styles.numCol}>{o.push_protection_bypasses}</td>
                 <td className={styles.numCol}>{o.branch_protection_overrides}</td>
                 <td className={styles.numCol}>{o.active_days}</td>
-                <td style={{ color: 'var(--fg-muted)' }}>{formatDate(o.last_bypass_at)}</td>
+                <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(o.last_bypass_at)}</td>
               </tr>
             ))}
           </tbody>
@@ -256,7 +437,7 @@ function ExternalCollaboratorsTable({
                 <td>
                   <Label variant={c.role === 'admin' ? 'danger' : 'severe'}>{c.role}</Label>
                 </td>
-                <td style={{ color: 'var(--fg-muted)' }}>{formatDate(c.granted_at)}</td>
+                <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(c.granted_at)}</td>
                 <td style={{ color: 'var(--fg-muted)' }}>{formatDaysAgo(c.days_since_last_event)}</td>
                 <td>
                   <Label variant={riskBadgeVariant(c)}>{riskBadgeText(c)}</Label>
@@ -310,7 +491,7 @@ function DormantMembersTable({ dormant }: { dormant: DormantCollaborator[] }) {
                       {d.role === 'outside_collaborator' ? 'outside collaborator' : d.role}
                     </Label>
                   </td>
-                  <td style={{ color: 'var(--fg-muted)' }}>{formatDate(d.last_event_at)}</td>
+                  <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(d.last_event_at)}</td>
                   <td className={styles.numCol}>
                     <Label variant={d.days_inactive >= 90 ? 'danger' : 'attention'}>
                       {daysLabel(d.days_inactive)}
@@ -424,6 +605,7 @@ export function AccessIdentityPane() {
           noExpiryCount={patData?.summary.no_expiry_count ?? 0}
           expiredCount={patData?.summary.expired_count ?? 0}
           stale90dCount={patData?.summary.stale_90d_count ?? 0}
+          tokens={allTokens}
         />
       </div>
 

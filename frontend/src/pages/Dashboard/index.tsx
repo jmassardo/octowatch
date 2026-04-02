@@ -12,6 +12,7 @@ import { useOrg } from '../../hooks/useOrg';
 import type { EventResponse } from '../../types/events';
 import type { ActionsVolumeBucket } from '../../types/reports';
 import type { DetectionSeverity } from '../../types/detections';
+import { formatRelative } from '../../utils/dates';
 import styles from './Dashboard.module.css';
 
 function ClickableValue({
@@ -75,16 +76,6 @@ function eventTypeClass(action: string): 'security' | 'platform' | 'warning' | '
   if (a.includes('workflow') || a.includes('push') || a.includes('deploy')) return 'platform';
   if (a.includes('failed') || a.includes('error')) return 'warning';
   return 'info';
-}
-
-function formatRelative(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
-  return `${Math.floor(hours / 24)} days ago`;
 }
 
 function EventFeedItem({ event }: { event: EventResponse }) {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RepoHealthPane } from './RepoHealthPane';
 import type { RepoHealthResponse } from '../../api/healthSignals';
@@ -214,5 +214,62 @@ describe('RepoHealthPane', () => {
     };
     renderPane();
     expect(screen.getByText(/1 repo/)).toBeInTheDocument();
+  });
+
+  /* ---- Drill-down modals ---- */
+
+  it('opens drill-down modal when "no branch protection" stat is clicked', () => {
+    renderPane();
+    // Repos with days_since_activity > 180 = legacy-payments (389d) + old-api (200d)
+    const branchProtStat = screen.getByRole('button', {
+      name: /repos with no branch protection/i,
+    });
+    fireEvent.click(branchProtStat);
+    // Modal opened — close button appears
+    expect(screen.getByLabelText('Close')).toBeInTheDocument();
+    // Title appears twice: once in the card header, once in the modal
+    const titles = screen.getAllByText('Repos with no branch protection on default branch');
+    expect(titles.length).toBe(2);
+    // Modal should show repos with > 180 days in the DataTable
+    // legacy-payments appears in main table + archive list + modal, old-api appears in main table + archive list + modal
+    const legacyMatches = screen.getAllByText('acme-corp/legacy-payments');
+    expect(legacyMatches.length).toBeGreaterThanOrEqual(3);
+    const oldApiMatches = screen.getAllByText('acme-corp/old-api');
+    expect(oldApiMatches.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('opens drill-down modal when "secret scanning disabled" stat is clicked', () => {
+    renderPane();
+    // Repos with days_since_activity > 90 = legacy-payments (389d) + old-api (200d)
+    const secretScanStat = screen.getByRole('button', {
+      name: /repos with secret scanning disabled/i,
+    });
+    fireEvent.click(secretScanStat);
+    // Modal opened
+    expect(screen.getByLabelText('Close')).toBeInTheDocument();
+    const titles = screen.getAllByText('Repos with secret scanning disabled');
+    expect(titles.length).toBe(2);
+  });
+
+  it('closes drill-down modal when close button is clicked', () => {
+    renderPane();
+    const branchProtStat = screen.getByRole('button', {
+      name: /repos with no branch protection/i,
+    });
+    fireEvent.click(branchProtStat);
+    // Modal is open
+    const closeBtn = screen.getByLabelText('Close');
+    fireEvent.click(closeBtn);
+    // Modal content should be gone (modal titles appear elsewhere too, so check for modal-specific content)
+    expect(screen.queryByLabelText('Close')).not.toBeInTheDocument();
+  });
+
+  it('drill-down stat is keyboard accessible', () => {
+    renderPane();
+    const branchProtStat = screen.getByRole('button', {
+      name: /repos with no branch protection/i,
+    });
+    fireEvent.keyDown(branchProtStat, { key: 'Enter' });
+    expect(screen.getByLabelText('Close')).toBeInTheDocument();
   });
 });

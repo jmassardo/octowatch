@@ -16,26 +16,36 @@ vi.mock('../../api/reports', () => ({
     org: null,
     granularity: 'daily',
     window_days: 30,
+    data_source: 'Audit Events',
     generated_at: '2024-01-15T00:00:00Z',
-    data: [{ bucket: '2024-01-01', unique_actor_count: 42 }],
+    data: [{ bucket: '2024-01-01', unique_actors: 42, total_events: 150 }],
   }),
   getSeatUtilizationReport: vi.fn().mockResolvedValue({
     report_type: 'seat_utilization',
     org: null,
     granularity: 'daily',
     window_days: 30,
+    data_source: 'Audit Events',
     generated_at: '2024-01-15T00:00:00Z',
-    data: [{ bucket: '2024-01-01', active_seat_count: 10 }],
+    data: [
+      {
+        bucket: '2024-01-01',
+        active_seat_count: 10,
+        provisioned_seat_count: 20,
+        utilization_pct: 50.0,
+      },
+    ],
   }),
   getActionsVolumeReport: vi.fn().mockResolvedValue({
     report_type: 'actions_volume',
     org: null,
     granularity: 'daily',
     window_days: 30,
+    data_source: 'Audit Events',
     generated_at: '2024-01-15T00:00:00Z',
     data: [
-      { bucket: '2024-01-01', workflow_runs_total: 100 },
-      { bucket: '2024-01-02', workflow_runs_total: 120 },
+      { bucket: '2024-01-01', org: 'acme', workflow_runs: 100, unique_actors: 5, unique_repos: 3 },
+      { bucket: '2024-01-02', org: 'acme', workflow_runs: 120, unique_actors: 6, unique_repos: 4 },
     ],
   }),
   getCopilotSeatsReport: vi.fn().mockResolvedValue({
@@ -43,8 +53,17 @@ vi.mock('../../api/reports', () => ({
     org: null,
     granularity: 'daily',
     window_days: 30,
+    data_source: 'Audit Events (Copilot)',
     generated_at: '2024-01-15T00:00:00Z',
-    data: [{ bucket: '2024-01-01', seats_assigned: 5 }],
+    data: [
+      {
+        bucket: '2024-01-01',
+        seats_assigned: 5,
+        seats_revoked: 1,
+        seats_net: 4,
+        policy_change_count: 0,
+      },
+    ],
   }),
   exportReport: vi.fn(),
   getReportCatalog: vi.fn().mockResolvedValue([]),
@@ -194,7 +213,7 @@ describe('ReportsPage', () => {
     expect(screen.getByText(/Data summary/)).toBeInTheDocument();
     expect(screen.getByText('Total MAU buckets')).toBeInTheDocument();
     expect(screen.getByText('Actions buckets')).toBeInTheDocument();
-    expect(screen.getByText('Seat util buckets')).toBeInTheDocument();
+    expect(screen.getByText('Platform seat util buckets')).toBeInTheDocument();
     expect(screen.getByText('Copilot seat buckets')).toBeInTheDocument();
   });
 
@@ -396,5 +415,91 @@ describe('ReportsPage', () => {
     await screen.findByText('Tagged Report');
     expect(screen.getByText('security')).toBeInTheDocument();
     expect(screen.getByText('automated')).toBeInTheDocument();
+  });
+
+  it('renders data source labels on summary cards', async () => {
+    renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      const sources = screen.getAllByText(/Source: Audit Events/);
+      expect(sources.length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  it('renders data source label on catalog items when data_source is present', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-ds',
+        type: 'mau',
+        title: 'MAU With Source',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+        data_source: 'Audit Events',
+      },
+    ]);
+    renderWithProviders(<ReportsPage />);
+    await screen.findByText('MAU With Source');
+    expect(screen.getByText('Audit Events')).toBeInTheDocument();
+  });
+
+  it('renders description on catalog items when description is present', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-desc',
+        type: 'mau',
+        title: 'MAU With Description',
+        description: 'Unique actors per time bucket.',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
+    renderWithProviders(<ReportsPage />);
+    await screen.findByText('MAU With Description');
+    expect(screen.getByText('Unique actors per time bucket.')).toBeInTheDocument();
+  });
+
+  it('renders data source in bucket modal when opened', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(container.querySelector('.clickableValue')).not.toBeNull();
+    });
+    const clickable = container.querySelector('.clickableValue')!;
+    await user.click(clickable);
+    // Modal may render in a portal; check at document level
+    const modalSources = document.querySelectorAll('.modalDataSource');
+    expect(modalSources.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders data source in report view modal', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-1',
+        type: 'mau',
+        title: 'MAU Report View',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    const title = await screen.findByText('MAU Report View');
+    await user.click(title);
+
+    expect(screen.getByText('Monthly Active Users')).toBeInTheDocument();
+    // Modal may render in a portal; check at document level
+    const modalSources = document.querySelectorAll('.modalDataSource');
+    expect(modalSources.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('shows Platform seat util instead of Seat util for seat-utilization summary', () => {
+    renderWithProviders(<ReportsPage />);
+    expect(screen.getByText('Platform seat util buckets')).toBeInTheDocument();
   });
 });

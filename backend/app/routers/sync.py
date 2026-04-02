@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,6 +33,7 @@ from app.schemas.github_sync import (
     SyncTriggerRequest,
     SyncTriggerResponse,
 )
+from app.services.audit_service import log_action
 from app.services.settings_service import get_setting, set_setting
 
 logger = structlog.get_logger(__name__)
@@ -42,6 +43,7 @@ router = APIRouter(prefix="/sync", tags=["sync"])
 @router.post("/trigger", response_model=SyncTriggerResponse, status_code=status.HTTP_202_ACCEPTED)
 async def trigger_sync(
     body: SyncTriggerRequest,
+    request: Request,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
 ) -> SyncTriggerResponse:
@@ -51,7 +53,7 @@ async def trigger_sync(
     Writes an audit trail entry before dispatching the Celery task.
     """
     # Auto-expire stale runs (stuck > 2 hours with no worker processing)
-    stale_cutoff = datetime.now(timezone.utc) - timedelta(hours=2)
+    stale_cutoff = datetime.now(UTC) - timedelta(hours=2)
     await db.execute(
         update(EnterpriseSyncRun)
         .where(
@@ -60,7 +62,7 @@ async def trigger_sync(
         )
         .values(
             status="failed",
-            completed_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(UTC),
             error_message="Auto-expired: no progress for 2+ hours",
         )
     )
@@ -88,15 +90,22 @@ async def trigger_sync(
     db.add(run)
 
     # Audit trail
-    db.add(
-        AuditTrail(
-            user_login=current_user.github_login,
-            action_type="github_sync.trigger",
-            resource_type="enterprise_sync_run",
-            resource_id=str(run_id),
-            parameters={"scope": body.scope},
-            outcome="success",
-        )
+    forwarded = request.headers.get("x-forwarded-for")
+    ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (request.client.host if request.client else None)
+    )
+    await log_action(
+        db,
+        user_login=current_user.github_login,
+        user_github_id=current_user.github_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        action_type="sync.trigger",
+        resource_type="enterprise_sync_run",
+        resource_id=str(run_id),
+        parameters={"scope": body.scope, "trigger_type": "manual"},
     )
     await db.commit()
 
@@ -252,7 +261,7 @@ async def cancel_run(
         .where(EnterpriseSyncRun.id == run_id)
         .values(
             status="cancelled",
-            completed_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(UTC),
             error_message="Cancelled by operator",
         )
     )

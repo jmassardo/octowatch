@@ -220,16 +220,6 @@ export function Sidebar() {
           Users & Roles
         </NavItem>
         <NavItem
-          to="/integrations"
-          icon={
-            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 110-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5z" />
-            </svg>
-          }
-        >
-          Integrations
-        </NavItem>
-        <NavItem
           to="/settings"
           icon={
             <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">

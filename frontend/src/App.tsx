@@ -13,7 +13,6 @@ import { ReportsPage } from './pages/Reports';
 import { QueryPage } from './pages/Query';
 import { RulesPage } from './pages/Rules';
 import { UsersPage } from './pages/Users';
-import { IntegrationsPage } from './pages/Integrations';
 import { HealthPage } from './pages/Health';
 import { HealthSettingsPage } from './pages/Health/HealthSettings';
 import { PosturePage } from './pages/Posture';
@@ -47,7 +46,7 @@ export const router = createBrowserRouter([
       { path: '/query', element: <QueryPage /> },
       { path: '/rules', element: <RulesPage /> },
       { path: '/users', element: <UsersPage /> },
-      { path: '/integrations', element: <IntegrationsPage /> },
+      { path: '/integrations', element: <Navigate to="/settings/integrations" replace /> },
       { path: '/settings', element: <Navigate to="/settings/all" replace /> },
       { path: '/settings/:tab', element: <SettingsPage /> },
     ],

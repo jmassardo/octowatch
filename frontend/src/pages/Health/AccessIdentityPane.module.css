@@ -155,3 +155,14 @@
 .link:hover {
   text-decoration: underline;
 }
+
+.clickableStat {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.clickableStat:hover {
+  color: var(--accent);
+  text-decoration: underline solid;
+}

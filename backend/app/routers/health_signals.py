@@ -515,3 +515,120 @@ async def list_teams(
     teams = [dict(row._mapping) for row in result.fetchall()]
 
     return {"teams": teams}
+
+
+# ── License consumption (from GHEC enterprise sync) ──────────────────────────
+
+
+@router.get("/license-consumption")
+async def license_consumption(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Return GHEC license seat data from the enterprise sync.
+
+    Returns the most recent ``EnterpriseLicenseConsumption`` row which is
+    populated by the ``license_consumption`` sync entity type.
+    """
+    from sqlalchemy import text as sa_text
+
+    result = await db.execute(
+        sa_text("""
+            SELECT enterprise_slug,
+                   total_seats_purchased,
+                   total_seats_consumed,
+                   synced_at
+            FROM enterprise_license_consumption
+            ORDER BY synced_at DESC
+            LIMIT 1
+        """)
+    )
+    row = result.fetchone()
+    if row is None:
+        return {
+            "enterprise_slug": None,
+            "total_seats_purchased": 0,
+            "total_seats_consumed": 0,
+            "seats_available": 0,
+            "utilization_pct": 0,
+            "synced_at": None,
+        }
+    m = dict(row._mapping)
+    purchased = m["total_seats_purchased"]
+    consumed = m["total_seats_consumed"]
+    return {
+        "enterprise_slug": m["enterprise_slug"],
+        "total_seats_purchased": purchased,
+        "total_seats_consumed": consumed,
+        "seats_available": max(0, purchased - consumed),
+        "utilization_pct": round(consumed / purchased * 100, 1) if purchased else 0,
+        "synced_at": m["synced_at"].isoformat() if m["synced_at"] else None,
+    }
+
+
+# ── Outside collaborators (from enterprise sync) ────────────────────────────
+
+
+@router.get("/outside-collaborators-sync")
+async def outside_collaborators_sync(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Return outside collaborators from the enterprise sync data."""
+    from sqlalchemy import text as sa_text
+
+    scoped_orgs = await _resolve_orgs(db, current_user)
+
+    result = await db.execute(
+        sa_text("""
+            SELECT org, login, github_id, avatar_url, site_admin, synced_at
+            FROM org_outside_collaborators
+            WHERE org = ANY(:scoped_orgs)
+            ORDER BY org, login
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    collaborators = [dict(row._mapping) for row in result.fetchall()]
+    return {"collaborators": collaborators, "total": len(collaborators)}
+
+
+# ── Security alerts summary (from enterprise sync) ──────────────────────────
+
+
+@router.get("/security-alerts-summary")
+async def security_alerts_summary(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Return aggregated secret-scanning and Dependabot alert summaries."""
+    from sqlalchemy import text as sa_text
+
+    scoped_orgs = await _resolve_orgs(db, current_user)
+
+    ss_result = await db.execute(
+        sa_text("""
+            SELECT org, open_count, resolved_count, total_count, synced_at
+            FROM org_secret_scanning_alert_summaries
+            WHERE org = ANY(:scoped_orgs)
+            ORDER BY org
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    secret_scanning = [dict(row._mapping) for row in ss_result.fetchall()]
+
+    dep_result = await db.execute(
+        sa_text("""
+            SELECT org, open_count, fixed_count, dismissed_count, total_count,
+                   critical_count, high_count, medium_count, low_count, synced_at
+            FROM org_dependabot_alert_summaries
+            WHERE org = ANY(:scoped_orgs)
+            ORDER BY org
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    dependabot = [dict(row._mapping) for row in dep_result.fetchall()]
+
+    return {
+        "secret_scanning": secret_scanning,
+        "dependabot": dependabot,
+    }

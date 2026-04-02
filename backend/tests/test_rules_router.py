@@ -61,6 +61,9 @@ def _make_mock_db() -> AsyncMock:
     mock_result.scalar_one_or_none.return_value = None
     db = AsyncMock()
     db.execute = AsyncMock(return_value=mock_result)
+    # session.add() is synchronous in SQLAlchemy — use MagicMock to avoid
+    # the "coroutine was never awaited" RuntimeWarning from AsyncMock.
+    db.add = MagicMock()
     return db
 
 

@@ -8,12 +8,17 @@ import {
   getSettingsAuditTrail,
 } from '../../api/setup';
 import type { AppSetting, SettingAuditEntry } from '../../api/setup';
+import { listNotificationConfigs } from '../../api/integrations';
+import { SyncPanel } from '../Integrations/SyncPanel';
+import { SyncRunHistory } from '../Integrations/SyncRunHistory';
+import { ManualIngestPanel } from '../Integrations/ManualIngestPanel';
 import { Button } from '../../components/primitives/Button';
 import { Modal } from '../../components/primitives/Modal';
 import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { useFeatures } from '../../hooks/useFeatures';
+import { formatAbsolute } from '../../utils/dates';
 import styles from './Settings.module.css';
 
 /* ------------------------------------------------------------------ */
@@ -23,7 +28,7 @@ import styles from './Settings.module.css';
 const CATEGORIES = ['All', 'GitHub', 'Security', 'Storage', 'Notifications', 'System'] as const;
 type Category = (typeof CATEGORIES)[number];
 
-const SLUG_TO_TAB: Record<string, Category | 'Audit' | 'Features'> = {
+const SLUG_TO_TAB: Record<string, Category | 'Audit' | 'Features' | 'Integrations'> = {
   all: 'All',
   github: 'GitHub',
   security: 'Security',
@@ -32,6 +37,7 @@ const SLUG_TO_TAB: Record<string, Category | 'Audit' | 'Features'> = {
   system: 'System',
   audit: 'Audit',
   features: 'Features',
+  integrations: 'Integrations',
 };
 
 const TAB_TO_SLUG: Record<string, string> = Object.fromEntries(
@@ -41,14 +47,6 @@ const TAB_TO_SLUG: Record<string, string> = Object.fromEntries(
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
-
-function formatDateTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
-}
 
 function sensitivityClass(sensitivity: string): string {
   if (sensitivity === 'critical') return styles.sensitivityCritical;
@@ -171,7 +169,7 @@ function AuditTrailTable() {
               <td>{entry.changed_by}</td>
               <td className={styles.settingValue}>{entry.old_value_masked ?? '—'}</td>
               <td className={styles.settingValue}>{entry.new_value_masked ?? '—'}</td>
-              <td className={styles.settingMeta}>{formatDateTime(entry.created_at)}</td>
+              <td className={styles.settingMeta}>{formatAbsolute(entry.created_at)}</td>
             </tr>
           ))}
         </tbody>
@@ -244,6 +242,198 @@ function FeaturesPane() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Integrations Pane                                                  */
+/* ------------------------------------------------------------------ */
+
+const INTEGRATION_INFO: {
+  key: string;
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: 'slack',
+    label: 'Slack',
+    description:
+      'Send real-time alerts and weekly digest reports to Slack channels.',
+  },
+  {
+    key: 'sentinel',
+    label: 'Microsoft Sentinel',
+    description:
+      'Forward normalized security events to Microsoft Sentinel for SIEM correlation.',
+  },
+  {
+    key: 'splunk',
+    label: 'Splunk',
+    description:
+      'Stream audit events and Copilot metrics to Splunk via HEC.',
+  },
+  {
+    key: 'pagerduty',
+    label: 'PagerDuty',
+    description:
+      'Trigger PagerDuty incidents for critical security detections.',
+  },
+];
+
+function IntegrationsPane() {
+  const navigate = useNavigate();
+  const { data: notificationConfigs } = useQuery({
+    queryKey: ['notification-configs'],
+    queryFn: listNotificationConfigs,
+  });
+
+  const configs = notificationConfigs ?? [];
+
+  function isEnabled(key: string): boolean {
+    switch (key) {
+      case 'slack':
+        return configs.some((c) => c.channel_type === 'slack' && c.enabled);
+      case 'sentinel':
+        return configs.some(
+          (c) =>
+            c.channel_type === 'webhook' &&
+            c.display_name.toLowerCase().includes('sentinel') &&
+            c.enabled,
+        );
+      case 'splunk':
+        return configs.some(
+          (c) =>
+            c.channel_type === 'webhook' &&
+            c.display_name.toLowerCase().includes('splunk') &&
+            c.enabled,
+        );
+      case 'pagerduty':
+        return configs.some((c) => c.channel_type === 'pagerduty' && c.enabled);
+      default:
+        return false;
+    }
+  }
+
+  function isConfigured(key: string): boolean {
+    switch (key) {
+      case 'slack':
+        return configs.some((c) => c.channel_type === 'slack');
+      case 'sentinel':
+        return configs.some(
+          (c) =>
+            c.channel_type === 'webhook' &&
+            c.display_name.toLowerCase().includes('sentinel'),
+        );
+      case 'splunk':
+        return configs.some(
+          (c) =>
+            c.channel_type === 'webhook' &&
+            c.display_name.toLowerCase().includes('splunk'),
+        );
+      case 'pagerduty':
+        return configs.some((c) => c.channel_type === 'pagerduty');
+      default:
+        return false;
+    }
+  }
+
+  return (
+    <div className={styles.featuresPane}>
+      <p className={styles.featuresDescription}>
+        Connect external services to extend OctoWatch capabilities. GitHub Enterprise
+        is always connected and managed via setup configuration.
+      </p>
+      <div className={styles.featuresList}>
+        {INTEGRATION_INFO.map(({ key, label, description }) => {
+          const enabled = isEnabled(key);
+          const configured = isConfigured(key);
+          return (
+            <div key={key} className={styles.featureRow}>
+              <div className={styles.featureInfo}>
+                <div className={styles.featureLabel}>
+                  {label}
+                  {configured && (
+                    <span
+                      className={styles.integrationStatus}
+                      data-status={enabled ? 'active' : 'configured'}
+                    >
+                      {enabled ? 'Active' : 'Configured'}
+                    </span>
+                  )}
+                  {!configured && (
+                    <span
+                      className={styles.integrationStatus}
+                      data-status="inactive"
+                    >
+                      Not configured
+                    </span>
+                  )}
+                </div>
+                <div className={styles.featureDescription}>{description}</div>
+              </div>
+              {configured ? (
+                <Button size="sm" onClick={() => navigate('/settings/integrations')}>
+                  Configure
+                </Button>
+              ) : (
+                <Button size="sm" variant="primary" onClick={() => navigate('/settings/integrations')}>
+                  Set up
+                </Button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Data Import section */}
+      <div className={styles.integrationsSectionDivider}>
+        <h3 className={styles.integrationsSectionTitle}>Data Import</h3>
+        <p className={styles.featuresDescription}>
+          Sync data from GitHub Enterprise or manually import exported files for analysis.
+        </p>
+      </div>
+      <SyncPanel />
+      <SyncRunHistory />
+      <ManualIngestPanel />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Category empty-state helpers                                       */
+/* ------------------------------------------------------------------ */
+
+function getCategoryEmptyMessage(category: string): string {
+  switch (category) {
+    case 'GitHub':
+      return 'No GitHub settings configured yet.';
+    case 'Security':
+      return 'No security settings configured yet.';
+    case 'Storage':
+      return 'No storage settings configured yet.';
+    case 'Notifications':
+      return 'No notification settings configured yet.';
+    case 'System':
+      return 'No system settings configured yet.';
+    default:
+      return 'No settings configured yet.';
+  }
+}
+
+function getCategoryEmptyHint(category: string): string {
+  switch (category) {
+    case 'GitHub':
+      return 'GitHub connection settings are configured during setup. Use the Integrations tab to manage sync and data import settings.';
+    case 'Security':
+      return 'Security settings including authentication, session management, and access controls.';
+    case 'Storage':
+      return 'Object storage (MinIO/S3) configuration for audit log archives.';
+    case 'Notifications':
+      return 'Notification channel configuration for alerts and reports.';
+    case 'System':
+      return 'System-level configuration including data retention, performance tuning, and maintenance settings.';
+    default:
+      return 'Settings are automatically populated during setup and sync. You can also add custom settings using the admin API.';
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Settings Page                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -251,7 +441,7 @@ export function SettingsPage() {
   const qc = useQueryClient();
   const { tab: tabSlug } = useParams<{ tab: string }>();
   const navigate = useNavigate();
-  const activeTab: Category | 'Audit' | 'Features' = SLUG_TO_TAB[tabSlug ?? 'all'] ?? 'All';
+  const activeTab: Category | 'Audit' | 'Features' | 'Integrations' = SLUG_TO_TAB[tabSlug ?? 'all'] ?? 'All';
   const [editTarget, setEditTarget] = useState<AppSetting | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppSetting | null>(null);
 
@@ -283,7 +473,7 @@ export function SettingsPage() {
     (s: AppSetting) => activeTab === 'All' || s.category.toLowerCase() === (activeTab as string).toLowerCase(),
   ) ?? [];
 
-  const isCategory = activeTab !== 'Audit' && activeTab !== 'Features';
+  const isCategory = activeTab !== 'Audit' && activeTab !== 'Features' && activeTab !== 'Integrations';
 
   return (
     <div className={styles.page}>
@@ -317,11 +507,19 @@ export function SettingsPage() {
         >
           Features
         </button>
+        <button
+          className={activeTab === 'Integrations' ? styles.tabActive : styles.tab}
+          onClick={() => navigate('/settings/integrations')}
+        >
+          Integrations
+        </button>
       </div>
 
       {/* Content */}
       {activeTab === 'Features' ? (
         <FeaturesPane />
+      ) : activeTab === 'Integrations' ? (
+        <IntegrationsPane />
       ) : activeTab === 'Audit' ? (
         <AuditTrailTable />
       ) : (
@@ -332,9 +530,9 @@ export function SettingsPage() {
             <Spinner />
           ) : isCategory && filteredSettings.length === 0 ? (
             <div className={styles.empty}>
-              <p>No settings configured in {activeTab === 'All' ? 'any category' : `the ${activeTab} category`} yet.</p>
+              <p>{getCategoryEmptyMessage(activeTab)}</p>
               <p style={{ color: 'var(--fg-subtle)', fontSize: '0.8125rem', marginTop: '0.5rem' }}>
-                Settings are automatically populated during setup and sync. You can also add custom settings using the admin API.
+                {getCategoryEmptyHint(activeTab)}
               </p>
             </div>
           ) : (
@@ -360,7 +558,7 @@ export function SettingsPage() {
                       </td>
                       <td className={styles.settingDescription}>{s.description ?? '—'}</td>
                       <td className={styles.settingMeta}>
-                        {s.updated_by} · {formatDateTime(s.updated_at)}
+                        {s.updated_by} · {formatAbsolute(s.updated_at)}
                       </td>
                       <td>
                         <div className={styles.cellActions}>

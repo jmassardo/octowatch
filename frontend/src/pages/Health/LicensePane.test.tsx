@@ -21,6 +21,7 @@ vi.mock('../../api/reports', () => ({
 
 vi.mock('../../api/healthSignals', () => ({
   getGhostMembers: vi.fn(),
+  getLicenseConsumption: vi.fn(),
 }));
 
 const mockSeatData = {
@@ -77,13 +78,24 @@ function renderWithProviders() {
   );
 }
 
+const mockLicenseConsumption = {
+  enterprise_slug: 'test-enterprise',
+  total_seats_purchased: 200,
+  total_seats_consumed: 150,
+  seats_available: 50,
+  utilization_pct: 75,
+  synced_at: '2024-03-28T10:00:00Z',
+};
+
 function setDefaultData() {
   mockQueryReturns.length = 0;
-  // Call 0: seat utilization
+  // Call 0: license consumption (first query in the component)
+  mockQueryReturns.push({ data: mockLicenseConsumption, isLoading: false, isError: false, refetch: vi.fn() });
+  // Call 1: seat utilization
   mockQueryReturns.push({ data: mockSeatData, isLoading: false, isError: false, refetch: vi.fn() });
-  // Call 1: copilot seats
+  // Call 2: copilot seats
   mockQueryReturns.push({ data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() });
-  // Call 2: ghost members
+  // Call 3: ghost members
   mockQueryReturns.push({ data: mockGhostMembers, isLoading: false, isError: false, refetch: vi.fn() });
 }
 
@@ -95,8 +107,9 @@ describe('LicensePane', () => {
   it('renders total seats card', () => {
     renderWithProviders();
     expect(screen.getByText('Total seats (GitHub)')).toBeInTheDocument();
-    expect(screen.getByText('/ 100')).toBeInTheDocument();
-    expect(screen.getByText(/82% utilized/)).toBeInTheDocument();
+    // With GHEC license data, shows consumed/purchased from enterprise sync
+    expect(screen.getByText('/ 200')).toBeInTheDocument();
+    expect(screen.getByText(/75% utilized/)).toBeInTheDocument();
   });
 
   it('renders ghost members card with count', () => {
@@ -133,6 +146,7 @@ describe('LicensePane', () => {
 
   it('shows "No ghost members detected" when empty', () => {
     mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: mockLicenseConsumption, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: mockSeatData, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: { ghost_members: [] }, isLoading: false, isError: false, refetch: vi.fn() });
@@ -163,6 +177,7 @@ describe('LicensePane', () => {
 
   it('shows loading spinner for ghost members', () => {
     mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: mockLicenseConsumption, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: mockSeatData, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: undefined, isLoading: true, isError: false, refetch: vi.fn() });
@@ -172,6 +187,7 @@ describe('LicensePane', () => {
 
   it('shows error banner for ghost members on error', () => {
     mockQueryReturns.length = 0;
+    mockQueryReturns.push({ data: mockLicenseConsumption, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: mockSeatData, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: undefined, isLoading: false, isError: true, refetch: vi.fn() });
@@ -181,7 +197,8 @@ describe('LicensePane', () => {
 
   it('shows sample data banner when all API queries return empty data', () => {
     mockQueryReturns.length = 0;
-    // All queries return empty/no data
+    // All queries return empty/no data (license consumption with 0 seats = no GHEC data)
+    mockQueryReturns.push({ data: { total_seats_purchased: 0 }, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: { data: [] }, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: { data: [] }, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: { ghost_members: [] }, isLoading: false, isError: false, refetch: vi.fn() });
@@ -198,6 +215,7 @@ describe('LicensePane', () => {
     mockQueryReturns.length = 0;
     mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: undefined, isLoading: true, isError: false, refetch: vi.fn() });
     renderWithProviders();
     expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
@@ -207,8 +225,34 @@ describe('LicensePane', () => {
     mockQueryReturns.length = 0;
     mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: undefined, isLoading: false, isError: true, refetch: vi.fn() });
     renderWithProviders();
     expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+  });
+
+  it('uses GHEC license data when available', () => {
+    renderWithProviders();
+    // Should show the synced_at info from GHEC data
+    expect(screen.getByText(/consumed-licenses/)).toBeInTheDocument();
+  });
+
+  it('falls back to report data when GHEC license data unavailable', () => {
+    mockQueryReturns.length = 0;
+    // License consumption with 0 purchased seats (no GHEC data)
+    mockQueryReturns.push({
+      data: { ...mockLicenseConsumption, total_seats_purchased: 0 },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockQueryReturns.push({ data: mockSeatData, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: mockCopilotData, isLoading: false, isError: false, refetch: vi.fn() });
+    mockQueryReturns.push({ data: mockGhostMembers, isLoading: false, isError: false, refetch: vi.fn() });
+    renderWithProviders();
+    // Falls back to showing report-derived source note (not GHEC API)
+    expect(screen.queryByText(/consumed-licenses/)).not.toBeInTheDocument();
+    const addMemberRefs = screen.getAllByText(/org\.add_member/);
+    expect(addMemberRefs.length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -1,10 +1,9 @@
 import { useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { listEvents } from '../../api/events';
 import { listDetections } from '../../api/detections';
 import { getTeams } from '../../api/healthSignals';
-import { getUsageStats, type UsageStatsResponse } from '../../api/devActivity';
+import { getUsageStats, getDevelopers, type UsageStatsResponse } from '../../api/devActivity';
 import { useFeatures } from '../../hooks/useFeatures';
 import { Avatar } from '../../components/primitives/Avatar';
 import { Label } from '../../components/primitives/Label';
@@ -15,15 +14,18 @@ import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Modal } from '../../components/primitives/Modal';
 import { Drawer } from '../../components/primitives/Drawer';
 import { MiniBarChart } from '../../components/charts/MiniBarChart';
+import { formatRelativeShort } from '../../utils/dates';
 import styles from './DevActivity.module.css';
 
 interface ActorStats {
   handle: string;
   eventCount: number;
-  repoSet: Set<string>;
+  repoCount: number;
+  topRepos: string[];
   prCount: number;
   reviewCount: number;
   weeklyCounts: number[];
+  lastActive: string | null;
 }
 
 export function DevActivityPage() {
@@ -42,9 +44,9 @@ export function DevActivityPage() {
     setSelectedDev(null);
   }, []);
 
-  const { data: eventData, isLoading: loadingEvents, isError: eventsError, refetch } = useQuery({
-    queryKey: ['events', 'dev-activity'],
-    queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc' }),
+  const { data: developersData, isLoading: loadingDevelopers, isError: developersError, refetch } = useQuery({
+    queryKey: ['dev-activity', 'developers'],
+    queryFn: () => getDevelopers(),
   });
 
   const { data: detectionData } = useQuery({
@@ -71,36 +73,20 @@ export function DevActivityPage() {
     return map;
   }, [teamsData]);
 
-  // Build actor stats from events
+  // Build actor stats from server-aggregated developer data
   const { actorMap, actorDetections } = useMemo(() => {
     const map = new Map<string, ActorStats>();
-    const items = eventData?.items ?? [];
-    // Use most recent event timestamp as reference (events are sorted desc)
-    const refTime = items.length > 0 ? new Date(items[0].created_at).getTime() : 0;
-    const weekMs = 7 * 24 * 60 * 60 * 1000;
-
-    for (const event of items) {
-      if (!event.actor) continue;
-      if (!map.has(event.actor)) {
-        map.set(event.actor, {
-          handle: event.actor,
-          eventCount: 0,
-          repoSet: new Set(),
-          prCount: 0,
-          reviewCount: 0,
-          weeklyCounts: [0, 0, 0, 0, 0, 0, 0],
-        });
-      }
-      const stats = map.get(event.actor)!;
-      stats.eventCount++;
-      if (event.repo) stats.repoSet.add(event.repo);
-      if (event.action.includes('pull_request')) stats.prCount++;
-      if (event.action.includes('pull_request_review')) stats.reviewCount++;
-
-      // Assign to weekly bucket (0 = oldest, 6 = most recent)
-      const age = refTime - new Date(event.created_at).getTime();
-      const weekIndex = Math.min(6, Math.floor(age / weekMs));
-      stats.weeklyCounts[6 - weekIndex]++;
+    for (const dev of developersData?.developers ?? []) {
+      map.set(dev.login, {
+        handle: dev.login,
+        eventCount: dev.event_count,
+        repoCount: dev.repo_count,
+        topRepos: dev.top_repos,
+        prCount: dev.pr_count,
+        reviewCount: dev.review_count,
+        weeklyCounts: dev.weekly_counts,
+        lastActive: dev.last_active,
+      });
     }
 
     // Build detections-per-actor map
@@ -112,7 +98,7 @@ export function DevActivityPage() {
     }
 
     return { actorMap: map, actorDetections: detMap };
-  }, [eventData?.items, detectionData?.items]);
+  }, [developersData?.developers, detectionData?.items]);
 
   // Compute work distribution from real event data
   const { prAuthorshipData, activityConcentrationData, topActorWarning, othersInfo, othersActors, isReviewData } =
@@ -247,8 +233,8 @@ export function DevActivityPage() {
         )}
       </div>
 
-      {eventsError && <ErrorBanner message="Failed to load developer activity" onRetry={refetch} />}
-      {loadingEvents && <Spinner />}
+      {developersError && <ErrorBanner message="Failed to load developer activity" onRetry={refetch} />}
+      {loadingDevelopers && <Spinner />}
 
       <div className={styles.sectionTitle} style={{ marginBottom: 4 }}>Work distribution — last 30 days</div>
       <div className={styles.workNote}>
@@ -326,7 +312,7 @@ export function DevActivityPage() {
       </div>
 
       <div className={styles.sectionTitle} style={{ marginBottom: 16 }}>Developer cards</div>
-      {topActors.length === 0 && !loadingEvents && (
+      {topActors.length === 0 && !loadingDevelopers && (
         <div style={{ color: 'var(--fg-muted)', padding: '16px 0' }}>No developer activity data found.</div>
       )}
       <div className={styles.devGrid}>
@@ -361,12 +347,17 @@ export function DevActivityPage() {
               </div>
               <MiniBarChart data={dev.weeklyCounts} color={flagged ? 'var(--danger)' : 'var(--success)'} />
               <div className={styles.devStats}>
-                <span className={styles.clickableStat} role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); navigate(`/events?actor=${dev.handle}`); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); navigate(`/events?actor=${dev.handle}`); } }}><strong>{dev.repoSet.size}</strong> repos</span>
+                <span className={styles.clickableStat} role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); navigate(`/events?actor=${dev.handle}`); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); navigate(`/events?actor=${dev.handle}`); } }}><strong>{dev.repoCount}</strong> repos</span>
                 <span className={styles.clickableStat} role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); navigate(`/events?actor=${dev.handle}`); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); navigate(`/events?actor=${dev.handle}`); } }}><strong>{dev.prCount}</strong> PRs</span>
                 <span className={styles.clickableStat} role="button" tabIndex={0} style={{ color: flagged ? 'var(--danger)' : undefined }} onClick={(e) => { e.stopPropagation(); navigate(`/threats?actor=${dev.handle}`); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); navigate(`/threats?actor=${dev.handle}`); } }}>
                   <strong>{detections}</strong> {flagged ? 'detections' : 'flags'}
                 </span>
               </div>
+              {dev.lastActive && (
+                <div className={styles.devLastActive}>
+                  Last active {formatRelativeShort(dev.lastActive)}
+                </div>
+              )}
             </div>
           );
         })}
@@ -735,14 +726,28 @@ function DevDetailPanel({ dev, detections, team }: DevDetailPanelProps) {
       <div className={styles.detailSection}>
         <div className={styles.detailSectionTitle}>Contributions</div>
         <div className={styles.detailStatsList}>
-          <span>📊 <strong>{dev.repoSet.size}</strong> repos</span>
+          <span>📊 <strong>{dev.repoCount}</strong> repos</span>
           <span>🔀 <strong>{dev.prCount}</strong> PRs authored</span>
           <span>📝 <strong>{dev.eventCount}</strong> events</span>
           <span style={flagged ? { color: 'var(--danger)' } : undefined}>
             🚨 <strong>{detections}</strong> detections
           </span>
+          {dev.lastActive && (
+            <span>🕐 Last active {formatRelativeShort(dev.lastActive)}</span>
+          )}
         </div>
       </div>
+
+      {dev.topRepos.length > 0 && (
+        <div className={styles.detailSection}>
+          <div className={styles.detailSectionTitle}>Most Active Repos</div>
+          <div className={styles.detailStatsList}>
+            {dev.topRepos.map((repo) => (
+              <span key={repo}>📁 {repo}</span>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className={styles.detailSection}>
         <div className={styles.detailSectionTitle}>Weekly Activity</div>

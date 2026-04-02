@@ -9,12 +9,15 @@ vi.mock('../../api/admin', () => ({
     {
       id: 1,
       role_id: 1,
+      role_name: 'sys_admin',
       github_login: 'secops-admin',
       github_team_slug: 'security-team',
-      scope_type: 'admin',
+      scope_type: 'global',
       scope_value: null,
       granted_by: 'jmassardo',
       granted_at: new Date().toISOString(),
+      expires_at: null,
+      active: true,
     },
   ]),
   createRoleAssignment: vi.fn().mockResolvedValue({}),
@@ -22,7 +25,9 @@ vi.mock('../../api/admin', () => ({
   listRoles: vi.fn().mockResolvedValue([
     { name: 'viewer' },
     { name: 'analyst' },
-    { name: 'admin' },
+    { name: 'rule_author' },
+    { name: 'report_admin' },
+    { name: 'sys_admin' },
   ]),
   getActiveSessions: vi.fn().mockResolvedValue([
     {
@@ -43,7 +48,7 @@ vi.mock('../../api/admin', () => ({
       login: 'skeshari',
       last_active_at: new Date(Date.now() - 34 * 60_000).toISOString(),
       session_count: 2,
-      role: 'analyst',
+      role: 'report_admin',
       mfa_enabled: false,
     },
     {
@@ -54,6 +59,7 @@ vi.mock('../../api/admin', () => ({
       mfa_enabled: true,
     },
   ]),
+  listSyncedTeams: vi.fn().mockResolvedValue([]),
 }));
 
 describe('UsersPage', () => {
@@ -85,6 +91,35 @@ describe('UsersPage', () => {
     expect(await screen.findByText('@mwestphal')).toBeInTheDocument();
     expect(await screen.findByText('@skeshari')).toBeInTheDocument();
     expect(await screen.findByText('@jdoe-bot')).toBeInTheDocument();
+  });
+
+  it('displays correct role labels for active sessions', async () => {
+    renderWithProviders(<UsersPage />);
+
+    // Wait for sessions to load
+    await screen.findByText('@mwestphal');
+
+    // sys_admin appears in both team mappings and active sessions
+    const sysAdminLabels = screen.getAllByText('Sys Admin');
+    expect(sysAdminLabels.length).toBeGreaterThanOrEqual(1);
+    // analyst should display as "Analyst"
+    expect(screen.getByText('Analyst')).toBeInTheDocument();
+    // report_admin should display as "Report Admin"
+    expect(screen.getByText('Report Admin')).toBeInTheDocument();
+    // viewer should display as "Viewer"
+    expect(screen.getByText('Viewer')).toBeInTheDocument();
+  });
+
+  it('team mapping shows correct role name from backend', async () => {
+    renderWithProviders(<UsersPage />);
+
+    // Wait for team mapping data to load - the role_name "sys_admin" maps to "Sys Admin"
+    await screen.findByText('@security-team');
+
+    // The team mappings table should show the mapped display name
+    const teamTable = screen.getByRole('heading', { level: 2, name: /team mappings/i })
+      .closest('section')!;
+    expect(within(teamTable).getByText('Sys Admin')).toBeInTheDocument();
   });
 
   it('active user logins are clickable with clickableMention class', async () => {
@@ -141,6 +176,23 @@ describe('UsersPage', () => {
     expect(within(modal as HTMLElement).getByText(/requires GitHub API integration/i)).toBeInTheDocument();
   });
 
+  it('session modal shows correct role display name', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UsersPage />);
+
+    // Wait for sessions to load
+    await screen.findByText('@mwestphal');
+
+    const sessions = document.querySelectorAll('.clickableSession');
+    await user.click(sessions[0]);
+
+    const modalTitle = await screen.findByText(/sessions — @jmassardo/i);
+    const modal = modalTitle.closest('.dialog')!;
+
+    // Role in modal should show "Sys Admin", not "Admin" or the raw "sys_admin"
+    expect(within(modal as HTMLElement).getByText('Sys Admin')).toBeInTheDocument();
+  });
+
   it('granted-by mentions are clickable with clickableMention class', async () => {
     renderWithProviders(<UsersPage />);
 
@@ -148,8 +200,9 @@ describe('UsersPage', () => {
     await screen.findByText('@security-team');
 
     // The granted-by @jmassardo in the team mappings table
+    // Header text now includes sort icon, so use includes() instead of strict equality
     const grantedByMention = screen.getAllByText('@jmassardo').find(
-      (el) => el.closest('table')?.querySelector('th')?.textContent === 'GitHub team',
+      (el) => el.closest('table')?.querySelector('th')?.textContent?.includes('GitHub team'),
     );
     expect(grantedByMention).toBeDefined();
     expect(grantedByMention!.classList.contains('clickableMention')).toBe(true);
@@ -162,5 +215,29 @@ describe('UsersPage', () => {
     renderWithProviders(<UsersPage />);
 
     expect(await screen.findByText('No active sessions in the last 24 hours')).toBeInTheDocument();
+  });
+
+  it('teamSlugFromAssignment falls back to github_login when no team slug', async () => {
+    const { listRoleAssignments } = await import('../../api/admin');
+    vi.mocked(listRoleAssignments).mockResolvedValueOnce([
+      {
+        id: 2,
+        role_id: 2,
+        role_name: 'analyst',
+        github_login: 'individual-user',
+        github_team_slug: null,
+        scope_type: 'global',
+        scope_value: null,
+        granted_by: 'jmassardo',
+        granted_at: new Date().toISOString(),
+        expires_at: null,
+        active: true,
+      },
+    ]);
+
+    renderWithProviders(<UsersPage />);
+
+    // Should show @individual-user, not @org/individual-user
+    expect(await screen.findByText('@individual-user')).toBeInTheDocument();
   });
 });

@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Label } from '../../components/primitives/Label';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { DrilldownModal } from '../../components/primitives/DrilldownModal';
+import type { ColumnDef } from '../../components/primitives/DataTable';
 import {
   getSecurityPosture,
   getSecretScanning,
@@ -71,6 +74,8 @@ function SsoStatusTable({ orgs }: { orgs: SsoOrgStatus[] }) {
 /* ---------- main pane ---------- */
 
 export function SecurityPosturePane() {
+  const [ssoDrilldownOpen, setSsoDrilldownOpen] = useState(false);
+
   const postureQuery = useQuery({
     queryKey: ['health', 'security-posture'],
     queryFn: getSecurityPosture,
@@ -125,6 +130,36 @@ export function SecurityPosturePane() {
 
   const ssoEnabledCount = ssoOrgs.filter((o) => o.sso_enabled).length;
   const auditStreamActive = ssoOrgs.length > 0;
+
+  const ssoColumns: ColumnDef<SsoOrgStatus>[] = [
+    {
+      key: 'org',
+      header: 'Organization',
+      sortable: true,
+      filterable: true,
+      render: (o) => o.org,
+      sortValue: (o) => o.org,
+      filterValue: (o) => o.org,
+    },
+    {
+      key: 'sso_status',
+      header: 'SSO Status',
+      sortable: true,
+      render: (o) => (
+        <Label variant={o.sso_enabled ? 'success' : 'danger'}>
+          {o.sso_enabled ? 'enabled' : 'disabled'}
+        </Label>
+      ),
+      sortValue: (o) => (o.sso_enabled ? 'enabled' : 'disabled'),
+    },
+  ];
+
+  function handleSsoKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setSsoDrilldownOpen(true);
+    }
+  }
 
   return (
     <div className={styles.pane}>
@@ -235,11 +270,32 @@ export function SecurityPosturePane() {
           <span>
             Audit log stream: <strong>{auditStreamActive ? 'active' : 'inactive'}</strong>
             {ssoOrgs.length > 0 && (
-              <> · {ssoEnabledCount}/{ssoOrgs.length} orgs with SSO</>
+              <>
+                {' · '}
+                <span
+                  className={styles.clickableStat}
+                  onClick={() => setSsoDrilldownOpen(true)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${ssoEnabledCount} of ${ssoOrgs.length} orgs with SSO – click to view details`}
+                  onKeyDown={handleSsoKeyDown}
+                >
+                  {ssoEnabledCount}/{ssoOrgs.length} orgs with SSO
+                </span>
+              </>
             )}
           </span>
         </div>
       </div>
+
+      <DrilldownModal
+        open={ssoDrilldownOpen}
+        onClose={() => setSsoDrilldownOpen(false)}
+        title="SSO status by organization"
+        data={ssoOrgs}
+        columns={ssoColumns}
+        rowKey={(o) => o.org}
+      />
     </div>
   );
 }

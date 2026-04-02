@@ -6,6 +6,7 @@ import { Modal } from '../../components/primitives/Modal';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import type { SeatUtilizationBucket } from '../../types/reports';
 import { useOrgConfig } from '../../hooks/useOrgConfig';
+import { formatBucketDate } from '../../utils/dates';
 import styles from './Copilot.module.css';
 
 type LicenseDrillDown = 'total' | 'active' | 'inactive' | 'waste' | null;
@@ -142,7 +143,7 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
                   const bucketInactive = b.provisioned_seat_count - b.active_seat_count;
                   return (
                     <tr key={i}>
-                      <td style={{ color: 'var(--fg-muted)' }}>{new Date(b.bucket).toLocaleDateString()}</td>
+                      <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
                       {drillDown === 'total' && (
                         <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count ?? '—'}</td>
                       )}

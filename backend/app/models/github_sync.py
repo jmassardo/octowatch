@@ -441,3 +441,112 @@ class SyncLogEntry(Base):
     details: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     __table_args__ = (Index("idx_sync_log_entries_run_id_seq", "run_id", "seq"),)
+
+
+class OrgOutsideCollaborator(Base):
+    """Outside collaborators for an org, synced from the GitHub REST API.
+
+    Endpoint: ``GET /orgs/{org}/outside_collaborators``
+    """
+
+    __tablename__ = "org_outside_collaborators"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    enterprise_slug: Mapped[str] = mapped_column(String(100), nullable=False)
+    org: Mapped[str] = mapped_column(String(100), nullable=False)
+    login: Mapped[str] = mapped_column(String(100), nullable=False)
+    github_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    site_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "enterprise_slug", "org", "login", name="uq_outside_collab_slug_org_login"
+        ),
+        Index("idx_outside_collab_org", "org"),
+    )
+
+
+class OrgSecretScanningAlertSummary(Base):
+    """Aggregated secret-scanning alert counts for an org.
+
+    Instead of storing every alert individually, we store summary counts
+    per org per sync run so the health dashboard can quickly show a posture
+    overview.
+
+    Endpoint: ``GET /orgs/{org}/secret-scanning/alerts``
+    """
+
+    __tablename__ = "org_secret_scanning_alert_summaries"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    enterprise_slug: Mapped[str] = mapped_column(String(100), nullable=False)
+    org: Mapped[str] = mapped_column(String(100), nullable=False)
+    open_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    resolved_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    total_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("enterprise_slug", "org", name="uq_secret_scanning_summary_slug_org"),
+        Index("idx_secret_scanning_summary_org", "org"),
+    )
+
+
+class OrgDependabotAlertSummary(Base):
+    """Aggregated Dependabot alert counts for an org.
+
+    Mirrors the summary approach used for secret-scanning alerts.
+
+    Endpoint: ``GET /orgs/{org}/dependabot/alerts``
+    """
+
+    __tablename__ = "org_dependabot_alert_summaries"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    enterprise_slug: Mapped[str] = mapped_column(String(100), nullable=False)
+    org: Mapped[str] = mapped_column(String(100), nullable=False)
+    open_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    fixed_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    dismissed_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    total_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    critical_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    high_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    medium_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    low_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("enterprise_slug", "org", name="uq_dependabot_summary_slug_org"),
+        Index("idx_dependabot_summary_org", "org"),
+    )
+
+
+class EnterpriseLicenseConsumption(Base):
+    """GHEC license consumption data from the enterprise billing API.
+
+    Endpoint: ``GET /enterprises/{enterprise}/consumed-licenses``
+
+    Stores the headline seat counts (purchased vs consumed) plus a JSONB
+    snapshot of up to 500 individual user seat assignments for drill-down.
+    """
+
+    __tablename__ = "enterprise_license_consumption"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    enterprise_slug: Mapped[str] = mapped_column(String(100), nullable=False)
+    total_seats_purchased: Mapped[int] = mapped_column(Integer, nullable=False)
+    total_seats_consumed: Mapped[int] = mapped_column(Integer, nullable=False)
+    seats: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (UniqueConstraint("enterprise_slug", name="uq_license_consumption_slug"),)

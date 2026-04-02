@@ -115,3 +115,14 @@
   padding-top: 8px;
   border-top: 1px solid var(--border-muted);
 }
+
+.clickableStat {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.clickableStat:hover {
+  color: var(--accent);
+  text-decoration: underline solid;
+}

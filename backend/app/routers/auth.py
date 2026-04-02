@@ -146,10 +146,7 @@ async def _hydrate_global_orgs(db: AsyncSession) -> list[str]:
     from app.models.github_sync import EnterpriseOrg
 
     result = await db.execute(
-        select(EnterpriseOrg.org_login)
-        .distinct()
-        .order_by(EnterpriseOrg.org_login)
-        .limit(500)
+        select(EnterpriseOrg.org_login).distinct().order_by(EnterpriseOrg.org_login).limit(500)
     )
     orgs = [row[0] for row in result.fetchall()]
 
@@ -279,9 +276,6 @@ async def dev_login(
         )
 
     roles = await resolve_roles(db, username)
-    if not roles:
-        # In dev mode, default to sys_admin so the dev user can access everything
-        roles = ["sys_admin"]
     scope = await get_user_scope(db, username, roles)
     scope_type = "global" if scope.is_global else "scoped"
 

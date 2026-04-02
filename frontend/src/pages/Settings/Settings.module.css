@@ -307,3 +307,44 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Integration Status ─────────────────────────────────────────── */
+
+.integrationStatus {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 1px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.integrationStatus[data-status="active"] {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--success);
+}
+
+.integrationStatus[data-status="configured"] {
+  background: rgba(210, 153, 34, 0.15);
+  color: var(--attention);
+}
+
+.integrationStatus[data-status="inactive"] {
+  background: rgba(139, 148, 158, 0.15);
+  color: var(--fg-muted);
+}
+
+.integrationsSectionDivider {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.integrationsSectionTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0 0 0.5rem;
+}

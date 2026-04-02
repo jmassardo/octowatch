@@ -15,6 +15,7 @@ import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import type { SyncRun, SyncRunStatus, EntityStatus, PostProcessingStatus, SyncLogEntry } from '../../types/sync';
+import { formatRelativeShort, formatShortDateTime, formatLogTime } from '../../utils/dates';
 import styles from './Integrations.module.css';
 
 /* ------------------------------------------------------------------ */
@@ -41,19 +42,6 @@ function statusVariant(status: string): 'success' | 'danger' | 'attention' | 'mu
   }
 }
 
-function formatRelativeTime(iso: string | null): string {
-  if (!iso) return '—';
-  const diff = Date.now() - new Date(iso).getTime();
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
 function formatDuration(startIso: string | null, endIso: string | null): string {
   if (!startIso) return '—';
   const start = new Date(startIso).getTime();
@@ -66,16 +54,6 @@ function formatDuration(startIso: string | null, endIso: string | null): string 
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
   return `${hours}h ${remainingMinutes}m`;
-}
-
-function formatDateTime(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 function totalEntityCount(run: SyncRun): number {
@@ -216,14 +194,6 @@ function PostProcessingStatusDisplay({ status }: { status: PostProcessingStatus 
 /*  Sync log viewer                                                    */
 /* ------------------------------------------------------------------ */
 
-function formatLogTimestamp(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-}
-
 function SyncLogViewer({ runId, isActive }: { runId: string; isActive: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const [entries, setEntries] = useState<SyncLogEntry[]>([]);
@@ -319,7 +289,7 @@ function SyncLogViewer({ runId, isActive }: { runId: string; isActive: boolean }
           ) : (
             entries.map((entry) => (
               <div key={entry.seq} className={`${styles.logLine} ${levelClass(entry.level)}`}>
-                <span className={styles.logTimestamp}>[{formatLogTimestamp(entry.timestamp)}]</span>
+                <span className={styles.logTimestamp}>[{formatLogTime(entry.timestamp)}]</span>
                 <span className={styles.logLevel}>[{entry.level}]</span>
                 <span className={styles.logMessage}>{entry.message}</span>
               </div>
@@ -489,7 +459,7 @@ function ScheduleSection() {
           <span className={styles.scheduleInfoLabel}>Next scheduled sync</span>
           <span className={styles.scheduleInfoValue}>
             {schedule?.next_run_at
-              ? formatScheduleDate(schedule.next_run_at)
+              ? formatShortDateTime(schedule.next_run_at)
               : 'Not scheduled'}
           </span>
         </div>
@@ -497,7 +467,7 @@ function ScheduleSection() {
           <span className={styles.scheduleInfoLabel}>Last completed sync</span>
           <span className={styles.scheduleInfoValue}>
             {schedule?.last_completed_at
-              ? formatScheduleDate(schedule.last_completed_at)
+              ? formatShortDateTime(schedule.last_completed_at)
               : 'Never'}
           </span>
         </div>
@@ -528,15 +498,6 @@ function ScheduleSection() {
       </div>
     </div>
   );
-}
-
-function formatScheduleDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -596,12 +557,7 @@ export function SyncPanel() {
     if (!syncRun?.completed_at) return null;
     const nextDate = new Date(syncRun.completed_at);
     nextDate.setDate(nextDate.getDate() + config.interval_days);
-    return nextDate.toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatShortDateTime(nextDate.toISOString());
   }, [config, syncRun]);
 
   if (isLoading) {
@@ -659,7 +615,7 @@ export function SyncPanel() {
         <div className={styles.syncStatusItem}>
           <span className={styles.syncStatusLabel}>Last sync</span>
           <span className={styles.syncStatusValue}>
-            {syncRun ? formatRelativeTime(syncRun.completed_at ?? syncRun.started_at) : '—'}
+            {syncRun ? formatRelativeShort(syncRun.completed_at ?? syncRun.started_at) : '—'}
           </span>
         </div>
         <div className={styles.syncStatusItem}>
@@ -717,7 +673,7 @@ export function SyncPanel() {
           </div>
           <div className={styles.syncSummaryRow}>
             <span className={styles.syncSummaryLabel}>Completed</span>
-            <span>{formatDateTime(syncRun.completed_at)}</span>
+            <span>{formatShortDateTime(syncRun.completed_at)}</span>
           </div>
           {syncRun.error_message && (
             <div className={styles.syncError}>

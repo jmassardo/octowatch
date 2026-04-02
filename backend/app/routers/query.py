@@ -147,6 +147,7 @@ async def validate_query(
 
         # Use PREPARE to validate against the actual schema without executing
         import uuid
+
         from sqlalchemy import text as sa_text
 
         stmt_name = f"_validate_{uuid.uuid4().hex[:12]}"
@@ -158,7 +159,8 @@ async def validate_query(
                 if isinstance(val, int):
                     prepare_sql = prepare_sql.replace(f":{key}", str(val))
                 elif isinstance(val, list):
-                    arr = "ARRAY[" + ",".join(f"'{v}'" for v in val) + "]::text[]"
+                    escaped = [str(v).replace("'", "''") for v in val]
+                    arr = "ARRAY[" + ",".join(f"'{v}'" for v in escaped) + "]::text[]"
                     prepare_sql = prepare_sql.replace(f":{key}", arr)
             await db.execute(sa_text(f"PREPARE {stmt_name} AS {prepare_sql}"))
             await db.execute(sa_text(f"DEALLOCATE {stmt_name}"))

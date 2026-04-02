@@ -497,10 +497,11 @@ class TestIntegrationScenarios:
         assert result
 
     def test_scoped_user_gets_scope_cte(self):
-        """Scoped user should get scope CTE injected."""
+        """Scoped user should get events CTE that enforces org restriction."""
         sql = "SELECT id, action FROM events LIMIT 10"
         result, params = validate_and_prepare(sql, _scope(orgs=["my-org"]))
-        assert "__scope" in result
+        assert "WITH events AS" in result
+        assert "org = ANY(:scoped_orgs)" in result
         assert "scoped_orgs" in params
 
     def test_global_user_gets_limit_only(self):

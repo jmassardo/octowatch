@@ -11,21 +11,15 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Modal } from '../../components/primitives/Modal';
 import { EventSearchInput } from './EventSearchInput';
+import { EventDetail } from './EventDetail';
 import { SEARCH_KEY_MAP, parseSearchFilters, downloadCsv } from './utils';
+import { formatCompact } from '../../utils/dates';
 import styles from './Events.module.css';
 
 function actionVariant(action: string) {
   if (action.includes('destroy') || action.includes('delete') || action.includes('visibility')) return 'danger' as const;
   if (action.includes('access') || action.includes('rename')) return 'attention' as const;
   return 'muted' as const;
-}
-
-function formatTs(iso: string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false,
-  }).format(new Date(iso)).replace(',', '');
 }
 
 export function EventsPage() {
@@ -184,7 +178,7 @@ export function EventsPage() {
             )}
             {items.map((e) => (
               <tr key={e.id}>
-                <td className={styles.ts}>{formatTs(e.created_at)}</td>
+                <td className={styles.ts}>{formatCompact(e.created_at)}</td>
                 <td><Label variant={actionVariant(e.action)}>{e.action}</Label></td>
                 <td><span className={styles.mention}>@{e.actor ?? '—'}</span></td>
                 <td>{e.repo ?? e.org ?? '—'}</td>
@@ -214,9 +208,7 @@ export function EventsPage() {
         width={640}
       >
         {detailEvent && (
-          <pre className={styles.eventJson}>
-            {JSON.stringify(detailEvent, null, 2)}
-          </pre>
+          <EventDetail event={detailEvent} />
         )}
       </Modal>
     </div>

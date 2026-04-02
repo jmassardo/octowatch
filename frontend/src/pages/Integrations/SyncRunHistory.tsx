@@ -6,6 +6,7 @@ import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import type { SyncRunSummary, SyncRunStatus } from '../../types/sync';
+import { formatShortDateTime } from '../../utils/dates';
 import styles from './Integrations.module.css';
 
 /* ------------------------------------------------------------------ */
@@ -23,16 +24,6 @@ function statusVariant(status: SyncRunStatus): 'success' | 'danger' | 'attention
     default:
       return 'muted';
   }
-}
-
-function formatDateTime(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 function formatDuration(startIso: string | null, endIso: string | null): string {
@@ -72,7 +63,7 @@ function RunRow({ run }: { run: SyncRunSummary }) {
         }}
       >
         <td>{run.triggered_by ?? run.trigger_type}</td>
-        <td>{formatDateTime(run.started_at)}</td>
+        <td>{formatShortDateTime(run.started_at)}</td>
         <td>{formatDuration(run.started_at, run.completed_at)}</td>
         <td>
           <Label variant={statusVariant(run.status)}>{run.status}</Label>

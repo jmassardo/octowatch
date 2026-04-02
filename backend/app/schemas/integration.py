@@ -103,6 +103,7 @@ class RoleAssignmentResponse(BaseModel):
     github_login: str
     github_team_slug: str | None
     role_id: int
+    role_name: str
     scope_type: str
     scope_value: str | None
     granted_by: str
