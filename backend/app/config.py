@@ -273,6 +273,14 @@ class GitHubAppSettings(BaseSettings):
                 return fh.read()
         return None
 
+    @field_validator("GITHUB_APP_ID", mode="before")
+    @classmethod
+    def coerce_app_id(cls, v: int | str | None) -> int | None:
+        """Coerce empty strings to None so env vars like GITHUB_APP_ID='' don't fail."""
+        if v is None or (isinstance(v, str) and v.strip() == ""):
+            return None
+        return v
+
     @field_validator("GITHUB_APP_PRIVATE_KEY_PATH")
     @classmethod
     def validate_key_path(cls, v: str | None) -> str | None:
@@ -290,13 +298,13 @@ class GitHubAppSettings(BaseSettings):
             raise ValueError(f"GITHUB_APP_PRIVATE_KEY_PATH does not point to a file: {v}")
         return v
 
-    @field_validator("GITHUB_ENTERPRISE_SLUG")
+    @field_validator("GITHUB_ENTERPRISE_SLUG", mode="before")
     @classmethod
     def validate_enterprise_slug(cls, v: str | None) -> str | None:
-        """Enterprise slug must be alphanumeric with hyphens only."""
+        """Enterprise slug must be alphanumeric with hyphens only. Empty string → None."""
         import re
 
-        if v is None:
+        if v is None or (isinstance(v, str) and v.strip() == ""):
             return None
         if not re.fullmatch(r"[a-zA-Z0-9-]+", v):
             raise ValueError(
