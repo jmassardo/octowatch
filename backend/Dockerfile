@@ -29,8 +29,8 @@ RUN pip install --upgrade pip && \
 # ─────────────────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
 
-LABEL org.opencontainers.image.title="audit-log-analyzer-api"
-LABEL org.opencontainers.image.description="Audit Log Analyzer API + Worker"
+LABEL org.opencontainers.image.title="octowatch-api"
+LABEL org.opencontainers.image.description="OctoWatch API + Worker"
 
 # Runtime OS libs needed by xmlsec1 / asyncpg
 RUN apt-get update && apt-get install -y --no-install-recommends \
