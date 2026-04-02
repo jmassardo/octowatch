@@ -86,7 +86,7 @@ class TestNormalizeEvent:
             "org": "my-org",
             "@timestamp": 1700000000000,  # milliseconds
         }
-        result = w._normalize_event(ev)
+        result = w._normalize_event(ev, dedup_hash="test-hash")
         assert result is not None
         assert result["action"] == "repos.create"
         assert result["actor"] == "alice"
@@ -98,20 +98,20 @@ class TestNormalizeEvent:
             "actor": "bob",
             "created_at": "2024-03-15T10:00:00Z",
         }
-        result = w._normalize_event(ev)
+        result = w._normalize_event(ev, dedup_hash="test-hash")
         assert result is not None
         assert result["actor"] == "bob"
 
     def test_missing_action_returns_none(self):
         w = self._worker()
         ev = {"actor": "alice", "org": "my-org", "@timestamp": 1700000000000}
-        result = w._normalize_event(ev)
+        result = w._normalize_event(ev, dedup_hash="test-hash")
         assert result is None
 
     def test_source_ip_extracted_from_at_ip(self):
         w = self._worker()
         ev = {"action": "repos.create", "actor": "alice", "@ip": "192.168.0.1"}
-        result = w._normalize_event(ev)
+        result = w._normalize_event(ev, dedup_hash="test-hash")
         assert result is not None
         assert result["source_ip"] == "192.168.0.1"
 
@@ -124,7 +124,7 @@ class TestNormalizeEvent:
             "@timestamp": 1700000000000,
             "visibility": "private",
         }
-        result = w._normalize_event(ev)
+        result = w._normalize_event(ev, dedup_hash="test-hash")
         import json
 
         data = json.loads(result["data"])

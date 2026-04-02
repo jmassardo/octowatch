@@ -20,7 +20,6 @@ from fastapi.testclient import TestClient
 
 from app.deps import get_db, get_valkey
 from app.routers import events as events_router_module
-from app.schemas.audit_event import EventListResponse
 from app.services.rbac_service import OrgRepoScope
 
 SECRET = "testsecretkey_for_unit_tests_only_32ch"
@@ -65,8 +64,9 @@ def _make_mock_db() -> AsyncMock:
     return db
 
 
-def _empty_events_response() -> EventListResponse:
-    return EventListResponse(items=[], total=0, page=1, page_size=50, has_next=False)
+def _empty_events_result() -> tuple[list[object], int]:
+    """Return the (events, total) tuple that list_events() now produces."""
+    return ([], 0)
 
 
 def _build_app(
@@ -123,7 +123,7 @@ class TestEventsAuthenticated:
         app, _, _ = _build_app(valkey_session=_make_session())
         with patch(
             "app.routers.events.list_events",
-            AsyncMock(return_value=_empty_events_response()),
+            AsyncMock(return_value=_empty_events_result()),
         ):
             with patch(
                 "app.routers.events.get_user_scope",
@@ -146,7 +146,7 @@ class TestEventsAuthenticated:
         app, _, _ = _build_app(valkey_session=_make_session())
         with patch(
             "app.routers.events.list_events",
-            AsyncMock(return_value=_empty_events_response()),
+            AsyncMock(return_value=_empty_events_result()),
         ):
             with patch(
                 "app.routers.events.get_user_scope",
@@ -174,7 +174,7 @@ class TestEventsScopeEnforcement:
 
         with patch(
             "app.routers.events.list_events",
-            AsyncMock(return_value=_empty_events_response()),
+            AsyncMock(return_value=_empty_events_result()),
         ) as mock_list:
             with patch(
                 "app.routers.events.get_user_scope",
@@ -198,7 +198,7 @@ class TestEventsScopeEnforcement:
 
         with patch(
             "app.routers.events.list_events",
-            AsyncMock(return_value=_empty_events_response()),
+            AsyncMock(return_value=_empty_events_result()),
         ) as mock_list:
             with patch(
                 "app.routers.events.get_user_scope",

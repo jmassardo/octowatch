@@ -245,17 +245,16 @@ describe('SettingsPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText('github.client_id');
+    await screen.findByText('tls.cert_path');
 
-    // Click GitHub tab
-    await user.click(screen.getByRole('button', { name: 'GitHub' }));
+    // Click Security tab
+    await user.click(screen.getByRole('button', { name: 'Security' }));
 
-    // GitHub settings should be visible
-    expect(screen.getByText('github.client_id')).toBeInTheDocument();
-    expect(screen.getByText('github.app_id')).toBeInTheDocument();
+    // Security settings should be visible
+    expect(screen.getByText('tls.cert_path')).toBeInTheDocument();
 
-    // Non-GitHub settings should not be visible
-    expect(screen.queryByText('tls.cert_path')).not.toBeInTheDocument();
+    // Non-Security settings should not be visible
+    expect(screen.queryByText('github.client_id')).not.toBeInTheDocument();
     expect(screen.queryByText('db.connection_string')).not.toBeInTheDocument();
     expect(screen.queryByText('system.log_level')).not.toBeInTheDocument();
   });
@@ -269,12 +268,9 @@ describe('SettingsPage', () => {
       expect(mockListSettings).toHaveBeenCalled();
     });
 
-    await user.click(screen.getByRole('button', { name: 'GitHub' }));
+    await user.click(screen.getByRole('button', { name: 'Security' }));
 
-    expect(screen.getByText(/no github settings configured yet/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/github connection settings are configured during setup/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/no security settings configured yet/i)).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
@@ -470,11 +466,11 @@ describe('SettingsPage', () => {
     expect(screen.getByText('Slack')).toBeInTheDocument();
   });
 
-  it('shows Data Import section on Integrations tab', async () => {
+  it('shows Data Import section on GitHub tab', async () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(screen.getByRole('button', { name: 'Integrations' }));
+    await user.click(screen.getByRole('button', { name: 'GitHub' }));
 
     await waitFor(() => {
       expect(screen.getByText('Data Import')).toBeInTheDocument();

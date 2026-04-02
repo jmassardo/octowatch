@@ -1078,11 +1078,15 @@ class TestEnrichOrgSettings:
             new_callable=AsyncMock,
             return_value=mock_resp,
         ):
+            mock_token_mgr = MagicMock()
+            mock_token_mgr.get_installation_token = AsyncMock(return_value="token123")
             result = await _enrich_org_settings(
                 mock_sf,
                 "run-1",
-                "token123",
+                mock_token_mgr,
                 mock_rate,
+                org_inst_map={"my-org": 1},
+                fallback_installation_id=1,
             )
 
         assert result == 1
@@ -1116,11 +1120,15 @@ class TestEnrichOrgSettings:
             new_callable=AsyncMock,
             return_value=mock_resp,
         ):
+            mock_token_mgr = MagicMock()
+            mock_token_mgr.get_installation_token = AsyncMock(return_value="token123")
             result = await _enrich_org_settings(
                 mock_sf,
                 "run-1",
-                "token123",
+                mock_token_mgr,
                 mock_rate,
+                org_inst_map={"my-org": 1},
+                fallback_installation_id=1,
             )
 
         assert result == 0

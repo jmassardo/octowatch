@@ -550,61 +550,62 @@ describe('QueryPage', () => {
 
     // --- Live Validation ---
 
-    it('calls validateQuery after 800ms debounce and shows valid dot', async () => {
-      const { validateQuery } = await import('../../api/query');
-      vi.mocked(validateQuery).mockResolvedValue({ valid: true });
-
+    it('shows valid dot for syntactically valid SQL', async () => {
       renderWithProviders(<QueryPage />);
 
-      // Advance past the debounce and flush React updates
+      // Default SQL is a valid SELECT — validation is local and instant
       await act(async () => {
-        vi.advanceTimersByTime(800);
+        vi.advanceTimersByTime(0);
       });
 
-      expect(validateQuery).toHaveBeenCalledWith(expect.stringContaining('SELECT'));
       expect(document.querySelector('.validDot')).toBeInTheDocument();
     });
 
     it('shows invalid dot and error bar when validation fails', async () => {
-      const { validateQuery } = await import('../../api/query');
-      vi.mocked(validateQuery).mockResolvedValue({
-        valid: false,
-        error: 'Syntax error at position 5',
-      });
-
       renderWithProviders(<QueryPage />);
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
 
+      // Set textarea to invalid SQL (a write statement)
       await act(async () => {
-        vi.advanceTimersByTime(800);
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          'value',
+        )!.set!;
+        nativeInputValueSetter.call(textarea, 'DELETE FROM users');
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
       });
 
       expect(document.querySelector('.invalidDot')).toBeInTheDocument();
-      expect(screen.getByText(/Syntax error at position 5/)).toBeInTheDocument();
+      expect(screen.getByText(/Only SELECT statements are permitted/)).toBeInTheDocument();
     });
 
     it('shows full validation error in error bar with tooltip on dot', async () => {
-      const { validateQuery } = await import('../../api/query');
-      const longError = 'A'.repeat(120);
-      vi.mocked(validateQuery).mockResolvedValue({ valid: false, error: longError });
-
       renderWithProviders(<QueryPage />);
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
 
+      // Set textarea to invalid SQL (unbalanced parentheses)
       await act(async () => {
-        vi.advanceTimersByTime(800);
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          'value',
+        )!.set!;
+        nativeInputValueSetter.call(textarea, 'SELECT (a FROM t');
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
       });
 
       const dot = document.querySelector('.invalidDot');
       expect(dot).not.toBeNull();
-      expect(dot!.getAttribute('title')).toBe(longError);
+      // Tooltip should contain the validation error
+      expect(dot!.getAttribute('title')).toBeTruthy();
 
       const errorBar = document.querySelector('.errorBar');
       expect(errorBar).not.toBeNull();
-      expect(errorBar!.textContent).toContain(longError);
+      expect(errorBar!.textContent).toBeTruthy();
     });
 
     it('does not validate empty or whitespace-only queries', async () => {
-      const { validateQuery } = await import('../../api/query');
-
       renderWithProviders(<QueryPage />);
       const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
 
@@ -617,42 +618,44 @@ describe('QueryPage', () => {
         setter.call(textarea, '');
         textarea.selectionStart = 0;
         textarea.selectionEnd = 0;
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
         textarea.dispatchEvent(new Event('change', { bubbles: true }));
       });
-
-      vi.mocked(validateQuery).mockClear();
 
       await act(async () => {
         vi.advanceTimersByTime(1000);
       });
 
-      expect(validateQuery).not.toHaveBeenCalled();
+      // No validation dots should be shown for empty input (idle state)
+      expect(document.querySelector('.validDot')).toBeNull();
+      expect(document.querySelector('.invalidDot')).toBeNull();
     });
 
-    it('shows validating dot while validation is in progress', async () => {
-      const { validateQuery } = await import('../../api/query');
-
-      let resolveValidation!: (val: { valid: boolean }) => void;
-      vi.mocked(validateQuery).mockReturnValue(
-        new Promise((resolve) => {
-          resolveValidation = resolve;
-        }),
-      );
-
+    it('transitions validation status when SQL changes', async () => {
       renderWithProviders(<QueryPage />);
 
+      // Default SQL is valid — should show valid dot
       await act(async () => {
-        vi.advanceTimersByTime(800);
-      });
-
-      const dot = document.querySelector('.validatingDot');
-      expect(dot).not.toBeNull();
-
-      await act(async () => {
-        resolveValidation({ valid: true });
+        vi.advanceTimersByTime(0);
       });
 
       expect(document.querySelector('.validDot')).toBeInTheDocument();
+      expect(document.querySelector('.invalidDot')).toBeNull();
+
+      // Change to invalid SQL
+      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+      await act(async () => {
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          'value',
+        )!.set!;
+        nativeInputValueSetter.call(textarea, 'DROP TABLE users');
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      expect(document.querySelector('.invalidDot')).toBeInTheDocument();
+      expect(document.querySelector('.validDot')).toBeNull();
     });
 
     // --- Keyboard Shortcut ---

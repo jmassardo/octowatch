@@ -288,7 +288,7 @@ describe('PosturePage — Enterprise View', () => {
 
   it('renders org count in subtitle', async () => {
     renderWithProviders(<PosturePage />);
-    expect(await screen.findByText(/2 orgs/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 org/)).toBeInTheDocument();
   });
 
   it('renders org cards', async () => {
@@ -555,6 +555,9 @@ describe('PosturePage — API calls', () => {
     expect(mockGetPosture).toHaveBeenCalledWith({
       org: undefined,
       repo: undefined,
+      search: undefined,
+      page: 1,
+      page_size: 25,
     });
   });
 
@@ -565,6 +568,9 @@ describe('PosturePage — API calls', () => {
     expect(mockGetPosture).toHaveBeenCalledWith({
       org: 'my-org',
       repo: undefined,
+      search: undefined,
+      page: 1,
+      page_size: 25,
     });
   });
 
@@ -576,6 +582,9 @@ describe('PosturePage — API calls', () => {
     expect(mockGetPosture).toHaveBeenCalledWith({
       org: 'my-org',
       repo: 'my-repo',
+      search: undefined,
+      page: 1,
+      page_size: 25,
     });
   });
 });

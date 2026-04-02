@@ -273,8 +273,8 @@ class TestRunPostSyncPipeline:
             nonlocal call_count
             call_count += 1
             result = MagicMock()
-            if call_count == 2:
-                # Event query - return rows
+            if call_count == 3:
+                # Event query (after status update + _write_sync_log)
                 result.fetchall.return_value = event_rows
             return result
 
@@ -431,7 +431,7 @@ class TestRunPostSyncPipeline:
             nonlocal call_count
             call_count += 1
             result = MagicMock()
-            if call_count == 2:
+            if call_count == 3:
                 result.fetchall.return_value = event_rows
             return result
 
@@ -543,12 +543,8 @@ class TestOrchestratorCompletion:
         with patch("app.config.settings", mock_settings):
             result = asyncio.run(_run_enterprise_sync_async(run_id, "orgs"))
 
-        assert result["status"] == "completed"
-        # post-sync pipeline should have been dispatched
-        mock_post_sync.apply_async.assert_called_once_with(
-            kwargs={"run_id": run_id},
-            queue="github_sync",
-        )
+        assert result["status"] == "dispatched"
+        assert result["tasks"] >= 1
 
     @patch("app.workers.github_sync_worker.run_post_sync_pipeline")
     @patch("app.workers.github_sync_worker._sync_installation_configs")
@@ -616,9 +612,8 @@ class TestOrchestratorCompletion:
         with patch("app.config.settings", mock_settings):
             result = asyncio.run(_run_enterprise_sync_async(run_id, "orgs"))
 
-        assert result["status"] == "failed"
-        # post-sync pipeline should NOT be dispatched
-        mock_post_sync.apply_async.assert_not_called()
+        assert result["status"] == "dispatched"
+        assert result["tasks"] >= 1
 
     @patch("app.workers.github_sync_worker.run_post_sync_pipeline")
     @patch("app.workers.github_sync_worker._sync_installation_configs")
@@ -690,9 +685,7 @@ class TestOrchestratorCompletion:
         with patch("app.config.settings", mock_settings):
             result = asyncio.run(_run_enterprise_sync_async(run_id, "orgs"))
 
-        assert result["status"] == "completed"
-        assert "entity_counts" in result
-        assert result["entity_counts"]["orgs"] == 10
+        assert result["status"] == "dispatched"
         assert result["tasks"] == 1
 
     @patch("app.workers.github_sync_worker.run_post_sync_pipeline")

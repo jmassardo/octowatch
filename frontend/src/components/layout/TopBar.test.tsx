@@ -82,54 +82,66 @@ describe('TopBar', () => {
 
   // ----- Org tabs (multiple orgs, ≤6) -----
 
-  it('renders segmented tabs for multiple orgs', () => {
-    renderTopBar();
-    const tablist = screen.getByRole('tablist');
-    expect(tablist).toBeInTheDocument();
-
-    const tabs = screen.getAllByRole('tab');
-    // "All" + 2 org tabs
-    expect(tabs).toHaveLength(3);
-    expect(tabs[0]).toHaveTextContent('All');
-    expect(tabs[1]).toHaveTextContent('my-org');
-    expect(tabs[2]).toHaveTextContent('other-org');
-  });
-
-  it('marks "All" tab as selected when no org is selected', () => {
-    renderTopBar();
-    const allTab = screen.getByRole('tab', { name: 'All' });
-    expect(allTab).toHaveAttribute('aria-selected', 'true');
-  });
-
-  it('marks correct tab as selected when an org is selected', () => {
-    mockUseOrg.mockReturnValue({ selectedOrg: 'my-org', setSelectedOrg });
-    renderTopBar();
-    const myOrgTab = screen.getByRole('tab', { name: 'my-org' });
-    expect(myOrgTab).toHaveAttribute('aria-selected', 'true');
-    const allTab = screen.getByRole('tab', { name: 'All' });
-    expect(allTab).toHaveAttribute('aria-selected', 'false');
-  });
-
-  it('selects org when tab is clicked', async () => {
+  it('renders dropdown for multiple orgs with all options', async () => {
     const user = userEvent.setup();
     renderTopBar();
 
-    await user.click(screen.getByRole('tab', { name: 'other-org' }));
+    const trigger = screen.getByLabelText('Select organization');
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveTextContent('All organizations');
+
+    await user.click(trigger);
+    const options = screen.getAllByRole('option');
+    // "All organizations" + 2 org options
+    expect(options).toHaveLength(3);
+    expect(options[0]).toHaveTextContent('All organizations');
+    expect(options[1]).toHaveTextContent('my-org');
+    expect(options[2]).toHaveTextContent('other-org');
+  });
+
+  it('marks "All organizations" as selected when no org is selected', async () => {
+    const user = userEvent.setup();
+    renderTopBar();
+
+    await user.click(screen.getByLabelText('Select organization'));
+    const allOption = screen.getByRole('option', { name: /All organizations/ });
+    expect(allOption).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('marks correct option as selected when an org is selected', async () => {
+    mockUseOrg.mockReturnValue({ selectedOrg: 'my-org', setSelectedOrg });
+    const user = userEvent.setup();
+    renderTopBar();
+
+    await user.click(screen.getByLabelText('Select organization'));
+    const myOrgOption = screen.getByRole('option', { name: 'my-org' });
+    expect(myOrgOption).toHaveAttribute('aria-selected', 'true');
+    const allOption = screen.getByRole('option', { name: /All organizations/ });
+    expect(allOption).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('selects org when option is clicked', async () => {
+    const user = userEvent.setup();
+    renderTopBar();
+
+    await user.click(screen.getByLabelText('Select organization'));
+    await user.click(screen.getByRole('option', { name: 'other-org' }));
     expect(setSelectedOrg).toHaveBeenCalledWith('other-org');
   });
 
-  it('selects "All" when All tab is clicked', async () => {
+  it('selects "All" when All organizations option is clicked', async () => {
     mockUseOrg.mockReturnValue({ selectedOrg: 'my-org', setSelectedOrg });
     const user = userEvent.setup();
     renderTopBar();
 
-    await user.click(screen.getByRole('tab', { name: 'All' }));
+    await user.click(screen.getByLabelText('Select organization'));
+    await user.click(screen.getByRole('option', { name: /All organizations/ }));
     expect(setSelectedOrg).toHaveBeenCalledWith('');
   });
 
   // ----- Single org label -----
 
-  it('renders single org as a label (not tabs)', () => {
+  it('renders single org as dropdown (not tabs)', () => {
     mockUseCurrentUser.mockReturnValue({
       data: SINGLE_ORG_USER,
       isLoading: false,
@@ -137,7 +149,7 @@ describe('TopBar', () => {
     } as unknown as ReturnType<typeof useCurrentUser>);
 
     renderTopBar();
-    expect(screen.getByTestId('org-label')).toHaveTextContent('my-org');
+    expect(screen.getByLabelText('Select organization')).toBeInTheDocument();
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
   });
 
@@ -238,10 +250,12 @@ describe('TopBar', () => {
 
   // ----- Add org button -----
 
-  it('renders the "Add org" button', () => {
+  it('renders the org dropdown trigger with proper aria attributes', () => {
     renderTopBar();
-    expect(screen.getByLabelText('Add organization')).toBeInTheDocument();
-    expect(screen.getByText('Add org')).toBeInTheDocument();
+    const trigger = screen.getByLabelText('Select organization');
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveAttribute('aria-haspopup', 'listbox');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
   });
 
   // ----- "New report" button -----

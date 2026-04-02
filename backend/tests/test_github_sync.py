@@ -190,7 +190,7 @@ class TestGitHubAppSettings:
         assert s.GITHUB_ENTERPRISE_SLUG is None
         assert s.GITHUB_SYNC_INTERVAL_DAYS == 60
         assert s.GITHUB_SYNC_ENABLED is False
-        assert s.GITHUB_SYNC_ORGS == []
+        assert s.GITHUB_SYNC_ORGS == ""
 
     def test_valid_enterprise_slug(self) -> None:
         from app.config import GitHubAppSettings
@@ -462,7 +462,8 @@ class TestGetSyncStatus:
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         resp = client.get("/api/v1/admin/sync/status")
-        assert resp.status_code == 404
+        assert resp.status_code == 200
+        assert resp.json() is None
 
 
 class TestListSyncRuns:
@@ -594,7 +595,7 @@ class TestUpdateSyncConfig:
         # Verify in-memory settings were updated
         assert mock_settings.github_app.GITHUB_SYNC_ENABLED is True
         assert mock_settings.github_app.GITHUB_SYNC_INTERVAL_DAYS == 75
-        assert mock_settings.github_app.GITHUB_SYNC_ORGS == ["acme", "widgets"]
+        assert mock_settings.github_app.GITHUB_SYNC_ORGS == "acme,widgets"
 
     @patch("app.routers.sync.settings")
     def test_update_config_partial_update_interval_only(self, mock_settings: MagicMock) -> None:
@@ -651,7 +652,7 @@ class TestUpdateSyncConfig:
             headers={"X-CSRF-Token": "tok"},
         )
         assert resp.status_code == 200
-        assert mock_settings.github_app.GITHUB_SYNC_ORGS == ["org-a", "org-b"]
+        assert mock_settings.github_app.GITHUB_SYNC_ORGS == "org-a,org-b"
         assert mock_settings.github_app.GITHUB_SYNC_INTERVAL_DAYS == 60
 
     def test_update_config_rejects_invalid_interval(self) -> None:
