@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Card } from '../../components/primitives/Card';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
 import { getWafFindings } from '../../api/healthSignals';
 import type { WafFindingResponse } from '../../api/healthSignals';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
@@ -329,28 +330,29 @@ function PillarTag({ pillar }: { pillar: WafPillar }) {
 
 /** Render a table of evidence items for an expanded finding. */
 function EvidenceTable({ evidence }: { evidence: Record<string, unknown>[] }) {
+  const columns = useMemo<ColumnDef<Record<string, unknown>>[]>(() => {
+    if (evidence.length === 0) return [];
+    return Object.keys(evidence[0]).map((col) => ({
+      key: col,
+      header: col.replace(/_/g, ' '),
+      sortable: true,
+      filterable: true,
+      render: (row: Record<string, unknown>) => String(row[col] ?? '—'),
+      sortValue: (row: Record<string, unknown>) => String(row[col] ?? ''),
+      filterValue: (row: Record<string, unknown>) => String(row[col] ?? ''),
+    }));
+  }, [evidence]);
+
   if (evidence.length === 0) return null;
-  const columns = Object.keys(evidence[0]);
+
   return (
     <div className={styles.evidenceTable}>
-      <table>
-        <thead>
-          <tr>
-            {columns.map((col) => (
-              <th key={col}>{col.replace(/_/g, ' ')}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {evidence.map((row, i) => (
-            <tr key={i}>
-              {columns.map((col) => (
-                <td key={col}>{String(row[col] ?? '—')}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        columns={columns}
+        data={evidence}
+        rowKey={(row) => JSON.stringify(row)}
+        emptyMessage="No evidence data"
+      />
     </div>
   );
 }

@@ -3,7 +3,9 @@ import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
 import { getStalePrs, getUnhealthyHooks, getSkippedWorkflows } from '../../api/healthSignals';
+import type { SkippedWorkflowResponse } from '../../api/healthSignals';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { formatDateOnly } from '../../utils/dates';
 import styles from './MaintenancePane.module.css';
@@ -57,6 +59,56 @@ export function MaintenancePane() {
     stalePrs.length === 0 &&
     unhealthyHooks.length === 0 &&
     skippedWorkflows.length === 0;
+
+  const skippedWorkflowColumns: ColumnDef<SkippedWorkflowResponse>[] = [
+    {
+      key: 'workflow',
+      header: 'Workflow',
+      sortable: true,
+      filterable: true,
+      render: (wf) => wf.workflow_name || '(unnamed)',
+      sortValue: (wf) => wf.workflow_name ?? '',
+      filterValue: (wf) => wf.workflow_name ?? '',
+    },
+    {
+      key: 'repository',
+      header: 'Repository',
+      sortable: true,
+      filterable: true,
+      render: (wf) => `${wf.org}/${wf.repo}`,
+      sortValue: (wf) => `${wf.org}/${wf.repo}`,
+      filterValue: (wf) => `${wf.org}/${wf.repo}`,
+    },
+    {
+      key: 'action',
+      header: 'Action',
+      sortable: true,
+      render: (wf) => (
+        <Label variant={wf.action.includes('disable') ? 'danger' : 'attention'}>
+          {wf.action.includes('disable') ? 'disabled' : 'deleted'}
+        </Label>
+      ),
+      sortValue: (wf) => wf.action,
+    },
+    {
+      key: 'actor',
+      header: 'Actor',
+      sortable: true,
+      filterable: true,
+      render: (wf) => <span style={{ color: 'var(--fg-muted)' }}>{wf.actor}</span>,
+      sortValue: (wf) => wf.actor,
+      filterValue: (wf) => wf.actor,
+    },
+    {
+      key: 'date',
+      header: 'Date',
+      sortable: true,
+      render: (wf) => (
+        <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.created_at)}</span>
+      ),
+      sortValue: (wf) => wf.created_at,
+    },
+  ];
 
   if (isLoading) {
     return (
@@ -178,34 +230,12 @@ export function MaintenancePane() {
       )}
       {!isWfError && skippedWorkflows.length > 0 && (
         <div className={styles.tableWrap}>
-          <table>
-            <thead>
-              <tr>
-                <th>Workflow</th>
-                <th>Repository</th>
-                <th>Action</th>
-                <th>Actor</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {skippedWorkflows.map((wf, idx) => (
-                <tr key={`${wf.org}/${wf.repo}-${wf.workflow_name}-${idx}`}>
-                  <td>{wf.workflow_name || '(unnamed)'}</td>
-                  <td>
-                    {wf.org}/{wf.repo}
-                  </td>
-                  <td>
-                    <Label variant={wf.action.includes('disable') ? 'danger' : 'attention'}>
-                      {wf.action.includes('disable') ? 'disabled' : 'deleted'}
-                    </Label>
-                  </td>
-                  <td style={{ color: 'var(--fg-muted)' }}>{wf.actor}</td>
-                  <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            columns={skippedWorkflowColumns}
+            data={skippedWorkflows}
+            rowKey={(wf) => `${wf.org}/${wf.repo}-${wf.workflow_name ?? 'unnamed'}-${wf.action}`}
+            emptyMessage="No disabled or skipped workflows detected"
+          />
         </div>
       )}
       <div className={styles.sourceNote}>

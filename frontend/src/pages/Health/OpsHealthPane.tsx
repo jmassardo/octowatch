@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Label } from '../../components/primitives/Label';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { DrilldownModal } from '../../components/primitives/DrilldownModal';
+import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
 import {
   getWorkflowHealth,
   getBranchProtection,
@@ -26,6 +29,68 @@ function failureRateVariant(rate: number): 'danger' | 'attention' | 'success' {
 /* ---------- sub-components ---------- */
 
 function WorkflowHealthTable({ workflows }: { workflows: WorkflowRow[] }) {
+  const columns: ColumnDef<WorkflowRow>[] = [
+    {
+      key: 'repo',
+      header: 'Repository',
+      sortable: true,
+      filterable: true,
+      render: (wf) => wf.repo,
+      sortValue: (wf) => wf.repo,
+      filterValue: (wf) => wf.repo,
+    },
+    {
+      key: 'workflow',
+      header: 'Workflow',
+      sortable: true,
+      filterable: true,
+      render: (wf) => <span className={styles.workflowName}>{wf.workflow_name}</span>,
+      sortValue: (wf) => wf.workflow_name,
+      filterValue: (wf) => wf.workflow_name,
+    },
+    {
+      key: 'total_runs',
+      header: 'Total runs',
+      sortable: true,
+      render: (wf) => <span className={styles.numCol}>{wf.total_runs}</span>,
+      sortValue: (wf) => wf.total_runs,
+    },
+    {
+      key: 'successes',
+      header: 'Successes',
+      sortable: true,
+      render: (wf) => <span className={styles.numCol}>{wf.successes}</span>,
+      sortValue: (wf) => wf.successes,
+    },
+    {
+      key: 'failures',
+      header: 'Failures',
+      sortable: true,
+      render: (wf) => <span className={styles.numCol}>{wf.failures}</span>,
+      sortValue: (wf) => wf.failures,
+    },
+    {
+      key: 'failure_rate',
+      header: 'Failure rate',
+      sortable: true,
+      render: (wf) => (
+        <Label variant={failureRateVariant(wf.failure_rate_pct)}>
+          {wf.failure_rate_pct.toFixed(1)}%
+        </Label>
+      ),
+      sortValue: (wf) => wf.failure_rate_pct,
+    },
+    {
+      key: 'last_run',
+      header: 'Last run',
+      sortable: true,
+      render: (wf) => (
+        <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.last_run)}</span>
+      ),
+      sortValue: (wf) => wf.last_run,
+    },
+  ];
+
   return (
     <div>
       <div className={styles.sectionTitle}>Workflow health</div>
@@ -34,52 +99,64 @@ function WorkflowHealthTable({ workflows }: { workflows: WorkflowRow[] }) {
         <code className={styles.codeSnippet}>workflow_run.*</code> events.
       </div>
       <div className={styles.tableWrap}>
-        <table>
-          <thead>
-            <tr>
-              <th>Repository</th>
-              <th>Workflow</th>
-              <th>Total runs</th>
-              <th>Successes</th>
-              <th>Failures</th>
-              <th>Failure rate</th>
-              <th>Last run</th>
-            </tr>
-          </thead>
-          <tbody>
-            {workflows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={7}
-                  style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
-                >
-                  No workflow data available
-                </td>
-              </tr>
-            )}
-            {workflows.map((wf) => (
-              <tr key={`${wf.repo}/${wf.workflow_name}`}>
-                <td>{wf.repo}</td>
-                <td className={styles.workflowName}>{wf.workflow_name}</td>
-                <td className={styles.numCol}>{wf.total_runs}</td>
-                <td className={styles.numCol}>{wf.successes}</td>
-                <td className={styles.numCol}>{wf.failures}</td>
-                <td>
-                  <Label variant={failureRateVariant(wf.failure_rate_pct)}>
-                    {wf.failure_rate_pct.toFixed(1)}%
-                  </Label>
-                </td>
-                <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.last_run)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          columns={columns}
+          data={workflows}
+          rowKey={(wf) => `${wf.repo}/${wf.workflow_name}`}
+          emptyMessage="No workflow data available"
+        />
       </div>
     </div>
   );
 }
 
 function RunnerFleetTable({ runners }: { runners: RunnerRow[] }) {
+  const columns: ColumnDef<RunnerRow>[] = [
+    {
+      key: 'org',
+      header: 'Organization',
+      sortable: true,
+      filterable: true,
+      render: (r) => r.org,
+      sortValue: (r) => r.org,
+      filterValue: (r) => r.org,
+    },
+    {
+      key: 'runner_name',
+      header: 'Runner name',
+      sortable: true,
+      filterable: true,
+      render: (r) => r.runner_name,
+      sortValue: (r) => r.runner_name,
+      filterValue: (r) => r.runner_name,
+    },
+    {
+      key: 'version',
+      header: 'Version',
+      sortable: true,
+      render: (r) => <span className={styles.numCol}>{r.version}</span>,
+      sortValue: (r) => r.version,
+    },
+    {
+      key: 'group',
+      header: 'Group',
+      sortable: true,
+      filterable: true,
+      render: (r) => r.group,
+      sortValue: (r) => r.group,
+      filterValue: (r) => r.group,
+    },
+    {
+      key: 'last_event',
+      header: 'Last event',
+      sortable: true,
+      render: (r) => (
+        <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(r.last_event)}</span>
+      ),
+      sortValue: (r) => r.last_event,
+    },
+  ];
+
   return (
     <div>
       <div className={styles.sectionTitle}>Runner fleet</div>
@@ -88,38 +165,12 @@ function RunnerFleetTable({ runners }: { runners: RunnerRow[] }) {
         <code className={styles.codeSnippet}>action.self_hosted_runner.*</code> events.
       </div>
       <div className={styles.tableWrap}>
-        <table>
-          <thead>
-            <tr>
-              <th>Organization</th>
-              <th>Runner name</th>
-              <th>Version</th>
-              <th>Group</th>
-              <th>Last event</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runners.length === 0 && (
-              <tr>
-                <td
-                  colSpan={5}
-                  style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
-                >
-                  No runner data available
-                </td>
-              </tr>
-            )}
-            {runners.map((r) => (
-              <tr key={`${r.org}/${r.runner_name}`}>
-                <td>{r.org}</td>
-                <td>{r.runner_name}</td>
-                <td className={styles.numCol}>{r.version}</td>
-                <td>{r.group}</td>
-                <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(r.last_event)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          columns={columns}
+          data={runners}
+          rowKey={(r) => `${r.org}/${r.runner_name}`}
+          emptyMessage="No runner data available"
+        />
       </div>
     </div>
   );
@@ -128,6 +179,11 @@ function RunnerFleetTable({ runners }: { runners: RunnerRow[] }) {
 /* ---------- main pane ---------- */
 
 export function OpsHealthPane() {
+  const [opsDrilldown, setOpsDrilldown] = useState<{
+    title: string;
+    metricName: string;
+  } | null>(null);
+
   const workflowQuery = useQuery({
     queryKey: ['health', 'workflows'],
     queryFn: getWorkflowHealth,
@@ -216,14 +272,44 @@ export function OpsHealthPane() {
             value={String(branch?.protections_removed ?? 0)}
             label="Protections removed"
             accent={branch != null && branch.protections_removed > 0}
+            onClick={() =>
+              setOpsDrilldown({
+                title: 'Protections removed (30d)',
+                metricName: 'protections_removed',
+              })
+            }
           />
           <MetricCard
             value={String(branch?.policy_overrides ?? 0)}
             label="Policy overrides"
             accent={branch != null && branch.policy_overrides > 0}
+            onClick={() =>
+              setOpsDrilldown({
+                title: 'Policy overrides (30d)',
+                metricName: 'policy_overrides',
+              })
+            }
           />
-          <MetricCard value={String(branch?.modified ?? 0)} label="Modified" />
-          <MetricCard value={String(branch?.distinct_repos_affected ?? 0)} label="Repos affected" />
+          <MetricCard
+            value={String(branch?.modified ?? 0)}
+            label="Modified"
+            onClick={() =>
+              setOpsDrilldown({
+                title: 'Branch protections modified (30d)',
+                metricName: 'modified',
+              })
+            }
+          />
+          <MetricCard
+            value={String(branch?.distinct_repos_affected ?? 0)}
+            label="Repos affected"
+            onClick={() =>
+              setOpsDrilldown({
+                title: 'Repos with branch protection changes (30d)',
+                metricName: 'repos_affected',
+              })
+            }
+          />
         </div>
       </div>
 
@@ -235,9 +321,36 @@ export function OpsHealthPane() {
           events.
         </div>
         <div className={styles.metricGrid}>
-          <MetricCard value={String(copilot?.seats_granted_90d ?? 0)} label="Seats granted (90d)" />
-          <MetricCard value={String(copilot?.seats_removed ?? 0)} label="Seats removed" />
-          <MetricCard value={String(copilot?.unique_users ?? 0)} label="Unique users" />
+          <MetricCard
+            value={String(copilot?.seats_granted_90d ?? 0)}
+            label="Seats granted (90d)"
+            onClick={() =>
+              setOpsDrilldown({
+                title: 'Copilot seats granted (90d)',
+                metricName: 'seats_granted',
+              })
+            }
+          />
+          <MetricCard
+            value={String(copilot?.seats_removed ?? 0)}
+            label="Seats removed"
+            onClick={() =>
+              setOpsDrilldown({
+                title: 'Copilot seats removed',
+                metricName: 'seats_removed',
+              })
+            }
+          />
+          <MetricCard
+            value={String(copilot?.unique_users ?? 0)}
+            label="Unique users"
+            onClick={() =>
+              setOpsDrilldown({
+                title: 'Copilot unique users',
+                metricName: 'unique_users',
+              })
+            }
+          />
         </div>
       </div>
 
@@ -253,14 +366,65 @@ export function OpsHealthPane() {
             value={String(codespaces?.active_never_suspended ?? 0)}
             label="Active never suspended"
             accent={codespaces != null && codespaces.active_never_suspended > 0}
+            onClick={() =>
+              setOpsDrilldown({
+                title: 'Codespaces active (never suspended)',
+                metricName: 'active_never_suspended',
+              })
+            }
           />
           <MetricCard
             value={String(codespaces?.large_machine_count ?? 0)}
             label="Large machine count"
+            onClick={() =>
+              setOpsDrilldown({
+                title: 'Large machine codespaces',
+                metricName: 'large_machine',
+              })
+            }
           />
-          <MetricCard value={String(codespaces?.unique_users ?? 0)} label="Unique users" />
+          <MetricCard
+            value={String(codespaces?.unique_users ?? 0)}
+            label="Unique users"
+            onClick={() =>
+              setOpsDrilldown({
+                title: 'Codespace unique users',
+                metricName: 'codespace_users',
+              })
+            }
+          />
         </div>
       </div>
+
+      {/* Ops Drilldown Modal */}
+      <DrilldownModal
+        open={opsDrilldown !== null}
+        onClose={() => setOpsDrilldown(null)}
+        title={opsDrilldown?.title ?? ''}
+        data={
+          opsDrilldown
+            ? [
+                {
+                  metric: opsDrilldown.metricName,
+                  note: 'Per-event detail requires GitHub API integration.',
+                },
+              ]
+            : []
+        }
+        columns={[
+          {
+            key: 'metric',
+            header: 'Metric',
+            render: (r: { metric: string; note: string }) => r.metric,
+          },
+          {
+            key: 'note',
+            header: 'Note',
+            render: (r: { metric: string; note: string }) => r.note,
+          },
+        ]}
+        rowKey={(r: { metric: string }) => r.metric}
+      />
 
       {/* Runner Fleet Table */}
       <RunnerFleetTable runners={runners} />

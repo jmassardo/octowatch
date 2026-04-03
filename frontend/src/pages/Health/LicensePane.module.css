@@ -152,3 +152,18 @@
   color: var(--fg-muted);
   margin-bottom: 8px;
 }
+
+.sectionHeader {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--fg);
+  margin: 12px 0 4px;
+  padding: 0;
+  border: none;
+}
+
+.sectionDivider {
+  height: 1px;
+  background: var(--border);
+  margin: 24px 0 8px;
+}

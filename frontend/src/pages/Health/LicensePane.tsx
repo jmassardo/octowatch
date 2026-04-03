@@ -1,10 +1,14 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '../../components/primitives/Card';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
+import { DrilldownModal } from '../../components/primitives/DrilldownModal';
 import { getSeatUtilizationReport, getCopilotSeatsReport } from '../../api/reports';
 import { getGhostMembers, getLicenseConsumption } from '../../api/healthSignals';
+import type { GhostMember } from '../../api/healthSignals';
 import type {
   SeatUtilizationBucket,
   CopilotSeatsBucket,
@@ -28,6 +32,10 @@ function toCopilotBuckets(env: ReportEnvelope | undefined): CopilotSeatsBucket[]
 
 export function LicensePane() {
   const { costPerSeat } = useOrgConfig();
+  const [licenseDrilldown, setLicenseDrilldown] = useState<{
+    title: string;
+    metricName: string;
+  } | null>(null);
 
   const { data: licenseData } = useQuery({
     queryKey: ['health', 'license-consumption'],
@@ -99,11 +107,38 @@ export function LicensePane() {
     copilotBuckets.length === 0 &&
     ghostMembers.length === 0;
 
+  const ghostMemberColumns: ColumnDef<GhostMember>[] = [
+    {
+      key: 'member',
+      header: 'Member',
+      sortable: true,
+      filterable: true,
+      render: (m) => <span style={{ fontWeight: 500 }}>{m.actor}</span>,
+      sortValue: (m) => m.actor,
+      filterValue: (m) => m.actor,
+    },
+    {
+      key: 'last_active',
+      header: 'Last active',
+      sortable: true,
+      render: (m) => (
+        <span style={{ color: 'var(--fg-muted)' }}>
+          {m.last_active ? formatDateOnly(m.last_active) : 'Never'}
+        </span>
+      ),
+      sortValue: (m) => m.last_active ?? '',
+    },
+  ];
+
   return (
     <>
       {isSampleData && (
         <SampleDataBanner message="This data is illustrative. Connect your GitHub organization to see real license metrics." />
       )}
+
+      {/* GHEC License Consumption header */}
+      <h2 className={styles.sectionHeader}>GHEC License Consumption</h2>
+
       {/* Summary metric cards */}
       <div className={styles.grid3}>
         <Card>
@@ -168,43 +203,14 @@ export function LicensePane() {
       )}
       {!isLoadingGhosts && !isGhostError && (
         <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Member</th>
-                <th>Last active</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ghostMembers.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={2}
-                    style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
-                  >
-                    No ghost members detected
-                  </td>
-                </tr>
-              )}
-              {ghostMembers.map((m) => (
-                <tr key={m.actor}>
-                  <td style={{ fontWeight: 500 }}>{m.actor}</td>
-                  <td style={{ color: 'var(--fg-muted)' }}>
-                    {m.last_active ? formatDateOnly(m.last_active) : 'Never'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            columns={ghostMemberColumns}
+            data={ghostMembers}
+            rowKey={(m) => m.actor}
+            emptyMessage="No ghost members detected"
+          />
         </div>
       )}
-
-      {/* Copilot seat cross-reference */}
-      <div className={styles.sectionTitle}>Copilot seat cross-reference</div>
-      <div className={styles.copilotCrossRef}>
-        <strong style={{ color: 'var(--fg)' }}>{copilotTotal} Copilot seats</strong> provisioned —
-        see Copilot Insights → License Optimization for full detail.
-      </div>
 
       <div className={styles.sourceNote}>
         ℹ️ License seat data is derived from{' '}
@@ -223,6 +229,17 @@ export function LicensePane() {
         )}
       </div>
 
+      {/* Copilot License Usage header */}
+      <div className={styles.sectionDivider} />
+      <h2 className={styles.sectionHeader}>Copilot License Usage</h2>
+
+      {/* Copilot seat cross-reference */}
+      <div className={styles.sectionTitle}>Copilot seat cross-reference</div>
+      <div className={styles.copilotCrossRef}>
+        <strong style={{ color: 'var(--fg)' }}>{copilotTotal} Copilot seats</strong> provisioned —
+        see Copilot Insights → License Optimization for full detail.
+      </div>
+
       {/* Summary metrics row */}
       <div className={styles.metricStrip}>
         <MetricCard
@@ -230,6 +247,12 @@ export function LicensePane() {
           label="Seat utilization"
           delta={`${totalSeats} of ${seatLimit} seats`}
           deltaDir={utilPct > 90 ? 'down' : 'neutral'}
+          onClick={() =>
+            setLicenseDrilldown({
+              title: 'Seat utilization detail',
+              metricName: 'seat_utilization',
+            })
+          }
         />
         <MetricCard
           value={String(ghostCount)}
@@ -237,20 +260,79 @@ export function LicensePane() {
           delta={`$${ghostCost}/mo recoverable`}
           deltaDir="down"
           accent
+          onClick={() =>
+            setLicenseDrilldown({
+              title: 'Ghost members detail',
+              metricName: 'ghost_members',
+            })
+          }
         />
         <MetricCard
           value={String(activeSeats)}
           label="Active seats"
           delta="with recent activity"
           deltaDir="neutral"
+          onClick={() =>
+            setLicenseDrilldown({
+              title: 'Active seats detail',
+              metricName: 'active_seats',
+            })
+          }
         />
         <MetricCard
           value={String(copilotTotal)}
           label="Copilot seats"
           delta="provisioned"
           deltaDir="neutral"
+          onClick={() =>
+            setLicenseDrilldown({
+              title: 'Copilot seats detail',
+              metricName: 'copilot_seats',
+            })
+          }
         />
       </div>
+
+      {/* License Drilldown Modal */}
+      {licenseDrilldown?.metricName === 'ghost_members' ? (
+        <DrilldownModal<GhostMember>
+          open={licenseDrilldown !== null}
+          onClose={() => setLicenseDrilldown(null)}
+          title={licenseDrilldown?.title ?? ''}
+          data={ghostMembers}
+          columns={ghostMemberColumns}
+          rowKey={(r) => r.actor}
+        />
+      ) : (
+        <DrilldownModal<{ metric: string; note: string }>
+          open={licenseDrilldown !== null}
+          onClose={() => setLicenseDrilldown(null)}
+          title={licenseDrilldown?.title ?? ''}
+          data={
+            licenseDrilldown
+              ? [
+                  {
+                    metric: licenseDrilldown.metricName,
+                    note: 'Detailed breakdown requires GitHub API integration.',
+                  },
+                ]
+              : []
+          }
+          columns={[
+            {
+              key: 'metric',
+              header: 'Metric',
+              render: (r) => r.metric,
+            },
+            {
+              key: 'note',
+              header: 'Note',
+              render: (r) => r.note,
+            },
+          ]}
+          rowKey={(r) => r.metric}
+        />
+      )}
     </>
   );
 }

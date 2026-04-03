@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RepoHealthPane } from './RepoHealthPane';
 import type { RepoHealthResponse } from '../../api/healthSignals';
@@ -144,10 +144,14 @@ describe('RepoHealthPane', () => {
 
   it('renders table with 3 columns (Repository, Last push, Overall)', () => {
     renderPane();
-    const table = screen.getByText('Repository').closest('table')!;
-    const headers = within(table).getAllByRole('columnheader');
+    const table = screen.getByText(/^Repository/).closest('table')!;
+    const thead = table.querySelector('thead')!;
+    const firstRow = thead.querySelectorAll('tr')[0];
+    const headers = firstRow.querySelectorAll('th');
     expect(headers).toHaveLength(3);
-    expect(headers.map((h) => h.textContent)).toEqual(['Repository', 'Last push', 'Overall']);
+    expect(headers[0].textContent).toContain('Repository');
+    expect(headers[1].textContent).toContain('Last push');
+    expect(headers[2].textContent).toContain('Overall');
   });
 
   it('renders the stale trend section title', () => {

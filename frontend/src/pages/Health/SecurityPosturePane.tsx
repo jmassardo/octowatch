@@ -6,7 +6,7 @@ import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { DrilldownModal } from '../../components/primitives/DrilldownModal';
-import type { ColumnDef } from '../../components/primitives/DataTable';
+import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
 import {
   getSecurityPosture,
   getSecretScanning,
@@ -28,6 +28,29 @@ function formatHours(hours: number): string {
 /* ---------- sub-components ---------- */
 
 function SsoStatusTable({ orgs }: { orgs: SsoOrgStatus[] }) {
+  const ssoTableColumns: ColumnDef<SsoOrgStatus>[] = [
+    {
+      key: 'org',
+      header: 'Organization',
+      sortable: true,
+      filterable: true,
+      render: (o) => o.org,
+      sortValue: (o) => o.org,
+      filterValue: (o) => o.org,
+    },
+    {
+      key: 'sso_status',
+      header: 'SSO status',
+      sortable: true,
+      render: (o) => (
+        <Label variant={o.sso_enabled ? 'success' : 'danger'}>
+          {o.sso_enabled ? 'enabled' : 'disabled'}
+        </Label>
+      ),
+      sortValue: (o) => (o.sso_enabled ? 'enabled' : 'disabled'),
+    },
+  ];
+
   return (
     <div>
       <div className={styles.sectionTitle}>SSO status by organization</div>
@@ -37,36 +60,12 @@ function SsoStatusTable({ orgs }: { orgs: SsoOrgStatus[] }) {
         <code className={styles.codeSnippet}>org.disable_saml</code> audit events.
       </div>
       <div className={styles.tableWrap}>
-        <table>
-          <thead>
-            <tr>
-              <th>Organization</th>
-              <th>SSO status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orgs.length === 0 && (
-              <tr>
-                <td
-                  colSpan={2}
-                  style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
-                >
-                  No SSO data available
-                </td>
-              </tr>
-            )}
-            {orgs.map((org) => (
-              <tr key={org.org}>
-                <td>{org.org}</td>
-                <td>
-                  <Label variant={org.sso_enabled ? 'success' : 'danger'}>
-                    {org.sso_enabled ? 'enabled' : 'disabled'}
-                  </Label>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          columns={ssoTableColumns}
+          data={orgs}
+          rowKey={(o) => o.org}
+          emptyMessage="No SSO data available"
+        />
       </div>
     </div>
   );
@@ -76,6 +75,14 @@ function SsoStatusTable({ orgs }: { orgs: SsoOrgStatus[] }) {
 
 export function SecurityPosturePane() {
   const [ssoDrilldownOpen, setSsoDrilldownOpen] = useState(false);
+  const [securityDrilldown, setSecurityDrilldown] = useState<{
+    title: string;
+    metricName: string;
+  } | null>(null);
+  const [privilegeDrilldown, setPrivilegeDrilldown] = useState<{
+    title: string;
+    metricName: string;
+  } | null>(null);
 
   const postureQuery = useQuery({
     queryKey: ['health', 'security-posture'],
@@ -179,20 +186,101 @@ export function SecurityPosturePane() {
           <MetricCard
             value={String(posture?.repos_with_secret_scanning ?? 0)}
             label="Secret scanning enabled"
+            onClick={() =>
+              setSecurityDrilldown({
+                title: 'Repos with secret scanning enabled',
+                metricName: 'secret_scanning',
+              })
+            }
           />
           <MetricCard
             value={String(posture?.repos_with_dependabot ?? 0)}
             label="Dependabot enabled"
+            onClick={() =>
+              setSecurityDrilldown({
+                title: 'Repos with Dependabot enabled',
+                metricName: 'dependabot',
+              })
+            }
           />
-          <MetricCard value={String(posture?.repos_with_codeql ?? 0)} label="CodeQL enabled" />
-          <MetricCard value={String(posture?.repos_with_ghas ?? 0)} label="GHAS enabled" />
+          <MetricCard
+            value={String(posture?.repos_with_codeql ?? 0)}
+            label="CodeQL enabled"
+            onClick={() =>
+              setSecurityDrilldown({
+                title: 'Repos with CodeQL enabled',
+                metricName: 'codeql',
+              })
+            }
+          />
+          <MetricCard
+            value={String(posture?.repos_with_ghas ?? 0)}
+            label="GHAS enabled"
+            onClick={() =>
+              setSecurityDrilldown({
+                title: 'Repos with GHAS enabled',
+                metricName: 'ghas',
+              })
+            }
+          />
           <MetricCard
             value={String(posture?.features_disabled_count ?? 0)}
             label="Features disabled"
             accent={posture != null && posture.features_disabled_count > 0}
+            onClick={() =>
+              setSecurityDrilldown({
+                title: 'Security features disabled',
+                metricName: 'features_disabled',
+              })
+            }
           />
         </div>
       </div>
+
+      {/* Security Coverage Drilldown */}
+      <DrilldownModal
+        open={securityDrilldown !== null}
+        onClose={() => setSecurityDrilldown(null)}
+        title={securityDrilldown?.title ?? ''}
+        data={
+          securityDrilldown
+            ? [
+                {
+                  metric: securityDrilldown.metricName,
+                  count:
+                    securityDrilldown.metricName === 'secret_scanning'
+                      ? (posture?.repos_with_secret_scanning ?? 0)
+                      : securityDrilldown.metricName === 'dependabot'
+                        ? (posture?.repos_with_dependabot ?? 0)
+                        : securityDrilldown.metricName === 'codeql'
+                          ? (posture?.repos_with_codeql ?? 0)
+                          : securityDrilldown.metricName === 'ghas'
+                            ? (posture?.repos_with_ghas ?? 0)
+                            : (posture?.features_disabled_count ?? 0),
+                  note: 'Per-repository detail requires GitHub API integration.',
+                },
+              ]
+            : []
+        }
+        columns={[
+          {
+            key: 'metric',
+            header: 'Metric',
+            render: (r: { metric: string; count: number; note: string }) => r.metric,
+          },
+          {
+            key: 'count',
+            header: 'Count',
+            render: (r: { metric: string; count: number; note: string }) => String(r.count),
+          },
+          {
+            key: 'note',
+            header: 'Note',
+            render: (r: { metric: string; count: number; note: string }) => r.note,
+          },
+        ]}
+        rowKey={(r: { metric: string }) => r.metric}
+      />
 
       {/* Secret Scanning Alerts */}
       <div>
@@ -206,17 +294,53 @@ export function SecurityPosturePane() {
             value={String(secrets?.unresolved_total ?? 0)}
             label="Unresolved total"
             accent={secrets != null && secrets.unresolved_total > 0}
+            onClick={() =>
+              setSecurityDrilldown({
+                title: 'Unresolved secret scanning alerts',
+                metricName: 'unresolved_total',
+              })
+            }
           />
           <MetricCard
             value={String(secrets?.publicly_leaked ?? 0)}
             label="Publicly leaked"
             accent={secrets != null && secrets.publicly_leaked > 0}
+            onClick={() =>
+              setSecurityDrilldown({
+                title: 'Publicly leaked secrets',
+                metricName: 'publicly_leaked',
+              })
+            }
           />
-          <MetricCard value={String(secrets?.open_gt_7d ?? 0)} label="Open > 7 days" />
-          <MetricCard value={String(secrets?.open_gt_30d ?? 0)} label="Open > 30 days" />
+          <MetricCard
+            value={String(secrets?.open_gt_7d ?? 0)}
+            label="Open > 7 days"
+            onClick={() =>
+              setSecurityDrilldown({
+                title: 'Secret alerts open > 7 days',
+                metricName: 'open_gt_7d',
+              })
+            }
+          />
+          <MetricCard
+            value={String(secrets?.open_gt_30d ?? 0)}
+            label="Open > 30 days"
+            onClick={() =>
+              setSecurityDrilldown({
+                title: 'Secret alerts open > 30 days',
+                metricName: 'open_gt_30d',
+              })
+            }
+          />
           <MetricCard
             value={secrets != null ? formatHours(secrets.mttr_hours) : '—'}
             label="MTTR"
+            onClick={() =>
+              setSecurityDrilldown({
+                title: 'Mean time to resolution',
+                metricName: 'mttr',
+              })
+            }
           />
         </div>
       </div>
@@ -237,17 +361,76 @@ export function SecurityPosturePane() {
             value={String(privilege?.admin_promotions ?? 0)}
             label="Admin promotions"
             accent={privilege != null && privilege.admin_promotions > 0}
+            onClick={() =>
+              setPrivilegeDrilldown({
+                title: 'Admin promotions (30d)',
+                metricName: 'admin_promotions',
+              })
+            }
           />
           <MetricCard
             value={String(privilege?.integration_manager_grants ?? 0)}
             label="Integration manager grants"
+            onClick={() =>
+              setPrivilegeDrilldown({
+                title: 'Integration manager grants (30d)',
+                metricName: 'integration_manager_grants',
+              })
+            }
           />
           <MetricCard
             value={String(privilege?.custom_role_changes ?? 0)}
             label="Custom role changes"
+            onClick={() =>
+              setPrivilegeDrilldown({
+                title: 'Custom role changes (30d)',
+                metricName: 'custom_role_changes',
+              })
+            }
           />
         </div>
       </div>
+
+      {/* Privilege Changes Drilldown */}
+      <DrilldownModal
+        open={privilegeDrilldown !== null}
+        onClose={() => setPrivilegeDrilldown(null)}
+        title={privilegeDrilldown?.title ?? ''}
+        data={
+          privilegeDrilldown
+            ? [
+                {
+                  metric: privilegeDrilldown.metricName,
+                  count:
+                    privilegeDrilldown.metricName === 'admin_promotions'
+                      ? (privilege?.admin_promotions ?? 0)
+                      : privilegeDrilldown.metricName === 'integration_manager_grants'
+                        ? (privilege?.integration_manager_grants ?? 0)
+                        : (privilege?.custom_role_changes ?? 0),
+                  note: 'Per-user detail requires GitHub API integration.',
+                },
+              ]
+            : []
+        }
+        columns={[
+          {
+            key: 'metric',
+            header: 'Metric',
+            render: (r: { metric: string; count: number; note: string }) => r.metric,
+          },
+          {
+            key: 'count',
+            header: 'Count',
+            render: (r: { metric: string; count: number; note: string }) => String(r.count),
+          },
+          {
+            key: 'note',
+            header: 'Note',
+            render: (r: { metric: string; count: number; note: string }) => r.note,
+          },
+        ]}
+        rowKey={(r: { metric: string }) => r.metric}
+      />
 
       {/* IP Allowlist / Audit Stream */}
       <div>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { LicensePane } from './LicensePane';
@@ -157,10 +157,17 @@ describe('LicensePane', () => {
     expect(
       screen.getByText('Ghost members — consuming seats with no activity'),
     ).toBeInTheDocument();
-    const table = screen.getByText('Member').closest('table')!;
-    const headers = within(table).getAllByRole('columnheader');
+    // Find the ghost member table section by title, then locate the table that follows
+    const sectionTitle = screen.getByText('Ghost members — consuming seats with no activity');
+    const tableWrap = sectionTitle.nextElementSibling as HTMLElement;
+    const table = tableWrap?.querySelector('table') as HTMLElement;
+    expect(table).toBeTruthy();
+    const thead = table.querySelector('thead')!;
+    const firstRow = thead.querySelectorAll('tr')[0];
+    const headers = firstRow.querySelectorAll('th');
     expect(headers).toHaveLength(2);
-    expect(headers.map((h) => h.textContent)).toEqual(['Member', 'Last active']);
+    expect(headers[0].textContent).toContain('Member');
+    expect(headers[1].textContent).toContain('Last active');
   });
 
   it('renders ghost members from API data', () => {
@@ -365,5 +372,23 @@ describe('LicensePane', () => {
     expect(screen.queryByText(/consumed-licenses/)).not.toBeInTheDocument();
     const addMemberRefs = screen.getAllByText(/org\.add_member/);
     expect(addMemberRefs.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders GHEC License Consumption section header', () => {
+    renderWithProviders();
+    expect(screen.getByText('GHEC License Consumption')).toBeInTheDocument();
+  });
+
+  it('renders Copilot License Usage section header', () => {
+    renderWithProviders();
+    expect(screen.getByText('Copilot License Usage')).toBeInTheDocument();
+  });
+
+  it('renders clickable metric cards with role=button', () => {
+    renderWithProviders();
+    const seatUtil = screen.getByText('Seat utilization').closest('[role="button"]');
+    expect(seatUtil).toBeInTheDocument();
+    const copilotSeats = screen.getByText('Copilot seats').closest('[role="button"]');
+    expect(copilotSeats).toBeInTheDocument();
   });
 });

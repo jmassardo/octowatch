@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MaintenancePane } from './MaintenancePane';
 
@@ -220,15 +220,16 @@ describe('MaintenancePane', () => {
   it('renders skipped workflows table with correct columns', () => {
     renderPane();
     expect(screen.getByText('Disabled / consistently-skipped workflows')).toBeInTheDocument();
-    const table = screen.getByText('Workflow').closest('table')!;
-    const headers = within(table).getAllByRole('columnheader');
-    expect(headers.map((h) => h.textContent)).toEqual([
-      'Workflow',
-      'Repository',
-      'Action',
-      'Actor',
-      'Date',
-    ]);
+    const table = screen.getByText(/^Workflow/).closest('table')!;
+    const thead = table.querySelector('thead')!;
+    const firstRow = thead.querySelectorAll('tr')[0];
+    const headers = firstRow.querySelectorAll('th');
+    expect(headers).toHaveLength(5);
+    expect(headers[0].textContent).toContain('Workflow');
+    expect(headers[1].textContent).toContain('Repository');
+    expect(headers[2].textContent).toContain('Action');
+    expect(headers[3].textContent).toContain('Actor');
+    expect(headers[4].textContent).toContain('Date');
   });
 
   it('renders skipped workflow data in table', () => {

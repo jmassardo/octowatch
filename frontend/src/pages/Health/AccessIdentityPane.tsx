@@ -7,7 +7,7 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { BarChart } from '../../components/charts/BarChart';
 import { DrilldownModal } from '../../components/primitives/DrilldownModal';
-import type { ColumnDef } from '../../components/primitives/DataTable';
+import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
 import {
   getPatHealth,
   getBypassOffenders,
@@ -357,58 +357,79 @@ function PatHealthSnapshot({
 }
 
 function BypassOffendersTable({ offenders }: { offenders: BypassOffender[] }) {
+  const columns: ColumnDef<BypassOffender>[] = [
+    {
+      key: 'actor',
+      header: 'Actor',
+      sortable: true,
+      filterable: true,
+      render: (o) => <span className={styles.mention}>@{o.actor}</span>,
+      sortValue: (o) => o.actor,
+      filterValue: (o) => o.actor,
+    },
+    {
+      key: 'total_bypasses',
+      header: 'Total bypasses',
+      sortable: true,
+      render: (o) => (
+        <span className={styles.numCol}>
+          <Label
+            variant={
+              o.total_bypasses > 10
+                ? 'danger'
+                : o.total_bypasses > 5
+                  ? 'attention'
+                  : 'muted'
+            }
+          >
+            {o.total_bypasses}
+          </Label>
+        </span>
+      ),
+      sortValue: (o) => o.total_bypasses,
+    },
+    {
+      key: 'push_protection',
+      header: 'Push protection',
+      sortable: true,
+      render: (o) => <span className={styles.numCol}>{o.push_protection_bypasses}</span>,
+      sortValue: (o) => o.push_protection_bypasses,
+    },
+    {
+      key: 'branch_policy',
+      header: 'Branch policy',
+      sortable: true,
+      render: (o) => <span className={styles.numCol}>{o.branch_protection_overrides}</span>,
+      sortValue: (o) => o.branch_protection_overrides,
+    },
+    {
+      key: 'active_days',
+      header: 'Active days',
+      sortable: true,
+      render: (o) => <span className={styles.numCol}>{o.active_days}</span>,
+      sortValue: (o) => o.active_days,
+    },
+    {
+      key: 'last_bypass',
+      header: 'Last bypass',
+      sortable: true,
+      render: (o) => (
+        <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(o.last_bypass_at)}</span>
+      ),
+      sortValue: (o) => o.last_bypass_at,
+    },
+  ];
+
   return (
     <div>
       <div className={styles.sectionTitle}>Bypass repeat offenders</div>
       <div className={styles.tableWrap}>
-        <table>
-          <thead>
-            <tr>
-              <th>Actor</th>
-              <th>Total bypasses</th>
-              <th>Push protection</th>
-              <th>Branch policy</th>
-              <th>Active days</th>
-              <th>Last bypass</th>
-            </tr>
-          </thead>
-          <tbody>
-            {offenders.length === 0 && (
-              <tr>
-                <td
-                  colSpan={6}
-                  style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
-                >
-                  No bypass offenders found
-                </td>
-              </tr>
-            )}
-            {offenders.map((o) => (
-              <tr key={o.actor}>
-                <td>
-                  <span className={styles.mention}>@{o.actor}</span>
-                </td>
-                <td className={styles.numCol}>
-                  <Label
-                    variant={
-                      o.total_bypasses > 10
-                        ? 'danger'
-                        : o.total_bypasses > 5
-                          ? 'attention'
-                          : 'muted'
-                    }
-                  >
-                    {o.total_bypasses}
-                  </Label>
-                </td>
-                <td className={styles.numCol}>{o.push_protection_bypasses}</td>
-                <td className={styles.numCol}>{o.branch_protection_overrides}</td>
-                <td className={styles.numCol}>{o.active_days}</td>
-                <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(o.last_bypass_at)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          columns={columns}
+          data={offenders}
+          rowKey={(o) => o.actor}
+          emptyMessage="No bypass offenders found"
+        />
       </div>
     </div>
   );
@@ -421,6 +442,69 @@ function ExternalCollaboratorsTable({
   collaborators: ExternalCollaborator[];
   summary: CollabSummary;
 }) {
+  const columns: ColumnDef<ExternalCollaborator>[] = [
+    {
+      key: 'collaborator',
+      header: 'Collaborator',
+      sortable: true,
+      filterable: true,
+      render: (c) => <span className={styles.mention}>@{c.github_login}</span>,
+      sortValue: (c) => c.github_login,
+      filterValue: (c) => c.github_login,
+    },
+    {
+      key: 'repo',
+      header: 'Repo',
+      sortable: true,
+      filterable: true,
+      render: (c) => (
+        <span style={{ color: 'var(--fg-muted)' }}>{c.repo ?? `${c.org} (org-level)`}</span>
+      ),
+      sortValue: (c) => c.repo ?? c.org,
+      filterValue: (c) => c.repo ?? c.org,
+    },
+    {
+      key: 'permission',
+      header: 'Permission',
+      sortable: true,
+      render: (c) => <Label variant={c.role === 'admin' ? 'danger' : 'severe'}>{c.role}</Label>,
+      sortValue: (c) => c.role,
+    },
+    {
+      key: 'added',
+      header: 'Added',
+      sortable: true,
+      render: (c) => (
+        <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(c.granted_at)}</span>
+      ),
+      sortValue: (c) => c.granted_at,
+    },
+    {
+      key: 'last_active',
+      header: 'Last active',
+      sortable: true,
+      render: (c) => (
+        <span style={{ color: 'var(--fg-muted)' }}>
+          {formatDaysAgo(c.days_since_last_event)}
+        </span>
+      ),
+      sortValue: (c) => c.days_since_last_event ?? Infinity,
+    },
+    {
+      key: 'risk',
+      header: 'Risk',
+      sortable: true,
+      render: (c) => <Label variant={riskBadgeVariant(c)}>{riskBadgeText(c)}</Label>,
+      sortValue: (c) => {
+        const days = c.days_since_last_event;
+        if (days !== null && days > 90) return 3;
+        if (c.role === 'admin') return 2;
+        if (days !== null && days > 30) return 1;
+        return 0;
+      },
+    },
+  ];
+
   return (
     <div>
       <div className={styles.sectionTitle}>
@@ -432,48 +516,12 @@ function ExternalCollaboratorsTable({
         )}
       </div>
       <div className={styles.tableWrap}>
-        <table>
-          <thead>
-            <tr>
-              <th>Collaborator</th>
-              <th>Repo</th>
-              <th>Permission</th>
-              <th>Added</th>
-              <th>Last active</th>
-              <th>Risk</th>
-            </tr>
-          </thead>
-          <tbody>
-            {collaborators.length === 0 && (
-              <tr>
-                <td
-                  colSpan={6}
-                  style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
-                >
-                  No external collaborators found
-                </td>
-              </tr>
-            )}
-            {collaborators.map((c, i) => (
-              <tr key={`${c.github_login}-${c.org}-${i}`}>
-                <td>
-                  <span className={styles.mention}>@{c.github_login}</span>
-                </td>
-                <td style={{ color: 'var(--fg-muted)' }}>{c.repo ?? `${c.org} (org-level)`}</td>
-                <td>
-                  <Label variant={c.role === 'admin' ? 'danger' : 'severe'}>{c.role}</Label>
-                </td>
-                <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(c.granted_at)}</td>
-                <td style={{ color: 'var(--fg-muted)' }}>
-                  {formatDaysAgo(c.days_since_last_event)}
-                </td>
-                <td>
-                  <Label variant={riskBadgeVariant(c)}>{riskBadgeText(c)}</Label>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          columns={columns}
+          data={collaborators}
+          rowKey={(c) => `${c.github_login}-${c.org}-${c.repo ?? 'org'}`}
+          emptyMessage="No external collaborators found"
+        />
       </div>
     </div>
   );
@@ -482,60 +530,81 @@ function ExternalCollaboratorsTable({
 function DormantMembersTable({ dormant }: { dormant: DormantCollaborator[] }) {
   const sorted = [...dormant].sort((a, b) => b.days_inactive - a.days_inactive);
 
+  const columns: ColumnDef<DormantCollaborator>[] = [
+    {
+      key: 'member',
+      header: 'Member',
+      sortable: true,
+      filterable: true,
+      render: (d) => <span className={styles.mention}>@{d.github_login}</span>,
+      sortValue: (d) => d.github_login,
+      filterValue: (d) => d.github_login,
+    },
+    {
+      key: 'org',
+      header: 'Org',
+      sortable: true,
+      filterable: true,
+      render: (d) => <span style={{ color: 'var(--fg-muted)' }}>{d.org}</span>,
+      sortValue: (d) => d.org,
+      filterValue: (d) => d.org,
+    },
+    {
+      key: 'role',
+      header: 'Role',
+      sortable: true,
+      render: (d) => (
+        <Label variant={d.role === 'outside_collaborator' ? 'severe' : 'muted'}>
+          {d.role === 'outside_collaborator' ? 'outside collaborator' : d.role}
+        </Label>
+      ),
+      sortValue: (d) => d.role,
+    },
+    {
+      key: 'last_seen',
+      header: 'Last seen',
+      sortable: true,
+      render: (d) => (
+        <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(d.last_event_at)}</span>
+      ),
+      sortValue: (d) => d.last_event_at ?? '',
+    },
+    {
+      key: 'days_inactive',
+      header: 'Days inactive',
+      sortable: true,
+      render: (d) => (
+        <span className={styles.numCol}>
+          <Label variant={d.days_inactive >= 90 ? 'danger' : 'attention'}>
+            {daysLabel(d.days_inactive)}
+          </Label>
+        </span>
+      ),
+      sortValue: (d) => d.days_inactive,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      sortable: true,
+      render: (d) => {
+        const statusVariant = d.days_inactive >= 90 ? 'danger' : 'attention';
+        const statusText = d.days_inactive >= 90 ? 'dormant' : 'at risk';
+        return <Label variant={statusVariant}>{statusText}</Label>;
+      },
+      sortValue: (d) => d.days_inactive,
+    },
+  ];
+
   return (
     <div>
       <div className={styles.sectionTitle}>Dormant members (90+ days inactive)</div>
       <div className={styles.tableWrap}>
-        <table>
-          <thead>
-            <tr>
-              <th>Member</th>
-              <th>Org</th>
-              <th>Role</th>
-              <th>Last seen</th>
-              <th>Days inactive</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.length === 0 && (
-              <tr>
-                <td
-                  colSpan={6}
-                  style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
-                >
-                  No dormant members found
-                </td>
-              </tr>
-            )}
-            {sorted.map((d, i) => {
-              const statusVariant = d.days_inactive >= 90 ? 'danger' : 'attention';
-              const statusText = d.days_inactive >= 90 ? 'dormant' : 'at risk';
-              return (
-                <tr key={`${d.github_login}-${d.org}-${i}`}>
-                  <td>
-                    <span className={styles.mention}>@{d.github_login}</span>
-                  </td>
-                  <td style={{ color: 'var(--fg-muted)' }}>{d.org}</td>
-                  <td>
-                    <Label variant={d.role === 'outside_collaborator' ? 'severe' : 'muted'}>
-                      {d.role === 'outside_collaborator' ? 'outside collaborator' : d.role}
-                    </Label>
-                  </td>
-                  <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(d.last_event_at)}</td>
-                  <td className={styles.numCol}>
-                    <Label variant={d.days_inactive >= 90 ? 'danger' : 'attention'}>
-                      {daysLabel(d.days_inactive)}
-                    </Label>
-                  </td>
-                  <td>
-                    <Label variant={statusVariant}>{statusText}</Label>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <DataTable
+          columns={columns}
+          data={sorted}
+          rowKey={(d) => `${d.github_login}-${d.org}-${d.days_inactive}`}
+          emptyMessage="No dormant members found"
+        />
       </div>
     </div>
   );
