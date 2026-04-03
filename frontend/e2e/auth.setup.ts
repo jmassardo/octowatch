@@ -44,7 +44,12 @@ setup('authenticate via dev-login', async ({ page }) => {
     data: { username: user, password: pass },
   });
 
-  expect(response.ok()).toBeTruthy();
+  if (!response.ok()) {
+    const body = await response.text();
+    throw new Error(
+      `dev-login failed: ${response.status()} ${response.statusText()}\n${body}`,
+    );
+  }
 
   // Persist the authenticated browser state (cookies + localStorage) so that
   // downstream test projects can reuse it via the storageState option.
