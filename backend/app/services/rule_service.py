@@ -252,9 +252,9 @@ async def _create_version_snapshot(
     snapshot = RuleVersion(
         rule_id=rule.id,
         version=rule.version,
-        logic_config_snapshot=rule.logic_config,
-        created_by=actor,
-        comment=comment,
+        logic_config=rule.logic_config,
+        changed_by=actor,
+        change_summary=comment,
     )
     session.add(snapshot)
     await session.flush()
