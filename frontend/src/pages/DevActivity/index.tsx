@@ -11,6 +11,8 @@ import { Card, CardHeader } from '../../components/primitives/Card';
 import { Button } from '../../components/primitives/Button';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { DataTable } from '../../components/primitives/DataTable';
+import type { ColumnDef } from '../../components/primitives/DataTable';
 import { Modal } from '../../components/primitives/Modal';
 import { Drawer } from '../../components/primitives/Drawer';
 import { MiniBarChart } from '../../components/charts/MiniBarChart';
@@ -543,22 +545,27 @@ export function DevActivityPage() {
         title="Other contributors"
         width={420}
       >
-        <table className={styles.othersTable}>
-          <thead>
-            <tr>
-              <th>Developer</th>
-              <th>Events</th>
-            </tr>
-          </thead>
-          <tbody>
-            {othersActors.map((a) => (
-              <tr key={a.handle}>
-                <td>@{a.handle}</td>
-                <td>{a.eventCount}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable<{ handle: string; eventCount: number }>
+          columns={[
+            {
+              key: 'handle',
+              header: 'Developer',
+              filterable: true,
+              filterValue: (row) => row.handle,
+              render: (row) => <>@{row.handle}</>,
+            },
+            {
+              key: 'eventCount',
+              header: 'Events',
+              sortable: true,
+              sortValue: (row) => row.eventCount,
+              render: (row) => <>{row.eventCount}</>,
+            },
+          ] satisfies ColumnDef<{ handle: string; eventCount: number }>[]}
+          data={othersActors}
+          rowKey={(a) => a.handle}
+          className={styles.othersTable}
+        />
       </Modal>
 
       <Modal
@@ -567,22 +574,31 @@ export function DevActivityPage() {
         title="Activity concentration"
         width={420}
       >
-        <table className={styles.othersTable}>
-          <thead>
-            <tr>
-              <th>Developer</th>
-              <th>Share</th>
-            </tr>
-          </thead>
-          <tbody>
-            {activityConcentrationData.map((d) => (
-              <tr key={d.handle}>
-                <td>@{d.handle}</td>
-                <td style={d.textColor ? { color: d.textColor } : undefined}>{d.pct}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable<{ handle: string; pct: number; color: string; textColor?: string }>
+          columns={[
+            {
+              key: 'handle',
+              header: 'Developer',
+              filterable: true,
+              filterValue: (row) => row.handle,
+              render: (row) => <>@{row.handle}</>,
+            },
+            {
+              key: 'pct',
+              header: 'Share',
+              sortable: true,
+              sortValue: (row) => row.pct,
+              render: (row) => (
+                <span style={row.textColor ? { color: row.textColor } : undefined}>
+                  {row.pct}%
+                </span>
+              ),
+            },
+          ] satisfies ColumnDef<{ handle: string; pct: number; color: string; textColor?: string }>[]}
+          data={activityConcentrationData}
+          rowKey={(d) => d.handle}
+          className={styles.othersTable}
+        />
       </Modal>
 
       {/* Developer detail slide-out panel */}

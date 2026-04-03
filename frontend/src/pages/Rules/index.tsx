@@ -11,6 +11,7 @@ import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Pagination } from '../../components/primitives/Pagination';
+import { DataTable } from '../../components/primitives/DataTable';
 import { RuleConfigEditorContainer } from './editor/RuleConfigEditorContainer';
 import { JsonConfigEditor } from './editor/JsonConfigEditor';
 import { TestRuleModal } from './TestRuleModal';
@@ -325,40 +326,69 @@ function VersionHistory({ rule }: { rule: RuleResponse }) {
 
       {versions && versions.length > 0 ? (
         <div className={styles.versionTableWrap} style={{ marginTop: 16 }}>
-          <table className={styles.versionTable}>
-            <thead>
-              <tr>
-                <th>Version</th>
-                <th>Changed by</th>
-                <th>Date</th>
-                <th>Summary</th>
-                <th>Commit</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {versions.map((v) => (
-                <tr key={v.id}>
-                  <td>v{v.version}</td>
-                  <td>{v.changed_by}</td>
-                  <td>{formatAbsolute(v.created_at)}</td>
-                  <td>{v.change_summary ?? '—'}</td>
-                  <td>
-                    {v.git_commit_sha ? (
-                      <span className={styles.versionHash}>{v.git_commit_sha.slice(0, 7)}</span>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    <Button variant="default" size="sm" onClick={() => setViewConfig(v)}>
-                      View config
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable<RuleVersionResponse>
+            columns={[
+              {
+                key: 'version',
+                header: 'Version',
+                sortable: true,
+                sortValue: (v) => v.version,
+                render: (v) => `v${v.version}`,
+              },
+              {
+                key: 'changed_by',
+                header: 'Changed by',
+                sortable: true,
+                filterable: true,
+                sortValue: (v) => v.changed_by.toLowerCase(),
+                filterValue: (v) => v.changed_by,
+                render: (v) => v.changed_by,
+              },
+              {
+                key: 'date',
+                header: 'Date',
+                sortable: true,
+                sortValue: (v) => v.created_at,
+                render: (v) => formatAbsolute(v.created_at),
+              },
+              {
+                key: 'summary',
+                header: 'Summary',
+                filterable: true,
+                filterValue: (v) => v.change_summary ?? '',
+                render: (v) => v.change_summary ?? '—',
+              },
+              {
+                key: 'commit',
+                header: 'Commit',
+                render: (v) =>
+                  v.git_commit_sha ? (
+                    <span className={styles.versionHash}>{v.git_commit_sha.slice(0, 7)}</span>
+                  ) : (
+                    '—'
+                  ),
+              },
+              {
+                key: 'actions',
+                header: '',
+                render: (v) => (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      setViewConfig(v);
+                    }}
+                  >
+                    View config
+                  </Button>
+                ),
+              },
+            ]}
+            data={versions}
+            rowKey={(v) => v.id}
+            emptyMessage="No version history available"
+          />
         </div>
       ) : (
         <p className={styles.versionNote}>No version history available.</p>
@@ -459,38 +489,57 @@ export function RulesPage() {
         <Spinner />
       ) : (
         <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Status</th>
-                <th>Rule name</th>
-                <th>Logic</th>
-                <th>Severity</th>
-                <th>Detections (30d)</th>
-                <th>Version</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {(rules?.items ?? []).map((rule) => (
-                <tr key={rule.id}>
-                  <td>
-                    <Label variant={rule.status === 'active' ? 'success' : 'muted'}>
-                      {rule.status === 'active' ? 'active' : 'draft'}
-                    </Label>
-                  </td>
-                  <td>
-                    <div className={styles.ruleName}>{rule.name}</div>
-                  </td>
-                  <td>
-                    <Label variant="muted">{rule.logic_type}</Label>
-                  </td>
-                  <td>
-                    <Label variant={SEVERITY_VARIANT[rule.default_severity] ?? 'muted'}>
-                      {rule.default_severity}
-                    </Label>
-                  </td>
-                  <td className={styles.muted}>
+          <DataTable<RuleResponse>
+            columns={[
+              {
+                key: 'status',
+                header: 'Status',
+                sortable: true,
+                sortValue: (rule) => rule.status,
+                render: (rule) => (
+                  <Label variant={rule.status === 'active' ? 'success' : 'muted'}>
+                    {rule.status === 'active' ? 'active' : 'draft'}
+                  </Label>
+                ),
+              },
+              {
+                key: 'name',
+                header: 'Rule name',
+                sortable: true,
+                filterable: true,
+                sortValue: (rule) => rule.name.toLowerCase(),
+                filterValue: (rule) => rule.name,
+                render: (rule) => <div className={styles.ruleName}>{rule.name}</div>,
+              },
+              {
+                key: 'logic',
+                header: 'Logic',
+                sortable: true,
+                filterable: true,
+                sortValue: (rule) => rule.logic_type.toLowerCase(),
+                filterValue: (rule) => rule.logic_type,
+                render: (rule) => <Label variant="muted">{rule.logic_type}</Label>,
+              },
+              {
+                key: 'severity',
+                header: 'Severity',
+                sortable: true,
+                filterable: true,
+                sortValue: (rule) => rule.default_severity.toLowerCase(),
+                filterValue: (rule) => rule.default_severity,
+                render: (rule) => (
+                  <Label variant={SEVERITY_VARIANT[rule.default_severity] ?? 'muted'}>
+                    {rule.default_severity}
+                  </Label>
+                ),
+              },
+              {
+                key: 'detections',
+                header: 'Detections (30d)',
+                sortable: true,
+                sortValue: (rule) => (rule.status === 'active' ? 0 : -1),
+                render: (rule) => (
+                  <span className={styles.muted}>
                     {rule.status === 'active'
                       ? (() => {
                           const count = 0;
@@ -499,7 +548,10 @@ export function RulesPage() {
                               className={styles.clickableCount}
                               role="link"
                               tabIndex={0}
-                              onClick={() => navigate(`/threats?rule_id=${rule.id}`)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/threats?rule_id=${rule.id}`);
+                              }}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') navigate(`/threats?rule_id=${rule.id}`);
                               }}
@@ -511,41 +563,65 @@ export function RulesPage() {
                           );
                         })()
                       : '—'}
-                  </td>
-                  <td>
-                    <span
-                      className={`${styles.versionMono} ${styles.clickableVersion}`}
-                      role="link"
-                      tabIndex={0}
-                      onClick={() => setVersionRule(rule)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') setVersionRule(rule);
+                  </span>
+                ),
+              },
+              {
+                key: 'version',
+                header: 'Version',
+                sortable: true,
+                sortValue: (rule) => rule.version,
+                render: (rule) => (
+                  <span
+                    className={`${styles.versionMono} ${styles.clickableVersion}`}
+                    role="link"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setVersionRule(rule);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') setVersionRule(rule);
+                    }}
+                  >
+                    v{rule.version}.0.0
+                  </span>
+                ),
+              },
+              {
+                key: 'actions',
+                header: '',
+                render: (rule) => (
+                  <div className={styles.headerActions}>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        setTestRuleTarget(rule);
                       }}
                     >
-                      v{rule.version}.0.0
-                    </span>
-                  </td>
-                  <td>
-                    <div className={styles.headerActions}>
-                      <Button size="sm" variant="default" onClick={() => setTestRuleTarget(rule)}>
-                        Test
-                      </Button>
-                      <Button size="sm" variant="default" onClick={() => setEditRule(rule)}>
-                        Edit
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {(rules?.items ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={7} className={styles.empty}>
-                    No rules configured
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                      Test
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        setEditRule(rule);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  </div>
+                ),
+              },
+            ]}
+            data={rules?.items ? [...rules.items] : []}
+            rowKey={(rule) => rule.id}
+            onRowClick={(rule) => setEditRule(rule)}
+            emptyMessage="No rules configured"
+          />
           {rules && (
             <Pagination
               page={page}

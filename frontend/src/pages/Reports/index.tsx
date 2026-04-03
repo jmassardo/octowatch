@@ -19,6 +19,8 @@ import { Card, CardHeader } from '../../components/primitives/Card';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Modal } from '../../components/primitives/Modal';
+import { DataTable } from '../../components/primitives/DataTable';
+import type { ColumnDef } from '../../components/primitives/DataTable';
 import type { ReportParams } from '../../types/reports';
 import { formatDateOnly } from '../../utils/dates';
 import styles from './Reports.module.css';
@@ -204,6 +206,26 @@ export function ReportsPage() {
 
   const activeReport = viewReport ? reportDataMap[viewReport] : undefined;
 
+  function buildDynamicColumns(
+    data: readonly Record<string, unknown>[],
+  ): ColumnDef<Record<string, unknown>>[] {
+    if (data.length === 0) return [];
+    return Object.keys(data[0]).map((col) => ({
+      key: col,
+      header: col,
+      sortable: true,
+      filterable: true,
+      sortValue: (row: Record<string, unknown>) => {
+        const val = row[col];
+        if (val == null) return '';
+        if (typeof val === 'number') return val;
+        return String(val).toLowerCase();
+      },
+      filterValue: (row: Record<string, unknown>) => String(row[col] ?? ''),
+      render: (row: Record<string, unknown>) => String(row[col] ?? ''),
+    }));
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
@@ -332,24 +354,12 @@ export function ReportsPage() {
           <div className={styles.modalDataSource}>Source: {activeBucket.dataSource}</div>
         )}
         {activeBucket?.data && activeBucket.data.length > 0 ? (
-          <table className={styles.bucketTable}>
-            <thead>
-              <tr>
-                {Object.keys(activeBucket.data[0]).map((col) => (
-                  <th key={col}>{col}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {activeBucket.data.map((row: Record<string, unknown>, i: number) => (
-                <tr key={i}>
-                  {Object.values(row).map((val, j) => (
-                    <td key={j}>{String(val)}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable<Record<string, unknown>>
+            columns={buildDynamicColumns(activeBucket.data)}
+            data={activeBucket.data.map((row, i) => ({ ...row, __idx: i }))}
+            rowKey={(row) => row.__idx as number}
+            emptyMessage="No data available"
+          />
         ) : (
           <p>No data available.</p>
         )}
@@ -366,24 +376,12 @@ export function ReportsPage() {
             <div className={styles.modalDataSource}>Source: {activeReport.dataSource}</div>
           )}
           {activeReport?.data && activeReport.data.length > 0 ? (
-            <table className={styles.bucketTable}>
-              <thead>
-                <tr>
-                  {Object.keys(activeReport.data[0]).map((col) => (
-                    <th key={col}>{col}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {activeReport.data.map((row: Record<string, unknown>, i: number) => (
-                  <tr key={i}>
-                    {Object.values(row).map((val, j) => (
-                      <td key={j}>{String(val)}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <DataTable<Record<string, unknown>>
+              columns={buildDynamicColumns(activeReport.data)}
+              data={activeReport.data.map((row, i) => ({ ...row, __idx: i }))}
+              rowKey={(row) => row.__idx as number}
+              emptyMessage="No data available for this report type"
+            />
           ) : (
             <p>No data available for this report type.</p>
           )}

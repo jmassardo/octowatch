@@ -1,6 +1,8 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader } from '../../components/primitives/Card';
+import { DataTable } from '../../components/primitives/DataTable';
+import type { ColumnDef } from '../../components/primitives/DataTable';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Modal } from '../../components/primitives/Modal';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
@@ -11,6 +13,9 @@ import styles from './Copilot.module.css';
 
 type LicenseDrillDown = 'total' | 'active' | 'inactive' | 'waste' | null;
 
+const tabNums: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' };
+const mutedText: React.CSSProperties = { color: 'var(--fg-muted)' };
+
 interface LicensePaneProps {
   seatBuckets: SeatUtilizationBucket[];
 }
@@ -20,6 +25,120 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
   const costSectionRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { costPerSeat } = useOrgConfig();
+
+  const dateColumn: ColumnDef<SeatUtilizationBucket> = useMemo(
+    () => ({
+      key: 'date',
+      header: 'Date',
+      filterable: true,
+      render: (b) => <span style={mutedText}>{formatBucketDate(b.bucket)}</span>,
+      filterValue: (b) => formatBucketDate(b.bucket),
+    }),
+    [],
+  );
+
+  const totalColumns: ColumnDef<SeatUtilizationBucket>[] = useMemo(
+    () => [
+      dateColumn,
+      {
+        key: 'provisioned',
+        header: 'Provisioned',
+        sortable: true,
+        render: (b) => (
+          <span style={tabNums}>{b.provisioned_seat_count ?? '—'}</span>
+        ),
+        sortValue: (b) => b.provisioned_seat_count,
+      },
+    ],
+    [dateColumn],
+  );
+
+  const activeColumns: ColumnDef<SeatUtilizationBucket>[] = useMemo(
+    () => [
+      dateColumn,
+      {
+        key: 'active',
+        header: 'Active',
+        sortable: true,
+        render: (b) => (
+          <span style={tabNums}>{b.active_seat_count ?? '—'}</span>
+        ),
+        sortValue: (b) => b.active_seat_count,
+      },
+      {
+        key: 'utilization',
+        header: 'Utilization %',
+        sortable: true,
+        render: (b) => (
+          <span style={tabNums}>
+            {b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}
+          </span>
+        ),
+        sortValue: (b) => b.utilization_pct,
+      },
+    ],
+    [dateColumn],
+  );
+
+  const inactiveColumns: ColumnDef<SeatUtilizationBucket>[] = useMemo(
+    () => [
+      dateColumn,
+      {
+        key: 'inactive',
+        header: 'Inactive',
+        sortable: true,
+        render: (b) => (
+          <span style={tabNums}>
+            {b.provisioned_seat_count - b.active_seat_count}
+          </span>
+        ),
+        sortValue: (b) => b.provisioned_seat_count - b.active_seat_count,
+      },
+      {
+        key: 'provisioned',
+        header: 'Provisioned',
+        sortable: true,
+        render: (b) => (
+          <span style={tabNums}>{b.provisioned_seat_count ?? '—'}</span>
+        ),
+        sortValue: (b) => b.provisioned_seat_count,
+      },
+    ],
+    [dateColumn],
+  );
+
+  const wasteColumns: ColumnDef<SeatUtilizationBucket>[] = useMemo(
+    () => [
+      dateColumn,
+      {
+        key: 'inactive',
+        header: 'Inactive',
+        sortable: true,
+        render: (b) => (
+          <span style={tabNums}>
+            {b.provisioned_seat_count - b.active_seat_count}
+          </span>
+        ),
+        sortValue: (b) => b.provisioned_seat_count - b.active_seat_count,
+      },
+      {
+        key: 'monthlyCost',
+        header: 'Monthly cost',
+        sortable: true,
+        render: (b) => {
+          const bucketInactive = b.provisioned_seat_count - b.active_seat_count;
+          return (
+            <span style={tabNums}>
+              ${(bucketInactive * costPerSeat).toLocaleString()}
+            </span>
+          );
+        },
+        sortValue: (b) =>
+          (b.provisioned_seat_count - b.active_seat_count) * costPerSeat,
+      },
+    ],
+    [dateColumn, costPerSeat],
+  );
 
   if (!seatBuckets || seatBuckets.length === 0) {
     return (
@@ -83,6 +202,7 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
     title: 'Consider just-in-time provisioning',
     description: 'Auto-assign seats on first IDE open, auto-revoke after 30d of inactivity.',
   });
+
   return (
     <>
       <SampleDataBanner message="Cost-per-seat ($19) is a default estimate. Requires Copilot Metrics API integration for actual pricing and seat-level activity data." />
@@ -135,79 +255,37 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
         title={drillDownTitle()}
         width={600}
       >
-        {(drillDown === 'total' ||
-          drillDown === 'active' ||
-          drillDown === 'inactive' ||
-          drillDown === 'waste') && (
-          <div className={styles.tableWrap}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  {drillDown === 'total' && <th>Provisioned</th>}
-                  {drillDown === 'active' && (
-                    <>
-                      <th>Active</th>
-                      <th>Utilization %</th>
-                    </>
-                  )}
-                  {drillDown === 'inactive' && (
-                    <>
-                      <th>Inactive</th>
-                      <th>Provisioned</th>
-                    </>
-                  )}
-                  {drillDown === 'waste' && (
-                    <>
-                      <th>Inactive</th>
-                      <th>Monthly cost</th>
-                    </>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {seatBuckets.map((b, i) => {
-                  const bucketInactive = b.provisioned_seat_count - b.active_seat_count;
-                  return (
-                    <tr key={i}>
-                      <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
-                      {drillDown === 'total' && (
-                        <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                          {b.provisioned_seat_count ?? '—'}
-                        </td>
-                      )}
-                      {drillDown === 'active' && (
-                        <>
-                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                            {b.active_seat_count ?? '—'}
-                          </td>
-                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                            {b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}
-                          </td>
-                        </>
-                      )}
-                      {drillDown === 'inactive' && (
-                        <>
-                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>{bucketInactive}</td>
-                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                            {b.provisioned_seat_count ?? '—'}
-                          </td>
-                        </>
-                      )}
-                      {drillDown === 'waste' && (
-                        <>
-                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>{bucketInactive}</td>
-                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                            ${(bucketInactive * costPerSeat).toLocaleString()}
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+        {drillDown === 'total' && (
+          <DataTable<SeatUtilizationBucket>
+            columns={totalColumns}
+            data={seatBuckets}
+            rowKey={(b) => b.bucket}
+            className={styles.tableWrap}
+          />
+        )}
+        {drillDown === 'active' && (
+          <DataTable<SeatUtilizationBucket>
+            columns={activeColumns}
+            data={seatBuckets}
+            rowKey={(b) => b.bucket}
+            className={styles.tableWrap}
+          />
+        )}
+        {drillDown === 'inactive' && (
+          <DataTable<SeatUtilizationBucket>
+            columns={inactiveColumns}
+            data={seatBuckets}
+            rowKey={(b) => b.bucket}
+            className={styles.tableWrap}
+          />
+        )}
+        {drillDown === 'waste' && (
+          <DataTable<SeatUtilizationBucket>
+            columns={wasteColumns}
+            data={seatBuckets}
+            rowKey={(b) => b.bucket}
+            className={styles.tableWrap}
+          />
         )}
       </Modal>
 

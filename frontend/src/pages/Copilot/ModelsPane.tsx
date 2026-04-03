@@ -1,12 +1,31 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader } from '../../components/primitives/Card';
+import { DataTable } from '../../components/primitives/DataTable';
+import type { ColumnDef } from '../../components/primitives/DataTable';
 import { Modal } from '../../components/primitives/Modal';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { getCopilotModels } from '../../api/copilotMetrics';
 import styles from './Copilot.module.css';
+
+type MetricRow = { metric: string; value: string };
+
+const metricValueColumns: ColumnDef<MetricRow>[] = [
+  {
+    key: 'metric',
+    header: 'Metric',
+    filterable: true,
+    render: (row) => <span style={{ color: 'var(--fg-muted)' }}>{row.metric}</span>,
+    filterValue: (row) => row.metric,
+  },
+  {
+    key: 'value',
+    header: 'Value',
+    render: (row) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{row.value}</span>,
+  },
+];
 
 type ModelsModal = 'model' | 'feature' | 'editor' | null;
 
@@ -179,26 +198,15 @@ export function ModelsPane() {
             </div>
             {selectedModelData && (
               <div>
-                <table className={styles.modalTable}>
-                  <thead>
-                    <tr>
-                      <th>Metric</th>
-                      <th>Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style={{ color: 'var(--fg-muted)' }}>Model</td>
-                      <td style={{ fontWeight: 500 }}>{selectedModelData.model}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ color: 'var(--fg-muted)' }}>Usage share</td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {selectedModelData.pct}%
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                <DataTable<MetricRow>
+                  columns={metricValueColumns}
+                  data={[
+                    { metric: 'Model', value: selectedModelData.model },
+                    { metric: 'Usage share', value: `${selectedModelData.pct}%` },
+                  ]}
+                  rowKey={(row) => row.metric}
+                  className={styles.modalTable}
+                />
                 <p
                   style={{
                     fontSize: 13,
@@ -230,26 +238,15 @@ export function ModelsPane() {
             </div>
             {selectedFeatureData && (
               <div>
-                <table className={styles.modalTable}>
-                  <thead>
-                    <tr>
-                      <th>Metric</th>
-                      <th>Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style={{ color: 'var(--fg-muted)' }}>Feature</td>
-                      <td style={{ fontWeight: 500 }}>{selectedFeatureData.feature}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ color: 'var(--fg-muted)' }}>Active users</td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {selectedFeatureData.count}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                <DataTable<MetricRow>
+                  columns={metricValueColumns}
+                  data={[
+                    { metric: 'Feature', value: selectedFeatureData.feature },
+                    { metric: 'Active users', value: String(selectedFeatureData.count) },
+                  ]}
+                  rowKey={(row) => row.metric}
+                  className={styles.modalTable}
+                />
                 <p
                   style={{
                     fontSize: 13,
@@ -279,32 +276,16 @@ export function ModelsPane() {
             </div>
             {selectedEditorData && (
               <div>
-                <table className={styles.modalTable}>
-                  <thead>
-                    <tr>
-                      <th>Metric</th>
-                      <th>Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style={{ color: 'var(--fg-muted)' }}>Editor</td>
-                      <td style={{ fontWeight: 500 }}>{selectedEditorData.name}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ color: 'var(--fg-muted)' }}>Active users</td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {selectedEditorData.count}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style={{ color: 'var(--fg-muted)' }}>Share</td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {selectedEditorData.pct}%
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                <DataTable<MetricRow>
+                  columns={metricValueColumns}
+                  data={[
+                    { metric: 'Editor', value: selectedEditorData.name },
+                    { metric: 'Active users', value: String(selectedEditorData.count) },
+                    { metric: 'Share', value: `${selectedEditorData.pct}%` },
+                  ]}
+                  rowKey={(row) => row.metric}
+                  className={styles.modalTable}
+                />
                 <p
                   style={{
                     fontSize: 13,

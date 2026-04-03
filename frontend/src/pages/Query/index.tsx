@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { runQuery, listTemplates, createTemplate } from '../../api/query';
@@ -7,6 +7,8 @@ import { Button } from '../../components/primitives/Button';
 import { Modal } from '../../components/primitives/Modal';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { DataTable } from '../../components/primitives/DataTable';
+import type { ColumnDef } from '../../components/primitives/DataTable';
 import { formatAbsolute } from '../../utils/dates';
 import styles from './Query.module.css';
 
@@ -849,6 +851,37 @@ export function QueryPage() {
   const resultsTableRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
+  type QueryResultRow = Record<string, unknown>;
+
+  const queryResultColumns: ColumnDef<QueryResultRow>[] = useMemo(() => {
+    if (!results) return [];
+    return results.columns.map((col) => ({
+      key: col,
+      header: col,
+      sortable: true,
+      filterable: true,
+      sortValue: (row: QueryResultRow) => {
+        const val = row[col];
+        if (val == null) return '';
+        if (typeof val === 'number') return val;
+        return String(val).toLowerCase();
+      },
+      filterValue: (row: QueryResultRow) => String(row[col] ?? ''),
+      render: (row: QueryResultRow) => String(row[col] ?? ''),
+    }));
+  }, [results]);
+
+  const queryResultRows: QueryResultRow[] = useMemo(() => {
+    if (!results) return [];
+    return results.rows.map((row, ri) => {
+      const obj: QueryResultRow = { __rowIndex: ri };
+      results.columns.forEach((col, ci) => {
+        obj[col] = row[ci];
+      });
+      return obj;
+    });
+  }, [results]);
+
   // Instant client-side validation — no API calls needed
   const localValidation = validateSqlLocally(sql);
   const validationStatus: ValidationStatus = !sql.trim()
@@ -1220,24 +1253,12 @@ export function QueryPage() {
                 )}
               </div>
               <div className={styles.resultsTable} ref={resultsTableRef}>
-                <table>
-                  <thead>
-                    <tr>
-                      {results.columns.map((c) => (
-                        <th key={c}>{c}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.rows.map((row, ri) => (
-                      <tr key={ri}>
-                        {row.map((cell, ci) => (
-                          <td key={ci}>{String(cell ?? '')}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <DataTable<QueryResultRow>
+                  columns={queryResultColumns}
+                  data={queryResultRows}
+                  rowKey={(row) => row.__rowIndex as number}
+                  emptyMessage="No results"
+                />
               </div>
             </>
           )}

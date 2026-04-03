@@ -10,6 +10,7 @@ import { BarChart } from '../../components/charts/BarChart';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
+import { DataTable } from '../../components/primitives/DataTable';
 import { Modal } from '../../components/primitives/Modal';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
@@ -731,157 +732,186 @@ export function VelocityPage() {
         <div ref={failuresRef}>
           <div className={styles.sectionTitle}>Recent workflow failures — last 30 days</div>
           <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Date bucket</th>
-                  <th>Total runs</th>
-                  <th>Failed</th>
-                  <th>Success rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentFailingBuckets.map((b, i) => (
-                  <tr
-                    key={i}
-                    className={styles.clickableRow}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Failure details for ${formatBucketDate(b.bucket)}`}
-                    onClick={() => setFailureBucket(b)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setFailureBucket(b);
-                      }
-                    }}
-                  >
-                    <td>{formatBucketDate(b.bucket)}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <DataTable<ActionsVolumeBucket>
+              columns={[
+                {
+                  key: 'bucket',
+                  header: 'Date bucket',
+                  filterable: true,
+                  render: (b) => <>{formatBucketDate(b.bucket)}</>,
+                  filterValue: (b) => formatBucketDate(b.bucket),
+                },
+                {
+                  key: 'workflow_runs_total',
+                  header: 'Total runs',
+                  sortable: true,
+                  render: (b) => (
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
                       {b.workflow_runs_total ?? 0}
-                    </td>
-                    <td>
-                      <Label variant={(b.workflow_runs_failed ?? 0) > 10 ? 'danger' : 'attention'}>
-                        {b.workflow_runs_failed ?? 0}
-                      </Label>
-                    </td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    </span>
+                  ),
+                  sortValue: (b) => b.workflow_runs_total ?? 0,
+                },
+                {
+                  key: 'workflow_runs_failed',
+                  header: 'Failed',
+                  sortable: true,
+                  render: (b) => (
+                    <Label variant={(b.workflow_runs_failed ?? 0) > 10 ? 'danger' : 'attention'}>
+                      {b.workflow_runs_failed ?? 0}
+                    </Label>
+                  ),
+                  sortValue: (b) => b.workflow_runs_failed ?? 0,
+                },
+                {
+                  key: 'success_rate_pct',
+                  header: 'Success rate',
+                  sortable: true,
+                  render: (b) => (
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
                       {b.success_rate_pct != null ? `${Math.round(b.success_rate_pct)}%` : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </span>
+                  ),
+                  sortValue: (b) => b.success_rate_pct ?? 0,
+                },
+              ]}
+              data={recentFailingBuckets}
+              rowKey={(b) => b.bucket}
+              onRowClick={(b) => setFailureBucket(b)}
+            />
           </div>
         </div>
       )}
 
       <div className={styles.sectionTitle}>Top failing workflows</div>
       <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
-        <table>
-          <thead>
-            <tr>
-              <th>Workflow</th>
-              <th>Repository</th>
-              <th>Failure rate</th>
-              <th>Last run</th>
-              <th>Total runs</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(() => {
-              const sorted = [...(workflowHealthData?.workflows ?? [])]
-                .filter((wf) => wf.failure_rate_pct > 0)
-                .sort((a, b) => b.failure_rate_pct - a.failure_rate_pct)
-                .slice(0, 10);
-              if (sorted.length === 0) {
-                return (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
-                    >
-                      No workflow health data available
-                    </td>
-                  </tr>
-                );
-              }
-              return sorted.map((wf) => (
-                <tr key={`${wf.repo}/${wf.workflow_name}`}>
-                  <td className={styles.workflowName}>{wf.workflow_name}</td>
-                  <td>{wf.repo}</td>
-                  <td>
+        {(() => {
+          const topFailingWorkflows = [...(workflowHealthData?.workflows ?? [])]
+            .filter((wf) => wf.failure_rate_pct > 0)
+            .sort((a, b) => b.failure_rate_pct - a.failure_rate_pct)
+            .slice(0, 10);
+          return (
+            <DataTable<WorkflowRow>
+              columns={[
+                {
+                  key: 'workflow_name',
+                  header: 'Workflow',
+                  filterable: true,
+                  render: (wf) => (
+                    <span className={styles.workflowName}>{wf.workflow_name}</span>
+                  ),
+                  filterValue: (wf) => wf.workflow_name,
+                },
+                {
+                  key: 'repo',
+                  header: 'Repository',
+                  filterable: true,
+                  render: (wf) => <>{wf.repo}</>,
+                  filterValue: (wf) => wf.repo,
+                },
+                {
+                  key: 'failure_rate_pct',
+                  header: 'Failure rate',
+                  sortable: true,
+                  render: (wf) => (
                     <Label variant={getFailureRateVariant(wf.failure_rate_pct)}>
                       {wf.failure_rate_pct.toFixed(1)}%
                     </Label>
-                  </td>
-                  <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.last_run)}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.total_runs}</td>
-                </tr>
-              ));
-            })()}
-          </tbody>
-        </table>
+                  ),
+                  sortValue: (wf) => wf.failure_rate_pct,
+                },
+                {
+                  key: 'last_run',
+                  header: 'Last run',
+                  sortable: true,
+                  render: (wf) => (
+                    <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.last_run)}</span>
+                  ),
+                  sortValue: (wf) => wf.last_run,
+                },
+                {
+                  key: 'total_runs',
+                  header: 'Total runs',
+                  sortable: true,
+                  render: (wf) => (
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.total_runs}</span>
+                  ),
+                  sortValue: (wf) => wf.total_runs,
+                },
+              ]}
+              data={topFailingWorkflows}
+              rowKey={(wf) => `${wf.repo}/${wf.workflow_name}`}
+              emptyMessage="No workflow health data available"
+            />
+          );
+        })()}
       </div>
 
       <div ref={reposRef} className={styles.sectionTitle}>
         Most active repositories — last 30 days
       </div>
       <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
-        <table>
-          <thead>
-            <tr>
-              <th>Repository</th>
-              <th>Events</th>
-              <th>PR events</th>
-              <th>Push events</th>
-              <th>Contributors</th>
-            </tr>
-          </thead>
-          <tbody>
-            {repoStats.length > 0 ? (
-              repoStats.map((r) => (
-                <tr
-                  key={r.name}
-                  className={styles.clickableRow}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`View events for ${r.name}`}
-                  onClick={() => navigate(`/events?repo=${encodeURIComponent(r.name)}`)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      navigate(`/events?repo=${encodeURIComponent(r.name)}`);
-                    }
-                  }}
-                >
-                  <td style={{ fontWeight: 500, color: 'var(--accent)', cursor: 'pointer' }}>
-                    {r.name}
-                  </td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {r.totalEvents.toLocaleString()}
-                  </td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {r.prEvents.toLocaleString()}
-                  </td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {r.pushEvents.toLocaleString()}
-                  </td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.contributors}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td
-                  colSpan={5}
-                  style={{ color: 'var(--fg-muted)', textAlign: 'center', padding: 24 }}
-                >
-                  No repository activity data available
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <DataTable<RepoActivityStats>
+          columns={[
+            {
+              key: 'name',
+              header: 'Repository',
+              filterable: true,
+              render: (r) => (
+                <span style={{ fontWeight: 500, color: 'var(--accent)', cursor: 'pointer' }}>
+                  {r.name}
+                </span>
+              ),
+              filterValue: (r) => r.name,
+            },
+            {
+              key: 'totalEvents',
+              header: 'Events',
+              sortable: true,
+              render: (r) => (
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {r.totalEvents.toLocaleString()}
+                </span>
+              ),
+              sortValue: (r) => r.totalEvents,
+            },
+            {
+              key: 'prEvents',
+              header: 'PR events',
+              sortable: true,
+              render: (r) => (
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {r.prEvents.toLocaleString()}
+                </span>
+              ),
+              sortValue: (r) => r.prEvents,
+            },
+            {
+              key: 'pushEvents',
+              header: 'Push events',
+              sortable: true,
+              render: (r) => (
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {r.pushEvents.toLocaleString()}
+                </span>
+              ),
+              sortValue: (r) => r.pushEvents,
+            },
+            {
+              key: 'contributors',
+              header: 'Contributors',
+              sortable: true,
+              render: (r) => (
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>{r.contributors}</span>
+              ),
+              sortValue: (r) => r.contributors,
+            },
+          ]}
+          data={repoStats}
+          rowKey={(r) => r.name}
+          onRowClick={(r) => navigate(`/events?repo=${encodeURIComponent(r.name)}`)}
+          emptyMessage="No repository activity data available"
+        />
       </div>
 
       {buckets.length === 0 && !isLoading && (
@@ -906,49 +936,75 @@ export function VelocityPage() {
           DORA (DevOps Research and Assessment) metrics measure software delivery performance. Teams
           are classified into four tiers based on their performance across four key metrics.
         </p>
-        <table className={styles.doraTable}>
-          <thead>
-            <tr>
-              <th>Metric</th>
-              <th>Elite threshold</th>
-              <th>Current</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style={{ fontWeight: 500 }}>Deployment Frequency</td>
-              <td>On-demand (multiple deploys/day)</td>
-              <td>
-                {deploymentProxy != null ? `${deploymentProxy.toLocaleString()} workflows` : '—'}
-              </td>
-            </tr>
-            <tr>
-              <td style={{ fontWeight: 500 }}>Lead Time for Changes</td>
-              <td>&lt; 1 hour</td>
-              <td>
-                {avgLeadTime != null && avgLeadTime > 0 ? `~${avgLeadTime.toFixed(1)}h` : '—'}{' '}
-                <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>(estimated)</span>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ fontWeight: 500 }}>Change Failure Rate</td>
-              <td>&lt; 5%</td>
-              <td>{changeFailureRate != null ? `${changeFailureRate}%` : '—'}</td>
-            </tr>
-            <tr>
-              <td style={{ fontWeight: 500 }}>Time to Restore Service</td>
-              <td>&lt; 1 hour</td>
-              <td>
-                {mttrChartData.some((v) => v > 0)
-                  ? `~${(mttrChartData.filter((v) => v > 0).reduce((a, b) => a + b, 0) / mttrChartData.filter((v) => v > 0).length).toFixed(1)}h`
-                  : '—'}{' '}
-                <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
-                  (estimated from failure rate)
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        {(() => {
+          interface DoraMetricRow {
+            metric: string;
+            threshold: string;
+            current: React.ReactNode;
+          }
+          const doraRows: DoraMetricRow[] = [
+            {
+              metric: 'Deployment Frequency',
+              threshold: 'On-demand (multiple deploys/day)',
+              current: deploymentProxy != null ? `${deploymentProxy.toLocaleString()} workflows` : '—',
+            },
+            {
+              metric: 'Lead Time for Changes',
+              threshold: '< 1 hour',
+              current: (
+                <>
+                  {avgLeadTime != null && avgLeadTime > 0 ? `~${avgLeadTime.toFixed(1)}h` : '—'}{' '}
+                  <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>(estimated)</span>
+                </>
+              ),
+            },
+            {
+              metric: 'Change Failure Rate',
+              threshold: '< 5%',
+              current: changeFailureRate != null ? `${changeFailureRate}%` : '—',
+            },
+            {
+              metric: 'Time to Restore Service',
+              threshold: '< 1 hour',
+              current: (
+                <>
+                  {mttrChartData.some((v) => v > 0)
+                    ? `~${(mttrChartData.filter((v) => v > 0).reduce((a, b) => a + b, 0) / mttrChartData.filter((v) => v > 0).length).toFixed(1)}h`
+                    : '—'}{' '}
+                  <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
+                    (estimated from failure rate)
+                  </span>
+                </>
+              ),
+            },
+          ];
+          return (
+            <DataTable<DoraMetricRow>
+              columns={[
+                {
+                  key: 'metric',
+                  header: 'Metric',
+                  filterable: true,
+                  render: (row) => <span style={{ fontWeight: 500 }}>{row.metric}</span>,
+                  filterValue: (row) => row.metric,
+                },
+                {
+                  key: 'threshold',
+                  header: 'Elite threshold',
+                  render: (row) => <>{row.threshold}</>,
+                },
+                {
+                  key: 'current',
+                  header: 'Current',
+                  render: (row) => <>{row.current}</>,
+                },
+              ]}
+              data={doraRows}
+              rowKey={(row) => row.metric}
+              className={styles.doraTable}
+            />
+          );
+        })()}
         <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 12, lineHeight: 1.5 }}>
           Tier is computed from deployment frequency and change failure rate. Full DORA calculation
           requires deployment and incident tracking integrations.

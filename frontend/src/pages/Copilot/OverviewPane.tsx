@@ -7,6 +7,7 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { Button } from '../../components/primitives/Button';
+import { DataTable } from '../../components/primitives/DataTable';
 import { LineAreaChart } from '../../components/charts/LineAreaChart';
 import type { SeatUtilizationBucket, CopilotSeatsBucket } from '../../types/reports';
 import { getCopilotOverview } from '../../api/copilotMetrics';
@@ -219,118 +220,128 @@ export function OverviewPane({
         width={640}
       >
         {drillDown === 'active-seats' && (
-          <div className={styles.tableWrap}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Active</th>
-                  <th>Provisioned</th>
-                  <th>Utilization %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {seatBuckets.map((b, i) => (
-                  <tr key={i}>
-                    <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {b.active_seat_count ?? '—'}
-                    </td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {b.provisioned_seat_count ?? '—'}
-                    </td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable<SeatUtilizationBucket>
+            columns={[
+              {
+                key: 'date',
+                header: 'Date',
+                filterable: true,
+                render: (b) => <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>,
+                filterValue: (b) => formatBucketDate(b.bucket),
+              },
+              {
+                key: 'active',
+                header: 'Active',
+                sortable: true,
+                render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count ?? '—'}</span>,
+                sortValue: (b) => b.active_seat_count ?? 0,
+              },
+              {
+                key: 'provisioned',
+                header: 'Provisioned',
+                sortable: true,
+                render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count ?? '—'}</span>,
+                sortValue: (b) => b.provisioned_seat_count ?? 0,
+              },
+              {
+                key: 'utilization',
+                header: 'Utilization %',
+                sortable: true,
+                render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}</span>,
+                sortValue: (b) => b.utilization_pct ?? 0,
+              },
+            ]}
+            data={seatBuckets}
+            rowKey={(b) => b.bucket}
+          />
         )}
         {drillDown === 'assigned' && (
-          <div className={styles.tableWrap}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Assigned</th>
-                </tr>
-              </thead>
-              <tbody>
-                {copilotBuckets.map((b, i) => (
-                  <tr key={i}>
-                    <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
-                    <td style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
-                      +{b.seats_assigned ?? 0}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable<CopilotSeatsBucket>
+            columns={[
+              {
+                key: 'date',
+                header: 'Date',
+                filterable: true,
+                render: (b) => <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>,
+                filterValue: (b) => formatBucketDate(b.bucket),
+              },
+              {
+                key: 'assigned',
+                header: 'Assigned',
+                sortable: true,
+                render: (b) => <span style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>+{b.seats_assigned ?? 0}</span>,
+                sortValue: (b) => b.seats_assigned ?? 0,
+              },
+            ]}
+            data={copilotBuckets}
+            rowKey={(b) => b.bucket}
+          />
         )}
         {drillDown === 'revoked' && (
-          <div className={styles.tableWrap}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Revoked</th>
-                </tr>
-              </thead>
-              <tbody>
-                {copilotBuckets.map((b, i) => (
-                  <tr key={i}>
-                    <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
-                    <td
-                      style={{
-                        color: b.seats_revoked > 0 ? 'var(--danger)' : undefined,
-                        fontVariantNumeric: 'tabular-nums',
-                      }}
-                    >
-                      {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable<CopilotSeatsBucket>
+            columns={[
+              {
+                key: 'date',
+                header: 'Date',
+                filterable: true,
+                render: (b) => <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>,
+                filterValue: (b) => formatBucketDate(b.bucket),
+              },
+              {
+                key: 'revoked',
+                header: 'Revoked',
+                sortable: true,
+                render: (b) => (
+                  <span style={{ color: b.seats_revoked > 0 ? 'var(--danger)' : undefined, fontVariantNumeric: 'tabular-nums' }}>
+                    {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
+                  </span>
+                ),
+                sortValue: (b) => b.seats_revoked ?? 0,
+              },
+            ]}
+            data={copilotBuckets}
+            rowKey={(b) => b.bucket}
+          />
         )}
         {drillDown === 'net' && (
-          <div className={styles.tableWrap}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Assigned</th>
-                  <th>Revoked</th>
-                  <th>Net</th>
-                </tr>
-              </thead>
-              <tbody>
-                {copilotBuckets.map((b, i) => (
-                  <tr key={i}>
-                    <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
-                    <td style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
-                      +{b.seats_assigned ?? 0}
-                    </td>
-                    <td
-                      style={{
-                        color: b.seats_revoked > 0 ? 'var(--danger)' : undefined,
-                        fontVariantNumeric: 'tabular-nums',
-                      }}
-                    >
-                      {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
-                    </td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {b.seats_net > 0 ? `+${b.seats_net}` : b.seats_net}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable<CopilotSeatsBucket>
+            columns={[
+              {
+                key: 'date',
+                header: 'Date',
+                filterable: true,
+                render: (b) => <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>,
+                filterValue: (b) => formatBucketDate(b.bucket),
+              },
+              {
+                key: 'assigned',
+                header: 'Assigned',
+                sortable: true,
+                render: (b) => <span style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>+{b.seats_assigned ?? 0}</span>,
+                sortValue: (b) => b.seats_assigned ?? 0,
+              },
+              {
+                key: 'revoked',
+                header: 'Revoked',
+                sortable: true,
+                render: (b) => (
+                  <span style={{ color: b.seats_revoked > 0 ? 'var(--danger)' : undefined, fontVariantNumeric: 'tabular-nums' }}>
+                    {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
+                  </span>
+                ),
+                sortValue: (b) => b.seats_revoked ?? 0,
+              },
+              {
+                key: 'net',
+                header: 'Net',
+                sortable: true,
+                render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.seats_net > 0 ? `+${b.seats_net}` : b.seats_net}</span>,
+                sortValue: (b) => b.seats_net ?? 0,
+              },
+            ]}
+            data={copilotBuckets}
+            rowKey={(b) => b.bucket}
+          />
         )}
       </Modal>
 
@@ -387,34 +398,40 @@ export function OverviewPane({
           <div className={styles.sectionTitle}>Seat utilization — last 30 days</div>
           <Card style={{ marginBottom: 20 }}>
             <CardHeader>Active seats / provisioned seats over time</CardHeader>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%' }}>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Active seats</th>
-                    <th>Provisioned</th>
-                    <th>Utilization</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {seatBuckets.slice(-10).map((b, i) => (
-                    <tr key={i}>
-                      <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {b.active_seat_count ?? '—'}
-                      </td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {b.provisioned_seat_count ?? '—'}
-                      </td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable<SeatUtilizationBucket>
+              columns={[
+                {
+                  key: 'date',
+                  header: 'Date',
+                  filterable: true,
+                  render: (b) => <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>,
+                  filterValue: (b) => formatBucketDate(b.bucket),
+                },
+                {
+                  key: 'active',
+                  header: 'Active seats',
+                  sortable: true,
+                  render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count ?? '—'}</span>,
+                  sortValue: (b) => b.active_seat_count ?? 0,
+                },
+                {
+                  key: 'provisioned',
+                  header: 'Provisioned',
+                  sortable: true,
+                  render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count ?? '—'}</span>,
+                  sortValue: (b) => b.provisioned_seat_count ?? 0,
+                },
+                {
+                  key: 'utilization',
+                  header: 'Utilization',
+                  sortable: true,
+                  render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}</span>,
+                  sortValue: (b) => b.utilization_pct ?? 0,
+                },
+              ]}
+              data={seatBuckets.slice(-10)}
+              rowKey={(b) => b.bucket}
+            />
           </Card>
         </div>
       )}
@@ -480,44 +497,48 @@ export function OverviewPane({
         <Card>
           <CardHeader>Seat change history (30d)</CardHeader>
           {copilotBuckets.length > 0 ? (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%' }}>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Assigned</th>
-                    <th>Revoked</th>
-                    <th>Net</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {copilotBuckets.slice(-7).map((b, i) => (
-                    <tr key={i}>
-                      <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
-                      <td
-                        style={{
-                          color: 'var(--success)',
-                          fontVariantNumeric: 'tabular-nums',
-                        }}
-                      >
-                        +{b.seats_assigned ?? 0}
-                      </td>
-                      <td
-                        style={{
-                          color: b.seats_revoked ? 'var(--danger)' : undefined,
-                          fontVariantNumeric: 'tabular-nums',
-                        }}
-                      >
-                        {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
-                      </td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {b.seats_net > 0 ? `+${b.seats_net}` : b.seats_net}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable<CopilotSeatsBucket>
+              columns={[
+                {
+                  key: 'date',
+                  header: 'Date',
+                  filterable: true,
+                  render: (b) => <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>,
+                  filterValue: (b) => formatBucketDate(b.bucket),
+                },
+                {
+                  key: 'assigned',
+                  header: 'Assigned',
+                  sortable: true,
+                  render: (b) => (
+                    <span style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
+                      +{b.seats_assigned ?? 0}
+                    </span>
+                  ),
+                  sortValue: (b) => b.seats_assigned ?? 0,
+                },
+                {
+                  key: 'revoked',
+                  header: 'Revoked',
+                  sortable: true,
+                  render: (b) => (
+                    <span style={{ color: b.seats_revoked ? 'var(--danger)' : undefined, fontVariantNumeric: 'tabular-nums' }}>
+                      {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
+                    </span>
+                  ),
+                  sortValue: (b) => b.seats_revoked ?? 0,
+                },
+                {
+                  key: 'net',
+                  header: 'Net',
+                  sortable: true,
+                  render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.seats_net > 0 ? `+${b.seats_net}` : b.seats_net}</span>,
+                  sortValue: (b) => b.seats_net ?? 0,
+                },
+              ]}
+              data={copilotBuckets.slice(-7)}
+              rowKey={(b) => b.bucket}
+            />
           ) : (
             <div style={{ color: 'var(--fg-muted)', padding: '12px 0' }}>
               No seat change data available.
@@ -597,48 +618,62 @@ export function OverviewPane({
           ℹ️ Showing all seat utilization buckets from the API. Active, provisioned, and cost data
           is derived from live seat counts.
         </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table className={styles.modalTable}>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Active</th>
-                <th>Provisioned</th>
-                <th>Inactive</th>
-                <th>Utilization %</th>
-                <th>Cost ($/mo)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {seatBuckets.map((b, i) => {
+        <DataTable<SeatUtilizationBucket>
+          columns={[
+            {
+              key: 'date',
+              header: 'Date',
+              filterable: true,
+              render: (b) => <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>,
+              filterValue: (b) => formatBucketDate(b.bucket),
+            },
+            {
+              key: 'active',
+              header: 'Active',
+              sortable: true,
+              render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count}</span>,
+              sortValue: (b) => b.active_seat_count ?? 0,
+            },
+            {
+              key: 'provisioned',
+              header: 'Provisioned',
+              sortable: true,
+              render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count}</span>,
+              sortValue: (b) => b.provisioned_seat_count ?? 0,
+            },
+            {
+              key: 'inactive',
+              header: 'Inactive',
+              sortable: true,
+              render: (b) => {
                 const inactive = b.provisioned_seat_count - b.active_seat_count;
                 return (
-                  <tr key={i}>
-                    <td style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {b.provisioned_seat_count}
-                    </td>
-                    <td
-                      style={{
-                        fontVariantNumeric: 'tabular-nums',
-                        color: inactive > 0 ? 'var(--danger)' : undefined,
-                      }}
-                    >
-                      {inactive}
-                    </td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}
-                    </td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      ${(b.provisioned_seat_count * costPerSeat).toLocaleString()}
-                    </td>
-                  </tr>
+                  <span style={{ fontVariantNumeric: 'tabular-nums', color: inactive > 0 ? 'var(--danger)' : undefined }}>
+                    {inactive}
+                  </span>
                 );
-              })}
-            </tbody>
-          </table>
-        </div>
+              },
+              sortValue: (b) => b.provisioned_seat_count - b.active_seat_count,
+            },
+            {
+              key: 'utilization',
+              header: 'Utilization %',
+              sortable: true,
+              render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}</span>,
+              sortValue: (b) => b.utilization_pct ?? 0,
+            },
+            {
+              key: 'cost',
+              header: 'Cost ($/mo)',
+              sortable: true,
+              render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>${(b.provisioned_seat_count * costPerSeat).toLocaleString()}</span>,
+              sortValue: (b) => b.provisioned_seat_count * costPerSeat,
+            },
+          ]}
+          data={seatBuckets}
+          rowKey={(b) => b.bucket}
+          className={styles.modalTable}
+        />
       </Modal>
 
       {/* Correlation insights modals */}

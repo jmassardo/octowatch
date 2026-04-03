@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Button } from '../../components/primitives/Button';
+import { DataTable } from '../../components/primitives/DataTable';
+import type { ColumnDef } from '../../components/primitives/DataTable';
 import { Modal } from '../../components/primitives/Modal';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
@@ -10,6 +12,18 @@ import { getCopilotAdoption } from '../../api/copilotMetrics';
 import styles from './Copilot.module.css';
 
 type AdoptionModal = 'tier' | 'feature' | 'minimal-user' | null;
+
+interface PowerUser {
+  user: string;
+  days_active: number;
+  features_used: number;
+}
+
+interface MinimalUser {
+  user: string;
+  days_active: number;
+  last_feature: string;
+}
 
 export function AdoptionPane() {
   const {
@@ -58,6 +72,203 @@ export function AdoptionPane() {
   const selectedTier = tiers.find((t) => t.id === selectedTierId);
   const selectedFeatureData = featureAdoption.find((f) => f.feature === selectedFeature);
   const selectedMinimalUserData = minimalUsers.find((u) => u.user === selectedMinimalUser);
+
+  const powerUserColumns: ColumnDef<PowerUser>[] = [
+    {
+      key: 'user',
+      header: 'User',
+      filterable: true,
+      render: (u) => <span style={{ fontWeight: 500 }}>{u.user}</span>,
+      filterValue: (u) => u.user,
+    },
+    {
+      key: 'days_active',
+      header: 'Days active',
+      sortable: true,
+      render: (u) => (
+        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+          <span
+            className={styles.clickableStat}
+            role="button"
+            tabIndex={0}
+            onClick={() => showToast(u.user)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                showToast(u.user);
+              }
+            }}
+          >
+            {u.days_active}d
+          </span>
+        </span>
+      ),
+      sortValue: (u) => u.days_active,
+    },
+    {
+      key: 'features_used',
+      header: 'Features used',
+      sortable: true,
+      render: (u) => (
+        <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--success)' }}>
+          <span
+            className={styles.clickableStat}
+            role="button"
+            tabIndex={0}
+            onClick={() => showToast(u.user)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                showToast(u.user);
+              }
+            }}
+          >
+            {u.features_used}
+          </span>
+        </span>
+      ),
+      sortValue: (u) => u.features_used,
+    },
+  ];
+
+  const minimalUserColumns: ColumnDef<MinimalUser>[] = [
+    {
+      key: 'user',
+      header: 'User',
+      filterable: true,
+      render: (u) => <span style={{ fontWeight: 500 }}>{u.user}</span>,
+      filterValue: (u) => u.user,
+    },
+    {
+      key: 'days_active',
+      header: 'Days active',
+      sortable: true,
+      render: (u) => (
+        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+          <span
+            className={styles.clickableStat}
+            role="button"
+            tabIndex={0}
+            onClick={() => openMinimalUserModal(u.user)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openMinimalUserModal(u.user);
+              }
+            }}
+          >
+            {u.days_active}
+          </span>
+        </span>
+      ),
+      sortValue: (u) => u.days_active,
+    },
+    {
+      key: 'last_feature',
+      header: 'Last feature',
+      filterable: true,
+      render: (u) => <span style={{ color: 'var(--fg-muted)' }}>{u.last_feature}</span>,
+      filterValue: (u) => u.last_feature,
+    },
+    {
+      key: 'action',
+      header: 'Action',
+      render: (u) => (
+        <Button
+          size="sm"
+          onClick={() => {
+            const confirmed = window.prompt(`Schedule onboarding for @${u.user}?`);
+            if (confirmed !== null) {
+              setScheduledUsers((prev) => ({ ...prev, [u.user]: true }));
+              setTimeout(() => {
+                setScheduledUsers((prev) => {
+                  const next = { ...prev };
+                  delete next[u.user];
+                  return next;
+                });
+              }, 3000);
+            }
+          }}
+        >
+          {scheduledUsers[u.user] ? 'Scheduled ✓' : 'Schedule onboarding'}
+        </Button>
+      ),
+    },
+  ];
+
+  const modalPowerUserColumns: ColumnDef<PowerUser>[] = [
+    {
+      key: 'user',
+      header: 'User',
+      filterable: true,
+      render: (u) => <span style={{ fontWeight: 500 }}>{u.user}</span>,
+      filterValue: (u) => u.user,
+    },
+    {
+      key: 'days_active',
+      header: 'Days active',
+      sortable: true,
+      render: (u) => (
+        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{u.days_active}d</span>
+      ),
+      sortValue: (u) => u.days_active,
+    },
+    {
+      key: 'features_used',
+      header: 'Features used',
+      sortable: true,
+      render: (u) => (
+        <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--success)' }}>
+          {u.features_used}
+        </span>
+      ),
+      sortValue: (u) => u.features_used,
+    },
+  ];
+
+  const modalMinimalUserColumns: ColumnDef<MinimalUser>[] = [
+    {
+      key: 'user',
+      header: 'User',
+      filterable: true,
+      render: (u) => <span style={{ fontWeight: 500 }}>{u.user}</span>,
+      filterValue: (u) => u.user,
+    },
+    {
+      key: 'days_active',
+      header: 'Days active',
+      sortable: true,
+      render: (u) => (
+        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{u.days_active}</span>
+      ),
+      sortValue: (u) => u.days_active,
+    },
+    {
+      key: 'last_feature',
+      header: 'Last feature',
+      filterable: true,
+      render: (u) => <span style={{ color: 'var(--fg-muted)' }}>{u.last_feature}</span>,
+      filterValue: (u) => u.last_feature,
+    },
+  ];
+
+  const minimalUserDetailColumns: ColumnDef<{ metric: string; value: string }>[] = [
+    {
+      key: 'metric',
+      header: 'Metric',
+      render: (r) => <span style={{ color: 'var(--fg-muted)' }}>{r.metric}</span>,
+    },
+    {
+      key: 'value',
+      header: 'Value',
+      render: (r) => {
+        if (r.metric === 'User') return <span style={{ fontWeight: 500 }}>{r.value}</span>;
+        if (r.metric === 'Days active')
+          return <span style={{ fontVariantNumeric: 'tabular-nums' }}>{r.value}</span>;
+        return <span>{r.value}</span>;
+      },
+    },
+  ];
 
   return (
     <>
@@ -137,56 +348,11 @@ export function AdoptionPane() {
           {/* Daily power users table */}
           <Card style={{ marginBottom: 20 }}>
             <CardHeader>Daily power users</CardHeader>
-            <div className={styles.tableWrap}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th>Days active</th>
-                    <th>Features used</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {powerUsers.map((u) => (
-                    <tr key={u.user}>
-                      <td style={{ fontWeight: 500 }}>{u.user}</td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        <span
-                          className={styles.clickableStat}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => showToast(u.user)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              showToast(u.user);
-                            }
-                          }}
-                        >
-                          {u.days_active}d
-                        </span>
-                      </td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--success)' }}>
-                        <span
-                          className={styles.clickableStat}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => showToast(u.user)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              showToast(u.user);
-                            }
-                          }}
-                        >
-                          {u.features_used}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable<PowerUser>
+              columns={powerUserColumns}
+              data={powerUsers}
+              rowKey={(u) => u.user}
+            />
           </Card>
 
           <div className={styles.grid2}>
@@ -249,62 +415,11 @@ export function AdoptionPane() {
           {/* Minimal users — onboarding candidates */}
           <Card style={{ marginBottom: 20 }}>
             <CardHeader>Minimal users — onboarding candidates</CardHeader>
-            <div className={styles.tableWrap}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th>Days active</th>
-                    <th>Last feature</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {minimalUsers.map((u) => (
-                    <tr key={u.user}>
-                      <td style={{ fontWeight: 500 }}>{u.user}</td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        <span
-                          className={styles.clickableStat}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => openMinimalUserModal(u.user)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              openMinimalUserModal(u.user);
-                            }
-                          }}
-                        >
-                          {u.days_active}
-                        </span>
-                      </td>
-                      <td style={{ color: 'var(--fg-muted)' }}>{u.last_feature}</td>
-                      <td>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            const confirmed = window.prompt(`Schedule onboarding for @${u.user}?`);
-                            if (confirmed !== null) {
-                              setScheduledUsers((prev) => ({ ...prev, [u.user]: true }));
-                              setTimeout(() => {
-                                setScheduledUsers((prev) => {
-                                  const next = { ...prev };
-                                  delete next[u.user];
-                                  return next;
-                                });
-                              }, 3000);
-                            }
-                          }}
-                        >
-                          {scheduledUsers[u.user] ? 'Scheduled ✓' : 'Schedule onboarding'}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable<MinimalUser>
+              columns={minimalUserColumns}
+              data={minimalUsers}
+              rowKey={(u) => u.user}
+            />
           </Card>
 
           {/* Tier detail modal */}
@@ -324,26 +439,12 @@ export function AdoptionPane() {
                 <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 12px' }}>
                   {selectedTier.desc} — showing top power users by activity.
                 </p>
-                <table className={styles.modalTable}>
-                  <thead>
-                    <tr>
-                      <th>User</th>
-                      <th>Days active</th>
-                      <th>Features used</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {powerUsers.map((u) => (
-                      <tr key={u.user}>
-                        <td style={{ fontWeight: 500 }}>{u.user}</td>
-                        <td style={{ fontVariantNumeric: 'tabular-nums' }}>{u.days_active}d</td>
-                        <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--success)' }}>
-                          {u.features_used}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <DataTable<PowerUser>
+                  columns={modalPowerUserColumns}
+                  data={powerUsers}
+                  rowKey={(u) => u.user}
+                  className={styles.modalTable}
+                />
               </div>
             )}
             {selectedTier && selectedTierId === 'minimal' && (
@@ -351,24 +452,12 @@ export function AdoptionPane() {
                 <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 12px' }}>
                   {selectedTier.desc} — showing minimal users who may benefit from onboarding.
                 </p>
-                <table className={styles.modalTable}>
-                  <thead>
-                    <tr>
-                      <th>User</th>
-                      <th>Days active</th>
-                      <th>Last feature</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {minimalUsers.map((u) => (
-                      <tr key={u.user}>
-                        <td style={{ fontWeight: 500 }}>{u.user}</td>
-                        <td style={{ fontVariantNumeric: 'tabular-nums' }}>{u.days_active}</td>
-                        <td style={{ color: 'var(--fg-muted)' }}>{u.last_feature}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <DataTable<MinimalUser>
+                  columns={modalMinimalUserColumns}
+                  data={minimalUsers}
+                  rowKey={(u) => u.user}
+                  className={styles.modalTable}
+                />
               </div>
             )}
             {selectedTier && selectedTierId !== 'power' && selectedTierId !== 'minimal' && (
@@ -444,30 +533,16 @@ export function AdoptionPane() {
             </div>
             {selectedMinimalUserData && (
               <div style={{ overflowX: 'auto' }}>
-                <table className={styles.modalTable}>
-                  <thead>
-                    <tr>
-                      <th>Metric</th>
-                      <th>Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style={{ color: 'var(--fg-muted)' }}>User</td>
-                      <td style={{ fontWeight: 500 }}>@{selectedMinimalUserData.user}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ color: 'var(--fg-muted)' }}>Days active</td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {selectedMinimalUserData.days_active}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style={{ color: 'var(--fg-muted)' }}>Last feature used</td>
-                      <td>{selectedMinimalUserData.last_feature}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                <DataTable<{ metric: string; value: string }>
+                  columns={minimalUserDetailColumns}
+                  data={[
+                    { metric: 'User', value: `@${selectedMinimalUserData.user}` },
+                    { metric: 'Days active', value: String(selectedMinimalUserData.days_active) },
+                    { metric: 'Last feature used', value: selectedMinimalUserData.last_feature },
+                  ]}
+                  rowKey={(r) => r.metric}
+                  className={styles.modalTable}
+                />
               </div>
             )}
           </Modal>
