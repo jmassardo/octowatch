@@ -1,5 +1,5 @@
 apiVersion: v2
-name: audit-log-analyzer
+name: octowatch
 description: >
   GitHub Enterprise Cloud audit log ingestion, detection, and reporting platform.
   FastAPI backend, Celery workers, TimescaleDB, Valkey, MinIO, Gitea.
@@ -8,9 +8,9 @@ type: application
 version: 0.1.0
 appVersion: "0.1.0"
 
-home: https://github.com/your-org/audit-log-analyzer
+home: https://github.com/your-org/octowatch
 sources:
-  - https://github.com/your-org/audit-log-analyzer
+  - https://github.com/your-org/octowatch
 
 keywords:
   - audit

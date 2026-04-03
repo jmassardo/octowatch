@@ -1,4 +1,4 @@
-# audit-log-analyzer Helm Chart — Values
+# octowatch Helm Chart — Values
 # See docs/security-and-deployment.md for full environment variable reference
 # and security architecture details.
 
@@ -34,7 +34,7 @@ api:
   replicaCount: 2  # Increase for high availability; requires shared session via Valkey
 
   image:
-    repository: audit-log-analyzer-api
+    repository: octowatch-api
     pullPolicy: IfNotPresent
 
   resources:
@@ -90,7 +90,7 @@ api:
 # ---------------------------------------------------------------------------
 worker:
   image:
-    repository: audit-log-analyzer-worker
+    repository: octowatch-worker
     pullPolicy: IfNotPresent
 
   securityContext:
@@ -156,7 +156,7 @@ frontend:
   replicaCount: 2
 
   image:
-    repository: audit-log-analyzer-frontend
+    repository: octowatch-frontend
     pullPolicy: IfNotPresent
 
   resources:
@@ -184,7 +184,7 @@ postgresql:
     database: auditlogs
     # Password is injected via existingSecret; see secrets management below
     # See docs/security-and-deployment.md for env var details
-    existingSecret: audit-log-analyzer-db-secret
+    existingSecret: octowatch-db-secret
     secretKeys:
       adminPasswordKey: postgres-password
       userPasswordKey: app-password
@@ -223,7 +223,7 @@ valkey:
   auth:
     enabled: true
     # Password injected via existingSecret
-    existingSecret: audit-log-analyzer-valkey-secret
+    existingSecret: octowatch-valkey-secret
     existingSecretPasswordKey: valkey-password
 
   master:
@@ -255,7 +255,7 @@ minio:
   rootPassword: ""    # Injected via existingSecret
 
   # See docs/security-and-deployment.md for env var details
-  existingSecret: audit-log-analyzer-minio-secret
+  existingSecret: octowatch-minio-secret
 
   persistence:
     enabled: true
@@ -283,11 +283,11 @@ ingress:
   enabled: true
   className: nginx  # Ingress controller class; change to "traefik" etc. as needed
 
-  host: audit-log-analyzer.example.com  # Replace with your actual FQDN
+  host: octowatch.example.com  # Replace with your actual FQDN
 
   tls:
     enabled: true
-    secretName: audit-log-analyzer-tls  # TLS certificate secret (cert-manager or manual)
+    secretName: octowatch-tls  # TLS certificate secret (cert-manager or manual)
 
   # Annotations for cert-manager automatic TLS certificate provisioning
   annotations:
@@ -316,13 +316,13 @@ ingestion:
     bucket: ""          # Name of the S3 bucket containing GitHub audit logs
     region: us-east-1   # AWS region of the S3 bucket
     # Credentials injected via existingSecret (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)
-    existingSecret: audit-log-analyzer-s3-secret
+    existingSecret: octowatch-s3-secret
 
   # Azure Blob settings — only used when mode=azure_blob
   azureBlob:
     containerName: ""   # Azure Blob container name
     # Connection string injected via existingSecret (AZURE_STORAGE_CONNECTION_STRING)
-    existingSecret: audit-log-analyzer-azure-secret
+    existingSecret: octowatch-azure-secret
 
 # ---------------------------------------------------------------------------
 # Detection engine tuning

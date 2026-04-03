@@ -2,10 +2,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "audit-log-analyzer.fullname" . }}
+  name: {{ include "octowatch.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "audit-log-analyzer.labels" . | nindent 4 }}
+    {{- include "octowatch.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -29,28 +29,28 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ include "audit-log-analyzer.fullname" . }}-api
+                name: {{ include "octowatch.fullname" . }}-api
                 port:
                   name: http
           - path: /auth/
             pathType: Prefix
             backend:
               service:
-                name: {{ include "audit-log-analyzer.fullname" . }}-api
+                name: {{ include "octowatch.fullname" . }}-api
                 port:
                   name: http
           - path: /health
             pathType: Exact
             backend:
               service:
-                name: {{ include "audit-log-analyzer.fullname" . }}-api
+                name: {{ include "octowatch.fullname" . }}-api
                 port:
                   name: http
           - path: /ready
             pathType: Exact
             backend:
               service:
-                name: {{ include "audit-log-analyzer.fullname" . }}-api
+                name: {{ include "octowatch.fullname" . }}-api
                 port:
                   name: http
           # All other traffic → frontend SPA
@@ -58,7 +58,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ include "audit-log-analyzer.fullname" . }}-frontend
+                name: {{ include "octowatch.fullname" . }}-frontend
                 port:
                   name: http
 {{- end }}

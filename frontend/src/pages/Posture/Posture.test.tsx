@@ -32,7 +32,7 @@ const ENTERPRISE_RESPONSE: PostureResponse = {
   score: 85.0,
   orgs: [
     {
-      org_login: 'iadopt-apps',
+      org_login: 'octowatch-org',
       score: 90.0,
       two_factor_required: true,
       default_repo_permission: 'read',
@@ -99,7 +99,7 @@ const ORG_RESPONSE: PostureResponse = {
   score: 90.0,
   orgs: null,
   org: {
-    org_login: 'iadopt-apps',
+    org_login: 'octowatch-org',
     score: 90.0,
     two_factor_required: true,
     default_repo_permission: 'read',
@@ -122,8 +122,8 @@ const ORG_RESPONSE: PostureResponse = {
     ],
     repos: [
       {
-        repo_name: 'iAdopt',
-        org: 'iadopt-apps',
+        repo_name: 'octowatch-app',
+        org: 'octowatch-org',
         visibility: 'private',
         default_branch: 'main',
         archived: false,
@@ -136,7 +136,7 @@ const ORG_RESPONSE: PostureResponse = {
       },
       {
         repo_name: 'legacy-app',
-        org: 'iadopt-apps',
+        org: 'octowatch-org',
         visibility: 'public',
         default_branch: 'master',
         archived: true,
@@ -167,7 +167,7 @@ const ORG_RESPONSE: PostureResponse = {
   repo: null,
   breadcrumb: [
     { label: 'Posture', href: '/posture' },
-    { label: 'iadopt-apps', href: null },
+    { label: 'octowatch-org', href: null },
   ],
   last_sync_at: '2024-06-01T10:00:00Z',
   page: 1,
@@ -183,7 +183,7 @@ const REPO_RESPONSE: PostureResponse = {
   org: null,
   repo: {
     repo_name: 'legacy-app',
-    org: 'iadopt-apps',
+    org: 'octowatch-org',
     visibility: 'public',
     default_branch: 'master',
     archived: true,
@@ -221,7 +221,7 @@ const REPO_RESPONSE: PostureResponse = {
   },
   breadcrumb: [
     { label: 'Posture', href: '/posture' },
-    { label: 'iadopt-apps', href: '/posture/iadopt-apps' },
+    { label: 'octowatch-org', href: '/posture/octowatch-org' },
     { label: 'legacy-app', href: null },
   ],
   last_sync_at: '2024-06-01T10:00:00Z',
@@ -293,7 +293,7 @@ describe('PosturePage — Enterprise View', () => {
 
   it('renders org cards', async () => {
     renderWithProviders(<PosturePage />);
-    expect(await screen.findByText('iadopt-apps')).toBeInTheDocument();
+    expect(await screen.findByText('octowatch-org')).toBeInTheDocument();
     expect(await screen.findByText('danger-org')).toBeInTheDocument();
   });
 
@@ -323,9 +323,9 @@ describe('PosturePage — Enterprise View', () => {
   it('navigates to org on card click', async () => {
     const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
-    const card = await screen.findByText('iadopt-apps');
+    const card = await screen.findByText('octowatch-org');
     await user.click(card.closest('[class*="orgCard"]')!);
-    expect(mockNavigate).toHaveBeenCalledWith('/posture/iadopt-apps');
+    expect(mockNavigate).toHaveBeenCalledWith('/posture/octowatch-org');
   });
 
   it('renders severity filter dropdown', async () => {
@@ -349,14 +349,14 @@ describe('PosturePage — Org View', () => {
     mockNavigate.mockClear();
     mockGetPosture.mockClear();
     mockGetPosture.mockResolvedValue(ORG_RESPONSE);
-    mockParams.org = 'iadopt-apps';
+    mockParams.org = 'octowatch-org';
     mockParams.repo = undefined;
   });
 
   it('renders org name as title', async () => {
     renderWithProviders(<PosturePage />);
     // Text appears in both breadcrumb and title, so use findAllByText
-    const matches = await screen.findAllByText('iadopt-apps');
+    const matches = await screen.findAllByText('octowatch-org');
     expect(matches.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -399,7 +399,7 @@ describe('PosturePage — Org View', () => {
   it('renders repos table', async () => {
     renderWithProviders(<PosturePage />);
     expect(await screen.findByText('Repositories')).toBeInTheDocument();
-    expect(await screen.findByText('iAdopt')).toBeInTheDocument();
+    expect(await screen.findByText('octowatch-app')).toBeInTheDocument();
     expect(await screen.findByText('legacy-app')).toBeInTheDocument();
   });
 
@@ -411,9 +411,9 @@ describe('PosturePage — Org View', () => {
   it('navigates to repo on row click', async () => {
     const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
-    const repoRow = await screen.findByText('iAdopt');
+    const repoRow = await screen.findByText('octowatch-app');
     await user.click(repoRow.closest('tr')!);
-    expect(mockNavigate).toHaveBeenCalledWith('/posture/iadopt-apps/iAdopt');
+    expect(mockNavigate).toHaveBeenCalledWith('/posture/octowatch-org/octowatch-app');
   });
 
   it('renders sortable table headers', async () => {
@@ -435,7 +435,7 @@ describe('PosturePage — Repo View', () => {
     mockNavigate.mockClear();
     mockGetPosture.mockClear();
     mockGetPosture.mockResolvedValue(REPO_RESPONSE);
-    mockParams.org = 'iadopt-apps';
+    mockParams.org = 'octowatch-org';
     mockParams.repo = 'legacy-app';
   });
 
@@ -450,8 +450,8 @@ describe('PosturePage — Repo View', () => {
     renderWithProviders(<PosturePage />);
     const postureLink = await screen.findByRole('link', { name: 'Posture' });
     expect(postureLink).toHaveAttribute('href', '/posture');
-    const orgLink = await screen.findByRole('link', { name: 'iadopt-apps' });
-    expect(orgLink).toHaveAttribute('href', '/posture/iadopt-apps');
+    const orgLink = await screen.findByRole('link', { name: 'octowatch-org' });
+    expect(orgLink).toHaveAttribute('href', '/posture/octowatch-org');
   });
 
   it('renders repo score', async () => {
@@ -607,7 +607,7 @@ describe('PosturePage — Score gauge colors', () => {
 
   it('applies bad class for score < 50', async () => {
     mockGetPosture.mockResolvedValue(REPO_RESPONSE);
-    mockParams.org = 'iadopt-apps';
+    mockParams.org = 'octowatch-org';
     mockParams.repo = 'legacy-app';
     renderWithProviders(<PosturePage />);
     await screen.findByText('45');

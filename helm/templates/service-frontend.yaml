@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "audit-log-analyzer.fullname" . }}-frontend
+  name: {{ include "octowatch.fullname" . }}-frontend
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "audit-log-analyzer.labels" . | nindent 4 }}
+    {{- include "octowatch.labels" . | nindent 4 }}
     app.kubernetes.io/component: frontend
 spec:
   type: {{ .Values.frontend.service.type }}
@@ -14,5 +14,5 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "audit-log-analyzer.selectorLabels" . | nindent 4 }}
+    {{- include "octowatch.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: frontend

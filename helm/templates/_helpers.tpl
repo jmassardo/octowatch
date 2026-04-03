@@ -1,11 +1,11 @@
 {{/*
-audit-log-analyzer Helm chart helpers
+octowatch Helm chart helpers
 */}}
 
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "audit-log-analyzer.name" -}}
+{{- define "octowatch.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -13,7 +13,7 @@ Expand the name of the chart.
 Create a default fully qualified app name.
 Truncate to 63 chars because Kubernetes name fields have a 63 character limit.
 */}}
-{{- define "audit-log-analyzer.fullname" -}}
+{{- define "octowatch.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -29,16 +29,16 @@ Truncate to 63 chars because Kubernetes name fields have a 63 character limit.
 {{/*
 Create chart label value (name + version).
 */}}
-{{- define "audit-log-analyzer.chart" -}}
+{{- define "octowatch.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels applied to all resources.
 */}}
-{{- define "audit-log-analyzer.labels" -}}
-helm.sh/chart: {{ include "audit-log-analyzer.chart" . }}
-{{ include "audit-log-analyzer.selectorLabels" . }}
+{{- define "octowatch.labels" -}}
+helm.sh/chart: {{ include "octowatch.chart" . }}
+{{ include "octowatch.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -48,8 +48,8 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels — used by Deployments and Services.
 */}}
-{{- define "audit-log-analyzer.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "audit-log-analyzer.name" . }}
+{{- define "octowatch.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "octowatch.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
@@ -57,46 +57,46 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 API image reference.
 Format: <registry>/<chart-name>/api:<tag>
 */}}
-{{- define "audit-log-analyzer.apiImage" -}}
+{{- define "octowatch.apiImage" -}}
 {{- printf "%s/%s/api:%s" .Values.global.image.registry .Chart.Name .Values.global.image.tag }}
 {{- end }}
 
 {{/*
 Worker image reference.
 */}}
-{{- define "audit-log-analyzer.workerImage" -}}
+{{- define "octowatch.workerImage" -}}
 {{- printf "%s/%s/worker:%s" .Values.global.image.registry .Chart.Name .Values.global.image.tag }}
 {{- end }}
 
 {{/*
 Frontend image reference.
 */}}
-{{- define "audit-log-analyzer.frontendImage" -}}
+{{- define "octowatch.frontendImage" -}}
 {{- printf "%s/%s/frontend:%s" .Values.global.image.registry .Chart.Name .Values.global.image.tag }}
 {{- end }}
 
 {{/*
 Name of the Kubernetes Secret that holds application credentials.
 */}}
-{{- define "audit-log-analyzer.secretName" -}}
-{{- printf "%s-secrets" (include "audit-log-analyzer.fullname" .) }}
+{{- define "octowatch.secretName" -}}
+{{- printf "%s-secrets" (include "octowatch.fullname" .) }}
 {{- end }}
 
 {{/*
 Name of the ConfigMap that holds non-secret application configuration.
 */}}
-{{- define "audit-log-analyzer.configMapName" -}}
-{{- printf "%s-config" (include "audit-log-analyzer.fullname" .) }}
+{{- define "octowatch.configMapName" -}}
+{{- printf "%s-config" (include "octowatch.fullname" .) }}
 {{- end }}
 
 {{/*
 Service account name. Uses serviceAccount.name if set, otherwise the chart fullname.
 Gracefully handles missing serviceAccount values (not required in values.yaml).
 */}}
-{{- define "audit-log-analyzer.serviceAccountName" -}}
+{{- define "octowatch.serviceAccountName" -}}
 {{- if and .Values.serviceAccount .Values.serviceAccount.name }}
 {{- .Values.serviceAccount.name }}
 {{- else }}
-{{- include "audit-log-analyzer.fullname" . }}
+{{- include "octowatch.fullname" . }}
 {{- end }}
 {{- end }}

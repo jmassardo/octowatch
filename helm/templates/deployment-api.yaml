@@ -1,28 +1,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "audit-log-analyzer.fullname" . }}-api
+  name: {{ include "octowatch.fullname" . }}-api
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "audit-log-analyzer.labels" . | nindent 4 }}
+    {{- include "octowatch.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
 spec:
   replicas: {{ .Values.api.replicaCount }}
   selector:
     matchLabels:
-      {{- include "audit-log-analyzer.selectorLabels" . | nindent 6 }}
+      {{- include "octowatch.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: api
   template:
     metadata:
       labels:
-        {{- include "audit-log-analyzer.selectorLabels" . | nindent 8 }}
+        {{- include "octowatch.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: api
       annotations:
         # Roll pods when config or secrets change
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
-      serviceAccountName: {{ include "audit-log-analyzer.serviceAccountName" . }}
+      serviceAccountName: {{ include "octowatch.serviceAccountName" . }}
       securityContext:
         runAsNonRoot: {{ .Values.api.securityContext.runAsNonRoot }}
         runAsUser: {{ .Values.api.securityContext.runAsUser }}
@@ -31,7 +31,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: {{ include "audit-log-analyzer.apiImage" . }}
+          image: {{ include "octowatch.apiImage" . }}
           imagePullPolicy: {{ .Values.api.image.pullPolicy }}
           ports:
             - name: http
@@ -76,38 +76,38 @@ spec:
           # ── Environment — non-secret values from ConfigMap ──────────────
           envFrom:
             - configMapRef:
-                name: {{ include "audit-log-analyzer.configMapName" . }}
+                name: {{ include "octowatch.configMapName" . }}
           # ── Environment — secret values ──────────────────────────────────
           env:
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  name: {{ include "octowatch.secretName" . }}
                   key: secret-key
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  name: {{ include "octowatch.secretName" . }}
                   key: database-url
             - name: VALKEY_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  name: {{ include "octowatch.secretName" . }}
                   key: valkey-url
             - name: GITHUB_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  name: {{ include "octowatch.secretName" . }}
                   key: github-client-id
             - name: GITHUB_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  name: {{ include "octowatch.secretName" . }}
                   key: github-client-secret
             - name: GITHUB_RULES_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  name: {{ include "octowatch.secretName" . }}
                   key: github-rules-token
                   optional: true
           # ── Volume mounts — tmp needed for ReadOnlyRootFilesystem ────────

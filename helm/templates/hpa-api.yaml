@@ -1,16 +1,16 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "audit-log-analyzer.fullname" . }}-api
+  name: {{ include "octowatch.fullname" . }}-api
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "audit-log-analyzer.labels" . | nindent 4 }}
+    {{- include "octowatch.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "audit-log-analyzer.fullname" . }}-api
+    name: {{ include "octowatch.fullname" . }}-api
   minReplicas: 2
   maxReplicas: 10
   metrics:

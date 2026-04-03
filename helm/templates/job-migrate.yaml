@@ -4,10 +4,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "audit-log-analyzer.fullname" . }}-migrate
+  name: {{ include "octowatch.fullname" . }}-migrate
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "audit-log-analyzer.labels" . | nindent 4 }}
+    {{- include "octowatch.labels" . | nindent 4 }}
     app.kubernetes.io/component: migrate
   annotations:
     helm.sh/hook: pre-install,pre-upgrade
@@ -19,11 +19,11 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "audit-log-analyzer.selectorLabels" . | nindent 8 }}
+        {{- include "octowatch.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: migrate
     spec:
       restartPolicy: OnFailure
-      serviceAccountName: {{ include "audit-log-analyzer.serviceAccountName" . }}
+      serviceAccountName: {{ include "octowatch.serviceAccountName" . }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 1001
@@ -32,7 +32,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: migrate
-          image: {{ include "audit-log-analyzer.apiImage" . }}
+          image: {{ include "octowatch.apiImage" . }}
           imagePullPolicy: {{ .Values.api.image.pullPolicy }}
           command:
             - alembic
@@ -48,7 +48,7 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  name: {{ include "octowatch.secretName" . }}
                   key: database-url
           resources:
             requests:

@@ -5,10 +5,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "audit-log-analyzer.fullname" . }}-minio-setup
+  name: {{ include "octowatch.fullname" . }}-minio-setup
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "audit-log-analyzer.labels" . | nindent 4 }}
+    {{- include "octowatch.labels" . | nindent 4 }}
     app.kubernetes.io/component: minio-setup
   annotations:
     helm.sh/hook: post-install
@@ -20,7 +20,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "audit-log-analyzer.selectorLabels" . | nindent 8 }}
+        {{- include "octowatch.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: minio-setup
     spec:
       restartPolicy: OnFailure
@@ -41,26 +41,26 @@ spec:
                 - ALL
           env:
             - name: MINIO_ENDPOINT
-              value: "http://{{ include "audit-log-analyzer.fullname" . }}-minio:9000"
+              value: "http://{{ include "octowatch.fullname" . }}-minio:9000"
             - name: MINIO_ROOT_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  name: {{ include "octowatch.secretName" . }}
                   key: minio-root-user
             - name: MINIO_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  name: {{ include "octowatch.secretName" . }}
                   key: minio-root-password
             - name: MINIO_INGEST_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  name: {{ include "octowatch.secretName" . }}
                   key: minio-ingest-user
             - name: MINIO_INGEST_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "audit-log-analyzer.secretName" . }}
+                  name: {{ include "octowatch.secretName" . }}
                   key: minio-ingest-password
             - name: BUCKET_NAME
               value: {{ .Values.minio.bucketName | default "audit-logs" | quote }}

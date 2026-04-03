@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "audit-log-analyzer"
+name = "octowatch"
 version = "1.0.0"
 description = "GitHub Enterprise Cloud audit log ingestion, detection, and reporting platform"
 requires-python = ">=3.12"

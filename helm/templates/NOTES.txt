@@ -16,7 +16,7 @@ Image tag: {{ .Values.global.image.tag }}
   Ingress is disabled. To access the API locally:
 
   kubectl port-forward -n {{ .Release.Namespace }} \
-    svc/{{ include "audit-log-analyzer.fullname" . }}-api 8000:8000
+    svc/{{ include "octowatch.fullname" . }}-api 8000:8000
 
   Then open: http://localhost:8000/api/docs
 {{- end }}
@@ -36,7 +36,7 @@ Image tag: {{ .Values.global.image.tag }}
   If you used the default placeholder secret.yaml, the application WILL NOT
   start correctly. Provide real secrets before deploying to production:
 
-  kubectl create secret generic {{ include "audit-log-analyzer.secretName" . }} \
+  kubectl create secret generic {{ include "octowatch.secretName" . }} \
     --namespace {{ .Release.Namespace }} \
     --from-literal=secret-key=$(openssl rand -hex 32) \
     --from-literal=database-url='postgresql+asyncpg://...' \
@@ -53,9 +53,9 @@ Image tag: {{ .Values.global.image.tag }}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 Logs
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  kubectl logs -n {{ .Release.Namespace }} -f deploy/{{ include "audit-log-analyzer.fullname" . }}-api
-  kubectl logs -n {{ .Release.Namespace }} -f deploy/{{ include "audit-log-analyzer.fullname" . }}-worker-detection
-  kubectl logs -n {{ .Release.Namespace }} -f deploy/{{ include "audit-log-analyzer.fullname" . }}-beat
+  kubectl logs -n {{ .Release.Namespace }} -f deploy/{{ include "octowatch.fullname" . }}-api
+  kubectl logs -n {{ .Release.Namespace }} -f deploy/{{ include "octowatch.fullname" . }}-worker-detection
+  kubectl logs -n {{ .Release.Namespace }} -f deploy/{{ include "octowatch.fullname" . }}-beat
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📖 Runbook

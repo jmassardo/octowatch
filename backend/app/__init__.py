@@ -1,1 +1,1 @@
-"""audit-log-analyzer backend package."""
+"""octowatch backend package."""
