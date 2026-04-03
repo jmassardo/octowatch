@@ -20,7 +20,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const AUTH_FILE = path.join(__dirname, '.auth', 'user.json');
 
-setup('authenticate via dev-login', async ({ page }) => {
+setup('authenticate via dev-login', async ({ request, page }) => {
   const user = process.env.E2E_USER;
   const pass = process.env.E2E_PASS;
 
@@ -38,24 +38,26 @@ setup('authenticate via dev-login', async ({ page }) => {
   // Ensure the .auth directory exists
   fs.mkdirSync(path.dirname(AUTH_FILE), { recursive: true });
 
-  // Navigate to a page first so cookies are set in the browser context.
-  // Then call dev-login via fetch() inside the page context.
-  await page.goto('/login');
-  const status = await page.evaluate(
-    async ({ username, password }) => {
-      const res = await fetch('/api/v1/auth/dev-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      return res.status;
-    },
-    { username: user, password: pass },
-  );
+  // Call dev-login via the APIRequestContext (not page.request) so cookies
+  // are stored independently. Then navigate to verify auth works.
+  const response = await request.post('/api/v1/auth/dev-login', {
+    data: { username: user, password: pass },
+  });
 
-  if (status !== 200) {
-    throw new Error(`dev-login failed with status ${status}`);
+  if (!response.ok()) {
+    const body = await response.text();
+    throw new Error(
+      `dev-login failed: ${response.status()} ${response.statusText()}\n${body}`,
+    );
   }
+
+  // Transfer cookies from APIRequestContext to the browser context
+  const cookies = await request.storageState();
+  await page.context().addCookies(cookies.cookies);
+
+  // Navigate to verify auth and populate localStorage/sessionStorage
+  await page.goto('/dashboard');
+  await page.waitForURL(/\/(dashboard|login)/, { timeout: 10_000 });
 
   // Persist the authenticated browser state (cookies + localStorage) so that
   // downstream test projects can reuse it via the storageState option.
