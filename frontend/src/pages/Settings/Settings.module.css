@@ -521,3 +521,199 @@
   border-radius: 6px;
   padding: 8px 12px;
 }
+
+/* ── Integration Card Layout ─────────────────────────────────────── */
+
+.integrationCardLeft {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.integrationIcon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Config Forms (integration modals) ───────────────────────────── */
+
+.configForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.configField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.configLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.configHelp {
+  font-size: 11px;
+  color: var(--fg-subtle);
+}
+
+.configInput {
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.configInput:focus {
+  border-color: var(--accent);
+}
+
+.configToggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.configActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-muted);
+}
+
+.configSuccess {
+  color: var(--success);
+  font-size: 13px;
+  padding: 6px 10px;
+  background: rgba(63, 185, 80, 0.1);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.configError {
+  color: var(--danger);
+  font-size: 13px;
+  padding: 6px 10px;
+  background: rgba(248, 81, 73, 0.1);
+  border-radius: 6px;
+  text-align: center;
+}
+
+/* ── Category Settings Form ──────────────────────────────────────── */
+
+.categoryForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.categoryFormRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-bottom: none;
+}
+
+.categoryFormRow:first-child {
+  border-radius: 8px 8px 0 0;
+}
+
+.categoryFormRow:last-of-type {
+  border-bottom: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+}
+
+.categoryFormRow:only-of-type {
+  border-radius: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.categoryFormInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.categoryFormLabel {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--fg);
+  display: block;
+  margin-bottom: 0.125rem;
+}
+
+.categoryFormHint {
+  font-size: 0.8125rem;
+  color: var(--fg-muted);
+  line-height: 1.5;
+}
+
+.categoryFormControl {
+  flex-shrink: 0;
+  min-width: 160px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.categoryFormInput {
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  width: 160px;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.categoryFormInput:focus {
+  border-color: var(--accent);
+}
+
+.categoryFormSelect {
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  width: 160px;
+  box-sizing: border-box;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.categoryFormSelect:focus {
+  border-color: var(--accent);
+}
+
+.categoryFormActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 1rem;
+}

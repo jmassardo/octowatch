@@ -84,8 +84,14 @@ export function updateSetting(
   key: string,
   value: string,
   description?: string,
+  options?: { category?: string; sensitivity?: string },
 ): Promise<AppSetting> {
-  return api.put<AppSetting>(`/admin/settings/${key}`, { value, description });
+  return api.put<AppSetting>(`/admin/settings/${key}`, {
+    value,
+    description,
+    category: options?.category,
+    sensitivity: options?.sensitivity,
+  });
 }
 
 export function deleteSetting(key: string): Promise<void> {

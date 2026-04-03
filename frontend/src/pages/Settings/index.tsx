@@ -1,9 +1,14 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listSettings, updateSetting, deleteSetting, getSettingsAuditTrail } from '../../api/setup';
 import type { AppSetting, SettingAuditEntry } from '../../api/setup';
-import { listNotificationConfigs } from '../../api/integrations';
+import {
+  listNotificationConfigs,
+  listTicketingConfigs,
+  createNotificationConfig,
+  createTicketingConfig,
+} from '../../api/integrations';
 import { SyncPanel } from '../Integrations/SyncPanel';
 import { SyncRunHistory } from '../Integrations/SyncRunHistory';
 import { ManualIngestPanel } from '../Integrations/ManualIngestPanel';
@@ -289,175 +294,926 @@ function GitHubPane() {
 /*  Integrations Pane                                                  */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/*  Integration Icons                                                  */
+/* ------------------------------------------------------------------ */
+
+function SlackIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="8" cy="12" r="2" fill="#E01E5A" />
+      <circle cx="12" cy="8" r="2" fill="#36C5F0" />
+      <circle cx="16" cy="12" r="2" fill="#2EB67D" />
+      <circle cx="12" cy="16" r="2" fill="#ECB22E" />
+    </svg>
+  );
+}
+
+function SentinelIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M13 3l7 14H6L13 3z" fill="#0078d4" fillOpacity="0.9" />
+      <path d="M13 9v4M13 15h.01" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SplunkIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 18L12 4l7 14H5z" fill="#65a637" fillOpacity="0.85" />
+      <path d="M12 10v4" stroke="white" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PagerDutyIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="8" stroke="#06ac38" strokeWidth="2" fill="none" />
+      <circle cx="12" cy="12" r="3" fill="#06ac38" />
+    </svg>
+  );
+}
+
+function JiraIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M6 13l4-4 2 2 6-6"
+        stroke="#0052CC"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 5h6v6"
+        stroke="#0052CC"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Integration config form data                                       */
+/* ------------------------------------------------------------------ */
+
 const INTEGRATION_INFO: {
   key: string;
   label: string;
   description: string;
+  icon: React.ReactNode;
+  iconBg: string;
 }[] = [
   {
     key: 'slack',
     label: 'Slack',
     description: 'Send real-time alerts and weekly digest reports to Slack channels.',
+    icon: <SlackIcon />,
+    iconBg: '#4a154b',
+  },
+  {
+    key: 'jira',
+    label: 'Jira',
+    description: 'Automatically create Jira issues for security findings and track remediation.',
+    icon: <JiraIcon />,
+    iconBg: '#0052CC',
   },
   {
     key: 'sentinel',
     label: 'Microsoft Sentinel',
     description: 'Forward normalized security events to Microsoft Sentinel for SIEM correlation.',
+    icon: <SentinelIcon />,
+    iconBg: '#0078d4',
   },
   {
     key: 'splunk',
     label: 'Splunk',
     description: 'Stream audit events and Copilot metrics to Splunk via HEC.',
+    icon: <SplunkIcon />,
+    iconBg: '#1a1a1a',
   },
   {
     key: 'pagerduty',
     label: 'PagerDuty',
     description: 'Trigger PagerDuty incidents for critical security detections.',
+    icon: <PagerDutyIcon />,
+    iconBg: '#06ac38',
   },
 ];
 
+/* ------------------------------------------------------------------ */
+/*  Slack config form                                                  */
+/* ------------------------------------------------------------------ */
+
+function SlackConfigForm({ onClose }: { onClose: () => void }) {
+  const [displayName, setDisplayName] = useState('');
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [severities, setSeverities] = useState<string[]>(['critical', 'high']);
+  const [cooldown, setCooldown] = useState(3600);
+  const queryClient = useQueryClient();
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createNotificationConfig({
+        channel_type: 'slack',
+        display_name: displayName || 'Slack',
+        target: webhookUrl,
+        notify_severities: severities,
+        cooldown_seconds: cooldown,
+        enabled: true,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notification-configs'] });
+      onClose();
+    },
+  });
+
+  return (
+    <form
+      className={styles.configForm}
+      onSubmit={(e) => {
+        e.preventDefault();
+        createMutation.mutate();
+      }}
+    >
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="slack-display-name">
+          Display Name
+        </label>
+        <input
+          id="slack-display-name"
+          className={styles.configInput}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="e.g. #security-alerts"
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="slack-webhook-url">
+          Webhook URL
+        </label>
+        <input
+          id="slack-webhook-url"
+          className={styles.configInput}
+          value={webhookUrl}
+          onChange={(e) => setWebhookUrl(e.target.value)}
+          placeholder="https://hooks.slack.com/services/..."
+          required
+        />
+      </div>
+      <div className={styles.configField}>
+        <span className={styles.configLabel}>Alert severities</span>
+        <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+          {['critical', 'high', 'medium', 'low'].map((s) => (
+            <label
+              key={s}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 12,
+                color: 'var(--fg)',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={severities.includes(s)}
+                onChange={(e) =>
+                  setSeverities((prev) =>
+                    e.target.checked ? [...prev, s] : prev.filter((x) => x !== s),
+                  )
+                }
+              />
+              {s}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="slack-cooldown">
+          Cooldown (seconds)
+        </label>
+        <input
+          id="slack-cooldown"
+          className={styles.configInput}
+          type="number"
+          min={60}
+          max={86400}
+          value={cooldown}
+          onChange={(e) => setCooldown(Number(e.target.value))}
+        />
+        <span className={styles.configHelp}>Minimum time between alerts (60–86,400 seconds).</span>
+      </div>
+      {createMutation.isError && (
+        <div className={styles.configError}>Failed to save configuration. Please try again.</div>
+      )}
+      <div className={styles.configActions}>
+        <Button size="sm" type="button" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button variant="primary" size="sm" disabled={!webhookUrl || createMutation.isPending}>
+          {createMutation.isPending ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Jira config form                                                   */
+/* ------------------------------------------------------------------ */
+
+function JiraConfigForm({ onClose }: { onClose: () => void }) {
+  const [displayName, setDisplayName] = useState('');
+  const [baseUrl, setBaseUrl] = useState('');
+  const [projectKey, setProjectKey] = useState('');
+  const [credentialEnvVar, setCredentialEnvVar] = useState('JIRA_API_TOKEN');
+  const [autoCreate, setAutoCreate] = useState(false);
+  const queryClient = useQueryClient();
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createTicketingConfig({
+        provider: 'jira',
+        display_name: displayName || 'Jira',
+        target: baseUrl,
+        project_key: projectKey || undefined,
+        default_issue_type: 'Bug',
+        auto_create: autoCreate,
+        auto_create_severities: ['critical', 'high'],
+        credential_env_var: credentialEnvVar,
+        enabled: true,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticketing-configs'] });
+      queryClient.invalidateQueries({ queryKey: ['notification-configs'] });
+      onClose();
+    },
+  });
+
+  return (
+    <form
+      className={styles.configForm}
+      onSubmit={(e) => {
+        e.preventDefault();
+        createMutation.mutate();
+      }}
+    >
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="jira-display-name">
+          Display Name
+        </label>
+        <input
+          id="jira-display-name"
+          className={styles.configInput}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="e.g. Security Project"
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="jira-base-url">
+          Jira Base URL
+        </label>
+        <input
+          id="jira-base-url"
+          className={styles.configInput}
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          placeholder="https://your-org.atlassian.net"
+          required
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="jira-project-key">
+          Project Key
+        </label>
+        <input
+          id="jira-project-key"
+          className={styles.configInput}
+          value={projectKey}
+          onChange={(e) => setProjectKey(e.target.value)}
+          placeholder="e.g. SEC"
+        />
+        <span className={styles.configHelp}>Jira project key for issue creation.</span>
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="jira-credential">
+          API Token Environment Variable
+        </label>
+        <input
+          id="jira-credential"
+          className={styles.configInput}
+          value={credentialEnvVar}
+          onChange={(e) => setCredentialEnvVar(e.target.value)}
+          placeholder="JIRA_API_TOKEN"
+          required
+        />
+        <span className={styles.configHelp}>
+          Name of the environment variable holding the Jira API token.
+        </span>
+      </div>
+      <div className={styles.configField}>
+        <div className={styles.configToggleRow}>
+          <label className={styles.configLabel} htmlFor="jira-auto-create">
+            Auto-create issues for critical/high findings
+          </label>
+          <input
+            id="jira-auto-create"
+            type="checkbox"
+            checked={autoCreate}
+            onChange={(e) => setAutoCreate(e.target.checked)}
+          />
+        </div>
+      </div>
+      {createMutation.isError && (
+        <div className={styles.configError}>Failed to save configuration. Please try again.</div>
+      )}
+      <div className={styles.configActions}>
+        <Button size="sm" type="button" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={!baseUrl || !credentialEnvVar || createMutation.isPending}
+        >
+          {createMutation.isPending ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Webhook config form (Sentinel, Splunk, PagerDuty)                  */
+/* ------------------------------------------------------------------ */
+
+function WebhookConfigForm({ name, onClose }: { name: string; onClose: () => void }) {
+  const channelType: 'webhook' | 'pagerduty' = name === 'PagerDuty' ? 'pagerduty' : 'webhook';
+  const [displayName, setDisplayName] = useState(name);
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [credentialEnvVar, setCredentialEnvVar] = useState('');
+  const [severities, setSeverities] = useState<string[]>(['critical', 'high']);
+  const [cooldown, setCooldown] = useState(3600);
+  const queryClient = useQueryClient();
+
+  const placeholderUrl =
+    name === 'PagerDuty'
+      ? 'https://events.pagerduty.com/v2/enqueue'
+      : name === 'Splunk'
+        ? 'https://your-splunk-hec:8088/services/collector'
+        : 'https://your-sentinel-workspace.ods.opinsights.azure.com/...';
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createNotificationConfig({
+        channel_type: channelType,
+        display_name: displayName || name,
+        target: webhookUrl,
+        credential_env_var: credentialEnvVar || undefined,
+        notify_severities: severities,
+        cooldown_seconds: cooldown,
+        enabled: true,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notification-configs'] });
+      onClose();
+    },
+  });
+
+  return (
+    <form
+      className={styles.configForm}
+      onSubmit={(e) => {
+        e.preventDefault();
+        createMutation.mutate();
+      }}
+    >
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="webhook-display-name">
+          Display Name
+        </label>
+        <input
+          id="webhook-display-name"
+          className={styles.configInput}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder={name}
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="webhook-url">
+          Endpoint URL
+        </label>
+        <input
+          id="webhook-url"
+          className={styles.configInput}
+          value={webhookUrl}
+          onChange={(e) => setWebhookUrl(e.target.value)}
+          placeholder={placeholderUrl}
+          required
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="webhook-credential">
+          Auth Token Environment Variable
+        </label>
+        <input
+          id="webhook-credential"
+          className={styles.configInput}
+          value={credentialEnvVar}
+          onChange={(e) => setCredentialEnvVar(e.target.value)}
+          placeholder={`${name.toUpperCase().replace(/\s+/g, '_')}_TOKEN`}
+        />
+        <span className={styles.configHelp}>
+          Optional. Name of the environment variable holding the auth token.
+        </span>
+      </div>
+      <div className={styles.configField}>
+        <span className={styles.configLabel}>Alert severities</span>
+        <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+          {['critical', 'high', 'medium', 'low'].map((s) => (
+            <label
+              key={s}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 12,
+                color: 'var(--fg)',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={severities.includes(s)}
+                onChange={(e) =>
+                  setSeverities((prev) =>
+                    e.target.checked ? [...prev, s] : prev.filter((x) => x !== s),
+                  )
+                }
+              />
+              {s}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="webhook-cooldown">
+          Cooldown (seconds)
+        </label>
+        <input
+          id="webhook-cooldown"
+          className={styles.configInput}
+          type="number"
+          min={60}
+          max={86400}
+          value={cooldown}
+          onChange={(e) => setCooldown(Number(e.target.value))}
+        />
+        <span className={styles.configHelp}>Minimum time between alerts (60–86,400 seconds).</span>
+      </div>
+      {createMutation.isError && (
+        <div className={styles.configError}>Failed to save configuration. Please try again.</div>
+      )}
+      <div className={styles.configActions}>
+        <Button size="sm" type="button" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button variant="primary" size="sm" disabled={!webhookUrl || createMutation.isPending}>
+          {createMutation.isPending ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Integrations Pane                                                  */
+/* ------------------------------------------------------------------ */
+
 function IntegrationsPane() {
-  const navigate = useNavigate();
+  const [configTarget, setConfigTarget] = useState<string | null>(null);
+
   const { data: notificationConfigs } = useQuery({
     queryKey: ['notification-configs'],
     queryFn: listNotificationConfigs,
   });
 
-  const configs = notificationConfigs ?? [];
+  const { data: ticketingConfigs } = useQuery({
+    queryKey: ['ticketing-configs'],
+    queryFn: listTicketingConfigs,
+  });
 
-  function isEnabled(key: string): boolean {
+  const notifConfigs = notificationConfigs ?? [];
+  const ticketConfigs = ticketingConfigs ?? [];
+
+  function getStatus(key: string): { configured: boolean; enabled: boolean } {
     switch (key) {
-      case 'slack':
-        return configs.some((c) => c.channel_type === 'slack' && c.enabled);
-      case 'sentinel':
-        return configs.some(
+      case 'slack': {
+        const found = notifConfigs.filter((c) => c.channel_type === 'slack');
+        return { configured: found.length > 0, enabled: found.some((c) => c.enabled) };
+      }
+      case 'jira': {
+        const found = ticketConfigs.filter((c) => c.provider === 'jira');
+        return { configured: found.length > 0, enabled: found.some((c) => c.enabled) };
+      }
+      case 'sentinel': {
+        const found = notifConfigs.filter(
           (c) =>
-            c.channel_type === 'webhook' &&
-            c.display_name.toLowerCase().includes('sentinel') &&
-            c.enabled,
+            c.channel_type === 'webhook' && c.display_name.toLowerCase().includes('sentinel'),
         );
-      case 'splunk':
-        return configs.some(
-          (c) =>
-            c.channel_type === 'webhook' &&
-            c.display_name.toLowerCase().includes('splunk') &&
-            c.enabled,
+        return { configured: found.length > 0, enabled: found.some((c) => c.enabled) };
+      }
+      case 'splunk': {
+        const found = notifConfigs.filter(
+          (c) => c.channel_type === 'webhook' && c.display_name.toLowerCase().includes('splunk'),
         );
-      case 'pagerduty':
-        return configs.some((c) => c.channel_type === 'pagerduty' && c.enabled);
+        return { configured: found.length > 0, enabled: found.some((c) => c.enabled) };
+      }
+      case 'pagerduty': {
+        const found = notifConfigs.filter((c) => c.channel_type === 'pagerduty');
+        return { configured: found.length > 0, enabled: found.some((c) => c.enabled) };
+      }
       default:
-        return false;
+        return { configured: false, enabled: false };
     }
   }
 
-  function isConfigured(key: string): boolean {
-    switch (key) {
-      case 'slack':
-        return configs.some((c) => c.channel_type === 'slack');
-      case 'sentinel':
-        return configs.some(
-          (c) => c.channel_type === 'webhook' && c.display_name.toLowerCase().includes('sentinel'),
-        );
-      case 'splunk':
-        return configs.some(
-          (c) => c.channel_type === 'webhook' && c.display_name.toLowerCase().includes('splunk'),
-        );
-      case 'pagerduty':
-        return configs.some((c) => c.channel_type === 'pagerduty');
-      default:
-        return false;
-    }
+  function getConfigModalTitle(key: string): string {
+    const info = INTEGRATION_INFO.find((i) => i.key === key);
+    return info ? `Configure ${info.label}` : '';
   }
 
   return (
     <div className={styles.featuresPane}>
       <p className={styles.featuresDescription}>
         Connect external services to extend OctoWatch capabilities. GitHub Enterprise is always
-        connected and managed via setup configuration.
+        connected and managed in the GitHub tab.
       </p>
       <div className={styles.featuresList}>
-        {INTEGRATION_INFO.map(({ key, label, description }) => {
-          const enabled = isEnabled(key);
-          const configured = isConfigured(key);
+        {INTEGRATION_INFO.map(({ key, label, description, icon, iconBg }) => {
+          const { configured, enabled } = getStatus(key);
           return (
-            <div key={key} className={styles.featureRow}>
-              <div className={styles.featureInfo}>
-                <div className={styles.featureLabel}>
-                  {label}
-                  {configured && (
-                    <span
-                      className={styles.integrationStatus}
-                      data-status={enabled ? 'active' : 'configured'}
-                    >
-                      {enabled ? 'Active' : 'Configured'}
-                    </span>
-                  )}
-                  {!configured && (
-                    <span className={styles.integrationStatus} data-status="inactive">
-                      Not configured
-                    </span>
-                  )}
+            <div key={key} className={styles.featureRow} data-testid={`integration-card-${key}`}>
+              <div className={styles.integrationCardLeft}>
+                <div className={styles.integrationIcon} style={{ backgroundColor: iconBg }}>
+                  {icon}
                 </div>
-                <div className={styles.featureDescription}>{description}</div>
+                <div className={styles.featureInfo}>
+                  <div className={styles.featureLabel}>
+                    {label}
+                    {configured && (
+                      <span
+                        className={styles.integrationStatus}
+                        data-status={enabled ? 'active' : 'configured'}
+                      >
+                        {enabled ? 'Active' : 'Configured'}
+                      </span>
+                    )}
+                    {!configured && (
+                      <span className={styles.integrationStatus} data-status="inactive">
+                        Not configured
+                      </span>
+                    )}
+                  </div>
+                  <div className={styles.featureDescription}>{description}</div>
+                </div>
               </div>
-              {configured ? (
-                <Button size="sm" onClick={() => navigate('/settings/integrations')}>
-                  Configure
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="primary"
-                  onClick={() => navigate('/settings/integrations')}
-                >
-                  Set up
-                </Button>
-              )}
+              <Button
+                size="sm"
+                variant={configured ? undefined : 'primary'}
+                onClick={() => setConfigTarget(key)}
+              >
+                {configured ? 'Configure' : 'Set up'}
+              </Button>
             </div>
           );
         })}
+      </div>
+
+      {/* Slack config modal */}
+      <Modal
+        open={configTarget === 'slack'}
+        onClose={() => setConfigTarget(null)}
+        title="Configure Slack"
+        width={520}
+      >
+        <SlackConfigForm onClose={() => setConfigTarget(null)} />
+      </Modal>
+
+      {/* Jira config modal */}
+      <Modal
+        open={configTarget === 'jira'}
+        onClose={() => setConfigTarget(null)}
+        title="Configure Jira"
+        width={520}
+      >
+        <JiraConfigForm onClose={() => setConfigTarget(null)} />
+      </Modal>
+
+      {/* Webhook-based config modal (Sentinel, Splunk, PagerDuty) */}
+      <Modal
+        open={
+          configTarget !== null && ['sentinel', 'splunk', 'pagerduty'].includes(configTarget)
+        }
+        onClose={() => setConfigTarget(null)}
+        title={getConfigModalTitle(configTarget ?? '')}
+        width={520}
+      >
+        {configTarget && ['sentinel', 'splunk', 'pagerduty'].includes(configTarget) && (
+          <WebhookConfigForm
+            name={INTEGRATION_INFO.find((i) => i.key === configTarget)?.label ?? configTarget}
+            onClose={() => setConfigTarget(null)}
+          />
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Category Setting Form helpers                                      */
+/* ------------------------------------------------------------------ */
+
+interface SettingFieldDef {
+  key: string;
+  label: string;
+  description: string;
+  type: 'text' | 'number' | 'toggle' | 'select';
+  defaultValue: string;
+  options?: string[];
+  min?: number;
+  max?: number;
+}
+
+function getSettingValue(settings: AppSetting[], key: string, defaultValue: string): string {
+  const found = settings.find((s) => s.key === key);
+  return found ? found.value : defaultValue;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Category Settings Form                                             */
+/* ------------------------------------------------------------------ */
+
+function CategorySettingsForm({
+  category,
+  fields,
+  description,
+  settings,
+}: {
+  category: string;
+  fields: SettingFieldDef[];
+  description: string;
+  settings: AppSetting[];
+}) {
+  const queryClient = useQueryClient();
+  const categorySettings = settings.filter(
+    (s) => s.category.toLowerCase() === category.toLowerCase(),
+  );
+
+  const initialValues: Record<string, string> = {};
+  for (const field of fields) {
+    initialValues[field.key] = getSettingValue(categorySettings, field.key, field.defaultValue);
+  }
+
+  const [values, setValues] = useState(initialValues);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const handleChange = useCallback((key: string, value: string) => {
+    setValues((prev) => ({ ...prev, [key]: value }));
+    setSaveMessage(null);
+    setSaveError(null);
+  }, []);
+
+  const hasChanges = fields.some(
+    (f) => values[f.key] !== getSettingValue(categorySettings, f.key, f.defaultValue),
+  );
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveError(null);
+    setSaveMessage(null);
+    try {
+      for (const field of fields) {
+        const currentValue = getSettingValue(categorySettings, field.key, field.defaultValue);
+        if (values[field.key] !== currentValue) {
+          await updateSetting(field.key, values[field.key], field.description, {
+            category,
+            sensitivity: 'normal',
+          });
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      queryClient.invalidateQueries({ queryKey: ['settings', 'audit-trail'] });
+      setSaveMessage('Settings saved successfully.');
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch {
+      setSaveError('Failed to save settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className={styles.featuresPane}>
+      <p className={styles.featuresDescription}>{description}</p>
+      <div className={styles.categoryForm}>
+        {fields.map((field) => (
+          <div key={field.key} className={styles.categoryFormRow}>
+            <div className={styles.categoryFormInfo}>
+              <label className={styles.categoryFormLabel} htmlFor={`setting-${field.key}`}>
+                {field.label}
+              </label>
+              <span className={styles.categoryFormHint}>{field.description}</span>
+            </div>
+            <div className={styles.categoryFormControl}>
+              {field.type === 'toggle' ? (
+                <label className={styles.toggleSwitch}>
+                  <input
+                    id={`setting-${field.key}`}
+                    type="checkbox"
+                    checked={values[field.key] === 'true'}
+                    onChange={(e) => handleChange(field.key, e.target.checked ? 'true' : 'false')}
+                  />
+                  <span className={styles.toggleSlider} />
+                </label>
+              ) : field.type === 'select' ? (
+                <select
+                  id={`setting-${field.key}`}
+                  className={styles.categoryFormSelect}
+                  value={values[field.key]}
+                  onChange={(e) => handleChange(field.key, e.target.value)}
+                >
+                  {field.options?.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id={`setting-${field.key}`}
+                  className={styles.categoryFormInput}
+                  type={field.type}
+                  value={values[field.key]}
+                  onChange={(e) => handleChange(field.key, e.target.value)}
+                  min={field.min}
+                  max={field.max}
+                />
+              )}
+            </div>
+          </div>
+        ))}
+        {saveMessage && <div className={styles.configSuccess}>{saveMessage}</div>}
+        {saveError && <div className={styles.configError}>{saveError}</div>}
+        <div className={styles.categoryFormActions}>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={saving || !hasChanges}
+            onClick={handleSave}
+          >
+            {saving ? 'Saving…' : 'Save changes'}
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  Category empty-state helpers                                       */
+/*  Category pane field definitions                                    */
 /* ------------------------------------------------------------------ */
 
-function getCategoryEmptyMessage(category: string): string {
-  switch (category) {
-    case 'GitHub':
-      return 'No GitHub settings configured yet.';
-    case 'Security':
-      return 'No security settings configured yet.';
-    case 'Storage':
-      return 'No storage settings configured yet.';
-    case 'Notifications':
-      return 'No notification settings configured yet.';
-    case 'System':
-      return 'No system settings configured yet.';
-    default:
-      return 'No settings configured yet.';
-  }
-}
+const SECURITY_FIELDS: SettingFieldDef[] = [
+  {
+    key: 'security.session_timeout',
+    label: 'Session timeout (minutes)',
+    description: 'Maximum idle time before a user session expires.',
+    type: 'number',
+    defaultValue: '30',
+    min: 5,
+    max: 1440,
+  },
+  {
+    key: 'security.mfa_required',
+    label: 'Require MFA',
+    description: 'Enforce multi-factor authentication for all users.',
+    type: 'toggle',
+    defaultValue: 'false',
+  },
+  {
+    key: 'security.ip_allowlist_enabled',
+    label: 'Enable IP allowlist',
+    description: 'Restrict access to specific IP addresses or CIDR ranges.',
+    type: 'toggle',
+    defaultValue: 'false',
+  },
+  {
+    key: 'security.max_failed_login_attempts',
+    label: 'Max failed login attempts',
+    description: 'Number of failed login attempts before an account is temporarily locked.',
+    type: 'number',
+    defaultValue: '5',
+    min: 1,
+    max: 20,
+  },
+];
 
-function getCategoryEmptyHint(category: string): string {
-  switch (category) {
-    case 'GitHub':
-      return 'GitHub connection settings are configured during setup. Data import and sync settings are available on this tab.';
-    case 'Security':
-      return 'Security settings including authentication, session management, and access controls.';
-    case 'Storage':
-      return 'Object storage (MinIO/S3) configuration for audit log archives.';
-    case 'Notifications':
-      return 'Notification channel configuration for alerts and reports.';
-    case 'System':
-      return 'System-level configuration including data retention, performance tuning, and maintenance settings.';
-    default:
-      return 'Settings are automatically populated during setup and sync. You can also add custom settings using the admin API.';
-  }
-}
+const STORAGE_FIELDS: SettingFieldDef[] = [
+  {
+    key: 'storage.s3_bucket_name',
+    label: 'S3/MinIO bucket name',
+    description: 'Object storage bucket for audit log archives and exports.',
+    type: 'text',
+    defaultValue: '',
+  },
+  {
+    key: 'storage.retention_period_days',
+    label: 'Retention period (days)',
+    description: 'Number of days to retain archived data before automatic cleanup.',
+    type: 'number',
+    defaultValue: '90',
+    min: 7,
+    max: 3650,
+  },
+  {
+    key: 'storage.max_upload_size_mb',
+    label: 'Max upload size (MB)',
+    description: 'Maximum file size allowed for manual data imports.',
+    type: 'number',
+    defaultValue: '500',
+    min: 1,
+    max: 5000,
+  },
+];
+
+const NOTIFICATIONS_FIELDS: SettingFieldDef[] = [
+  {
+    key: 'notifications.email_enabled',
+    label: 'Email notifications',
+    description: 'Send email notifications for alerts and scheduled reports.',
+    type: 'toggle',
+    defaultValue: 'false',
+  },
+  {
+    key: 'notifications.slack_webhook',
+    label: 'Slack webhook URL',
+    description: 'Default Slack webhook for system-level notifications.',
+    type: 'text',
+    defaultValue: '',
+  },
+  {
+    key: 'notifications.alert_threshold',
+    label: 'Alert threshold',
+    description: 'Minimum number of events before triggering a consolidated alert.',
+    type: 'number',
+    defaultValue: '5',
+    min: 1,
+    max: 100,
+  },
+];
+
+const SYSTEM_FIELDS: SettingFieldDef[] = [
+  {
+    key: 'system.log_level',
+    label: 'Log level',
+    description: 'Application logging verbosity level.',
+    type: 'select',
+    defaultValue: 'info',
+    options: ['debug', 'info', 'warning', 'error'],
+  },
+  {
+    key: 'system.debug_mode',
+    label: 'Debug mode',
+    description: 'Enable verbose debug output and diagnostic endpoints.',
+    type: 'toggle',
+    defaultValue: 'false',
+  },
+  {
+    key: 'system.maintenance_mode',
+    label: 'Maintenance mode',
+    description: 'Display a maintenance banner and restrict write operations.',
+    type: 'toggle',
+    defaultValue: 'false',
+  },
+  {
+    key: 'system.data_retention_days',
+    label: 'Data retention (days)',
+    description: 'Number of days to retain event and detection data.',
+    type: 'number',
+    defaultValue: '365',
+    min: 30,
+    max: 3650,
+  },
+];
 
 /* ------------------------------------------------------------------ */
 /*  Settings Page                                                      */
@@ -514,12 +1270,6 @@ export function SettingsPage() {
         activeTab === 'All' || s.category.toLowerCase() === (activeTab as string).toLowerCase(),
     ) ?? [];
 
-  const isCategory =
-    activeTab !== 'Audit' &&
-    activeTab !== 'Features' &&
-    activeTab !== 'Integrations' &&
-    activeTab !== 'GitHub';
-
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
@@ -569,17 +1319,62 @@ export function SettingsPage() {
         <AuditTrailTable />
       ) : activeTab === 'GitHub' ? (
         <GitHubPane />
+      ) : activeTab === 'Security' ? (
+        isLoading ? (
+          <Spinner />
+        ) : (
+          <CategorySettingsForm
+            category="Security"
+            fields={SECURITY_FIELDS}
+            description="Authentication, session management, and access control settings."
+            settings={settings ?? []}
+          />
+        )
+      ) : activeTab === 'Storage' ? (
+        isLoading ? (
+          <Spinner />
+        ) : (
+          <CategorySettingsForm
+            category="Storage"
+            fields={STORAGE_FIELDS}
+            description="Object storage (MinIO/S3) configuration for audit log archives and data exports."
+            settings={settings ?? []}
+          />
+        )
+      ) : activeTab === 'Notifications' ? (
+        isLoading ? (
+          <Spinner />
+        ) : (
+          <CategorySettingsForm
+            category="Notifications"
+            fields={NOTIFICATIONS_FIELDS}
+            description="Notification channel configuration for system alerts and scheduled reports."
+            settings={settings ?? []}
+          />
+        )
+      ) : activeTab === 'System' ? (
+        isLoading ? (
+          <Spinner />
+        ) : (
+          <CategorySettingsForm
+            category="System"
+            fields={SYSTEM_FIELDS}
+            description="System-level configuration including logging, maintenance, and data retention."
+            settings={settings ?? []}
+          />
+        )
       ) : (
         <>
           {isError && <ErrorBanner message="Failed to load settings" onRetry={() => refetch()} />}
 
           {isLoading ? (
             <Spinner />
-          ) : isCategory && filteredSettings.length === 0 ? (
+          ) : filteredSettings.length === 0 ? (
             <div className={styles.empty}>
-              <p>{getCategoryEmptyMessage(activeTab)}</p>
+              <p>No settings configured yet.</p>
               <p style={{ color: 'var(--fg-subtle)', fontSize: '0.8125rem', marginTop: '0.5rem' }}>
-                {getCategoryEmptyHint(activeTab)}
+                Settings are automatically populated during setup and sync. You can also add custom
+                settings using the admin API.
               </p>
             </div>
           ) : (

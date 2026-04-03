@@ -245,21 +245,20 @@ describe('SettingsPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText('tls.cert_path');
+    await screen.findByText('github.client_id');
 
-    // Click Security tab
-    await user.click(screen.getByRole('button', { name: 'Security' }));
+    // Click GitHub tab — shows the GitHub pane (not the table)
+    await user.click(screen.getByRole('button', { name: 'GitHub' }));
 
-    // Security settings should be visible
-    expect(screen.getByText('tls.cert_path')).toBeInTheDocument();
+    // GitHub tab content visible
+    expect(screen.getByText('Data Import')).toBeInTheDocument();
 
-    // Non-Security settings should not be visible
-    expect(screen.queryByText('github.client_id')).not.toBeInTheDocument();
+    // Non-GitHub settings should not be visible
     expect(screen.queryByText('db.connection_string')).not.toBeInTheDocument();
     expect(screen.queryByText('system.log_level')).not.toBeInTheDocument();
   });
 
-  it('shows empty state when category has no settings', async () => {
+  it('shows category form controls when category tab is clicked', async () => {
     mockListSettings.mockResolvedValueOnce([]);
     const user = userEvent.setup();
     renderPage();
@@ -270,7 +269,9 @@ describe('SettingsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Security' }));
 
-    expect(screen.getByText(/no security settings configured yet/i)).toBeInTheDocument();
+    // Should show the form with real settings controls
+    expect(screen.getByText(/session timeout/i)).toBeInTheDocument();
+    expect(screen.getByText(/require mfa/i)).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
@@ -364,11 +365,10 @@ describe('SettingsPage', () => {
   });
 
   /* ---------------------------------------------------------------- */
-  /*  Category placeholders                                            */
+  /*  Category settings forms                                          */
   /* ---------------------------------------------------------------- */
 
-  it('shows Security placeholder when category is empty', async () => {
-    mockListSettings.mockResolvedValueOnce([]);
+  it('shows Security settings form with real controls', async () => {
     const user = userEvent.setup();
     renderPage();
 
@@ -378,12 +378,14 @@ describe('SettingsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Security' }));
 
-    expect(screen.getByText(/no security settings configured yet/i)).toBeInTheDocument();
-    expect(screen.getByText(/security settings including authentication/i)).toBeInTheDocument();
+    expect(screen.getByText(/authentication, session management/i)).toBeInTheDocument();
+    expect(screen.getByText(/session timeout/i)).toBeInTheDocument();
+    expect(screen.getByText(/require mfa/i)).toBeInTheDocument();
+    expect(screen.getByText(/enable ip allowlist/i)).toBeInTheDocument();
+    expect(screen.getByText(/max failed login attempts/i)).toBeInTheDocument();
   });
 
-  it('shows Storage placeholder when category is empty', async () => {
-    mockListSettings.mockResolvedValueOnce([]);
+  it('shows Storage settings form with real controls', async () => {
     const user = userEvent.setup();
     renderPage();
 
@@ -393,14 +395,15 @@ describe('SettingsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Storage' }));
 
-    expect(screen.getByText(/no storage settings configured yet/i)).toBeInTheDocument();
     expect(
       screen.getByText(/object storage.*configuration for audit log archives/i),
     ).toBeInTheDocument();
+    expect(screen.getByText(/s3\/minio bucket name/i)).toBeInTheDocument();
+    expect(screen.getByText(/retention period/i)).toBeInTheDocument();
+    expect(screen.getByText(/max upload size/i)).toBeInTheDocument();
   });
 
-  it('shows Notifications placeholder when category is empty', async () => {
-    mockListSettings.mockResolvedValueOnce([]);
+  it('shows Notifications settings form with real controls', async () => {
     const user = userEvent.setup();
     renderPage();
 
@@ -410,12 +413,13 @@ describe('SettingsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Notifications' }));
 
-    expect(screen.getByText(/no notification settings configured yet/i)).toBeInTheDocument();
-    expect(screen.getByText(/notification channel configuration for alerts/i)).toBeInTheDocument();
+    expect(screen.getByText(/notification channel configuration/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/email notifications/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/slack webhook url/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/alert threshold/i)).toBeInTheDocument();
   });
 
-  it('shows System placeholder when category is empty', async () => {
-    mockListSettings.mockResolvedValueOnce([]);
+  it('shows System settings form with real controls', async () => {
     const user = userEvent.setup();
     renderPage();
 
@@ -425,10 +429,42 @@ describe('SettingsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'System' }));
 
-    expect(screen.getByText(/no system settings configured yet/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/system-level configuration including data retention/i),
+      screen.getByText(/system-level configuration including logging/i),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText(/log level/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/debug mode/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/maintenance mode/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/data retention/i)).toBeInTheDocument();
+  });
+
+  it('pre-populates category form with existing setting values', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(mockListSettings).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'System' }));
+
+    // system.log_level exists in mock data with value 'info'
+    const logLevelSelect = screen.getByLabelText(/log level/i) as HTMLSelectElement;
+    expect(logLevelSelect.value).toBe('info');
+  });
+
+  it('shows Save changes button disabled when no changes', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => {
+      expect(mockListSettings).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Security' }));
+
+    const saveBtn = screen.getByRole('button', { name: /save changes/i });
+    expect(saveBtn).toBeDisabled();
   });
 
   /* ---------------------------------------------------------------- */
