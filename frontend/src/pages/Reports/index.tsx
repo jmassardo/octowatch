@@ -226,9 +226,11 @@ export function ReportsPage() {
         </div>
       </div>
 
-      {(mauError || repoCreationError || patCountsError || webhookCountsError || codespaceHoursError) && (
-        <ErrorBanner message="Failed to load report data" />
-      )}
+      {(mauError ||
+        repoCreationError ||
+        patCountsError ||
+        webhookCountsError ||
+        codespaceHoursError) && <ErrorBanner message="Failed to load report data" />}
 
       <Card style={{ marginBottom: 20 }}>
         <CardHeader>Data summary — last {windowDays} days</CardHeader>
