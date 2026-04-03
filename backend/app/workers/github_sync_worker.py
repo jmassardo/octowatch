@@ -124,6 +124,9 @@ ScopeType = Literal[
     "secret_scanning_alerts",
     "dependabot_alerts",
     "license_consumption",
+    "code_scanning_alerts",
+    "actions_workflows",
+    "mfa_status",
 ]
 
 
@@ -325,6 +328,9 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         "outside_collaborators",
         "secret_scanning_alerts",
         "dependabot_alerts",
+        "code_scanning_alerts",
+        "actions_workflows",
+        "mfa_status",
     }
 
     entity_types: list[str] = (
@@ -659,7 +665,7 @@ async def _sync_entity_async(
                 break
 
             async with _make_session_factory()() as session:
-                await _upsert_items(session, entity_type, org, items)
+                await _upsert_items(session, entity_type, org, items, delta_since=delta_since)
                 items_synced += len(items)
 
                 # Persist cursor after every page — crash recovery point
@@ -1419,10 +1425,23 @@ async def _fetch_page(
     if entity_type == "branch_protections":
         page = int(cursor) if cursor else 1
         repos_url = f"{_GITHUB_API_BASE}/orgs/{org}/repos"
+        repo_params: dict[str, object] = {
+            "per_page": page_size,
+            "page": page,
+            "type": "all",
+        }
+        if delta_since is not None:
+            # Delta mode: sort by push date descending so we can focus on
+            # recently-updated repos only.  Protection changes typically
+            # coincide with repo activity (pushes, settings changes).
+            repo_params["sort"] = "pushed"
+            repo_params["direction"] = "desc"
+        else:
+            repo_params["sort"] = "full_name"
         resp = await _github_get(
             repos_url,
             headers,
-            {"per_page": page_size, "page": page, "type": "all", "sort": "full_name"},
+            repo_params,
             rate_limiter,
         )
         resp.raise_for_status()
@@ -1434,6 +1453,12 @@ async def _fetch_page(
         for repo in repos:
             if repo.get("archived"):
                 continue
+            # Delta optimisation: skip repos not pushed since the cutoff
+            if delta_since is not None:
+                pushed_at = repo.get("pushed_at") or ""
+                if pushed_at < delta_since.isoformat():
+                    # All remaining repos are older — stop early
+                    return items, None
             branch = repo.get("default_branch") or "main"
             prot_url = f"{_GITHUB_API_BASE}/repos/{org}/{repo['name']}/branches/{branch}/protection"
             prot_resp = await _github_get(prot_url, headers, {}, rate_limiter)
@@ -1733,6 +1758,195 @@ async def _fetch_page(
         }
         return [license_item], "_done"
 
+    # ── Code scanning alerts (aggregated summary) ─────────────────────────
+    if entity_type == "code_scanning_alerts":
+        if cursor == "_done":
+            return [], None
+        url = f"{_GITHUB_API_BASE}/orgs/{org}/code-scanning/alerts"
+        cs_params: dict[str, object] = {"per_page": page_size}
+        if delta_since is not None:
+            cs_params["sort"] = "updated"
+            cs_params["direction"] = "desc"
+        open_count = 0
+        fixed_count = 0
+        dismissed_count = 0
+        total_count = 0
+        error_count = 0
+        warning_count = 0
+        note_count = 0
+        page = 1
+        while True:
+            cs_params["page"] = page
+            resp = await _github_get(url, headers, cs_params, rate_limiter)
+            if resp.status_code in (403, 404):
+                logger.warning(
+                    "github_sync.code_scanning_unavailable",
+                    org=org,
+                    status=resp.status_code,
+                )
+                return [], None
+            resp.raise_for_status()
+            alerts = resp.json()
+            if not alerts:
+                break
+            for a in alerts:
+                total_count += 1
+                state = a.get("state", "")
+                if state == "open":
+                    open_count += 1
+                elif state == "fixed":
+                    fixed_count += 1
+                elif state == "dismissed":
+                    dismissed_count += 1
+                rule = a.get("rule") or {}
+                severity = rule.get("security_severity_level") or rule.get("severity", "")
+                severity = severity.lower()
+                if severity == "error":
+                    error_count += 1
+                elif severity == "warning":
+                    warning_count += 1
+                elif severity == "note":
+                    note_count += 1
+            if not _has_next_page(resp.headers):
+                break
+            page += 1
+        summary_item = {
+            "_enterprise_slug": org,
+            "_org": org,
+            "open_count": open_count,
+            "fixed_count": fixed_count,
+            "dismissed_count": dismissed_count,
+            "total_count": total_count,
+            "error_count": error_count,
+            "warning_count": warning_count,
+            "note_count": note_count,
+        }
+        return [summary_item], "_done"
+
+    # ── Actions workflows (aggregated summary across repos) ───────────────
+    if entity_type == "actions_workflows":
+        if cursor == "_done":
+            return [], None
+        # Fetch repositories, then aggregate workflow definitions and runs
+        repos_url = f"{_GITHUB_API_BASE}/orgs/{org}/repos"
+        repos_page = 1
+        total_workflows = 0
+        active_workflows = 0
+        total_runs = 0
+        successful_runs = 0
+        failed_runs = 0
+        cancelled_runs = 0
+        while True:
+            repos_resp = await _github_get(
+                repos_url,
+                headers,
+                {"per_page": page_size, "page": repos_page, "type": "all"},
+                rate_limiter,
+            )
+            if repos_resp.status_code in (403, 404):
+                logger.warning(
+                    "github_sync.actions_repos_unavailable",
+                    org=org,
+                    status=repos_resp.status_code,
+                )
+                return [], None
+            repos_resp.raise_for_status()
+            repos = repos_resp.json()
+            if not repos:
+                break
+            for repo in repos:
+                if repo.get("archived"):
+                    continue
+                repo_name = repo["name"]
+                # Fetch workflow definitions
+                wf_url = f"{_GITHUB_API_BASE}/repos/{org}/{repo_name}/actions/workflows"
+                wf_resp = await _github_get(wf_url, headers, {"per_page": 100}, rate_limiter)
+                if wf_resp.status_code == 200:
+                    wf_data = wf_resp.json()
+                    workflows = wf_data.get("workflows", [])
+                    total_workflows += len(workflows)
+                    active_workflows += sum(1 for w in workflows if w.get("state") == "active")
+
+                # Fetch recent runs (last 30 days or since delta_since)
+                runs_url = f"{_GITHUB_API_BASE}/repos/{org}/{repo_name}/actions/runs"
+                runs_params: dict[str, object] = {"per_page": 100}
+                if delta_since is not None:
+                    runs_params["created"] = f">{delta_since.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+                else:
+                    # Default to last 30 days
+                    from datetime import timedelta as _td
+
+                    cutoff = datetime.now(UTC) - _td(days=30)
+                    runs_params["created"] = f">{cutoff.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+
+                runs_resp = await _github_get(runs_url, headers, runs_params, rate_limiter)
+                if runs_resp.status_code == 200:
+                    runs_data = runs_resp.json()
+                    for run in runs_data.get("workflow_runs", []):
+                        total_runs += 1
+                        conclusion = run.get("conclusion") or ""
+                        if conclusion == "success":
+                            successful_runs += 1
+                        elif conclusion == "failure":
+                            failed_runs += 1
+                        elif conclusion == "cancelled":
+                            cancelled_runs += 1
+
+            if not _has_next_page(repos_resp.headers):
+                break
+            repos_page += 1
+
+        summary_item = {
+            "_enterprise_slug": org,
+            "_org": org,
+            "total_workflows": total_workflows,
+            "active_workflows": active_workflows,
+            "total_runs": total_runs,
+            "successful_runs": successful_runs,
+            "failed_runs": failed_runs,
+            "cancelled_runs": cancelled_runs,
+        }
+        return [summary_item], "_done"
+
+    # ── MFA status (identify members without MFA) ─────────────────────────
+    if entity_type == "mfa_status":
+        if cursor == "_done":
+            return [], None
+        # Fetch members with 2FA disabled
+        url = f"{_GITHUB_API_BASE}/orgs/{org}/members"
+        no_mfa_params: dict[str, object] = {
+            "per_page": page_size,
+            "filter": "2fa_disabled",
+        }
+        no_mfa_logins: set[str] = set()
+        page = 1
+        while True:
+            no_mfa_params["page"] = page
+            resp = await _github_get(url, headers, no_mfa_params, rate_limiter)
+            if resp.status_code in (403, 404):
+                logger.warning(
+                    "github_sync.mfa_status_unavailable",
+                    org=org,
+                    status=resp.status_code,
+                )
+                return [], None
+            resp.raise_for_status()
+            members = resp.json()
+            if not members:
+                break
+            for m in members:
+                no_mfa_logins.add(m["login"])
+            if not _has_next_page(resp.headers):
+                break
+            page += 1
+
+        # Return a single item with the set of members who have MFA disabled
+        mfa_item = {
+            "_org": org,
+            "no_mfa_logins": sorted(no_mfa_logins),
+        }
+        return [mfa_item], "_done"
+
     logger.error("github_sync.unknown_entity_type", entity_type=entity_type)
     return [], None
 
@@ -1740,18 +1954,23 @@ async def _fetch_page(
 # ── Upsert helpers (one per entity type) ──────────────────────────────────────
 
 
-async def _upsert_org_members(session: AsyncSession, org: str, items: list[dict]) -> None:
+async def _upsert_org_members(
+    session: AsyncSession, org: str, items: list[dict], delta_since: datetime | None = None
+) -> None:
     from sqlalchemy import text
     from sqlalchemy.dialects.postgresql import insert
 
     from app.models.github_sync import OrgMember
 
+    current_logins: set[str] = set()
     for item in items:
+        login = item["login"]
+        current_logins.add(login)
         stmt = (
             insert(OrgMember)
             .values(
                 org=org,
-                github_login=item["login"],
+                github_login=login,
                 github_id=item["id"],
                 role=item.get("role_name") or item.get("role", "member"),
             )
@@ -1765,6 +1984,17 @@ async def _upsert_org_members(session: AsyncSession, org: str, items: list[dict]
             )
         )
         await session.execute(stmt)
+
+    # Delta sync: remove members no longer in the current list
+    if delta_since is not None and current_logins:
+        from sqlalchemy import delete
+
+        await session.execute(
+            delete(OrgMember).where(
+                OrgMember.org == org,
+                OrgMember.github_login.notin_(current_logins),
+            )
+        )
     await session.commit()
 
 
@@ -1808,19 +2038,24 @@ async def _upsert_repositories(session: AsyncSession, org: str, items: list[dict
     await session.commit()
 
 
-async def _upsert_teams(session: AsyncSession, org: str, items: list[dict]) -> None:
+async def _upsert_teams(
+    session: AsyncSession, org: str, items: list[dict], delta_since: datetime | None = None
+) -> None:
     from sqlalchemy import text
     from sqlalchemy.dialects.postgresql import insert
 
     from app.models.github_sync import OrgTeam
 
+    current_slugs: set[str] = set()
     for item in items:
+        slug = item["slug"]
+        current_slugs.add(slug)
         parent = item.get("parent") or {}
         stmt = (
             insert(OrgTeam)
             .values(
                 org=org,
-                team_slug=item["slug"],
+                team_slug=slug,
                 team_id=item["id"],
                 name=item["name"],
                 privacy=item.get("privacy"),
@@ -1838,17 +2073,35 @@ async def _upsert_teams(session: AsyncSession, org: str, items: list[dict]) -> N
             )
         )
         await session.execute(stmt)
+
+    # Delta sync: remove teams no longer in the current list
+    if delta_since is not None and current_slugs:
+        from sqlalchemy import delete
+
+        await session.execute(
+            delete(OrgTeam).where(
+                OrgTeam.org == org,
+                OrgTeam.team_slug.notin_(current_slugs),
+            )
+        )
     await session.commit()
 
 
-async def _upsert_team_members(session: AsyncSession, org: str, items: list[dict]) -> None:
+async def _upsert_team_members(
+    session: AsyncSession, org: str, items: list[dict], delta_since: datetime | None = None
+) -> None:
     from sqlalchemy import text
     from sqlalchemy.dialects.postgresql import insert
 
     from app.models.github_sync import OrgTeamMember
 
+    # Track current memberships per team for delta sync
+    team_logins: dict[str, set[str]] = {}
     for item in items:
         team_slug = item.get("_team_slug", "unknown")
+        if team_slug not in team_logins:
+            team_logins[team_slug] = set()
+        team_logins[team_slug].add(item["login"])
         stmt = (
             insert(OrgTeamMember)
             .values(
@@ -1868,6 +2121,20 @@ async def _upsert_team_members(session: AsyncSession, org: str, items: list[dict
             )
         )
         await session.execute(stmt)
+
+    # Delta sync: remove members no longer in any team that was re-synced
+    if delta_since is not None:
+        from sqlalchemy import delete
+
+        for team_slug, logins in team_logins.items():
+            if logins:
+                await session.execute(
+                    delete(OrgTeamMember).where(
+                        OrgTeamMember.org == org,
+                        OrgTeamMember.team_slug == team_slug,
+                        OrgTeamMember.github_login.notin_(logins),
+                    )
+                )
     await session.commit()
 
 
@@ -2131,7 +2398,9 @@ async def _enrich_org_settings(
     return enriched
 
 
-async def _upsert_outside_collaborators(session: AsyncSession, org: str, items: list[dict]) -> None:
+async def _upsert_outside_collaborators(
+    session: AsyncSession, org: str, items: list[dict], delta_since: datetime | None = None
+) -> None:
     """Upsert outside collaborators for an org."""
     from sqlalchemy import text
     from sqlalchemy.dialects.postgresql import insert
@@ -2142,13 +2411,16 @@ async def _upsert_outside_collaborators(session: AsyncSession, org: str, items: 
     # placeholder.  The orchestrator fans out per (entity_type, org) and
     # does not pass the enterprise slug through; the org field is what
     # matters for health queries.
+    current_logins: set[str] = set()
     for item in items:
+        login = item["login"]
+        current_logins.add(login)
         stmt = (
             insert(OrgOutsideCollaborator)
             .values(
                 enterprise_slug=item.get("_enterprise_slug", org),
                 org=org,
-                login=item["login"],
+                login=login,
                 github_id=item["id"],
                 avatar_url=item.get("avatar_url"),
                 site_admin=item.get("site_admin", False),
@@ -2164,6 +2436,17 @@ async def _upsert_outside_collaborators(session: AsyncSession, org: str, items: 
             )
         )
         await session.execute(stmt)
+
+    # Delta sync: remove collaborators no longer in the current list
+    if delta_since is not None and current_logins:
+        from sqlalchemy import delete
+
+        await session.execute(
+            delete(OrgOutsideCollaborator).where(
+                OrgOutsideCollaborator.org == org,
+                OrgOutsideCollaborator.login.notin_(current_logins),
+            )
+        )
     await session.commit()
 
 
@@ -2273,36 +2556,168 @@ async def _upsert_license_consumption(
     await session.commit()
 
 
+async def _upsert_code_scanning_summary(
+    session: AsyncSession, org: str, items: list[dict[str, object]]
+) -> None:
+    """Upsert code scanning alert summary for an org."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import OrgCodeScanningAlertSummary
+
+    for item in items:
+        stmt = (
+            insert(OrgCodeScanningAlertSummary)
+            .values(
+                enterprise_slug=item.get("_enterprise_slug", org),
+                org=item.get("_org", org),
+                open_count=item["open_count"],
+                fixed_count=item["fixed_count"],
+                dismissed_count=item["dismissed_count"],
+                total_count=item["total_count"],
+                error_count=item["error_count"],
+                warning_count=item["warning_count"],
+                note_count=item["note_count"],
+            )
+            .on_conflict_do_update(
+                constraint="uq_code_scanning_summary_slug_org",
+                set_={
+                    "open_count": item["open_count"],
+                    "fixed_count": item["fixed_count"],
+                    "dismissed_count": item["dismissed_count"],
+                    "total_count": item["total_count"],
+                    "error_count": item["error_count"],
+                    "warning_count": item["warning_count"],
+                    "note_count": item["note_count"],
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_actions_workflow_summary(
+    session: AsyncSession, org: str, items: list[dict[str, object]]
+) -> None:
+    """Upsert actions workflow summary for an org."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import OrgActionsWorkflowSummary
+
+    for item in items:
+        stmt = (
+            insert(OrgActionsWorkflowSummary)
+            .values(
+                enterprise_slug=item.get("_enterprise_slug", org),
+                org=item.get("_org", org),
+                total_workflows=item["total_workflows"],
+                active_workflows=item["active_workflows"],
+                total_runs=item["total_runs"],
+                successful_runs=item["successful_runs"],
+                failed_runs=item["failed_runs"],
+                cancelled_runs=item["cancelled_runs"],
+            )
+            .on_conflict_do_update(
+                constraint="uq_actions_workflow_summary_slug_org",
+                set_={
+                    "total_workflows": item["total_workflows"],
+                    "active_workflows": item["active_workflows"],
+                    "total_runs": item["total_runs"],
+                    "successful_runs": item["successful_runs"],
+                    "failed_runs": item["failed_runs"],
+                    "cancelled_runs": item["cancelled_runs"],
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_mfa_status(
+    session: AsyncSession, org: str, items: list[dict[str, object]]
+) -> None:
+    """Update MFA status on org members.
+
+    Receives a single item with a list of logins that have MFA disabled.
+    Marks all other org members as MFA enabled.
+    """
+    from sqlalchemy import update
+
+    from app.models.github_sync import OrgMember
+
+    for item in items:
+        no_mfa_logins = list(item.get("no_mfa_logins") or [])
+
+        # Set all members in this org to mfa_enabled = True first
+        await session.execute(
+            update(OrgMember).where(OrgMember.org == org).values(mfa_enabled=True)
+        )
+
+        # Then mark the ones without MFA as disabled
+        if no_mfa_logins:
+            await session.execute(
+                update(OrgMember)
+                .where(
+                    OrgMember.org == org,
+                    OrgMember.github_login.in_(no_mfa_logins),
+                )
+                .values(mfa_enabled=False)
+            )
+    await session.commit()
+
+
 async def _upsert_items(
     session: AsyncSession,
     entity_type: str,
     org: str | None,
-    items: list[dict],
+    items: list[dict[str, object]],
+    delta_since: datetime | None = None,
 ) -> None:
     """Dispatch to the appropriate upsert function for *entity_type*.
 
     Uses INSERT ... ON CONFLICT DO UPDATE SET synced_at = NOW(), [...fields].
-    Never deletes rows — non-destructive merge only.
+
+    For entity types that support delta sync (org_members, teams,
+    team_members, outside_collaborators), the ``delta_since`` parameter
+    is forwarded so the handler can prune stale records.
     """
-    _UPSERT_DISPATCH = {
-        "org_members": _upsert_org_members,
-        "repositories": _upsert_repositories,
-        "teams": _upsert_teams,
-        "team_members": _upsert_team_members,
-        "branch_protections": _upsert_branch_protections,
-        "installations": _upsert_installations,
-        "orgs": _upsert_enterprise_orgs,
-        "enterprise_members": _upsert_enterprise_members,
-        "outside_collaborators": _upsert_outside_collaborators,
-        "secret_scanning_alerts": _upsert_secret_scanning_summary,
-        "dependabot_alerts": _upsert_dependabot_summary,
-        "license_consumption": _upsert_license_consumption,
-    }
-    handler = _UPSERT_DISPATCH.get(entity_type)
-    if handler is None:
+    org_str = org or ""
+
+    if entity_type == "org_members":
+        await _upsert_org_members(session, org_str, items, delta_since=delta_since)
+    elif entity_type == "repositories":
+        await _upsert_repositories(session, org_str, items)
+    elif entity_type == "teams":
+        await _upsert_teams(session, org_str, items, delta_since=delta_since)
+    elif entity_type == "team_members":
+        await _upsert_team_members(session, org_str, items, delta_since=delta_since)
+    elif entity_type == "branch_protections":
+        await _upsert_branch_protections(session, org_str, items)
+    elif entity_type == "installations":
+        await _upsert_installations(session, org, items)
+    elif entity_type == "orgs":
+        await _upsert_enterprise_orgs(session, org, items)
+    elif entity_type == "enterprise_members":
+        await _upsert_enterprise_members(session, org, items)
+    elif entity_type == "outside_collaborators":
+        await _upsert_outside_collaborators(session, org_str, items, delta_since=delta_since)
+    elif entity_type == "secret_scanning_alerts":
+        await _upsert_secret_scanning_summary(session, org_str, items)
+    elif entity_type == "dependabot_alerts":
+        await _upsert_dependabot_summary(session, org_str, items)
+    elif entity_type == "license_consumption":
+        await _upsert_license_consumption(session, org, items)
+    elif entity_type == "code_scanning_alerts":
+        await _upsert_code_scanning_summary(session, org_str, items)
+    elif entity_type == "actions_workflows":
+        await _upsert_actions_workflow_summary(session, org_str, items)
+    elif entity_type == "mfa_status":
+        await _upsert_mfa_status(session, org_str, items)
+    else:
         logger.error("github_sync.unknown_upsert_entity", entity_type=entity_type)
-        return
-    await handler(session, org, items)
 
 
 async def _sync_installation_configs(existing_configs: list, settings: object) -> list:

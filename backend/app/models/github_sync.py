@@ -231,6 +231,8 @@ class OrgMember(Base):
     github_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     # "owner" | "member"
     role: Mapped[str] = mapped_column(Text, nullable=False)
+    # True = MFA enabled, False = MFA disabled, None = status unknown
+    mfa_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
     )
@@ -550,3 +552,67 @@ class EnterpriseLicenseConsumption(Base):
     )
 
     __table_args__ = (UniqueConstraint("enterprise_slug", name="uq_license_consumption_slug"),)
+
+
+class OrgCodeScanningAlertSummary(Base):
+    """Aggregated code-scanning alert counts for an org.
+
+    Mirrors the summary approach used for secret-scanning and Dependabot
+    alerts.  Counts are computed by paginating all code-scanning alerts
+    across repos in the org and bucketing by state and severity.
+
+    Endpoint: ``GET /orgs/{org}/code-scanning/alerts``
+    """
+
+    __tablename__ = "org_code_scanning_alert_summaries"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    enterprise_slug: Mapped[str] = mapped_column(String(100), nullable=False)
+    org: Mapped[str] = mapped_column(String(100), nullable=False)
+    open_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    fixed_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    dismissed_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    total_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    warning_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    note_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("enterprise_slug", "org", name="uq_code_scanning_summary_slug_org"),
+        Index("idx_code_scanning_summary_org", "org"),
+    )
+
+
+class OrgActionsWorkflowSummary(Base):
+    """Aggregated GitHub Actions workflow and run data for an org.
+
+    Stores summary counts of workflow definitions and recent workflow
+    runs for the OpsHealth dashboard pane.
+
+    Endpoints:
+      - ``GET /repos/{owner}/{repo}/actions/workflows`` (definitions)
+      - ``GET /repos/{owner}/{repo}/actions/runs`` (recent runs)
+    """
+
+    __tablename__ = "org_actions_workflow_summaries"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    enterprise_slug: Mapped[str] = mapped_column(String(100), nullable=False)
+    org: Mapped[str] = mapped_column(String(100), nullable=False)
+    total_workflows: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    active_workflows: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    total_runs: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    successful_runs: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    failed_runs: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    cancelled_runs: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("enterprise_slug", "org", name="uq_actions_workflow_summary_slug_org"),
+        Index("idx_actions_workflow_summary_org", "org"),
+    )

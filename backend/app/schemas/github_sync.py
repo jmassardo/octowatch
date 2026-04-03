@@ -26,6 +26,9 @@ class SyncTriggerRequest(BaseModel):
         "secret_scanning_alerts",
         "dependabot_alerts",
         "license_consumption",
+        "code_scanning_alerts",
+        "actions_workflows",
+        "mfa_status",
     ] = "full"
 
 
@@ -146,6 +149,9 @@ class SyncScheduleUpdateRequest(BaseModel):
             "secret_scanning_alerts",
             "dependabot_alerts",
             "license_consumption",
+            "code_scanning_alerts",
+            "actions_workflows",
+            "mfa_status",
         }
         if v is not None and v not in valid_scopes:
             msg = f"scope must be one of {sorted(valid_scopes)}"
