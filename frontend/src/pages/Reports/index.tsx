@@ -5,6 +5,10 @@ import {
   getSeatUtilizationReport,
   getActionsVolumeReport,
   getCopilotSeatsReport,
+  getRepoCreationRateReport,
+  getPatCountsReport,
+  getWebhookCountsReport,
+  getCodespaceHoursReport,
   exportReport,
   getReportCatalog,
 } from '../../api/reports';
@@ -50,6 +54,42 @@ export function ReportsPage() {
     queryFn: () => getCopilotSeatsReport(params),
   });
 
+  const {
+    data: repoCreationData,
+    isLoading: repoCreationLoading,
+    isError: repoCreationError,
+  } = useQuery({
+    queryKey: ['reports', 'repo-creation-rate', windowDays],
+    queryFn: () => getRepoCreationRateReport(params),
+  });
+
+  const {
+    data: patCountsData,
+    isLoading: patCountsLoading,
+    isError: patCountsError,
+  } = useQuery({
+    queryKey: ['reports', 'pat-counts', windowDays],
+    queryFn: () => getPatCountsReport(params),
+  });
+
+  const {
+    data: webhookCountsData,
+    isLoading: webhookCountsLoading,
+    isError: webhookCountsError,
+  } = useQuery({
+    queryKey: ['reports', 'webhook-counts', windowDays],
+    queryFn: () => getWebhookCountsReport(params),
+  });
+
+  const {
+    data: codespaceHoursData,
+    isLoading: codespaceHoursLoading,
+    isError: codespaceHoursError,
+  } = useQuery({
+    queryKey: ['reports', 'codespace-hours', windowDays],
+    queryFn: () => getCodespaceHoursReport(params),
+  });
+
   const { data: catalogData, isLoading: catalogLoading } = useQuery({
     queryKey: ['reports', 'catalog'],
     queryFn: getReportCatalog,
@@ -84,6 +124,34 @@ export function ReportsPage() {
       value: copilotData?.data.length ?? '—',
       data: copilotData?.data,
     },
+    {
+      key: 'repo-creation',
+      label: 'Repo creation buckets',
+      dataSource: repoCreationData?.data_source ?? 'Audit Events',
+      value: repoCreationData?.data.length ?? '—',
+      data: repoCreationData?.data,
+    },
+    {
+      key: 'pat-counts',
+      label: 'PAT event buckets',
+      dataSource: patCountsData?.data_source ?? 'Audit Events',
+      value: patCountsData?.data.length ?? '—',
+      data: patCountsData?.data,
+    },
+    {
+      key: 'webhook-counts',
+      label: 'Webhook event buckets',
+      dataSource: webhookCountsData?.data_source ?? 'Audit Events',
+      value: webhookCountsData?.data.length ?? '—',
+      data: webhookCountsData?.data,
+    },
+    {
+      key: 'codespace-hours',
+      label: 'Codespace hours buckets',
+      dataSource: codespaceHoursData?.data_source ?? 'Audit Events',
+      value: codespaceHoursData?.data.length ?? '—',
+      data: codespaceHoursData?.data,
+    },
   ];
 
   const activeBucket = summaries.find((s) => s.key === bucketModal);
@@ -112,6 +180,26 @@ export function ReportsPage() {
       dataSource: copilotData?.data_source ?? 'Audit Events (Copilot)',
       data: copilotData?.data,
     },
+    'repo-creation-rate': {
+      title: 'Repo Creation Rate',
+      dataSource: repoCreationData?.data_source ?? 'Audit Events',
+      data: repoCreationData?.data,
+    },
+    'pat-counts': {
+      title: 'Personal Access Token Counts',
+      dataSource: patCountsData?.data_source ?? 'Audit Events',
+      data: patCountsData?.data,
+    },
+    'webhook-counts': {
+      title: 'Webhook Counts',
+      dataSource: webhookCountsData?.data_source ?? 'Audit Events',
+      data: webhookCountsData?.data,
+    },
+    'codespace-hours': {
+      title: 'Codespace Hours',
+      dataSource: codespaceHoursData?.data_source ?? 'Audit Events',
+      data: codespaceHoursData?.data,
+    },
   };
 
   const activeReport = viewReport ? reportDataMap[viewReport] : undefined;
@@ -138,7 +226,9 @@ export function ReportsPage() {
         </div>
       </div>
 
-      {mauError && <ErrorBanner message="Failed to load report data" />}
+      {(mauError || repoCreationError || patCountsError || webhookCountsError || codespaceHoursError) && (
+        <ErrorBanner message="Failed to load report data" />
+      )}
 
       <Card style={{ marginBottom: 20 }}>
         <CardHeader>Data summary — last {windowDays} days</CardHeader>
@@ -148,7 +238,12 @@ export function ReportsPage() {
             return (
               <div key={s.label} className={styles.summaryItem}>
                 <div className={styles.summaryValue}>
-                  {mauLoading || actionsLoading ? (
+                  {mauLoading ||
+                  actionsLoading ||
+                  repoCreationLoading ||
+                  patCountsLoading ||
+                  webhookCountsLoading ||
+                  codespaceHoursLoading ? (
                     <Spinner />
                   ) : isClickable ? (
                     <span

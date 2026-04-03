@@ -37,6 +37,7 @@ from app.models.integration import (
     TicketingConfig,
 )
 from app.models.org_config import OrgConfig
+from app.models.query_template import QueryTemplate
 from app.models.user import RbacRole, UserRoleAssignment
 
 __all__ = [
@@ -67,6 +68,7 @@ __all__ = [
     "OrgSecretScanningAlertSummary",
     "OrgTeam",
     "OrgTeamMember",
+    "QueryTemplate",
     "RepoBranchProtection",
     "Repository",
     "RuleDefinition",

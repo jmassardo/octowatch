@@ -65,6 +65,69 @@ vi.mock('../../api/reports', () => ({
       },
     ],
   }),
+  getRepoCreationRateReport: vi.fn().mockResolvedValue({
+    report_type: 'repo-creation-rate',
+    org: null,
+    granularity: 'daily',
+    window_days: 30,
+    data_source: 'Audit Events',
+    generated_at: '2024-01-15T00:00:00Z',
+    data: [
+      {
+        bucket: '2024-01-01',
+        org: 'acme',
+        repos_created: 12,
+        unique_creators: 7,
+      },
+    ],
+  }),
+  getPatCountsReport: vi.fn().mockResolvedValue({
+    report_type: 'pat-counts',
+    org: null,
+    granularity: 'daily',
+    window_days: 30,
+    data_source: 'Audit Events',
+    generated_at: '2024-01-15T00:00:00Z',
+    data: [
+      {
+        bucket: '2024-01-01',
+        org: 'acme',
+        actions: { 'personal_access_token.create': 4, 'personal_access_token.revoke': 2 },
+      },
+    ],
+  }),
+  getWebhookCountsReport: vi.fn().mockResolvedValue({
+    report_type: 'webhook-counts',
+    org: null,
+    granularity: 'daily',
+    window_days: 30,
+    data_source: 'Audit Events',
+    generated_at: '2024-01-15T00:00:00Z',
+    data: [
+      {
+        bucket: '2024-01-01',
+        org: 'acme',
+        actions: { 'hook.create': 3, 'hook.destroy': 1 },
+      },
+    ],
+  }),
+  getCodespaceHoursReport: vi.fn().mockResolvedValue({
+    report_type: 'codespace-hours',
+    org: null,
+    granularity: 'daily',
+    window_days: 30,
+    data_source: 'Audit Events',
+    generated_at: '2024-01-15T00:00:00Z',
+    data: [
+      {
+        bucket: '2024-01-01',
+        org: 'acme',
+        codespace_events: 18,
+        unique_users: 6,
+        total_billable_hours: 42.5,
+      },
+    ],
+  }),
   exportReport: vi.fn(),
   getReportCatalog: vi.fn().mockResolvedValue([]),
 }));
@@ -491,5 +554,112 @@ describe('ReportsPage', () => {
   it('shows Platform seat util instead of Seat util for seat-utilization summary', () => {
     renderWithProviders(<ReportsPage />);
     expect(screen.getByText('Platform seat util buckets')).toBeInTheDocument();
+  });
+
+  it('renders summary cards for all 8 report types', async () => {
+    renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Repo creation buckets')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Total MAU buckets')).toBeInTheDocument();
+    expect(screen.getByText('Actions buckets')).toBeInTheDocument();
+    expect(screen.getByText('Platform seat util buckets')).toBeInTheDocument();
+    expect(screen.getByText('Copilot seat buckets')).toBeInTheDocument();
+    expect(screen.getByText('Repo creation buckets')).toBeInTheDocument();
+    expect(screen.getByText('PAT event buckets')).toBeInTheDocument();
+    expect(screen.getByText('Webhook event buckets')).toBeInTheDocument();
+    expect(screen.getByText('Codespace hours buckets')).toBeInTheDocument();
+  });
+
+  it('clicking repo-creation-rate report title opens modal with report data', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-repo',
+        type: 'repo-creation-rate',
+        title: 'Repo Creation Rate Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    const title = await screen.findByText('Repo Creation Rate Report');
+    await user.click(title);
+
+    expect(screen.getByText('Repo Creation Rate')).toBeInTheDocument();
+    const tables = screen.getAllByRole('table');
+    expect(tables.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('clicking pat-counts report title opens modal with report data', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-pat',
+        type: 'pat-counts',
+        title: 'PAT Counts Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    const title = await screen.findByText('PAT Counts Report');
+    await user.click(title);
+
+    expect(screen.getByText('Personal Access Token Counts')).toBeInTheDocument();
+    const tables = screen.getAllByRole('table');
+    expect(tables.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('clicking webhook-counts report title opens modal with report data', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-webhook',
+        type: 'webhook-counts',
+        title: 'Webhook Counts Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    const title = await screen.findByText('Webhook Counts Report');
+    await user.click(title);
+
+    expect(screen.getByText('Webhook Counts')).toBeInTheDocument();
+    const tables = screen.getAllByRole('table');
+    expect(tables.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('clicking codespace-hours report title opens modal with report data', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-codespace',
+        type: 'codespace-hours',
+        title: 'Codespace Hours Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    const title = await screen.findByText('Codespace Hours Report');
+    await user.click(title);
+
+    expect(screen.getByText('Codespace Hours')).toBeInTheDocument();
+    const tables = screen.getAllByRole('table');
+    expect(tables.length).toBeGreaterThanOrEqual(1);
   });
 });

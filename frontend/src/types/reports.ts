@@ -47,6 +47,21 @@ export interface CopilotSeatsBucket {
   readonly policy_change_count: number;
 }
 
+export interface RepoCreationRateBucket {
+  readonly bucket: string;
+  readonly org: string | null;
+  readonly repos_created: number;
+  readonly unique_creators: number;
+}
+
+export interface CodespaceHoursBucket {
+  readonly bucket: string;
+  readonly org: string | null;
+  readonly codespace_events: number;
+  readonly unique_users: number;
+  readonly total_billable_hours: number;
+}
+
 export interface PATCountsBucket {
   readonly bucket: string;
   readonly org: string | null;

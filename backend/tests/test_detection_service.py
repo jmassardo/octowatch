@@ -3,7 +3,8 @@ suppression checks, and the core pipeline logic."""
 
 from __future__ import annotations
 
-from datetime import UTC
+from datetime import UTC, datetime
+from typing import Any
 
 from app.services.detection_service import (
     compute_confidence_score,
@@ -1457,3 +1458,406 @@ class TestEvaluateCrossNamespaceSequence:
         assert hit["aggregation_key_value"] == "10.0.0.1"
         # actor should come from the first matched event
         assert hit["actor"] == "alice"
+
+
+# ─── _evaluate_sequence_rule with data.* aggregation keys ─────────────────────
+
+
+class _FakeSeqEvent:
+    """Minimal event stub for _evaluate_sequence_rule candidates."""
+
+    def __init__(self, action: str, data: dict[str, Any] | None = None) -> None:
+        self.action = action
+        self.data = data or {}
+
+
+class _FakeSeqRow:
+    """Minimal DB row stub matching the SELECT id, action, created_at query."""
+
+    def __init__(self, id: int, action: str, created_at: datetime) -> None:
+        self.id = id
+        self.action = action
+        self.created_at = created_at
+
+
+class _FakeSeqRule:
+    """Rule stub with all attributes needed by _evaluate_sequence_rule."""
+
+    def __init__(self, logic_config: dict[str, Any]) -> None:
+        self.logic_config = logic_config
+        self.id = 1
+        self.version = 1
+        self.name = "Test Sequence Rule"
+        self.description = "Test description"
+        self.default_severity = "medium"
+
+
+class TestEvaluateSequenceRuleDataKeys:
+    """Tests for _evaluate_sequence_rule with data.* aggregation keys."""
+
+    import pytest as _pytest
+
+    @_pytest.mark.anyio
+    async def test_data_repo_agg_key_builds_jsonb_sql(self) -> None:
+        """Sequence rule with data.repo builds SQL using data->>'repo'."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import _evaluate_sequence_rule
+
+        rule = _FakeSeqRule(
+            {
+                "sequence_steps": [
+                    {"action": "repo.create"},
+                    {"action": "repo.create_actions_secret"},
+                ],
+                "aggregation_key": "data.repo",
+                "time_window_minutes": 60,
+            }
+        )
+        events = [
+            _FakeSeqEvent("repo.create", data={"repo": "acme/web-app"}),
+            _FakeSeqEvent("repo.create_actions_secret", data={"repo": "acme/web-app"}),
+        ]
+
+        # Return empty results so sequence is incomplete — we just check SQL
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = []
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        await _evaluate_sequence_rule(mock_session, rule, events, ["acme"])  # type: ignore[arg-type]
+
+        # Verify SQL uses JSONB extraction
+        call_args = mock_session.execute.call_args
+        sql_text = str(call_args[0][0])
+        assert "data->>'repo'" in sql_text
+        assert "action = ANY(:actions)" in sql_text
+        assert "created_at >= :window_start" in sql_text
+
+        # Verify bind parameters
+        params = call_args[0][1]
+        assert params["agg_value"] == "acme/web-app"
+        assert params["actions"] == ["repo.create", "repo.create_actions_secret"]
+
+    @_pytest.mark.anyio
+    async def test_data_org_agg_key_builds_jsonb_sql(self) -> None:
+        """Sequence rule with data.org builds SQL using data->>'org'."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import _evaluate_sequence_rule
+
+        rule = _FakeSeqRule(
+            {
+                "sequence_steps": [
+                    {"action": "org.add_member"},
+                    {"action": "org.update_member"},
+                ],
+                "aggregation_key": "data.org",
+                "time_window_minutes": 120,
+            }
+        )
+        events = [
+            _FakeSeqEvent("org.add_member", data={"org": "my-org"}),
+            _FakeSeqEvent("org.update_member", data={"org": "my-org"}),
+        ]
+
+        # Return empty results so sequence is incomplete — we just check SQL
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = []
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        await _evaluate_sequence_rule(mock_session, rule, events, ["my-org"])  # type: ignore[arg-type]
+
+        call_args = mock_session.execute.call_args
+        sql_text = str(call_args[0][0])
+        assert "data->>'org'" in sql_text
+        params = call_args[0][1]
+        assert params["agg_value"] == "my-org"
+
+    @_pytest.mark.anyio
+    async def test_missing_jsonb_field_excluded_from_agg_values(self) -> None:
+        """Events where the JSONB field is missing are excluded from aggregation."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import _evaluate_sequence_rule
+
+        rule = _FakeSeqRule(
+            {
+                "sequence_steps": [
+                    {"action": "repo.create"},
+                    {"action": "repo.delete"},
+                ],
+                "aggregation_key": "data.team",
+                "time_window_minutes": 60,
+            }
+        )
+        # First event has team, second doesn't — only "platform" should be queried
+        events = [
+            _FakeSeqEvent("repo.create", data={"team": "platform"}),
+            _FakeSeqEvent("repo.delete", data={}),  # no team key
+        ]
+
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = []
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        await _evaluate_sequence_rule(mock_session, rule, events, ["org"])  # type: ignore[arg-type]
+
+        # Should execute exactly once — only for "platform"
+        assert mock_session.execute.call_count == 1
+        params = mock_session.execute.call_args[0][1]
+        assert params["agg_value"] == "platform"
+
+    @_pytest.mark.anyio
+    async def test_all_events_missing_jsonb_field_skips_query(self) -> None:
+        """When no events have the aggregation field, no DB query is issued."""
+        from unittest.mock import AsyncMock
+
+        from app.services.detection_service import _evaluate_sequence_rule
+
+        rule = _FakeSeqRule(
+            {
+                "sequence_steps": [
+                    {"action": "repo.create"},
+                    {"action": "repo.delete"},
+                ],
+                "aggregation_key": "data.nonexistent",
+                "time_window_minutes": 60,
+            }
+        )
+        events = [
+            _FakeSeqEvent("repo.create", data={"repo": "acme/web"}),
+            _FakeSeqEvent("repo.delete", data={"repo": "acme/web"}),
+        ]
+
+        mock_session = AsyncMock()
+
+        await _evaluate_sequence_rule(mock_session, rule, events, ["org"])  # type: ignore[arg-type]
+
+        # No agg_values means the loop body never runs
+        mock_session.execute.assert_not_called()
+
+    @_pytest.mark.anyio
+    async def test_data_key_sequence_ordering(self) -> None:
+        """Sequence steps must match in chronological order for data.* keys."""
+        from datetime import datetime
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from app.services.detection_service import _evaluate_sequence_rule
+
+        rule = _FakeSeqRule(
+            {
+                "sequence_steps": [
+                    {"action": "repo.create"},
+                    {"action": "repo.create_actions_secret"},
+                ],
+                "aggregation_key": "data.repo",
+                "time_window_minutes": 60,
+                "confidence": 0.7,
+            }
+        )
+        events = [
+            _FakeSeqEvent("repo.create", data={"repo": "acme/web"}),
+            _FakeSeqEvent("repo.create_actions_secret", data={"repo": "acme/web"}),
+        ]
+
+        # DB returns events in CORRECT chronological order
+        t1 = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+        t2 = datetime(2024, 1, 1, 12, 10, 0, tzinfo=UTC)
+        db_rows = [
+            _FakeSeqRow(10, "repo.create", t1),
+            _FakeSeqRow(11, "repo.create_actions_secret", t2),
+        ]
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = db_rows
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        with (
+            patch(
+                "app.services.detection_service.check_suppression",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.services.detection_service.find_existing_detection",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.services.detection_service.resolve_severity",
+                new_callable=AsyncMock,
+                return_value="high",
+            ),
+        ):
+            await _evaluate_sequence_rule(mock_session, rule, events, ["acme"])  # type: ignore[arg-type]
+
+        # Detection was created — session.add was called
+        mock_session.add.assert_called_once()
+        detection = mock_session.add.call_args[0][0]
+        assert detection.event_ids == [10, 11]
+        assert detection.actor is None  # data.* key, not actor
+        assert detection.context_data["aggregation_key_value"] == "acme/web"
+
+    @_pytest.mark.anyio
+    async def test_data_key_sequence_wrong_order_no_detection(self) -> None:
+        """Events in wrong order should not trigger a detection for data.* keys."""
+        from datetime import datetime
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import _evaluate_sequence_rule
+
+        rule = _FakeSeqRule(
+            {
+                "sequence_steps": [
+                    {"action": "repo.create"},
+                    {"action": "repo.create_actions_secret"},
+                ],
+                "aggregation_key": "data.repo",
+                "time_window_minutes": 60,
+            }
+        )
+        events = [
+            _FakeSeqEvent("repo.create", data={"repo": "acme/web"}),
+            _FakeSeqEvent("repo.create_actions_secret", data={"repo": "acme/web"}),
+        ]
+
+        # DB returns events in WRONG order (step 2 before step 1)
+        t1 = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+        t2 = datetime(2024, 1, 1, 12, 10, 0, tzinfo=UTC)
+        db_rows = [
+            _FakeSeqRow(11, "repo.create_actions_secret", t1),
+            _FakeSeqRow(10, "repo.create", t2),
+        ]
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = db_rows
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        await _evaluate_sequence_rule(mock_session, rule, events, ["acme"])  # type: ignore[arg-type]
+
+        # No detection created since sequence is not in correct order
+        mock_session.add.assert_not_called()
+
+    @_pytest.mark.anyio
+    async def test_invalid_data_key_returns_early(self) -> None:
+        """data.* key with special chars returns early without querying the DB."""
+        from unittest.mock import AsyncMock
+
+        from app.services.detection_service import _evaluate_sequence_rule
+
+        rule = _FakeSeqRule(
+            {
+                "sequence_steps": [
+                    {"action": "repo.create"},
+                ],
+                "aggregation_key": "data.evil;DROP TABLE events;",
+                "time_window_minutes": 60,
+            }
+        )
+        events = [
+            _FakeSeqEvent("repo.create", data={"evil;DROP TABLE events;": "val"}),
+        ]
+
+        mock_session = AsyncMock()
+
+        await _evaluate_sequence_rule(mock_session, rule, events, ["org"])  # type: ignore[arg-type]
+
+        # Should return early without any DB query
+        mock_session.execute.assert_not_called()
+
+    @_pytest.mark.anyio
+    async def test_unsupported_agg_key_returns_early(self) -> None:
+        """An aggregation key that is not in whitelist and not data.* returns early."""
+        from unittest.mock import AsyncMock
+
+        from app.services.detection_service import _evaluate_sequence_rule
+
+        rule = _FakeSeqRule(
+            {
+                "sequence_steps": [
+                    {"action": "repo.create"},
+                ],
+                "aggregation_key": "unknown_column",
+                "time_window_minutes": 60,
+            }
+        )
+        # events need to pass event_matches_rule and have the agg_key attribute
+        event = _FakeSeqEvent("repo.create")
+        event.unknown_column = "val"  # type: ignore[attr-defined]
+
+        mock_session = AsyncMock()
+
+        await _evaluate_sequence_rule(mock_session, rule, [event], ["org"])  # type: ignore[arg-type]
+
+        mock_session.execute.assert_not_called()
+
+    @_pytest.mark.anyio
+    async def test_safe_column_agg_key_works(self) -> None:
+        """Non-actor keys in _SAFE_DISTINCT_COLUMNS (e.g. 'repo') work correctly."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import _evaluate_sequence_rule
+
+        rule = _FakeSeqRule(
+            {
+                "sequence_steps": [
+                    {"action": "repo.create"},
+                    {"action": "repo.delete"},
+                ],
+                "aggregation_key": "repo",
+                "time_window_minutes": 60,
+            }
+        )
+        event = _FakeSeqEvent("repo.create")
+        event.repo = "acme/web"  # type: ignore[attr-defined]
+
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = []
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        await _evaluate_sequence_rule(mock_session, rule, [event], ["acme"])  # type: ignore[arg-type]
+
+        call_args = mock_session.execute.call_args
+        sql_text = str(call_args[0][0])
+        # Should use the column name directly, not JSONB extraction
+        assert "repo = :agg_value" in sql_text
+        assert "data->>" not in sql_text
+
+    @_pytest.mark.anyio
+    async def test_data_key_multiple_agg_values(self) -> None:
+        """Multiple distinct data.* values each get their own DB query."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.detection_service import _evaluate_sequence_rule
+
+        rule = _FakeSeqRule(
+            {
+                "sequence_steps": [
+                    {"action": "repo.create"},
+                    {"action": "repo.delete"},
+                ],
+                "aggregation_key": "data.team",
+                "time_window_minutes": 60,
+            }
+        )
+        events = [
+            _FakeSeqEvent("repo.create", data={"team": "alpha"}),
+            _FakeSeqEvent("repo.create", data={"team": "beta"}),
+            _FakeSeqEvent("repo.delete", data={"team": "alpha"}),
+        ]
+
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = []
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        await _evaluate_sequence_rule(mock_session, rule, events, ["org"])  # type: ignore[arg-type]
+
+        # Two distinct teams => two queries
+        assert mock_session.execute.call_count == 2
+        queried_values = {call[0][1]["agg_value"] for call in mock_session.execute.call_args_list}
+        assert queried_values == {"alpha", "beta"}

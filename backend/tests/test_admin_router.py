@@ -323,6 +323,385 @@ class TestListSyncedTeams:
         assert data[1]["team_slug"] == "dev-team"
 
 
+# ─── Audit trail export ───────────────────────────────────────────────────────
+
+_CSRF_TOKEN = "test-csrf-token"
+
+
+def _make_audit_row(**overrides: Any) -> MagicMock:
+    """Create a mock AuditTrail row with sensible defaults."""
+    defaults: dict[str, Any] = {
+        "id": 1,
+        "timestamp": datetime(2024, 6, 15, 10, 30, 0, tzinfo=UTC),
+        "user_login": "alice",
+        "user_github_id": 42,
+        "ip_address": "10.0.0.1",
+        "user_agent": "Mozilla/5.0",
+        "action_type": "role.assign",
+        "resource_type": "user",
+        "resource_id": "bob",
+        "parameters": {"role": "analyst"},
+        "outcome": "success",
+        "error_detail": None,
+    }
+    defaults.update(overrides)
+    return MagicMock(**defaults)
+
+
+class TestExportAuditTrail:
+    """Tests for POST /admin/audit-trail/export."""
+
+    def _post_export(
+        self,
+        client: TestClient,
+        token: str,
+        params: dict[str, str],
+    ) -> Any:
+        """POST to the export endpoint with CSRF token included."""
+        return client.post(
+            "/api/v1/admin/audit-trail/export",
+            params=params,
+            cookies={"access_token": token, "csrf_token": _CSRF_TOKEN},
+            headers={"X-CSRF-Token": _CSRF_TOKEN},
+        )
+
+    def test_export_without_auth_returns_401(self) -> None:
+        app, _, _ = _build_admin_app(valkey_get_return=None)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post(
+            "/api/v1/admin/audit-trail/export",
+            params={"from_date": "2024-01-01", "to_date": "2024-12-31"},
+        )
+        assert resp.status_code == 401
+
+    def test_export_with_non_admin_returns_403(self) -> None:
+        session = _make_session(roles=["analyst"])
+        app, _, _ = _build_admin_app(valkey_get_return=session)
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        resp = self._post_export(
+            client, token, {"from_date": "2024-01-01", "to_date": "2024-12-31"}
+        )
+        assert resp.status_code == 403
+
+    def test_export_without_csrf_returns_403(self) -> None:
+        """POST without CSRF token should be rejected."""
+        session = _make_session()
+        app, _, _ = _build_admin_app(valkey_get_return=session)
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        resp = client.post(
+            "/api/v1/admin/audit-trail/export",
+            params={"from_date": "2024-01-01", "to_date": "2024-12-31"},
+            cookies={"access_token": token},
+        )
+        assert resp.status_code == 403
+
+    def test_export_csv_default_format(self) -> None:
+        """Default format should be CSV with proper headers and content."""
+        session = _make_session()
+        row = _make_audit_row()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [row]
+
+        app, _, _ = _build_admin_app(
+            valkey_get_return=session,
+            db_execute_side_effect=[mock_result],
+        )
+        client = TestClient(app, raise_server_exceptions=True)
+        token = _make_jwt()
+        resp = self._post_export(
+            client, token, {"from_date": "2024-01-01", "to_date": "2024-12-31"}
+        )
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/csv")
+        assert "attachment" in resp.headers["content-disposition"]
+        assert "audit_trail_" in resp.headers["content-disposition"]
+        assert ".csv" in resp.headers["content-disposition"]
+
+        # Parse the CSV body
+        import csv
+        import io
+
+        reader = csv.DictReader(io.StringIO(resp.text))
+        rows = list(reader)
+        assert len(rows) == 1
+        assert rows[0]["user_login"] == "alice"
+        assert rows[0]["action_type"] == "role.assign"
+        assert rows[0]["outcome"] == "success"
+        assert rows[0]["ip_address"] == "10.0.0.1"
+
+    def test_export_csv_header_row_present(self) -> None:
+        """CSV should include a header row with all expected columns."""
+        session = _make_session()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+
+        app, _, _ = _build_admin_app(
+            valkey_get_return=session,
+            db_execute_side_effect=[mock_result],
+        )
+        client = TestClient(app, raise_server_exceptions=True)
+        token = _make_jwt()
+        resp = self._post_export(
+            client,
+            token,
+            {"from_date": "2024-01-01", "to_date": "2024-12-31", "format": "csv"},
+        )
+        assert resp.status_code == 200
+        header_line = resp.text.split("\r\n")[0]
+        expected_columns = [
+            "id",
+            "timestamp",
+            "user_login",
+            "user_github_id",
+            "ip_address",
+            "user_agent",
+            "action_type",
+            "resource_type",
+            "resource_id",
+            "parameters",
+            "outcome",
+            "error_detail",
+        ]
+        assert header_line == ",".join(expected_columns)
+
+    def test_export_csv_multiple_rows(self) -> None:
+        """CSV export should include all matching rows."""
+        session = _make_session()
+        row1 = _make_audit_row(id=1, user_login="alice", action_type="login")
+        row2 = _make_audit_row(id=2, user_login="bob", action_type="logout")
+        row3 = _make_audit_row(id=3, user_login="carol", action_type="role.assign")
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [row1, row2, row3]
+
+        app, _, _ = _build_admin_app(
+            valkey_get_return=session,
+            db_execute_side_effect=[mock_result],
+        )
+        client = TestClient(app, raise_server_exceptions=True)
+        token = _make_jwt()
+        resp = self._post_export(
+            client, token, {"from_date": "2024-01-01", "to_date": "2024-12-31"}
+        )
+        import csv
+        import io
+
+        reader = csv.DictReader(io.StringIO(resp.text))
+        rows = list(reader)
+        assert len(rows) == 3
+        assert [r["user_login"] for r in rows] == ["alice", "bob", "carol"]
+
+    def test_export_json_format(self) -> None:
+        """JSON format should return NDJSON with proper content type."""
+        session = _make_session()
+        row = _make_audit_row()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [row]
+
+        app, _, _ = _build_admin_app(
+            valkey_get_return=session,
+            db_execute_side_effect=[mock_result],
+        )
+        client = TestClient(app, raise_server_exceptions=True)
+        token = _make_jwt()
+        resp = self._post_export(
+            client,
+            token,
+            {"from_date": "2024-01-01", "to_date": "2024-12-31", "format": "json"},
+        )
+        assert resp.status_code == 200
+        assert "ndjson" in resp.headers["content-type"]
+        assert "attachment" in resp.headers["content-disposition"]
+        assert ".ndjson" in resp.headers["content-disposition"]
+
+        lines = [line for line in resp.text.strip().split("\n") if line]
+        assert len(lines) == 1
+        parsed = json.loads(lines[0])
+        assert parsed["user_login"] == "alice"
+        assert parsed["action_type"] == "role.assign"
+        assert parsed["parameters"] == '{"role": "analyst"}'
+
+    def test_export_json_multiple_rows(self) -> None:
+        """NDJSON should have one JSON object per line."""
+        session = _make_session()
+        row1 = _make_audit_row(id=1, user_login="alice")
+        row2 = _make_audit_row(id=2, user_login="bob")
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [row1, row2]
+
+        app, _, _ = _build_admin_app(
+            valkey_get_return=session,
+            db_execute_side_effect=[mock_result],
+        )
+        client = TestClient(app, raise_server_exceptions=True)
+        token = _make_jwt()
+        resp = self._post_export(
+            client,
+            token,
+            {"from_date": "2024-01-01", "to_date": "2024-12-31", "format": "json"},
+        )
+        lines = [line for line in resp.text.strip().split("\n") if line]
+        assert len(lines) == 2
+        assert json.loads(lines[0])["user_login"] == "alice"
+        assert json.loads(lines[1])["user_login"] == "bob"
+
+    def test_export_invalid_format_returns_400(self) -> None:
+        """Unsupported format should return 400."""
+        session = _make_session()
+        app, _, _ = _build_admin_app(valkey_get_return=session)
+        client = TestClient(app, raise_server_exceptions=False)
+        token = _make_jwt()
+        resp = self._post_export(
+            client,
+            token,
+            {"from_date": "2024-01-01", "to_date": "2024-12-31", "format": "xml"},
+        )
+        assert resp.status_code == 400
+        assert "xml" in resp.json()["detail"]
+
+    def test_export_empty_result_csv(self) -> None:
+        """CSV export with no matching records should return only the header."""
+        session = _make_session()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+
+        app, _, _ = _build_admin_app(
+            valkey_get_return=session,
+            db_execute_side_effect=[mock_result],
+        )
+        client = TestClient(app, raise_server_exceptions=True)
+        token = _make_jwt()
+        resp = self._post_export(
+            client, token, {"from_date": "2024-01-01", "to_date": "2024-12-31"}
+        )
+        assert resp.status_code == 200
+        # Should have header row only
+        lines = [line for line in resp.text.strip().split("\r\n") if line]
+        assert len(lines) == 1
+        assert lines[0].startswith("id,timestamp,")
+
+    def test_export_empty_result_json(self) -> None:
+        """NDJSON export with no matching records should return empty body."""
+        session = _make_session()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+
+        app, _, _ = _build_admin_app(
+            valkey_get_return=session,
+            db_execute_side_effect=[mock_result],
+        )
+        client = TestClient(app, raise_server_exceptions=True)
+        token = _make_jwt()
+        resp = self._post_export(
+            client,
+            token,
+            {"from_date": "2024-01-01", "to_date": "2024-12-31", "format": "json"},
+        )
+        assert resp.status_code == 200
+        assert resp.text.strip() == ""
+
+    def test_export_csv_serializes_none_as_empty(self) -> None:
+        """None values should appear as empty strings in CSV."""
+        session = _make_session()
+        row = _make_audit_row(
+            ip_address=None,
+            user_agent=None,
+            resource_type=None,
+            resource_id=None,
+            parameters=None,
+            error_detail=None,
+        )
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [row]
+
+        app, _, _ = _build_admin_app(
+            valkey_get_return=session,
+            db_execute_side_effect=[mock_result],
+        )
+        client = TestClient(app, raise_server_exceptions=True)
+        token = _make_jwt()
+        resp = self._post_export(
+            client, token, {"from_date": "2024-01-01", "to_date": "2024-12-31"}
+        )
+        import csv
+        import io
+
+        reader = csv.DictReader(io.StringIO(resp.text))
+        rows = list(reader)
+        assert rows[0]["ip_address"] == ""
+        assert rows[0]["user_agent"] == ""
+        assert rows[0]["parameters"] == ""
+        assert rows[0]["error_detail"] == ""
+
+    def test_export_csv_serializes_datetime_as_iso(self) -> None:
+        """Datetime values should be serialized as ISO 8601 strings."""
+        session = _make_session()
+        ts = datetime(2024, 6, 15, 10, 30, 0, tzinfo=UTC)
+        row = _make_audit_row(timestamp=ts)
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [row]
+
+        app, _, _ = _build_admin_app(
+            valkey_get_return=session,
+            db_execute_side_effect=[mock_result],
+        )
+        client = TestClient(app, raise_server_exceptions=True)
+        token = _make_jwt()
+        resp = self._post_export(
+            client, token, {"from_date": "2024-01-01", "to_date": "2024-12-31"}
+        )
+        import csv
+        import io
+
+        reader = csv.DictReader(io.StringIO(resp.text))
+        rows = list(reader)
+        assert rows[0]["timestamp"] == "2024-06-15T10:30:00+00:00"
+
+    def test_export_csv_serializes_dict_as_json(self) -> None:
+        """Dict values (like parameters) should be serialized as JSON strings."""
+        session = _make_session()
+        row = _make_audit_row(parameters={"key": "value", "nested": {"a": 1}})
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [row]
+
+        app, _, _ = _build_admin_app(
+            valkey_get_return=session,
+            db_execute_side_effect=[mock_result],
+        )
+        client = TestClient(app, raise_server_exceptions=True)
+        token = _make_jwt()
+        resp = self._post_export(
+            client, token, {"from_date": "2024-01-01", "to_date": "2024-12-31"}
+        )
+        import csv
+        import io
+
+        reader = csv.DictReader(io.StringIO(resp.text))
+        rows = list(reader)
+        parsed = json.loads(rows[0]["parameters"])
+        assert parsed == {"key": "value", "nested": {"a": 1}}
+
+    def test_export_filename_contains_date_range(self) -> None:
+        """Content-Disposition filename should include the requested date range."""
+        session = _make_session()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+
+        app, _, _ = _build_admin_app(
+            valkey_get_return=session,
+            db_execute_side_effect=[mock_result],
+        )
+        client = TestClient(app, raise_server_exceptions=True)
+        token = _make_jwt()
+        resp = self._post_export(
+            client, token, {"from_date": "2024-01-01", "to_date": "2024-12-31"}
+        )
+        disposition = resp.headers["content-disposition"]
+        assert "2024-01-01" in disposition
+        assert "2024-12-31" in disposition
+
+
 # ─── Role priority ────────────────────────────────────────────────────────────
 
 

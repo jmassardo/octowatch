@@ -1169,7 +1169,12 @@ async def _evaluate_sequence_rule(
     events: list[AuditEvent],
     orgs: list[str],
 ) -> None:
-    """Evaluate a sequence rule by checking ordered event type occurrence per actor."""
+    """Evaluate a sequence rule by checking ordered event type occurrence per aggregation key.
+
+    Supports aggregation by standard columns (actor, repo, org, etc.) and
+    JSONB ``data.*`` keys (e.g. ``data.repo``, ``data.team``) using PostgreSQL
+    ``->>`` extraction.
+    """
     config = rule.logic_config
     steps: list[dict[str, Any]] = config.get("sequence_steps", [])
     if not steps:
@@ -1194,32 +1199,32 @@ async def _evaluate_sequence_rule(
         if val:
             agg_values.add(str(val))
 
+    # Build column expression for WHERE clause (same approach as evaluate_threshold_rule).
+    # Column names come from trusted rule config and are validated against a whitelist;
+    # data.* keys use PostgreSQL JSONB extraction (->>) with regex-validated sub-keys.
+    if agg_key in _SAFE_DISTINCT_COLUMNS:
+        where_col = agg_key
+    elif agg_key.startswith("data."):
+        sub_key = agg_key[5:]
+        if not re.match(r"^[a-zA-Z0-9_]+$", sub_key):
+            logger.warning("detection.sequence_invalid_data_key", agg_key=agg_key)
+            return
+        where_col = f"data->>'{sub_key}'"
+    else:
+        logger.warning("detection.sequence_unsupported_agg_key", agg_key=agg_key)
+        return
+
+    seq_stmt = text(
+        "SELECT id, action, created_at "
+        "FROM events "
+        "WHERE " + where_col + " = :agg_value "
+        "AND action = ANY(:actions) "
+        "AND created_at >= :window_start "
+        "ORDER BY created_at ASC"
+    )
+
     for agg_value in agg_values:
         window_start = datetime.now(UTC) - timedelta(minutes=window_minutes)
-
-        # Fetch ordered events for this aggregation key
-        seq_stmt = text("""
-            SELECT id, action, created_at
-            FROM events
-            WHERE :agg_col = :agg_value
-              AND action = ANY(:actions)
-              AND created_at >= :window_start
-            ORDER BY created_at ASC
-        """)
-        # We can't use dynamic column names safely, so use actor as agg key
-        if agg_key == "actor":
-            seq_stmt = text("""
-                SELECT id, action, created_at
-                FROM events
-                WHERE actor = :agg_value
-                  AND action = ANY(:actions)
-                  AND created_at >= :window_start
-                ORDER BY created_at ASC
-            """)
-        else:
-            # For data.* aggregation keys, we skip sequence evaluation
-            # (requires JSONB extraction; not implemented for beta)
-            continue
 
         result = await session.execute(
             seq_stmt,

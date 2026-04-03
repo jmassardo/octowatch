@@ -11,6 +11,7 @@ Tests cover:
 - POST /query/templates → 201 with created_at populated
 - DELETE /query/templates/{id} → 204
 - GET /query/templates/{id} → 404 for missing template
+- POST /query/templates/{id}/run → executes template SQL
 - Audit trail logging for successful and blocked queries
 """
 
@@ -25,6 +26,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.deps import get_db, get_valkey
+from app.models.query_template import QueryTemplate as QueryTemplateModel
 from app.routers import query as query_router_module
 
 SECRET = "testsecretkey_for_unit_tests_only_32ch"
@@ -69,6 +71,28 @@ def _make_mock_db() -> AsyncMock:
     db = AsyncMock()
     db.execute = AsyncMock(return_value=mock_result)
     return db
+
+
+def _make_template_model(
+    template_id: int = 1,
+    name: str = "Test Query",
+    sql: str = "SELECT id FROM events LIMIT 10",
+    created_by: str = "testuser",
+    description: str | None = None,
+    org_slug: str | None = None,
+) -> QueryTemplateModel:
+    """Create a QueryTemplateModel instance for testing."""
+    now = datetime.now(UTC)
+    return QueryTemplateModel(
+        id=template_id,
+        name=name,
+        description=description,
+        sql=sql,
+        created_by=created_by,
+        org_slug=org_slug,
+        created_at=now,
+        updated_at=now,
+    )
 
 
 def _build_query_app(
@@ -428,7 +452,7 @@ class TestValidateQuery:
 
 
 class TestQueryTemplates:
-    """Tests for query template CRUD endpoints."""
+    """Tests for query template CRUD endpoints (DB-backed)."""
 
     def test_list_templates_empty(self):
         jti = "tpl-list"
@@ -444,16 +468,46 @@ class TestQueryTemplates:
         assert resp.status_code == 200
         assert resp.json() == []
 
+    def test_list_templates_returns_persisted(self):
+        """Templates fetched from DB are returned in the list."""
+        jti = "tpl-list-db"
+        token = _make_jwt(jti=jti)
+        session = _make_session(roles=["analyst"])
+        app, mock_db, _ = _build_query_app(valkey_get_return=session)
+        client = TestClient(app, raise_server_exceptions=True)
+
+        tmpl = _make_template_model(template_id=5, name="Saved Query")
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [tmpl]
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        resp = client.get(
+            "/api/v1/query/templates",
+            cookies={"access_token": token},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["id"] == 5
+        assert data[0]["name"] == "Saved Query"
+
     def test_create_template_includes_created_at(self):
         """Template creation must populate created_at field."""
         jti = "tpl-create"
         token = _make_jwt(jti=jti)
         session = _make_session(roles=["sys_admin"])
-        app, _, _ = _build_query_app(valkey_get_return=session)
+        app, mock_db, _ = _build_query_app(valkey_get_return=session)
 
-        # Reset module-level state for isolation
-        query_router_module._QUERY_TEMPLATES.clear()
-        query_router_module._template_counter = 0
+        now = datetime.now(UTC)
+
+        async def _mock_refresh(obj: object, attribute_names: object = None) -> None:
+            """Simulate DB-generated fields after flush."""
+            if isinstance(obj, QueryTemplateModel):
+                obj.id = 1
+                obj.created_at = now
+                obj.updated_at = now
+
+        mock_db.refresh = AsyncMock(side_effect=_mock_refresh)
 
         client = TestClient(app, raise_server_exceptions=True)
 
@@ -474,6 +528,79 @@ class TestQueryTemplates:
         assert data["created_at"] is not None
         assert len(data["created_at"]) > 0
 
+    def test_create_template_persists_to_db(self):
+        """Template creation should call db.add with a QueryTemplateModel."""
+        jti = "tpl-persist"
+        token = _make_jwt(jti=jti)
+        session = _make_session(roles=["sys_admin"])
+        app, mock_db, _ = _build_query_app(valkey_get_return=session)
+
+        now = datetime.now(UTC)
+
+        async def _mock_refresh(obj: object, attribute_names: object = None) -> None:
+            if isinstance(obj, QueryTemplateModel):
+                obj.id = 1
+                obj.created_at = now
+                obj.updated_at = now
+
+        mock_db.refresh = AsyncMock(side_effect=_mock_refresh)
+
+        client = TestClient(app, raise_server_exceptions=True)
+
+        resp = client.post(
+            "/api/v1/query/templates",
+            json={
+                "name": "Persist Me",
+                "description": "A test template",
+                "sql": "SELECT action FROM events LIMIT 5",
+            },
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
+        )
+        assert resp.status_code == 201
+        # Verify db.add was called with a model instance
+        assert mock_db.add.called
+        added_obj = mock_db.add.call_args[0][0]
+        assert isinstance(added_obj, QueryTemplateModel)
+        assert added_obj.name == "Persist Me"
+        assert added_obj.sql == "SELECT action FROM events LIMIT 5"
+        assert added_obj.created_by == "testuser"
+
+    def test_create_template_with_org_slug(self):
+        """Template creation should store org_slug when provided."""
+        jti = "tpl-org"
+        token = _make_jwt(jti=jti)
+        session = _make_session(roles=["sys_admin"])
+        app, mock_db, _ = _build_query_app(valkey_get_return=session)
+
+        now = datetime.now(UTC)
+
+        async def _mock_refresh(obj: object, attribute_names: object = None) -> None:
+            if isinstance(obj, QueryTemplateModel):
+                obj.id = 1
+                obj.created_at = now
+                obj.updated_at = now
+
+        mock_db.refresh = AsyncMock(side_effect=_mock_refresh)
+
+        client = TestClient(app, raise_server_exceptions=True)
+
+        resp = client.post(
+            "/api/v1/query/templates",
+            json={
+                "name": "Org Query",
+                "sql": "SELECT id FROM events LIMIT 10",
+                "org_slug": "my-org",
+            },
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["org_slug"] == "my-org"
+        added_obj = mock_db.add.call_args[0][0]
+        assert added_obj.org_slug == "my-org"
+
     def test_get_template_not_found(self):
         jti = "tpl-404"
         token = _make_jwt(jti=jti)
@@ -487,38 +614,143 @@ class TestQueryTemplates:
         )
         assert resp.status_code == 404
 
+    def test_get_template_found(self):
+        """GET /templates/{id} returns the template when it exists in DB."""
+        jti = "tpl-found"
+        token = _make_jwt(jti=jti)
+        session = _make_session(roles=["analyst"])
+        app, mock_db, _ = _build_query_app(valkey_get_return=session)
+
+        tmpl = _make_template_model(template_id=42, name="Found Me")
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = tmpl
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        client = TestClient(app, raise_server_exceptions=True)
+
+        resp = client.get(
+            "/api/v1/query/templates/42",
+            cookies={"access_token": token},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["id"] == 42
+        assert data["name"] == "Found Me"
+
     def test_delete_template(self):
         jti = "tpl-del"
         token = _make_jwt(jti=jti)
         session = _make_session(roles=["sys_admin"])
-        app, _, _ = _build_query_app(valkey_get_return=session)
+        app, mock_db, _ = _build_query_app(valkey_get_return=session)
 
-        # Reset module-level state for isolation
-        query_router_module._QUERY_TEMPLATES.clear()
-        query_router_module._template_counter = 0
+        tmpl = _make_template_model(template_id=1, name="To Delete")
+
+        # First execute (DELETE lookup) returns the template,
+        # second execute (GET verification) returns None.
+        result_found = MagicMock()
+        result_found.scalar_one_or_none.return_value = tmpl
+
+        result_not_found = MagicMock()
+        result_not_found.scalar_one_or_none.return_value = None
+
+        mock_db.execute = AsyncMock(side_effect=[result_found, result_not_found])
 
         client = TestClient(app, raise_server_exceptions=True)
 
-        # Create a template first
-        create_resp = client.post(
-            "/api/v1/query/templates",
-            json={"name": "To Delete", "sql": "SELECT id FROM events LIMIT 10"},
-            cookies={"access_token": token, "csrf_token": "tok"},
-            headers={"X-CSRF-Token": "tok"},
-        )
-        template_id = create_resp.json()["id"]
-
         # Delete it
         del_resp = client.delete(
-            f"/api/v1/query/templates/{template_id}",
+            "/api/v1/query/templates/1",
             cookies={"access_token": token, "csrf_token": "tok"},
             headers={"X-CSRF-Token": "tok"},
         )
         assert del_resp.status_code == 204
 
+        # Verify db.delete was called with the template model
+        assert mock_db.delete.called
+
         # Verify it's gone
         get_resp = client.get(
-            f"/api/v1/query/templates/{template_id}",
+            "/api/v1/query/templates/1",
             cookies={"access_token": token},
         )
         assert get_resp.status_code == 404
+
+    def test_delete_template_not_found(self):
+        """DELETE on a non-existent template returns 404."""
+        jti = "tpl-del-404"
+        token = _make_jwt(jti=jti)
+        session = _make_session(roles=["sys_admin"])
+        app, _, _ = _build_query_app(valkey_get_return=session)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        resp = client.delete(
+            "/api/v1/query/templates/9999",
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
+        )
+        assert resp.status_code == 404
+
+    def test_run_template_executes_sql(self):
+        """POST /templates/{id}/run fetches SQL from DB and executes it."""
+        jti = "tpl-run"
+        token = _make_jwt(jti=jti)
+        session = _make_session(roles=["sys_admin"])
+        app, mock_db, _ = _build_query_app(valkey_get_return=session)
+
+        tmpl = _make_template_model(
+            template_id=10,
+            name="Run Me",
+            sql="SELECT id FROM events LIMIT 5",
+        )
+
+        # First execute returns the template (lookup),
+        # subsequent executes are for get_user_scope / execute_query.
+        result_found = MagicMock()
+        result_found.scalar_one_or_none.return_value = tmpl
+
+        # Default result for scope queries
+        result_default = MagicMock()
+        result_default.scalars.return_value.all.return_value = []
+        result_default.scalar_one_or_none.return_value = None
+
+        mock_db.execute = AsyncMock(side_effect=[result_found, result_default])
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        mock_query_result = {
+            "columns": ["id"],
+            "rows": [[1]],
+            "row_count": 1,
+            "truncated": False,
+            "execution_ms": 3,
+            "query_id": "tpl-run-uuid",
+        }
+
+        with patch(
+            "app.routers.query.execute_query",
+            new_callable=AsyncMock,
+            return_value=mock_query_result,
+        ):
+            resp = client.post(
+                "/api/v1/query/templates/10/run",
+                cookies={"access_token": token, "csrf_token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["row_count"] == 1
+
+    def test_run_template_not_found(self):
+        """POST /templates/{id}/run returns 404 for missing template."""
+        jti = "tpl-run-404"
+        token = _make_jwt(jti=jti)
+        session = _make_session(roles=["sys_admin"])
+        app, _, _ = _build_query_app(valkey_get_return=session)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        resp = client.post(
+            "/api/v1/query/templates/9999/run",
+            cookies={"access_token": token, "csrf_token": "tok"},
+            headers={"X-CSRF-Token": "tok"},
+        )
+        assert resp.status_code == 404

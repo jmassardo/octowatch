@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -46,13 +47,18 @@ class QueryTemplate(BaseModel):
 
     id: int
     name: str
-    description: str | None
+    description: str | None = None
     sql: str
-    created_by: str
-    created_at: str
+    created_by: str | None = None
+    org_slug: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
 
 
 class QueryTemplateCreate(BaseModel):
+    """Request body for creating a query template."""
+
     name: str = Field(..., min_length=1, max_length=255)
     description: str | None = Field(None, max_length=1000)
     sql: str = Field(..., min_length=10, max_length=50_000)
+    org_slug: str | None = Field(None, max_length=255)
