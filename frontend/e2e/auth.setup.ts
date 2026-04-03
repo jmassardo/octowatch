@@ -11,7 +11,7 @@
  *
  * See frontend/.env.test.example for reference values.
  */
-import { test as setup, expect } from '@playwright/test';
+import { test as setup } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
