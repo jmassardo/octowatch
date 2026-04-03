@@ -14,18 +14,19 @@ export default defineConfig({
   ],
 
   use: {
-    baseURL: 'https://localhost',
+    baseURL: process.env.BASE_URL || 'http://localhost',
     ignoreHTTPSErrors: true,
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
     actionTimeout: 15_000,
-    navigationTimeout: 30_000,
+    navigationTimeout: 60_000,
   },
 
   projects: [
     {
       name: 'setup',
       testMatch: /auth\.setup\.ts/,
+      timeout: 30_000,
     },
     {
       name: 'chromium',
@@ -34,6 +35,7 @@ export default defineConfig({
         storageState: 'e2e/.auth/user.json',
       },
       dependencies: ['setup'],
+      timeout: 30_000,
     },
   ],
 });

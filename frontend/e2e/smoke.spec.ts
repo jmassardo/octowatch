@@ -5,6 +5,10 @@ import { test, expect } from '@playwright/test';
 //
 // Authentication is handled by the "setup" project in playwright.config.ts
 // which runs auth.setup.ts to create a session state file.
+//
+// NOTE: Page titles are rendered as <h1>/<h2> elements on some pages and as
+// styled <div> elements on others.  Assertions are scoped to the <main>
+// content area so they never accidentally match sidebar navigation labels.
 // ---------------------------------------------------------------------------
 
 test.describe('Login page', () => {
@@ -37,6 +41,9 @@ test.describe('Setup page', () => {
 });
 
 test.describe('Protected routes (authenticated)', () => {
+  // Each route is tested by navigating directly (no sidebar interaction), so
+  // feature-gated pages still render — they show a "disabled" message instead
+  // of the full UI, but the title text remains visible.
   const protectedRoutes = [
     { path: '/dashboard', expectedTitle: 'Dashboard' },
     { path: '/threats', expectedTitle: 'Threat Detections' },
@@ -48,7 +55,7 @@ test.describe('Protected routes (authenticated)', () => {
     { path: '/query', expectedTitle: 'Query Explorer' },
     { path: '/rules', expectedTitle: 'Detection Rules' },
     { path: '/users', expectedTitle: 'Users' },
-    { path: '/integrations', expectedTitle: 'Integrations' },
+    { path: '/settings', expectedTitle: 'Settings' },
   ];
 
   for (const route of protectedRoutes) {
@@ -59,8 +66,12 @@ test.describe('Protected routes (authenticated)', () => {
 
       // Should NOT redirect to login when authenticated
       await expect(page).not.toHaveURL(/\/login/);
+
+      // Page titles may be heading elements (h1/h2) or styled divs.
+      // Scope to <main> to avoid matching the sidebar navigation labels.
+      const main = page.locator('main');
       await expect(
-        page.getByRole('heading', { name: route.expectedTitle }),
+        main.getByText(route.expectedTitle).first(),
       ).toBeVisible({ timeout: 10_000 });
     });
   }

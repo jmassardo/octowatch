@@ -151,6 +151,7 @@ jobs:
         working-directory: backend
       - name: Run tests with coverage
         run: pytest tests/ -v --cov=app --cov-report=xml --cov-fail-under=60
+        # NOTE: local pyproject.toml also sets --cov-fail-under=60; keep them in sync
         working-directory: backend
         env:
           DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/audit_log_test
@@ -357,6 +358,33 @@ jobs:
         run: |
           curl -sf http://localhost/health | jq .
           curl -sf http://localhost/ready || echo "Ready check returned non-200 (dependency may be missing in CI)"
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6.3.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Run Playwright E2E tests
+        run: npx playwright test --reporter=list
+        working-directory: frontend
+        env:
+          BASE_URL: http://localhost
+          E2E_USER: admin
+          E2E_PASS: admin
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
       - name: Dump logs on failure
         if: failure()
         run: docker compose logs --tail=100
