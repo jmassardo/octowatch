@@ -316,7 +316,7 @@ jobs:
           POSTGRES_USER=test
           POSTGRES_PASSWORD=test
           POSTGRES_DB=auditlogs
-          VALKEY_URL=redis://valkey:6379/0
+          VALKEY_URL=redis://:test@valkey:6379/0
           VALKEY_PASSWORD=test
           SECRET_KEY=e2e-test-secret-key-not-for-production
           INGESTION_MODE=minio
