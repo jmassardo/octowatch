@@ -339,6 +339,11 @@ jobs:
           docker build --target production -t octowatch-api:latest backend/
           docker build --target worker -t octowatch-worker:latest backend/
           docker build -t octowatch-frontend:latest frontend/
+          # Generate self-signed TLS cert for nginx in CI
+          mkdir -p nginx/ssl
+          openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
+            -keyout nginx/ssl/key.pem -out nginx/ssl/cert.pem \
+            -subj "/CN=localhost" 2>/dev/null
           docker compose up -d db valkey minio
           sleep 15
           docker compose run --rm migrate || true
@@ -347,7 +352,7 @@ jobs:
       - name: Health check
         run: |
           for i in $(seq 1 10); do
-            if curl -sf http://localhost/health; then
+            if curl -skf https://localhost/health; then
               echo "API is healthy"
               break
             fi
@@ -356,8 +361,8 @@ jobs:
           done
       - name: Smoke tests
         run: |
-          curl -sf http://localhost/health | jq .
-          curl -sf http://localhost/ready || echo "Ready check returned non-200 (dependency may be missing in CI)"
+          curl -skf https://localhost/health | jq .
+          curl -skf https://localhost/ready || echo "Ready check returned non-200 (dependency may be missing in CI)"
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6.3.0
         with:
           node-version: "20"
@@ -373,7 +378,8 @@ jobs:
         run: npx playwright test --reporter=list
         working-directory: frontend
         env:
-          BASE_URL: http://localhost
+          BASE_URL: https://localhost
+          NODE_TLS_REJECT_UNAUTHORIZED: "0"
           E2E_USER: admin
           E2E_PASS: admin
       - name: Upload Playwright report
