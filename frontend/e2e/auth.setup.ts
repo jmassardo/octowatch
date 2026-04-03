@@ -38,17 +38,23 @@ setup('authenticate via dev-login', async ({ page }) => {
   // Ensure the .auth directory exists
   fs.mkdirSync(path.dirname(AUTH_FILE), { recursive: true });
 
-  // POST to the dev-login endpoint (only available when ENVIRONMENT != production).
-  // Using page.request so Set-Cookie headers are stored in the browser context.
-  const response = await page.request.post('/api/v1/auth/dev-login', {
-    data: { username: user, password: pass },
-  });
+  // Navigate to a page first so cookies are set in the browser context.
+  // Then call dev-login via fetch() inside the page context.
+  await page.goto('/login');
+  const status = await page.evaluate(
+    async ({ username, password }) => {
+      const res = await fetch('/api/v1/auth/dev-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      return res.status;
+    },
+    { username: user, password: pass },
+  );
 
-  if (!response.ok()) {
-    const body = await response.text();
-    throw new Error(
-      `dev-login failed: ${response.status()} ${response.statusText()}\n${body}`,
-    );
+  if (status !== 200) {
+    throw new Error(`dev-login failed with status ${status}`);
   }
 
   // Persist the authenticated browser state (cookies + localStorage) so that
