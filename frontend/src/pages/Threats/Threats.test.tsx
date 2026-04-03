@@ -267,6 +267,56 @@ describe('ThreatsPage with data', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// URL severity param initialization
+// ---------------------------------------------------------------------------
+
+describe('ThreatsPage severity URL param', () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockListDetections.mockClear();
+    mockListDetections.mockResolvedValue({ items: [], total: 0 });
+  });
+
+  it('initializes severity filter from URL search params', async () => {
+    renderWithProviders(<ThreatsPage />, { route: '/threats?severity=critical' });
+
+    // Filter panel should be visible since severity was provided via URL
+    expect(screen.getByDisplayValue('Critical')).toBeInTheDocument();
+
+    // API should be called with the severity filter from URL
+    expect(mockListDetections).toHaveBeenCalledWith(
+      expect.objectContaining({ severity: 'critical' }),
+    );
+  });
+
+  it('auto-opens filter panel when severity is provided via URL', () => {
+    renderWithProviders(<ThreatsPage />, { route: '/threats?severity=high' });
+
+    // The severity dropdown should be visible without clicking the Filter button
+    expect(screen.getByDisplayValue('High')).toBeInTheDocument();
+  });
+
+  it('defaults to empty severity filter when no URL param is present', () => {
+    renderWithProviders(<ThreatsPage />);
+
+    // Filter panel should not be visible by default
+    expect(screen.queryByDisplayValue('All severities')).not.toBeInTheDocument();
+  });
+
+  it('passes severity from URL to the detections API query', async () => {
+    renderWithProviders(<ThreatsPage />, { route: '/threats?severity=medium' });
+
+    // Wait for queries to fire
+    await screen.findByText(/no open threats|Threat Detections/i);
+
+    const callsWithMedium = mockListDetections.mock.calls.filter(
+      (call: unknown[]) => (call[0] as Record<string, unknown>).severity === 'medium',
+    );
+    expect(callsWithMedium.length).toBeGreaterThan(0);
+  });
+});
+
 describe('ThreatsPage tab count badges', () => {
   beforeEach(() => {
     mockNavigate.mockClear();

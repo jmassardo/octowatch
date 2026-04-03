@@ -589,4 +589,59 @@ describe('EventsPage', () => {
     const chips = screen.queryAllByText(/unsupported:value/);
     expect(chips).toHaveLength(0);
   });
+
+  // -------------------------------------------------------------------------
+  // URL since/until param initialization
+  // -------------------------------------------------------------------------
+
+  it('initializes since chip from URL query param', async () => {
+    renderWithProviders(<EventsPage />, { route: '/events?since=2024-06-01' });
+
+    expect(await screen.findByText('since:2024-06-01')).toBeInTheDocument();
+  });
+
+  it('initializes until chip from URL query param', async () => {
+    renderWithProviders(<EventsPage />, { route: '/events?until=2024-06-30' });
+
+    expect(await screen.findByText('until:2024-06-30')).toBeInTheDocument();
+  });
+
+  it('initializes both since and until chips from URL query params', async () => {
+    renderWithProviders(<EventsPage />, {
+      route: '/events?since=2024-06-01&until=2024-06-30',
+    });
+
+    expect(await screen.findByText('since:2024-06-01')).toBeInTheDocument();
+    expect(screen.getByText('until:2024-06-30')).toBeInTheDocument();
+  });
+
+  it('passes since/until from URL chips to the API call', async () => {
+    renderWithProviders(<EventsPage />, {
+      route: '/events?since=2024-06-01&until=2024-06-30',
+    });
+
+    await screen.findByText('since:2024-06-01');
+
+    expect(listEventsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ since: '2024-06-01', until: '2024-06-30' }),
+    );
+  });
+
+  it('combines since/until with other URL params as chips', async () => {
+    renderWithProviders(<EventsPage />, {
+      route: '/events?actor=alice&since=2024-06-01&until=2024-06-30',
+    });
+
+    expect(await screen.findByText('actor:alice')).toBeInTheDocument();
+    expect(screen.getByText('since:2024-06-01')).toBeInTheDocument();
+    expect(screen.getByText('until:2024-06-30')).toBeInTheDocument();
+
+    expect(listEventsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: 'alice',
+        since: '2024-06-01',
+        until: '2024-06-30',
+      }),
+    );
+  });
 });

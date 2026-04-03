@@ -210,7 +210,20 @@ export function TopBar() {
                   <div className={styles.menuHeader}>
                     <span className={styles.menuLogin}>@{user.github_login}</span>
                     {user.roles.length > 0 && (
-                      <span className={styles.menuRole}>{user.roles[0]}</span>
+                      <span className={styles.menuRole}>
+                        {user.roles
+                          .map((r) => {
+                            const names: Record<string, string> = {
+                              sys_admin: 'Sys Admin',
+                              report_admin: 'Report Admin',
+                              rule_author: 'Rule Author',
+                              analyst: 'Analyst',
+                              viewer: 'Viewer',
+                            };
+                            return names[r] ?? r;
+                          })
+                          .join(', ')}
+                      </span>
                     )}
                   </div>
                   <div className={styles.menuDivider} />

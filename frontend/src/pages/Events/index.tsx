@@ -29,7 +29,7 @@ export function EventsPage() {
   const [chips, setChips] = useState<string[]>(() => {
     // Initialize chips from URL query params on first render
     const urlChips: string[] = [];
-    const supportedParams = ['repo', 'actor', 'action', 'org'];
+    const supportedParams = ['repo', 'actor', 'action', 'org', 'since', 'until'];
     for (const param of supportedParams) {
       const val = searchParams.get(param);
       if (val) {
@@ -61,7 +61,7 @@ export function EventsPage() {
   useEffect(() => {
     if (clearedUrlParams.current) return;
     clearedUrlParams.current = true;
-    const supportedParams = ['repo', 'actor', 'action', 'org'];
+    const supportedParams = ['repo', 'actor', 'action', 'org', 'since', 'until'];
     const hasParams = supportedParams.some((p) => searchParams.has(p));
     if (hasParams) {
       setSearchParams({}, { replace: true });

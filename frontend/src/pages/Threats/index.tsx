@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   listDetections,
@@ -57,10 +57,12 @@ function hasEntries(value: unknown): value is Record<string, unknown> {
 type TabFilter = 'open' | 'investigating' | 'closed' | 'acknowledged' | 'all';
 
 export function ThreatsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<TabFilter>('open');
   const [selected, setSelected] = useState<DetectionResponse | null>(null);
-  const [filtersVisible, setFiltersVisible] = useState(false);
-  const [severityFilter, setSeverityFilter] = useState('');
+  const initialSeverity = searchParams.get('severity') ?? '';
+  const [filtersVisible, setFiltersVisible] = useState(initialSeverity !== '');
+  const [severityFilter, setSeverityFilter] = useState(initialSeverity);
   const [page, setPage] = useState(1);
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -168,8 +170,14 @@ export function ThreatsPage() {
             <select
               value={severityFilter}
               onChange={(e) => {
-                setSeverityFilter(e.target.value);
+                const value = e.target.value;
+                setSeverityFilter(value);
                 setPage(1);
+                if (value) {
+                  setSearchParams({ severity: value }, { replace: true });
+                } else {
+                  setSearchParams({}, { replace: true });
+                }
               }}
               style={{
                 padding: '4px 8px',
