@@ -312,20 +312,19 @@ class TestGitHubIPAllowlistMiddleware:
 
         from fastapi.testclient import TestClient
 
-        # TestClient uses 'testclient' as host, so let's use X-Forwarded-For
         GitHubIPAllowlist._loaded = True
         GitHubIPAllowlist._networks = [ipaddress.ip_network("10.0.0.0/8")]
 
         app = self._build_app()
         client = TestClient(app)
-        resp = client.get(
-            "/api/v1/ingest/webhook",
-            headers={"x-forwarded-for": "10.1.2.3"},
-        )
+        # Patch get_client_ip so the middleware sees the desired IP.
+        # TestClient's peer address is "testclient" which is not a valid IP.
+        with patch("app.middleware.ip_allowlist.get_client_ip", return_value="10.1.2.3"):
+            resp = client.get("/api/v1/ingest/webhook")
         assert resp.status_code == 200
 
-    def test_protected_path_uses_x_forwarded_for(self) -> None:
-        """Middleware extracts client IP from X-Forwarded-For header."""
+    def test_protected_path_uses_get_client_ip(self) -> None:
+        """Middleware delegates IP extraction to get_client_ip utility."""
         import ipaddress
 
         from fastapi.testclient import TestClient
@@ -336,18 +335,14 @@ class TestGitHubIPAllowlistMiddleware:
         app = self._build_app()
         client = TestClient(app)
 
-        # With matching X-Forwarded-For
-        resp = client.get(
-            "/api/v1/ingest/webhook",
-            headers={"x-forwarded-for": "203.0.113.50, 10.0.0.1"},
-        )
+        # With matching IP from get_client_ip
+        with patch("app.middleware.ip_allowlist.get_client_ip", return_value="203.0.113.50"):
+            resp = client.get("/api/v1/ingest/webhook")
         assert resp.status_code == 200
 
-        # With non-matching X-Forwarded-For
-        resp = client.get(
-            "/api/v1/ingest/webhook",
-            headers={"x-forwarded-for": "198.51.100.1"},
-        )
+        # With non-matching IP from get_client_ip
+        with patch("app.middleware.ip_allowlist.get_client_ip", return_value="198.51.100.1"):
+            resp = client.get("/api/v1/ingest/webhook")
         assert resp.status_code == 403
 
     def test_fail_open_when_not_loaded(self) -> None:

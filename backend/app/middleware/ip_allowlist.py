@@ -16,6 +16,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from app.services.github_ip_allowlist import GitHubIPAllowlist
+from app.utils.client_ip import get_client_ip
 
 logger = structlog.get_logger(__name__)
 
@@ -40,10 +41,8 @@ class GitHubIPAllowlistMiddleware(BaseHTTPMiddleware):
             response: Response = await call_next(request)
             return response
 
-        # Extract client IP (respect X-Forwarded-For behind reverse proxy)
-        client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-        if not client_ip:
-            client_ip = request.client.host if request.client else ""
+        # Extract client IP using trusted-proxy-aware utility
+        client_ip = get_client_ip(request) or ""
 
         if not client_ip or not GitHubIPAllowlist.is_allowed(client_ip):
             logger.warning(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
 import redis.asyncio as aioredis
@@ -23,6 +24,7 @@ from app.schemas.integration import (
 from app.services.audit_service import log_action
 from app.services.report_service import get_top_actors_report
 from app.services.settings_service import get_setting, set_setting
+from app.utils.client_ip import get_client_ip
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -125,12 +127,7 @@ async def create_role_assignment(
 
     # Eagerly load the role relationship for the response
     await db.refresh(assignment, attribute_names=["role"])
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (request.client.host if request.client else None)
-    )
+    ip = get_client_ip(request)
     await log_action(
         db,
         user_login=current_user.github_login,
@@ -175,12 +172,7 @@ async def delete_role_assignment(
     assignment_role_id = assignment.role_id
     await db.delete(assignment)
     await db.flush()
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (request.client.host if request.client else None)
-    )
+    ip = get_client_ip(request)
     await log_action(
         db,
         user_login=current_user.github_login,
@@ -349,24 +341,113 @@ async def get_event_trend(
     )
 
 
-@router.post("/audit-trail/export", response_model=dict, dependencies=[Depends(verify_csrf)])
+@router.post("/audit-trail/export", dependencies=[Depends(verify_csrf)])
 async def export_audit_trail(
     from_date: str,
     to_date: str,
+    format: str = "csv",
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Trigger audit trail export (returns count of records in range)."""
+) -> Response:
+    """Export audit trail records as a downloadable CSV or NDJSON file.
+
+    Streams results to keep memory usage constant regardless of result-set size.
+    """
+    import csv
+    import io
+    import json as _json
+    from datetime import datetime as _dt
+
+    from fastapi.responses import StreamingResponse
+
     from app.models.audit_trail import AuditTrail
 
-    result = await db.execute(
-        select(AuditTrail).where(
-            AuditTrail.created_at >= from_date,
-            AuditTrail.created_at <= to_date,
+    if format not in ("csv", "json"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported export format: {format!r}. Use 'csv' or 'json'.",
         )
+
+    result = await db.execute(
+        select(AuditTrail)
+        .where(
+            AuditTrail.timestamp >= from_date,
+            AuditTrail.timestamp <= to_date,
+        )
+        .order_by(AuditTrail.timestamp)
     )
-    count = len(result.scalars().all())
-    return {"record_count": count, "from_date": from_date, "to_date": to_date}
+    rows = result.scalars().all()
+
+    _CSV_COLUMNS = [
+        "id",
+        "timestamp",
+        "user_login",
+        "user_github_id",
+        "ip_address",
+        "user_agent",
+        "action_type",
+        "resource_type",
+        "resource_id",
+        "parameters",
+        "outcome",
+        "error_detail",
+    ]
+
+    def _serialize_value(value: object) -> str:
+        """Convert a value to a CSV-safe string."""
+        if value is None:
+            return ""
+        if isinstance(value, _dt):
+            return value.isoformat()
+        if isinstance(value, dict):
+            return _json.dumps(value)
+        return str(value)
+
+    def _row_to_dict(row: AuditTrail) -> dict[str, str]:
+        return {col: _serialize_value(getattr(row, col, None)) for col in _CSV_COLUMNS}
+
+    safe_from = from_date.replace(":", "-")
+    safe_to = to_date.replace(":", "-")
+
+    if format == "json":
+
+        def _generate_ndjson() -> Iterator[str]:
+            for row in rows:
+                yield _json.dumps(_row_to_dict(row)) + "\n"
+
+        return StreamingResponse(
+            _generate_ndjson(),
+            media_type="application/x-ndjson",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="audit_trail_{safe_from}_to_{safe_to}.ndjson"'
+                ),
+            },
+        )
+
+    # Default: CSV
+    def _generate_csv() -> Iterator[str]:
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=_CSV_COLUMNS)
+        writer.writeheader()
+        yield buf.getvalue()
+        buf.seek(0)
+        buf.truncate(0)
+        for row in rows:
+            writer.writerow(_row_to_dict(row))
+            yield buf.getvalue()
+            buf.seek(0)
+            buf.truncate(0)
+
+    return StreamingResponse(
+        _generate_csv(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="audit_trail_{safe_from}_to_{safe_to}.csv"'
+            ),
+        },
+    )
 
 
 # ─── Active sessions ─────────────────────────────────────────────────────────
@@ -642,9 +723,7 @@ async def refresh_github_ip_allowlist(
 
     count = await GitHubIPAllowlist.refresh(valkey)
 
-    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-    if not ip:
-        ip = request.client.host if request.client else None
+    ip = get_client_ip(request)
     await log_action(
         db,
         user_login=current_user.github_login,

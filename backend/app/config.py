@@ -68,6 +68,15 @@ class AuthSettings(BaseSettings):
     SAML_SP_KEY: str | None = Field(None, description="PEM-encoded SP private key")
 
     JWT_TTL_SECONDS: int = Field(default=3600, description="JWT and session TTL in seconds")
+    ROLE_REFRESH_INTERVAL_SECONDS: int = Field(
+        default=300,
+        ge=30,
+        le=3600,
+        description=(
+            "How often to re-fetch user roles from database (seconds). "
+            "Lower = faster revocation, higher = less DB load."
+        ),
+    )
 
     @field_validator("APP_BASE_URL")
     @classmethod
@@ -408,6 +417,16 @@ class Settings(BaseSettings):
     ENCRYPTION_KEY: str = Field(
         default="",
         description="Master key for encrypting secrets in the DB. If empty, SECRET_KEY is used.",
+    )
+
+    # Network / proxy trust
+    TRUSTED_PROXIES: list[str] = Field(
+        default_factory=list,
+        description=(
+            "List of trusted proxy IPs/CIDRs (e.g., ['10.0.0.0/8', '172.16.0.0/12']). "
+            "When the direct client IP is in this list, X-Forwarded-For is parsed "
+            "right-to-left and the first non-trusted IP is returned."
+        ),
     )
 
     # Core

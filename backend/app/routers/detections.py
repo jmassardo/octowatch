@@ -19,6 +19,7 @@ from app.schemas.detection import (
 )
 from app.services.audit_service import log_action
 from app.services.rbac_service import get_user_scope
+from app.utils.client_ip import get_client_ip
 
 router = APIRouter(prefix="/detections", tags=["detections"])
 
@@ -138,12 +139,7 @@ async def update_detection_status(
         detection.resolution_note = payload.resolution_note
     await db.flush()
 
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (request.client.host if request.client else None)
-    )
+    ip = get_client_ip(request)
     await log_action(
         db,
         user_login=current_user.github_login,
@@ -175,12 +171,7 @@ async def assign_detection(
 
     detection.assigned_to = payload.assigned_to
     await db.flush()
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (request.client.host if request.client else None)
-    )
+    ip = get_client_ip(request)
     await log_action(
         db,
         user_login=current_user.github_login,
@@ -232,12 +223,7 @@ async def delete_detection(
     detection = await _get_detection_or_404(db, detection_id, scope.scoped_orgs)
     await db.delete(detection)
     await db.flush()
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (request.client.host if request.client else None)
-    )
+    ip = get_client_ip(request)
     await log_action(
         db,
         user_login=current_user.github_login,

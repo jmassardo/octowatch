@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_session
+from app.utils.client_ip import get_client_ip
 
 logger = structlog.get_logger(__name__)
 
@@ -163,10 +164,11 @@ async def get_current_user(
     github_login: str = session_data["github_login"]
 
     # ── Periodic role refresh (H4) ──────────────────────────────────────────
-    # Roles are cached in Valkey at login.  Re-resolve from the database every
-    # 5 minutes so that revoked roles take effect without waiting for JWT expiry.
+    # Roles are cached in Valkey at login.  Re-resolve from the database
+    # periodically so that revoked roles take effect without waiting for JWT
+    # expiry.  Interval is configured via ROLE_REFRESH_INTERVAL_SECONDS.
     last_refresh = float(session_data.get("roles_refreshed_at", 0) or 0)
-    if time.time() - last_refresh > 300:  # 5 minutes
+    if time.time() - last_refresh > settings.AUTH.ROLE_REFRESH_INTERVAL_SECONDS:
         try:
             from app.database import AsyncSessionLocal
             from app.services.rbac_service import get_user_scope, resolve_roles
@@ -306,14 +308,8 @@ async def verify_csrf(
 
 async def get_request_meta(request: Request) -> dict[str, str | None]:
     """Extract IP and user-agent from the request for audit logging."""
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (request.client.host if request.client else None)
-    )
     return {
-        "ip_address": ip,
+        "ip_address": get_client_ip(request),
         "user_agent": request.headers.get("user-agent"),
     }
 

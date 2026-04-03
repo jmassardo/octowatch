@@ -2,32 +2,29 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
 from app.models.audit_trail import AuditTrail
+from app.models.query_template import QueryTemplate as QueryTemplateModel
 from app.rate_limit import limiter
 from app.schemas.query import QueryRunRequest, QueryRunResponse, QueryTemplate, QueryTemplateCreate
 from app.services.query_service import QueryValidationError, execute_query
 from app.services.rbac_service import get_user_scope
+from app.utils.client_ip import get_client_ip
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/query", tags=["query"])
 
-# In-memory query template store (production: use DB table)
-_QUERY_TEMPLATES: dict[int, dict] = {}
-_template_counter = 0
-
 
 def _get_client_ip(request: Request) -> str | None:
-    """Extract the client IP from the request."""
-    return request.client.host if request.client else None
+    """Extract the client IP from the request using trusted-proxy-aware logic."""
+    return get_client_ip(request)
 
 
 @router.post("/run", response_model=QueryRunResponse, dependencies=[Depends(verify_csrf)])
@@ -210,9 +207,13 @@ async def list_templates(
     current_user: AuthenticatedUser = Depends(
         require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
     ),
+    db: AsyncSession = Depends(get_db),
 ) -> list[QueryTemplate]:
     """List available query templates."""
-    return [QueryTemplate(**t) for t in _QUERY_TEMPLATES.values()]
+    result = await db.execute(
+        select(QueryTemplateModel).order_by(QueryTemplateModel.created_at.desc())
+    )
+    return [QueryTemplate.model_validate(row) for row in result.scalars().all()]
 
 
 @router.post(
@@ -224,20 +225,20 @@ async def list_templates(
 async def create_template(
     payload: QueryTemplateCreate,
     current_user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
+    db: AsyncSession = Depends(get_db),
 ) -> QueryTemplate:
     """Create a new query template."""
-    global _template_counter
-    _template_counter += 1
-    template = QueryTemplate(
-        id=_template_counter,
+    template = QueryTemplateModel(
         name=payload.name,
         description=payload.description,
         sql=payload.sql,
         created_by=current_user.github_login,
-        created_at=datetime.now(UTC).isoformat(),
+        org_slug=payload.org_slug,
     )
-    _QUERY_TEMPLATES[_template_counter] = template.model_dump()
-    return template
+    db.add(template)
+    await db.flush()
+    await db.refresh(template)
+    return QueryTemplate.model_validate(template)
 
 
 @router.get("/templates/{template_id}", response_model=QueryTemplate)
@@ -246,23 +247,33 @@ async def get_template(
     current_user: AuthenticatedUser = Depends(
         require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
     ),
+    db: AsyncSession = Depends(get_db),
 ) -> QueryTemplate:
     """Get a query template by ID."""
-    t = _QUERY_TEMPLATES.get(template_id)
-    if not t:
+    result = await db.execute(
+        select(QueryTemplateModel).where(QueryTemplateModel.id == template_id)
+    )
+    template = result.scalar_one_or_none()
+    if not template:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
-    return QueryTemplate(**t)
+    return QueryTemplate.model_validate(template)
 
 
 @router.delete("/templates/{template_id}", dependencies=[Depends(verify_csrf)])
 async def delete_template(
     template_id: int,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Delete a query template."""
-    if template_id not in _QUERY_TEMPLATES:
+    result = await db.execute(
+        select(QueryTemplateModel).where(QueryTemplateModel.id == template_id)
+    )
+    template = result.scalar_one_or_none()
+    if not template:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
-    del _QUERY_TEMPLATES[template_id]
+    await db.delete(template)
+    await db.flush()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -279,12 +290,15 @@ async def run_template(
     db: AsyncSession = Depends(get_db),
 ) -> QueryRunResponse:
     """Execute a saved query template."""
-    t = _QUERY_TEMPLATES.get(template_id)
-    if not t:
+    result = await db.execute(
+        select(QueryTemplateModel).where(QueryTemplateModel.id == template_id)
+    )
+    template = result.scalar_one_or_none()
+    if not template:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
 
     scope = await get_user_scope(db, current_user.github_login, current_user.roles)
     try:
-        return await execute_query(db, sql=t["sql"], scope=scope)
+        return await execute_query(db, sql=template.sql, scope=scope)
     except (QueryValidationError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

@@ -164,19 +164,20 @@ class TestLogAction:
 
 class TestGetRequestMeta:
     @pytest.mark.asyncio
-    async def test_extracts_ip_from_forwarded_header(self) -> None:
-        """When x-forwarded-for is present, use the first IP."""
+    async def test_returns_direct_ip_when_no_trusted_proxies(self) -> None:
+        """Without trusted proxies, XFF is ignored and direct IP is returned."""
         request = _make_mock_request(forwarded_for="1.2.3.4")
         meta = await get_request_meta(request)
-        assert meta["ip_address"] == "1.2.3.4"
+        # XFF is not trusted by default — returns the direct client IP
+        assert meta["ip_address"] == "127.0.0.1"
         assert meta["user_agent"] == "TestAgent/1.0"
 
     @pytest.mark.asyncio
-    async def test_extracts_first_ip_from_multiple_forwarded(self) -> None:
-        """When x-forwarded-for has multiple IPs, use the first."""
+    async def test_returns_direct_ip_when_xff_present_but_untrusted(self) -> None:
+        """When XFF has multiple IPs but no trusted proxies, direct IP is returned."""
         request = _make_mock_request(forwarded_for="1.2.3.4, 10.0.0.1, 192.168.1.1")
         meta = await get_request_meta(request)
-        assert meta["ip_address"] == "1.2.3.4"
+        assert meta["ip_address"] == "127.0.0.1"
 
     @pytest.mark.asyncio
     async def test_falls_back_to_client_host(self) -> None:
@@ -552,7 +553,8 @@ class TestSyncAuditLogging:
 class TestAuditLoggingIPExtraction:
     """Verify that IP address and user-agent are correctly extracted."""
 
-    def test_x_forwarded_for_is_used(self) -> None:
+    def test_uses_get_client_ip_utility(self) -> None:
+        """The rules router uses get_client_ip for IP extraction."""
         from app.routers import rules as rules_module
 
         token = _make_jwt()
@@ -570,12 +572,13 @@ class TestAuditLoggingIPExtraction:
             patch("app.routers.rules.rule_service.delete_rule", AsyncMock()),
             patch("app.routers.rules.invalidate_rule_cache", AsyncMock()),
             patch("app.routers.rules.log_action", new_callable=AsyncMock) as mock_log,
+            patch("app.routers.rules.get_client_ip", return_value="203.0.113.50"),
         ):
             client = TestClient(app, raise_server_exceptions=True)
             resp = client.delete(
                 "/api/v1/rules/1",
                 cookies={"access_token": token, "csrf_token": "tok"},
-                headers={"X-Forwarded-For": "203.0.113.50, 10.0.0.1", "X-CSRF-Token": "tok"},
+                headers={"X-CSRF-Token": "tok"},
             )
 
         assert resp.status_code == 204

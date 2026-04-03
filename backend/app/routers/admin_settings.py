@@ -21,6 +21,7 @@ from app.services.settings_service import (
     list_settings,
     set_setting,
 )
+from app.utils.client_ip import get_client_ip
 
 router = APIRouter(prefix="/admin/settings", tags=["admin-settings"])
 
@@ -84,12 +85,7 @@ async def update_setting_endpoint(
     )
     # Refresh the in-memory overlay so changes take effect immediately
     await load_settings_overlay(db)
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (request.client.host if request.client else None)
-    )
+    ip = get_client_ip(request)
     await log_action(
         db,
         user_login=current_user.github_login,
@@ -119,12 +115,7 @@ async def delete_setting_endpoint(
         )
     # Refresh overlay — the env var default will now take effect
     await load_settings_overlay(db)
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (request.client.host if request.client else None)
-    )
+    ip = get_client_ip(request)
     await log_action(
         db,
         user_login=current_user.github_login,

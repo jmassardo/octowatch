@@ -27,6 +27,7 @@ from app.services.auth_service import (
     store_session,
 )
 from app.services.rbac_service import get_user_scope, resolve_roles
+from app.utils.client_ip import get_client_ip
 
 logger = structlog.get_logger(__name__)
 
@@ -186,7 +187,11 @@ async def saml_login(request: Request) -> RedirectResponse:
     return RedirectResponse(url=auth.login())
 
 
-@router.post("/saml/acs", dependencies=[Depends(verify_csrf)])
+# CSRF verification is intentionally omitted for the SAML ACS endpoint.
+# The IdP POSTs back here and cannot provide our app's CSRF tokens.
+# SAML responses are protected against forgery by cryptographically signed
+# assertions, which are validated in auth.process_response() below.
+@router.post("/saml/acs")
 @limiter.limit("10/minute")
 async def saml_acs(
     request: Request,
@@ -287,7 +292,7 @@ async def dev_login(
     logger.warning(
         "auth.dev_login_used",
         username=username,
-        remote_ip=request.client.host if request.client else "unknown",
+        remote_ip=get_client_ip(request) or "unknown",
     )
 
     roles = await resolve_roles(db, username)

@@ -44,6 +44,7 @@ from app.routers import (
     sync,
 )
 from app.services.geoip_service import close_geoip_db, load_geoip_db
+from app.utils.client_ip import get_client_ip
 
 logger = structlog.get_logger(__name__)
 
@@ -124,7 +125,7 @@ class AuditTrailMiddleware(BaseHTTPMiddleware):
                 status_code=response.status_code,
                 actor=actor,
                 elapsed_ms=elapsed_ms,
-                client_ip=request.client.host if request.client else None,
+                client_ip=get_client_ip(request),
             )
 
             # Async DB write is done in background to avoid blocking the response
@@ -142,7 +143,7 @@ class AuditTrailMiddleware(BaseHTTPMiddleware):
                             ),
                             resource_type="api_endpoint",
                             resource_id=None,
-                            ip_address=request.client.host if request.client else None,
+                            ip_address=get_client_ip(request),
                             request_method=request.method,
                             request_path=request.url.path,
                             response_status=response.status_code,

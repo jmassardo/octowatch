@@ -27,6 +27,7 @@ from app.services import rule_service
 from app.services.audit_service import log_action
 from app.services.detection_service import _SAFE_DISTINCT_COLUMNS, evaluate_rule_against_event
 from app.services.rule_service import invalidate_rule_cache
+from app.utils.client_ip import get_client_ip
 
 router = APIRouter(prefix="/rules", tags=["rules"])
 
@@ -255,12 +256,7 @@ async def create_rule(
             detail=f"Rule with slug '{payload.slug}' already exists",
         )
     rule = await rule_service.create_rule(db, payload=payload, created_by=current_user.github_login)
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (request.client.host if request.client else None)
-    )
+    ip = get_client_ip(request)
     await log_action(
         db,
         user_login=current_user.github_login,
@@ -333,12 +329,7 @@ async def update_rule(
         db, rule=rule, payload=payload, updated_by=current_user.github_login
     )
     await invalidate_rule_cache(valkey, rule_id)
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (request.client.host if request.client else None)
-    )
+    ip = get_client_ip(request)
     params: dict[str, Any] = {"slug": payload.slug, "name": payload.name}
     if old_name != payload.name:
         params["old_name"] = old_name
@@ -373,12 +364,7 @@ async def update_rule_status(
         db, rule=rule, payload=payload, updated_by=current_user.github_login
     )
     await invalidate_rule_cache(valkey, rule_id)
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (request.client.host if request.client else None)
-    )
+    ip = get_client_ip(request)
     await log_action(
         db,
         user_login=current_user.github_login,
@@ -407,12 +393,7 @@ async def delete_rule(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
     await rule_service.delete_rule(db, rule=rule, deleted_by=current_user.github_login)
     await invalidate_rule_cache(valkey, rule_id)
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (request.client.host if request.client else None)
-    )
+    ip = get_client_ip(request)
     await log_action(
         db,
         user_login=current_user.github_login,

@@ -35,6 +35,7 @@ from app.schemas.github_sync import (
 )
 from app.services.audit_service import log_action
 from app.services.settings_service import get_setting, set_setting
+from app.utils.client_ip import get_client_ip
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/sync", tags=["sync"])
@@ -95,12 +96,7 @@ async def trigger_sync(
     db.add(run)
 
     # Audit trail
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (request.client.host if request.client else None)
-    )
+    ip = get_client_ip(request)
     await log_action(
         db,
         user_login=current_user.github_login,
