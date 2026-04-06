@@ -9,16 +9,16 @@ description = "GitHub Enterprise Cloud audit log ingestion, detection, and repor
 requires-python = ">=3.12"
 dependencies = [
     # Web framework
-    "fastapi==0.135.2",
-    "uvicorn[standard]==0.42.0",
-    "python-multipart==0.0.22",
+    "fastapi==0.135.3",
+    "uvicorn[standard]==0.43.0",
+    "python-multipart==0.0.24",
 
     # Data validation
     "pydantic==2.12.5",
     "pydantic-settings==2.13.1",
 
     # Database
-    "sqlalchemy==2.0.48",
+    "sqlalchemy==2.0.49",
     "asyncpg==0.31.0",
     "alembic==1.18.4",
 
@@ -42,7 +42,7 @@ dependencies = [
     "maxminddb==3.1.1",
 
     # S3 / MinIO ingestion
-    "boto3==1.42.77",
+    "boto3==1.42.83",
 
     # Azure Blob ingestion
     "azure-storage-blob==12.28.0",
@@ -63,7 +63,7 @@ dependencies = [
     "PyGithub==2.9.0",
 
     # IdP enrichment
-    "okta==3.2.0",
+    "okta==3.3.0",
     "msal==1.35.1",
     "google-auth==2.49.1",
     "google-api-python-client==2.193.0",
@@ -71,8 +71,8 @@ dependencies = [
     # Git / Rule versioning
 
     # Data processing (baselines)
-    "pandas==3.0.1",
-    "numpy==2.4.3",
+    "pandas==3.0.2",
+    "numpy==2.4.4",
 
     # Security
     "cryptography>=42.0.0",
