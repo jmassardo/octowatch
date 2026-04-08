@@ -89,6 +89,34 @@ OctoWatch is designed for self-hosted deployment. It ships as Docker containers 
 
    Visit [https://localhost](https://localhost) in your browser.
 
+## Local Development
+
+For working on individual components without Docker:
+
+**Prerequisites:** Python 3.12+, Node.js 20+
+
+```bash
+# Backend
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+pytest
+
+# Frontend (in a separate terminal)
+cd frontend
+npm install
+npm run dev
+```
+
+The backend requires TimescaleDB, Valkey, and MinIO — start just the infrastructure with:
+
+```bash
+docker compose up -d db valkey minio
+```
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development guide including linting, testing, and pre-commit hooks.
+
 ## Configuration
 
 OctoWatch is configured through environment variables. See [`backend/.env.example`](backend/.env.example) for a complete reference of all available settings.
