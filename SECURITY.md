@@ -10,9 +10,9 @@ If you discover a security vulnerability in OctoWatch, we appreciate your help i
 
 Report vulnerabilities through [GitHub Security Advisories](https://github.com/octowatch/octowatch/security/advisories/new). This allows us to collaborate on a fix privately before public disclosure.
 
-### Alternative: Email
+### Alternative: Issue
 
-If you prefer, you can email **security@octowatch.dev** with details of the vulnerability. Please include:
+If you are unable to use Security Advisories, you can open a [regular issue](https://github.com/octowatch/octowatch/issues/new) with the label **security**. Please include:
 
 - A description of the vulnerability
 - Steps to reproduce the issue

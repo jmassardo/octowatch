@@ -59,8 +59,8 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the OctoWatch maintainers responsible for enforcement at
-**conduct@octowatch.dev**.
+reported to the OctoWatch maintainers responsible for enforcement by
+[opening an issue](https://github.com/octowatch/octowatch/issues/new).
 
 All complaints will be reviewed and investigated promptly and fairly.
 
