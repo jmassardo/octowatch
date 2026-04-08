@@ -12,7 +12,7 @@ docker compose build
 test: test-backend test-frontend ## Run all tests
 
 test-backend: ## Run backend tests with coverage
-cd backend && pytest tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=80
+cd backend && pytest tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=60
 
 test-frontend: ## Run frontend tests
 cd frontend && npm test

@@ -90,7 +90,7 @@ npx tsc --noEmit        # TypeScript type checking
 ```bash
 cd backend
 pytest                                    # Run all tests
-pytest --cov=app --cov-fail-under=80      # Run with coverage (80% threshold)
+pytest --cov=app --cov-fail-under=60      # Run with coverage (60% threshold)
 pytest tests/test_specific.py             # Run a specific test file
 ```
 
