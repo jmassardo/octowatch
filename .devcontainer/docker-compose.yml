@@ -1,0 +1,141 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    volumes:
+      - ..:/workspaces/octowatch:cached
+    command: sleep infinity
+    environment:
+      DATABASE_URL: postgresql+asyncpg://appuser:devpass@db:5432/audit_logs
+      VALKEY_URL: redis://:devpass@valkey:6379/0
+      SECRET_KEY: devcontainer-secret-key-not-for-production
+      ENCRYPTION_KEY: devcontainer-encryption-key-000000000000
+      LOG_LEVEL: DEBUG
+      ENVIRONMENT: development
+      INGESTION_MODE: minio
+      MINIO_ENDPOINT_URL: http://minio:9000
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_INGEST_USER: ingest-service
+      MINIO_INGEST_PASSWORD: ingest-devpass
+      MINIO_AUDIT_BUCKET: audit-logs
+      MINIO_STREAM_USER: github-stream
+      MINIO_STREAM_PASSWORD: stream-devpass
+      APP_BASE_URL: http://localhost:8000
+      GITHUB_CLIENT_ID: ""
+      GITHUB_CLIENT_SECRET: ""
+      GITHUB_RULES_REPO: ""
+      GITHUB_RULES_TOKEN: ""
+      DETECTION_CONFIDENCE_THRESHOLD: "0.7"
+      QUERY_MAX_ROWS: "100000"
+      QUERY_TIMEOUT_SECONDS: "30"
+      INITIAL_ADMIN_LOGINS: ""
+    depends_on:
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  db:
+    image: timescale/timescaledb:2.25.1-pg16
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: audit_logs
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U appuser -d audit_logs"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  valkey:
+    image: valkey/valkey:9.0.3-alpine
+    command:
+      - valkey-server
+      - --requirepass
+      - devpass
+      - --appendonly
+      - "yes"
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "-a", "devpass", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_NOTIFY_REDIS_ENABLE_PRIMARY: "on"
+      MINIO_NOTIFY_REDIS_ADDRESS_PRIMARY: valkey:6379
+      MINIO_NOTIFY_REDIS_PASSWORD_PRIMARY: devpass
+      MINIO_NOTIFY_REDIS_KEY_PRIMARY: minio:events
+      MINIO_NOTIFY_REDIS_FORMAT_PRIMARY: access
+    volumes:
+      - minio_data:/data
+    depends_on:
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  minio-setup:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        mc alias set local http://minio:9000 minioadmin minioadmin
+        mc mb --ignore-existing local/audit-logs
+        mc event add local/audit-logs arn:minio:sqs::PRIMARY:redis --event put || true
+        cat > /tmp/ro-policy.json <<EOF
+        {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Action": ["s3:GetObject","s3:ListBucket"],
+            "Resource": ["arn:aws:s3:::audit-logs","arn:aws:s3:::audit-logs/*"]
+          }]
+        }
+        EOF
+        mc admin policy create local ingestion-ro /tmp/ro-policy.json || true
+        mc admin user add local ingest-service ingest-devpass || true
+        mc admin policy attach local ingestion-ro --user ingest-service || true
+        cat > /tmp/stream-policy.json <<EOF
+        {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Action": ["s3:PutObject","s3:GetBucketLocation","s3:ListBucket","s3:ListBucketMultipartUploads","s3:ListMultipartUploadParts","s3:AbortMultipartUpload"],
+            "Resource": ["arn:aws:s3:::audit-logs","arn:aws:s3:::audit-logs/*"]
+          }]
+        }
+        EOF
+        mc admin policy create local streaming-write /tmp/stream-policy.json || true
+        mc admin user add local github-stream stream-devpass || true
+        mc admin policy attach local streaming-write --user github-stream || true
+        echo "minio-setup: completed"
+    restart: on-failure
+
+volumes:
+  pg_data:
+  valkey_data:
+  minio_data:
