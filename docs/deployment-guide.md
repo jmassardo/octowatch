@@ -373,7 +373,7 @@ ingress:
     cert-manager.io/cluster-issuer: letsencrypt-prod
 ```
 
-The chart image repositories default to `audit-log-analyzer-{api,worker,frontend}`.
+The chart image repositories default to `octowatch-{api,worker,frontend}`.
 If you are using the published GHCR images, override them:
 
 ```yaml
@@ -396,16 +396,16 @@ The chart expects these Kubernetes Secrets to exist before install:
 
 ```bash
 # Database credentials
-kubectl create secret generic audit-log-analyzer-db-secret \
+kubectl create secret generic octowatch-db-secret \
   --from-literal=postgres-password="$(openssl rand -hex 16)" \
   --from-literal=app-password="$(openssl rand -hex 16)"
 
 # Valkey password
-kubectl create secret generic audit-log-analyzer-valkey-secret \
+kubectl create secret generic octowatch-valkey-secret \
   --from-literal=valkey-password="$(openssl rand -hex 16)"
 
 # MinIO credentials
-kubectl create secret generic audit-log-analyzer-minio-secret \
+kubectl create secret generic octowatch-minio-secret \
   --from-literal=rootUser=minioadmin \
   --from-literal=rootPassword="$(openssl rand -hex 16)"
 

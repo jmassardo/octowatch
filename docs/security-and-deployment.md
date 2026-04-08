@@ -27,7 +27,7 @@
 
 ## 1. Security Architecture
 
-This section maps every OWASP Top 10 (2021) item to concrete, code-level mitigations implemented in audit-log-analyzer. References are to the actual libraries, middleware classes, schema constructs, and configuration directives used in this stack.
+This section maps every OWASP Top 10 (2021) item to concrete, code-level mitigations implemented in OctoWatch. References are to the actual libraries, middleware classes, schema constructs, and configuration directives used in this stack.
 
 ---
 

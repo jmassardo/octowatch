@@ -35,7 +35,7 @@
 ### Step 1 — Copy and configure environment
 
 ```bash
-cd /path/to/audit-log-analyzer
+cd /path/to/octowatch
 
 # Copy the example env file
 cp backend/.env.example .env   # create this file if it doesn't exist
@@ -177,7 +177,7 @@ MINIO_ROOT_PASSWORD=$(openssl rand -hex 16)
 MINIO_INGEST_PASSWORD=$(openssl rand -hex 16)
 
 # Application secrets
-kubectl create secret generic audit-log-analyzer-secrets \
+kubectl create secret generic octowatch-secrets \
   --namespace audit-log \
   --from-literal=secret-key="${SECRET_KEY}" \
   --from-literal=database-url="postgresql+asyncpg://app_rw:${POSTGRES_PASSWORD}@release-postgresql:5432/auditlogs" \
@@ -191,13 +191,13 @@ kubectl create secret generic audit-log-analyzer-secrets \
   --from-literal=minio-ingest-password="${MINIO_INGEST_PASSWORD}"
 
 # Database password secret (consumed by Bitnami PostgreSQL subchart)
-kubectl create secret generic audit-log-analyzer-db-secret \
+kubectl create secret generic octowatch-db-secret \
   --namespace audit-log \
   --from-literal=postgres-password="${POSTGRES_PASSWORD}" \
   --from-literal=app-password="${POSTGRES_PASSWORD}"
 
 # Valkey password secret (consumed by Bitnami Valkey subchart)
-kubectl create secret generic audit-log-analyzer-valkey-secret \
+kubectl create secret generic octowatch-valkey-secret \
   --namespace audit-log \
   --from-literal=valkey-password="${VALKEY_PASSWORD}"
 ```
@@ -313,7 +313,7 @@ print(f'Task ID: {result.id}')
 
 ```bash
 kubectl exec -n audit-log \
-  deploy/audit-log-analyzer-worker-ingestion \
+  deploy/octowatch-worker-ingestion \
   -- python -c "
 from app.celery_app import celery_app
 result = celery_app.send_task(
@@ -372,7 +372,7 @@ curl -s -X PATCH https://your-domain/api/rules/{rule_id} \
 
 3. **Update the secret (Kubernetes):**
    ```bash
-   kubectl patch secret audit-log-analyzer-secrets -n audit-log \
+   kubectl patch secret octowatch-secrets -n audit-log \
      --type=merge \
      -p "{\"stringData\":{\"secret-key\":\"${NEW_KEY}\"}}"
    ```
@@ -387,7 +387,7 @@ curl -s -X PATCH https://your-domain/api/rules/{rule_id} \
    **Kubernetes:**
    ```bash
    for deploy in api worker-ingestion worker-detection worker-baseline beat; do
-     kubectl rollout restart deploy/audit-log-analyzer-${deploy} -n audit-log
+     kubectl rollout restart deploy/octowatch-${deploy} -n audit-log
    done
    # Wait for all rollouts to complete
    kubectl rollout status deploy -n audit-log --timeout=5m
@@ -481,9 +481,9 @@ docker compose start api worker-ingestion worker-detection worker-baseline beat
 | Docker Compose | Workers | `docker compose logs -f worker-ingestion worker-detection worker-baseline` |
 | Docker Compose | Beat | `docker compose logs -f beat` |
 | Docker Compose | All | `docker compose logs -f --tail=100` |
-| Kubernetes | API | `kubectl logs -f -n audit-log deploy/audit-log-analyzer-api` |
-| Kubernetes | Detection worker | `kubectl logs -f -n audit-log deploy/audit-log-analyzer-worker-detection` |
-| Kubernetes | Beat | `kubectl logs -f -n audit-log deploy/audit-log-analyzer-beat` |
+| Kubernetes | API | `kubectl logs -f -n audit-log deploy/octowatch-api` |
+| Kubernetes | Detection worker | `kubectl logs -f -n audit-log deploy/octowatch-worker-detection` |
+| Kubernetes | Beat | `kubectl logs -f -n audit-log deploy/octowatch-beat` |
 
 All services emit structured JSON logs via `structlog`. Key fields:
 - `event` — log message
@@ -554,11 +554,11 @@ helm rollback audit-log -n audit-log
 kubectl get pods -n audit-log -w
 
 # 3. Verify health after rollback
-kubectl exec -n audit-log deploy/audit-log-analyzer-api -- \
+kubectl exec -n audit-log deploy/octowatch-api -- \
   curl -sf http://localhost:8000/health
 
 # 4. Check error rates have dropped
-kubectl logs -n audit-log deploy/audit-log-analyzer-api --since=5m | \
+kubectl logs -n audit-log deploy/octowatch-api --since=5m | \
   grep -c '"level":"error"'
 ```
 

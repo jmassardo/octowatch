@@ -51,7 +51,7 @@
 
 ## 2. Project Structure
 
-All files live under `/Users/jmassardo/code/audit-log-analyzer/frontend/`.
+All files live under `frontend/` at the repository root.
 
 ```
 frontend/
