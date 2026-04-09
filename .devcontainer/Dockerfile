@@ -1,5 +1,8 @@
 FROM mcr.microsoft.com/devcontainers/python:1-3.12-bullseye
 
+# Base image can include a stale Yarn apt source that breaks apt-get update
+RUN rm -f /etc/apt/sources.list.d/yarn.list
+
 # Install Node.js 20
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \

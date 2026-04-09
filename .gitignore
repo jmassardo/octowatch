@@ -33,6 +33,9 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 
+# Docker Compose local overrides
+docker-compose.override.yml
+
 # TLS / Secrets
 nginx/ssl/*.pem
 nginx/ssl/*.key

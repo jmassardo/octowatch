@@ -9,11 +9,7 @@
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
 
-  "forwardPorts": [
-    8000,
-    5173,
-    9001
-  ],
+  "forwardPorts": [8000, 5173, 9001],
   "portsAttributes": {
     "8000": { "label": "Backend API", "onAutoForward": "notify" },
     "5173": { "label": "Frontend (Vite)", "onAutoForward": "openBrowser" },
@@ -36,15 +32,12 @@
         "python.defaultInterpreterPath": "/usr/local/bin/python",
         "python.analysis.typeCheckingMode": "basic",
         "[python]": {
-          "editor.defaultFormatter": "charliermarsh.ruff",
           "editor.formatOnSave": true
         },
         "[typescript]": {
-          "editor.defaultFormatter": "esbenp.prettier-vscode",
           "editor.formatOnSave": true
         },
         "[typescriptreact]": {
-          "editor.defaultFormatter": "esbenp.prettier-vscode",
           "editor.formatOnSave": true
         }
       }

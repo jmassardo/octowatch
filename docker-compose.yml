@@ -238,6 +238,9 @@ services:
   # restart: on-failure retries up to 3 times if db is temporarily unavailable.
   # ---------------------------------------------------------------------------
   migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     image: octowatch-api:latest
     command: ["alembic", "upgrade", "head"]
     environment:
@@ -312,6 +315,9 @@ services:
   # from parallel gzip decompression of large audit log files).
   # ---------------------------------------------------------------------------
   worker-ingestion:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     image: octowatch-worker:latest
     command: ["celery", "-A", "app.celery_app", "worker", "-Q", "ingestion", "-c", "4", "--loglevel", "${LOG_LEVEL:-INFO}"]
     environment:
@@ -463,6 +469,9 @@ services:
   # Not exposed directly; nginx proxies / → frontend:3001
   # ---------------------------------------------------------------------------
   frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     image: octowatch-frontend:latest
     networks:
       - frontend
