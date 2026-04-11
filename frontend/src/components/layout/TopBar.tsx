@@ -9,7 +9,7 @@ import { Button } from '../primitives/Button';
 import { logout } from '../../api/auth';
 import styles from './TopBar.module.css';
 
-export function TopBar() {
+export function TopBar({ onShowTour }: { onShowTour?: () => void }) {
   const { selectedOrg, setSelectedOrg } = useOrg();
   const { data: user } = useCurrentUser();
   const queryClient = useQueryClient();
@@ -227,6 +227,20 @@ export function TopBar() {
                     )}
                   </div>
                   <div className={styles.menuDivider} />
+                  {onShowTour && (
+                    <button
+                      className={styles.menuItem}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onShowTour();
+                      }}
+                    >
+                      <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM0 8a8 8 0 1116 0A8 8 0 010 8zm6.5-.25A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 100-2 1 1 0 000 2z" />
+                      </svg>
+                      Show Tour
+                    </button>
+                  )}
                   <button className={styles.menuItem} onClick={handleLogout}>
                     <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M2 2.75C2 1.784 2.784 1 3.75 1h4.5a.75.75 0 010 1.5h-4.5a.25.25 0 00-.25.25v10.5c0 .138.112.25.25.25h4.5a.75.75 0 010 1.5h-4.5A1.75 1.75 0 012 13.25V2.75zm9.47 4L9.22 4.5a.75.75 0 011.06-1.06l3.25 3.25a.75.75 0 010 1.06l-3.25 3.25a.75.75 0 01-1.06-1.06l2.25-2.25H6.75a.75.75 0 010-1.5h4.72z" />

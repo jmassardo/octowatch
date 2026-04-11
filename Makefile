@@ -40,3 +40,6 @@ docker compose down -v
 
 logs: ## Tail logs for all services
 docker compose logs -f --tail=50
+
+seed-data: ## Generate realistic sample audit data (30 days)
+cd backend && python scripts/seed_data.py
