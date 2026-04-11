@@ -30,6 +30,9 @@ spec:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "octowatch.serviceAccountName" . }}
+      # Workers need extra time to finish in-progress tasks before shutdown.
+      # Celery's late-ack ensures unfinished tasks are re-queued on SIGTERM.
+      terminationGracePeriodSeconds: 300
       securityContext:
         runAsNonRoot: {{ .Values.worker.securityContext.runAsNonRoot }}
         runAsUser: {{ .Values.worker.securityContext.runAsUser }}
@@ -51,6 +54,7 @@ spec:
             - {{ .Values.worker.ingestion.concurrency | quote }}
             - --loglevel
             - INFO
+            - --without-heartbeat
           resources:
             {{- toYaml .Values.worker.ingestion.resources | nindent 12 }}
           securityContext:
@@ -120,6 +124,7 @@ spec:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "octowatch.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 300
       securityContext:
         runAsNonRoot: {{ .Values.worker.securityContext.runAsNonRoot }}
         runAsUser: {{ .Values.worker.securityContext.runAsUser }}
@@ -141,6 +146,7 @@ spec:
             - {{ .Values.worker.detection.concurrency | quote }}
             - --loglevel
             - INFO
+            - --without-heartbeat
           resources:
             {{- toYaml .Values.worker.detection.resources | nindent 12 }}
           securityContext:
@@ -210,6 +216,7 @@ spec:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "octowatch.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 300
       securityContext:
         runAsNonRoot: {{ .Values.worker.securityContext.runAsNonRoot }}
         runAsUser: {{ .Values.worker.securityContext.runAsUser }}
@@ -231,6 +238,7 @@ spec:
             - {{ .Values.worker.baseline.concurrency | quote }}
             - --loglevel
             - INFO
+            - --without-heartbeat
           resources:
             {{- toYaml .Values.worker.baseline.resources | nindent 12 }}
           securityContext:

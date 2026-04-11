@@ -380,8 +380,31 @@ observability:
     enabled: true
     port: 9090
     path: /metrics
+    # ServiceMonitor CRD for Prometheus Operator — opt-in
+    serviceMonitor:
+      enabled: false
+      interval: 30s
+      scrapeTimeout: 10s
 
   # OpenTelemetry trace export (optional)
   tracing:
     enabled: false
     endpoint: ""  # OTLP gRPC endpoint, e.g. "http://otel-collector:4317"
+
+# ---------------------------------------------------------------------------
+# Database Backup — automated CronJob for TimescaleDB backups to S3/MinIO
+# Set backup.enabled=true and configure bucket/schedule to activate.
+# ---------------------------------------------------------------------------
+backup:
+  enabled: false
+  schedule: "0 2 * * *"           # Daily at 02:00 UTC
+  bucket: "octowatch-backups"     # S3 or MinIO bucket for backup storage
+  retentionDays: 30               # Number of days to retain backup files
+  image: timescale/timescaledb:2.25.1-pg16
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"

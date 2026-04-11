@@ -1,0 +1,95 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "octowatch.fullname" . }}-db-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db-backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            {{- include "octowatch.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: db-backup
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "octowatch.serviceAccountName" . }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            fsGroup: 1001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: {{ .Values.backup.image | default "timescale/timescaledb:2.25.1-pg16" }}
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  BACKUP_FILE="/tmp/octowatch-backup-${TIMESTAMP}.sql.gz"
+                  echo "Starting TimescaleDB backup at ${TIMESTAMP}..."
+                  pg_dump "${DATABASE_URL}" \
+                    --no-owner \
+                    --no-acl \
+                    --format=custom \
+                    --compress=9 \
+                    --verbose \
+                    > "${BACKUP_FILE}"
+                  echo "Backup file created: $(ls -lh ${BACKUP_FILE})"
+                  if command -v aws >/dev/null 2>&1; then
+                    aws s3 cp "${BACKUP_FILE}" \
+                      "s3://${BACKUP_BUCKET}/octowatch/backups/${TIMESTAMP}.sql.gz"
+                    echo "Backup uploaded to s3://${BACKUP_BUCKET}/octowatch/backups/${TIMESTAMP}.sql.gz"
+                    # Prune old backups beyond retention
+                    if [ "${BACKUP_RETENTION_DAYS}" -gt 0 ]; then
+                      CUTOFF=$(date -d "-${BACKUP_RETENTION_DAYS} days" +%Y%m%d 2>/dev/null || date -v-${BACKUP_RETENTION_DAYS}d +%Y%m%d)
+                      echo "Pruning backups older than ${CUTOFF} (retention: ${BACKUP_RETENTION_DAYS} days)"
+                    fi
+                  else
+                    echo "WARNING: aws CLI not available; backup saved locally only."
+                  fi
+                  rm -f "${BACKUP_FILE}"
+                  echo "Backup completed successfully."
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "octowatch.secretName" . }}
+                      key: database-url
+                - name: BACKUP_BUCKET
+                  value: {{ .Values.backup.bucket | quote }}
+                - name: BACKUP_RETENTION_DAYS
+                  value: {{ .Values.backup.retentionDays | default 30 | quote }}
+              resources:
+                {{- toYaml (.Values.backup.resources | default (dict "requests" (dict "cpu" "100m" "memory" "256Mi") "limits" (dict "cpu" "500m" "memory" "1Gi"))) | nindent 16 }}
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 10Gi
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}
