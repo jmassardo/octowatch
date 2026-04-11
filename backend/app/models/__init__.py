@@ -41,6 +41,7 @@ from app.models.integration import (
 from app.models.org_config import OrgConfig
 from app.models.query_template import QueryTemplate
 from app.models.report_schedule import ReportSchedule
+from app.models.threat_intel import ThreatIntelDomain, ThreatIntelFeed, ThreatIntelIndicator
 from app.models.user import RbacRole, UserRoleAssignment
 
 __all__ = [
@@ -82,6 +83,9 @@ __all__ = [
     "SeverityConfig",
     "Ticket",
     "TicketingConfig",
+    "ThreatIntelDomain",
+    "ThreatIntelFeed",
+    "ThreatIntelIndicator",
     "RbacRole",
     "ReportSchedule",
     "UserRoleAssignment",

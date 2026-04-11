@@ -1,0 +1,291 @@
+[
+  {
+    "name": "Off-Hours Activity Anomaly",
+    "slug": "off-hours-activity-anomaly",
+    "description": "Detects activity outside an actor's normal working hours based on behavioral baselines.",
+    "category": "account_compromise",
+    "default_severity": "medium",
+    "default_confidence": "medium",
+    "logic_type": "statistical",
+    "logic_config": {
+      "action_filters": ["*"],
+      "x_config": {
+        "engine": "off_hours_anomaly",
+        "z_multiplier": 2.0
+      },
+      "time_window_minutes": 60,
+      "confidence": 0.55
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Account Takeover Sequence",
+    "slug": "account-takeover-sequence",
+    "description": "Detects a sequence of recovery code use, password change, and SSH key addition within 30 minutes — indicative of an account takeover.",
+    "category": "account_compromise",
+    "default_severity": "critical",
+    "default_confidence": "high",
+    "logic_type": "sequence",
+    "logic_config": {
+      "action_filters": [
+        "two_factor_authentication.recovery_codes_used",
+        "user.update_password",
+        "public_key.create"
+      ],
+      "sequence_steps": [
+        {"step": 1, "action": "two_factor_authentication.recovery_codes_used"},
+        {"step": 2, "action": "user.update_password"},
+        {"step": 3, "action": "public_key.create"}
+      ],
+      "aggregation_key": "actor",
+      "time_window_minutes": 30,
+      "confidence": 0.75
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Suspicious User Agent",
+    "slug": "suspicious-user-agent",
+    "description": "Detects events from known automation tool user agents that may indicate scripted access.",
+    "category": "account_compromise",
+    "default_severity": "low",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": ["*"],
+      "field_conditions": [
+        {
+          "field": "user_agent",
+          "operator": "matches_glob",
+          "value": "*python-requests*"
+        }
+      ],
+      "confidence": 0.45
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Suspicious User Agent — curl",
+    "slug": "suspicious-user-agent-curl",
+    "description": "Detects events originating from curl command-line tool.",
+    "category": "account_compromise",
+    "default_severity": "low",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": ["*"],
+      "field_conditions": [
+        {
+          "field": "user_agent",
+          "operator": "matches_glob",
+          "value": "curl/*"
+        }
+      ],
+      "confidence": 0.40
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Suspicious User Agent — Go HTTP Client",
+    "slug": "suspicious-user-agent-go",
+    "description": "Detects events from Go default HTTP client user agent.",
+    "category": "account_compromise",
+    "default_severity": "low",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": ["*"],
+      "field_conditions": [
+        {
+          "field": "user_agent",
+          "operator": "matches_glob",
+          "value": "Go-http-client*"
+        }
+      ],
+      "confidence": 0.40
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Malicious Webhook URL",
+    "slug": "malicious-webhook-url",
+    "description": "Detects webhook creation or configuration changes where the target URL matches a known malicious domain from threat intelligence.",
+    "category": "supply_chain",
+    "default_severity": "high",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": ["hook.create", "hook.config_changed"],
+      "field_conditions": [],
+      "x_config": {
+        "engine": "threat_intel_webhook",
+        "check_field": "data.config.url"
+      },
+      "confidence": 0.80
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Suspicious App Installation",
+    "slug": "suspicious-app-installation",
+    "description": "Detects new GitHub App installations, especially those requesting broad permissions. Cross-references webhook URLs against threat intelligence.",
+    "category": "supply_chain",
+    "default_severity": "medium",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": ["integration_installation.create"],
+      "field_conditions": [],
+      "x_config": {
+        "engine": "threat_intel_app_install"
+      },
+      "confidence": 0.55
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Deployment Gate Bypass",
+    "slug": "deployment-gate-bypass",
+    "description": "Detects a sequence where an environment protection rule is deleted followed by an immediate deployment — indicative of a deployment gate bypass.",
+    "category": "supply_chain",
+    "default_severity": "critical",
+    "default_confidence": "high",
+    "logic_type": "sequence",
+    "logic_config": {
+      "action_filters": [
+        "environment.delete_protection_rule",
+        "deployment.create"
+      ],
+      "sequence_steps": [
+        {"step": 1, "action": "environment.delete_protection_rule"},
+        {"step": 2, "action": "deployment.create"}
+      ],
+      "aggregation_key": "actor",
+      "time_window_minutes": 10,
+      "confidence": 0.80
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Aging Vulnerability Health Signal",
+    "slug": "aging-vulnerability-health-signal",
+    "description": "Health signal: checks for long-unresolved vulnerability alerts. Requires GHAS integration (Epic 5) to be fully functional. Placeholder for periodic evaluation.",
+    "category": "supply_chain",
+    "default_severity": "medium",
+    "default_confidence": "low",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": ["dependabot_alert.*"],
+      "field_conditions": [],
+      "x_config": {
+        "engine": "health_signal",
+        "signal_type": "aging_vulnerability",
+        "requires": "ghas_integration"
+      },
+      "confidence": 0.30
+    },
+    "created_by": "system",
+    "enabled": false
+  },
+  {
+    "name": "Workflow Secret Harvesting",
+    "slug": "workflow-secret-harvesting",
+    "description": "Detects prepared workflow jobs that pass an unusually high number of secrets, which may indicate secret harvesting.",
+    "category": "cicd",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "threshold",
+    "logic_config": {
+      "action_filters": ["workflows.prepared_workflow_job"],
+      "aggregation_key": "actor",
+      "threshold": 10,
+      "time_window_minutes": 60,
+      "field_conditions": [
+        {
+          "field": "data.secrets_passed_count",
+          "operator": "gte",
+          "value": 5
+        }
+      ],
+      "confidence": 0.60
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Suspicious Runner Registration",
+    "slug": "suspicious-runner-registration",
+    "description": "Detects self-hosted runner registration token creation or runner coming online, which could indicate unauthorized runner setup.",
+    "category": "cicd",
+    "default_severity": "medium",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "actions.runner_registration_token_created",
+        "actions.self_hosted_runner_online"
+      ],
+      "field_conditions": [],
+      "confidence": 0.50
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Workflow Backdoor",
+    "slug": "workflow-backdoor",
+    "description": "Detects workflow file modifications that may add workflow_dispatch triggers — allowing manual triggering of potentially malicious workflows.",
+    "category": "cicd",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": ["workflows.*"],
+      "field_conditions": [
+        {
+          "field": "data.workflow_dispatch_added",
+          "operator": "eq",
+          "value": true
+        }
+      ],
+      "x_config": {
+        "engine": "workflow_modification_check"
+      },
+      "confidence": 0.55
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Anomalous Actions Usage",
+    "slug": "anomalous-actions-usage",
+    "description": "Detects unusually high GitHub Actions workflow volume per actor, using baseline comparison to identify 10x spikes above normal.",
+    "category": "cicd",
+    "default_severity": "medium",
+    "default_confidence": "medium",
+    "logic_type": "threshold",
+    "logic_config": {
+      "action_filters": ["workflows.*"],
+      "aggregation_key": "actor",
+      "threshold": 50,
+      "time_window_minutes": 60,
+      "baseline_comparison": true,
+      "baseline_metric": "daily_events",
+      "baseline_z_threshold": 3.0,
+      "confidence": 0.55
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "CI Gate Bypass",
+    "slug": "ci-gate-bypass",
+    "description": "Detects modifications to required status checks on protected branches that remove existing check requirements.",
+    "category": "cicd",
+    "default_severity": "high",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": ["protected_branch.update_required_status_checks"],
+      "field_conditions": [],
+      "confidence": 0.70
+    },
+    "created_by": "system"
+  }
+]

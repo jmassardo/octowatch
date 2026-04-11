@@ -153,6 +153,9 @@ ignore = [
 "app/services/report_service.py" = ["S608"]
 "app/services/compliance_report_service.py" = ["S608"]
 "app/services/health_signal_service.py" = ["S608"]
+# threat_intel_service uses SQLAlchemy text() with bound parameters and dynamically
+# assembled WHERE clauses from validated internal field names, not user input.
+"app/services/threat_intel_service.py" = ["S608"]
 # fix_ann001.py is a one-off development helper script
 "fix_ann001.py" = ["T20"]
 

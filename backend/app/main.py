@@ -42,6 +42,7 @@ from app.routers import (
     setup,
     suggestions,
     sync,
+    threat_intel,
 )
 from app.services.geoip_service import close_geoip_db, load_geoip_db
 from app.utils.client_ip import get_client_ip
@@ -442,6 +443,7 @@ def create_app() -> FastAPI:
     app.include_router(setup.router, prefix=API_PREFIX)
     app.include_router(suggestions.router, prefix=API_PREFIX)
     app.include_router(dev_activity.router, prefix=API_PREFIX)
+    app.include_router(threat_intel.router, prefix=API_PREFIX)
 
     return app
 
