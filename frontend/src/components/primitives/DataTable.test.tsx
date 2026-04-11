@@ -450,4 +450,169 @@ describe('DataTable', () => {
     const ages = dataRows.map((r) => within(r).getAllByRole('cell')[1].textContent);
     expect(ages).toEqual(['25', '28', '30', '35']);
   });
+
+  /* ---------------------------------------------------------------- */
+  /*  Keyboard navigation (Issue #49)                                  */
+  /* ---------------------------------------------------------------- */
+
+  it('clickable rows have tabIndex for keyboard focus', () => {
+    const onClick = vi.fn();
+    render(
+      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} onRowClick={onClick} />,
+    );
+
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
+
+    for (const row of dataRows) {
+      expect(row).toHaveAttribute('tabindex', '0');
+    }
+  });
+
+  it('rows without onRowClick do not have tabIndex', () => {
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
+
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
+
+    for (const row of dataRows) {
+      expect(row).not.toHaveAttribute('tabindex');
+    }
+  });
+
+  it('Enter key on focused row triggers onRowClick', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(
+      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} onRowClick={onClick} />,
+    );
+
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
+
+    // Focus first row and press Enter
+    dataRows[0].focus();
+    await user.keyboard('{Enter}');
+
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(onClick).toHaveBeenCalledWith(TEST_DATA[0]);
+  });
+
+  it('ArrowDown moves focus to next row', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(
+      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} onRowClick={onClick} />,
+    );
+
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
+
+    // Focus first row and press ArrowDown
+    dataRows[0].focus();
+    await user.keyboard('{ArrowDown}');
+
+    expect(document.activeElement).toBe(dataRows[1]);
+  });
+
+  it('ArrowUp moves focus to previous row', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(
+      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} onRowClick={onClick} />,
+    );
+
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
+
+    // Focus second row and press ArrowUp
+    dataRows[1].focus();
+    await user.keyboard('{ArrowUp}');
+
+    expect(document.activeElement).toBe(dataRows[0]);
+  });
+
+  it('ArrowDown does not go past last row', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(
+      <DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} onRowClick={onClick} />,
+    );
+
+    const dataRows = screen
+      .getAllByRole('row')
+      .filter((r) => within(r).queryAllByRole('cell').length > 0);
+
+    // Focus last row and press ArrowDown
+    dataRows[dataRows.length - 1].focus();
+    await user.keyboard('{ArrowDown}');
+
+    expect(document.activeElement).toBe(dataRows[dataRows.length - 1]);
+  });
+
+  it('sortable headers are keyboard-accessible with Enter', async () => {
+    const user = userEvent.setup();
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
+
+    const nameHeader = screen.getByText('Name').closest('th')!;
+    expect(nameHeader).toHaveAttribute('tabindex', '0');
+
+    // Focus and press Enter to sort
+    nameHeader.focus();
+    await user.keyboard('{Enter}');
+
+    expect(nameHeader.getAttribute('aria-sort')).toBe('ascending');
+  });
+
+  it('sortable headers are keyboard-accessible with Space', async () => {
+    const user = userEvent.setup();
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
+
+    const nameHeader = screen.getByText('Name').closest('th')!;
+
+    nameHeader.focus();
+    await user.keyboard(' ');
+
+    expect(nameHeader.getAttribute('aria-sort')).toBe('ascending');
+  });
+
+  /* ---------------------------------------------------------------- */
+  /*  Screen reader attributes (Issue #57)                             */
+  /* ---------------------------------------------------------------- */
+
+  it('table has aria-rowcount and aria-colcount', () => {
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
+
+    const table = screen.getByRole('table');
+    expect(table).toHaveAttribute('aria-rowcount', '4');
+    expect(table).toHaveAttribute('aria-colcount', '3');
+  });
+
+  it('column headers have scope="col"', () => {
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
+
+    // Only the first header row has the actual column headers with scope
+    const headerRow = screen.getAllByRole('row')[0];
+    const headers = within(headerRow).getAllByRole('columnheader');
+    for (const header of headers) {
+      expect(header).toHaveAttribute('scope', 'col');
+    }
+  });
+
+  it('announces sort changes via live region', async () => {
+    const user = userEvent.setup();
+    render(<DataTable columns={COLUMNS} data={TEST_DATA} rowKey={(r) => r.id} />);
+
+    const nameHeader = screen.getByText('Name').closest('th')!;
+    await user.click(nameHeader);
+
+    // Check the live region has the sort announcement
+    const liveRegion = document.querySelector('[aria-live="polite"]');
+    expect(liveRegion).toHaveTextContent('Sorted by Name, ascending');
+  });
 });

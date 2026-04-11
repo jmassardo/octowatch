@@ -1,5 +1,6 @@
 @import './tokens.css';
 @import './reset.css';
+@import './a11y.css';
 
 html,
 body {
@@ -23,4 +24,10 @@ a:hover {
 code {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace;
   font-size: 12px;
+}
+
+/* Global focus-visible indicator for keyboard navigation (Issue #49) */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

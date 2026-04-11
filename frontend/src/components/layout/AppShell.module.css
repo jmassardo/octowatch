@@ -32,3 +32,23 @@
 .skipNav:focus {
   left: 0;
 }
+
+/* Desktop: show aside sidebar, hide mobile sidebar */
+.desktopSidebar {
+  display: contents;
+}
+
+.mobileSidebar {
+  display: none;
+}
+
+/* Tablet/mobile: hide desktop aside, show mobile overlay sidebar */
+@media (max-width: 1024px) {
+  .desktopSidebar {
+    display: none;
+  }
+
+  .mobileSidebar {
+    display: contents;
+  }
+}

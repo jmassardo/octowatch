@@ -101,3 +101,28 @@
   color: var(--fg-muted);
   padding: 40px 16px !important;
 }
+
+/* Keyboard-focused row styling */
+.clickableRow:focus-visible td {
+  background: var(--canvas-subtle);
+}
+
+/* Responsive: sticky first column on tablet viewports */
+@media (max-width: 1024px) {
+  .tableWrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table th:first-child,
+  .table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--canvas);
+  }
+
+  .table thead th:first-child {
+    background: var(--canvas-subtle);
+  }
+}

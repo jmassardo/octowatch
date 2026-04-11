@@ -9,7 +9,7 @@ import { Button } from '../primitives/Button';
 import { logout } from '../../api/auth';
 import styles from './TopBar.module.css';
 
-export function TopBar({ onShowTour }: { onShowTour?: () => void }) {
+export function TopBar({ onShowTour, onToggleSidebar }: { onShowTour?: () => void; onToggleSidebar?: () => void }) {
   const { selectedOrg, setSelectedOrg } = useOrg();
   const { data: user } = useCurrentUser();
   const queryClient = useQueryClient();
@@ -112,6 +112,17 @@ export function TopBar({ onShowTour }: { onShowTour?: () => void }) {
 
   return (
     <header className={styles.topbar} role="banner">
+      {onToggleSidebar && (
+        <button
+          className={styles.hamburger}
+          onClick={onToggleSidebar}
+          aria-label="Toggle navigation menu"
+        >
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M1 2.75A.75.75 0 011.75 2h12.5a.75.75 0 010 1.5H1.75A.75.75 0 011 2.75zm0 5A.75.75 0 011.75 7h12.5a.75.75 0 010 1.5H1.75A.75.75 0 011 7.75zM1.75 12h12.5a.75.75 0 010 1.5H1.75a.75.75 0 010-1.5z" />
+          </svg>
+        </button>
+      )}
       {useDropdown ? (
         <div className={styles.orgDropdownWrap} ref={dropdownRef}>
           <button
