@@ -110,8 +110,10 @@ vi.mock('../../api/setup', () => ({
 vi.mock('../../api/integrations', () => ({
   listTicketingConfigs: vi.fn().mockResolvedValue([]),
   listNotificationConfigs: vi.fn().mockResolvedValue([]),
+  listSiemConfigs: vi.fn().mockResolvedValue([]),
   createNotificationConfig: vi.fn().mockResolvedValue({}),
   createTicketingConfig: vi.fn().mockResolvedValue({}),
+  createSiemConfig: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('../../api/sync', () => ({

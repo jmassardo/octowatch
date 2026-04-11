@@ -38,6 +38,7 @@ from app.models.ingestion import IngestionCursor
 from app.models.integration import (
     IdpActorEnrichment,
     NotificationConfig,
+    SiemExportConfig,
     Ticket,
     TicketingConfig,
 )
@@ -87,6 +88,7 @@ __all__ = [
     "SecretScanningAlert",
     "SetupState",
     "SeverityConfig",
+    "SiemExportConfig",
     "Ticket",
     "TicketingConfig",
     "ThreatIntelDomain",

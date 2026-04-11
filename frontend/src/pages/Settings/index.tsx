@@ -6,8 +6,10 @@ import type { AppSetting, SettingAuditEntry } from '../../api/setup';
 import {
   listNotificationConfigs,
   listTicketingConfigs,
+  listSiemConfigs,
   createNotificationConfig,
   createTicketingConfig,
+  createSiemConfig,
 } from '../../api/integrations';
 import { SyncPanel } from '../Integrations/SyncPanel';
 import { SyncRunHistory } from '../Integrations/SyncRunHistory';
@@ -357,6 +359,25 @@ function JiraIcon() {
   );
 }
 
+function SyslogIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="4" y="6" width="16" height="12" rx="2" stroke="white" strokeWidth="1.5" />
+      <path d="M8 10h8M8 14h5" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SoarWebhookIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 4v8l4 4" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="8" stroke="white" strokeWidth="1.5" />
+      <path d="M17 17l3 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Integration config form data                                       */
 /* ------------------------------------------------------------------ */
@@ -402,6 +423,30 @@ const INTEGRATION_INFO: {
     description: 'Trigger PagerDuty incidents for critical security detections.',
     icon: <PagerDutyIcon />,
     iconBg: '#06ac38',
+  },
+  {
+    key: 'syslog_cef',
+    label: 'Syslog / CEF',
+    description:
+      'Export detections in CEF or LEEF format via syslog for SIEM correlation (Splunk, QRadar, Sentinel).',
+    icon: <SyslogIcon />,
+    iconBg: '#6366f1',
+  },
+  {
+    key: 'splunk_hec',
+    label: 'Splunk HEC',
+    description:
+      'Stream events and detections to Splunk via HTTP Event Collector with proper sourcetype and index.',
+    icon: <SplunkIcon />,
+    iconBg: '#65a637',
+  },
+  {
+    key: 'soar_webhook',
+    label: 'SOAR Webhook',
+    description:
+      'Send detection events to a SOAR webhook URL to trigger automated response playbooks.',
+    icon: <SoarWebhookIcon />,
+    iconBg: '#f59e0b',
   },
 ];
 
@@ -793,6 +838,344 @@ function WebhookConfigForm({ name, onClose }: { name: string; onClose: () => voi
 }
 
 /* ------------------------------------------------------------------ */
+/*  Syslog/CEF config form                                            */
+/* ------------------------------------------------------------------ */
+
+function SyslogConfigForm({ onClose }: { onClose: () => void }) {
+  const [displayName, setDisplayName] = useState('Syslog / CEF');
+  const [host, setHost] = useState('');
+  const [port, setPort] = useState(514);
+  const [protocol, setProtocol] = useState<'tcp' | 'udp' | 'tls'>('udp');
+  const [format, setFormat] = useState<'cef' | 'leef'>('cef');
+  const queryClient = useQueryClient();
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createSiemConfig({
+        export_type: 'syslog',
+        display_name: displayName || 'Syslog / CEF',
+        syslog_host: host,
+        syslog_port: port,
+        syslog_protocol: protocol,
+        syslog_format: format,
+        enabled: true,
+        export_detections: true,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['siem-configs'] });
+      onClose();
+    },
+  });
+
+  return (
+    <form
+      className={styles.configForm}
+      onSubmit={(e) => {
+        e.preventDefault();
+        createMutation.mutate();
+      }}
+    >
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="syslog-name">
+          Display Name
+        </label>
+        <input
+          id="syslog-name"
+          className={styles.configInput}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="Syslog / CEF"
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="syslog-host">
+          Syslog Host
+        </label>
+        <input
+          id="syslog-host"
+          className={styles.configInput}
+          value={host}
+          onChange={(e) => setHost(e.target.value)}
+          placeholder="syslog.example.com"
+          required
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="syslog-port">
+          Port
+        </label>
+        <input
+          id="syslog-port"
+          className={styles.configInput}
+          type="number"
+          min={1}
+          max={65535}
+          value={port}
+          onChange={(e) => setPort(Number(e.target.value))}
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="syslog-protocol">
+          Protocol
+        </label>
+        <select
+          id="syslog-protocol"
+          className={styles.configInput}
+          value={protocol}
+          onChange={(e) => setProtocol(e.target.value as 'tcp' | 'udp' | 'tls')}
+        >
+          <option value="udp">UDP</option>
+          <option value="tcp">TCP</option>
+          <option value="tls">TLS</option>
+        </select>
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="syslog-format">
+          Format
+        </label>
+        <select
+          id="syslog-format"
+          className={styles.configInput}
+          value={format}
+          onChange={(e) => setFormat(e.target.value as 'cef' | 'leef')}
+        >
+          <option value="cef">CEF (Common Event Format)</option>
+          <option value="leef">LEEF (QRadar)</option>
+        </select>
+      </div>
+      {createMutation.isError && (
+        <div className={styles.configError}>Failed to save configuration. Please try again.</div>
+      )}
+      <div className={styles.configActions}>
+        <Button size="sm" type="button" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button variant="primary" size="sm" disabled={!host || createMutation.isPending}>
+          {createMutation.isPending ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Splunk HEC config form                                            */
+/* ------------------------------------------------------------------ */
+
+function SplunkHecConfigForm({ onClose }: { onClose: () => void }) {
+  const [displayName, setDisplayName] = useState('Splunk HEC');
+  const [hecUrl, setHecUrl] = useState('');
+  const [tokenEnvVar, setTokenEnvVar] = useState('');
+  const [splunkIndex, setSplunkIndex] = useState('main');
+  const [exportEvents, setExportEvents] = useState(false);
+  const queryClient = useQueryClient();
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createSiemConfig({
+        export_type: 'splunk_hec',
+        display_name: displayName || 'Splunk HEC',
+        splunk_hec_url: hecUrl,
+        splunk_hec_token_env_var: tokenEnvVar,
+        splunk_index: splunkIndex,
+        enabled: true,
+        export_detections: true,
+        export_events: exportEvents,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['siem-configs'] });
+      onClose();
+    },
+  });
+
+  return (
+    <form
+      className={styles.configForm}
+      onSubmit={(e) => {
+        e.preventDefault();
+        createMutation.mutate();
+      }}
+    >
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="splunk-name">
+          Display Name
+        </label>
+        <input
+          id="splunk-name"
+          className={styles.configInput}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="Splunk HEC"
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="splunk-url">
+          HEC Endpoint URL
+        </label>
+        <input
+          id="splunk-url"
+          className={styles.configInput}
+          value={hecUrl}
+          onChange={(e) => setHecUrl(e.target.value)}
+          placeholder="https://splunk.example.com:8088/services/collector"
+          required
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="splunk-token">
+          HEC Token Environment Variable
+        </label>
+        <input
+          id="splunk-token"
+          className={styles.configInput}
+          value={tokenEnvVar}
+          onChange={(e) => setTokenEnvVar(e.target.value)}
+          placeholder="SPLUNK_HEC_TOKEN"
+          required
+        />
+        <span className={styles.configHelp}>
+          Name of the environment variable holding the Splunk HEC token.
+        </span>
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="splunk-index">
+          Splunk Index
+        </label>
+        <input
+          id="splunk-index"
+          className={styles.configInput}
+          value={splunkIndex}
+          onChange={(e) => setSplunkIndex(e.target.value)}
+          placeholder="main"
+        />
+      </div>
+      <div className={styles.configField}>
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 13,
+            color: 'var(--fg)',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={exportEvents}
+            onChange={(e) => setExportEvents(e.target.checked)}
+          />
+          Also stream raw audit events (not just detections)
+        </label>
+      </div>
+      {createMutation.isError && (
+        <div className={styles.configError}>Failed to save configuration. Please try again.</div>
+      )}
+      <div className={styles.configActions}>
+        <Button size="sm" type="button" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={!hecUrl || !tokenEnvVar || createMutation.isPending}
+        >
+          {createMutation.isPending ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  SOAR Webhook config form                                          */
+/* ------------------------------------------------------------------ */
+
+function SoarWebhookConfigForm({ onClose }: { onClose: () => void }) {
+  const [displayName, setDisplayName] = useState('SOAR Webhook');
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [secretEnvVar, setSecretEnvVar] = useState('');
+  const queryClient = useQueryClient();
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createSiemConfig({
+        export_type: 'webhook',
+        display_name: displayName || 'SOAR Webhook',
+        webhook_url: webhookUrl,
+        webhook_secret_env_var: secretEnvVar || undefined,
+        enabled: true,
+        export_detections: true,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['siem-configs'] });
+      onClose();
+    },
+  });
+
+  return (
+    <form
+      className={styles.configForm}
+      onSubmit={(e) => {
+        e.preventDefault();
+        createMutation.mutate();
+      }}
+    >
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="soar-name">
+          Display Name
+        </label>
+        <input
+          id="soar-name"
+          className={styles.configInput}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="SOAR Webhook"
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="soar-url">
+          Webhook URL
+        </label>
+        <input
+          id="soar-url"
+          className={styles.configInput}
+          value={webhookUrl}
+          onChange={(e) => setWebhookUrl(e.target.value)}
+          placeholder="https://soar.example.com/api/webhook/octowatch"
+          required
+        />
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="soar-secret">
+          Signing Secret Environment Variable
+        </label>
+        <input
+          id="soar-secret"
+          className={styles.configInput}
+          value={secretEnvVar}
+          onChange={(e) => setSecretEnvVar(e.target.value)}
+          placeholder="SOAR_WEBHOOK_SECRET"
+        />
+        <span className={styles.configHelp}>
+          Optional. Payloads will be signed with HMAC-SHA256 if set.
+        </span>
+      </div>
+      {createMutation.isError && (
+        <div className={styles.configError}>Failed to save configuration. Please try again.</div>
+      )}
+      <div className={styles.configActions}>
+        <Button size="sm" type="button" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button variant="primary" size="sm" disabled={!webhookUrl || createMutation.isPending}>
+          {createMutation.isPending ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Integrations Pane                                                  */
 /* ------------------------------------------------------------------ */
 
@@ -809,8 +1192,14 @@ function IntegrationsPane() {
     queryFn: listTicketingConfigs,
   });
 
+  const { data: siemConfigs } = useQuery({
+    queryKey: ['siem-configs'],
+    queryFn: listSiemConfigs,
+  });
+
   const notifConfigs = notificationConfigs ?? [];
   const ticketConfigs = ticketingConfigs ?? [];
+  const siemCfgs = siemConfigs ?? [];
 
   function getStatus(key: string): { configured: boolean; enabled: boolean } {
     switch (key) {
@@ -837,6 +1226,18 @@ function IntegrationsPane() {
       }
       case 'pagerduty': {
         const found = notifConfigs.filter((c) => c.channel_type === 'pagerduty');
+        return { configured: found.length > 0, enabled: found.some((c) => c.enabled) };
+      }
+      case 'syslog_cef': {
+        const found = siemCfgs.filter((c) => c.export_type === 'syslog');
+        return { configured: found.length > 0, enabled: found.some((c) => c.enabled) };
+      }
+      case 'splunk_hec': {
+        const found = siemCfgs.filter((c) => c.export_type === 'splunk_hec');
+        return { configured: found.length > 0, enabled: found.some((c) => c.enabled) };
+      }
+      case 'soar_webhook': {
+        const found = siemCfgs.filter((c) => c.export_type === 'webhook');
         return { configured: found.length > 0, enabled: found.some((c) => c.enabled) };
       }
       default:
@@ -931,6 +1332,36 @@ function IntegrationsPane() {
             onClose={() => setConfigTarget(null)}
           />
         )}
+      </Modal>
+
+      {/* Syslog/CEF config modal */}
+      <Modal
+        open={configTarget === 'syslog_cef'}
+        onClose={() => setConfigTarget(null)}
+        title="Configure Syslog / CEF Export"
+        width={520}
+      >
+        <SyslogConfigForm onClose={() => setConfigTarget(null)} />
+      </Modal>
+
+      {/* Splunk HEC config modal */}
+      <Modal
+        open={configTarget === 'splunk_hec'}
+        onClose={() => setConfigTarget(null)}
+        title="Configure Splunk HEC Export"
+        width={520}
+      >
+        <SplunkHecConfigForm onClose={() => setConfigTarget(null)} />
+      </Modal>
+
+      {/* SOAR Webhook config modal */}
+      <Modal
+        open={configTarget === 'soar_webhook'}
+        onClose={() => setConfigTarget(null)}
+        title="Configure SOAR Webhook"
+        width={520}
+      >
+        <SoarWebhookConfigForm onClose={() => setConfigTarget(null)} />
       </Modal>
     </div>
   );

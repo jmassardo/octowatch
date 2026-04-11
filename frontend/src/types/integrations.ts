@@ -56,3 +56,52 @@ export interface IdpEnrichmentResponse {
   readonly title: string | null;
   readonly employment_status: string | null;
 }
+
+// ── SIEM Export Types ───────────────────────────────────────────────────────
+
+export type SiemExportType = 'syslog' | 'splunk_hec' | 'webhook';
+
+export interface SiemExportConfigCreate {
+  export_type: SiemExportType;
+  display_name: string;
+  // Syslog
+  syslog_host?: string;
+  syslog_port?: number;
+  syslog_protocol?: 'tcp' | 'udp' | 'tls';
+  syslog_format?: 'cef' | 'leef';
+  // Splunk HEC
+  splunk_hec_url?: string;
+  splunk_hec_token_env_var?: string;
+  splunk_sourcetype?: string;
+  splunk_index?: string;
+  // Webhook
+  webhook_url?: string;
+  webhook_secret_env_var?: string;
+  webhook_headers?: Record<string, string>;
+  // Common
+  enabled?: boolean;
+  export_events?: boolean;
+  export_detections?: boolean;
+}
+
+export interface SiemExportConfigResponse {
+  readonly id: number;
+  readonly export_type: SiemExportType;
+  readonly display_name: string;
+  readonly syslog_host: string | null;
+  readonly syslog_port: number | null;
+  readonly syslog_protocol: string | null;
+  readonly syslog_format: string | null;
+  readonly splunk_hec_url: string | null;
+  readonly splunk_hec_token_env_var: string | null;
+  readonly splunk_sourcetype: string | null;
+  readonly splunk_index: string | null;
+  readonly webhook_url: string | null;
+  readonly webhook_secret_env_var: string | null;
+  readonly webhook_headers: Record<string, string> | null;
+  readonly enabled: boolean;
+  readonly export_events: boolean;
+  readonly export_detections: boolean;
+  readonly created_by: string;
+  readonly created_at: string;
+}

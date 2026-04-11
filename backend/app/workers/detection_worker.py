@@ -70,6 +70,25 @@ async def _run_pipeline(event_ids: list[int]) -> dict[str, object]:
                         error=str(exc),
                     )
 
+                # Chain SIEM export tasks for each new detection
+                try:
+                    from app.workers.siem_export_worker import (
+                        export_detection_siem_task,
+                    )
+
+                    for det_id in detection_ids:
+                        export_detection_siem_task.delay(det_id)
+                    logger.info(
+                        "detection_worker.siem_exports_queued",
+                        detection_count=len(detection_ids),
+                    )
+                except Exception as exc:
+                    # SIEM export failures must not break the detection pipeline
+                    logger.warning(
+                        "detection_worker.siem_export_chain_failed",
+                        error=str(exc),
+                    )
+
             return {
                 "detections_written": result.detections_written,
                 "detection_ids": detection_ids,

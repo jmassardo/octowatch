@@ -1,18 +1,21 @@
-"""Integrations router: ticketing configs, notification configs, and IdP enrichment."""
+"""Integrations router: ticketing configs, notification configs, IdP enrichment, and SIEM export."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
-from app.models.integration import NotificationConfig, TicketingConfig
+from app.models.integration import NotificationConfig, SiemExportConfig, TicketingConfig
 from app.schemas.integration import (
+    BatchExportRequest,
     IdpEnrichmentResponse,
     NotificationConfigCreate,
     NotificationConfigResponse,
+    SiemExportConfigCreate,
+    SiemExportConfigResponse,
     TicketingConfigCreate,
     TicketingConfigResponse,
 )
@@ -155,6 +158,153 @@ async def get_actor_enrichment(
             detail=f"No enrichment found for '{github_login}'",
         )
     return IdpEnrichmentResponse.model_validate(enrichment)
+
+
+# ─── SIEM export configurations ──────────────────────────────────────────────
+
+
+@router.get("/siem", response_model=list[SiemExportConfigResponse])
+async def list_siem_configs(
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> list[SiemExportConfigResponse]:
+    """List all SIEM/SOAR export configurations."""
+    result = await db.execute(select(SiemExportConfig).order_by(SiemExportConfig.id))
+    configs = result.scalars().all()
+    return [SiemExportConfigResponse.model_validate(c) for c in configs]
+
+
+@router.post(
+    "/siem",
+    response_model=SiemExportConfigResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_csrf)],
+)
+async def create_siem_config(
+    payload: SiemExportConfigCreate,
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> SiemExportConfigResponse:
+    """Register a new SIEM/SOAR export destination (syslog, Splunk HEC, or webhook)."""
+    config = SiemExportConfig(
+        export_type=payload.export_type,
+        display_name=payload.display_name,
+        syslog_host=payload.syslog_host,
+        syslog_port=payload.syslog_port,
+        syslog_protocol=payload.syslog_protocol,
+        syslog_format=payload.syslog_format,
+        splunk_hec_url=payload.splunk_hec_url,
+        splunk_hec_token_env_var=payload.splunk_hec_token_env_var,
+        splunk_sourcetype=payload.splunk_sourcetype,
+        splunk_index=payload.splunk_index,
+        webhook_url=payload.webhook_url,
+        webhook_secret_env_var=payload.webhook_secret_env_var,
+        webhook_headers=payload.webhook_headers,
+        enabled=payload.enabled,
+        export_events=payload.export_events,
+        export_detections=payload.export_detections,
+        created_by=current_user.github_login,
+    )
+    db.add(config)
+    await db.flush()
+    return SiemExportConfigResponse.model_validate(config)
+
+
+@router.delete("/siem/{config_id}", dependencies=[Depends(verify_csrf)])
+async def delete_siem_config(
+    config_id: int,
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Delete a SIEM export configuration."""
+    result = await db.execute(select(SiemExportConfig).where(SiemExportConfig.id == config_id))
+    config = result.scalar_one_or_none()
+    if not config:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Config not found")
+    await db.delete(config)
+    await db.flush()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/siem/{config_id}/test",
+    dependencies=[Depends(verify_csrf)],
+)
+async def test_siem_config(
+    config_id: int,
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Send a test event to a SIEM export destination to verify connectivity."""
+    result = await db.execute(select(SiemExportConfig).where(SiemExportConfig.id == config_id))
+    config = result.scalar_one_or_none()
+    if not config:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Config not found")
+
+    from app.services.siem_export_service import send_soar_webhook, send_splunk_hec, send_syslog
+
+    success = False
+    if config.export_type == "syslog":
+        test_msg = (
+            "CEF:0|OctoWatch|OctoWatch|1.0|test|Test Connection|1"
+            "|msg=OctoWatch SIEM export test event"
+        )
+        success = await send_syslog(config, test_msg)
+
+    elif config.export_type == "splunk_hec":
+        test_payload = {
+            "time": None,
+            "event": {"test": True, "message": "OctoWatch SIEM export test event"},
+        }
+        success = await send_splunk_hec(config, test_payload, sourcetype="octowatch:test")
+
+    elif config.export_type == "webhook":
+        # Create a minimal mock detection for testing
+        from unittest.mock import MagicMock
+
+        mock_detection = MagicMock()
+        mock_detection.id = 0
+        mock_detection.title = "Test Detection"
+        mock_detection.description = "OctoWatch SIEM export test event"
+        mock_detection.severity = "info"
+        mock_detection.confidence = "high"
+        mock_detection.confidence_score = 0.0
+        mock_detection.status = "test"
+        mock_detection.actor = "octowatch-test"
+        mock_detection.org = None
+        mock_detection.repo = None
+        mock_detection.source_ip = None
+        mock_detection.triggered_at = None
+        mock_detection.event_ids = []
+        mock_detection.context_data = {}
+        mock_detection.rule_id = 0
+        success = await send_soar_webhook(config, mock_detection)
+
+    return JSONResponse(
+        content={"success": success, "config_id": config_id},
+        status_code=status.HTTP_200_OK if success else status.HTTP_502_BAD_GATEWAY,
+    )
+
+
+@router.post(
+    "/siem/batch-export",
+    dependencies=[Depends(verify_csrf)],
+)
+async def trigger_batch_export(
+    payload: BatchExportRequest,
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Trigger a batch export of detections in a date range to a SIEM destination."""
+    from app.services.siem_export_service import batch_export
+
+    result = await batch_export(
+        db=db,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        config_id=payload.config_id,
+    )
+    return JSONResponse(content=result)
 
 
 @router.post(

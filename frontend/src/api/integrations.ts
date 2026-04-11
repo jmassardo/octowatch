@@ -4,6 +4,8 @@ import type {
   TicketingConfigCreate,
   NotificationConfigResponse,
   NotificationConfigCreate,
+  SiemExportConfigResponse,
+  SiemExportConfigCreate,
 } from '../types/integrations';
 
 export function listTicketingConfigs(): Promise<TicketingConfigResponse[]> {
@@ -30,4 +32,22 @@ export function createNotificationConfig(
 
 export function deleteNotificationConfig(id: number): Promise<void> {
   return api.delete<void>(`/integrations/notifications/${id}`);
+}
+
+// ── SIEM Export API ─────────────────────────────────────────────────────────
+
+export function listSiemConfigs(): Promise<SiemExportConfigResponse[]> {
+  return api.get<SiemExportConfigResponse[]>('/integrations/siem');
+}
+
+export function createSiemConfig(c: SiemExportConfigCreate): Promise<SiemExportConfigResponse> {
+  return api.post<SiemExportConfigResponse>('/integrations/siem', c);
+}
+
+export function deleteSiemConfig(id: number): Promise<void> {
+  return api.delete<void>(`/integrations/siem/${id}`);
+}
+
+export function testSiemConfig(id: number): Promise<{ success: boolean; config_id: number }> {
+  return api.post<{ success: boolean; config_id: number }>(`/integrations/siem/${id}/test`);
 }

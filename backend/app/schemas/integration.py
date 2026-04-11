@@ -144,3 +144,73 @@ class RetentionConfig(BaseModel):
     raw_payloads_retention_days: int = Field(default=90, ge=1, le=3650)
     detections_retention_days: int = Field(default=730, ge=30, le=3650)
     audit_trail_retention_days: int = Field(default=730, ge=30, le=3650)
+
+
+# ── SIEM Export Schemas ──────────────────────────────────────────────────────
+
+
+class SiemExportConfigCreate(BaseModel):
+    """Create a new SIEM export destination."""
+
+    export_type: str = Field(..., pattern=r"^(syslog|splunk_hec|webhook)$")
+    display_name: str = Field(..., min_length=1, max_length=255)
+
+    # Syslog fields
+    syslog_host: str | None = Field(None, max_length=500)
+    syslog_port: int | None = Field(None, ge=1, le=65535)
+    syslog_protocol: str | None = Field(None, pattern=r"^(tcp|udp|tls)$")
+    syslog_format: str | None = Field(None, pattern=r"^(cef|leef)$")
+
+    # Splunk HEC fields
+    splunk_hec_url: str | None = Field(None, max_length=1000)
+    splunk_hec_token_env_var: str | None = Field(None, max_length=255)
+    splunk_sourcetype: str | None = Field(None, max_length=255)
+    splunk_index: str | None = Field(None, max_length=255)
+
+    # Webhook fields
+    webhook_url: str | None = Field(None, max_length=2000)
+    webhook_secret_env_var: str | None = Field(None, max_length=255)
+    webhook_headers: dict[str, str] | None = None
+
+    # Common
+    enabled: bool = True
+    export_events: bool = False
+    export_detections: bool = True
+
+
+class SiemExportConfigResponse(BaseModel):
+    """SIEM export config response (never exposes secret values)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    export_type: str
+    display_name: str
+
+    syslog_host: str | None
+    syslog_port: int | None
+    syslog_protocol: str | None
+    syslog_format: str | None
+
+    splunk_hec_url: str | None
+    splunk_hec_token_env_var: str | None
+    splunk_sourcetype: str | None
+    splunk_index: str | None
+
+    webhook_url: str | None
+    webhook_secret_env_var: str | None
+    webhook_headers: dict[str, str] | None
+
+    enabled: bool
+    export_events: bool
+    export_detections: bool
+    created_by: str
+    created_at: datetime
+
+
+class BatchExportRequest(BaseModel):
+    """Request body for batch SIEM export."""
+
+    start_date: datetime
+    end_date: datetime
+    config_id: int

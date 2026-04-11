@@ -34,6 +34,7 @@ from app.routers import (
     features,
     health,
     health_signals,
+    ingest_webhook,
     integrations,
     org_config,
     posture,
@@ -446,6 +447,7 @@ def create_app() -> FastAPI:
     app.include_router(dev_activity.router, prefix=API_PREFIX)
     app.include_router(threat_intel.router, prefix=API_PREFIX)
     app.include_router(actors.router, prefix=API_PREFIX)
+    app.include_router(ingest_webhook.router, prefix=API_PREFIX)
 
     return app
 
