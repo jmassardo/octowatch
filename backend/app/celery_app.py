@@ -80,6 +80,12 @@ app.config_from_object(
                 "schedule": 3600.0,  # every 60 minutes
                 "options": {"queue": "baseline"},
             },
+            # Notification digest — daily at 08:00 UTC
+            "send-notification-digest": {
+                "task": "app.workers.notification.send_digest",
+                "schedule": crontab(hour=8, minute=0),
+                "options": {"queue": "notification"},
+            },
         },
     }
 )
