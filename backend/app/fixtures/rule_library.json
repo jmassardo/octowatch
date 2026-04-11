@@ -442,5 +442,86 @@
       "field_conditions": [],
       "confidence": 0.70
     }
+  },
+  {
+    "name": "Cross-Org Admin Escalation",
+    "slug": "cross-org-admin-escalation",
+    "description": "Detects when the same actor is granted admin/owner role in two or more organizations within 24 hours, indicating potential coordinated privilege escalation.",
+    "category": "privilege_escalation",
+    "default_severity": "critical",
+    "default_confidence": "high",
+    "logic_type": "cross_namespace_sequence",
+    "logic_config": {
+      "aggregation_key": "actor",
+      "time_window_minutes": 1440,
+      "require_distinct_steps": true,
+      "steps": [
+        {
+          "action_filters": ["org.update_member", "org.add_member"],
+          "field_conditions": [{"field": "data.permission", "operator": "eq", "value": "admin"}],
+          "min_count": 1
+        },
+        {
+          "action_filters": ["org.update_member", "org.add_member"],
+          "field_conditions": [{"field": "data.permission", "operator": "eq", "value": "admin"}],
+          "min_count": 1
+        }
+      ],
+      "confidence": 0.80
+    }
+  },
+  {
+    "name": "Cross-Org Secret Alert Trigger",
+    "slug": "cross-org-secret-alert-trigger",
+    "description": "Detects the same actor triggering secret scanning alerts across multiple organizations, suggesting widespread credential exposure.",
+    "category": "data_exfiltration",
+    "default_severity": "high",
+    "default_confidence": "high",
+    "logic_type": "cross_namespace_sequence",
+    "logic_config": {
+      "aggregation_key": "actor",
+      "time_window_minutes": 1440,
+      "require_distinct_steps": true,
+      "steps": [
+        {
+          "action_filters": ["secret_scanning_alert.create"],
+          "min_count": 1
+        },
+        {
+          "action_filters": ["secret_scanning_alert.create"],
+          "min_count": 1
+        }
+      ],
+      "confidence": 0.75
+    }
+  },
+  {
+    "name": "Cross-Org Rapid Repo Access",
+    "slug": "cross-org-rapid-repo-access",
+    "description": "Detects an actor accessing repositories across three or more organizations within one hour, suggesting reconnaissance or data harvesting.",
+    "category": "data_exfiltration",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "cross_namespace_sequence",
+    "logic_config": {
+      "aggregation_key": "actor",
+      "time_window_minutes": 60,
+      "require_distinct_steps": false,
+      "steps": [
+        {
+          "action_filters": ["git.clone", "repo.access"],
+          "min_count": 1
+        },
+        {
+          "action_filters": ["git.clone", "repo.access"],
+          "min_count": 1
+        },
+        {
+          "action_filters": ["git.clone", "repo.access"],
+          "min_count": 1
+        }
+      ],
+      "confidence": 0.60
+    }
   }
 ]

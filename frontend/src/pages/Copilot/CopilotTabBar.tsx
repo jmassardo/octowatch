@@ -1,6 +1,6 @@
 import styles from './Copilot.module.css';
 
-export type CopilotTab = 'overview' | 'adoption' | 'models' | 'license' | 'anomalies';
+export type CopilotTab = 'overview' | 'adoption' | 'models' | 'license' | 'anomalies' | 'governance';
 
 interface CopilotTabBarProps {
   activeTab: CopilotTab;
@@ -14,6 +14,7 @@ const TABS: { id: CopilotTab; label: string }[] = [
   { id: 'models', label: 'Models & Features' },
   { id: 'license', label: 'License Optimization' },
   { id: 'anomalies', label: 'Anomalies' },
+  { id: 'governance', label: 'Governance' },
 ];
 
 export function CopilotTabBar({ activeTab, onTabChange, anomalyCount }: CopilotTabBarProps) {

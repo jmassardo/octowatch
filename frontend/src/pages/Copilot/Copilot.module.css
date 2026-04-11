@@ -736,3 +736,114 @@
     transform: translateY(0);
   }
 }
+
+/* ── Governance Pane ─────────────────────────────────────────────── */
+
+.govPane {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.govSection {
+  margin-bottom: 8px;
+}
+
+.govSectionTitle {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.govCount {
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+
+.govGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.govCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.govCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.govPolicyName {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.govCardMeta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-bottom: 10px;
+}
+
+.govCardActions {
+  display: flex;
+  gap: 8px;
+}
+
+.govFilters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.govSelect {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.govTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.govTable th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+
+.govTable td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.govViolationRow:hover {
+  background: var(--bg-hover);
+}
+
+.govViolationTime {
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.govEmpty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--fg-muted);
+  font-size: 13px;
+}

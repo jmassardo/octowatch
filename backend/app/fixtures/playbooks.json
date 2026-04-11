@@ -1,0 +1,154 @@
+[
+  {
+    "name": "Account Compromise Response",
+    "slug": "account-compromise-response",
+    "description": "Step-by-step response to a suspected account compromise. Guides through disabling the user, reviewing activity, checking for data access, resetting credentials, and documenting findings.",
+    "detection_categories": ["account_compromise"],
+    "steps": [
+      {
+        "title": "Disable Compromised Account",
+        "description": "Suspend the suspected compromised user account to prevent further unauthorized access.",
+        "action_type": "link",
+        "action_url": "https://github.com/organizations/{org}/people",
+        "required": true
+      },
+      {
+        "title": "Review Recent Activity",
+        "description": "Examine the actor's audit log events from the last 72 hours. Look for unusual actions, unfamiliar IP addresses, or off-hours activity.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Check for Data Access",
+        "description": "Review git clone operations, repository access events, and any data downloads performed by the compromised account.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Reset Credentials",
+        "description": "Force a password reset, revoke all active sessions, and rotate any PATs or SSH keys associated with the account.",
+        "action_type": "link",
+        "action_url": "https://github.com/organizations/{org}/settings/security",
+        "required": true
+      },
+      {
+        "title": "Document Findings",
+        "description": "Record the timeline of events, impact assessment, root cause (if known), and remediation steps taken.",
+        "action_type": "manual",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "Leaked Secret Response",
+    "slug": "leaked-secret-response",
+    "description": "Response playbook for when a secret (API key, token, credential) is detected in source code or logs.",
+    "detection_categories": ["data_exfiltration", "supply_chain"],
+    "steps": [
+      {
+        "title": "Identify Secret Scope",
+        "description": "Determine what the leaked secret provides access to — which systems, APIs, or data stores are at risk.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Revoke the Secret",
+        "description": "Immediately revoke or disable the leaked secret through the issuing service's admin interface.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Scan for Usage",
+        "description": "Check access logs of the affected service for any unauthorized use of the leaked secret.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Rotate and Replace",
+        "description": "Generate a new secret and update all legitimate consumers. Use GitHub Actions secrets or a vault service.",
+        "action_type": "link",
+        "action_url": "https://github.com/organizations/{org}/settings/secrets/actions",
+        "required": true
+      },
+      {
+        "title": "Document and Prevent",
+        "description": "Record the incident. Enable push protection and secret scanning to prevent future leaks.",
+        "action_type": "link",
+        "action_url": "https://github.com/organizations/{org}/settings/security_analysis",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "Privilege Escalation Response",
+    "slug": "privilege-escalation-response",
+    "description": "Response playbook for unauthorized privilege escalation events such as admin role grants or team maintainer self-promotion.",
+    "detection_categories": ["privilege_escalation"],
+    "steps": [
+      {
+        "title": "Verify Authorization",
+        "description": "Contact the actor and their manager to determine if the privilege change was authorized through proper channels.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Review the Change",
+        "description": "Examine the specific permission change — what role was granted, to which org/team, and what access it provides.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Revert if Unauthorized",
+        "description": "If the change was not authorized, immediately revert the privilege change through the organization's People settings.",
+        "action_type": "link",
+        "action_url": "https://github.com/organizations/{org}/people",
+        "required": true
+      },
+      {
+        "title": "Document",
+        "description": "Record whether the change was authorized or unauthorized, actions taken, and any policy gaps identified.",
+        "action_type": "manual",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "CI/CD Threat Response",
+    "slug": "cicd-threat-response",
+    "description": "Response playbook for threats involving GitHub Actions workflows, such as workflow modifications, suspicious runner activity, or secret exfiltration attempts.",
+    "detection_categories": ["supply_chain"],
+    "steps": [
+      {
+        "title": "Disable Affected Workflow",
+        "description": "Disable the suspicious workflow to prevent further execution. Navigate to the repository's Actions tab.",
+        "action_type": "link",
+        "action_url": "https://github.com/{repo}/actions",
+        "required": true
+      },
+      {
+        "title": "Review Workflow Changes",
+        "description": "Examine the git history of the workflow file to identify what was changed and by whom. Check for obfuscated code or unusual steps.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Check for Data Exfiltration",
+        "description": "Review workflow run logs for signs of data exfiltration — outbound network calls, artifact uploads, or secret exposure.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Remediate",
+        "description": "Revert the malicious workflow changes, rotate any secrets that may have been exposed, and re-enable with fixes applied.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Document",
+        "description": "Record the attack vector, impact, remediation steps, and any improvements to CI/CD security controls.",
+        "action_type": "manual",
+        "required": true
+      }
+    ]
+  }
+]

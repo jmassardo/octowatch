@@ -2,6 +2,8 @@ import { useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { runQuery, listTemplates, createTemplate } from '../../api/query';
+import { translateNLQuery } from '../../api/nlQuery';
+import type { NLInterpretation } from '../../api/nlQuery';
 import type { QueryRunResponse } from '../../types/query';
 import { Button } from '../../components/primitives/Button';
 import { Modal } from '../../components/primitives/Modal';
@@ -850,6 +852,8 @@ export function QueryPage() {
   const highlightRef = useRef<HTMLPreElement>(null);
   const resultsTableRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const [nlInput, setNlInput] = useState('');
+  const [nlResults, setNlResults] = useState<NLInterpretation[]>([]);
 
   type QueryResultRow = Record<string, unknown>;
 
@@ -922,6 +926,27 @@ export function QueryPage() {
       void queryClient.invalidateQueries({ queryKey: ['query-templates'] });
     },
   });
+
+  const nlMutation = useMutation({
+    mutationFn: (query: string) => translateNLQuery({ query }),
+    onSuccess: (data) => {
+      setNlResults(data.interpretations);
+    },
+  });
+
+  const handleNlSubmit = () => {
+    const trimmed = nlInput.trim();
+    if (trimmed) {
+      nlMutation.mutate(trimmed);
+    }
+  };
+
+  const handleNlSelect = (interpretation: NLInterpretation) => {
+    setSql(interpretation.sql);
+    setNlResults([]);
+    setAcItems([]);
+    setAcPartial('');
+  };
 
   const lines = sql.split('\n');
 
@@ -1064,6 +1089,42 @@ export function QueryPage() {
     <div className={styles.page}>
       <div className={styles.pageTitle}>Query Explorer</div>
       <div className={styles.pageSub}>Write SQL against the audit events database</div>
+
+      <div className={styles.nlBar}>
+        <input
+          className={styles.nlInput}
+          placeholder="Ask in plain English… e.g. &quot;show me failed logins in the last 24 hours&quot;"
+          value={nlInput}
+          onChange={(e) => setNlInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleNlSubmit();
+          }}
+          role="searchbox"
+        />
+        <Button size="sm" onClick={handleNlSubmit} disabled={nlMutation.isPending}>
+          {nlMutation.isPending ? '…' : 'Translate'}
+        </Button>
+      </div>
+      {nlResults.length > 0 && (
+        <div className={styles.nlResults}>
+          {nlResults.map((interp, i) => (
+            <button
+              key={i}
+              className={styles.nlCard}
+              onClick={() => handleNlSelect(interp)}
+            >
+              <div className={styles.nlCardDesc}>{interp.description}</div>
+              <div className={styles.nlCardConf}>
+                {Math.round(interp.confidence * 100)}% confidence
+              </div>
+              <code className={styles.nlCardSql}>{interp.sql}</code>
+            </button>
+          ))}
+        </div>
+      )}
+      {nlMutation.isError && (
+        <ErrorBanner message="Failed to translate query" />
+      )}
 
       <div className={styles.queryLayout}>
         {/* Schema tree */}

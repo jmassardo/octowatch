@@ -18,6 +18,8 @@ import { HealthSettingsPage } from './pages/Health/HealthSettings';
 import { PosturePage } from './pages/Posture';
 import { SettingsPage } from './pages/Settings';
 import { ActorsPage } from './pages/Actors';
+import { CrossOrgPage } from './pages/CrossOrg';
+import { WorkflowsPage } from './pages/Workflows';
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
@@ -45,6 +47,8 @@ export const router = createBrowserRouter([
       { path: '/posture/:org', element: <PosturePage /> },
       { path: '/posture/:org/:repo', element: <PosturePage /> },
       { path: '/events', element: <EventsPage /> },
+      { path: '/crossorg', element: <CrossOrgPage /> },
+      { path: '/workflows', element: <WorkflowsPage /> },
       { path: '/velocity', element: <VelocityPage /> },
       { path: '/devactivity', element: <DevActivityPage /> },
       { path: '/copilot', element: <Navigate to="/copilot/overview" replace /> },

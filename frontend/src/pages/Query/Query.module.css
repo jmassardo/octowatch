@@ -492,3 +492,73 @@
     padding: 16px;
   }
 }
+
+/* ── Natural Language Query ──────────────────────────────────────── */
+
+.nlBar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+.nlInput {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--fg);
+  font-size: 13px;
+}
+
+.nlInput::placeholder {
+  color: var(--fg-muted);
+}
+
+.nlResults {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.nlCard {
+  flex: 1;
+  min-width: 260px;
+  max-width: 400px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nlCard:hover {
+  border-color: var(--accent);
+}
+
+.nlCardDesc {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.nlCardConf {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.nlCardSql {
+  font-size: 11px;
+  color: var(--accent);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 60px;
+  overflow: hidden;
+}
