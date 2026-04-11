@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
+from app.models.audit_event import AuditEvent
 from app.models.detection import Detection
+from app.schemas.actor import DetectionTimeline, TimelineEvent
 from app.schemas.detection import (
     AssignDetectionRequest,
     DetectionListParams,
@@ -235,3 +237,78 @@ async def delete_detection(
         resource_id=str(detection_id),
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{detection_id}/timeline", response_model=DetectionTimeline)
+async def get_detection_timeline(
+    detection_id: int,
+    current_user: AuthenticatedUser = Depends(
+        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> DetectionTimeline:
+    """Build a chronological investigation timeline for a detection.
+
+    Fetches all events referenced by the detection's event_ids and annotates
+    sequence steps from context_data when available.
+    """
+    scope = await get_user_scope(db, current_user.github_login, current_user.roles)
+    detection = await _get_detection_or_404(db, detection_id, scope.scoped_orgs)
+
+    events: list[TimelineEvent] = []
+    sequence_actions: list[str] = []
+
+    # Extract sequence steps from context_data (for sequence-type detections)
+    context = detection.context_data or {}
+    if "sequence" in context:
+        sequence_actions = [
+            step.get("action", "") for step in context["sequence"] if isinstance(step, dict)
+        ]
+    elif "steps" in context:
+        sequence_actions = [
+            step.get("action", "") for step in context["steps"] if isinstance(step, dict)
+        ]
+
+    # Fetch events by IDs
+    if detection.event_ids:
+        stmt = (
+            select(AuditEvent)
+            .where(AuditEvent.id.in_(detection.event_ids))
+            .order_by(AuditEvent.created_at.asc())
+        )
+        result = await db.execute(stmt)
+        db_events = result.scalars().all()
+
+        for event in db_events:
+            is_step = event.action in sequence_actions
+            step_idx = sequence_actions.index(event.action) if is_step else None
+            events.append(
+                TimelineEvent(
+                    id=event.id,
+                    created_at=event.created_at,
+                    action=event.action,
+                    actor=event.actor,
+                    org=event.org,
+                    repo=event.repo,
+                    source_ip=str(event.source_ip) if event.source_ip else None,
+                    geo_country_code=event.geo_country_code,
+                    geo_city=event.geo_city,
+                    geo_latitude=event.geo_latitude,
+                    geo_longitude=event.geo_longitude,
+                    data=event.data,
+                    is_sequence_step=is_step,
+                    sequence_index=step_idx,
+                )
+            )
+
+    category = detection.rule.category if detection.rule else None
+
+    return DetectionTimeline(
+        detection_id=detection.id,
+        detection_title=detection.title,
+        detection_severity=detection.severity,
+        detection_category=category,
+        events=events,
+        sequence_steps=sequence_actions,
+        context_data=context,
+    )

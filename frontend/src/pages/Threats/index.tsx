@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   listDetections,
@@ -15,6 +15,7 @@ import { CodeBlock } from '../../components/primitives/CodeBlock';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Pagination } from '../../components/primitives/Pagination';
+import { InvestigationTimeline } from './InvestigationTimeline';
 import { formatRelativeShort } from '../../utils/dates';
 import styles from './Threats.module.css';
 
@@ -60,6 +61,7 @@ export function ThreatsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<TabFilter>('open');
   const [selected, setSelected] = useState<DetectionResponse | null>(null);
+  const [investigatingId, setInvestigatingId] = useState<number | null>(null);
   const initialSeverity = searchParams.get('severity') ?? '';
   const [filtersVisible, setFiltersVisible] = useState(initialSeverity !== '');
   const [severityFilter, setSeverityFilter] = useState(initialSeverity);
@@ -268,7 +270,7 @@ export function ThreatsPage() {
                   {d.rule_name && <Label variant="muted">{safeText(d.rule_name)}</Label>}
                   {d.actor && (
                     <span>
-                      actor: <span className={styles.mention}>@{safeText(d.actor)}</span>
+                      actor: <Link to={`/actors/${encodeURIComponent(d.actor)}`} className={styles.mention} onClick={(e) => e.stopPropagation()}>@{safeText(d.actor)}</Link>
                     </span>
                   )}
                   {d.org && <span>· {safeText(d.org)}</span>}
@@ -350,6 +352,13 @@ export function ThreatsPage() {
             <div className={styles.panelActions}>
               <Button
                 size="sm"
+                variant="primary"
+                onClick={() => setInvestigatingId(selected.id)}
+              >
+                🔍 Investigate
+              </Button>
+              <Button
+                size="sm"
                 variant="danger"
                 onClick={() => suspendMutation.mutate(selected.id)}
                 disabled={suspendMutation.isPending}
@@ -379,6 +388,14 @@ export function ThreatsPage() {
           </>
         )}
       </div>
+      {investigatingId !== null && (
+        <div className={styles.timelineOverlay}>
+          <InvestigationTimeline
+            detectionId={investigatingId}
+            onClose={() => setInvestigatingId(null)}
+          />
+        </div>
+      )}
     </div>
   );
 }

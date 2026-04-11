@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { listDetections } from '../../api/detections';
@@ -9,6 +10,7 @@ import { Card, CardHeader } from '../../components/primitives/Card';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { UnifiedSecurityWidget } from '../../components/widgets/UnifiedSecurityWidget';
+import { ExecutiveView } from './ExecutiveView';
 import { useOrg } from '../../hooks/useOrg';
 import type { EventResponse } from '../../types/events';
 import type { ActionsVolumeBucket } from '../../types/reports';
@@ -108,7 +110,11 @@ function EventFeedItem({ event }: { event: EventResponse }) {
     <div className={styles.tlItem}>
       <div className={[styles.tlNode, styles[typeClass]].join(' ')} />
       <div className={styles.tlBody}>
-        {event.actor && <span className={styles.mention}>@{event.actor}</span>}
+        {event.actor && (
+          <a href={`/actors/${encodeURIComponent(event.actor)}`} className={styles.mention}>
+            @{event.actor}
+          </a>
+        )}
         {event.actor ? ' · ' : ''}
         <strong>{event.action}</strong>
         {event.repo && (
@@ -135,6 +141,7 @@ function formatCount(n: number): string {
 export function DashboardPage() {
   const navigate = useNavigate();
   const { selectedOrg } = useOrg();
+  const [view, setView] = useState<'operations' | 'executive'>('operations');
 
   const orgLabel = !selectedOrg || selectedOrg === 'all' ? 'All organizations' : selectedOrg;
 
@@ -248,7 +255,30 @@ export function DashboardPage() {
           : 'Activity across your organizations'}
       </div>
 
-      <div className={styles.pills}>
+      <div className={styles.viewToggle}>
+        <button
+          className={[styles.viewBtn, view === 'operations' && styles.viewActive]
+            .filter(Boolean)
+            .join(' ')}
+          onClick={() => setView('operations')}
+        >
+          Operations View
+        </button>
+        <button
+          className={[styles.viewBtn, view === 'executive' && styles.viewActive]
+            .filter(Boolean)
+            .join(' ')}
+          onClick={() => setView('executive')}
+        >
+          Executive View
+        </button>
+      </div>
+
+      {view === 'executive' ? (
+        <ExecutiveView />
+      ) : (
+        <>
+          <div className={styles.pills}>
         <StatPill
           value={eventCountLabel || '—'}
           label="events today"
@@ -507,6 +537,8 @@ export function DashboardPage() {
           </Card>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

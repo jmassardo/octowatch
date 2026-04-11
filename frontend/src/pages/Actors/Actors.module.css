@@ -1,0 +1,161 @@
+.page {
+  padding: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  padding: 48px;
+}
+
+/* Profile header */
+.profileHeader {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.avatar {
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+}
+
+.profileInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.profileName {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--fg);
+}
+
+.profileMeta {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+/* Risk meter */
+.riskMeter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.riskBar {
+  width: 120px;
+  height: 6px;
+  background: var(--canvas-subtle);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.riskFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.riskScore {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tabs */
+.tabBar {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+  gap: 0;
+}
+
+.tabBtn {
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-family: inherit;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tabBtn:hover {
+  color: var(--fg);
+}
+
+.tabActive {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+
+.tabContent {
+  min-height: 300px;
+}
+
+/* Table */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-subtle);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-muted);
+  color: var(--fg);
+}
+
+.table tr:hover td {
+  background: rgba(177, 186, 196, 0.06);
+}
+
+.mono {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+}
+
+.link {
+  color: var(--done);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+/* Empty tab */
+.emptyTab {
+  text-align: center;
+  color: var(--fg-muted);
+  font-size: 14px;
+  padding: 48px 0;
+}

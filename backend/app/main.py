@@ -23,6 +23,7 @@ from app.config import settings
 from app.database import dispose_pool, warm_up_pool
 from app.rate_limit import limiter
 from app.routers import (
+    actors,
     admin,
     admin_settings,
     auth,
@@ -444,6 +445,7 @@ def create_app() -> FastAPI:
     app.include_router(suggestions.router, prefix=API_PREFIX)
     app.include_router(dev_activity.router, prefix=API_PREFIX)
     app.include_router(threat_intel.router, prefix=API_PREFIX)
+    app.include_router(actors.router, prefix=API_PREFIX)
 
     return app
 

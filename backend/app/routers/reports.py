@@ -723,3 +723,396 @@ async def delete_schedule(
 
     await db.delete(schedule)
     await db.flush()
+
+
+# ─── Executive summary ────────────────────────────────────────────────────────
+
+
+@router.get("/executive-summary")
+async def get_executive_summary(
+    period: int = Query(30, description="Lookback period in days (7, 30, or 90)"),
+    current_user: AuthenticatedUser = Depends(
+        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Executive summary for CISO dashboards.
+
+    Returns posture score with delta, detection trends, compliance summary,
+    top risks, and month-over-month comparison metrics.
+    """
+    from sqlalchemy import func
+
+    from app.models.audit_event import AuditEvent
+    from app.models.detection import Detection
+    from app.services.rbac_service import get_user_scope
+
+    scope = await get_user_scope(db, current_user.github_login, current_user.roles)
+
+    if period not in (7, 30, 90):
+        period = 30
+
+    now = datetime.now(UTC)
+    period_start = now - timedelta(days=period)
+    previous_start = period_start - timedelta(days=period)
+
+    # ── Posture score (current vs previous period) ────────────────────────
+    severity_weight = {"critical": 10, "high": 7, "medium": 4, "low": 2, "info": 1}
+    open_statuses = ("open", "investigating")
+
+    # Current open detections
+    current_det_stmt = select(
+        Detection.severity,
+        func.count(Detection.id).label("cnt"),
+    ).where(
+        Detection.status.in_(open_statuses),
+        Detection.triggered_at >= period_start,
+    )
+    if scope.scoped_orgs:
+        current_det_stmt = current_det_stmt.where(Detection.org.in_(scope.scoped_orgs))
+    current_det_stmt = current_det_stmt.group_by(Detection.severity)
+    current_sev_rows = (await db.execute(current_det_stmt)).all()
+
+    sev_breakdown: dict[str, int] = {}
+    total_weight = 0
+    for row in current_sev_rows:
+        sev_breakdown[row.severity] = row.cnt
+        w = severity_weight.get(row.severity, 1) * row.cnt
+        total_weight += w
+
+    # Score: detections reduce score from 100
+    posture_score = max(0.0, round(100.0 - min(total_weight, 100), 1))
+
+    # Previous period score
+    prev_det_stmt = select(
+        Detection.severity,
+        func.count(Detection.id).label("cnt"),
+    ).where(
+        Detection.triggered_at >= previous_start,
+        Detection.triggered_at < period_start,
+    )
+    if scope.scoped_orgs:
+        prev_det_stmt = prev_det_stmt.where(Detection.org.in_(scope.scoped_orgs))
+    prev_det_stmt = prev_det_stmt.group_by(Detection.severity)
+    prev_sev_rows = (await db.execute(prev_det_stmt)).all()
+
+    prev_weight = sum(severity_weight.get(r.severity, 1) * r.cnt for r in prev_sev_rows)
+    prev_score = max(0.0, round(100.0 - min(prev_weight, 100), 1))
+
+    score_delta = round(posture_score - prev_score, 1)
+    score_delta_pct = round((score_delta / prev_score * 100) if prev_score > 0 else 0, 1)
+
+    # ── Detection trend (7/30/90 day counts) ──────────────────────────────
+    trend: dict[str, int] = {}
+    for days in (7, 30, 90):
+        trend_stmt = select(func.count(Detection.id)).where(
+            Detection.triggered_at >= now - timedelta(days=days)
+        )
+        if scope.scoped_orgs:
+            trend_stmt = trend_stmt.where(Detection.org.in_(scope.scoped_orgs))
+        trend[f"{days}d"] = (await db.execute(trend_stmt)).scalar_one()
+
+    # ── Compliance summary ────────────────────────────────────────────────
+    compliance_summary: list[dict[str, Any]] = []
+    for framework, generator in [
+        ("SOC 2", generate_soc2_report),
+        ("ISO 27001", generate_iso27001_report),
+        ("NIST CSF", generate_nist_csf_report),
+    ]:
+        try:
+            report = await generator(db, period_days=period, org=None)
+            es = report.get("executive_summary", {})
+            assessed = es.get("controls_assessed", 0) or es.get("functions_assessed", 0)
+            with_evidence = es.get("controls_with_evidence", 0) or es.get(
+                "functions_with_evidence", 0
+            )
+            pct = round((with_evidence / assessed * 100) if assessed > 0 else 0, 1)
+            compliance_summary.append(
+                {
+                    "framework": framework,
+                    "controls_assessed": assessed,
+                    "controls_with_evidence": with_evidence,
+                    "compliance_pct": pct,
+                }
+            )
+        except Exception:
+            logger.warning("executive_summary.compliance_failed", framework=framework)
+            compliance_summary.append(
+                {
+                    "framework": framework,
+                    "controls_assessed": 0,
+                    "controls_with_evidence": 0,
+                    "compliance_pct": 0,
+                }
+            )
+
+    # ── Top risks ─────────────────────────────────────────────────────────
+    top_risk_stmt = (
+        select(
+            Detection.title,
+            Detection.severity,
+            Detection.actor,
+            func.count(Detection.id).label("cnt"),
+        )
+        .where(
+            Detection.status.in_(open_statuses),
+            Detection.triggered_at >= period_start,
+        )
+        .group_by(Detection.title, Detection.severity, Detection.actor)
+        .order_by(func.count(Detection.id).desc())
+        .limit(5)
+    )
+    if scope.scoped_orgs:
+        top_risk_stmt = top_risk_stmt.where(Detection.org.in_(scope.scoped_orgs))
+    top_risk_rows = (await db.execute(top_risk_stmt)).all()
+
+    top_risks = [
+        {
+            "title": r.title,
+            "severity": r.severity,
+            "category": "",
+            "count": r.cnt,
+            "actor": r.actor,
+        }
+        for r in top_risk_rows
+    ]
+
+    # ── Month-over-month ──────────────────────────────────────────────────
+    current_det_count_stmt = select(func.count(Detection.id)).where(
+        Detection.triggered_at >= period_start
+    )
+    if scope.scoped_orgs:
+        current_det_count_stmt = current_det_count_stmt.where(Detection.org.in_(scope.scoped_orgs))
+    current_det_count = (await db.execute(current_det_count_stmt)).scalar_one()
+
+    prev_det_count_stmt = select(func.count(Detection.id)).where(
+        Detection.triggered_at >= previous_start,
+        Detection.triggered_at < period_start,
+    )
+    if scope.scoped_orgs:
+        prev_det_count_stmt = prev_det_count_stmt.where(Detection.org.in_(scope.scoped_orgs))
+    prev_det_count = (await db.execute(prev_det_count_stmt)).scalar_one()
+
+    current_event_stmt = select(func.count(AuditEvent.id)).where(
+        AuditEvent.created_at >= period_start
+    )
+    if scope.scoped_orgs:
+        current_event_stmt = current_event_stmt.where(AuditEvent.org.in_(scope.scoped_orgs))
+    current_events = (await db.execute(current_event_stmt)).scalar_one()
+
+    prev_event_stmt = select(func.count(AuditEvent.id)).where(
+        AuditEvent.created_at >= previous_start,
+        AuditEvent.created_at < period_start,
+    )
+    if scope.scoped_orgs:
+        prev_event_stmt = prev_event_stmt.where(AuditEvent.org.in_(scope.scoped_orgs))
+    prev_events = (await db.execute(prev_event_stmt)).scalar_one()
+
+    det_change = round(
+        ((current_det_count - prev_det_count) / prev_det_count * 100) if prev_det_count > 0 else 0,
+        1,
+    )
+    event_change = round(
+        ((current_events - prev_events) / prev_events * 100) if prev_events > 0 else 0,
+        1,
+    )
+
+    return {
+        "posture_score": posture_score,
+        "posture_score_previous": prev_score,
+        "score_delta": score_delta,
+        "score_delta_pct": score_delta_pct,
+        "detection_trend": trend,
+        "severity_breakdown": sev_breakdown,
+        "compliance_summary": compliance_summary,
+        "top_risks": top_risks,
+        "month_over_month": {
+            "current_detections": current_det_count,
+            "previous_detections": prev_det_count,
+            "current_events": current_events,
+            "previous_events": prev_events,
+            "detection_change_pct": det_change,
+            "event_change_pct": event_change,
+        },
+    }
+
+
+@router.get("/executive-summary/pdf")
+async def export_executive_summary_pdf(
+    period: int = Query(30, description="Lookback period in days (7, 30, or 90)"),
+    current_user: AuthenticatedUser = Depends(
+        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
+    """Generate a print-ready HTML page for the executive summary.
+
+    Use the browser's print-to-PDF function for presentation-ready output.
+    """
+
+    # Re-use the summary endpoint logic
+    summary = await get_executive_summary(period=period, current_user=current_user, db=db)
+
+    # Build an HTML page for print/PDF
+    html = _render_executive_html(summary)
+    return HTMLResponse(content=html)
+
+
+def _render_executive_html(summary: dict[str, Any]) -> str:
+    """Render executive summary to print-ready HTML."""
+    compliance_rows = ""
+    for c in summary.get("compliance_summary", []):
+        compliance_rows += (
+            f"<tr><td>{c['framework']}</td>"
+            f"<td>{c['controls_assessed']}</td>"
+            f"<td>{c['controls_with_evidence']}</td>"
+            f"<td>{c['compliance_pct']}%</td></tr>"
+        )
+
+    risk_rows = ""
+    for r in summary.get("top_risks", []):
+        risk_rows += (
+            f"<tr><td>{r['title']}</td>"
+            f"<td>{r['severity']}</td>"
+            f"<td>{r['count']}</td>"
+            f"<td>{r.get('actor', '—')}</td></tr>"
+        )
+
+    score = summary["posture_score"]
+    delta = summary["score_delta"]
+    delta_class = "delta-down" if delta < 0 else "delta-up"
+    delta_arrow = "▼" if delta < 0 else "▲"
+
+    mom = summary["month_over_month"]
+    trend = summary["detection_trend"]
+    generated = datetime.now(UTC).strftime("%B %d, %Y")
+
+    # Build metric divs as variables to keep lines short
+    t7 = trend.get("7d", 0)
+    t30 = trend.get("30d", 0)
+    t90 = trend.get("90d", 0)
+    cur_det = mom["current_detections"]
+    prev_det = mom["previous_detections"]
+    cur_ev = mom["current_events"]
+    prev_ev = mom["previous_events"]
+    det_pct = mom["detection_change_pct"]
+    ev_pct = mom["event_change_pct"]
+    delta_pct = summary["score_delta_pct"]
+
+    parts = [
+        "<!DOCTYPE html>",
+        '<html lang="en">',
+        "<head>",
+        '<meta charset="UTF-8">',
+        "<title>OctoWatch Executive Summary</title>",
+        "<style>",
+        "  body { font-family: -apple-system, sans-serif;",
+        "    color: #24292e; background: #fff;",
+        "    padding: 40px 60px; line-height: 1.6; }",
+        "  h1 { font-size: 28px; margin-bottom: 4px; }",
+        "  .subtitle { color: #6a737d; margin-bottom: 32px; }",
+        "  .score-card { display: inline-block;",
+        "    background: #f6f8fa; border: 1px solid #e1e4e8;",
+        "    border-radius: 8px; padding: 24px 36px;",
+        "    margin-bottom: 24px; text-align: center; }",
+        "  .score-value { font-size: 48px; font-weight: 700; }",
+        "  .delta-up { color: #28a745; }",
+        "  .delta-down { color: #cb2431; }",
+        "  .delta { font-size: 18px; font-weight: 600; }",
+        "  table { border-collapse: collapse;",
+        "    width: 100%; margin-bottom: 24px; }",
+        "  th, td { border: 1px solid #e1e4e8;",
+        "    padding: 8px 12px; text-align: left; font-size: 14px; }",
+        "  th { background: #f6f8fa; font-weight: 600; }",
+        "  .section { margin-top: 32px; }",
+        "  .section h2 { font-size: 18px;",
+        "    border-bottom: 1px solid #e1e4e8;",
+        "    padding-bottom: 8px; }",
+        "  .metrics { display: flex; gap: 24px;",
+        "    flex-wrap: wrap; margin-bottom: 24px; }",
+        "  .metric { background: #f6f8fa;",
+        "    border-radius: 6px; padding: 16px 20px;",
+        "    border: 1px solid #e1e4e8; min-width: 140px; }",
+        "  .metric .val { font-size: 24px; font-weight: 700; }",
+        "  .metric .lbl { font-size: 12px; color: #6a737d; }",
+        "  @media print { body { padding: 20px; } }",
+        "</style>",
+        "</head>",
+        "<body>",
+        "<h1>OctoWatch Executive Security Summary</h1>",
+        f'<div class="subtitle">Generated {generated}</div>',
+        '<div class="score-card">',
+        f'  <div class="score-value">{score}</div>',
+        "  <div>Security Posture Score</div>",
+        f'  <div class="delta {delta_class}">',
+        f"    {delta_arrow} {abs(delta)} ({delta_pct}%)",
+        "  </div>",
+        "</div>",
+        '<div class="section">',
+        "  <h2>Detection Trend</h2>",
+        '  <div class="metrics">',
+        '    <div class="metric">',
+        f'      <div class="val">{t7}</div>',
+        '      <div class="lbl">Last 7 days</div>',
+        "    </div>",
+        '    <div class="metric">',
+        f'      <div class="val">{t30}</div>',
+        '      <div class="lbl">Last 30 days</div>',
+        "    </div>",
+        '    <div class="metric">',
+        f'      <div class="val">{t90}</div>',
+        '      <div class="lbl">Last 90 days</div>',
+        "    </div>",
+        "  </div>",
+        "</div>",
+        '<div class="section">',
+        "  <h2>Compliance Status</h2>",
+        "  <table>",
+        "    <thead><tr>",
+        "      <th>Framework</th>",
+        "      <th>Controls Assessed</th>",
+        "      <th>With Evidence</th>",
+        "      <th>Score</th>",
+        "    </tr></thead>",
+        f"    <tbody>{compliance_rows}</tbody>",
+        "  </table>",
+        "</div>",
+        '<div class="section">',
+        "  <h2>Top Risks</h2>",
+        "  <table>",
+        "    <thead><tr>",
+        "      <th>Risk</th><th>Severity</th>",
+        "      <th>Count</th><th>Actor</th>",
+        "    </tr></thead>",
+        f"    <tbody>{risk_rows}</tbody>",
+        "  </table>",
+        "</div>",
+        '<div class="section">',
+        "  <h2>Month-over-Month</h2>",
+        '  <div class="metrics">',
+        '    <div class="metric">',
+        f'      <div class="val">{cur_det}</div>',
+        '      <div class="lbl">',
+        f"        Current Detections ({det_pct:+.1f}%)",
+        "      </div>",
+        "    </div>",
+        '    <div class="metric">',
+        f'      <div class="val">{prev_det}</div>',
+        '      <div class="lbl">Previous Detections</div>',
+        "    </div>",
+        '    <div class="metric">',
+        f'      <div class="val">{cur_ev}</div>',
+        '      <div class="lbl">',
+        f"        Current Events ({ev_pct:+.1f}%)",
+        "      </div>",
+        "    </div>",
+        '    <div class="metric">',
+        f'      <div class="val">{prev_ev}</div>',
+        '      <div class="lbl">Previous Events</div>',
+        "    </div>",
+        "  </div>",
+        "</div>",
+        "</body>",
+        "</html>",
+    ]
+    return "\n".join(parts)
