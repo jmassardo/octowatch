@@ -12,6 +12,7 @@ export function MiniBarChart({
   className,
 }: MiniBarChartProps) {
   const max = Math.max(...data, 1);
+  const total = data.reduce((a, b) => a + b, 0);
   return (
     <div
       className={className}
@@ -21,6 +22,8 @@ export function MiniBarChart({
         gap: 2,
         height,
       }}
+      role="figure"
+      aria-label={`Mini bar chart with ${data.length} bars, total value ${total}`}
     >
       {data.map((v, i) => (
         <div
@@ -31,6 +34,7 @@ export function MiniBarChart({
             borderRadius: 2,
             background: color,
           }}
+          aria-hidden="true"
         />
       ))}
     </div>

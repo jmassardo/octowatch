@@ -8,6 +8,7 @@ import styles from './AppShell.module.css';
 
 export function AppShell() {
   const [showTour, setShowTour] = useState(!isTourCompleted());
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   function handleReplayTour() {
     resetTour();
@@ -19,11 +20,20 @@ export function AppShell() {
       <a href="#main-content" className={styles.skipNav}>
         Skip to main content
       </a>
-      <aside>
+      <aside className={styles.desktopSidebar}>
         <Sidebar />
       </aside>
+      <aside className={styles.mobileSidebar}>
+        <Sidebar
+          mobileOpen={sidebarOpen}
+          onMobileClose={() => setSidebarOpen(false)}
+        />
+      </aside>
       <div className={styles.main}>
-        <TopBar onShowTour={handleReplayTour} />
+        <TopBar
+          onShowTour={handleReplayTour}
+          onToggleSidebar={() => setSidebarOpen((o) => !o)}
+        />
         <main id="main-content" className={styles.content}>
           <Outlet />
         </main>

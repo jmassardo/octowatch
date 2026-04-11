@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import styles from './DataTable.module.css';
 
 export type SortDirection = 'asc' | 'desc' | null;
@@ -34,22 +34,53 @@ export function DataTable<T>({
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDirection>(null);
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const [activeRowIndex, setActiveRowIndex] = useState<number>(-1);
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  const sortAnnouncementRef = useRef<HTMLDivElement>(null);
 
   function handleSort(key: string) {
+    let newDir: SortDirection;
+    let newCol: string | null;
+
     if (sortColumn === key) {
       if (sortDir === 'asc') {
-        setSortDir('desc');
+        newDir = 'desc';
+        newCol = key;
       } else if (sortDir === 'desc') {
-        setSortDir(null);
-        setSortColumn(null);
+        newDir = null;
+        newCol = null;
       } else {
-        setSortDir('asc');
+        newDir = 'asc';
+        newCol = key;
       }
     } else {
-      setSortColumn(key);
-      setSortDir('asc');
+      newCol = key;
+      newDir = 'asc';
+    }
+
+    setSortColumn(newCol);
+    setSortDir(newDir);
+
+    // Announce sort change to screen readers
+    if (sortAnnouncementRef.current) {
+      const col = columns.find((c) => c.key === key);
+      const dirLabel = newDir === 'asc' ? 'ascending' : newDir === 'desc' ? 'descending' : 'none';
+      sortAnnouncementRef.current.textContent = col
+        ? `Sorted by ${col.header}, ${dirLabel}`
+        : '';
     }
   }
+
+  const handleSortKeyDown = useCallback(
+    (key: string, e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleSort(key);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sortColumn, sortDir, columns],
+  );
 
   function handleFilter(key: string, value: string) {
     setColumnFilters((prev) => ({ ...prev, [key]: value }));
@@ -95,17 +126,65 @@ export function DataTable<T>({
 
   const hasFilters = columns.some((c) => c.filterable);
 
+  /** Keyboard navigation for table rows */
+  const handleRowKeyDown = useCallback(
+    (e: React.KeyboardEvent, row: T, index: number) => {
+      if (e.key === 'Enter' && onRowClick) {
+        e.preventDefault();
+        onRowClick(row);
+        return;
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const nextIndex = Math.min(index + 1, sortedData.length - 1);
+        setActiveRowIndex(nextIndex);
+        focusRow(nextIndex);
+        return;
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prevIndex = Math.max(index - 1, 0);
+        setActiveRowIndex(prevIndex);
+        focusRow(prevIndex);
+        return;
+      }
+    },
+    [onRowClick, sortedData.length],
+  );
+
+  function focusRow(index: number) {
+    const rows = tbodyRef.current?.querySelectorAll<HTMLElement>('tr[tabindex]');
+    rows?.[index]?.focus();
+  }
+
   return (
     <div className={`${styles.tableWrap} ${className ?? ''}`}>
-      <table className={styles.table}>
+      {/* Screen reader announcement for sort changes */}
+      <div
+        ref={sortAnnouncementRef}
+        className="sr-only"
+        aria-live="polite"
+        aria-atomic="true"
+      />
+      <table
+        className={styles.table}
+        aria-rowcount={sortedData.length}
+        aria-colcount={columns.length}
+      >
         <thead>
           <tr>
             {columns.map((col) => (
               <th
                 key={col.key}
+                scope="col"
                 style={col.width ? { width: col.width } : undefined}
                 className={col.sortable ? styles.sortable : undefined}
                 onClick={col.sortable ? () => handleSort(col.key) : undefined}
+                onKeyDown={col.sortable ? (e) => handleSortKeyDown(col.key, e) : undefined}
+                tabIndex={col.sortable ? 0 : undefined}
+                role={col.sortable ? 'columnheader' : undefined}
                 aria-sort={
                   sortColumn === col.key && sortDir === 'asc'
                     ? 'ascending'
@@ -150,7 +229,7 @@ export function DataTable<T>({
             </tr>
           )}
         </thead>
-        <tbody>
+        <tbody ref={tbodyRef}>
           {sortedData.length === 0 ? (
             <tr>
               <td colSpan={columns.length} className={styles.empty}>
@@ -158,11 +237,17 @@ export function DataTable<T>({
               </td>
             </tr>
           ) : (
-            sortedData.map((row) => (
+            sortedData.map((row, index) => (
               <tr
                 key={rowKey(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
+                onKeyDown={
+                  onRowClick ? (e) => handleRowKeyDown(e, row, index) : undefined
+                }
                 className={onRowClick ? styles.clickableRow : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                aria-rowindex={index + 1}
+                aria-selected={onRowClick ? activeRowIndex === index : undefined}
               >
                 {columns.map((col) => (
                   <td key={col.key}>{col.render(row)}</td>

@@ -467,3 +467,28 @@
   background: rgba(177, 186, 196, 0.08);
   color: var(--fg);
 }
+
+/* Responsive: tablet — stack editor and results vertically, hide schema sidebar */
+@media (max-width: 1024px) {
+  .queryLayout {
+    flex-direction: column;
+  }
+
+  .schemaTree {
+    display: none;
+  }
+
+  .editorWrap {
+    min-height: 300px;
+  }
+
+  .resultsTable {
+    min-height: 200px;
+  }
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 16px;
+  }
+}

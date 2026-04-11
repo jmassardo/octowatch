@@ -1,5 +1,7 @@
 import ReactECharts from 'echarts-for-react';
 import type { EChartsOption } from 'echarts';
+import { useChartColors } from '../../hooks/useChartColors';
+import { describeGeoMap } from '../../utils/chartA11y';
 
 interface GeoPoint {
   lat: number;
@@ -21,6 +23,8 @@ interface GeoMapProps {
  * consecutive points. No external map tiles required.
  */
 export function GeoMap({ locations, height = 300 }: GeoMapProps) {
+  const colors = useChartColors();
+
   if (locations.length === 0) return null;
 
   // Build scatter data
@@ -49,7 +53,7 @@ export function GeoMap({ locations, height = 300 }: GeoMapProps) {
   }
 
   const option: EChartsOption = {
-    backgroundColor: '#0d1117',
+    backgroundColor: colors.chartBg,
     tooltip: {
       trigger: 'item',
     },
@@ -79,7 +83,7 @@ export function GeoMap({ locations, height = 300 }: GeoMapProps) {
             bottom: 8,
             style: {
               text: `Distance: ${Math.round(distanceKm).toLocaleString()} km`,
-              fill: '#8b949e',
+              fill: colors.chartText,
               fontSize: 12,
             },
           },
@@ -100,7 +104,7 @@ export function GeoMap({ locations, height = 300 }: GeoMapProps) {
           show: true,
           position: 'top',
           formatter: '{b}',
-          color: '#c9d1d9',
+          color: colors.chartTooltipFg,
           fontSize: 11,
         },
       },
@@ -126,7 +130,34 @@ export function GeoMap({ locations, height = 300 }: GeoMapProps) {
     ],
   };
 
-  return <ReactECharts option={option} style={{ height }} />;
+  const ariaLabel = describeGeoMap(locations);
+
+  return (
+    <div role="figure" aria-label={ariaLabel}>
+      <ReactECharts option={option} style={{ height }} />
+      <table className="sr-only">
+        <caption>Location data</caption>
+        <thead>
+          <tr>
+            <th scope="col">City</th>
+            <th scope="col">Country</th>
+            <th scope="col">Latitude</th>
+            <th scope="col">Longitude</th>
+          </tr>
+        </thead>
+        <tbody>
+          {locations.map((loc, i) => (
+            <tr key={i}>
+              <td>{loc.city}</td>
+              <td>{loc.country}</td>
+              <td>{loc.lat}</td>
+              <td>{loc.lng}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 /** Haversine distance between two lat/lng points in kilometers. */

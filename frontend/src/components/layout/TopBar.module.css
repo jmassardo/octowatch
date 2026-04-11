@@ -9,6 +9,32 @@
   gap: 12px;
 }
 
+/* Hamburger menu button — hidden on desktop, visible on tablet/mobile */
+.hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+  cursor: pointer;
+  color: var(--fg-muted);
+  line-height: 1;
+  transition: border-color 0.15s;
+}
+
+.hamburger:hover {
+  border-color: var(--fg-muted);
+  color: var(--fg);
+}
+
+@media (max-width: 1024px) {
+  .hamburger {
+    display: flex;
+  }
+}
+
 /* ---- Org dropdown ---- */
 
 .orgDropdownWrap {

@@ -345,3 +345,46 @@
 .viewBtn:hover:not(.viewActive) {
   background: rgba(177, 186, 196, 0.12);
 }
+
+/* Responsive: tablet (768–1024px) — 2-column grid */
+@media (max-width: 1024px) {
+  .grid {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    min-width: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .sidebar > * {
+    flex: 1;
+    min-width: 280px;
+  }
+
+  .pills {
+    flex-wrap: wrap;
+  }
+}
+
+/* Responsive: mobile (< 768px) — single-column stack */
+@media (max-width: 768px) {
+  .page {
+    padding: 16px;
+  }
+
+  .grid {
+    gap: 12px;
+  }
+
+  .sidebar {
+    flex-direction: column;
+  }
+
+  .sidebar > * {
+    min-width: 0;
+  }
+}

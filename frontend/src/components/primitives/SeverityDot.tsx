@@ -10,10 +10,13 @@ interface SeverityDotProps {
 }
 
 export function SeverityDot({ severity, className, style }: SeverityDotProps) {
+  const label = `Severity: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`;
   return (
     <span
       className={[styles.dot, styles[severity], className].filter(Boolean).join(' ')}
       style={style}
+      role="img"
+      aria-label={label}
     />
   );
 }

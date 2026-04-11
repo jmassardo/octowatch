@@ -58,19 +58,19 @@
 }
 
 .cell[data-level='0'] {
-  background: #161b22;
+  background: var(--cal-level-0);
 }
 .cell[data-level='1'] {
-  background: #0e4429;
+  background: var(--cal-level-1);
 }
 .cell[data-level='2'] {
-  background: #006d32;
+  background: var(--cal-level-2);
 }
 .cell[data-level='3'] {
-  background: #26a641;
+  background: var(--cal-level-3);
 }
 .cell[data-level='4'] {
-  background: #39d353;
+  background: var(--cal-level-4);
 }
 .cell[data-alert] {
   background: rgba(248, 81, 73, 0.8);

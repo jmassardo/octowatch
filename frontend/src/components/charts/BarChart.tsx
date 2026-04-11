@@ -1,5 +1,7 @@
 import ReactECharts from 'echarts-for-react';
 import type { EChartsOption } from 'echarts';
+import { useChartColors } from '../../hooks/useChartColors';
+import { describeBarChart, chartToTableData } from '../../utils/chartA11y';
 
 interface BarChartProps {
   title?: string;
@@ -13,27 +15,29 @@ interface BarChartProps {
 }
 
 export function BarChart({ title, xAxisData, series, height = 160 }: BarChartProps) {
+  const colors = useChartColors();
+
   const option: EChartsOption = {
     backgroundColor: 'transparent',
-    textStyle: { color: '#8b949e', fontFamily: 'inherit', fontSize: 11 },
+    textStyle: { color: colors.chartText, fontFamily: 'inherit', fontSize: 11 },
     grid: { left: 8, right: 8, top: 20, bottom: 20, containLabel: true },
     xAxis: {
       type: 'category',
       data: xAxisData,
-      axisLine: { lineStyle: { color: '#30363d' } },
+      axisLine: { lineStyle: { color: colors.chartGrid } },
       axisTick: { show: false },
-      axisLabel: { color: '#6e7681', fontSize: 10 },
+      axisLabel: { color: colors.chartTextSecondary, fontSize: 10 },
     },
     yAxis: {
       type: 'value',
-      splitLine: { lineStyle: { color: '#21262d' } },
-      axisLabel: { color: '#6e7681', fontSize: 10 },
+      splitLine: { lineStyle: { color: colors.chartGrid } },
+      axisLabel: { color: colors.chartTextSecondary, fontSize: 10 },
     },
     tooltip: {
       trigger: 'axis',
-      backgroundColor: '#161b22',
-      borderColor: '#30363d',
-      textStyle: { color: '#e6edf3', fontSize: 12 },
+      backgroundColor: colors.chartTooltipBg,
+      borderColor: colors.chartTooltipBorder,
+      textStyle: { color: colors.chartTooltipFg, fontSize: 12 },
     },
     series: series.map((s) => ({
       name: s.name,
@@ -43,9 +47,35 @@ export function BarChart({ title, xAxisData, series, height = 160 }: BarChartPro
       barMaxWidth: 28,
     })),
     ...(title
-      ? { title: { text: title, textStyle: { color: '#8b949e', fontSize: 12, fontWeight: 500 } } }
+      ? { title: { text: title, textStyle: { color: colors.chartText, fontSize: 12, fontWeight: 500 } } }
       : {}),
   };
 
-  return <ReactECharts option={option} style={{ height }} />;
+  const ariaLabel = describeBarChart(title, xAxisData, series);
+  const tableData = chartToTableData('Category', xAxisData, series);
+
+  return (
+    <div role="figure" aria-label={ariaLabel}>
+      <ReactECharts option={option} style={{ height }} />
+      <table className="sr-only">
+        <caption>{title ?? 'Bar chart data'}</caption>
+        <thead>
+          <tr>
+            {tableData.headers.map((h) => (
+              <th key={h} scope="col">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {tableData.rows.map((row, i) => (
+            <tr key={i}>
+              {row.map((cell, j) => (
+                <td key={j}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
