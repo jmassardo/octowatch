@@ -24,6 +24,8 @@ updates, backups, TLS, networking, and troubleshooting.
 9. [TLS / HTTPS](#9-tls--https)
 10. [Network Architecture](#10-network-architecture)
 11. [Troubleshooting](#11-troubleshooting)
+12. [Zero-Downtime Upgrades](#12-zero-downtime-upgrades)
+13. [High Availability Configuration](#13-high-availability-configuration)
 
 ---
 
@@ -1039,3 +1041,297 @@ curl -sf http://localhost:8000/ready
 ```
 
 Both endpoints are available through the reverse proxy at `/health` and `/ready`.
+
+---
+
+## 12. Zero-Downtime Upgrades
+
+OctoWatch is designed for zero-downtime upgrades when deployed on Kubernetes
+with the included Helm chart. The upgrade sequence ensures no requests are
+dropped and no tasks are lost.
+
+### Upgrade Sequence
+
+When you run `helm upgrade`, the following happens in order:
+
+1. **Migration Job** (`pre-upgrade` hook, weight `-5`): Alembic runs
+   `upgrade head` against the database. All migrations are designed to be
+   backwards-compatible — they add columns/tables but never drop or rename
+   columns used by the current version.
+
+2. **Rolling Update — API pods**: New pods start alongside old pods. The
+   deployment uses `maxSurge: 1, maxUnavailable: 0`, so at least the current
+   replica count is always available. A `preStop` hook adds a 5-second delay
+   to allow the Ingress controller to drain connections.
+
+3. **Rolling Update — Worker pods**: Workers have a 300-second
+   `terminationGracePeriodSeconds`. On SIGTERM, Celery stops accepting new
+   tasks but finishes in-progress ones. `task_acks_late: true` and
+   `task_reject_on_worker_lost: true` in the Celery config ensure that any
+   task not completed before shutdown is automatically re-queued.
+
+### Performing an Upgrade
+
+```bash
+# 1. Review what will change
+helm diff upgrade audit-log ./helm -n audit-log \
+  --set global.image.tag=v1.2.0
+
+# 2. Upgrade (migration runs first, then rolling update)
+helm upgrade audit-log ./helm -n audit-log \
+  --set global.image.tag=v1.2.0 \
+  --wait --timeout 10m
+
+# 3. Verify
+kubectl rollout status deploy/octowatch-api -n audit-log
+curl -sf https://your-domain/health
+curl -sf https://your-domain/ready
+```
+
+### Writing Backwards-Compatible Migrations
+
+To ensure zero-downtime, all Alembic migrations must follow these rules:
+
+| ✅ Safe Operations | ❌ Unsafe Operations |
+|---|---|
+| `ADD COLUMN ... DEFAULT ...` | `DROP COLUMN` (still read by old code) |
+| `CREATE TABLE` | `RENAME TABLE` or `RENAME COLUMN` |
+| `CREATE INDEX CONCURRENTLY` | `CREATE INDEX` (locks table) |
+| `ADD CONSTRAINT ... NOT VALID` | `ALTER COLUMN TYPE` |
+| `ALTER TABLE ... VALIDATE CONSTRAINT` (separate migration) | `DROP TABLE` (still read by old code) |
+
+**Two-phase column removal pattern:**
+
+1. **v1.2.0**: Deploy new code that stops reading/writing the column.
+2. **v1.3.0**: Add migration to `DROP COLUMN`.
+
+This ensures old pods (v1.1.x) that are still running during the v1.2.0
+rollout don't fail.
+
+### Rollback Procedure
+
+```bash
+# 1. Roll back Helm release to previous revision
+helm rollback audit-log -n audit-log
+
+# 2. Wait for rollout
+kubectl rollout status deploy -n audit-log --timeout 5m
+
+# 3. If the rolled-back version needs a schema downgrade:
+kubectl exec -n audit-log deploy/octowatch-api -- \
+  alembic downgrade <target-revision>
+
+# 4. Verify health
+curl -sf https://your-domain/health
+```
+
+> **Important**: `helm rollback` does NOT automatically downgrade the database
+> schema. If the new version added a migration, and the old version is
+> incompatible with the new schema, you must run `alembic downgrade` manually.
+> Always test rollback procedures in a staging environment first.
+
+### Worker Task Safety on Restart
+
+The Celery configuration ensures task safety during upgrades:
+
+- **`task_acks_late: true`**: Tasks are acknowledged only after completion,
+  not when received. If a worker is killed mid-task, the broker re-delivers
+  the message.
+- **`task_reject_on_worker_lost: true`**: If the worker process dies
+  unexpectedly, the task is rejected and returned to the queue.
+- **`terminationGracePeriodSeconds: 300`**: Workers have 5 minutes to finish
+  in-progress tasks before Kubernetes sends SIGKILL.
+- **`--without-heartbeat`**: Reduces unnecessary traffic during shutdown.
+
+---
+
+## 13. High Availability Configuration
+
+This section describes how to configure OctoWatch for high availability (HA)
+in a Kubernetes environment.
+
+### Architecture Overview
+
+```
+                    ┌─────────────────────────────────────┐
+                    │           Ingress (nginx)            │
+                    │    TLS termination, load balancing   │
+                    └─────────────┬───────────────────────┘
+                                  │
+                    ┌─────────────▼───────────────────────┐
+                    │       API Deployment (3+ replicas)   │
+                    │  HPA: 2–10 replicas by CPU/memory   │
+                    │  PDB: minAvailable=1                │
+                    └──────┬──────────────┬───────────────┘
+                           │              │
+              ┌────────────▼──┐    ┌──────▼─────────┐
+              │  TimescaleDB  │    │     Valkey      │
+              │   (Primary)   │    │  (Sentinel HA)  │
+              │   + Replica   │    │                 │
+              └───────────────┘    └─────────────────┘
+```
+
+### API Layer — Stateless, Horizontally Scalable
+
+The API is fully stateless — all session state is stored in Valkey, all
+persistent data in TimescaleDB. This means you can scale the API to any number
+of replicas.
+
+**Recommended production configuration:**
+
+```yaml
+# values.yaml
+api:
+  replicaCount: 3   # Minimum 3 replicas for HA
+```
+
+The HPA (`hpa-api.yaml`) automatically scales between 2 and 10 replicas based
+on CPU (70%) and memory (80%) utilization. The PDB (`pdb-api.yaml`) ensures at
+least 1 pod is always available during voluntary disruptions (node maintenance,
+upgrades).
+
+**Ingress notes:**
+- Sticky sessions are **NOT required** — the API is stateless.
+- The Ingress controller handles TLS termination and distributes traffic
+  across all ready API pods.
+- If using nginx-ingress, the default round-robin load balancing is optimal.
+
+### TimescaleDB — High Availability with Patroni
+
+For production HA, deploy TimescaleDB with Patroni for automatic failover:
+
+1. **Use the TimescaleDB Operator** or the
+   [Patroni Helm chart](https://github.com/zalando/patroni) instead of the
+   Bitnami PostgreSQL subchart:
+
+   ```yaml
+   # values.yaml — disable the built-in PostgreSQL
+   postgresql:
+     enabled: false
+   ```
+
+2. **Configure Patroni** with at least 1 primary + 2 replicas for quorum-based
+   failover:
+
+   ```yaml
+   patroni:
+     replicaCount: 3
+     synchronous_mode: true  # Synchronous replication for zero data loss
+   ```
+
+3. **Connection string**: Point `DATABASE_URL` to the Patroni service, which
+   automatically routes to the current primary:
+
+   ```
+   postgresql+asyncpg://app_rw:password@patroni-master:5432/auditlogs?sslmode=require
+   ```
+
+**Failover procedure:**
+
+| Step | Action | Command |
+|------|--------|---------|
+| 1 | Detect primary failure | Patroni auto-detects via health checks |
+| 2 | Automatic failover | Patroni promotes a replica (< 30s) |
+| 3 | Verify | `patronictl list` shows new primary |
+| 4 | OctoWatch reconnects | Automatic via Patroni service DNS |
+| 5 | Post-failover | Check `alembic current` on new primary |
+
+> **Backup note**: Point your backup CronJob at the **replica** to avoid
+> impacting primary performance.
+
+### Valkey — High Availability with Sentinel
+
+For production HA, deploy Valkey in Sentinel mode:
+
+```yaml
+# values.yaml
+valkey:
+  enabled: true
+  architecture: replication    # 1 master + N replicas
+  sentinel:
+    enabled: true
+    quorum: 2
+  replica:
+    replicaCount: 2
+```
+
+Update `VALKEY_URL` to use the Sentinel-aware connection string:
+
+```
+redis+sentinel://:password@valkey-sentinel:26379/0/mymaster
+```
+
+Celery and the API both support Sentinel-based failover natively via the
+`redis` Python library.
+
+### Celery Beat — Exactly-One Constraint
+
+> ⚠ **CRITICAL**: Celery Beat must run as **exactly one instance**. Running
+> multiple Beat instances causes duplicate task scheduling.
+
+The Helm chart enforces this by hardcoding `replicas: 1` for the Beat
+deployment (the `replicaCount` value is intentionally not exposed).
+
+**Additional safeguards:**
+
+1. **No HPA for Beat**: The Beat deployment does not have a
+   HorizontalPodAutoscaler.
+
+2. **Resource limits**: Beat is lightweight — it only schedules tasks, not
+   execute them:
+   ```yaml
+   beat:
+     resources:
+       requests: { cpu: "50m", memory: "128Mi" }
+       limits:   { cpu: "200m", memory: "256Mi" }
+   ```
+
+3. **Leader election** (optional, for maximum safety): If you need Beat HA
+   (automatic failover if the Beat pod dies), consider using
+   [django-celery-beat](https://github.com/celery/django-celery-beat) with a
+   database-backed scheduler or [redbeat](https://github.com/sibson/redbeat)
+   which uses Valkey-based locking:
+
+   ```bash
+   celery -A app.celery_app beat --scheduler=redbeat.RedBeatScheduler
+   ```
+
+   This ensures only one Beat instance is active even if multiple pods are
+   running.
+
+### Celery Workers — Independent Scaling
+
+Each worker queue is deployed as a separate Kubernetes Deployment, allowing
+independent scaling:
+
+| Queue | Default Replicas | Concurrency | Scaling Guide |
+|-------|-----------------|-------------|---------------|
+| `ingestion` | 1 | 4 | Scale when ingestion lag > 5 min |
+| `detection` | 2 | 8 | Scale when detection queue > 500 |
+| `baseline` | 1 | 2 | Single replica is fine (idempotent) |
+| `notification` | 1 | 4 | Scale if notification delivery is slow |
+
+Workers are stateless and can be scaled freely. The `task_acks_late` setting
+ensures no task is lost during scaling events.
+
+### Health Check Summary
+
+| Component | Liveness | Readiness | Notes |
+|-----------|----------|-----------|-------|
+| API | `GET /health` → 200 | `GET /ready` → 200 (DB+Valkey) | Both on port 8000 |
+| Workers | Process alive check | N/A (no HTTP) | Celery handles restarts |
+| Beat | Process alive check | N/A | Single replica |
+| TimescaleDB | `pg_isready` | Replication lag check | Via Patroni |
+| Valkey | `PING` → `PONG` | Sentinel quorum check | Via Sentinel |
+
+### Recommended Production Topology
+
+| Component | Replicas | Anti-Affinity | Notes |
+|-----------|----------|---------------|-------|
+| API | 3+ (HPA: 2–10) | Spread across nodes | Stateless |
+| Ingestion worker | 2 | Spread across nodes | Scale with event volume |
+| Detection worker | 2 | Spread across nodes | CPU-bound |
+| Baseline worker | 1 | — | I/O-bound, idempotent |
+| Beat | 1 | — | Exactly-one constraint |
+| TimescaleDB | 3 (Patroni) | Spread across AZs | Synchronous replication |
+| Valkey | 3 (Sentinel) | Spread across AZs | Sentinel quorum = 2 |

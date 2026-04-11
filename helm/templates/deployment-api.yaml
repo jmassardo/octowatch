@@ -8,6 +8,11 @@ metadata:
     app.kubernetes.io/component: api
 spec:
   replicas: {{ .Values.api.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       {{- include "octowatch.selectorLabels" . | nindent 6 }}
@@ -23,6 +28,7 @@ spec:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "octowatch.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 60
       securityContext:
         runAsNonRoot: {{ .Values.api.securityContext.runAsNonRoot }}
         runAsUser: {{ .Values.api.securityContext.runAsUser }}
@@ -37,6 +43,16 @@ spec:
             - name: http
               containerPort: 8000
               protocol: TCP
+            {{- if .Values.observability.metrics.enabled }}
+            - name: metrics
+              containerPort: 8000
+              protocol: TCP
+            {{- end }}
+          # ── Lifecycle hooks ────────────────────────────────────────────────
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]
           # ── Probes ──────────────────────────────────────────────────────
           livenessProbe:
             httpGet:

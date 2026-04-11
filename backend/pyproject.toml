@@ -88,6 +88,10 @@ dependencies = [
     "python-dateutil==2.9.0.post0",
     "email-validator==2.3.0",
 
+    # Prometheus metrics
+    "prometheus-fastapi-instrumentator==7.1.0",
+    "prometheus-client>=0.25.0",
+
     # Transitive dependency pins (security patches)
     "aiohttp>=3.13.4",
     "Pygments>=2.20.0",

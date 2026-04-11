@@ -14,6 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -323,6 +324,20 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json" if settings.environment != "production" else None,
         lifespan=lifespan,
     )
+
+    # ── Prometheus metrics instrumentation ──────────────────────────────────
+    instrumentator = Instrumentator(
+        should_group_status_codes=False,
+        should_ignore_untemplated=True,
+        excluded_handlers=["/health", "/ready", "/metrics"],
+    )
+    instrumentator.instrument(app)
+    instrumentator.expose(app, endpoint="/metrics", include_in_schema=False)
+
+    # Record static application info as a Prometheus metric
+    from app.services.metrics_service import set_app_info
+
+    set_app_info(version="1.0.0", environment=settings.environment)
 
     # ── Middleware stack (applied bottom-up, executes top-down) ──────────────
     # HTTPS redirect (disable in development to allow HTTP)

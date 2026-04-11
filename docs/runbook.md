@@ -423,55 +423,250 @@ curl -f https://your-domain/health
 
 ### 3.6 Backup and Restore TimescaleDB
 
-#### Backup
+> **See also**: `scripts/backup.sh` and `scripts/restore.sh` for automated scripts.
+
+#### Automated Backups (Kubernetes)
+
+OctoWatch includes a Helm CronJob for automated TimescaleDB backups. Enable it
+in your `values.yaml`:
+
+```yaml
+backup:
+  enabled: true
+  schedule: "0 2 * * *"           # Daily at 02:00 UTC
+  bucket: "octowatch-backups"     # S3 or MinIO bucket
+  retentionDays: 30               # Keep backups for 30 days
+```
+
+Then upgrade the release:
 
 ```bash
-# Docker Compose: pg_dump with compression
+helm upgrade audit-log ./helm -n audit-log -f values.yaml
+```
+
+The CronJob runs `pg_dump` with `--format=custom --compress=9` and uploads the
+result to the configured S3/MinIO bucket at
+`s3://<bucket>/octowatch/backups/<timestamp>.sql.gz`.
+
+Verify the CronJob is scheduled:
+
+```bash
+kubectl get cronjobs -n audit-log
+# NAME                        SCHEDULE    SUSPEND   ACTIVE   LAST SCHEDULE
+# audit-log-octowatch-db-backup   0 2 * * *   False     0        <none>
+```
+
+#### Manual Backup
+
+**Using the backup script (recommended):**
+
+```bash
+# Local backup
+export DATABASE_URL="postgresql://app_rw:password@localhost:5432/auditlogs"
+./scripts/backup.sh
+
+# Backup with S3 upload
+./scripts/backup.sh s3://octowatch-backups/manual
+```
+
+**Docker Compose:**
+
+```bash
 docker compose exec db pg_dump \
   -U "${POSTGRES_USER}" \
   -d "${POSTGRES_DB}" \
+  --no-owner \
+  --no-acl \
   --format=custom \
   --compress=9 \
   --file=/tmp/backup-$(date +%Y%m%d-%H%M%S).dump
 
 # Copy backup out of container
 docker compose cp db:/tmp/backup-*.dump ./backups/
+```
 
-# Kubernetes: port-forward and dump
+**Kubernetes (port-forward):**
+
+```bash
 kubectl port-forward -n audit-log svc/release-postgresql 5432:5432 &
 pg_dump \
   --host=localhost \
   --username=app_rw \
   --dbname=auditlogs \
+  --no-owner \
+  --no-acl \
   --format=custom \
   --compress=9 \
   --file=backup-$(date +%Y%m%d-%H%M%S).dump
 kill %1
 ```
 
-> **TimescaleDB note**: Include `--load-via-partition-root` flag when restoring to TimescaleDB hypertables. For continuous aggregates, drop and recreate them after restore.
+> **TimescaleDB note**: The `--format=custom` flag ensures hypertable chunks are
+> included correctly. For continuous aggregates, they will be recreated
+> automatically when the TimescaleDB extension loads the dump.
 
-#### Restore
+#### Restore Procedure
+
+> ⚠ **WARNING**: Stop all OctoWatch services before restoring to prevent writes
+> during the restore process.
+
+**Using the restore script (recommended):**
 
 ```bash
-# Docker Compose: stop API first to prevent writes during restore
+# Stop services first
 docker compose stop api worker-ingestion worker-detection worker-baseline beat
 
+# Restore from local file
+export DATABASE_URL="postgresql://app_rw:password@localhost:5432/auditlogs"
+./scripts/restore.sh backups/octowatch-backup-20260401-020000.dump
+
+# Restore from S3
+./scripts/restore.sh s3://octowatch-backups/manual/octowatch-backup-20260401-020000.dump
+```
+
+The restore script automatically:
+1. Calls `timescaledb_pre_restore()` to prepare the database
+2. Runs `pg_restore` with `--clean --if-exists` for idempotent restore
+3. Calls `timescaledb_post_restore()` to rebuild internal state
+4. Verifies hypertable and chunk integrity
+5. Runs `alembic check` / `alembic upgrade head` to ensure schema consistency
+
+**Manual restore (Docker Compose):**
+
+```bash
+# 1. Stop API and workers
+docker compose stop api worker-ingestion worker-detection worker-baseline beat
+
+# 2. Pre-restore hook (TimescaleDB)
+docker compose exec db psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" \
+  -c "SELECT timescaledb_pre_restore();"
+
+# 3. Restore
 docker compose exec -T db pg_restore \
-  --host=localhost \
   --username="${POSTGRES_USER}" \
   --dbname="${POSTGRES_DB}" \
   --no-owner \
   --no-privileges \
+  --clean \
+  --if-exists \
   --verbose \
   /tmp/backup-YYYYMMDD-HHMMSS.dump
 
+# 4. Post-restore hook
+docker compose exec db psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" \
+  -c "SELECT timescaledb_post_restore();"
+
+# 5. Verify hypertables
+docker compose exec db psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" \
+  -c "SELECT hypertable_name, num_chunks FROM timescaledb_information.hypertables;"
+
+# 6. Run Alembic migration verification
+docker compose run --rm migrate alembic check
+# If pending: docker compose run --rm migrate alembic upgrade head
+
+# 7. Restart services
 docker compose start api worker-ingestion worker-detection worker-baseline beat
+
+# 8. Verify health
+curl -sf https://localhost/health
+curl -sf https://localhost/ready
+```
+
+**Manual restore (Kubernetes):**
+
+```bash
+# 1. Scale down all services
+kubectl scale deploy -n audit-log --replicas=0 \
+  octowatch-api octowatch-worker-ingestion octowatch-worker-detection \
+  octowatch-worker-baseline
+
+# 2. Port-forward to PostgreSQL
+kubectl port-forward -n audit-log svc/release-postgresql 5432:5432 &
+
+# 3. Pre-restore
+psql "${DATABASE_URL}" -c "SELECT timescaledb_pre_restore();"
+
+# 4. Restore
+pg_restore "${DATABASE_URL}" \
+  --no-owner --no-privileges --clean --if-exists --verbose \
+  backup-YYYYMMDD-HHMMSS.dump
+
+# 5. Post-restore
+psql "${DATABASE_URL}" -c "SELECT timescaledb_post_restore();"
+
+# 6. Verify hypertables
+psql "${DATABASE_URL}" -c \
+  "SELECT hypertable_name, num_chunks FROM timescaledb_information.hypertables;"
+
+# 7. Run Alembic migration check
+kubectl exec -n audit-log deploy/octowatch-api -- alembic check
+# If needed: kubectl exec -n audit-log deploy/octowatch-api -- alembic upgrade head
+
+# 8. Scale services back up
+kubectl scale deploy -n audit-log --replicas=2 octowatch-api
+kubectl scale deploy -n audit-log --replicas=1 \
+  octowatch-worker-ingestion octowatch-worker-detection octowatch-worker-baseline
+
+kill %1  # stop port-forward
 ```
 
 ---
 
 ## 4. Observability
+
+### Prometheus Metrics
+
+OctoWatch exposes a `/metrics` endpoint in Prometheus text exposition format.
+The endpoint is served on the same port as the API (8000) and is automatically
+excluded from request latency tracking.
+
+**Metrics exposed:**
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `http_request_duration_seconds` | Histogram | Request latency by handler/method/status |
+| `http_requests_total` | Counter | Request count by handler/method/status |
+| `octowatch_detection_pipeline_duration_seconds` | Histogram | Detection pipeline latency |
+| `octowatch_detections_total` | Counter | Detections created, by severity |
+| `octowatch_ingestion_events_total` | Counter | Events ingested, by source |
+| `octowatch_ingestion_events_per_second` | Gauge | Current ingestion throughput |
+| `octowatch_celery_queue_depth` | Gauge | Pending messages per Celery queue |
+| `octowatch_db_connections_active` | Gauge | Active DB pool connections |
+| `octowatch_cache_hit_rate` | Gauge | Valkey cache hit rate (0–1) |
+| `octowatch_info` | Info | Application version and environment |
+
+**Prometheus scrape config:**
+
+```yaml
+scrape_configs:
+  - job_name: octowatch-api
+    kubernetes_sd_configs:
+      - role: endpoints
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_component]
+        regex: api
+        action: keep
+    metrics_path: /metrics
+    scrape_interval: 30s
+```
+
+When using the Prometheus Operator, enable the `ServiceMonitor` CRD in
+`values.yaml`:
+
+```yaml
+observability:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+```
+
+**Grafana dashboard:**
+
+Import `helm/dashboards/octowatch-grafana.json` into Grafana for a pre-built
+operational overview dashboard with panels for: API latency percentiles,
+request rates, error rates, ingestion throughput, detection pipeline latency,
+queue depths, cache hit rates, and DB connection counts.
 
 ### Log Locations
 

@@ -1,0 +1,23 @@
+{{- if and .Values.observability.metrics.enabled ((.Values.observability.metrics.serviceMonitor).enabled) }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "octowatch.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  selector:
+    matchLabels:
+      {{- include "octowatch.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.metrics.path }}
+      interval: {{ .Values.observability.metrics.serviceMonitor.interval | default "30s" }}
+      scrapeTimeout: {{ .Values.observability.metrics.serviceMonitor.scrapeTimeout | default "10s" }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}

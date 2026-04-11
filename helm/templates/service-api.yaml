@@ -13,6 +13,12 @@ spec:
       targetPort: http
       protocol: TCP
       name: http
+    {{- if .Values.observability.metrics.enabled }}
+    - port: {{ .Values.observability.metrics.port }}
+      targetPort: http
+      protocol: TCP
+      name: metrics
+    {{- end }}
   selector:
     {{- include "octowatch.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: api
