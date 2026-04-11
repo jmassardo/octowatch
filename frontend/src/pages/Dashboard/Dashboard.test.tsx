@@ -30,6 +30,10 @@ vi.mock('../../components/charts/ContributionCalendar', () => ({
   ContributionCalendar: () => <div data-testid="contribution-calendar" />,
 }));
 
+vi.mock('../../components/widgets/UnifiedSecurityWidget', () => ({
+  UnifiedSecurityWidget: () => <div data-testid="unified-security-widget" />,
+}));
+
 const mockGetExtendedHealthSummary = vi.fn().mockResolvedValue({
   stale_repos: 0,
   pat_no_expiry: 0,
@@ -51,6 +55,17 @@ const mockGetSystemHealth = vi.fn().mockResolvedValue({
 vi.mock('../../api/healthSignals', () => ({
   getExtendedHealthSummary: (...args: unknown[]) => mockGetExtendedHealthSummary(...args),
   getSystemHealth: (...args: unknown[]) => mockGetSystemHealth(...args),
+  getUnifiedSecurity: vi.fn().mockResolvedValue({
+    total_open: 0,
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    active_secret_alerts: 0,
+    active_code_alerts: 0,
+    active_dependabot_alerts: 0,
+    trend_30d: [],
+  }),
 }));
 
 describe('DashboardPage', () => {

@@ -286,8 +286,8 @@ export function SecurityPosturePane() {
       <div>
         <div className={styles.sectionTitle}>Secret scanning alerts</div>
         <div className={styles.sectionSub}>
-          Alert aging and resolution metrics derived from{' '}
-          <code className={styles.codeSnippet}>secret_scanning_alert.*</code> events.
+          Alert metrics from synced GitHub secret scanning data. MTTR and resolution rates reflect
+          actual alert records.
         </div>
         <div className={styles.metricGrid}>
           <MetricCard
@@ -302,18 +302,21 @@ export function SecurityPosturePane() {
             }
           />
           <MetricCard
-            value={String(secrets?.publicly_leaked ?? 0)}
-            label="Publicly leaked"
-            accent={secrets != null && secrets.publicly_leaked > 0}
+            value={String(secrets?.push_protection_bypassed_count ?? secrets?.publicly_leaked ?? 0)}
+            label="Push protection bypassed"
+            accent={
+              secrets != null &&
+              (secrets.push_protection_bypassed_count ?? secrets.publicly_leaked ?? 0) > 0
+            }
             onClick={() =>
               setSecurityDrilldown({
-                title: 'Publicly leaked secrets',
-                metricName: 'publicly_leaked',
+                title: 'Push protection bypassed alerts',
+                metricName: 'push_protection_bypassed',
               })
             }
           />
           <MetricCard
-            value={String(secrets?.open_gt_7d ?? 0)}
+            value={String(secrets?.unresolved_gt_7d ?? secrets?.open_gt_7d ?? 0)}
             label="Open > 7 days"
             onClick={() =>
               setSecurityDrilldown({
@@ -323,7 +326,7 @@ export function SecurityPosturePane() {
             }
           />
           <MetricCard
-            value={String(secrets?.open_gt_30d ?? 0)}
+            value={String(secrets?.unresolved_gt_30d ?? secrets?.open_gt_30d ?? 0)}
             label="Open > 30 days"
             onClick={() =>
               setSecurityDrilldown({
@@ -333,12 +336,26 @@ export function SecurityPosturePane() {
             }
           />
           <MetricCard
-            value={secrets != null ? formatHours(secrets.mttr_hours) : '—'}
+            value={secrets != null ? formatHours(secrets.avg_hours_to_resolve ?? secrets.mttr_hours ?? 0) : '—'}
             label="MTTR"
             onClick={() =>
               setSecurityDrilldown({
                 title: 'Mean time to resolution',
                 metricName: 'mttr',
+              })
+            }
+          />
+          <MetricCard
+            value={
+              secrets?.resolution_rate_pct != null
+                ? `${secrets.resolution_rate_pct}%`
+                : '—'
+            }
+            label="Resolution rate"
+            onClick={() =>
+              setSecurityDrilldown({
+                title: 'Alert resolution rate',
+                metricName: 'resolution_rate',
               })
             }
           />

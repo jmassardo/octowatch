@@ -632,3 +632,205 @@ async def security_alerts_summary(
         "secret_scanning": secret_scanning,
         "dependabot": dependabot,
     }
+
+
+# ── GHAS Individual Alert Endpoints (Epic 5) ────────────────────────────────
+
+
+@router.get("/unified-security", response_model=dict[str, Any])
+async def unified_security(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Unified security dashboard: all GHAS alert types + active detections."""
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    return await health_signal_service.get_unified_security_summary(db, scoped_orgs=scoped_orgs)
+
+
+@router.get("/secret-scanning/alerts", response_model=dict[str, Any])
+async def secret_scanning_alerts(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    state: str | None = Query(default=None),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Paginated list of individual secret scanning alerts."""
+    from sqlalchemy import ColumnElement, func, select
+
+    from app.models.github_sync import SecretScanningAlert
+
+    scoped_orgs = await _resolve_orgs(db, current_user)
+
+    filters: list[ColumnElement[bool]] = [SecretScanningAlert.org_slug.in_(scoped_orgs)]
+    if state:
+        filters.append(SecretScanningAlert.state == state)
+
+    count_q = select(func.count()).select_from(SecretScanningAlert).where(*filters)
+    count_result = await db.execute(count_q)
+    total = count_result.scalar() or 0
+
+    data_q = (
+        select(SecretScanningAlert)
+        .where(*filters)
+        .order_by(SecretScanningAlert.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    result = await db.execute(data_q)
+    rows = result.scalars().all()
+    alerts = [
+        {
+            "id": r.id,
+            "org_slug": r.org_slug,
+            "alert_number": r.alert_number,
+            "repo_full_name": r.repo_full_name,
+            "secret_type": r.secret_type,
+            "secret_type_display": r.secret_type_display,
+            "file_path": r.file_path,
+            "commit_sha": r.commit_sha,
+            "state": r.state,
+            "resolution": r.resolution,
+            "push_protection_bypassed": r.push_protection_bypassed,
+            "push_protection_bypassed_by": r.push_protection_bypassed_by,
+            "created_at": r.created_at,
+            "resolved_at": r.resolved_at,
+            "synced_at": r.synced_at,
+        }
+        for r in rows
+    ]
+
+    return {"alerts": alerts, "total": total}
+
+
+@router.get("/code-scanning/alerts", response_model=dict[str, Any])
+async def code_scanning_alerts(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    state: str | None = Query(default=None),
+    severity: str | None = Query(default=None),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Paginated list of individual code scanning alerts."""
+    from sqlalchemy import ColumnElement, func, select
+    from sqlalchemy.sql.functions import coalesce
+
+    from app.models.github_sync import CodeScanningAlert
+
+    scoped_orgs = await _resolve_orgs(db, current_user)
+
+    filters: list[ColumnElement[bool]] = [CodeScanningAlert.org_slug.in_(scoped_orgs)]
+    if state:
+        filters.append(CodeScanningAlert.state == state)
+    if severity:
+        filters.append(
+            coalesce(
+                CodeScanningAlert.security_severity,
+                CodeScanningAlert.severity,
+            )
+            == severity
+        )
+
+    count_q = select(func.count()).select_from(CodeScanningAlert).where(*filters)
+    count_result = await db.execute(count_q)
+    total = count_result.scalar() or 0
+
+    data_q = (
+        select(CodeScanningAlert)
+        .where(*filters)
+        .order_by(CodeScanningAlert.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    result = await db.execute(data_q)
+    rows = result.scalars().all()
+    alerts = [
+        {
+            "id": r.id,
+            "org_slug": r.org_slug,
+            "alert_number": r.alert_number,
+            "repo_full_name": r.repo_full_name,
+            "rule_id": r.rule_id,
+            "rule_description": r.rule_description,
+            "severity": r.severity,
+            "security_severity": r.security_severity,
+            "cwe_ids": r.cwe_ids,
+            "tool_name": r.tool_name,
+            "file_path": r.file_path,
+            "start_line": r.start_line,
+            "state": r.state,
+            "dismissed_by": r.dismissed_by,
+            "dismissed_reason": r.dismissed_reason,
+            "dismissed_at": r.dismissed_at,
+            "created_at": r.created_at,
+            "fixed_at": r.fixed_at,
+            "synced_at": r.synced_at,
+        }
+        for r in rows
+    ]
+
+    return {"alerts": alerts, "total": total}
+
+
+@router.get("/vulnerabilities/alerts", response_model=dict[str, Any])
+async def dependabot_alerts(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    state: str | None = Query(default=None),
+    severity: str | None = Query(default=None),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Paginated list of individual Dependabot alerts."""
+    from sqlalchemy import ColumnElement, func, select
+
+    from app.models.github_sync import DependabotAlert
+
+    scoped_orgs = await _resolve_orgs(db, current_user)
+
+    filters: list[ColumnElement[bool]] = [DependabotAlert.org_slug.in_(scoped_orgs)]
+    if state:
+        filters.append(DependabotAlert.state == state)
+    if severity:
+        filters.append(DependabotAlert.severity == severity)
+
+    count_q = select(func.count()).select_from(DependabotAlert).where(*filters)
+    count_result = await db.execute(count_q)
+    total = count_result.scalar() or 0
+
+    data_q = (
+        select(DependabotAlert)
+        .where(*filters)
+        .order_by(DependabotAlert.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    result = await db.execute(data_q)
+    rows = result.scalars().all()
+    alerts = [
+        {
+            "id": r.id,
+            "org_slug": r.org_slug,
+            "alert_number": r.alert_number,
+            "repo_full_name": r.repo_full_name,
+            "package_name": r.package_name,
+            "package_ecosystem": r.package_ecosystem,
+            "severity": r.severity,
+            "cvss_score": r.cvss_score,
+            "cve_id": r.cve_id,
+            "cwe_ids": r.cwe_ids,
+            "vulnerable_version_range": r.vulnerable_version_range,
+            "patched_version": r.patched_version,
+            "state": r.state,
+            "dismissed_by": r.dismissed_by,
+            "dismissed_reason": r.dismissed_reason,
+            "created_at": r.created_at,
+            "fixed_at": r.fixed_at,
+            "auto_dismissed_at": r.auto_dismissed_at,
+            "synced_at": r.synced_at,
+        }
+        for r in rows
+    ]
+
+    return {"alerts": alerts, "total": total}

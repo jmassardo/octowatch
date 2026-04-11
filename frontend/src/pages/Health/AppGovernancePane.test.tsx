@@ -28,6 +28,12 @@ const mockCodeScanData: CodeScanningResponse = {
   avg_hours_to_close: 72,
   dismissed_count: 5,
   reappeared_count: 3,
+  open_count: 16,
+  fixed_count: 3,
+  critical_count: 4,
+  high_count: 6,
+  medium_count: 3,
+  low_count: 3,
 };
 
 const mockVulnData: VulnerabilitiesResponse = {
@@ -37,6 +43,13 @@ const mockVulnData: VulnerabilitiesResponse = {
   open_gt_30d: 9,
   critical_open_gt_14d: 2,
   avg_open_days: 45,
+  open_medium: 4,
+  open_low: 3,
+  age_0_30d: 5,
+  age_30_60d: 4,
+  age_60_90d: 3,
+  age_gt_90d: 6,
+  critical_aging_gt_90d: 1,
 };
 
 interface MockQueryReturn<T> {
@@ -153,12 +166,14 @@ describe('AppGovernancePane', () => {
 
   it('renders code scanning metrics', () => {
     renderPane();
-    expect(screen.getByText('Total alerts')).toBeInTheDocument();
-    expect(screen.getByText('24')).toBeInTheDocument();
+    expect(screen.getByText('Open alerts')).toBeInTheDocument();
+    expect(screen.getByText('16')).toBeInTheDocument();
     expect(screen.getByText('Avg hours to close')).toBeInTheDocument();
     expect(screen.getByText('72h')).toBeInTheDocument();
+    expect(screen.getByText('Critical')).toBeInTheDocument();
+    expect(screen.getByText('High')).toBeInTheDocument();
     expect(screen.getByText('Dismissed')).toBeInTheDocument();
-    expect(screen.getByText('Reappeared')).toBeInTheDocument();
+    expect(screen.getByText('Fixed')).toBeInTheDocument();
   });
 
   /* ---- Vulnerability Aging ---- */
@@ -175,9 +190,11 @@ describe('AppGovernancePane', () => {
     expect(screen.getByText('Critical open')).toBeInTheDocument();
     expect(screen.getByText('High open')).toBeInTheDocument();
     expect(screen.getByText('7')).toBeInTheDocument();
-    expect(screen.getByText('Open > 30 days')).toBeInTheDocument();
-    expect(screen.getByText('9')).toBeInTheDocument();
-    expect(screen.getByText('Critical > 14 days')).toBeInTheDocument();
+    expect(screen.getByText('0–30 days')).toBeInTheDocument();
+    expect(screen.getByText('30–60 days')).toBeInTheDocument();
+    expect(screen.getByText('60–90 days')).toBeInTheDocument();
+    expect(screen.getByText('> 90 days')).toBeInTheDocument();
+    expect(screen.getByText('Critical > 90d')).toBeInTheDocument();
     expect(screen.getByText('Avg open days')).toBeInTheDocument();
     expect(screen.getByText('45d')).toBeInTheDocument();
   });
@@ -195,7 +212,7 @@ describe('AppGovernancePane', () => {
     expect(screen.getByText('8')).toBeInTheDocument();
     expect(screen.getByText('Removed')).toBeInTheDocument();
     expect(screen.getByText('Modified')).toBeInTheDocument();
-    expect(screen.getByText('6')).toBeInTheDocument();
+    expect(screen.getAllByText('6').length).toBeGreaterThanOrEqual(1);
   });
 
   /* ---- Zero values ---- */

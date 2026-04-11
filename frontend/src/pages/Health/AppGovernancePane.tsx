@@ -115,25 +115,45 @@ export function AppGovernancePane() {
       <div>
         <div className={styles.sectionTitle}>Code scanning health</div>
         <div className={styles.sectionSub}>
-          Alert metrics derived from{' '}
-          <code className={styles.codeSnippet}>code_scanning_alert.*</code> events.
+          Alert metrics from synced GitHub code scanning data.
         </div>
         <div className={styles.metricGrid}>
           <MetricCard
-            value={String(codeScan?.total_alerts ?? 0)}
-            label="Total alerts"
-            accent={codeScan != null && codeScan.total_alerts > 0}
+            value={String(codeScan?.open_count ?? codeScan?.total_alerts ?? 0)}
+            label="Open alerts"
+            accent={codeScan != null && (codeScan.open_count ?? codeScan.total_alerts ?? 0) > 0}
             onClick={() =>
-              setGovDrilldown({ title: 'Code scanning alerts', metricName: 'total_alerts' })
+              setGovDrilldown({ title: 'Open code scanning alerts', metricName: 'open_alerts' })
             }
           />
           <MetricCard
-            value={codeScan != null ? `${Math.round(codeScan.avg_hours_to_close)}h` : '—'}
+            value={codeScan != null ? `${Math.round(codeScan.avg_hours_to_close ?? 0)}h` : '—'}
             label="Avg hours to close"
             onClick={() =>
               setGovDrilldown({
                 title: 'Average hours to close',
                 metricName: 'avg_hours_to_close',
+              })
+            }
+          />
+          <MetricCard
+            value={String(codeScan?.critical_count ?? 0)}
+            label="Critical"
+            accent={codeScan != null && (codeScan.critical_count ?? 0) > 0}
+            onClick={() =>
+              setGovDrilldown({
+                title: 'Critical code scanning alerts',
+                metricName: 'critical',
+              })
+            }
+          />
+          <MetricCard
+            value={String(codeScan?.high_count ?? 0)}
+            label="High"
+            onClick={() =>
+              setGovDrilldown({
+                title: 'High severity code scanning alerts',
+                metricName: 'high',
               })
             }
           />
@@ -148,13 +168,12 @@ export function AppGovernancePane() {
             }
           />
           <MetricCard
-            value={String(codeScan?.reappeared_count ?? 0)}
-            label="Reappeared"
-            accent={codeScan != null && codeScan.reappeared_count > 0}
+            value={String(codeScan?.fixed_count ?? 0)}
+            label="Fixed"
             onClick={() =>
               setGovDrilldown({
-                title: 'Reappeared code scanning alerts',
-                metricName: 'reappeared',
+                title: 'Fixed code scanning alerts',
+                metricName: 'fixed',
               })
             }
           />
@@ -165,8 +184,8 @@ export function AppGovernancePane() {
       <div>
         <div className={styles.sectionTitle}>Vulnerability aging</div>
         <div className={styles.sectionSub}>
-          Open vulnerability metrics derived from{' '}
-          <code className={styles.codeSnippet}>dependabot_alert.*</code> events.
+          Open vulnerability metrics from synced Dependabot alert data. Aging buckets use actual{' '}
+          <code className={styles.codeSnippet}>created_at</code> timestamps.
         </div>
         <div className={styles.metricGrid}>
           <MetricCard
@@ -202,28 +221,59 @@ export function AppGovernancePane() {
             }
           />
           <MetricCard
-            value={String(vuln?.open_gt_30d ?? 0)}
-            label="Open > 30 days"
+            value={String(vuln?.age_0_30d ?? 0)}
+            label="0–30 days"
             onClick={() =>
               setGovDrilldown({
-                title: 'Vulnerabilities open > 30 days',
-                metricName: 'open_gt_30d',
+                title: 'Vulnerabilities open 0–30 days',
+                metricName: 'age_0_30d',
               })
             }
           />
           <MetricCard
-            value={String(vuln?.critical_open_gt_14d ?? 0)}
-            label="Critical > 14 days"
-            accent={vuln != null && vuln.critical_open_gt_14d > 0}
+            value={String(vuln?.age_30_60d ?? 0)}
+            label="30–60 days"
             onClick={() =>
               setGovDrilldown({
-                title: 'Critical vulnerabilities open > 14 days',
-                metricName: 'critical_open_gt_14d',
+                title: 'Vulnerabilities open 30–60 days',
+                metricName: 'age_30_60d',
               })
             }
           />
           <MetricCard
-            value={vuln != null ? `${Math.round(vuln.avg_open_days)}d` : '—'}
+            value={String(vuln?.age_60_90d ?? 0)}
+            label="60–90 days"
+            onClick={() =>
+              setGovDrilldown({
+                title: 'Vulnerabilities open 60–90 days',
+                metricName: 'age_60_90d',
+              })
+            }
+          />
+          <MetricCard
+            value={String(vuln?.age_gt_90d ?? 0)}
+            label="> 90 days"
+            accent={vuln != null && (vuln.age_gt_90d ?? 0) > 0}
+            onClick={() =>
+              setGovDrilldown({
+                title: 'Vulnerabilities open > 90 days',
+                metricName: 'age_gt_90d',
+              })
+            }
+          />
+          <MetricCard
+            value={String(vuln?.critical_aging_gt_90d ?? 0)}
+            label="Critical > 90d"
+            accent={vuln != null && (vuln.critical_aging_gt_90d ?? 0) > 0}
+            onClick={() =>
+              setGovDrilldown({
+                title: 'Critical aging vulnerabilities (> 90 days)',
+                metricName: 'critical_aging_gt_90d',
+              })
+            }
+          />
+          <MetricCard
+            value={vuln != null ? `${Math.round(vuln.avg_open_days ?? 0)}d` : '—'}
             label="Avg open days"
             onClick={() =>
               setGovDrilldown({

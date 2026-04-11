@@ -10,6 +10,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -18,7 +19,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.audit_event import Base
@@ -615,4 +616,134 @@ class OrgActionsWorkflowSummary(Base):
     __table_args__ = (
         UniqueConstraint("enterprise_slug", "org", name="uq_actions_workflow_summary_slug_org"),
         Index("idx_actions_workflow_summary_org", "org"),
+    )
+
+
+# ─── GHAS Individual Alert Models ────────────────────────────────────────────
+
+
+class SecretScanningAlert(Base):
+    """Individual secret scanning alert record.
+
+    Stored alongside the existing org-level summary to enable per-alert
+    queries for accurate MTTR, resolution rate, and actor-timeline
+    correlation.
+
+    Source: ``GET /orgs/{org}/secret-scanning/alerts``
+    """
+
+    __tablename__ = "secret_scanning_alerts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    org_slug: Mapped[str] = mapped_column(String(200), nullable=False)
+    alert_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    repo_full_name: Mapped[str] = mapped_column(String(400), nullable=False)
+    secret_type: Mapped[str] = mapped_column(String(200), nullable=False)
+    secret_type_display: Mapped[str | None] = mapped_column(String(400), nullable=True)
+    file_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    state: Mapped[str] = mapped_column(String(50), nullable=False)
+    resolution: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    push_protection_bypassed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("FALSE")
+    )
+    push_protection_bypassed_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "org_slug", "repo_full_name", "alert_number", name="uq_secret_scanning_alert"
+        ),
+        Index("idx_secret_scanning_alert_org_state", "org_slug", "state"),
+        Index("idx_secret_scanning_alert_repo", "repo_full_name"),
+    )
+
+
+class CodeScanningAlert(Base):
+    """Individual code scanning alert record.
+
+    Stored alongside the existing org-level summary to enable per-alert
+    queries for accurate MTTR, dismissal correlation, and severity
+    breakdown.
+
+    Source: ``GET /orgs/{org}/code-scanning/alerts``
+    """
+
+    __tablename__ = "code_scanning_alerts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    org_slug: Mapped[str] = mapped_column(String(200), nullable=False)
+    alert_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    repo_full_name: Mapped[str] = mapped_column(String(400), nullable=False)
+    rule_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    rule_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    severity: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    security_severity: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    cwe_ids: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    tool_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    file_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    start_line: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    state: Mapped[str] = mapped_column(String(50), nullable=False)
+    dismissed_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    dismissed_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    fixed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "org_slug", "repo_full_name", "alert_number", name="uq_code_scanning_alert"
+        ),
+        Index("idx_code_scanning_alert_org_state", "org_slug", "state"),
+        Index("idx_code_scanning_alert_repo", "repo_full_name"),
+    )
+
+
+class DependabotAlert(Base):
+    """Individual Dependabot alert record.
+
+    Stored alongside the existing org-level summary to enable per-alert
+    queries for accurate vulnerability aging, CVSS breakdown, and
+    90-day critical aging signal generation.
+
+    Source: ``GET /orgs/{org}/dependabot/alerts``
+    """
+
+    __tablename__ = "dependabot_alerts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    org_slug: Mapped[str] = mapped_column(String(200), nullable=False)
+    alert_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    repo_full_name: Mapped[str] = mapped_column(String(400), nullable=False)
+    package_name: Mapped[str] = mapped_column(String(400), nullable=False)
+    package_ecosystem: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    severity: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    cvss_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cve_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    cwe_ids: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    vulnerable_version_range: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    patched_version: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    state: Mapped[str] = mapped_column(String(50), nullable=False)
+    dismissed_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    dismissed_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    fixed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    auto_dismissed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("org_slug", "repo_full_name", "alert_number", name="uq_dependabot_alert"),
+        Index("idx_dependabot_alert_org_state", "org_slug", "state"),
+        Index("idx_dependabot_alert_repo", "repo_full_name"),
     )

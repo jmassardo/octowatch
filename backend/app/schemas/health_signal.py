@@ -184,3 +184,149 @@ class HealthSummaryResponse(BaseModel):
     bypass_offenders: int = 0
     ext_collab_total: int = 0
     ext_collab_elevated: int = 0
+
+
+# ---------------------------------------------------------------------------
+# GHAS Individual Alert Schemas (Epic 5)
+# ---------------------------------------------------------------------------
+
+
+class SecretScanningAlertItem(BaseModel):
+    """Individual secret scanning alert record."""
+
+    id: int
+    org_slug: str
+    alert_number: int
+    repo_full_name: str
+    secret_type: str
+    secret_type_display: str | None = None
+    file_path: str | None = None
+    commit_sha: str | None = None
+    state: str
+    resolution: str | None = None
+    push_protection_bypassed: bool = False
+    push_protection_bypassed_by: str | None = None
+    created_at: str
+    resolved_at: str | None = None
+
+
+class SecretScanningAlertsResponse(BaseModel):
+    """Paginated list of secret scanning alerts."""
+
+    alerts: list[dict[str, Any]] = Field(default_factory=list)
+    total: int = 0
+
+
+class CodeScanningAlertItem(BaseModel):
+    """Individual code scanning alert record."""
+
+    id: int
+    org_slug: str
+    alert_number: int
+    repo_full_name: str
+    rule_id: str
+    rule_description: str | None = None
+    severity: str | None = None
+    security_severity: str | None = None
+    cwe_ids: list[str] | None = None
+    tool_name: str | None = None
+    file_path: str | None = None
+    start_line: int | None = None
+    state: str
+    dismissed_by: str | None = None
+    dismissed_reason: str | None = None
+    dismissed_at: str | None = None
+    created_at: str
+    fixed_at: str | None = None
+
+
+class CodeScanningAlertsResponse(BaseModel):
+    """Paginated list of code scanning alerts."""
+
+    alerts: list[dict[str, Any]] = Field(default_factory=list)
+    total: int = 0
+
+
+class DependabotAlertItem(BaseModel):
+    """Individual Dependabot alert record."""
+
+    id: int
+    org_slug: str
+    alert_number: int
+    repo_full_name: str
+    package_name: str
+    package_ecosystem: str | None = None
+    severity: str | None = None
+    cvss_score: float | None = None
+    cve_id: str | None = None
+    cwe_ids: list[str] | None = None
+    vulnerable_version_range: str | None = None
+    patched_version: str | None = None
+    state: str
+    dismissed_by: str | None = None
+    dismissed_reason: str | None = None
+    created_at: str
+    fixed_at: str | None = None
+    auto_dismissed_at: str | None = None
+
+
+class DependabotAlertsResponse(BaseModel):
+    """Paginated list of Dependabot alerts."""
+
+    alerts: list[dict[str, Any]] = Field(default_factory=list)
+    total: int = 0
+
+
+class AlertSeverityBreakdown(BaseModel):
+    """Severity breakdown for a GHAS alert type."""
+
+    open: int = 0
+    critical: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+    total: int = 0
+
+
+class SecretScanningSummary(BaseModel):
+    """Secret scanning summary for the unified dashboard."""
+
+    open: int = 0
+    resolved: int = 0
+    total: int = 0
+    bypassed_open: int = 0
+
+
+class DetectionsSummary(BaseModel):
+    """Active OctoWatch detections summary."""
+
+    active: int = 0
+    critical: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+
+
+class DependabotSummary(AlertSeverityBreakdown):
+    """Dependabot summary with aging signal."""
+
+    critical_aging_gt_90d: int = 0
+
+
+class TrendDay(BaseModel):
+    """Single day in the 30-day trend."""
+
+    day: str
+    secret_scanning: int = 0
+    code_scanning: int = 0
+    dependabot: int = 0
+
+
+class UnifiedSecurityResponse(BaseModel):
+    """Combined security dashboard response (Issue #72)."""
+
+    secret_scanning: SecretScanningSummary = Field(default_factory=SecretScanningSummary)
+    code_scanning: AlertSeverityBreakdown = Field(default_factory=AlertSeverityBreakdown)
+    dependabot: DependabotSummary = Field(default_factory=DependabotSummary)
+    detections: DetectionsSummary = Field(default_factory=DetectionsSummary)
+    trend_30d: list[TrendDay] = Field(default_factory=list)
