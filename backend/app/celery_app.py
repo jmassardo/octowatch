@@ -38,6 +38,7 @@ app.config_from_object(
             "app.workers.detection_worker.*": {"queue": "detection"},
             "app.workers.baseline_worker.*": {"queue": "baseline"},
             "app.workers.notification.*": {"queue": "notification"},
+            "app.workers.report_worker.*": {"queue": "notification"},
             "app.workers.github_sync.*": {"queue": "github_sync"},
         },
         # ─── Soft / hard time limits ─────────────────────────────────────────
@@ -86,6 +87,12 @@ app.config_from_object(
                 "schedule": crontab(hour=8, minute=0),
                 "options": {"queue": "notification"},
             },
+            # Scheduled report delivery — every hour at :30
+            "run-scheduled-reports": {
+                "task": "app.workers.report_worker.run_scheduled_reports",
+                "schedule": crontab(minute=30),
+                "options": {"queue": "notification"},
+            },
         },
     }
 )
@@ -102,6 +109,7 @@ app.autodiscover_tasks(
 app.conf.include = [
     "app.workers.github_sync_worker",
     "app.workers.notification_worker",
+    "app.workers.report_worker",
     "app.workers.ingestion.s3_worker",
     "app.workers.ingestion.azure_worker",
     "app.workers.ingestion.base",
