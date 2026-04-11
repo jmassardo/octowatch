@@ -75,6 +75,12 @@ app.config_from_object(
                 "schedule": crontab(hour=3, minute=0),
                 "options": {"queue": "ingestion"},
             },
+            # Retention enforcement — daily at 02:30 UTC
+            "enforce-retention-policies": {
+                "task": "app.workers.retention_worker.enforce_all_retention_policies",
+                "schedule": crontab(hour=2, minute=30),
+                "options": {"queue": "baseline"},
+            },
             # Ingestion gap detection — every 60 minutes
             "check-ingestion-gaps": {
                 "task": "app.workers.ingestion_health.check_ingestion_gaps",
@@ -112,6 +118,7 @@ app.conf.include = [
     "app.workers.baseline_worker",
     "app.workers.detection_worker",
     "app.workers.report_worker",
+    "app.workers.retention_worker",
     "app.workers.ingestion.s3_worker",
     "app.workers.ingestion.azure_worker",
     "app.workers.ingestion.base",
