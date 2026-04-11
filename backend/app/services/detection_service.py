@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_event import AuditEvent
 from app.models.detection import (
+    BehavioralBaseline,
     Detection,
     DetectionSuppression,
     RuleDefinition,
@@ -544,7 +545,197 @@ async def evaluate_impossible_travel(
     return results
 
 
-# ─── Cross-namespace sequence helpers ─────────────────────────────────────────
+# ─── Off-hours anomaly detection ─────────────────────────────────────────────
+
+
+async def _load_baseline(
+    session: AsyncSession,
+    baseline_type: str,
+    scope_key: str,
+    metric_name: str,
+) -> BehavioralBaseline | None:
+    """Load the latest baseline row for a given type/scope/metric."""
+    stmt = (
+        select(BehavioralBaseline)
+        .where(
+            BehavioralBaseline.baseline_type == baseline_type,
+            BehavioralBaseline.scope_key == scope_key,
+            BehavioralBaseline.metric_name == metric_name,
+        )
+        .order_by(BehavioralBaseline.window_end.desc())
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def evaluate_off_hours_anomaly(
+    session: AsyncSession,
+    rule: RuleDefinition,
+    events: list[AuditEvent],
+    scoped_orgs: list[str],
+) -> list[dict[str, Any]]:
+    """Evaluate off-hours anomaly: flag events outside actor's active hour range.
+
+    If the event hour is outside (mean ± 2*stddev) of the actor's
+    ``active_hours`` baseline, it is flagged. Falls back to org-level baseline
+    if no actor baseline exists.
+    """
+    config = rule.logic_config
+    z_multiplier = float(config.get("x_config", {}).get("z_multiplier", 2.0))
+
+    candidates = [e for e in events if event_matches_rule(e, rule)]
+    if not candidates:
+        return []
+
+    results: list[dict[str, Any]] = []
+
+    for event in candidates:
+        if not event.actor or not event.created_at:
+            continue
+
+        event_hour = float(event.created_at.hour)
+        org = event.org or (scoped_orgs[0] if scoped_orgs else "")
+
+        # Try actor-level baseline first
+        actor_scope = f"actor:{event.actor}:org:{org}"
+        baseline = await _load_baseline(session, "actor", actor_scope, "active_hours")
+
+        # Fall back to org-level baseline
+        if baseline is None and org:
+            org_scope = f"org:{org}"
+            baseline = await _load_baseline(session, "org", org_scope, "active_hours")
+
+        if baseline is None:
+            continue
+
+        mean_hour = baseline.mean
+        stddev_hour = baseline.stddev if baseline.stddev > 0 else 1.0
+
+        # Check if event hour is outside normal range
+        lower_bound = mean_hour - z_multiplier * stddev_hour
+        upper_bound = mean_hour + z_multiplier * stddev_hour
+
+        if lower_bound <= event_hour <= upper_bound:
+            continue
+
+        # Compute z-score for the event hour
+        z_score = abs(event_hour - mean_hour) / stddev_hour
+
+        results.append(
+            {
+                "aggregation_key_value": event.actor,
+                "context_data": {
+                    "event_hour": int(event_hour),
+                    "baseline_mean_hour": round(mean_hour, 2),
+                    "baseline_stddev_hour": round(stddev_hour, 2),
+                    "z_score": round(z_score, 2),
+                    "z_multiplier": z_multiplier,
+                    "lower_bound": round(lower_bound, 2),
+                    "upper_bound": round(upper_bound, 2),
+                    "baseline_type": baseline.baseline_type,
+                    "baseline_scope": baseline.scope_key,
+                    "event_action": event.action,
+                },
+                "event_ids": [event.id],
+                "window_start": event.created_at,
+                "window_end": event.created_at,
+                "org": org,
+            }
+        )
+
+    return results
+
+
+async def _write_off_hours_detection(
+    session: AsyncSession,
+    rule: RuleDefinition,
+    hit: dict[str, Any],
+    orgs: list[str],
+) -> int | None:
+    """Write an off-hours anomaly detection. Returns detection ID if new, else None."""
+    actor = hit["aggregation_key_value"]
+    ctx = hit.get("context_data", {})
+    config = rule.logic_config
+
+    suppression = await check_suppression(session, rule.id, actor, hit.get("org"), None)
+    if suppression:
+        return None
+
+    window_minutes = config.get("time_window_minutes", 60)
+    existing = await find_existing_detection(session, rule.id, actor, window_minutes)
+    if existing:
+        return None
+
+    severity = await resolve_severity(session, "baseline.off_hours", rule.default_severity)
+    base_conf = float(config.get("confidence", 0.55))
+    z_score = ctx.get("z_score", 0.0)
+    score, tier = compute_confidence_score(
+        base_conf,
+        actor_has_baseline=True,
+        z_score=z_score,
+        z_threshold=2.0,
+    )
+
+    detection = Detection(
+        rule_id=rule.id,
+        rule_version=rule.version,
+        severity=severity,
+        confidence=tier,
+        confidence_score=score,
+        title=f"Off-Hours Activity — {actor}",
+        description=(
+            f"Actor {actor} performed action '{ctx.get('event_action', 'unknown')}' "
+            f"at hour {ctx.get('event_hour', '?')} UTC, outside their normal "
+            f"active hours (mean={ctx.get('baseline_mean_hour', 0):.1f}, "
+            f"stddev={ctx.get('baseline_stddev_hour', 0):.1f}, "
+            f"z-score={z_score:.1f})."
+        ),
+        actor=actor,
+        org=hit.get("org") or (orgs[0] if orgs else None),
+        event_ids=hit.get("event_ids", []),
+        context_data=ctx,
+        window_start=hit.get("window_start"),
+        window_end=hit.get("window_end"),
+    )
+    session.add(detection)
+    await session.flush()
+    return detection.id
+
+
+async def _adjust_threshold_with_baseline(
+    session: AsyncSession,
+    rule: RuleDefinition,
+    agg_value: str,
+    org: str | None,
+    static_threshold: int,
+) -> int:
+    """If baseline_comparison is enabled, adjust threshold using the actor's baseline.
+
+    Returns the dynamically adjusted threshold (or the original static value
+    if no baseline is found).
+    """
+    config = rule.logic_config
+    if not config.get("baseline_comparison", False):
+        return static_threshold
+
+    metric_name = config.get("baseline_metric", "daily_events")
+    z_threshold = float(config.get("baseline_z_threshold", 3.0))
+
+    # Try actor-level baseline
+    scope_key = f"actor:{agg_value}:org:{org}" if org else f"actor:{agg_value}"
+    baseline = await _load_baseline(session, "actor", scope_key, metric_name)
+
+    # Fall back to org-level
+    if baseline is None and org:
+        baseline = await _load_baseline(session, "org", f"org:{org}", metric_name)
+
+    if baseline is None:
+        return static_threshold
+
+    # Dynamic threshold = mean + z_threshold * stddev
+    dynamic = int(baseline.mean + z_threshold * baseline.stddev)
+    return max(dynamic, 1)
 
 
 def _evaluate_dict_field_condition(event: dict[str, Any], condition: dict[str, Any]) -> bool:
@@ -858,6 +1049,14 @@ async def run_detection_pipeline(
                 hits = await evaluate_impossible_travel(session, rule, events, orgs)
                 for hit in hits:
                     det_id = await _write_impossible_travel_detection(session, rule, hit, orgs)
+                    if det_id is not None:
+                        detections_written += 1
+                        detection_ids.append(det_id)
+
+            elif rule.logic_type == "statistical" and engine == "off_hours_anomaly":
+                hits = await evaluate_off_hours_anomaly(session, rule, events, orgs)
+                for hit in hits:
+                    det_id = await _write_off_hours_detection(session, rule, hit, orgs)
                     if det_id is not None:
                         detections_written += 1
                         detection_ids.append(det_id)
