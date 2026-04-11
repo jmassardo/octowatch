@@ -181,6 +181,28 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         >
           Events Explorer
         </NavItem>
+        <NavItem
+          to="/crossorg"
+          onClick={handleNavClick}
+          icon={
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M1.5 3.25c0-.966.784-1.75 1.75-1.75h2.5c.966 0 1.75.784 1.75 1.75v2.5A1.75 1.75 0 015.75 7.5h-2.5A1.75 1.75 0 011.5 5.75zm8 0c0-.966.784-1.75 1.75-1.75h2.5c.966 0 1.75.784 1.75 1.75v2.5A1.75 1.75 0 0113.75 7.5h-2.5A1.75 1.75 0 019.5 5.75zm-8 8c0-.966.784-1.75 1.75-1.75h2.5c.966 0 1.75.784 1.75 1.75v2.5A1.75 1.75 0 015.75 15.5h-2.5A1.75 1.75 0 011.5 13.75zm8 0c0-.966.784-1.75 1.75-1.75h2.5c.966 0 1.75.784 1.75 1.75v2.5a1.75 1.75 0 01-1.75 1.75h-2.5a1.75 1.75 0 01-1.75-1.75z" />
+            </svg>
+          }
+        >
+          Cross-Org
+        </NavItem>
+        <NavItem
+          to="/workflows"
+          onClick={handleNavClick}
+          icon={
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v3.585a.746.746 0 010 .83v3.585a.746.746 0 010 .83v3.67A1.75 1.75 0 0114.25 16H1.75A1.75 1.75 0 010 14.25zM1.75 1.5a.25.25 0 00-.25.25V5h13V1.75a.25.25 0 00-.25-.25zM1.5 6.5V10h13V6.5zM14.5 11.5h-13v2.75c0 .138.112.25.25.25h12.5a.25.25 0 00.25-.25z" />
+            </svg>
+          }
+        >
+          Workflow Security
+        </NavItem>
       </div>
 
       <div className={styles.navSection}>

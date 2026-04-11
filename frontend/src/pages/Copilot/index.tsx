@@ -11,6 +11,7 @@ import { AdoptionPane } from './AdoptionPane';
 import { ModelsPane } from './ModelsPane';
 import { LicensePane } from './LicensePane';
 import { AnomaliesPane } from './AnomaliesPane';
+import { GovernancePane } from './GovernancePane';
 import styles from './Copilot.module.css';
 
 const VALID_TABS: readonly CopilotTab[] = [
@@ -19,6 +20,7 @@ const VALID_TABS: readonly CopilotTab[] = [
   'models',
   'license',
   'anomalies',
+  'governance',
 ];
 
 export function CopilotPage() {
@@ -95,6 +97,7 @@ export function CopilotPage() {
       {activeTab === 'models' && <ModelsPane />}
       {activeTab === 'license' && <LicensePane seatBuckets={seatBuckets} />}
       {activeTab === 'anomalies' && <AnomaliesPane />}
+      {activeTab === 'governance' && <GovernancePane />}
     </div>
   );
 }

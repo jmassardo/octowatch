@@ -359,6 +359,17 @@ export function ThreatsPage() {
               </Button>
               <Button
                 size="sm"
+                onClick={() => {
+                  window.open(
+                    `/query?sql=${encodeURIComponent(`SELECT * FROM events WHERE id IN (SELECT unnest(event_ids) FROM detections WHERE id = ${selected.id})`)}`,
+                    '_self',
+                  );
+                }}
+              >
+                📋 Run Playbook
+              </Button>
+              <Button
+                size="sm"
                 variant="danger"
                 onClick={() => suspendMutation.mutate(selected.id)}
                 disabled={suspendMutation.isPending}

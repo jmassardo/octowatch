@@ -10,16 +10,17 @@ describe('CopilotTabBar', () => {
     anomalyCount: 3,
   };
 
-  it('renders all 5 tabs', () => {
+  it('renders all 6 tabs', () => {
     render(<CopilotTabBar {...defaultProps} />);
     const tablist = screen.getByRole('tablist');
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs).toHaveLength(5);
+    expect(tabs).toHaveLength(6);
     expect(tabs[0]).toHaveTextContent('Overview');
     expect(tabs[1]).toHaveTextContent('Adoption');
     expect(tabs[2]).toHaveTextContent('Models & Features');
     expect(tabs[3]).toHaveTextContent('License Optimization');
     expect(tabs[4]).toHaveTextContent(/Anomalies/);
+    expect(tabs[5]).toHaveTextContent('Governance');
   });
 
   it('marks the active tab with aria-selected', () => {

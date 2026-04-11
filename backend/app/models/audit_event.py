@@ -66,6 +66,7 @@ class AuditEvent(Base):
 
     # Payload
     data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    custom_enrichments: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     # Ingestion metadata
     ingestion_source: Mapped[str] = mapped_column(Text, nullable=False)

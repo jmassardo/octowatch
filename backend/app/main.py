@@ -29,6 +29,8 @@ from app.routers import (
     admin_settings,
     auth,
     copilot,
+    copilot_governance,
+    cross_org,
     detections,
     dev_activity,
     events,
@@ -38,6 +40,7 @@ from app.routers import (
     ingest_webhook,
     integrations,
     org_config,
+    playbooks,
     posture,
     query,
     reports,
@@ -47,6 +50,7 @@ from app.routers import (
     suggestions,
     sync,
     threat_intel,
+    workflow_scanner,
 )
 from app.services.geoip_service import close_geoip_db, load_geoip_db
 from app.utils.client_ip import get_client_ip
@@ -549,6 +553,10 @@ def create_app() -> FastAPI:
     app.include_router(threat_intel.router, prefix=API_PREFIX)
     app.include_router(actors.router, prefix=API_PREFIX)
     app.include_router(ingest_webhook.router, prefix=API_PREFIX)
+    app.include_router(cross_org.router, prefix=API_PREFIX)
+    app.include_router(playbooks.router, prefix=API_PREFIX)
+    app.include_router(workflow_scanner.router, prefix=API_PREFIX)
+    app.include_router(copilot_governance.router, prefix=API_PREFIX)
 
     return app
 

@@ -3,6 +3,7 @@
 from app.models.app_settings import AppSetting, AppSettingAudit, SetupState
 from app.models.audit_event import AuditEvent, EventDedup, EventRawPayload
 from app.models.audit_trail import AuditTrail
+from app.models.copilot_policy import CopilotPolicy, CopilotPolicyViolation
 from app.models.detection import (
     BehavioralBaseline,
     Detection,
@@ -44,11 +45,13 @@ from app.models.integration import (
     TicketingConfig,
 )
 from app.models.org_config import OrgConfig
+from app.models.playbook import PlaybookExecution, PlaybookTemplate
 from app.models.query_template import QueryTemplate
 from app.models.report_schedule import ReportSchedule
 from app.models.system_health import SystemHealthEvent
 from app.models.threat_intel import ThreatIntelDomain, ThreatIntelFeed, ThreatIntelIndicator
 from app.models.user import RbacRole, UserRoleAssignment
+from app.models.workflow_finding import WorkflowFinding
 
 __all__ = [
     "AppSetting",
@@ -59,6 +62,8 @@ __all__ = [
     "AuditTrail",
     "BehavioralBaseline",
     "CodeScanningAlert",
+    "CopilotPolicy",
+    "CopilotPolicyViolation",
     "DependabotAlert",
     "Detection",
     "DetectionSuppression",
@@ -82,6 +87,8 @@ __all__ = [
     "OrgSecretScanningAlertSummary",
     "OrgTeam",
     "OrgTeamMember",
+    "PlaybookExecution",
+    "PlaybookTemplate",
     "QueryTemplate",
     "RepoBranchProtection",
     "Repository",
@@ -101,4 +108,5 @@ __all__ = [
     "RbacRole",
     "ReportSchedule",
     "UserRoleAssignment",
+    "WorkflowFinding",
 ]

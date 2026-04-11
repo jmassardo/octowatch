@@ -1,0 +1,169 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { renderWithProviders } from '../../test/utils';
+import { WorkflowsPage } from './index';
+
+/* ── Mocks ─────────────────────────────────────────────────────────── */
+
+const mockListFindings = vi.fn();
+const mockGetScores = vi.fn();
+
+vi.mock('../../api/workflowScanner', () => ({
+  listWorkflowFindings: (...args: unknown[]) => mockListFindings(...args),
+  getRepoSecurityScores: (...args: unknown[]) => mockGetScores(...args),
+}));
+
+/* ── Fixtures ──────────────────────────────────────────────────────── */
+
+const FINDINGS_RESPONSE = {
+  findings: [
+    {
+      id: 1,
+      org: 'myorg',
+      repo: 'myrepo',
+      workflow_path: '.github/workflows/ci.yml',
+      rule_id: 'unpinned_action',
+      severity: 'high',
+      title: 'Unpinned third-party action',
+      description: 'Action uses branch ref instead of SHA',
+      recommendation: 'Pin to a specific SHA',
+      snippet: 'uses: actions/checkout@main',
+      first_seen: '2024-06-01T10:00:00Z',
+      last_seen: '2024-06-07T10:00:00Z',
+      status: 'open',
+    },
+    {
+      id: 2,
+      org: 'myorg',
+      repo: 'other-repo',
+      workflow_path: '.github/workflows/deploy.yml',
+      rule_id: 'script_injection',
+      severity: 'critical',
+      title: 'Script injection risk',
+      description: 'Untrusted input used in run step',
+      recommendation: 'Use environment variable',
+      snippet: 'run: echo ${{ github.event.issue.title }}',
+      first_seen: '2024-06-02T10:00:00Z',
+      last_seen: '2024-06-06T10:00:00Z',
+      status: 'open',
+    },
+  ],
+  total: 2,
+};
+
+const SCORES_RESPONSE = [
+  {
+    org: 'myorg',
+    repo: 'myrepo',
+    score: 65,
+    finding_count: 3,
+    critical_count: 0,
+    high_count: 2,
+  },
+  {
+    org: 'myorg',
+    repo: 'secure-repo',
+    score: 95,
+    finding_count: 0,
+    critical_count: 0,
+    high_count: 0,
+  },
+];
+
+/* ── Tests ─────────────────────────────────────────────────────────── */
+
+describe('WorkflowsPage — Findings Tab', () => {
+  beforeEach(() => {
+    mockListFindings.mockClear();
+    mockGetScores.mockClear();
+    mockListFindings.mockResolvedValue(FINDINGS_RESPONSE);
+    mockGetScores.mockResolvedValue(SCORES_RESPONSE);
+  });
+
+  it('renders page title', async () => {
+    renderWithProviders(<WorkflowsPage />);
+    expect(await screen.findByText('Workflow Security Scanner')).toBeInTheDocument();
+  });
+
+  it('renders finding titles', async () => {
+    renderWithProviders(<WorkflowsPage />);
+    expect(await screen.findByText('Unpinned third-party action')).toBeInTheDocument();
+    expect(await screen.findByText('Script injection risk')).toBeInTheDocument();
+  });
+
+  it('shows severity labels', async () => {
+    renderWithProviders(<WorkflowsPage />);
+    expect(await screen.findByText('high')).toBeInTheDocument();
+    expect(await screen.findByText('critical')).toBeInTheDocument();
+  });
+
+  it('shows repo paths', async () => {
+    renderWithProviders(<WorkflowsPage />);
+    expect(await screen.findByText('myorg/myrepo')).toBeInTheDocument();
+    expect(await screen.findByText('myorg/other-repo')).toBeInTheDocument();
+  });
+
+  it('renders empty state when no findings', async () => {
+    mockListFindings.mockResolvedValue({ findings: [], total: 0 });
+    renderWithProviders(<WorkflowsPage />);
+    expect(await screen.findByText('No workflow findings found')).toBeInTheDocument();
+  });
+
+  it('renders severity filter dropdown', async () => {
+    renderWithProviders(<WorkflowsPage />);
+    expect(await screen.findByDisplayValue('All severities')).toBeInTheDocument();
+  });
+
+  it('renders status filter dropdown', async () => {
+    renderWithProviders(<WorkflowsPage />);
+    expect(await screen.findByDisplayValue('All statuses')).toBeInTheDocument();
+  });
+});
+
+describe('WorkflowsPage — Scores Tab', () => {
+  beforeEach(() => {
+    mockListFindings.mockClear();
+    mockGetScores.mockClear();
+    mockListFindings.mockResolvedValue(FINDINGS_RESPONSE);
+    mockGetScores.mockResolvedValue(SCORES_RESPONSE);
+  });
+
+  it('switches to scores tab and shows repo scores', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<WorkflowsPage />);
+    const scoresTab = await screen.findByText('Repo Scores');
+    await user.click(scoresTab);
+    expect(await screen.findByText('myorg/myrepo')).toBeInTheDocument();
+    expect(await screen.findByText('myorg/secure-repo')).toBeInTheDocument();
+  });
+
+  it('shows score values', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<WorkflowsPage />);
+    await user.click(await screen.findByText('Repo Scores'));
+    expect(await screen.findByText('65')).toBeInTheDocument();
+    expect(await screen.findByText('95')).toBeInTheDocument();
+  });
+
+  it('shows finding counts on score cards', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<WorkflowsPage />);
+    await user.click(await screen.findByText('Repo Scores'));
+    expect(await screen.findByText('3 findings')).toBeInTheDocument();
+    expect(await screen.findByText('0 findings')).toBeInTheDocument();
+  });
+});
+
+describe('WorkflowsPage — Error Handling', () => {
+  beforeEach(() => {
+    mockListFindings.mockClear();
+    mockGetScores.mockClear();
+  });
+
+  it('shows error banner on findings failure', async () => {
+    mockListFindings.mockRejectedValue(new Error('Network error'));
+    renderWithProviders(<WorkflowsPage />);
+    expect(await screen.findByText('Failed to load findings')).toBeInTheDocument();
+  });
+});

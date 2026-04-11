@@ -5,6 +5,7 @@ from __future__ import annotations
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +14,7 @@ from app.models.audit_trail import AuditTrail
 from app.models.query_template import QueryTemplate as QueryTemplateModel
 from app.rate_limit import limiter
 from app.schemas.query import QueryRunRequest, QueryRunResponse, QueryTemplate, QueryTemplateCreate
+from app.services.nl_query_service import NLQueryService
 from app.services.query_service import QueryValidationError, execute_query
 from app.services.rbac_service import get_user_scope
 from app.utils.client_ip import get_client_ip
@@ -302,3 +304,60 @@ async def run_template(
         return await execute_query(db, sql=template.sql, scope=scope)
     except (QueryValidationError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+# ── Natural language query ────────────────────────────────────────────────────
+
+_nl_service = NLQueryService()
+
+
+class NLQueryRequest(BaseModel):
+    """Request body for natural-language query translation."""
+
+    query: str = Field(..., min_length=3, max_length=2000)
+
+
+class NLInterpretationResponse(BaseModel):
+    """A single SQL interpretation of a natural-language query."""
+
+    sql: str
+    description: str
+    confidence: float
+
+
+@router.post(
+    "/nl",
+    response_model=list[NLInterpretationResponse],
+    dependencies=[Depends(verify_csrf)],
+)
+@limiter.limit("30/minute")
+async def translate_natural_language(
+    payload: NLQueryRequest,
+    request: Request,
+    current_user: AuthenticatedUser = Depends(
+        require_role(["analyst", "report_admin", "sys_admin"])
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> list[NLInterpretationResponse]:
+    """Translate a natural-language question into SQL interpretations.
+
+    Returns up to 5 SQL queries ranked by confidence.  The user can review,
+    edit, and execute the generated SQL through the standard query/run endpoint.
+    RBAC scope injection is applied when the SQL is eventually executed.
+    """
+    interpretations = _nl_service.translate(payload.query)
+
+    if not interpretations:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not interpret query. Try rephrasing with specific terms.",
+        )
+
+    return [
+        NLInterpretationResponse(
+            sql=i.sql,
+            description=i.description,
+            confidence=round(i.confidence, 2),
+        )
+        for i in interpretations
+    ]
