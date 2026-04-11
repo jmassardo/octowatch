@@ -33,6 +33,7 @@ from app.models.github_sync import (
     RepoBranchProtection,
     Repository,
     SecretScanningAlert,
+    SyncLogEntry,
 )
 from app.models.ingestion import IngestionCursor
 from app.models.integration import (
@@ -45,6 +46,7 @@ from app.models.integration import (
 from app.models.org_config import OrgConfig
 from app.models.query_template import QueryTemplate
 from app.models.report_schedule import ReportSchedule
+from app.models.system_health import SystemHealthEvent
 from app.models.threat_intel import ThreatIntelDomain, ThreatIntelFeed, ThreatIntelIndicator
 from app.models.user import RbacRole, UserRoleAssignment
 
@@ -89,6 +91,8 @@ __all__ = [
     "SetupState",
     "SeverityConfig",
     "SiemExportConfig",
+    "SyncLogEntry",
+    "SystemHealthEvent",
     "Ticket",
     "TicketingConfig",
     "ThreatIntelDomain",

@@ -11,6 +11,11 @@ import {
   createTicketingConfig,
   createSiemConfig,
 } from '../../api/integrations';
+import {
+  getRetentionPolicies,
+  updateRetentionPolicies,
+} from '../../api/admin';
+import type { RetentionPolicyItem } from '../../api/admin';
 import { SyncPanel } from '../Integrations/SyncPanel';
 import { SyncRunHistory } from '../Integrations/SyncRunHistory';
 import { ManualIngestPanel } from '../Integrations/ManualIngestPanel';
@@ -31,7 +36,7 @@ import styles from './Settings.module.css';
 const CATEGORIES = ['All', 'GitHub', 'Security', 'Storage', 'Notifications', 'System'] as const;
 type Category = (typeof CATEGORIES)[number];
 
-const SLUG_TO_TAB: Record<string, Category | 'Audit' | 'Features' | 'Integrations'> = {
+const SLUG_TO_TAB: Record<string, Category | 'Audit' | 'Features' | 'Integrations' | 'Retention'> = {
   all: 'All',
   github: 'GitHub',
   security: 'Security',
@@ -41,6 +46,7 @@ const SLUG_TO_TAB: Record<string, Category | 'Audit' | 'Features' | 'Integration
   audit: 'Audit',
   features: 'Features',
   integrations: 'Integrations',
+  retention: 'Retention',
 };
 
 const TAB_TO_SLUG: Record<string, string> = Object.fromEntries(
@@ -1520,6 +1526,121 @@ function CategorySettingsForm({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Retention policy pane                                              */
+/* ------------------------------------------------------------------ */
+
+const TABLE_LABELS: Record<string, string> = {
+  events: 'Audit Events',
+  audit_trail: 'Audit Trail',
+  detections: 'Detections',
+  event_raw_payloads: 'Raw Payloads',
+  event_dedup: 'Dedup Index',
+  enterprise_sync_log_entries: 'Sync Logs',
+  behavioral_baselines: 'Baselines',
+  system_health_events: 'Health Events',
+};
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / k ** i).toFixed(1)} ${sizes[i]}`;
+}
+
+function RetentionPane() {
+  const qc = useQueryClient();
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['admin', 'retention'],
+    queryFn: getRetentionPolicies,
+  });
+
+  const [edited, setEdited] = useState<Record<string, number>>({});
+  const hasChanges = Object.keys(edited).length > 0;
+
+  const saveMutation = useMutation({
+    mutationFn: (policies: Record<string, number>) => updateRetentionPolicies(policies),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'retention'] });
+      setEdited({});
+    },
+  });
+
+  const handleChange = (tableName: string, value: number, currentDays: number) => {
+    if (value === currentDays) {
+      const next = { ...edited };
+      delete next[tableName];
+      setEdited(next);
+    } else {
+      setEdited((prev) => ({ ...prev, [tableName]: value }));
+    }
+  };
+
+  if (isError) return <ErrorBanner message="Failed to load retention policies" onRetry={() => refetch()} />;
+  if (isLoading || !data) return <Spinner />;
+
+  return (
+    <div>
+      <p style={{ color: 'var(--fg-subtle)', fontSize: '0.875rem', marginBottom: '1rem' }}>
+        Configure how long each data type is retained before automatic cleanup.
+        Expired data can be archived to S3/MinIO before deletion if archival is enabled.
+      </p>
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>Table</th>
+              <th>Time Column</th>
+              <th>Retention (days)</th>
+              <th>Default</th>
+              <th>Rows</th>
+              <th>Size</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.policies.map((p: RetentionPolicyItem) => (
+              <tr key={p.table_name}>
+                <td className={styles.settingKey}>{TABLE_LABELS[p.table_name] ?? p.table_name}</td>
+                <td style={{ color: 'var(--fg-subtle)', fontSize: '0.8125rem' }}>{p.time_column}</td>
+                <td>
+                  <input
+                    type="number"
+                    min={1}
+                    max={3650}
+                    value={edited[p.table_name] ?? p.retention_days}
+                    onChange={(e) =>
+                      handleChange(p.table_name, parseInt(e.target.value, 10) || 1, p.retention_days)
+                    }
+                    className={styles.formInput}
+                    style={{ width: '5rem' }}
+                  />
+                </td>
+                <td style={{ color: 'var(--fg-subtle)' }}>{p.default_days}</td>
+                <td>{p.row_count.toLocaleString()}</td>
+                <td>{formatBytes(p.size_bytes)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className={styles.formActions} style={{ marginTop: '1rem' }}>
+        <Button
+          disabled={!hasChanges || saveMutation.isPending}
+          onClick={() => saveMutation.mutate(edited)}
+        >
+          {saveMutation.isPending ? 'Saving…' : 'Save Changes'}
+        </Button>
+        {hasChanges && (
+          <Button variant="default" onClick={() => setEdited({})}>
+            Cancel
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Category pane field definitions                                    */
 /* ------------------------------------------------------------------ */
 
@@ -1654,7 +1775,7 @@ export function SettingsPage() {
   const qc = useQueryClient();
   const { tab: tabSlug } = useParams<{ tab: string }>();
   const navigate = useNavigate();
-  const activeTab: Category | 'Audit' | 'Features' | 'Integrations' =
+  const activeTab: Category | 'Audit' | 'Features' | 'Integrations' | 'Retention' =
     SLUG_TO_TAB[tabSlug ?? 'all'] ?? 'All';
   const [editTarget, setEditTarget] = useState<AppSetting | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppSetting | null>(null);
@@ -1739,6 +1860,12 @@ export function SettingsPage() {
         >
           Integrations
         </button>
+        <button
+          className={activeTab === 'Retention' ? styles.tabActive : styles.tab}
+          onClick={() => navigate('/settings/retention')}
+        >
+          Retention
+        </button>
       </div>
 
       {/* Content */}
@@ -1746,6 +1873,8 @@ export function SettingsPage() {
         <FeaturesPane />
       ) : activeTab === 'Integrations' ? (
         <IntegrationsPane />
+      ) : activeTab === 'Retention' ? (
+        <RetentionPane />
       ) : activeTab === 'Audit' ? (
         <AuditTrailTable />
       ) : activeTab === 'GitHub' ? (

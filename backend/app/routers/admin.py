@@ -16,8 +16,14 @@ from app.config import settings
 from app.deps import AuthenticatedUser, get_db, get_valkey, require_role, verify_csrf
 from app.models.user import RbacRole, UserRoleAssignment
 from app.schemas.integration import (
+    ArchiveFileInfo,
+    ArchiveRestoreRequest,
+    GdprEraseRequest,
+    GdprEraseResponse,
     IngestionSourceCreate,
-    RetentionConfig,
+    RetentionPoliciesResponse,
+    RetentionPolicyItem,
+    RetentionUpdateRequest,
     RoleAssignmentCreate,
     RoleAssignmentResponse,
 )
@@ -262,52 +268,165 @@ async def delete_ingestion_source(
 # ─── Retention configuration ─────────────────────────────────────────────────
 
 
-@router.get("/retention", response_model=RetentionConfig)
+@router.get("/retention", response_model=RetentionPoliciesResponse)
 async def get_retention(
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
-) -> RetentionConfig:
-    """Get current retention policy configuration."""
-    # Read from TimescaleDB retention policy metadata
-    result = await db.execute(
-        text("""
-            SELECT hypertable_name, config
-            FROM timescaledb_information.jobs
-            WHERE proc_name = 'policy_retention'
-              AND hypertable_name IN ('events', 'audit_trail')
-        """)
-    )
-    rows = result.fetchall()
-    policies = {r.hypertable_name: r.config for r in rows}
-    return RetentionConfig(
-        events_retention_days=policies.get("events", {}).get("drop_after_days", 90),
-        audit_trail_retention_days=policies.get("audit_trail", {}).get("drop_after_days", 365),
-    )
+) -> RetentionPoliciesResponse:
+    """Get retention policies for all managed tables with storage statistics."""
+    from app.services import retention_service
+
+    policies = await retention_service.get_all_policies(db)
+
+    # Best-effort storage stats (may fail on non-Postgres test DBs)
+    stats: dict[str, dict[str, int]] = {}
+    try:
+        stats = await retention_service.get_storage_stats(db)
+    except Exception:
+        stats = {}  # gracefully degrade when stats unavailable
+
+    items: list[RetentionPolicyItem] = []
+    for table_name, policy in policies.items():
+        tbl_stats = stats.get(table_name, {})
+        items.append(
+            RetentionPolicyItem(
+                table_name=table_name,
+                time_column=policy["time_column"],
+                retention_days=policy["retention_days"],
+                default_days=policy["default_days"],
+                row_count=tbl_stats.get("row_count", 0),
+                size_bytes=tbl_stats.get("size_bytes", 0),
+            )
+        )
+    return RetentionPoliciesResponse(policies=items)
 
 
-@router.put("/retention", response_model=RetentionConfig, dependencies=[Depends(verify_csrf)])
+@router.put(
+    "/retention",
+    response_model=RetentionPoliciesResponse,
+    dependencies=[Depends(verify_csrf)],
+)
 async def update_retention(
-    payload: RetentionConfig,
+    payload: RetentionUpdateRequest,
+    request: Request,
     current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
     db: AsyncSession = Depends(get_db),
-) -> RetentionConfig:
-    """Update retention policy for events and audit_trail hypertables."""
-    # Remove existing policies first, then add new ones
-    await db.execute(text("SELECT remove_retention_policy('events', if_exists => true)"))
-    await db.execute(text("SELECT remove_retention_policy('audit_trail', if_exists => true)"))
-    await db.execute(
-        text(
-            "SELECT add_retention_policy('events', "
-            f"INTERVAL '{payload.events_retention_days} days')"
+) -> RetentionPoliciesResponse:
+    """Update retention policies for one or more tables."""
+    from app.services import retention_service
+
+    ip = get_client_ip(request)
+    for table_name, days in payload.policies.items():
+        if table_name not in retention_service.RETENTION_TABLES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unknown table: {table_name}",
+            )
+        if days < 1 or days > 3650:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"retention_days must be 1-3650 for {table_name}",
+            )
+        await retention_service.update_policy(
+            db, table_name, days, user_login=current_user.github_login, ip_address=ip
         )
+    await db.commit()
+
+    # Return the updated full policy set
+    return await get_retention(current_user=current_user, db=db)
+
+
+# ─── Archive management ──────────────────────────────────────────────────────
+
+
+@router.get("/archive/list", response_model=list[ArchiveFileInfo])
+async def list_archives(
+    table: str | None = None,
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+) -> list[ArchiveFileInfo]:
+    """List archive files in object storage, optionally filtered by table."""
+    from app.services.archive_service import get_archive_bucket, get_s3_client
+    from app.services.archive_service import list_archives as _list
+
+    try:
+        s3 = get_s3_client()
+        bucket = get_archive_bucket()
+        items = _list(s3_client=s3, bucket=bucket, table_name=table)
+        return [ArchiveFileInfo(**item) for item in items]
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Could not list archives: {exc}",
+        ) from exc
+
+
+@router.post("/archive/restore", dependencies=[Depends(verify_csrf)])
+async def restore_archive(
+    payload: ArchiveRestoreRequest,
+    request: Request,
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Restore data from an archive file back into the database."""
+    from app.services.archive_service import get_archive_bucket, get_s3_client
+    from app.services.archive_service import restore_archive as _restore
+
+    ip = get_client_ip(request)
+
+    try:
+        s3 = get_s3_client()
+        bucket = get_archive_bucket()
+        restored = await _restore(db, payload.archive_path, s3_client=s3, bucket=bucket)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Restore failed: {exc}",
+        ) from exc
+
+    await log_action(
+        db,
+        user_login=current_user.github_login,
+        user_github_id=current_user.github_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        action_type="archive.restore",
+        resource_type="archive",
+        resource_id=payload.archive_path,
+        parameters={"restored_rows": restored},
     )
-    await db.execute(
-        text(
-            "SELECT add_retention_policy('audit_trail', "
-            f"INTERVAL '{payload.audit_trail_retention_days} days')"
-        )
+    await db.commit()
+
+    return {"archive_path": payload.archive_path, "restored_rows": restored}
+
+
+# ─── GDPR erasure ────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/gdpr/erase",
+    response_model=GdprEraseResponse,
+    dependencies=[Depends(verify_csrf)],
+)
+async def gdpr_erase(
+    payload: GdprEraseRequest,
+    request: Request,
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> GdprEraseResponse:
+    """Erase/anonymise all data for a GitHub user (GDPR right-to-erasure)."""
+    from app.services import gdpr_service
+
+    ip = get_client_ip(request)
+
+    result = await gdpr_service.erase_user(
+        db,
+        payload.github_login,
+        authorized_by=current_user.github_login,
+        ip_address=ip,
     )
-    return payload
+    return GdprEraseResponse(**result)
 
 
 # ─── Analytics helpers ────────────────────────────────────────────────────────

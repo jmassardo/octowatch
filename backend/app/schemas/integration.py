@@ -144,6 +144,64 @@ class RetentionConfig(BaseModel):
     raw_payloads_retention_days: int = Field(default=90, ge=1, le=3650)
     detections_retention_days: int = Field(default=730, ge=30, le=3650)
     audit_trail_retention_days: int = Field(default=730, ge=30, le=3650)
+    event_dedup_retention_days: int = Field(default=7, ge=1, le=365)
+    enterprise_sync_log_retention_days: int = Field(default=90, ge=7, le=3650)
+    behavioral_baselines_retention_days: int = Field(default=180, ge=7, le=3650)
+    system_health_events_retention_days: int = Field(default=90, ge=7, le=3650)
+
+
+class RetentionPolicyItem(BaseModel):
+    """A single table's retention policy with storage statistics."""
+
+    table_name: str
+    time_column: str
+    retention_days: int
+    default_days: int
+    row_count: int = 0
+    size_bytes: int = 0
+
+
+class RetentionPoliciesResponse(BaseModel):
+    """Full retention configuration for all managed tables."""
+
+    policies: list[RetentionPolicyItem]
+
+
+class RetentionUpdateRequest(BaseModel):
+    """Request body for updating retention policies."""
+
+    policies: dict[str, int] = Field(
+        ...,
+        description="Mapping of table_name to retention_days",
+    )
+
+
+class ArchiveFileInfo(BaseModel):
+    """Metadata about an archive file in object storage."""
+
+    key: str
+    size_bytes: int
+    last_modified: str
+
+
+class ArchiveRestoreRequest(BaseModel):
+    """Request body for restoring an archive."""
+
+    archive_path: str = Field(..., min_length=1)
+
+
+class GdprEraseRequest(BaseModel):
+    """Request body for GDPR right-to-erasure."""
+
+    github_login: str = Field(..., min_length=1, max_length=255)
+
+
+class GdprEraseResponse(BaseModel):
+    """Response after GDPR erasure."""
+
+    github_login: str
+    pseudonym: str
+    affected_tables: dict[str, int]
 
 
 # ── SIEM Export Schemas ──────────────────────────────────────────────────────
