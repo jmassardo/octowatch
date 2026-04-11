@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models for integrations (ticketing, notifications, IdP enrichments)."""
+"""SQLAlchemy ORM models for integrations (ticketing, notifications, IdP, SIEM export)."""
 
 from __future__ import annotations
 
@@ -130,3 +130,45 @@ class IdpActorEnrichment(Base):
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
     )
     sync_error: Mapped[str | None] = mapped_column(Text)
+
+
+class SiemExportConfig(Base):
+    """Admin-configured SIEM/SOAR export destination (syslog, Splunk HEC, or webhook)."""
+
+    __tablename__ = "siem_export_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    export_type: Mapped[str] = mapped_column(Text, nullable=False)
+    display_name: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # ── Syslog fields ────────────────────────────────────────────────────
+    syslog_host: Mapped[str | None] = mapped_column(Text)
+    syslog_port: Mapped[int | None] = mapped_column(Integer)
+    syslog_protocol: Mapped[str | None] = mapped_column(Text)  # tcp, udp, tls
+    syslog_format: Mapped[str | None] = mapped_column(Text)  # cef, leef
+
+    # ── Splunk HEC fields ────────────────────────────────────────────────
+    splunk_hec_url: Mapped[str | None] = mapped_column(Text)
+    splunk_hec_token_env_var: Mapped[str | None] = mapped_column(Text)
+    splunk_sourcetype: Mapped[str | None] = mapped_column(Text, default="octowatch:event")
+    splunk_index: Mapped[str | None] = mapped_column(Text)
+
+    # ── Webhook fields ───────────────────────────────────────────────────
+    webhook_url: Mapped[str | None] = mapped_column(Text)
+    webhook_secret_env_var: Mapped[str | None] = mapped_column(Text)
+    webhook_headers: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+    # ── Common fields ────────────────────────────────────────────────────
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    export_events: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    export_detections: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_by: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        onupdate=text("NOW()"),
+    )
