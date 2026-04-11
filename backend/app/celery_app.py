@@ -95,6 +95,10 @@ app.autodiscover_tasks(
 # autodiscover only finds tasks.py; explicitly include other task modules
 app.conf.include = [
     "app.workers.github_sync_worker",
+    "app.workers.notification_worker",
+    "app.workers.ingestion.s3_worker",
+    "app.workers.ingestion.azure_worker",
+    "app.workers.ingestion.base",
 ]
 
 # Conditionally add GitHub sync heartbeat to beat schedule

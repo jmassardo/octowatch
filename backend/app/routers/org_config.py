@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import structlog
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,7 +33,15 @@ async def get_org_config(
     """Return the configuration for an organization.
 
     Falls back to global defaults when no row exists.
+    Enforces org-scoped access: non-admin users may only read orgs they belong to.
     """
+    if not current_user.has_role("sys_admin"):
+        if current_user.scope_type != "global" and org_slug not in current_user.scoped_orgs:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: you do not have access to this organization's configuration",
+            )
+
     result = await db.execute(select(OrgConfig).where(OrgConfig.org_slug == org_slug))
     row = result.scalar_one_or_none()
 

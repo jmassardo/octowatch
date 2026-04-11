@@ -387,6 +387,32 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
+  # worker-notification — Celery worker for notification queue
+  # Concurrency: 2 (low volume; notifications are dispatched per-detection
+  # after the detection pipeline completes).
+  # ---------------------------------------------------------------------------
+  worker-notification:
+    image: octowatch-worker:latest
+    command: ["celery", "-A", "app.celery_app", "worker", "-Q", "notification", "-c", "2", "--loglevel", "${LOG_LEVEL:-INFO}"]
+    environment:
+      <<: *app-env
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-}
+    networks:
+      - backend
+      - data
+    depends_on:
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
   # worker-baseline — Celery worker for behavioral baseline queue
   # Concurrency: 2 (baseline recomputation is I/O-bound and runs hourly;
   # low concurrency prevents it from competing with detection workers).

@@ -4,14 +4,49 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
 from typing import Any
 
 import structlog
+from celery import Task
 
+from app.celery_app import celery_app
 from app.config import settings
 from app.workers.ingestion.base import AbstractIngestWorker
 
 logger = structlog.get_logger(__name__)
+
+
+@celery_app.task(
+    name="app.workers.ingestion.azure_worker.poll_azure_sources",
+    bind=True,
+    max_retries=3,
+)
+def poll_azure_sources(self: Task) -> dict[str, object]:
+    """Celery beat task: instantiate AzureBlobIngestWorker and run a single poll cycle."""
+    try:
+        result = asyncio.run(_poll_azure())
+        return {"status": "ok", **result}
+    except Exception as exc:
+        logger.error("azure_worker.poll_failed", error=str(exc))
+        backoff = min(30 * (2**self.request.retries), 600)
+        jitter = secrets.randbelow(max(int(backoff * 0.1), 1))
+        raise self.retry(exc=exc, countdown=backoff + jitter) from exc
+
+
+async def _poll_azure() -> dict[str, object]:
+    """Async wrapper that creates dependencies and runs the Azure worker."""
+    import redis.asyncio as aioredis
+
+    from app.database import AsyncSessionLocal
+
+    valkey = aioredis.from_url(settings.VALKEY_URL, decode_responses=True)
+    try:
+        worker = AzureBlobIngestWorker(valkey_client=valkey, db_session_factory=AsyncSessionLocal)
+        await worker.run()
+        return {"source": "azure_blob"}
+    finally:
+        await valkey.aclose()
 
 
 class AzureBlobIngestWorker(AbstractIngestWorker):

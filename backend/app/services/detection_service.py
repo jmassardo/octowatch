@@ -34,6 +34,7 @@ class PipelineResult:
     """Result of a detection pipeline run."""
 
     detections_written: int = 0
+    detection_ids: list[int] = field(default_factory=list)
     failed_rules: list[int] = field(default_factory=list)
 
 
@@ -826,6 +827,7 @@ async def run_detection_pipeline(
 
     orgs = scoped_orgs or list({e.org for e in events if e.org})
     detections_written = 0
+    detection_ids: list[int] = []
     failed_rules: list[int] = []
 
     for rule in rules:
@@ -839,22 +841,26 @@ async def run_detection_pipeline(
                 for event in events:
                     if not event_matches_rule(event, rule):
                         continue
-                    await _write_detection_for_event(session, rule, event, orgs)
-                    detections_written += 1
+                    det_id = await _write_detection_for_event(session, rule, event, orgs)
+                    if det_id is not None:
+                        detections_written += 1
+                        detection_ids.append(det_id)
 
             elif rule.logic_type == "threshold":
                 hits = await evaluate_threshold_rule(session, rule, events, orgs)
                 for hit in hits:
-                    written = await _write_threshold_detection(session, rule, hit, orgs)
-                    if written:
+                    det_id = await _write_threshold_detection(session, rule, hit, orgs)
+                    if det_id is not None:
                         detections_written += 1
+                        detection_ids.append(det_id)
 
             elif rule.logic_type == "statistical" and engine == "impossible_travel":
                 hits = await evaluate_impossible_travel(session, rule, events, orgs)
                 for hit in hits:
-                    written = await _write_impossible_travel_detection(session, rule, hit, orgs)
-                    if written:
+                    det_id = await _write_impossible_travel_detection(session, rule, hit, orgs)
+                    if det_id is not None:
                         detections_written += 1
+                        detection_ids.append(det_id)
 
             elif rule.logic_type == "sequence":
                 # Sequence evaluation is handled separately per-actor
@@ -863,11 +869,12 @@ async def run_detection_pipeline(
             elif rule.logic_type == "cross_namespace_sequence":
                 hits = await evaluate_cross_namespace_sequence(session, rule, orgs)
                 for hit in hits:
-                    written = await _write_cross_namespace_sequence_detection(
+                    det_id = await _write_cross_namespace_sequence_detection(
                         session, rule, hit, orgs
                     )
-                    if written:
+                    if det_id is not None:
                         detections_written += 1
+                        detection_ids.append(det_id)
 
         except Exception as exc:
             logger.error(
@@ -891,6 +898,7 @@ async def run_detection_pipeline(
 
     return PipelineResult(
         detections_written=detections_written,
+        detection_ids=detection_ids,
         failed_rules=failed_rules,
     )
 
@@ -900,8 +908,11 @@ async def _write_detection_for_event(
     rule: RuleDefinition,
     event: AuditEvent,
     orgs: list[str],
-) -> None:
-    """Write a pattern-rule detection for a single matching event."""
+) -> int | None:
+    """Write a pattern-rule detection for a single matching event.
+
+    Returns the detection ID if written, or ``None`` if suppressed.
+    """
     # Step 5: Suppression check
     suppression = await check_suppression(session, rule.id, event.actor, event.org, event.repo)
     if suppression:
@@ -910,7 +921,7 @@ async def _write_detection_for_event(
             rule_id=rule.id,
             suppression_id=suppression.id,
         )
-        return
+        return None
 
     # Step 6: Severity and confidence
     severity = await resolve_severity(session, event.action, rule.default_severity)
@@ -946,14 +957,16 @@ async def _write_detection_for_event(
         confidence=tier,
     )
 
+    return detection.id
+
 
 async def _write_threshold_detection(
     session: AsyncSession,
     rule: RuleDefinition,
     hit: dict[str, Any],
     orgs: list[str],
-) -> bool:
-    """Write or update a threshold detection. Returns True if new detection written."""
+) -> int | None:
+    """Write or update a threshold detection. Returns detection ID if new, else None."""
     agg_value = hit["aggregation_key_value"]
     config = rule.logic_config
     window_minutes: int = config.get("time_window_minutes", 60)
@@ -961,7 +974,7 @@ async def _write_threshold_detection(
     # Suppression check
     suppression = await check_suppression(session, rule.id, agg_value, None, None)
     if suppression:
-        return False
+        return None
 
     # Dedup: check for existing open detection
     existing = await find_existing_detection(session, rule.id, agg_value, window_minutes)
@@ -977,7 +990,7 @@ async def _write_threshold_detection(
                 updated_at=datetime.now(UTC),
             )
         )
-        return False
+        return None
 
     # New detection
     severity = await resolve_severity(
@@ -1019,7 +1032,7 @@ async def _write_threshold_detection(
     )
     session.add(detection)
     await session.flush()
-    return True
+    return detection.id
 
 
 async def _write_impossible_travel_detection(
@@ -1027,20 +1040,20 @@ async def _write_impossible_travel_detection(
     rule: RuleDefinition,
     hit: dict[str, Any],
     orgs: list[str],
-) -> bool:
-    """Write an impossible travel detection."""
+) -> int | None:
+    """Write an impossible travel detection. Returns detection ID if new, else None."""
     actor = hit["aggregation_key_value"]
     ctx = hit.get("context_data", {})
     config = rule.logic_config
 
     suppression = await check_suppression(session, rule.id, actor, None, None)
     if suppression:
-        return False
+        return None
 
     window_minutes = config.get("time_window_minutes", 60)
     existing = await find_existing_detection(session, rule.id, actor, window_minutes)
     if existing:
-        return False
+        return None
 
     severity = await resolve_severity(session, "geo.impossible_travel", rule.default_severity)
     base_conf = float(config.get("confidence", 0.65))
@@ -1070,7 +1083,7 @@ async def _write_impossible_travel_detection(
     )
     session.add(detection)
     await session.flush()
-    return True
+    return detection.id
 
 
 async def _write_cross_namespace_sequence_detection(
@@ -1078,8 +1091,8 @@ async def _write_cross_namespace_sequence_detection(
     rule: RuleDefinition,
     hit: dict[str, Any],
     orgs: list[str],
-) -> bool:
-    """Write a cross-namespace sequence detection. Returns True if new detection written."""
+) -> int | None:
+    """Write a cross-namespace sequence detection. Returns detection ID if new, else None."""
     actor = hit.get("actor")
     agg_value: str = hit["aggregation_key_value"]
     config = rule.logic_config
@@ -1093,7 +1106,7 @@ async def _write_cross_namespace_sequence_detection(
             rule_id=rule.id,
             suppression_id=suppression.id,
         )
-        return False
+        return None
 
     # Dedup: check for existing open detection
     existing = await find_existing_detection(session, rule.id, agg_value, window_minutes)
@@ -1108,7 +1121,7 @@ async def _write_cross_namespace_sequence_detection(
                 updated_at=datetime.now(UTC),
             )
         )
-        return False
+        return None
 
     # Severity resolution — use the first step's primary action
     first_action = config.get("steps", [{}])[0].get("action_filters", ["*"])[0]
@@ -1160,7 +1173,7 @@ async def _write_cross_namespace_sequence_detection(
         matched_steps=matched_steps,
     )
 
-    return True
+    return detection.id
 
 
 async def _evaluate_sequence_rule(

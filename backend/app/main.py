@@ -134,19 +134,26 @@ class AuditTrailMiddleware(BaseHTTPMiddleware):
                     from app.database import AsyncSessionLocal
                     from app.models.audit_trail import AuditTrail
 
+                    is_error = response.status_code >= 400
                     async with AsyncSessionLocal() as db_session:
                         trail = AuditTrail(
-                            actor=actor,
-                            action=(
+                            user_login=actor,
+                            action_type=(
                                 f"api.{request.method.lower()}"
                                 f".{request.url.path.replace('/', '_').strip('_')}"
                             ),
                             resource_type="api_endpoint",
                             resource_id=None,
                             ip_address=get_client_ip(request),
-                            request_method=request.method,
-                            request_path=request.url.path,
-                            response_status=response.status_code,
+                            user_agent=request.headers.get("user-agent"),
+                            outcome="error" if is_error else "success",
+                            error_detail=(f"HTTP {response.status_code}" if is_error else None),
+                            parameters={
+                                "method": request.method,
+                                "path": request.url.path,
+                                "status_code": response.status_code,
+                                "elapsed_ms": elapsed_ms,
+                            },
                         )
                         db_session.add(trail)
                         await db_session.commit()
@@ -305,7 +312,7 @@ def _status_to_code(status_code: int) -> str:
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
-        title="Audit Log Analyzer",
+        title="OctoWatch",
         description="GitHub enterprise audit log analysis platform",
         version="1.0.0",
         docs_url="/api/docs" if settings.environment != "production" else None,

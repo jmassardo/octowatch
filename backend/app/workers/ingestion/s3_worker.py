@@ -4,14 +4,49 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
 from typing import Any
 
 import structlog
+from celery import Task
 
+from app.celery_app import celery_app
 from app.config import settings
 from app.workers.ingestion.base import AbstractIngestWorker
 
 logger = structlog.get_logger(__name__)
+
+
+@celery_app.task(
+    name="app.workers.ingestion.s3_worker.poll_s3_sources",
+    bind=True,
+    max_retries=3,
+)
+def poll_s3_sources(self: Task) -> dict[str, object]:
+    """Celery beat task: instantiate S3IngestWorker and run a single poll cycle."""
+    try:
+        result = asyncio.run(_poll_s3())
+        return {"status": "ok", **result}
+    except Exception as exc:
+        logger.error("s3_worker.poll_failed", error=str(exc))
+        backoff = min(30 * (2**self.request.retries), 600)
+        jitter = secrets.randbelow(max(int(backoff * 0.1), 1))
+        raise self.retry(exc=exc, countdown=backoff + jitter) from exc
+
+
+async def _poll_s3() -> dict[str, object]:
+    """Async wrapper that creates dependencies and runs the S3 worker."""
+    import redis.asyncio as aioredis
+
+    from app.database import AsyncSessionLocal
+
+    valkey = aioredis.from_url(settings.VALKEY_URL, decode_responses=True)
+    try:
+        worker = S3IngestWorker(valkey_client=valkey, db_session_factory=AsyncSessionLocal)
+        await worker.run()
+        return {"source": "s3"}
+    finally:
+        await valkey.aclose()
 
 
 class S3IngestWorker(AbstractIngestWorker):

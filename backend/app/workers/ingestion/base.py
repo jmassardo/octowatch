@@ -2,19 +2,64 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
+import secrets
 from abc import ABC, abstractmethod
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
+from celery import Task
+
+from app.celery_app import celery_app
 
 logger = structlog.get_logger(__name__)
 
 # Bloom filter window size (64 KB is sufficient for ~4M events with 1% FP rate)
 _BLOOM_KEY = "ingest:dedup:bloom"
 _BLOOM_TTL = 86400  # 24 hours
+
+# Default retention window for event_dedup pruning (7 days)
+_DEDUP_RETENTION_DAYS = 7
+
+
+@celery_app.task(
+    name="app.workers.ingestion.base.prune_event_dedup",
+    bind=True,
+    max_retries=3,
+)
+def prune_event_dedup(self: Task) -> dict[str, object]:
+    """Celery beat task: delete event_dedup rows older than the retention window."""
+    try:
+        deleted = asyncio.run(_prune_dedup())
+        return {"status": "ok", "deleted": deleted}
+    except Exception as exc:
+        logger.error("prune_event_dedup.failed", error=str(exc))
+        backoff = min(30 * (2**self.request.retries), 600)
+        jitter = secrets.randbelow(max(int(backoff * 0.1), 1))
+        raise self.retry(exc=exc, countdown=backoff + jitter) from exc
+
+
+async def _prune_dedup() -> int:
+    """Delete event_dedup rows older than the configured retention window."""
+    from sqlalchemy import text
+
+    from app.database import AsyncSessionLocal
+
+    cutoff = datetime.now(UTC) - timedelta(days=_DEDUP_RETENTION_DAYS)
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            text("DELETE FROM event_dedup WHERE created_at < :cutoff"),
+            {"cutoff": cutoff},
+        )
+        await session.commit()
+        deleted = int(getattr(result, "rowcount", 0) or 0)
+        if deleted:
+            logger.info("prune_event_dedup.complete", deleted=deleted, cutoff=cutoff.isoformat())
+        return deleted
 
 
 class AbstractIngestWorker(ABC):

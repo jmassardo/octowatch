@@ -115,6 +115,58 @@ class TestGetOrgConfig:
         data = resp.json()
         assert data["copilot_cost_per_seat"] == 19.0
 
+    @pytest.mark.anyio
+    async def test_scoped_user_can_access_own_org(
+        self, viewer_client: tuple[FastAPI, AsyncMock]
+    ) -> None:
+        """A scoped user with access to 'my-org' can read its config."""
+        app, mock_db = viewer_client
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.get("/api/v1/orgs/my-org/config")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["org_slug"] == "my-org"
+
+    @pytest.mark.anyio
+    async def test_scoped_user_denied_other_org(
+        self, app: FastAPI, mock_db_session: AsyncMock
+    ) -> None:
+        """A scoped user without access to 'other-org' is denied."""
+        user = MagicMock()
+        user.github_login = "scoped-user"
+        user.github_id = 3
+        user.roles = ["analyst"]
+        user.scoped_orgs = ["my-org"]
+        user.scope_type = "scoped"
+        user.has_role = MagicMock(return_value=False)
+
+        app.dependency_overrides[get_current_user] = lambda: user
+        app.dependency_overrides[get_db] = lambda: mock_db_session
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.get("/api/v1/orgs/other-org/config")
+
+        assert resp.status_code == 403
+        assert "Access denied" in resp.json()["detail"]
+
+    @pytest.mark.anyio
+    async def test_admin_can_access_any_org(self, admin_client: tuple[FastAPI, AsyncMock]) -> None:
+        """sys_admin can access any organization's config."""
+        app, mock_db = admin_client
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.get("/api/v1/orgs/any-org/config")
+
+        assert resp.status_code == 200
+
 
 class TestUpdateOrgConfig:
     """Tests for PATCH /api/v1/orgs/{org_slug}/config."""
