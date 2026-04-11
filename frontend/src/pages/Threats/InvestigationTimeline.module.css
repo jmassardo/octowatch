@@ -1,0 +1,213 @@
+.page {
+  padding: 24px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  padding: 48px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.detectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--fg-muted);
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  font-family: inherit;
+}
+
+.closeBtn:hover {
+  color: var(--fg);
+}
+
+/* Map container */
+.mapContainer {
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Timeline */
+.timeline {
+  display: flex;
+  flex-direction: column;
+}
+
+.timelineItem {
+  display: flex;
+  gap: 12px;
+  min-height: 80px;
+}
+
+.timelineConnector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.timelineDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--border);
+  border: 2px solid var(--canvas-default);
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.sequenceDot {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.2);
+}
+
+.timelineLine {
+  width: 2px;
+  flex: 1;
+  background: var(--border-muted);
+  min-height: 20px;
+}
+
+.sequenceLine {
+  background: var(--accent);
+}
+
+/* Event card */
+.eventCard {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.eventCard:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.3);
+}
+
+.sequenceStep {
+  border-left: 3px solid var(--accent);
+}
+
+.stepBadge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(88, 166, 255, 0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.eventTime {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.eventAction {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-top: 2px;
+}
+
+.eventMeta {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+  display: flex;
+  gap: 4px;
+}
+
+.actorLink {
+  color: var(--done);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.actorLink:hover {
+  text-decoration: underline;
+}
+
+.eventGeo {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-top: 4px;
+}
+
+/* Empty state */
+.emptyState {
+  text-align: center;
+  color: var(--fg-muted);
+  font-size: 13px;
+  padding: 32px 0;
+}
+
+/* Drawer content */
+.drawerContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 6px 12px;
+  font-size: 13px;
+}
+
+.detailLabel {
+  font-weight: 600;
+  color: var(--fg-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rawSection {
+  margin-top: 8px;
+}
+
+.rawLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}

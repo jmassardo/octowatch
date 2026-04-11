@@ -249,3 +249,17 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Timeline overlay */
+.timelineOverlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(600px, 100vw);
+  background: var(--canvas-default);
+  border-left: 1px solid var(--border);
+  z-index: 100;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
+  overflow-y: auto;
+}

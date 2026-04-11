@@ -17,6 +17,7 @@ import { HealthPage } from './pages/Health';
 import { HealthSettingsPage } from './pages/Health/HealthSettings';
 import { PosturePage } from './pages/Posture';
 import { SettingsPage } from './pages/Settings';
+import { ActorsPage } from './pages/Actors';
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
     children: [
       { path: '/dashboard', element: <DashboardPage /> },
       { path: '/threats', element: <ThreatsPage /> },
+      { path: '/actors/:login', element: <ActorsPage /> },
       { path: '/posture', element: <PosturePage /> },
       { path: '/posture/:org', element: <PosturePage /> },
       { path: '/posture/:org/:repo', element: <PosturePage /> },
