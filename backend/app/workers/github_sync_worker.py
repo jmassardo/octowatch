@@ -1909,6 +1909,7 @@ async def _fetch_page(
         open_count = 0
         resolved_count = 0
         total_count = 0
+        raw_alerts: list[dict] = []
         page = 1
         while True:
             alert_params["page"] = page
@@ -1930,6 +1931,7 @@ async def _fetch_page(
                     open_count += 1
                 else:
                     resolved_count += 1
+                raw_alerts.append(a)
             if not _has_next_page(resp.headers):
                 break
             page += 1
@@ -1948,6 +1950,7 @@ async def _fetch_page(
             for _a in alerts:
                 total_count += 1
                 resolved_count += 1
+                raw_alerts.append(_a)
             if not _has_next_page(resp.headers):
                 break
             rpage += 1
@@ -1958,6 +1961,7 @@ async def _fetch_page(
             "open_count": open_count,
             "resolved_count": resolved_count,
             "total_count": total_count,
+            "_raw_alerts": raw_alerts,
         }
         return [summary_item], "_done"
 
@@ -1978,6 +1982,7 @@ async def _fetch_page(
         high_count = 0
         medium_count = 0
         low_count = 0
+        raw_dep_alerts: list[dict] = []
         page = 1
         while True:
             dep_params["page"] = page
@@ -2011,6 +2016,7 @@ async def _fetch_page(
                     medium_count += 1
                 elif severity == "low":
                     low_count += 1
+                raw_dep_alerts.append(a)
             if not _has_next_page(resp.headers):
                 break
             page += 1
@@ -2025,6 +2031,7 @@ async def _fetch_page(
             "high_count": high_count,
             "medium_count": medium_count,
             "low_count": low_count,
+            "_raw_alerts": raw_dep_alerts,
         }
         return [summary_item], "_done"
 
@@ -2073,6 +2080,7 @@ async def _fetch_page(
         error_count = 0
         warning_count = 0
         note_count = 0
+        raw_cs_alerts: list[dict] = []
         page = 1
         while True:
             cs_params["page"] = page
@@ -2106,6 +2114,7 @@ async def _fetch_page(
                     warning_count += 1
                 elif severity == "note":
                     note_count += 1
+                raw_cs_alerts.append(a)
             if not _has_next_page(resp.headers):
                 break
             page += 1
@@ -2119,6 +2128,7 @@ async def _fetch_page(
             "error_count": error_count,
             "warning_count": warning_count,
             "note_count": note_count,
+            "_raw_alerts": raw_cs_alerts,
         }
         return [summary_item], "_done"
 
@@ -3046,6 +3056,267 @@ async def _upsert_mfa_status(
     await session.commit()
 
 
+async def _upsert_secret_scanning_alerts(
+    session: AsyncSession, org: str, items: list[dict[str, object]]
+) -> None:
+    """Upsert individual secret scanning alert records.
+
+    The ``items`` list comes from ``_fetch_page`` which returns raw GitHub
+    API JSON objects (one per alert). We store each alert individually
+    to enable accurate MTTR, resolution rate, and actor correlation.
+    """
+    from sqlalchemy import text as sa_text
+
+    for a in items:
+        repo = a.get("repository") or {}
+        repo_full_name = repo.get("full_name", "") if isinstance(repo, dict) else ""
+        bypassed_by = a.get("push_protection_bypassed_by") or {}
+        bypassed_login = bypassed_by.get("login", "") if isinstance(bypassed_by, dict) else ""
+
+        # Map locations to first file path and commit SHA
+        locations = a.get("locations") or []
+        file_path = None
+        commit_sha = None
+        if locations and isinstance(locations, list):
+            first_loc = locations[0] if locations else {}
+            details = first_loc.get("details") or {}
+            file_path = details.get("path")
+            commit_sha = details.get("commit_sha")
+
+        # Fallback: some API responses have location info at top level
+        if not file_path:
+            file_path = (
+                a.get("secret_scanning_location", {}).get("path")
+                if isinstance(a.get("secret_scanning_location"), dict)
+                else None
+            )
+
+        await session.execute(
+            sa_text("""
+                INSERT INTO secret_scanning_alerts
+                    (org_slug, alert_number, repo_full_name, secret_type,
+                     secret_type_display, file_path, commit_sha, state,
+                     resolution, push_protection_bypassed,
+                     push_protection_bypassed_by, created_at, resolved_at,
+                     synced_at)
+                VALUES
+                    (:org_slug, :alert_number, :repo_full_name, :secret_type,
+                     :secret_type_display, :file_path, :commit_sha, :state,
+                     :resolution, :push_protection_bypassed,
+                     :push_protection_bypassed_by, :created_at, :resolved_at,
+                     NOW())
+                ON CONFLICT (org_slug, repo_full_name, alert_number) DO UPDATE SET
+                    secret_type = EXCLUDED.secret_type,
+                    secret_type_display = EXCLUDED.secret_type_display,
+                    file_path = EXCLUDED.file_path,
+                    commit_sha = EXCLUDED.commit_sha,
+                    state = EXCLUDED.state,
+                    resolution = EXCLUDED.resolution,
+                    push_protection_bypassed = EXCLUDED.push_protection_bypassed,
+                    push_protection_bypassed_by = EXCLUDED.push_protection_bypassed_by,
+                    resolved_at = EXCLUDED.resolved_at,
+                    synced_at = NOW()
+            """),
+            {
+                "org_slug": org,
+                "alert_number": a.get("number", 0),
+                "repo_full_name": repo_full_name,
+                "secret_type": a.get("secret_type", "unknown"),
+                "secret_type_display": a.get("secret_type_display_name"),
+                "file_path": file_path,
+                "commit_sha": commit_sha,
+                "state": a.get("state", "open"),
+                "resolution": a.get("resolution"),
+                "push_protection_bypassed": bool(a.get("push_protection_bypassed")),
+                "push_protection_bypassed_by": bypassed_login or None,
+                "created_at": a.get("created_at"),
+                "resolved_at": a.get("resolved_at"),
+            },
+        )
+    await session.commit()
+
+
+async def _upsert_code_scanning_alerts(
+    session: AsyncSession, org: str, items: list[dict[str, object]]
+) -> None:
+    """Upsert individual code scanning alert records.
+
+    Stores each alert individually to enable per-alert severity breakdown,
+    MTTR calculation, and dismissal actor correlation.
+    """
+    from sqlalchemy import text as sa_text
+
+    for a in items:
+        repo = a.get("repository") or {}
+        repo_full_name = repo.get("full_name", "") if isinstance(repo, dict) else ""
+        rule = a.get("rule") or {}
+        if not isinstance(rule, dict):
+            rule = {}
+        tool_obj = a.get("tool") or {}
+        if not isinstance(tool_obj, dict):
+            tool_obj = {}
+        most_recent = a.get("most_recent_instance") or {}
+        if not isinstance(most_recent, dict):
+            most_recent = {}
+        location = most_recent.get("location") or {}
+        if not isinstance(location, dict):
+            location = {}
+        dismissed_by_obj = a.get("dismissed_by") or {}
+        if not isinstance(dismissed_by_obj, dict):
+            dismissed_by_obj = {}
+
+        # CWE IDs from the rule's tags (format: "external/cwe/cwe-79")
+        cwe_ids = []
+        for tag in rule.get("tags") or []:
+            if isinstance(tag, str) and tag.startswith("external/cwe/"):
+                cwe_ids.append(tag.replace("external/cwe/", "").upper())
+
+        await session.execute(
+            sa_text("""
+                INSERT INTO code_scanning_alerts
+                    (org_slug, alert_number, repo_full_name, rule_id,
+                     rule_description, severity, security_severity,
+                     cwe_ids, tool_name, file_path, start_line, state,
+                     dismissed_by, dismissed_reason, dismissed_at,
+                     created_at, fixed_at, synced_at)
+                VALUES
+                    (:org_slug, :alert_number, :repo_full_name, :rule_id,
+                     :rule_description, :severity, :security_severity,
+                     :cwe_ids, :tool_name, :file_path, :start_line, :state,
+                     :dismissed_by, :dismissed_reason, :dismissed_at,
+                     :created_at, :fixed_at, NOW())
+                ON CONFLICT (org_slug, repo_full_name, alert_number) DO UPDATE SET
+                    rule_id = EXCLUDED.rule_id,
+                    rule_description = EXCLUDED.rule_description,
+                    severity = EXCLUDED.severity,
+                    security_severity = EXCLUDED.security_severity,
+                    cwe_ids = EXCLUDED.cwe_ids,
+                    tool_name = EXCLUDED.tool_name,
+                    file_path = EXCLUDED.file_path,
+                    start_line = EXCLUDED.start_line,
+                    state = EXCLUDED.state,
+                    dismissed_by = EXCLUDED.dismissed_by,
+                    dismissed_reason = EXCLUDED.dismissed_reason,
+                    dismissed_at = EXCLUDED.dismissed_at,
+                    fixed_at = EXCLUDED.fixed_at,
+                    synced_at = NOW()
+            """),
+            {
+                "org_slug": org,
+                "alert_number": a.get("number", 0),
+                "repo_full_name": repo_full_name,
+                "rule_id": rule.get("id", "unknown"),
+                "rule_description": rule.get("description"),
+                "severity": rule.get("severity"),
+                "security_severity": rule.get("security_severity_level"),
+                "cwe_ids": cwe_ids or None,
+                "tool_name": tool_obj.get("name"),
+                "file_path": location.get("path"),
+                "start_line": location.get("start_line"),
+                "state": a.get("state", "open"),
+                "dismissed_by": dismissed_by_obj.get("login"),
+                "dismissed_reason": a.get("dismissed_reason"),
+                "dismissed_at": a.get("dismissed_at"),
+                "created_at": a.get("created_at"),
+                "fixed_at": a.get("fixed_at"),
+            },
+        )
+    await session.commit()
+
+
+async def _upsert_dependabot_alerts(
+    session: AsyncSession, org: str, items: list[dict[str, object]]
+) -> None:
+    """Upsert individual Dependabot alert records.
+
+    Stores each alert individually to enable accurate vulnerability aging,
+    CVSS breakdown, and 90-day critical aging signal generation.
+    """
+    from sqlalchemy import text as sa_text
+
+    for a in items:
+        repo = a.get("repository") or {}
+        repo_full_name = repo.get("full_name", "") if isinstance(repo, dict) else ""
+        sec_vuln = a.get("security_vulnerability") or {}
+        if not isinstance(sec_vuln, dict):
+            sec_vuln = {}
+        pkg = sec_vuln.get("package") or {}
+        if not isinstance(pkg, dict):
+            pkg = {}
+        first_patched = sec_vuln.get("first_patched_version") or {}
+        if not isinstance(first_patched, dict):
+            first_patched = {}
+        sec_advisory = a.get("security_advisory") or {}
+        if not isinstance(sec_advisory, dict):
+            sec_advisory = {}
+        cvss = sec_advisory.get("cvss") or {}
+        if not isinstance(cvss, dict):
+            cvss = {}
+        dismissed_by_obj = a.get("dismissed_by") or {}
+        if not isinstance(dismissed_by_obj, dict):
+            dismissed_by_obj = {}
+
+        # CWE IDs from advisory
+        cwe_ids = []
+        for cwe in sec_advisory.get("cwes") or []:
+            if isinstance(cwe, dict):
+                cwe_ids.append(cwe.get("cwe_id", ""))
+            elif isinstance(cwe, str):
+                cwe_ids.append(cwe)
+
+        await session.execute(
+            sa_text("""
+                INSERT INTO dependabot_alerts
+                    (org_slug, alert_number, repo_full_name, package_name,
+                     package_ecosystem, severity, cvss_score, cve_id,
+                     cwe_ids, vulnerable_version_range, patched_version,
+                     state, dismissed_by, dismissed_reason, created_at,
+                     fixed_at, auto_dismissed_at, synced_at)
+                VALUES
+                    (:org_slug, :alert_number, :repo_full_name, :package_name,
+                     :package_ecosystem, :severity, :cvss_score, :cve_id,
+                     :cwe_ids, :vulnerable_version_range, :patched_version,
+                     :state, :dismissed_by, :dismissed_reason, :created_at,
+                     :fixed_at, :auto_dismissed_at, NOW())
+                ON CONFLICT (org_slug, repo_full_name, alert_number) DO UPDATE SET
+                    package_name = EXCLUDED.package_name,
+                    package_ecosystem = EXCLUDED.package_ecosystem,
+                    severity = EXCLUDED.severity,
+                    cvss_score = EXCLUDED.cvss_score,
+                    cve_id = EXCLUDED.cve_id,
+                    cwe_ids = EXCLUDED.cwe_ids,
+                    vulnerable_version_range = EXCLUDED.vulnerable_version_range,
+                    patched_version = EXCLUDED.patched_version,
+                    state = EXCLUDED.state,
+                    dismissed_by = EXCLUDED.dismissed_by,
+                    dismissed_reason = EXCLUDED.dismissed_reason,
+                    fixed_at = EXCLUDED.fixed_at,
+                    auto_dismissed_at = EXCLUDED.auto_dismissed_at,
+                    synced_at = NOW()
+            """),
+            {
+                "org_slug": org,
+                "alert_number": a.get("number", 0),
+                "repo_full_name": repo_full_name,
+                "package_name": pkg.get("name", "unknown"),
+                "package_ecosystem": pkg.get("ecosystem"),
+                "severity": sec_vuln.get("severity"),
+                "cvss_score": cvss.get("score"),
+                "cve_id": sec_advisory.get("cve_id"),
+                "cwe_ids": cwe_ids or None,
+                "vulnerable_version_range": sec_vuln.get("vulnerable_version_range"),
+                "patched_version": first_patched.get("identifier"),
+                "state": a.get("state", "open"),
+                "dismissed_by": dismissed_by_obj.get("login"),
+                "dismissed_reason": a.get("dismissed_reason"),
+                "created_at": a.get("created_at"),
+                "fixed_at": a.get("fixed_at"),
+                "auto_dismissed_at": a.get("auto_dismissed_at"),
+            },
+        )
+    await session.commit()
+
+
 async def _upsert_items(
     session: AsyncSession,
     entity_type: str,
@@ -3083,12 +3354,27 @@ async def _upsert_items(
         await _upsert_outside_collaborators(session, org_str, items, delta_since=delta_since)
     elif entity_type == "secret_scanning_alerts":
         await _upsert_secret_scanning_summary(session, org_str, items)
+        # Also upsert individual alert records from raw API data
+        for item in items:
+            raw_alerts = item.get("_raw_alerts") or []
+            if raw_alerts:
+                await _upsert_secret_scanning_alerts(session, org_str, raw_alerts)
     elif entity_type == "dependabot_alerts":
         await _upsert_dependabot_summary(session, org_str, items)
+        # Also upsert individual alert records from raw API data
+        for item in items:
+            raw_alerts = item.get("_raw_alerts") or []
+            if raw_alerts:
+                await _upsert_dependabot_alerts(session, org_str, raw_alerts)
     elif entity_type == "license_consumption":
         await _upsert_license_consumption(session, org, items)
     elif entity_type == "code_scanning_alerts":
         await _upsert_code_scanning_summary(session, org_str, items)
+        # Also upsert individual alert records from raw API data
+        for item in items:
+            raw_alerts = item.get("_raw_alerts") or []
+            if raw_alerts:
+                await _upsert_code_scanning_alerts(session, org_str, raw_alerts)
     elif entity_type == "actions_workflows":
         await _upsert_actions_workflow_summary(session, org_str, items)
     elif entity_type == "mfa_status":

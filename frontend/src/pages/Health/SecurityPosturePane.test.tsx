@@ -24,9 +24,16 @@ const mockPostureData: SecurityPostureResponse = {
 const mockSecretData: SecretScanningResponse = {
   unresolved_total: 12,
   publicly_leaked: 2,
+  push_protection_bypassed_count: 1,
   open_gt_7d: 8,
   open_gt_30d: 4,
   mttr_hours: 48,
+  avg_hours_to_resolve: 48,
+  unresolved_gt_7d: 8,
+  unresolved_gt_30d: 4,
+  resolved_count: 10,
+  total_count: 22,
+  resolution_rate_pct: 45.5,
 };
 
 const mockSsoData: SsoHealthResponse = {
@@ -161,10 +168,11 @@ describe('SecurityPosturePane', () => {
   it('renders secret scanning metric values', () => {
     renderPane();
     expect(screen.getByText('Unresolved total')).toBeInTheDocument();
-    expect(screen.getByText('Publicly leaked')).toBeInTheDocument();
+    expect(screen.getByText('Push protection bypassed')).toBeInTheDocument();
     expect(screen.getByText('Open > 7 days')).toBeInTheDocument();
     expect(screen.getByText('Open > 30 days')).toBeInTheDocument();
     expect(screen.getByText('MTTR')).toBeInTheDocument();
+    expect(screen.getByText('Resolution rate')).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument();
   });
 

@@ -13,6 +13,8 @@ from app.models.detection import (
 )
 from app.models.external_collaborator import ExternalCollaborator
 from app.models.github_sync import (
+    CodeScanningAlert,
+    DependabotAlert,
     EnterpriseLicenseConsumption,
     EnterpriseMember,
     EnterpriseOrg,
@@ -30,6 +32,7 @@ from app.models.github_sync import (
     OrgTeamMember,
     RepoBranchProtection,
     Repository,
+    SecretScanningAlert,
 )
 from app.models.ingestion import IngestionCursor
 from app.models.integration import (
@@ -52,6 +55,8 @@ __all__ = [
     "EventRawPayload",
     "AuditTrail",
     "BehavioralBaseline",
+    "CodeScanningAlert",
+    "DependabotAlert",
     "Detection",
     "DetectionSuppression",
     "EnterpriseLicenseConsumption",
@@ -79,6 +84,7 @@ __all__ = [
     "Repository",
     "RuleDefinition",
     "RuleVersion",
+    "SecretScanningAlert",
     "SetupState",
     "SeverityConfig",
     "Ticket",

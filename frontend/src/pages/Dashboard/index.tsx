@@ -8,6 +8,7 @@ import { ContributionCalendar } from '../../components/charts/ContributionCalend
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { UnifiedSecurityWidget } from '../../components/widgets/UnifiedSecurityWidget';
 import { useOrg } from '../../hooks/useOrg';
 import type { EventResponse } from '../../types/events';
 import type { ActionsVolumeBucket } from '../../types/reports';
@@ -318,6 +319,8 @@ export function DashboardPage() {
       )}
 
       {threatError && <ErrorBanner message="Could not load threat data" onRetry={refetchThreats} />}
+
+      <UnifiedSecurityWidget />
 
       <Card className={styles.calCard}>
         <CardHeader

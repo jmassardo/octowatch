@@ -155,9 +155,16 @@ export interface SecurityPostureResponse {
 export interface SecretScanningResponse {
   unresolved_total: number;
   publicly_leaked: number;
+  push_protection_bypassed_count: number;
   open_gt_7d: number;
   open_gt_30d: number;
   mttr_hours: number;
+  avg_hours_to_resolve: number | null;
+  unresolved_gt_7d: number;
+  unresolved_gt_30d: number;
+  resolved_count: number;
+  total_count: number;
+  resolution_rate_pct: number;
 }
 
 export interface SsoOrgStatus {
@@ -209,6 +216,12 @@ export interface CodeScanningResponse {
   avg_hours_to_close: number;
   dismissed_count: number;
   reappeared_count: number;
+  open_count: number;
+  fixed_count: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  low_count: number;
 }
 
 export interface VulnerabilitiesResponse {
@@ -218,6 +231,13 @@ export interface VulnerabilitiesResponse {
   open_gt_30d: number;
   critical_open_gt_14d: number;
   avg_open_days: number;
+  open_medium: number;
+  open_low: number;
+  age_0_30d: number;
+  age_30_60d: number;
+  age_60_90d: number;
+  age_gt_90d: number;
+  critical_aging_gt_90d: number;
 }
 
 export function getAppGovernance(): Promise<AppGovernanceResponse> {
@@ -480,4 +500,176 @@ export interface SecurityAlertsSummaryResponse {
 
 export function getSecurityAlertsSummary(): Promise<SecurityAlertsSummaryResponse> {
   return api.get<SecurityAlertsSummaryResponse>('/health-signals/security-alerts-summary');
+}
+
+/* ------------------------------------------------------------------ */
+/*  GHAS Individual Alert Types & Endpoints (Epic 5)                   */
+/* ------------------------------------------------------------------ */
+
+// --- Unified Security Dashboard ---
+
+export interface AlertSeverityBreakdown {
+  open: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  total: number;
+}
+
+export interface SecretScanningSummary {
+  open: number;
+  resolved: number;
+  total: number;
+  bypassed_open: number;
+}
+
+export interface DetectionsSummary {
+  active: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+export interface DependabotSummary extends AlertSeverityBreakdown {
+  critical_aging_gt_90d: number;
+}
+
+export interface TrendDay {
+  day: string;
+  secret_scanning: number;
+  code_scanning: number;
+  dependabot: number;
+}
+
+export interface UnifiedSecurityResponse {
+  secret_scanning: SecretScanningSummary;
+  code_scanning: AlertSeverityBreakdown;
+  dependabot: DependabotSummary;
+  detections: DetectionsSummary;
+  trend_30d: TrendDay[];
+}
+
+export function getUnifiedSecurity(): Promise<UnifiedSecurityResponse> {
+  return api.get<UnifiedSecurityResponse>('/health-signals/unified-security');
+}
+
+// --- Individual Alert Listing ---
+
+export interface SecretScanningAlertItem {
+  id: number;
+  org_slug: string;
+  alert_number: number;
+  repo_full_name: string;
+  secret_type: string;
+  secret_type_display: string | null;
+  file_path: string | null;
+  commit_sha: string | null;
+  state: string;
+  resolution: string | null;
+  push_protection_bypassed: boolean;
+  push_protection_bypassed_by: string | null;
+  created_at: string;
+  resolved_at: string | null;
+}
+
+export interface SecretScanningAlertsListResponse {
+  alerts: SecretScanningAlertItem[];
+  total: number;
+}
+
+export function getSecretScanningAlerts(
+  limit = 50,
+  offset = 0,
+  state?: string,
+): Promise<SecretScanningAlertsListResponse> {
+  const params: Record<string, string | number> = { limit, offset };
+  if (state) params.state = state;
+  return api.get<SecretScanningAlertsListResponse>(
+    '/health-signals/secret-scanning/alerts',
+    params,
+  );
+}
+
+export interface CodeScanningAlertItem {
+  id: number;
+  org_slug: string;
+  alert_number: number;
+  repo_full_name: string;
+  rule_id: string;
+  rule_description: string | null;
+  severity: string | null;
+  security_severity: string | null;
+  cwe_ids: string[] | null;
+  tool_name: string | null;
+  file_path: string | null;
+  start_line: number | null;
+  state: string;
+  dismissed_by: string | null;
+  dismissed_reason: string | null;
+  dismissed_at: string | null;
+  created_at: string;
+  fixed_at: string | null;
+}
+
+export interface CodeScanningAlertsListResponse {
+  alerts: CodeScanningAlertItem[];
+  total: number;
+}
+
+export function getCodeScanningAlerts(
+  limit = 50,
+  offset = 0,
+  state?: string,
+  severity?: string,
+): Promise<CodeScanningAlertsListResponse> {
+  const params: Record<string, string | number> = { limit, offset };
+  if (state) params.state = state;
+  if (severity) params.severity = severity;
+  return api.get<CodeScanningAlertsListResponse>(
+    '/health-signals/code-scanning/alerts',
+    params,
+  );
+}
+
+export interface DependabotAlertItem {
+  id: number;
+  org_slug: string;
+  alert_number: number;
+  repo_full_name: string;
+  package_name: string;
+  package_ecosystem: string | null;
+  severity: string | null;
+  cvss_score: number | null;
+  cve_id: string | null;
+  cwe_ids: string[] | null;
+  vulnerable_version_range: string | null;
+  patched_version: string | null;
+  state: string;
+  dismissed_by: string | null;
+  dismissed_reason: string | null;
+  created_at: string;
+  fixed_at: string | null;
+  auto_dismissed_at: string | null;
+}
+
+export interface DependabotAlertsListResponse {
+  alerts: DependabotAlertItem[];
+  total: number;
+}
+
+export function getDependabotAlerts(
+  limit = 50,
+  offset = 0,
+  state?: string,
+  severity?: string,
+): Promise<DependabotAlertsListResponse> {
+  const params: Record<string, string | number> = { limit, offset };
+  if (state) params.state = state;
+  if (severity) params.severity = severity;
+  return api.get<DependabotAlertsListResponse>(
+    '/health-signals/vulnerabilities/alerts',
+    params,
+  );
 }

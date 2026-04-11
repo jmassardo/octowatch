@@ -573,72 +573,81 @@ async def get_secret_scanning_alert_health(
     scoped_orgs: list[str],
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Secret scanning MTTR and unresolved counts (90 days)."""
+    """Secret scanning MTTR, resolution rates, and unresolved counts.
+
+    Queries the ``secret_scanning_alerts`` table (individual alert records
+    synced from the GitHub API) for accurate metrics instead of deriving
+    from audit log events.
+    """
     result = await session.execute(
         text("""
-            WITH alerts AS (
+            WITH alert_data AS (
                 SELECT
-                    org,
-                    data->>'number'                         AS alert_number,
-                    data->>'secret_type'                    AS secret_type,
-                    data->>'secret_type_display_name'       AS secret_type_display_name,
-                    (data->>'publicly_leaked')::BOOLEAN     AS publicly_leaked,
-                    (data->>'multi_repo')::BOOLEAN          AS multi_repo,
-                    action,
-                    actor,
-                    created_at
-                FROM events
-                WHERE namespace = 'secret_scanning_alert'
-                  AND org = ANY(:scoped_orgs)
-                  AND created_at >= NOW() - INTERVAL '90 days'
-            ),
-            opens AS (
-                SELECT org, alert_number, secret_type, publicly_leaked,
-                       created_at AS opened_at
-                FROM alerts WHERE action = 'secret_scanning_alert.create'
-            ),
-            resolves AS (
-                SELECT org, alert_number, created_at AS resolved_at
-                FROM alerts WHERE action = 'secret_scanning_alert.resolve'
+                    org_slug AS org,
+                    alert_number,
+                    state,
+                    resolution,
+                    push_protection_bypassed,
+                    created_at,
+                    resolved_at
+                FROM secret_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
             ),
             mttr AS (
                 SELECT
-                    o.org,
-                    AVG(EXTRACT(HOURS FROM r.resolved_at - o.opened_at))
+                    org,
+                    AVG(EXTRACT(HOURS FROM resolved_at - created_at))
                         AS avg_hours_to_resolve,
                     COUNT(*) AS resolved_count
-                FROM opens o
-                JOIN resolves r USING (org, alert_number)
-                GROUP BY o.org
+                FROM alert_data
+                WHERE state = 'resolved' AND resolved_at IS NOT NULL
+                GROUP BY org
             ),
             unresolved AS (
                 SELECT
-                    o.org,
+                    org,
                     COUNT(*) AS unresolved_total,
                     COUNT(*) FILTER (
-                        WHERE NOW() - o.opened_at > INTERVAL '7 days'
+                        WHERE NOW() - created_at > INTERVAL '7 days'
                     ) AS unresolved_gt_7d,
                     COUNT(*) FILTER (
-                        WHERE NOW() - o.opened_at > INTERVAL '30 days'
+                        WHERE NOW() - created_at > INTERVAL '30 days'
                     ) AS unresolved_gt_30d,
                     COUNT(*) FILTER (
-                        WHERE o.publicly_leaked = TRUE
-                    ) AS publicly_leaked_count
-                FROM opens o
-                LEFT JOIN resolves r USING (org, alert_number)
-                WHERE r.alert_number IS NULL
-                GROUP BY o.org
+                        WHERE push_protection_bypassed = TRUE
+                    ) AS push_protection_bypassed_count,
+                    COUNT(*) AS total_open
+                FROM alert_data
+                WHERE state = 'open'
+                GROUP BY org
+            ),
+            resolution_rates AS (
+                SELECT
+                    org,
+                    COUNT(*) AS total_count,
+                    COUNT(*) FILTER (WHERE state = 'resolved') AS total_resolved,
+                    ROUND(
+                        COUNT(*) FILTER (WHERE state = 'resolved')::NUMERIC
+                        / NULLIF(COUNT(*), 0) * 100, 1
+                    ) AS resolution_rate_pct
+                FROM alert_data
+                GROUP BY org
             )
             SELECT
-                u.org,
-                u.unresolved_total,
-                u.unresolved_gt_7d,
-                u.unresolved_gt_30d,
-                u.publicly_leaked_count,
+                COALESCE(u.org, m.org, r.org) AS org,
+                COALESCE(u.unresolved_total, 0) AS unresolved_total,
+                COALESCE(u.unresolved_gt_7d, 0) AS unresolved_gt_7d,
+                COALESCE(u.unresolved_gt_30d, 0) AS unresolved_gt_30d,
+                COALESCE(u.push_protection_bypassed_count, 0)
+                    AS push_protection_bypassed_count,
                 m.avg_hours_to_resolve,
-                m.resolved_count
+                COALESCE(m.resolved_count, 0) AS resolved_count,
+                COALESCE(r.total_count, 0) AS total_count,
+                COALESCE(r.resolution_rate_pct, 0) AS resolution_rate_pct
             FROM unresolved u
-            LEFT JOIN mttr m USING (org)
+            FULL OUTER JOIN mttr m ON u.org = m.org
+            FULL OUTER JOIN resolution_rates r
+                ON COALESCE(u.org, m.org) = r.org
         """),
         {"scoped_orgs": scoped_orgs},
     )
@@ -748,55 +757,73 @@ async def get_code_scanning_health(
     scoped_orgs: list[str],
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Code scanning MTTR, dismissal rates (90 days)."""
+    """Code scanning alert health from synced individual alerts.
+
+    Queries the ``code_scanning_alerts`` table for accurate counts by
+    severity, state, tool, and MTTR calculation.
+    """
     result = await session.execute(
         text("""
-            WITH created AS (
-                SELECT org, repo, data->>'alert_number' AS alert_num,
-                       created_at AS opened_at
-                FROM events
-                WHERE action = 'code_scanning.alert_created'
-                  AND org = ANY(:scoped_orgs)
-                  AND created_at >= NOW() - INTERVAL '90 days'
+            WITH alert_data AS (
+                SELECT
+                    org_slug AS org,
+                    repo_full_name AS repo,
+                    alert_number,
+                    state,
+                    severity,
+                    security_severity,
+                    tool_name,
+                    dismissed_by,
+                    dismissed_reason,
+                    created_at,
+                    fixed_at,
+                    dismissed_at
+                FROM code_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
             ),
-            closed AS (
-                SELECT org, repo, data->>'alert_number' AS alert_num,
-                       created_at AS closed_at
-                FROM events
-                WHERE action = 'code_scanning.alert_closed_by_user'
-                  AND org = ANY(:scoped_orgs)
-                  AND created_at >= NOW() - INTERVAL '90 days'
-            ),
-            dismissed AS (
-                SELECT org, repo, COUNT(*) AS dismissed_count
-                FROM events
-                WHERE action = 'code_scanning.alert_closed_by_user'
-                  AND org = ANY(:scoped_orgs)
-                  AND created_at >= NOW() - INTERVAL '30 days'
-                GROUP BY org, repo
-            ),
-            reappeared AS (
-                SELECT org, repo, COUNT(*) AS reappear_count
-                FROM events
-                WHERE action = 'code_scanning.alert_reappeared'
-                  AND org = ANY(:scoped_orgs)
-                  AND created_at >= NOW() - INTERVAL '30 days'
+            per_repo AS (
+                SELECT
+                    org,
+                    repo,
+                    COUNT(*) AS total_alerts,
+                    COUNT(*) FILTER (WHERE state = 'open') AS open_count,
+                    COUNT(*) FILTER (WHERE state = 'fixed') AS fixed_count,
+                    COUNT(*) FILTER (WHERE state = 'dismissed') AS dismissed_count,
+                    COUNT(*) FILTER (
+                        WHERE COALESCE(security_severity, severity) = 'critical'
+                    ) AS critical_count,
+                    COUNT(*) FILTER (
+                        WHERE COALESCE(security_severity, severity) = 'high'
+                    ) AS high_count,
+                    COUNT(*) FILTER (
+                        WHERE COALESCE(security_severity, severity) = 'medium'
+                    ) AS medium_count,
+                    COUNT(*) FILTER (
+                        WHERE COALESCE(security_severity, severity) = 'low'
+                    ) AS low_count,
+                    AVG(EXTRACT(HOURS FROM
+                        COALESCE(fixed_at, dismissed_at) - created_at
+                    )) FILTER (
+                        WHERE state IN ('fixed', 'dismissed')
+                          AND COALESCE(fixed_at, dismissed_at) IS NOT NULL
+                    ) AS avg_hours_to_close
+                FROM alert_data
                 GROUP BY org, repo
             )
             SELECT
-                c.org,
-                c.repo,
-                COUNT(*) AS total_alerts_30d,
-                AVG(EXTRACT(HOURS FROM cl.closed_at - c.opened_at))
-                    AS avg_hours_to_close,
-                COALESCE(d.dismissed_count, 0) AS dismissed_30d,
-                COALESCE(r.reappear_count, 0)  AS reappeared_30d
-            FROM created c
-            LEFT JOIN closed cl USING (org, repo, alert_num)
-            LEFT JOIN dismissed d USING (org, repo)
-            LEFT JOIN reappeared r USING (org, repo)
-            GROUP BY c.org, c.repo, d.dismissed_count, r.reappear_count
-            ORDER BY total_alerts_30d DESC
+                org,
+                repo,
+                total_alerts,
+                open_count,
+                fixed_count,
+                dismissed_count,
+                critical_count,
+                high_count,
+                medium_count,
+                low_count,
+                avg_hours_to_close
+            FROM per_repo
+            ORDER BY total_alerts DESC
             LIMIT :limit
         """),
         {"scoped_orgs": scoped_orgs, "limit": limit},
@@ -810,57 +837,55 @@ async def get_vulnerability_aging(
     scoped_orgs: list[str],
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Dependabot vulnerability aging (180 days)."""
+    """Dependabot vulnerability aging from synced individual alerts.
+
+    Queries the ``dependabot_alerts`` table for accurate aging buckets
+    based on actual ``created_at`` timestamps rather than audit log
+    event approximations.
+    """
     result = await session.execute(
         text("""
-            WITH created_alerts AS (
+            WITH open_alerts AS (
                 SELECT
-                    org,
-                    repo,
-                    data->>'alert_number'         AS alert_number,
-                    data->>'severity'             AS severity,
-                    data->>'package_name'         AS package_name,
-                    data->>'affected_range'       AS affected_range,
-                    created_at                    AS alert_created_at
-                FROM events
-                WHERE action = 'repository_vulnerability_alert.create'
-                  AND org = ANY(:scoped_orgs)
-                  AND created_at >= NOW() - INTERVAL '180 days'
-            ),
-            dismissed_alerts AS (
-                SELECT org, repo, data->>'alert_number' AS alert_number
-                FROM events
-                WHERE action IN (
-                    'repository_vulnerability_alert.dismiss',
-                    'repository_vulnerability_alert.resolve'
-                )
-                  AND org = ANY(:scoped_orgs)
-                  AND created_at >= NOW() - INTERVAL '180 days'
+                    org_slug AS org,
+                    alert_number,
+                    repo_full_name,
+                    severity,
+                    package_name,
+                    cvss_score,
+                    created_at,
+                    EXTRACT(DAYS FROM NOW() - created_at) AS age_days
+                FROM dependabot_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'open'
             )
             SELECT
-                c.org,
-                COUNT(*) FILTER (WHERE d.alert_number IS NULL)
-                    AS total_open,
+                org,
+                COUNT(*) AS total_open,
+                COUNT(*) FILTER (WHERE severity = 'critical') AS open_critical,
+                COUNT(*) FILTER (WHERE severity = 'high') AS open_high,
+                COUNT(*) FILTER (WHERE severity = 'medium') AS open_medium,
+                COUNT(*) FILTER (WHERE severity = 'low') AS open_low,
+                COUNT(*) FILTER (WHERE age_days <= 30) AS age_0_30d,
                 COUNT(*) FILTER (
-                    WHERE d.alert_number IS NULL AND c.severity = 'critical'
-                ) AS open_critical,
+                    WHERE age_days > 30 AND age_days <= 60
+                ) AS age_30_60d,
                 COUNT(*) FILTER (
-                    WHERE d.alert_number IS NULL AND c.severity = 'high'
-                ) AS open_high,
+                    WHERE age_days > 60 AND age_days <= 90
+                ) AS age_60_90d,
+                COUNT(*) FILTER (WHERE age_days > 90) AS age_gt_90d,
                 COUNT(*) FILTER (
-                    WHERE d.alert_number IS NULL
-                      AND NOW() - c.alert_created_at > INTERVAL '30 days'
+                    WHERE age_days > 30
                 ) AS open_gt_30d,
                 COUNT(*) FILTER (
-                    WHERE d.alert_number IS NULL
-                      AND c.severity = 'critical'
-                      AND NOW() - c.alert_created_at > INTERVAL '14 days'
+                    WHERE severity = 'critical' AND age_days > 14
                 ) AS critical_open_gt_14d,
-                AVG(EXTRACT(DAYS FROM NOW() - c.alert_created_at))
-                    FILTER (WHERE d.alert_number IS NULL) AS avg_open_days
-            FROM created_alerts c
-            LEFT JOIN dismissed_alerts d USING (org, repo, alert_number)
-            GROUP BY c.org
+                COUNT(*) FILTER (
+                    WHERE severity = 'critical' AND age_days > 90
+                ) AS critical_aging_gt_90d,
+                AVG(age_days) AS avg_open_days
+            FROM open_alerts
+            GROUP BY org
         """),
         {"scoped_orgs": scoped_orgs},
     )
@@ -2575,3 +2600,193 @@ async def get_waf_findings(
     )
 
     return findings
+
+
+# ── Unified Security Summary (Epic 5: GHAS dashboard) ────────────────────────
+
+
+async def get_unified_security_summary(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+) -> dict[str, Any]:
+    """Aggregate all three GHAS alert types plus active detections.
+
+    Returns a single structure for the unified security dashboard widget
+    (Issue #72) with current counts and 30-day trend data.
+    """
+    # Secret scanning summary
+    ss_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) FILTER (WHERE state = 'open') AS open_secret_alerts,
+                COUNT(*) FILTER (WHERE state = 'resolved') AS resolved_secret_alerts,
+                COUNT(*) AS total_secret_alerts,
+                COUNT(*) FILTER (
+                    WHERE push_protection_bypassed = TRUE AND state = 'open'
+                ) AS bypassed_open
+            FROM secret_scanning_alerts
+            WHERE org_slug = ANY(:scoped_orgs)
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    ss_row = dict(ss_result.mappings().first() or {})
+
+    # Code scanning summary by severity
+    cs_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) FILTER (WHERE state = 'open') AS open_code_alerts,
+                COUNT(*) FILTER (
+                    WHERE state = 'open'
+                      AND COALESCE(security_severity, severity) = 'critical'
+                ) AS code_critical,
+                COUNT(*) FILTER (
+                    WHERE state = 'open'
+                      AND COALESCE(security_severity, severity) = 'high'
+                ) AS code_high,
+                COUNT(*) FILTER (
+                    WHERE state = 'open'
+                      AND COALESCE(security_severity, severity) = 'medium'
+                ) AS code_medium,
+                COUNT(*) FILTER (
+                    WHERE state = 'open'
+                      AND COALESCE(security_severity, severity) = 'low'
+                ) AS code_low,
+                COUNT(*) AS total_code_alerts
+            FROM code_scanning_alerts
+            WHERE org_slug = ANY(:scoped_orgs)
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    cs_row = dict(cs_result.mappings().first() or {})
+
+    # Dependabot summary by severity
+    dep_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) FILTER (WHERE state = 'open') AS open_dependabot_alerts,
+                COUNT(*) FILTER (
+                    WHERE state = 'open' AND severity = 'critical'
+                ) AS dep_critical,
+                COUNT(*) FILTER (
+                    WHERE state = 'open' AND severity = 'high'
+                ) AS dep_high,
+                COUNT(*) FILTER (
+                    WHERE state = 'open' AND severity = 'medium'
+                ) AS dep_medium,
+                COUNT(*) FILTER (
+                    WHERE state = 'open' AND severity = 'low'
+                ) AS dep_low,
+                COUNT(*) AS total_dependabot_alerts,
+                COUNT(*) FILTER (
+                    WHERE state = 'open'
+                      AND severity = 'critical'
+                      AND EXTRACT(DAYS FROM NOW() - created_at) > 90
+                ) AS critical_aging_gt_90d
+            FROM dependabot_alerts
+            WHERE org_slug = ANY(:scoped_orgs)
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    dep_row = dict(dep_result.mappings().first() or {})
+
+    # Active OctoWatch detections
+    det_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) AS active_detections,
+                COUNT(*) FILTER (WHERE severity = 'critical') AS det_critical,
+                COUNT(*) FILTER (WHERE severity = 'high') AS det_high,
+                COUNT(*) FILTER (WHERE severity = 'medium') AS det_medium,
+                COUNT(*) FILTER (WHERE severity = 'low') AS det_low
+            FROM detections
+            WHERE org = ANY(:scoped_orgs)
+              AND status IN ('open', 'investigating')
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    det_row = dict(det_result.mappings().first() or {})
+
+    # 30-day daily trend for each alert type
+    trend_result = await session.execute(
+        text("""
+            WITH dates AS (
+                SELECT generate_series(
+                    (CURRENT_DATE - INTERVAL '29 days')::DATE,
+                    CURRENT_DATE::DATE,
+                    '1 day'::INTERVAL
+                )::DATE AS day
+            ),
+            ss_daily AS (
+                SELECT created_at::DATE AS day, COUNT(*) AS cnt
+                FROM secret_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'open'
+                  AND created_at >= CURRENT_DATE - INTERVAL '29 days'
+                GROUP BY 1
+            ),
+            cs_daily AS (
+                SELECT created_at::DATE AS day, COUNT(*) AS cnt
+                FROM code_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'open'
+                  AND created_at >= CURRENT_DATE - INTERVAL '29 days'
+                GROUP BY 1
+            ),
+            dep_daily AS (
+                SELECT created_at::DATE AS day, COUNT(*) AS cnt
+                FROM dependabot_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'open'
+                  AND created_at >= CURRENT_DATE - INTERVAL '29 days'
+                GROUP BY 1
+            )
+            SELECT
+                d.day::TEXT AS day,
+                COALESCE(ss.cnt, 0) AS secret_scanning,
+                COALESCE(cs.cnt, 0) AS code_scanning,
+                COALESCE(dp.cnt, 0) AS dependabot
+            FROM dates d
+            LEFT JOIN ss_daily ss ON d.day = ss.day
+            LEFT JOIN cs_daily cs ON d.day = cs.day
+            LEFT JOIN dep_daily dp ON d.day = dp.day
+            ORDER BY d.day
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    trend = [dict(row) for row in trend_result.mappings().all()]
+
+    return {
+        "secret_scanning": {
+            "open": ss_row.get("open_secret_alerts", 0),
+            "resolved": ss_row.get("resolved_secret_alerts", 0),
+            "total": ss_row.get("total_secret_alerts", 0),
+            "bypassed_open": ss_row.get("bypassed_open", 0),
+        },
+        "code_scanning": {
+            "open": cs_row.get("open_code_alerts", 0),
+            "critical": cs_row.get("code_critical", 0),
+            "high": cs_row.get("code_high", 0),
+            "medium": cs_row.get("code_medium", 0),
+            "low": cs_row.get("code_low", 0),
+            "total": cs_row.get("total_code_alerts", 0),
+        },
+        "dependabot": {
+            "open": dep_row.get("open_dependabot_alerts", 0),
+            "critical": dep_row.get("dep_critical", 0),
+            "high": dep_row.get("dep_high", 0),
+            "medium": dep_row.get("dep_medium", 0),
+            "low": dep_row.get("dep_low", 0),
+            "total": dep_row.get("total_dependabot_alerts", 0),
+            "critical_aging_gt_90d": dep_row.get("critical_aging_gt_90d", 0),
+        },
+        "detections": {
+            "active": det_row.get("active_detections", 0),
+            "critical": det_row.get("det_critical", 0),
+            "high": det_row.get("det_high", 0),
+            "medium": det_row.get("det_medium", 0),
+            "low": det_row.get("det_low", 0),
+        },
+        "trend_30d": trend,
+    }
