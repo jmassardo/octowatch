@@ -15,6 +15,7 @@ import { DataTable } from '../../components/primitives/DataTable';
 import { RuleConfigEditorContainer } from './editor/RuleConfigEditorContainer';
 import { JsonConfigEditor } from './editor/JsonConfigEditor';
 import { TestRuleModal } from './TestRuleModal';
+import { RuleLibrary } from './RuleLibrary';
 import { formatAbsolute } from '../../utils/dates';
 import styles from './Rules.module.css';
 
@@ -405,6 +406,7 @@ export function RulesPage() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [versionRule, setVersionRule] = useState<RuleResponse | null>(null);
   const [testRuleTarget, setTestRuleTarget] = useState<RuleResponse | null>(null);
+  const [showLibrary, setShowLibrary] = useState(false);
   const [page, setPage] = useState(1);
   const navigate = useNavigate();
 
@@ -446,27 +448,38 @@ export function RulesPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.pageHeader}>
-        <div>
-          <h1 className={styles.pageTitle}>Detection Rules</h1>
-          <p className={styles.pageSub}>Manage built-in and custom detection rules</p>
-        </div>
-        <div className={styles.headerActions}>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => {
-              setSyncMessage('Rule sync initiated');
-              setTimeout(() => setSyncMessage(null), 3000);
-            }}
-          >
-            Sync from GitHub
-          </Button>
-          <Button variant="primary" size="sm" onClick={() => setShowCreate(true)}>
-            New rule
-          </Button>
-        </div>
-      </div>
+      {showLibrary ? (
+        <RuleLibrary onClose={() => setShowLibrary(false)} />
+      ) : (
+        <>
+          <div className={styles.pageHeader}>
+            <div>
+              <h1 className={styles.pageTitle}>Detection Rules</h1>
+              <p className={styles.pageSub}>Manage built-in and custom detection rules</p>
+            </div>
+            <div className={styles.headerActions}>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setShowLibrary(true)}
+              >
+                Rule Library
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => {
+                  setSyncMessage('Rule sync initiated');
+                  setTimeout(() => setSyncMessage(null), 3000);
+                }}
+              >
+                Sync from GitHub
+              </Button>
+              <Button variant="primary" size="sm" onClick={() => setShowCreate(true)}>
+                New rule
+              </Button>
+            </div>
+          </div>
 
       {syncMessage && (
         <div
@@ -667,6 +680,8 @@ export function RulesPage() {
       />
 
       <TestRuleModal rule={testRuleTarget} onClose={() => setTestRuleTarget(null)} />
+        </>
+      )}
     </div>
   );
 }

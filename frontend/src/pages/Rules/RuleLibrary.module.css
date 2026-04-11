@@ -1,0 +1,167 @@
+.library {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0;
+}
+
+.categories {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.category {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.categoryHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--canvas-subtle);
+  border: none;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.categoryHeader:hover {
+  background: var(--canvas-inset);
+}
+
+.categoryChevron {
+  font-size: 12px;
+  color: var(--fg-muted);
+  width: 16px;
+  text-align: center;
+}
+
+.categoryName {
+  flex: 1;
+}
+
+.categoryCount {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  background: var(--canvas-default, #0d1117);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.ruleList {
+  display: flex;
+  flex-direction: column;
+}
+
+.ruleCard {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border-muted);
+  transition: background 0.1s;
+}
+
+.ruleCard:hover {
+  background: rgba(177, 186, 196, 0.04);
+}
+
+.ruleInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.ruleNameRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.ruleName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.ruleDescription {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+  margin: 0;
+}
+
+.enableError {
+  font-size: 12px;
+  color: var(--danger, #da3633);
+  margin-top: 4px;
+  display: block;
+}
+
+.ruleActions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Customize modal */
+.customizeContent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.customizeHint {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0;
+}
+
+.customizeJson {
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  max-height: 400px;
+  overflow: auto;
+  white-space: pre;
+  margin: 0;
+}
+
+.customizeActions {
+  display: flex;
+  justify-content: flex-end;
+}

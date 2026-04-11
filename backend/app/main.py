@@ -41,6 +41,7 @@ from app.routers import (
     posture,
     query,
     reports,
+    rule_library,
     rules,
     setup,
     suggestions,
@@ -315,13 +316,97 @@ def _status_to_code(status_code: int) -> str:
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
+    openapi_tags = [
+        {
+            "name": "auth",
+            "description": "Authentication and session management — login, logout, OAuth flows.",
+        },
+        {
+            "name": "events",
+            "description": "Audit event ingestion, search, and retrieval.",
+        },
+        {
+            "name": "detections",
+            "description": "Threat detection alerts — list, update status, assign.",
+        },
+        {
+            "name": "rules",
+            "description": "Detection rule CRUD — create, update, version, test, and manage.",
+        },
+        {
+            "name": "rule-library",
+            "description": "Pre-built detection rule templates — browse, enable, and customize.",
+        },
+        {
+            "name": "health-signals",
+            "description": "Organization health signals — PAT hygiene, stale repos, compliance.",
+        },
+        {
+            "name": "posture",
+            "description": "Security posture assessment and scoring.",
+        },
+        {
+            "name": "reports",
+            "description": "Compliance and executive reporting.",
+        },
+        {
+            "name": "query",
+            "description": "Ad-hoc SQL query explorer for audit data.",
+        },
+        {
+            "name": "integrations",
+            "description": "Third-party integrations — Slack, Jira, PagerDuty, SIEM.",
+        },
+        {
+            "name": "admin",
+            "description": "System administration — user management, org config.",
+        },
+        {
+            "name": "copilot",
+            "description": "GitHub Copilot usage analytics and policy management.",
+        },
+        {
+            "name": "sync",
+            "description": "GitHub data synchronization — entities, events, status.",
+        },
+        {
+            "name": "setup",
+            "description": "Initial setup wizard — authentication, sync, TLS.",
+        },
+        {
+            "name": "health",
+            "description": "Application health and readiness probes.",
+        },
+    ]
+
     app = FastAPI(
-        title="OctoWatch",
-        description="GitHub enterprise audit log analysis platform",
+        title="OctoWatch API",
+        description=(
+            "GitHub Enterprise audit log security analytics platform.\n\n"
+            "OctoWatch ingests GitHub audit logs, detects threats using configurable rules, "
+            "and provides security posture dashboards for enterprise organizations.\n\n"
+            "## Authentication\n"
+            "All endpoints (except `/health`, `/ready`) require authentication via HTTP-only "
+            "JWT cookie. Use the `/api/v1/auth/login` endpoint to authenticate.\n\n"
+            "## Rate Limiting\n"
+            "API requests are rate-limited per user. Check `X-RateLimit-*` response headers.\n\n"
+            "## CSRF Protection\n"
+            "State-changing requests (POST/PUT/PATCH/DELETE) require the `X-CSRF-Token` header "
+            "matching the `csrf_token` cookie (double-submit pattern)."
+        ),
         version="1.0.0",
-        docs_url="/api/docs" if settings.environment != "production" else None,
-        redoc_url="/api/redoc" if settings.environment != "production" else None,
-        openapi_url="/api/openapi.json" if settings.environment != "production" else None,
+        contact={
+            "name": "OctoWatch Team",
+            "url": "https://github.com/octowatch/octowatch",
+        },
+        license_info={
+            "name": "Apache 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+        },
+        openapi_tags=openapi_tags,
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
+        openapi_url="/api/openapi.json",
         lifespan=lifespan,
     )
 
@@ -449,6 +534,7 @@ def create_app() -> FastAPI:
     app.include_router(reports.router, prefix=API_PREFIX)
     app.include_router(query.router, prefix=API_PREFIX)
     app.include_router(rules.router, prefix=API_PREFIX)
+    app.include_router(rule_library.router, prefix=API_PREFIX)
     app.include_router(admin.router, prefix=API_PREFIX)
     app.include_router(admin_settings.router, prefix=API_PREFIX)
     app.include_router(integrations.router, prefix=API_PREFIX)
