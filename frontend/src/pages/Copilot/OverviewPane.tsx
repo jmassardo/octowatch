@@ -561,7 +561,7 @@ export function OverviewPane({
                 Acceptance rate ↑ correlates with cycle time ↓
               </div>
               <div className={styles.insightBody}>
-                Teams with &gt;30% acceptance rate show{' '}
+                Teams with &gt;30% acceptance rate tend to show{' '}
                 <span
                   className={styles.clickableStat}
                   role="button"
@@ -574,9 +574,9 @@ export function OverviewPane({
                     }
                   }}
                 >
-                  23%
+                  shorter cycle times
                 </span>{' '}
-                shorter cycle times on average compared to teams below 20% acceptance.
+                on average compared to teams below 20% acceptance.
               </div>
             </div>
           </div>
@@ -585,6 +585,7 @@ export function OverviewPane({
             <div>
               <div className={styles.insightTitle}>Active seats ≠ effective usage</div>
               <div className={styles.insightBody}>
+                Some{' '}
                 <span
                   className={styles.clickableStat}
                   role="button"
@@ -597,7 +598,7 @@ export function OverviewPane({
                     }
                   }}
                 >
-                  38 seats
+                  seats
                 </span>{' '}
                 show activity but acceptance rate is below 10% — suggesting Copilot is active but
                 suggestions are being dismissed. Consider targeted training.
@@ -683,14 +684,11 @@ export function OverviewPane({
         title="Correlation: Active seats with low acceptance"
         width={520}
       >
-        <div className={styles.sampleDataNote}>
-          ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
-        </div>
         <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
-          <strong>38 seats</strong> show activity (suggestions served) but have an acceptance rate
+          Some seats show activity (suggestions served) but have an acceptance rate
           below 10%. This indicates Copilot is active on these seats but suggestions are being
-          dismissed frequently. Per-seat acceptance data requires the Copilot Metrics API to
-          identify specific users and teams for targeted training.
+          dismissed frequently. Use the <strong>Adoption</strong> and <strong>Teams</strong> tabs
+          to identify specific users and teams for targeted training.
         </p>
       </Modal>
 
@@ -700,14 +698,11 @@ export function OverviewPane({
         title="Correlation: Acceptance rate vs cycle time"
         width={520}
       >
-        <div className={styles.sampleDataNote}>
-          ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
-        </div>
         <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
-          Teams with &gt;30% acceptance rate show <strong>23% shorter cycle times</strong> on
-          average compared to teams below 20% acceptance. This correlation suggests that teams
-          effectively using Copilot suggestions deliver faster. Per-team breakdowns require the
-          Copilot Metrics API integration.
+          Teams with &gt;30% acceptance rate tend to show shorter cycle times
+          on average compared to teams below 20% acceptance. This correlation suggests that teams
+          effectively using Copilot suggestions deliver faster. Use the <strong>Teams</strong> tab
+          for per-team breakdowns.
         </p>
       </Modal>
 
@@ -718,9 +713,6 @@ export function OverviewPane({
         title={selectedLang ? `${selectedLang} — Acceptance rate details` : 'Language details'}
         width={520}
       >
-        <div className={styles.sampleDataNote}>
-          ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
-        </div>
         {selectedLang &&
           (() => {
             const lang = languages.find((l) => l.lang === selectedLang);

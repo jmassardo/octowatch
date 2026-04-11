@@ -160,12 +160,12 @@ describe('AnomaliesPane clickable stats', () => {
     expect(screen.queryByText('Backend team — anomaly context')).not.toBeInTheDocument();
   });
 
-  it('shows sample data note in team modal', async () => {
+  it('shows team anomaly details in modal', async () => {
     const user = userEvent.setup();
     renderPane();
     await user.click(await screen.findByText('ML/AI'));
     expect(
-      screen.getByText(/Connect the Copilot Metrics API for live per-user data/),
+      screen.getByText(/ML\/AI team — anomaly context/),
     ).toBeInTheDocument();
   });
 });

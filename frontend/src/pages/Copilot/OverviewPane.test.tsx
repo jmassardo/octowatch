@@ -124,22 +124,22 @@ describe('OverviewPane clickable stats', () => {
     expect(screen.queryByText('Seat utilization breakdown')).not.toBeInTheDocument();
   });
 
-  it('opens correlation modal when clicking "38 seats"', async () => {
+  it('opens correlation modal when clicking "seats"', async () => {
     const user = userEvent.setup();
     renderPane();
-    const seatsBtn = screen.getByText('38 seats');
+    const seatsBtn = screen.getByText('seats');
     expect(seatsBtn).toHaveAttribute('role', 'button');
     await user.click(seatsBtn);
     expect(screen.getByText('Correlation: Active seats with low acceptance')).toBeInTheDocument();
     expect(
-      screen.getByText(/Connect the Copilot Metrics API for live per-user data/),
+      screen.getByText(/Use the/),
     ).toBeInTheDocument();
   });
 
-  it('opens correlation modal when clicking "23%"', async () => {
+  it('opens correlation modal when clicking "shorter cycle times"', async () => {
     const user = userEvent.setup();
     renderPane();
-    const pctBtn = screen.getByText('23%');
+    const pctBtn = screen.getByText('shorter cycle times');
     expect(pctBtn).toHaveAttribute('role', 'button');
     await user.click(pctBtn);
     expect(screen.getByText('Correlation: Acceptance rate vs cycle time')).toBeInTheDocument();

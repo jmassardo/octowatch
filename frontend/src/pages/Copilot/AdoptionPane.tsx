@@ -177,17 +177,14 @@ export function AdoptionPane() {
         <Button
           size="sm"
           onClick={() => {
-            const confirmed = window.prompt(`Schedule onboarding for @${u.user}?`);
-            if (confirmed !== null) {
-              setScheduledUsers((prev) => ({ ...prev, [u.user]: true }));
-              setTimeout(() => {
-                setScheduledUsers((prev) => {
-                  const next = { ...prev };
-                  delete next[u.user];
-                  return next;
-                });
-              }, 3000);
-            }
+            setScheduledUsers((prev) => ({ ...prev, [u.user]: true }));
+            setTimeout(() => {
+              setScheduledUsers((prev) => {
+                const next = { ...prev };
+                delete next[u.user];
+                return next;
+              });
+            }, 3000);
           }}
         >
           {scheduledUsers[u.user] ? 'Scheduled ✓' : 'Schedule onboarding'}
@@ -431,9 +428,6 @@ export function AdoptionPane() {
             }
             width={640}
           >
-            <div className={styles.sampleDataNote}>
-              ℹ️ Connect the Copilot Metrics API for live per-user data.
-            </div>
             {selectedTier && selectedTierId === 'power' && (
               <div style={{ overflowX: 'auto' }}>
                 <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 12px' }}>
@@ -493,9 +487,6 @@ export function AdoptionPane() {
             }
             width={520}
           >
-            <div className={styles.sampleDataNote}>
-              ℹ️ Connect the Copilot Metrics API for live per-user data.
-            </div>
             {selectedFeatureData && (
               <div>
                 <p
@@ -528,9 +519,6 @@ export function AdoptionPane() {
             }
             width={520}
           >
-            <div className={styles.sampleDataNote}>
-              ℹ️ Connect the Copilot Metrics API for live per-user data.
-            </div>
             {selectedMinimalUserData && (
               <div style={{ overflowX: 'auto' }}>
                 <DataTable<{ metric: string; value: string }>

@@ -155,9 +155,6 @@ export function AnomaliesPane() {
             title={teamModal ? `${teamModal} team — anomaly context` : 'Team context'}
             width={520}
           >
-            <div className={styles.sampleDataNote}>
-              ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
-            </div>
             {selectedAnomaly && (
               <div>
                 <table className={styles.modalTable}>

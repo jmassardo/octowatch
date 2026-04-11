@@ -193,9 +193,6 @@ export function ModelsPane() {
             }
             width={520}
           >
-            <div className={styles.sampleDataNote}>
-              ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
-            </div>
             {selectedModelData && (
               <div>
                 <DataTable<MetricRow>
@@ -233,9 +230,6 @@ export function ModelsPane() {
             }
             width={520}
           >
-            <div className={styles.sampleDataNote}>
-              ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
-            </div>
             {selectedFeatureData && (
               <div>
                 <DataTable<MetricRow>
@@ -255,8 +249,8 @@ export function ModelsPane() {
                     margin: '12px 0 0',
                   }}
                 >
-                  Per-team feature usage trends and adoption curves require the Copilot Metrics API
-                  integration.
+                  Use the <strong>Teams</strong> tab for per-team feature usage breakdowns and
+                  adoption trends.
                 </p>
               </div>
             )}
@@ -271,9 +265,6 @@ export function ModelsPane() {
             }
             width={520}
           >
-            <div className={styles.sampleDataNote}>
-              ℹ️ This data is illustrative. Connect the Copilot Metrics API for live per-user data.
-            </div>
             {selectedEditorData && (
               <div>
                 <DataTable<MetricRow>

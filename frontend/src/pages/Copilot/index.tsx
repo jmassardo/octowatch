@@ -4,6 +4,7 @@ import { getSeatUtilizationReport, getCopilotSeatsReport } from '../../api/repor
 import { getCopilotAnomalies } from '../../api/copilotMetrics';
 import type { SeatUtilizationBucket, CopilotSeatsBucket } from '../../types/reports';
 import { useFeatures } from '../../hooks/useFeatures';
+import { getCopilotBlockers } from '../../api/copilotMetrics';
 import { CopilotTabBar } from './CopilotTabBar';
 import type { CopilotTab } from './CopilotTabBar';
 import { OverviewPane } from './OverviewPane';
@@ -12,14 +13,22 @@ import { ModelsPane } from './ModelsPane';
 import { LicensePane } from './LicensePane';
 import { AnomaliesPane } from './AnomaliesPane';
 import { GovernancePane } from './GovernancePane';
+import { TeamsPane } from './TeamsPane';
+import { BlockersPane } from './BlockersPane';
+import { PolicyPane } from './PolicyPane';
+import { ROIPane } from './ROIPane';
 import styles from './Copilot.module.css';
 
 const VALID_TABS: readonly CopilotTab[] = [
   'overview',
   'adoption',
   'models',
+  'teams',
+  'blockers',
   'license',
+  'roi',
   'anomalies',
+  'policy',
   'governance',
 ];
 
@@ -53,6 +62,12 @@ export function CopilotPage() {
     staleTime: 300_000,
   });
 
+  const { data: blockersData } = useQuery({
+    queryKey: ['copilot', 'blockers'],
+    queryFn: getCopilotBlockers,
+    staleTime: 300_000,
+  });
+
   if (!features.copilot_insights) {
     return (
       <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--fg-muted)' }}>
@@ -82,6 +97,7 @@ export function CopilotPage() {
         activeTab={activeTab}
         onTabChange={(newTab) => navigate(`/copilot/${newTab}`)}
         anomalyCount={anomalyData?.anomalies?.length ?? 0}
+        blockerCount={blockersData?.blockers?.length ?? 0}
       />
 
       {activeTab === 'overview' && (
@@ -95,8 +111,12 @@ export function CopilotPage() {
       )}
       {activeTab === 'adoption' && <AdoptionPane />}
       {activeTab === 'models' && <ModelsPane />}
+      {activeTab === 'teams' && <TeamsPane />}
+      {activeTab === 'blockers' && <BlockersPane />}
       {activeTab === 'license' && <LicensePane seatBuckets={seatBuckets} />}
+      {activeTab === 'roi' && <ROIPane />}
       {activeTab === 'anomalies' && <AnomaliesPane />}
+      {activeTab === 'policy' && <PolicyPane />}
       {activeTab === 'governance' && <GovernancePane />}
     </div>
   );

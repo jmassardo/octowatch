@@ -205,7 +205,9 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
 
   return (
     <>
-      <SampleDataBanner message="Cost-per-seat ($19) is a default estimate. Requires Copilot Metrics API integration for actual pricing and seat-level activity data." />
+      {seatBuckets.length === 0 && (
+        <SampleDataBanner message="No seat utilization data available. Seat data will populate once synced." />
+      )}
 
       {/* Summary metrics */}
       <div className={styles.metricStrip}>

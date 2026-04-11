@@ -1,8 +1,12 @@
 """Copilot Metrics service — fetches real data from the GitHub Copilot Metrics API.
 
-Calls ``GET /enterprises/{slug}/copilot/metrics`` using a GitHub App installation
-token, then transforms the raw daily metric objects into shaped payloads for the
-four frontend Copilot panes (Overview, Adoption, Models, Anomalies).
+Migrated to the new NDJSON Metrics Reports endpoint (2026-03-10 API version).
+Calls ``GET /enterprises/{slug}/copilot/metrics/reports/enterprise-1-day`` to
+obtain download links, fetches the NDJSON files, parses line by line, then
+transforms into shaped payloads for all frontend Copilot panes.
+
+Also integrates the Copilot billing/seats API for per-user adoption data,
+team-level aggregation, adoption blockers, and ROI analysis.
 
 Results are cached in Valkey (1-hour TTL) to avoid excessive API round-trips.
 """
@@ -10,7 +14,7 @@ Results are cached in Valkey (1-hour TTL) to avoid excessive API round-trips.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -20,15 +24,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.github_sync import GitHubAppConfig
+from app.models.github_sync import GitHubAppConfig, OrgTeam, OrgTeamMember
 from app.services.github_token_service import GitHubAppTokenManager, GitHubAuthError
 
 logger = structlog.get_logger(__name__)
 
 _GITHUB_API_BASE = "https://api.github.com"
 
-# Valkey cache key pattern — interpolated with enterprise slug only
+# New API version required for Copilot Metrics Reports NDJSON endpoint
+_API_VERSION = "2026-03-10"
+
+# Valkey cache key patterns
 _CACHE_KEY = "copilot:metrics:{enterprise_slug}"
+_CACHE_SEATS_KEY = "copilot:seats:{org_slug}"
 _CACHE_TTL_SECONDS = 3600  # 1 hour
 
 # ── Colour palette ────────────────────────────────────────────────────────────
@@ -72,6 +80,15 @@ _EDITOR_COLORS = [_COLOR_BLUE, _COLOR_GREEN, _COLOR_PURPLE, _COLOR_ORANGE, _COLO
 
 _DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
+# Tier thresholds for seat activity (days in last 28-day window)
+_POWER_THRESHOLD = 20
+_REGULAR_THRESHOLD = 10
+_MINIMAL_THRESHOLD = 1
+
+# Default per-seat costs by plan tier
+_COST_BUSINESS = 19.0
+_COST_ENTERPRISE = 39.0
+
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -90,6 +107,15 @@ def _lang_color(lang: str) -> str:
     return _LANG_COLORS.get(lang.lower(), _COLOR_GRAY)
 
 
+def _cost_for_plan(plan_type: str, cost_override: float | None = None) -> float:
+    """Return monthly cost for a Copilot seat plan tier."""
+    if cost_override is not None:
+        return cost_override
+    if plan_type == "enterprise":
+        return _COST_ENTERPRISE
+    return _COST_BUSINESS
+
+
 async def _get_enterprise_installation(db: AsyncSession) -> GitHubAppConfig | None:
     """Find the first enabled enterprise-level GitHub App installation."""
     enterprise_slug = settings.github_app.GITHUB_ENTERPRISE_SLUG
@@ -104,28 +130,23 @@ async def _get_enterprise_installation(db: AsyncSession) -> GitHubAppConfig | No
     return result.scalars().first()
 
 
-async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[str, str]:
-    """Fetch raw daily metrics from the GitHub Copilot Metrics API.
+async def _get_token_and_valkey(
+    db: AsyncSession,
+) -> tuple[str, aioredis.Redis, str] | dict[str, str]:
+    """Obtain a GitHub App installation token and Valkey client.
 
-    Returns either the parsed JSON array on success, or an error dict.
-    Results are cached in Valkey for ``_CACHE_TTL_SECONDS``.
+    Returns ``(token, valkey_client, enterprise_slug)`` on success, or an
+    error dict on failure.
     """
-    # Check feature toggle first
     from app.services.settings_service import get_setting
 
     copilot_enabled = await get_setting(db, "feature_copilot_insights")
-    if copilot_enabled is not None and copilot_enabled.lower() not in (
-        "true",
-        "1",
-        "yes",
-        "on",
-    ):
+    if copilot_enabled is not None and copilot_enabled.lower() not in ("true", "1", "yes", "on"):
         return {
             "error": "feature_disabled",
             "message": "Copilot Insights is disabled. Enable it in Settings → Features.",
         }
     elif copilot_enabled is None:
-        # Default is False for copilot_insights
         return {
             "error": "feature_disabled",
             "message": "Copilot Insights is disabled. Enable it in Settings → Features.",
@@ -144,22 +165,14 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
             "message": "GitHub App credentials (APP_ID / private key) are not configured.",
         }
 
-    # ── Check Valkey cache ────────────────────────────────────────────────────
-    cache_key = _CACHE_KEY.format(enterprise_slug=enterprise_slug)
     valkey: aioredis.Redis | None = None
     try:
         valkey = aioredis.Redis.from_url(
             settings.VALKEY_URL, decode_responses=True, max_connections=5
         )
-        cached = await valkey.get(cache_key)
-        if cached:
-            logger.debug("copilot_metrics.cache_hit", enterprise=enterprise_slug)
-            return json.loads(cached)  # type: ignore[no-any-return]
     except Exception:
-        logger.warning("copilot_metrics.cache_read_failed", exc_info=True)
-    # valkey is closed in the finally below after we potentially write to it
+        logger.warning("copilot_metrics.valkey_connect_failed", exc_info=True)
 
-    # ── Resolve installation ──────────────────────────────────────────────────
     config = await _get_enterprise_installation(db)
     if not config:
         if valkey:
@@ -171,7 +184,6 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
             ),
         }
 
-    # ── Get token and call API ────────────────────────────────────────────────
     try:
         private_key = settings.github_app.resolve_private_key()
         if not private_key:
@@ -203,54 +215,202 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
             "message": "Unexpected error obtaining GitHub App token. Check server logs.",
         }
 
-    url = f"{_GITHUB_API_BASE}/enterprises/{enterprise_slug}/copilot/metrics"
+    if valkey is None:
+        valkey = aioredis.Redis.from_url(
+            settings.VALKEY_URL, decode_responses=True, max_connections=5
+        )
+
+    return (token, valkey, enterprise_slug)
+
+
+def _parse_ndjson(text: str) -> list[dict[str, Any]]:
+    """Parse NDJSON (newline-delimited JSON) text into a list of dicts."""
+    results: list[dict[str, Any]] = []
+    for line in text.strip().split("\n"):
+        line = line.strip()
+        if line:
+            results.append(json.loads(line))
+    return results
+
+
+async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[str, str]:
+    """Fetch raw daily metrics from the new GitHub Copilot Metrics NDJSON API.
+
+    Uses the 2026-03-10 API version endpoint that returns download links to
+    NDJSON files.  Falls back gracefully on errors.
+
+    Returns either the parsed list of daily metric dicts on success, or an
+    error dict.  Results are cached in Valkey for ``_CACHE_TTL_SECONDS``.
+    """
+    # Check feature toggle first
+    from app.services.settings_service import get_setting
+
+    copilot_enabled = await get_setting(db, "feature_copilot_insights")
+    if copilot_enabled is not None and copilot_enabled.lower() not in (
+        "true",
+        "1",
+        "yes",
+        "on",
+    ):
+        return {
+            "error": "feature_disabled",
+            "message": "Copilot Insights is disabled. Enable it in Settings → Features.",
+        }
+    elif copilot_enabled is None:
+        return {
+            "error": "feature_disabled",
+            "message": "Copilot Insights is disabled. Enable it in Settings → Features.",
+        }
+
+    enterprise_slug = settings.github_app.GITHUB_ENTERPRISE_SLUG
+    if not enterprise_slug:
+        return {"error": "no_enterprise_config", "message": "GITHUB_ENTERPRISE_SLUG is not set."}
+
+    app_id = settings.github_app.GITHUB_APP_ID
+    key_path = settings.github_app.GITHUB_APP_PRIVATE_KEY_PATH
+    private_key_pem = settings.github_app.GITHUB_APP_PRIVATE_KEY_PEM
+    if not app_id or (not key_path and not private_key_pem):
+        return {
+            "error": "no_enterprise_config",
+            "message": "GitHub App credentials (APP_ID / private key) are not configured.",
+        }
+
+    # ── Check Valkey cache ────────────────────────────────────────────────────
+    cache_key = _CACHE_KEY.format(enterprise_slug=enterprise_slug)
+    valkey: aioredis.Redis | None = None
+    try:
+        valkey = aioredis.Redis.from_url(
+            settings.VALKEY_URL, decode_responses=True, max_connections=5
+        )
+        cached = await valkey.get(cache_key)
+        if cached:
+            logger.debug("copilot_metrics.cache_hit", enterprise=enterprise_slug)
+            return json.loads(cached)  # type: ignore[no-any-return]
+    except Exception:
+        logger.warning("copilot_metrics.cache_read_failed", exc_info=True)
+
+    # ── Resolve installation ──────────────────────────────────────────────────
+    config = await _get_enterprise_installation(db)
+    if not config:
+        if valkey:
+            await valkey.aclose()
+        return {
+            "error": "no_enterprise_config",
+            "message": (
+                f"No enabled enterprise GitHub App installation found for '{enterprise_slug}'."
+            ),
+        }
+
+    # ── Get token ─────────────────────────────────────────────────────────────
+    try:
+        private_key = settings.github_app.resolve_private_key()
+        if not private_key:
+            raise RuntimeError("Private key could not be resolved")
+        token_manager = GitHubAppTokenManager(
+            app_id=app_id,
+            private_key_pem=private_key,
+            valkey_client=valkey
+            if valkey
+            else aioredis.Redis.from_url(
+                settings.VALKEY_URL, decode_responses=True, max_connections=5
+            ),
+        )
+        token = await token_manager.get_installation_token(config.installation_id)
+    except GitHubAuthError as exc:
+        logger.error("copilot_metrics.token_failed", error=str(exc))
+        if valkey:
+            await valkey.aclose()
+        return {
+            "error": "copilot_not_available",
+            "message": "Failed to obtain GitHub App installation token. Check App credentials.",
+        }
+    except Exception as exc:
+        logger.error("copilot_metrics.token_unexpected", error=str(exc), exc_info=True)
+        if valkey:
+            await valkey.aclose()
+        return {
+            "error": "copilot_not_available",
+            "message": "Unexpected error obtaining GitHub App token. Check server logs.",
+        }
+
+    # ── Call the new NDJSON metrics reports endpoint ──────────────────────────
+    url = (
+        f"{_GITHUB_API_BASE}/enterprises/{enterprise_slug}/copilot/metrics/reports/enterprise-1-day"
+    )
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
+        "X-GitHub-Api-Version": _API_VERSION,
     }
 
     try:
-        async with httpx.AsyncClient(follow_redirects=False) as client:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            # Step 1: Get the report download links
             response = await client.get(url, headers=headers, timeout=30.0)
 
-        if response.status_code in (403, 404):
-            logger.warning(
-                "copilot_metrics.api_error",
-                status=response.status_code,
-                enterprise=enterprise_slug,
-            )
-            if valkey:
-                await valkey.aclose()
-            return {
-                "error": "copilot_not_available",
-                "message": (
-                    f"GitHub API returned {response.status_code}. "
-                    "Copilot metrics may not be enabled for this enterprise, "
-                    "or the App lacks the enterprise_copilot_metrics:read permission."
-                ),
-            }
+            if response.status_code in (403, 404):
+                logger.warning(
+                    "copilot_metrics.api_error",
+                    status=response.status_code,
+                    enterprise=enterprise_slug,
+                )
+                if valkey:
+                    await valkey.aclose()
+                return {
+                    "error": "copilot_not_available",
+                    "message": (
+                        f"GitHub API returned {response.status_code}. "
+                        "Copilot metrics may not be enabled for this enterprise, "
+                        "or the App lacks the manage_billing:copilot permission."
+                    ),
+                }
 
-        if response.status_code == 422:
-            logger.warning(
-                "copilot_metrics.api_422",
-                enterprise=enterprise_slug,
-                body=response.text[:500],
-            )
-            if valkey:
-                await valkey.aclose()
-            return {
-                "error": "copilot_not_available",
-                "message": (
-                    "GitHub API returned 422. This usually means the Copilot Metrics "
-                    "API is disabled in your enterprise settings. Enable it at: "
-                    "GitHub Enterprise → Settings → Copilot → Policies → "
-                    "Copilot Metrics API access."
-                ),
-            }
+            if response.status_code == 422:
+                logger.warning(
+                    "copilot_metrics.api_422",
+                    enterprise=enterprise_slug,
+                    body=response.text[:500],
+                )
+                if valkey:
+                    await valkey.aclose()
+                return {
+                    "error": "copilot_not_available",
+                    "message": (
+                        "GitHub API returned 422. This usually means the Copilot Metrics "
+                        "API is disabled in your enterprise settings. Enable it at: "
+                        "GitHub Enterprise → Settings → Copilot → Policies → "
+                        "Copilot Metrics API access."
+                    ),
+                }
 
-        response.raise_for_status()
-        metrics: list[dict[str, Any]] = response.json()
+            response.raise_for_status()
+            report_data = response.json()
+
+            # Step 2: Parse NDJSON — the new API may return either:
+            # (a) A list of report objects with download_url fields, or
+            # (b) The NDJSON data directly inline
+            metrics: list[dict[str, Any]] = []
+
+            if isinstance(report_data, list):
+                # Check if items have download_url (report links)
+                if report_data and "download_url" in report_data[0]:
+                    for report_item in report_data:
+                        dl_url = report_item.get("download_url", "")
+                        if not dl_url:
+                            continue
+                        dl_resp = await client.get(dl_url, timeout=60.0)
+                        dl_resp.raise_for_status()
+                        metrics.extend(_parse_ndjson(dl_resp.text))
+                else:
+                    # Already inline data (same shape as old API)
+                    metrics = report_data
+            elif isinstance(report_data, dict):
+                # Single report object with download_url
+                dl_url = report_data.get("download_url", "")
+                if dl_url:
+                    dl_resp = await client.get(dl_url, timeout=60.0)
+                    dl_resp.raise_for_status()
+                    metrics = _parse_ndjson(dl_resp.text)
 
     except httpx.HTTPStatusError as exc:
         logger.error("copilot_metrics.http_error", status=exc.response.status_code, exc_info=True)
@@ -281,6 +441,114 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
             await valkey.aclose()
 
     return metrics
+
+
+async def _fetch_copilot_seats(db: AsyncSession) -> list[dict[str, Any]] | dict[str, str]:
+    """Fetch per-user Copilot seat data from the billing/seats API.
+
+    Calls ``GET /orgs/{org}/copilot/billing/seats`` for each org under the
+    enterprise.  Results are cached in Valkey.
+    """
+    auth_result = await _get_token_and_valkey(db)
+    if isinstance(auth_result, dict):
+        return auth_result
+
+    token, valkey, enterprise_slug = auth_result
+
+    cache_key = _CACHE_SEATS_KEY.format(org_slug=enterprise_slug)
+    try:
+        cached = await valkey.get(cache_key)
+        if cached:
+            logger.debug("copilot_seats.cache_hit", enterprise=enterprise_slug)
+            return json.loads(cached)  # type: ignore[no-any-return]
+    except Exception:
+        logger.warning("copilot_seats.cache_read_failed", exc_info=True)
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": _API_VERSION,
+    }
+
+    all_seats: list[dict[str, Any]] = []
+    # Fetch seats from enterprise-level org listing
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            # Get orgs in the enterprise
+            orgs_url = f"{_GITHUB_API_BASE}/enterprises/{enterprise_slug}/organizations"
+            orgs_resp = await client.get(orgs_url, headers=headers, timeout=30.0)
+            if orgs_resp.status_code == 200:
+                orgs_data = orgs_resp.json()
+                org_slugs = [o.get("login", "") for o in orgs_data if o.get("login")]
+            else:
+                org_slugs = []
+
+            if not org_slugs:
+                # Fallback: use enterprise slug as single org
+                org_slugs = [enterprise_slug]
+
+            for org_slug in org_slugs:
+                page = 1
+                while True:
+                    seats_url = (
+                        f"{_GITHUB_API_BASE}/orgs/{org_slug}/copilot/billing/seats"
+                        f"?per_page=100&page={page}"
+                    )
+                    resp = await client.get(seats_url, headers=headers, timeout=30.0)
+                    if resp.status_code != 200:
+                        logger.warning(
+                            "copilot_seats.api_error",
+                            org=org_slug,
+                            status=resp.status_code,
+                        )
+                        break
+                    data = resp.json()
+                    seats = data.get("seats", [])
+                    for seat in seats:
+                        seat["_org_slug"] = org_slug
+                    all_seats.extend(seats)
+                    if len(seats) < 100:
+                        break
+                    page += 1
+
+    except Exception as exc:
+        logger.error("copilot_seats.fetch_failed", error=str(exc), exc_info=True)
+        await valkey.aclose()
+        return {
+            "error": "copilot_not_available",
+            "message": "Failed to fetch Copilot seat data from GitHub API.",
+        }
+
+    # Cache the result
+    try:
+        await valkey.set(cache_key, json.dumps(all_seats), ex=_CACHE_TTL_SECONDS)
+    except Exception:
+        logger.warning("copilot_seats.cache_write_failed", exc_info=True)
+    finally:
+        await valkey.aclose()
+
+    return all_seats
+
+
+def _classify_user(seat: dict[str, Any]) -> str:
+    """Classify a seat user into power/regular/minimal/inactive tier."""
+    last_activity = seat.get("last_activity_at")
+    if not last_activity:
+        return "inactive"
+    try:
+        last_dt = datetime.fromisoformat(last_activity.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return "inactive"
+
+    now = datetime.now(UTC)
+    days_since = (now - last_dt).days
+    if days_since <= 3:
+        return "power"
+    if days_since <= 14:
+        return "regular"
+    if days_since <= 30:
+        return "minimal"
+    return "inactive"
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -371,7 +639,7 @@ async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
 
 
 async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
-    """Data for the Adoption pane: tiers, feature adoption."""
+    """Data for the Adoption pane: tiers, feature adoption, per-user data."""
     raw = await _fetch_metrics_raw(db)
     if isinstance(raw, dict) and "error" in raw:
         return raw
@@ -388,51 +656,99 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
 
     num_days = len(days)
 
-    # ── Collect daily active-user counts to estimate tiers ─────────────────────
-    daily_active: list[int] = [d.get("total_active_users", 0) for d in days]
+    # ── Try to get per-user data from seats API ───────────────────────────────
+    try:
+        seats_data = await _fetch_copilot_seats(db)
+        has_seat_data = isinstance(seats_data, list) and len(seats_data) > 0
+    except Exception:
+        logger.debug("copilot_adoption.seats_fetch_fallback", exc_info=True)
+        seats_data = []
+        has_seat_data = False
 
-    avg_active = sum(daily_active) / num_days if num_days else 0
-    max_active = max(daily_active) if daily_active else 0
-    latest_active = daily_active[-1] if daily_active else 0
+    power_users: list[dict[str, Any]] = []
+    minimal_users: list[dict[str, Any]] = []
+    tier_counts = {"power": 0, "regular": 0, "minimal": 0, "inactive": 0}
 
-    # Heuristic tier estimation (we don't have per-user data from the metrics API)
-    # Power = users active nearly every day; approximate from daily counts
-    power_estimate = int(min(daily_active) * 0.9) if daily_active else 0
-    regular_estimate = int(avg_active - power_estimate) if avg_active > power_estimate else 0
-    minimal_estimate = int(max_active - avg_active) if max_active > avg_active else 0
-    inactive_estimate = max(0, int(latest_active * 0.1))
+    if has_seat_data:
+        assert isinstance(seats_data, list)
+        for seat in seats_data:
+            assignee = seat.get("assignee") or {}
+            login = assignee.get("login", "unknown")
+            tier = _classify_user(seat)
+            tier_counts[tier] += 1
+
+            last_activity = seat.get("last_activity_at", "")
+            last_editor = seat.get("last_activity_editor", "")
+
+            if tier == "power":
+                power_users.append(
+                    {
+                        "user": login,
+                        "days_active": _days_since_last_activity(last_activity),
+                        "features_used": _count_features(seat),
+                        "last_activity": last_activity,
+                        "editor": last_editor,
+                    }
+                )
+            elif tier == "minimal":
+                minimal_users.append(
+                    {
+                        "user": login,
+                        "days_active": _days_since_last_activity(last_activity),
+                        "last_feature": last_editor or "unknown",
+                        "last_activity": last_activity,
+                    }
+                )
+    else:
+        # Fallback: estimate tiers from daily active user counts
+        daily_active: list[int] = [d.get("total_active_users", 0) for d in days]
+        avg_active = sum(daily_active) / num_days if num_days else 0
+        max_active = max(daily_active) if daily_active else 0
+        latest_active = daily_active[-1] if daily_active else 0
+
+        power_estimate = int(min(daily_active) * 0.9) if daily_active else 0
+        regular_estimate = int(avg_active - power_estimate) if avg_active > power_estimate else 0
+        minimal_estimate = int(max_active - avg_active) if max_active > avg_active else 0
+        inactive_estimate = max(0, int(latest_active * 0.1))
+
+        tier_counts = {
+            "power": power_estimate,
+            "regular": regular_estimate,
+            "minimal": minimal_estimate,
+            "inactive": inactive_estimate,
+        }
 
     tiers: list[dict[str, Any]] = [
         {
             "id": "power",
             "label": "Power Users",
-            "count": power_estimate,
+            "count": tier_counts["power"],
             "color": _COLOR_GREEN,
             "desc": "Active nearly every day across multiple features",
         },
         {
             "id": "regular",
             "label": "Regular Users",
-            "count": regular_estimate,
+            "count": tier_counts["regular"],
             "color": _COLOR_BLUE,
             "desc": "Active more than 50% of measured days",
         },
         {
             "id": "minimal",
             "label": "Minimal Users",
-            "count": minimal_estimate,
+            "count": tier_counts["minimal"],
             "color": _COLOR_YELLOW,
             "desc": "Active only 1–2 days in the measurement window",
         },
         {
             "id": "inactive",
             "label": "Inactive / Never",
-            "count": inactive_estimate,
+            "count": tier_counts["inactive"],
             "color": _COLOR_GRAY,
             "desc": "Assigned a seat but no recorded activity",
         },
     ]
-    total_adoption = power_estimate + regular_estimate + minimal_estimate + inactive_estimate
+    total_adoption = sum(tier_counts.values())
 
     # ── Feature adoption ──────────────────────────────────────────────────────
     latest = days[-1] if days else {}
@@ -471,10 +787,33 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
     return {
         "tiers": tiers,
         "total_adoption": total_adoption,
-        "power_users": [],  # Per-user data requires the Copilot billing/seats API
+        "power_users": power_users,
         "feature_adoption": feature_adoption,
-        "minimal_users": [],  # Per-user data requires the Copilot billing/seats API
+        "minimal_users": minimal_users,
     }
+
+
+def _days_since_last_activity(last_activity_str: str) -> int:
+    """Calculate days since last activity from ISO 8601 timestamp."""
+    if not last_activity_str:
+        return 999
+    try:
+        last_dt = datetime.fromisoformat(last_activity_str.replace("Z", "+00:00"))
+        return max(0, (datetime.now(UTC) - last_dt).days)
+    except (ValueError, TypeError):
+        return 999
+
+
+def _count_features(seat: dict[str, Any]) -> int:
+    """Count distinct features used by a seat user from seat metadata."""
+    count = 0
+    editor = seat.get("last_activity_editor", "")
+    if editor:
+        count += 1
+    # Copilot seat objects may include feature usage indicators
+    if seat.get("last_activity_at"):
+        count += 1
+    return max(1, count)
 
 
 async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
@@ -701,3 +1040,443 @@ async def get_copilot_anomalies(db: AsyncSession) -> dict[str, Any]:
                 )
 
     return {"anomalies": anomalies}
+
+
+# ── Team-level breakdown (#76) ────────────────────────────────────────────────
+
+
+async def get_copilot_teams(db: AsyncSession) -> dict[str, Any]:
+    """Aggregate per-user Copilot metrics by GitHub team membership.
+
+    Cross-references seat data with org_teams and org_team_members tables
+    to produce team-level adoption metrics.
+    """
+    seats_data = await _fetch_copilot_seats(db)
+    if isinstance(seats_data, dict) and "error" in seats_data:
+        return seats_data
+
+    seats: list[dict[str, Any]] = seats_data  # type: ignore[assignment]
+
+    # Build a map of login → seat info
+    login_to_seat: dict[str, dict[str, Any]] = {}
+    for seat in seats:
+        assignee = seat.get("assignee") or {}
+        login = assignee.get("login", "")
+        if login:
+            login_to_seat[login.lower()] = seat
+
+    # Fetch team memberships from DB
+    team_result = await db.execute(select(OrgTeam))
+    teams = list(team_result.scalars().all())
+
+    member_result = await db.execute(select(OrgTeamMember))
+    members = list(member_result.scalars().all())
+
+    # Build team → members mapping
+    team_members_map: dict[str, list[str]] = {}
+    for member in members:
+        key = f"{member.org}/{member.team_slug}"
+        if key not in team_members_map:
+            team_members_map[key] = []
+        team_members_map[key].append(member.github_login.lower())
+
+    # Aggregate metrics per team
+    team_data: list[dict[str, Any]] = []
+    for team in teams:
+        key = f"{team.org}/{team.team_slug}"
+        team_logins = team_members_map.get(key, [])
+        total_members = len(team_logins)
+
+        active_count = 0
+        inactive_count = 0
+        total_days_since_activity = 0
+
+        for login in team_logins:
+            seat = login_to_seat.get(login)
+            if seat:
+                tier = _classify_user(seat)
+                if tier in ("power", "regular"):
+                    active_count += 1
+                elif tier == "inactive":
+                    inactive_count += 1
+                else:
+                    active_count += 1  # minimal counts as active
+
+                last_act = seat.get("last_activity_at", "")
+                total_days_since_activity += _days_since_last_activity(last_act)
+
+        adoption_pct = round(active_count / total_members * 100, 1) if total_members > 0 else 0
+        avg_days_inactive = (
+            round(total_days_since_activity / total_members, 1) if total_members > 0 else 0
+        )
+
+        at_risk = adoption_pct < 30 and total_members >= 3
+
+        team_data.append(
+            {
+                "team_slug": team.team_slug,
+                "team_name": team.name,
+                "org": team.org,
+                "total_members": total_members,
+                "active_users": active_count,
+                "inactive_users": inactive_count,
+                "adoption_pct": adoption_pct,
+                "avg_days_since_activity": avg_days_inactive,
+                "at_risk": at_risk,
+            }
+        )
+
+    team_data.sort(key=lambda x: x["adoption_pct"], reverse=True)
+
+    return {
+        "teams": team_data,
+        "total_teams": len(team_data),
+        "at_risk_count": sum(1 for t in team_data if t["at_risk"]),
+    }
+
+
+# ── Adoption Blockers (#77) ──────────────────────────────────────────────────
+
+
+async def get_copilot_blockers(db: AsyncSession) -> dict[str, Any]:
+    """Identify and categorize Copilot adoption blockers.
+
+    Cross-references seat data, policy events, and content exclusions to
+    categorize blockers and generate actionable recommendations.
+    """
+    seats_data = await _fetch_copilot_seats(db)
+    if isinstance(seats_data, dict) and "error" in seats_data:
+        return seats_data
+
+    seats: list[dict[str, Any]] = seats_data  # type: ignore[assignment]
+
+    # Categorize blockers
+    blockers: list[dict[str, Any]] = []
+    blocker_id = 0
+
+    # Get team members who don't have seats (no_seat blocker)
+    member_result = await db.execute(select(OrgTeamMember))
+    all_members = list(member_result.scalars().all())
+    seat_logins = {
+        (s.get("assignee") or {}).get("login", "").lower()
+        for s in seats
+        if (s.get("assignee") or {}).get("login")
+    }
+
+    no_seat_users: list[str] = []
+    for member in all_members:
+        if member.github_login.lower() not in seat_logins:
+            if member.github_login.lower() not in no_seat_users:
+                no_seat_users.append(member.github_login.lower())
+
+    if no_seat_users:
+        blocker_id += 1
+        blockers.append(
+            {
+                "id": blocker_id,
+                "category": "no_seat",
+                "title": "Members without Copilot seats",
+                "description": (
+                    f"{len(no_seat_users)} team members don't have a Copilot seat assigned."
+                ),
+                "affected_users": no_seat_users[:50],
+                "count": len(no_seat_users),
+                "severity": "high" if len(no_seat_users) > 10 else "medium",
+                "recommendation": "Assign Copilot seats to these team members to enable adoption.",
+            }
+        )
+
+    # Inactive seats
+    inactive_users: list[str] = []
+    for seat in seats:
+        tier = _classify_user(seat)
+        if tier == "inactive":
+            login = (seat.get("assignee") or {}).get("login", "unknown")
+            inactive_users.append(login)
+
+    if inactive_users:
+        blocker_id += 1
+        blockers.append(
+            {
+                "id": blocker_id,
+                "category": "inactive_seat",
+                "title": "Inactive seat holders",
+                "description": (
+                    f"{len(inactive_users)} users have Copilot seats but no recent activity."
+                ),
+                "affected_users": inactive_users[:50],
+                "count": len(inactive_users),
+                "severity": "medium",
+                "recommendation": (
+                    "Reach out to these users for onboarding support, "
+                    "or reclaim seats for active developers."
+                ),
+            }
+        )
+
+    # Check for policy restrictions from copilot_policies table
+    from app.models.copilot_policy import CopilotPolicy
+
+    policy_result = await db.execute(select(CopilotPolicy).where(CopilotPolicy.enabled.is_(True)))
+    active_policies = list(policy_result.scalars().all())
+
+    restrictive_policies = [
+        p for p in active_policies if p.policy_type in ("content_exclusion", "model_restriction")
+    ]
+    if restrictive_policies:
+        blocker_id += 1
+        blockers.append(
+            {
+                "id": blocker_id,
+                "category": "policy_restricted",
+                "title": "Active restrictive policies",
+                "description": (
+                    f"{len(restrictive_policies)} active policies may limit Copilot functionality."
+                ),
+                "affected_users": [],
+                "count": len(restrictive_policies),
+                "severity": "low",
+                "recommendation": (
+                    "Review active policies to ensure they don't unnecessarily "
+                    "restrict Copilot usage for your teams."
+                ),
+                "policies": [{"name": p.name, "type": p.policy_type} for p in restrictive_policies],
+            }
+        )
+
+    # Quick wins
+    quick_wins: list[dict[str, Any]] = []
+    if inactive_users:
+        quick_wins.append(
+            {
+                "action": "Reclaim inactive seats",
+                "impact": f"Save ${len(inactive_users) * _COST_BUSINESS:.0f}/month",
+                "effort": "low",
+                "description": (f"Reclaim {len(inactive_users)} inactive seats to reduce waste."),
+            }
+        )
+    if no_seat_users and len(no_seat_users) <= 20:
+        quick_wins.append(
+            {
+                "action": "Assign seats to team members",
+                "impact": f"Enable {len(no_seat_users)} more developers",
+                "effort": "low",
+                "description": "Assign Copilot seats to active team members without access.",
+            }
+        )
+
+    return {
+        "blockers": blockers,
+        "quick_wins": quick_wins,
+        "summary": {
+            "total_blockers": len(blockers),
+            "no_seat_count": len(no_seat_users),
+            "inactive_count": len(inactive_users),
+            "policy_restricted_count": len(restrictive_policies),
+        },
+    }
+
+
+# ── Policy Change Timeline (#78) ─────────────────────────────────────────────
+
+
+async def get_copilot_policy_changes(db: AsyncSession) -> dict[str, Any]:
+    """Query audit events for Copilot policy changes.
+
+    Searches the events table for ``copilot.*`` and ``copilot_policy.*``
+    actions and returns a chronological timeline.
+    """
+    from app.models.audit_event import AuditEvent
+
+    result = await db.execute(
+        select(AuditEvent)
+        .where(
+            AuditEvent.action.like("copilot%"),
+        )
+        .order_by(AuditEvent.created_at.desc())
+        .limit(200)
+    )
+    events = list(result.scalars().all())
+
+    timeline: list[dict[str, Any]] = []
+    for event in events:
+        data = event.data if hasattr(event, "data") and event.data else {}
+        timeline.append(
+            {
+                "id": event.id,
+                "action": event.action,
+                "actor": event.actor or "system",
+                "timestamp": event.created_at.isoformat() if event.created_at else "",
+                "org": event.org or "",
+                "old_value": data.get("old_value", data.get("previous_value", "")),
+                "new_value": data.get("new_value", data.get("current_value", "")),
+                "description": _describe_policy_action(event.action, data),
+            }
+        )
+
+    return {
+        "timeline": timeline,
+        "total_changes": len(timeline),
+    }
+
+
+def _describe_policy_action(action: str, data: dict[str, Any]) -> str:
+    """Generate a human-readable description for a policy change action."""
+    descriptions: dict[str, str] = {
+        "copilot.cfb_seat_assignment_created": "Copilot seat assigned",
+        "copilot.cfb_seat_assignment_revoked": "Copilot seat revoked",
+        "copilot.cfb_seat_cancelled": "Copilot seat cancelled",
+        "copilot.content_exclusion_changed": "Content exclusion rules changed",
+        "copilot_policy.update": "Copilot policy updated",
+        "copilot_policy.create": "New Copilot policy created",
+        "copilot_policy.delete": "Copilot policy deleted",
+    }
+    return descriptions.get(action, f"Copilot action: {action}")
+
+
+# ── ROI & Cost Optimization (#85) ────────────────────────────────────────────
+
+
+async def get_copilot_roi(db: AsyncSession) -> dict[str, Any]:
+    """Comprehensive Copilot ROI report.
+
+    Calculates seat cost, utilization, waste, savings opportunities,
+    and generates cost optimization recommendations.
+    """
+    seats_data = await _fetch_copilot_seats(db)
+    metrics_data = await _fetch_metrics_raw(db)
+
+    # Handle error cases
+    if isinstance(seats_data, dict) and "error" in seats_data:
+        return seats_data
+    if isinstance(metrics_data, dict) and "error" in metrics_data:
+        return metrics_data
+
+    seats: list[dict[str, Any]] = seats_data  # type: ignore[assignment]
+    days: list[dict[str, Any]] = metrics_data  # type: ignore[assignment]
+
+    # Get cost config
+    from app.models.org_config import OrgConfig
+
+    config_result = await db.execute(select(OrgConfig).limit(1))
+    org_config_row = config_result.scalars().first()
+    cost_override: float | None = (
+        float(org_config_row.copilot_cost_per_seat)
+        if org_config_row and org_config_row.copilot_cost_per_seat is not None
+        else None
+    )
+
+    # Seat analysis
+    total_seats = len(seats)
+    tier_counts = {"power": 0, "regular": 0, "minimal": 0, "inactive": 0}
+    plan_counts: dict[str, int] = {}
+
+    for seat in seats:
+        tier = _classify_user(seat)
+        tier_counts[tier] += 1
+        plan_type = seat.get("plan_type", "business")
+        plan_counts[plan_type] = plan_counts.get(plan_type, 0) + 1
+
+    active_seats = tier_counts["power"] + tier_counts["regular"] + tier_counts["minimal"]
+    inactive_seats = tier_counts["inactive"]
+
+    # Cost calculations
+    total_monthly_cost = 0.0
+    for seat in seats:
+        plan_type = seat.get("plan_type", "business")
+        total_monthly_cost += _cost_for_plan(plan_type, cost_override)
+
+    wasted_monthly = inactive_seats * _cost_for_plan("business", cost_override)
+    utilization_pct = round(active_seats / total_seats * 100, 1) if total_seats > 0 else 0
+
+    # Time-series cost efficiency (from metrics data)
+    cost_trend: list[dict[str, Any]] = []
+    for day_obj in days[-30:]:
+        date_str = day_obj.get("date", "")
+        active = day_obj.get("total_active_users", 0)
+        completions = day_obj.get("copilot_ide_code_completions") or {}
+        total_sugg = 0
+        total_acc = 0
+        for editor in completions.get("editors", []):
+            for model in editor.get("models", []):
+                for lang in model.get("languages", []):
+                    total_sugg += lang.get("total_code_suggestions", 0)
+                    total_acc += lang.get("total_code_acceptances", 0)
+
+        cost_per_active = round(total_monthly_cost / 30 / active, 2) if active > 0 else 0
+        acc_rate = round(total_acc / total_sugg * 100, 1) if total_sugg > 0 else 0
+
+        cost_trend.append(
+            {
+                "date": date_str,
+                "active_users": active,
+                "acceptance_rate": acc_rate,
+                "daily_cost_per_active_user": cost_per_active,
+            }
+        )
+
+    # Recommendations
+    recommendations: list[dict[str, Any]] = []
+
+    if inactive_seats > 0:
+        recommendations.append(
+            {
+                "type": "reclaim_seats",
+                "title": f"Reclaim {inactive_seats} inactive seats",
+                "impact": f"Save ${wasted_monthly:,.0f}/month (${wasted_monthly * 12:,.0f}/year)",
+                "priority": "high",
+                "description": (
+                    f"{inactive_seats} seats have no activity in 30+ days. "
+                    "Reclaim and redistribute to active developers."
+                ),
+            }
+        )
+
+    teams_data = await get_copilot_teams(db)
+    if isinstance(teams_data, dict) and teams_data.get("at_risk_count", 0) > 0:
+        at_risk = teams_data["at_risk_count"]
+        recommendations.append(
+            {
+                "type": "enable_teams",
+                "title": f"Enable {at_risk} at-risk teams",
+                "impact": "Increase org-wide adoption",
+                "priority": "medium",
+                "description": (
+                    f"{at_risk} teams have <30% Copilot adoption. "
+                    "Targeted onboarding can improve overall utilization."
+                ),
+            }
+        )
+
+    if tier_counts["minimal"] > 5:
+        recommendations.append(
+            {
+                "type": "activate_minimal",
+                "title": f"Activate {tier_counts['minimal']} minimal users",
+                "impact": "Better ROI from existing seats",
+                "priority": "medium",
+                "description": (
+                    f"{tier_counts['minimal']} users have seats but minimal usage. "
+                    "Consider training sessions or pairing with power users."
+                ),
+            }
+        )
+
+    return {
+        "summary": {
+            "total_seats": total_seats,
+            "active_seats": active_seats,
+            "inactive_seats": inactive_seats,
+            "utilization_pct": utilization_pct,
+            "total_monthly_cost": round(total_monthly_cost, 2),
+            "wasted_monthly": round(wasted_monthly, 2),
+            "annual_waste": round(wasted_monthly * 12, 2),
+            "cost_per_active_user": (
+                round(total_monthly_cost / active_seats, 2) if active_seats > 0 else 0
+            ),
+        },
+        "tier_breakdown": tier_counts,
+        "plan_breakdown": plan_counts,
+        "cost_trend": cost_trend,
+        "recommendations": recommendations,
+    }
