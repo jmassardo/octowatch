@@ -101,3 +101,100 @@ class WebhookCountsBucket(BaseModel):
     bucket: datetime
     org: str | None = None
     actions: dict[str, int] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# Compliance report schemas
+# ---------------------------------------------------------------------------
+
+
+class ComplianceControlEvidence(BaseModel):
+    """A single control section within a compliance report."""
+
+    control_id: str | None = None
+    function_id: str | None = None
+    title: str
+    description: str
+    evidence: dict[str, Any]
+    status: str = "evidence_collected"
+
+
+class CompliancePeriod(BaseModel):
+    """Report period metadata."""
+
+    start: str
+    end: str
+    days: int
+
+
+class ComplianceExecutiveSummary(BaseModel):
+    """Executive summary metrics for a compliance report."""
+
+    total_audit_events: int = 0
+    total_evidence_events: int = 0
+    unique_actors: int = 0
+    controls_assessed: int = 0
+    controls_with_evidence: int = 0
+    compliance_score_pct: float | None = None
+    unique_repositories: int | None = None
+    functions_assessed: int | None = None
+    functions_with_evidence: int | None = None
+    detection_volume: int | None = None
+
+
+class ComplianceReportEnvelope(BaseModel):
+    """Response envelope for compliance report endpoints."""
+
+    framework: str
+    generated_at: str
+    period: CompliancePeriod
+    org: str | None = None
+    executive_summary: ComplianceExecutiveSummary
+    controls: list[ComplianceControlEvidence] | None = None
+    functions: list[ComplianceControlEvidence] | None = None
+
+
+# ---------------------------------------------------------------------------
+# Report schedule schemas
+# ---------------------------------------------------------------------------
+
+
+class ReportScheduleCreate(BaseModel):
+    """Create a new report schedule."""
+
+    report_type: str = Field(..., max_length=50)
+    org: str | None = None
+    cron_expression: str = Field(..., max_length=100)
+    export_format: str = Field(default="html", pattern=r"^(pdf|html|xlsx|csv)$")
+    recipients: list[str] = Field(default_factory=list)
+    enabled: bool = True
+
+
+class ReportScheduleUpdate(BaseModel):
+    """Update an existing report schedule (all fields optional)."""
+
+    report_type: str | None = Field(None, max_length=50)
+    org: str | None = None
+    cron_expression: str | None = Field(None, max_length=100)
+    export_format: str | None = Field(None, pattern=r"^(pdf|html|xlsx|csv)$")
+    recipients: list[str] | None = None
+    enabled: bool | None = None
+
+
+class ReportScheduleResponse(BaseModel):
+    """Response schema for report schedule CRUD."""
+
+    id: int
+    report_type: str
+    org: str | None = None
+    cron_expression: str
+    export_format: str
+    recipients: list[str]
+    enabled: bool
+    created_by: str
+    last_run_at: datetime | None = None
+    last_status: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

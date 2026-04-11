@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ report.framework }} — OctoWatch Compliance Report</title>
+    <style>
+        /* ── Base styles ──────────────────────────────────────────── */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #24292e;
+            background: #ffffff;
+            line-height: 1.6;
+        }
+
+        /* ── Cover page ───────────────────────────────────────────── */
+        .cover {
+            background: linear-gradient(135deg, #24292e 0%, #0d1117 100%);
+            color: #ffffff;
+            padding: 80px 60px;
+            min-height: 300px;
+        }
+        .cover h1 { font-size: 32px; margin-bottom: 12px; }
+        .cover .subtitle { font-size: 18px; color: #8b949e; margin-bottom: 24px; }
+        .cover .meta { font-size: 14px; color: #8b949e; }
+        .cover .meta span { margin-right: 24px; }
+
+        /* ── Table of contents ────────────────────────────────────── */
+        .toc {
+            padding: 40px 60px;
+            border-bottom: 1px solid #e1e4e8;
+        }
+        .toc h2 { font-size: 22px; margin-bottom: 16px; }
+        .toc-list { list-style: none; }
+        .toc-list li {
+            padding: 8px 0;
+            border-bottom: 1px dotted #d0d7de;
+            font-size: 15px;
+        }
+        .toc-list li .toc-num { color: #0969da; font-weight: 600; margin-right: 8px; }
+
+        /* ── Executive summary ────────────────────────────────────── */
+        .summary {
+            padding: 40px 60px;
+            background: #f6f8fa;
+            border-bottom: 1px solid #e1e4e8;
+        }
+        .summary h2 { font-size: 22px; margin-bottom: 20px; }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        .metric-card {
+            background: #ffffff;
+            border: 1px solid #e1e4e8;
+            border-radius: 8px;
+            padding: 16px 20px;
+        }
+        .metric-card .value { font-size: 28px; font-weight: 700; color: #0969da; }
+        .metric-card .label { font-size: 13px; color: #57606a; margin-top: 4px; }
+
+        /* ── Control sections ─────────────────────────────────────── */
+        .controls { padding: 40px 60px; }
+        .controls h2 { font-size: 22px; margin-bottom: 24px; }
+        .control-section {
+            background: #ffffff;
+            border: 1px solid #e1e4e8;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+        .control-header {
+            padding: 16px 24px;
+            background: #f6f8fa;
+            border-bottom: 1px solid #e1e4e8;
+            border-left: 4px solid #0969da;
+        }
+        .control-header h3 {
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        .control-header .control-id {
+            color: #0969da;
+            font-weight: 700;
+            margin-right: 8px;
+        }
+        .control-header p {
+            font-size: 13px;
+            color: #57606a;
+            margin-top: 4px;
+        }
+        .control-body { padding: 20px 24px; }
+        .evidence-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .evidence-table th,
+        .evidence-table td {
+            text-align: left;
+            padding: 10px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        .evidence-table th {
+            font-weight: 600;
+            color: #57606a;
+            background: #fafbfc;
+        }
+        .evidence-table td.num {
+            text-align: right;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ── Status badge ─────────────────────────────────────────── */
+        .status-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            background: #dafbe1;
+            color: #1a7f37;
+        }
+
+        /* ── Footer ───────────────────────────────────────────────── */
+        .footer {
+            padding: 24px 60px;
+            font-size: 12px;
+            color: #8b949e;
+            border-top: 1px solid #e1e4e8;
+            text-align: center;
+        }
+
+        {% if print_ready %}
+        /* ── Print-optimized CSS for PDF export ───────────────────── */
+        @media print {
+            body { background: #ffffff; }
+            .cover { break-after: page; }
+            .toc { break-after: page; }
+            .control-section { break-inside: avoid; }
+            .summary { break-after: page; }
+        }
+        @page {
+            size: A4;
+            margin: 20mm;
+        }
+        {% endif %}
+    </style>
+</head>
+<body>
+
+    <!-- ═══ Cover Page ════════════════════════════════════════════════ -->
+    <div class="cover">
+        <h1>{{ report.framework }}</h1>
+        <div class="subtitle">Compliance Evidence Report</div>
+        <div class="meta">
+            <span>Period: {{ report.period.start[:10] }} — {{ report.period.end[:10] }}</span>
+            <span>Days: {{ report.period.days }}</span>
+            {% if report.org %}<span>Organization: {{ report.org }}</span>{% endif %}
+        </div>
+        <div class="meta" style="margin-top: 12px;">
+            <span>Generated: {{ report.generated_at[:19] }} UTC</span>
+            <span>Source: OctoWatch Audit Log Analytics</span>
+        </div>
+    </div>
+
+    <!-- ═══ Table of Contents ═════════════════════════════════════════ -->
+    <div class="toc">
+        <h2>Table of Contents</h2>
+        <ol class="toc-list">
+            <li><span class="toc-num">1</span> Executive Summary</li>
+            {% if report.controls %}
+                {% for ctrl in report.controls %}
+                <li>
+                    <span class="toc-num">{{ loop.index + 1 }}</span>
+                    {{ ctrl.control_id }} — {{ ctrl.title }}
+                </li>
+                {% endfor %}
+            {% endif %}
+            {% if report.functions %}
+                {% for func in report.functions %}
+                <li>
+                    <span class="toc-num">{{ loop.index + 1 }}</span>
+                    {{ func.function_id }} — {{ func.title }}
+                </li>
+                {% endfor %}
+            {% endif %}
+            <li><span class="toc-num">A</span> Appendix — Data Sources</li>
+        </ol>
+    </div>
+
+    <!-- ═══ Executive Summary ═════════════════════════════════════════ -->
+    <div class="summary">
+        <h2>Executive Summary</h2>
+        <div class="summary-grid">
+            {% for key, value in report.executive_summary.items() %}
+            <div class="metric-card">
+                <div class="value">
+                    {% if value is number and value is float %}
+                        {{ "%.1f"|format(value) }}%
+                    {% else %}
+                        {{ "{:,}".format(value) if value is number else value }}
+                    {% endif %}
+                </div>
+                <div class="label">{{ key | replace("_", " ") | title }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ═══ Control / Function Sections ═══════════════════════════════ -->
+    <div class="controls">
+        <h2>Control Evidence</h2>
+
+        {% if report.controls %}
+            {% for ctrl in report.controls %}
+            <div class="control-section">
+                <div class="control-header">
+                    <h3>
+                        <span class="control-id">{{ ctrl.control_id }}</span>
+                        {{ ctrl.title }}
+                    </h3>
+                    <p>{{ ctrl.description }}</p>
+                </div>
+                <div class="control-body">
+                    <span class="status-badge">{{ ctrl.status | replace("_", " ") | title }}</span>
+                    <table class="evidence-table" style="margin-top: 12px;">
+                        <thead>
+                            <tr><th>Evidence Metric</th><th style="text-align: right;">Value</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for metric_key, metric_val in ctrl.evidence.items() %}
+                            <tr>
+                                <td>{{ metric_key | replace("_", " ") | title }}</td>
+                                <td class="num">
+                                    {% if metric_val is iterable and metric_val is not string %}
+                                        {{ metric_val | length }} items
+                                    {% elif metric_val is number and metric_val is float %}
+                                        {{ "%.1f"|format(metric_val) }}
+                                    {% else %}
+                                        {{ "{:,}".format(metric_val) if metric_val is number else metric_val }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+        {% endif %}
+
+        {% if report.functions %}
+            {% for func in report.functions %}
+            <div class="control-section">
+                <div class="control-header">
+                    <h3>
+                        <span class="control-id">{{ func.function_id }}</span>
+                        {{ func.title }}
+                    </h3>
+                    <p>{{ func.description }}</p>
+                </div>
+                <div class="control-body">
+                    <span class="status-badge">{{ func.status | replace("_", " ") | title }}</span>
+                    <table class="evidence-table" style="margin-top: 12px;">
+                        <thead>
+                            <tr><th>Evidence Metric</th><th style="text-align: right;">Value</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for metric_key, metric_val in func.evidence.items() %}
+                            <tr>
+                                <td>{{ metric_key | replace("_", " ") | title }}</td>
+                                <td class="num">
+                                    {% if metric_val is iterable and metric_val is not string %}
+                                        {{ metric_val | length }} items
+                                    {% elif metric_val is number and metric_val is float %}
+                                        {{ "%.1f"|format(metric_val) }}
+                                    {% else %}
+                                        {{ "{:,}".format(metric_val) if metric_val is number else metric_val }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- ═══ Appendix ══════════════════════════════════════════════════ -->
+    <div class="controls">
+        <h2>Appendix A — Data Sources</h2>
+        <div class="control-section">
+            <div class="control-body">
+                <table class="evidence-table">
+                    <thead>
+                        <tr><th>Source</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>GitHub Audit Log</td>
+                            <td>Enterprise Cloud audit log events ingested via streaming or API</td>
+                        </tr>
+                        <tr>
+                            <td>TimescaleDB</td>
+                            <td>Time-series database storing normalized audit events</td>
+                        </tr>
+                        <tr>
+                            <td>OctoWatch Analytics</td>
+                            <td>Real-time detection engine and behavioral baselines</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        Generated by OctoWatch — GitHub Enterprise Audit Log Security Analytics Platform
+    </div>
+
+</body>
+</html>
