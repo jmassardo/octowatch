@@ -139,13 +139,13 @@ describe('ModelsPane clickable stats', () => {
     expect(screen.queryByText('VS Code — editor details')).not.toBeInTheDocument();
   });
 
-  it('shows sample data note in all modals', async () => {
+  it('shows model details in modal', async () => {
     const user = userEvent.setup();
     renderPane();
     const gpt4oRow = (await screen.findByText('GPT-4o')).closest('[role="button"]')!;
     await user.click(gpt4oRow);
     expect(
-      screen.getByText(/Connect the Copilot Metrics API for live per-user data/),
+      screen.getByText(/GPT-4o — usage details/),
     ).toBeInTheDocument();
   });
 });

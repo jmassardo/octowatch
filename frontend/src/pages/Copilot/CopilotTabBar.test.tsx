@@ -8,19 +8,24 @@ describe('CopilotTabBar', () => {
     activeTab: 'overview' as const,
     onTabChange: vi.fn(),
     anomalyCount: 3,
+    blockerCount: 0,
   };
 
-  it('renders all 6 tabs', () => {
+  it('renders all 10 tabs', () => {
     render(<CopilotTabBar {...defaultProps} />);
     const tablist = screen.getByRole('tablist');
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs).toHaveLength(6);
+    expect(tabs).toHaveLength(10);
     expect(tabs[0]).toHaveTextContent('Overview');
     expect(tabs[1]).toHaveTextContent('Adoption');
     expect(tabs[2]).toHaveTextContent('Models & Features');
-    expect(tabs[3]).toHaveTextContent('License Optimization');
-    expect(tabs[4]).toHaveTextContent(/Anomalies/);
-    expect(tabs[5]).toHaveTextContent('Governance');
+    expect(tabs[3]).toHaveTextContent('Teams');
+    expect(tabs[4]).toHaveTextContent('Blockers');
+    expect(tabs[5]).toHaveTextContent('License Optimization');
+    expect(tabs[6]).toHaveTextContent('ROI');
+    expect(tabs[7]).toHaveTextContent(/Anomalies/);
+    expect(tabs[8]).toHaveTextContent('Policy Timeline');
+    expect(tabs[9]).toHaveTextContent('Governance');
   });
 
   it('marks the active tab with aria-selected', () => {
@@ -56,6 +61,18 @@ describe('CopilotTabBar', () => {
     expect(anomaliesTab.textContent).toBe('Anomalies');
   });
 
+  it('shows badge on blockers tab when count > 0', () => {
+    render(<CopilotTabBar {...defaultProps} blockerCount={5} />);
+    const blockersTab = screen.getByRole('tab', { name: /Blockers/ });
+    expect(blockersTab).toHaveTextContent('5');
+  });
+
+  it('does not show blockers badge when blockerCount is 0', () => {
+    render(<CopilotTabBar {...defaultProps} blockerCount={0} />);
+    const blockersTab = screen.getByRole('tab', { name: /Blockers/ });
+    expect(blockersTab.textContent).toBe('Blockers');
+  });
+
   it('calls onTabChange with correct tab id when clicked', async () => {
     const user = userEvent.setup();
     const onTabChange = vi.fn();
@@ -66,5 +83,11 @@ describe('CopilotTabBar', () => {
 
     await user.click(screen.getByRole('tab', { name: /License/ }));
     expect(onTabChange).toHaveBeenCalledWith('license');
+
+    await user.click(screen.getByRole('tab', { name: /Teams/ }));
+    expect(onTabChange).toHaveBeenCalledWith('teams');
+
+    await user.click(screen.getByRole('tab', { name: /ROI/ }));
+    expect(onTabChange).toHaveBeenCalledWith('roi');
   });
 });

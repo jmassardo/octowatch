@@ -106,6 +106,14 @@ vi.mock('../../api/copilotMetrics', () => ({
     features: [{ feature: 'IDE completions', count: 142, color: '#58a6ff' }],
     editors: [{ name: 'VS Code', count: 112, pct: 79 }],
   }),
+  getCopilotBlockers: vi.fn().mockResolvedValue({
+    blockers: [],
+    quick_wins: [],
+    summary: { total_blockers: 0, no_seat_count: 0, inactive_count: 0, policy_restricted_count: 0 },
+  }),
+  getCopilotTeams: vi.fn().mockResolvedValue({ teams: [], total_teams: 0, at_risk_count: 0 }),
+  getCopilotPolicyChanges: vi.fn().mockResolvedValue({ timeline: [], total_changes: 0 }),
+  getCopilotROI: vi.fn().mockResolvedValue({ summary: null, recommendations: [] }),
 }));
 
 function renderPage(initialTab = 'overview') {
@@ -134,11 +142,11 @@ describe('CopilotPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the tab bar with 6 tabs', () => {
+  it('renders the tab bar with 10 tabs', () => {
     renderPage();
     const tablist = screen.getByRole('tablist');
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs).toHaveLength(6);
+    expect(tabs).toHaveLength(10);
   });
 
   it('shows the anomaly badge with count 3', async () => {

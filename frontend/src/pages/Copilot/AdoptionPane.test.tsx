@@ -190,8 +190,6 @@ describe('AdoptionPane clickable stats', () => {
     expect(minimalBtn).toBeTruthy();
     await user.click(minimalBtn!);
     const dialog = getDialog();
-    expect(
-      within(dialog).getByText(/Copilot Metrics API for live per-user data/),
-    ).toBeInTheDocument();
+    expect(within(dialog).getByText(/Copilot activity/)).toBeInTheDocument();
   });
 });

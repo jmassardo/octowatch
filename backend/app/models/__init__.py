@@ -3,6 +3,7 @@
 from app.models.app_settings import AppSetting, AppSettingAudit, SetupState
 from app.models.audit_event import AuditEvent, EventDedup, EventRawPayload
 from app.models.audit_trail import AuditTrail
+from app.models.copilot_metrics import CopilotDailyMetric, CopilotSeatSnapshot
 from app.models.copilot_policy import CopilotPolicy, CopilotPolicyViolation
 from app.models.detection import (
     BehavioralBaseline,
@@ -62,8 +63,10 @@ __all__ = [
     "AuditTrail",
     "BehavioralBaseline",
     "CodeScanningAlert",
+    "CopilotDailyMetric",
     "CopilotPolicy",
     "CopilotPolicyViolation",
+    "CopilotSeatSnapshot",
     "DependabotAlert",
     "Detection",
     "DetectionSuppression",

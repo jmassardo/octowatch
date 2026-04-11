@@ -40,6 +40,7 @@ app.config_from_object(
             "app.workers.notification.*": {"queue": "notification"},
             "app.workers.report_worker.*": {"queue": "notification"},
             "app.workers.github_sync.*": {"queue": "github_sync"},
+            "app.workers.copilot_metrics_worker.*": {"queue": "github_sync"},
         },
         # ─── Soft / hard time limits ─────────────────────────────────────────
         "task_soft_time_limit": 1800,  # 30 minutes
@@ -99,6 +100,12 @@ app.config_from_object(
                 "schedule": crontab(minute=30),
                 "options": {"queue": "notification"},
             },
+            # Copilot metrics sync — daily at 06:00 UTC
+            "sync-copilot-metrics": {
+                "task": "app.workers.copilot_metrics_worker.sync_copilot_metrics",
+                "schedule": crontab(hour=6, minute=0),
+                "options": {"queue": "github_sync"},
+            },
         },
     }
 )
@@ -119,6 +126,7 @@ app.conf.include = [
     "app.workers.detection_worker",
     "app.workers.report_worker",
     "app.workers.retention_worker",
+    "app.workers.copilot_metrics_worker",
     "app.workers.ingestion.s3_worker",
     "app.workers.ingestion.azure_worker",
     "app.workers.ingestion.base",
