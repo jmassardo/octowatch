@@ -1,0 +1,18 @@
+OctoWatch Security Digest
+{{ period_start }} — {{ period_end }}
+
+Summary: {{ total_count }} detection{{ 's' if total_count != 1 else '' }} found
+{% for severity, count in severity_counts.items() %}
+  {{ severity | capitalize }}: {{ count }}
+{%- endfor %}
+
+{% for severity, detections in grouped_detections.items() %}
+=== {{ severity | upper }} ({{ detections | length }}) ===
+{% for d in detections %}
+- {{ d.title }}
+  Actor: {{ d.actor or 'N/A' }} | Org: {{ d.org or 'N/A' }}
+  Triggered: {{ d.triggered_at.isoformat() if d.triggered_at else 'N/A' }}
+{% endfor %}
+{% endfor %}
+---
+This is an automated digest from OctoWatch. Do not reply to this email.

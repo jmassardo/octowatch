@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f6f8fa;
+            color: #24292e;
+        }
+        .header {
+            background: #24292e;
+            color: #ffffff;
+            padding: 24px 32px;
+        }
+        .header h1 {
+            margin: 0 0 4px 0;
+            font-size: 22px;
+        }
+        .header p {
+            margin: 0;
+            font-size: 14px;
+            color: #959da5;
+        }
+        .content {
+            padding: 24px 32px;
+        }
+        .summary {
+            background: #ffffff;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+        }
+        .summary h2 {
+            margin: 0 0 12px 0;
+            font-size: 18px;
+        }
+        .summary-counts {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .count-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .severity-section {
+            margin-bottom: 20px;
+            background: #ffffff;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .severity-header {
+            padding: 12px 20px;
+            font-weight: 600;
+            font-size: 15px;
+            border-bottom: 1px solid #e1e4e8;
+        }
+        .severity-critical .severity-header { border-left: 4px solid #d73a49; }
+        .severity-high .severity-header { border-left: 4px solid #e36209; }
+        .severity-medium .severity-header { border-left: 4px solid #dbab09; }
+        .severity-low .severity-header { border-left: 4px solid #0366d6; }
+        .severity-info .severity-header { border-left: 4px solid #586069; }
+        .detection-item {
+            padding: 12px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        .detection-item:last-child {
+            border-bottom: none;
+        }
+        .detection-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .detection-meta {
+            color: #586069;
+            font-size: 13px;
+        }
+        .footer {
+            padding: 16px 32px;
+            font-size: 12px;
+            color: #586069;
+            border-top: 1px solid #e1e4e8;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>OctoWatch Security Digest</h1>
+        <p>{{ period_start }} &mdash; {{ period_end }}</p>
+    </div>
+    <div class="content">
+        <div class="summary">
+            <h2>{{ total_count }} detection{{ 's' if total_count != 1 else '' }} found</h2>
+            {% for severity, count in severity_counts.items() %}
+            <span class="count-badge">{{ severity | capitalize }}: {{ count }}</span>
+            {% endfor %}
+        </div>
+        {% for severity, detections in grouped_detections.items() %}
+        <div class="severity-section severity-{{ severity }}">
+            <div class="severity-header">
+                {{ severity | upper }} ({{ detections | length }})
+            </div>
+            {% for d in detections %}
+            <div class="detection-item">
+                <div class="detection-title">{{ d.title }}</div>
+                <div class="detection-meta">
+                    Actor: {{ d.actor or 'N/A' }}
+                    &middot; Org: {{ d.org or 'N/A' }}
+                    &middot; Triggered: {{ d.triggered_at.isoformat() if d.triggered_at else 'N/A' }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    <div class="footer">
+        This is an automated digest from OctoWatch. Do not reply to this email.
+    </div>
+</body>
+</html>

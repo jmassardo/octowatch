@@ -75,7 +75,7 @@ class Ticket(Base):
 
 
 class NotificationConfig(Base):
-    """Admin-configured notification channel (Slack or SMTP email)."""
+    """Admin-configured notification channel (Slack, email, PagerDuty, or Teams)."""
 
     __tablename__ = "notification_configs"
 
@@ -97,6 +97,15 @@ class NotificationConfig(Base):
         server_default=text("NOW()"),
         onupdate=text("NOW()"),
     )
+
+    # ── Routing rules (Epic 2 — Issue #38) ───────────────────────────────
+    rule_categories: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+    org_filter: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+    is_catch_all: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # ── Digest mode (Epic 2 — Issue #54) ─────────────────────────────────
+    digest_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    digest_cron: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class IdpActorEnrichment(Base):
