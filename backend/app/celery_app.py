@@ -96,6 +96,8 @@ app.autodiscover_tasks(
 app.conf.include = [
     "app.workers.github_sync_worker",
     "app.workers.notification_worker",
+    "app.workers.baseline_worker",
+    "app.workers.detection_worker",
     "app.workers.ingestion.s3_worker",
     "app.workers.ingestion.azure_worker",
     "app.workers.ingestion.base",

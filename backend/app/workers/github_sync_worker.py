@@ -1691,7 +1691,7 @@ async def _fetch_page(
         while True:
             dep_params["page"] = page
             resp = await _github_get(url, headers, dep_params, rate_limiter)
-            if resp.status_code in (403, 404):
+            if resp.status_code in (400, 403, 404):
                 logger.warning(
                     "github_sync.dependabot_unavailable",
                     org=org,

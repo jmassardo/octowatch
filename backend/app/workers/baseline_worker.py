@@ -16,7 +16,7 @@ logger = structlog.get_logger(__name__)
 
 
 @celery_app.task(
-    name="workers.compute_rolling_baselines",
+    name="app.workers.baseline_worker.compute_rolling_baselines",
     bind=True,
     max_retries=2,
 )
