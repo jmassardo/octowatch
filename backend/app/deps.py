@@ -167,8 +167,12 @@ async def get_current_user(
     # Roles are cached in Valkey at login.  Re-resolve from the database
     # periodically so that revoked roles take effect without waiting for JWT
     # expiry.  Interval is configured via ROLE_REFRESH_INTERVAL_SECONDS.
+    # Skip refresh for the synthetic setup_admin — it has no DB record and
+    # its session-stored roles (["sys_admin"]) are authoritative.
     last_refresh = float(session_data.get("roles_refreshed_at", 0) or 0)
-    if time.time() - last_refresh > settings.AUTH.ROLE_REFRESH_INTERVAL_SECONDS:
+    if github_login == "setup_admin":
+        roles = list(session_data.get("roles", []))
+    elif time.time() - last_refresh > settings.AUTH.ROLE_REFRESH_INTERVAL_SECONDS:
         try:
             from app.database import AsyncSessionLocal
             from app.services.rbac_service import get_user_scope, resolve_roles
