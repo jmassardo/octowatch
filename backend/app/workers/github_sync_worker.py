@@ -278,6 +278,12 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
     sf = _make_session_factory()
 
     async with sf() as session:
+        # Refresh in-memory settings from DB (setup wizard stores credentials
+        # in app_settings, not env vars).
+        from app.services.config_overlay import refresh_settings
+
+        await refresh_settings(session)
+
         # Mark run as started
         await session.execute(
             update(EnterpriseSyncRun)
