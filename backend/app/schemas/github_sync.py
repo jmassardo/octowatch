@@ -29,6 +29,7 @@ class SyncTriggerRequest(BaseModel):
         "code_scanning_alerts",
         "actions_workflows",
         "mfa_status",
+        "audit_log",
     ] = "full"
 
 

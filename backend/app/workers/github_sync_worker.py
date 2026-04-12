@@ -87,8 +87,9 @@ async def _write_sync_log(
             # A plain max() is sufficient here — concurrent log writes for
             # the same run_id are unlikely and a duplicate seq is harmless.
             result = await session.execute(
-                select(func.coalesce(func.max(SyncLogEntry.seq), 0) + 1)
-                .where(SyncLogEntry.run_id == run_uuid)
+                select(func.coalesce(func.max(SyncLogEntry.seq), 0) + 1).where(
+                    SyncLogEntry.run_id == run_uuid
+                )
             )
             seq = result.scalar_one()
             entry = SyncLogEntry(
@@ -129,6 +130,7 @@ ScopeType = Literal[
     "code_scanning_alerts",
     "actions_workflows",
     "mfa_status",
+    "audit_log",
 ]
 
 
@@ -326,7 +328,13 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         return {"status": "failed", "reason": "no_configs"}
 
     # Determine entity×org matrix
-    _ENTERPRISE_ENTITIES = {"orgs", "enterprise_members", "installations", "license_consumption"}
+    _ENTERPRISE_ENTITIES = {
+        "orgs",
+        "enterprise_members",
+        "installations",
+        "license_consumption",
+        "audit_log",
+    }
     _ORG_ENTITIES = {
         "org_members",
         "repositories",
@@ -1955,6 +1963,84 @@ async def _fetch_page(
         }
         return [mfa_item], "_done"
 
+    # ── Audit log (enterprise-level, cursor-based pagination) ─────────────
+    if entity_type == "audit_log":
+        import json as _json
+
+        enterprise_slug = org
+        if not enterprise_slug:
+            logger.warning("github_sync.audit_log_no_enterprise_slug")
+            return [], None
+
+        url = f"{_GITHUB_API_BASE}/enterprises/{enterprise_slug}/audit-log"
+        audit_params: dict[str, object] = {
+            "include": "all",
+            "per_page": page_size,
+        }
+
+        # Delta sync: use stored cursor (ISO timestamp) to fetch only new events
+        if cursor and cursor != "_done":
+            try:
+                cursor_data = _json.loads(cursor)
+                after_cursor = cursor_data.get("after")
+                if after_cursor:
+                    audit_params["after"] = after_cursor
+                timestamp_cursor = cursor_data.get("timestamp")
+                if timestamp_cursor:
+                    audit_params["phrase"] = f"created:>={timestamp_cursor}"
+            except (ValueError, TypeError):
+                # Legacy cursor format: treat as ISO timestamp
+                audit_params["phrase"] = f"created:>={cursor}"
+        elif cursor is None and delta_since is not None:
+            # First page of a delta sync: use the previous run's completion time
+            audit_params["phrase"] = f"created:>={delta_since.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+        elif cursor is None:
+            # First full sync: limit lookback to 90 days
+            lookback = datetime.now(UTC) - timedelta(days=90)
+            audit_params["phrase"] = f"created:>={lookback.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+
+        resp = await _github_get(url, headers, audit_params, rate_limiter)
+        if resp.status_code in (403, 404):
+            logger.warning(
+                "github_sync.audit_log_unavailable",
+                enterprise=enterprise_slug,
+                status=resp.status_code,
+                hint="GitHub App may need 'organization_administration:read' "
+                "or enterprise audit log permission",
+            )
+            return [], None
+        resp.raise_for_status()
+        events = resp.json()
+
+        if not events:
+            return [], None
+
+        # Determine next cursor from the last event's _document_id and timestamp
+        last_event = events[-1]
+        last_ts_raw = last_event.get("@timestamp") or last_event.get("created_at")
+        if isinstance(last_ts_raw, (int, float)):
+            last_ts = datetime.fromtimestamp(last_ts_raw / 1000, tz=UTC).isoformat()
+        elif last_ts_raw:
+            last_ts = str(last_ts_raw)
+        else:
+            last_ts = datetime.now(UTC).isoformat()
+
+        # GitHub audit log uses Link header or returns `after` cursor
+        # Build a composite cursor with both the after value and timestamp
+        after_value = last_event.get("_document_id", "")
+
+        # Check for Link header with rel="next"
+        has_more = _has_next_page(resp.headers)
+        if has_more:
+            next_cursor = _json.dumps({"after": after_value, "timestamp": last_ts})
+        elif len(events) == page_size:
+            # No Link header but we got a full page — there might be more
+            next_cursor = _json.dumps({"after": after_value, "timestamp": last_ts})
+        else:
+            next_cursor = None
+
+        return events, next_cursor
+
     logger.error("github_sync.unknown_entity_type", entity_type=entity_type)
     return [], None
 
@@ -2724,8 +2810,172 @@ async def _upsert_items(
         await _upsert_actions_workflow_summary(session, org_str, items)
     elif entity_type == "mfa_status":
         await _upsert_mfa_status(session, org_str, items)
+    elif entity_type == "audit_log":
+        await _upsert_audit_log_events(session, org, items)
     else:
         logger.error("github_sync.unknown_upsert_entity", entity_type=entity_type)
+
+
+async def _upsert_audit_log_events(
+    session: AsyncSession,
+    enterprise_slug: str | None,
+    items: list[dict[str, object]],
+) -> None:
+    """Normalize and insert audit log events into the events table with dedup.
+
+    Each raw event from the GitHub Enterprise audit log API is normalized
+    using the same field mapping as ``BaseIngestionWorker._normalize_event()``
+    and inserted into the ``events`` table. Deduplication is handled via
+    ``_document_id`` (or a computed hash) written to the ``event_dedup`` table.
+    """
+    import hashlib
+    import json
+
+    from sqlalchemy import text
+
+    if not items:
+        return
+
+    inserted = 0
+    for raw_event in items:
+        action = raw_event.get("action")
+        if not action:
+            continue
+
+        # Parse timestamp
+        ts_raw = raw_event.get("@timestamp") or raw_event.get("created_at")
+        if ts_raw is None:
+            created_at = datetime.now(UTC)
+        elif isinstance(ts_raw, (int, float)):
+            created_at = datetime.fromtimestamp(ts_raw / 1000, tz=UTC)
+        else:
+            try:
+                created_at = datetime.fromisoformat(str(ts_raw).replace("Z", "+00:00"))
+            except ValueError:
+                created_at = datetime.now(UTC)
+
+        source_ip = raw_event.get("@ip") or raw_event.get("actor_ip")
+
+        # GeoIP enrichment (best-effort)
+        geo_country_code = geo_city = geo_latitude = geo_longitude = None
+        geo_is_proxy = False
+        if source_ip:
+            try:
+                from app.services.geoip_service import get_geoip_location
+
+                geo = get_geoip_location(source_ip)
+                if geo:
+                    geo_country_code = geo.country_code
+                    geo_city = geo.city
+                    geo_latitude = geo.latitude
+                    geo_longitude = geo.longitude
+                    geo_is_proxy = geo.is_proxy or False
+            except Exception:
+                logger.debug("geoip.lookup_failed", source_ip=source_ip)
+
+        # Compute dedup hash from stable fields
+        key_fields = {
+            "action": raw_event.get("action", ""),
+            "actor": raw_event.get("actor", ""),
+            "org": raw_event.get("org", ""),
+            "repo": raw_event.get("repo", ""),
+            "created_at": str(raw_event.get("created_at", "")),
+            "source_ip": str(raw_event.get("@ip", raw_event.get("source_ip", ""))),
+        }
+        canonical = json.dumps(key_fields, sort_keys=True)
+        dedup_hash = hashlib.sha256(canonical.encode()).hexdigest()
+
+        # Use GitHub's _document_id if present, otherwise the computed hash
+        document_id = raw_event.get("_document_id") or dedup_hash
+
+        # Check for existing dedup record
+        existing = await session.execute(
+            text("SELECT 1 FROM event_dedup WHERE document_id = :doc_id"),
+            {"doc_id": document_id},
+        )
+        if existing.fetchone():
+            continue
+
+        # Strip @-prefixed fields from the data blob
+        data = {k: v for k, v in raw_event.items() if not k.startswith("@")}
+
+        # Security: strip secret names from workflow events
+        if action == "workflows.prepared_workflow_job":
+            secrets_passed = data.get("secrets_passed", [])
+            data["secrets_passed_count"] = (
+                len(secrets_passed) if isinstance(secrets_passed, list) else 0
+            )
+            data.pop("secrets_passed", None)
+
+        normalized = {
+            "document_id": document_id,
+            "action": action,
+            "actor": raw_event.get("actor"),
+            "actor_id": raw_event.get("actor_id"),
+            "actor_is_bot": bool(raw_event.get("actor_is_bot", False)),
+            "org": raw_event.get("org"),
+            "repo": raw_event.get("repo"),
+            "source_ip": source_ip,
+            "created_at": created_at,
+            "data": json.dumps(data),
+            "geo_country_code": geo_country_code,
+            "geo_city": geo_city,
+            "geo_latitude": geo_latitude,
+            "geo_longitude": geo_longitude,
+            "geo_is_proxy": geo_is_proxy,
+            "user_agent": raw_event.get("user_agent"),
+            "ingestion_source": "github_enterprise_sync",
+            "source_file_path": f"enterprise/{enterprise_slug or 'unknown'}/audit-log",
+        }
+
+        # Insert event
+        result = await session.execute(
+            text("""
+                INSERT INTO events (
+                    document_id, action, actor, actor_id, actor_is_bot,
+                    org, repo, source_ip, created_at, data,
+                    geo_country_code, geo_city, geo_latitude, geo_longitude, geo_is_proxy,
+                    user_agent, ingestion_source, source_file_path
+                ) VALUES (
+                    :document_id, :action, :actor, :actor_id, :actor_is_bot,
+                    :org, :repo, :source_ip, :created_at, CAST(:data AS jsonb),
+                    :geo_country_code, :geo_city,
+                    :geo_latitude, :geo_longitude, :geo_is_proxy,
+                    :user_agent, :ingestion_source, :source_file_path
+                )
+                ON CONFLICT (document_id, created_at) DO NOTHING
+                RETURNING id
+            """),
+            normalized,
+        )
+        row = result.fetchone()
+        if not row:
+            continue  # duplicate — already exists
+        event_id = row[0]
+
+        # Insert dedup record
+        await session.execute(
+            text(
+                "INSERT INTO event_dedup (document_id, event_id, created_at) "
+                "VALUES (:doc_id, :event_id, :ts) ON CONFLICT DO NOTHING"
+            ),
+            {
+                "doc_id": document_id,
+                "event_id": event_id,
+                "ts": created_at,
+            },
+        )
+        inserted += 1
+
+    await session.commit()
+
+    if inserted:
+        logger.info(
+            "github_sync.audit_log_events_inserted",
+            inserted=inserted,
+            total=len(items),
+            enterprise=enterprise_slug,
+        )
 
 
 async def _sync_installation_configs(existing_configs: list, settings: object) -> list:

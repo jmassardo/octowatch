@@ -690,8 +690,10 @@ class TestOrchestratorCompletion:
 
     @patch("app.workers.github_sync_worker.run_post_sync_pipeline")
     @patch("app.workers.github_sync_worker._make_session_factory")
+    @patch("app.services.config_overlay.refresh_settings", new_callable=AsyncMock)
     def test_orchestrator_no_configs_returns_failed(
         self,
+        mock_refresh: AsyncMock,
         mock_session_factory: MagicMock,
         mock_post_sync: MagicMock,
     ) -> None:
