@@ -257,6 +257,7 @@ services:
   # ---------------------------------------------------------------------------
   api:
     image: octowatch-api:latest
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
     environment:
       <<: *app-env
       # Ingestion mode determines which storage backend to use

@@ -224,7 +224,7 @@ class GitHubAppSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
-    GITHUB_APP_ID: int | None = Field(
+    GITHUB_APP_ID: str | int | None = Field(
         default=None,
         description="GitHub App numeric App ID (from App settings page)",
     )
