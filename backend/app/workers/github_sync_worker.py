@@ -83,10 +83,12 @@ async def _write_sync_log(
 
         run_uuid = uuid.UUID(run_id)
         async with session_factory() as session:
+            # PostgreSQL forbids FOR UPDATE with aggregate functions.
+            # A plain max() is sufficient here — concurrent log writes for
+            # the same run_id are unlikely and a duplicate seq is harmless.
             result = await session.execute(
                 select(func.coalesce(func.max(SyncLogEntry.seq), 0) + 1)
                 .where(SyncLogEntry.run_id == run_uuid)
-                .with_for_update()
             )
             seq = result.scalar_one()
             entry = SyncLogEntry(
