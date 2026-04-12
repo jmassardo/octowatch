@@ -285,9 +285,19 @@ class GitHubAppSettings(BaseSettings):
     @field_validator("GITHUB_APP_ID", mode="before")
     @classmethod
     def coerce_app_id(cls, v: int | str | None) -> int | None:
-        """Coerce empty strings to None so env vars like GITHUB_APP_ID='' don't fail."""
+        """Coerce empty strings to None and string digits to int.
+
+        pydantic-settings v2 may pass the raw env-var string before the
+        declared union type is resolved, so we handle the int conversion
+        ourselves to avoid ``int_parsing`` errors on ``''``.
+        """
         if v is None or (isinstance(v, str) and v.strip() == ""):
             return None
+        if isinstance(v, str):
+            try:
+                return int(v.strip())
+            except ValueError:
+                raise ValueError(f"GITHUB_APP_ID must be a valid integer, got: {v!r}") from None
         return v
 
     @field_validator("GITHUB_APP_PRIVATE_KEY_PATH")
@@ -313,7 +323,11 @@ class GitHubAppSettings(BaseSettings):
         """Enterprise slug must be alphanumeric with hyphens only. Empty string → None."""
         import re
 
-        if v is None or (isinstance(v, str) and v.strip() == ""):
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            raise ValueError("GITHUB_ENTERPRISE_SLUG must be a string")
+        if v.strip() == "":
             return None
         if not re.fullmatch(r"[a-zA-Z0-9-]+", v):
             raise ValueError(

@@ -266,6 +266,75 @@ class TestGitHubAppSettings:
         assert settings.github_app is not None
         assert settings.github_app.GITHUB_SYNC_ENABLED is False
 
+    def test_empty_string_app_id_coerced_to_none(self) -> None:
+        """Empty string GITHUB_APP_ID (from env var) is coerced to None."""
+        from app.config import GitHubAppSettings
+
+        s = GitHubAppSettings(GITHUB_APP_ID="")
+        assert s.GITHUB_APP_ID is None
+
+    def test_whitespace_app_id_coerced_to_none(self) -> None:
+        """Whitespace-only GITHUB_APP_ID is coerced to None."""
+        from app.config import GitHubAppSettings
+
+        s = GitHubAppSettings(GITHUB_APP_ID="   ")
+        assert s.GITHUB_APP_ID is None
+
+    def test_string_numeric_app_id_coerced_to_int(self) -> None:
+        """String numeric GITHUB_APP_ID (from env var) is coerced to int."""
+        from app.config import GitHubAppSettings
+
+        s = GitHubAppSettings(GITHUB_APP_ID="12345")
+        assert s.GITHUB_APP_ID == 12345
+
+    def test_string_numeric_app_id_with_whitespace(self) -> None:
+        """String numeric GITHUB_APP_ID with whitespace is trimmed and coerced."""
+        from app.config import GitHubAppSettings
+
+        s = GitHubAppSettings(GITHUB_APP_ID=" 42 ")
+        assert s.GITHUB_APP_ID == 42
+
+    def test_int_app_id_accepted(self) -> None:
+        """Integer GITHUB_APP_ID is accepted as-is."""
+        from app.config import GitHubAppSettings
+
+        s = GitHubAppSettings(GITHUB_APP_ID=99999)
+        assert s.GITHUB_APP_ID == 99999
+
+    def test_non_numeric_string_app_id_rejected(self) -> None:
+        """Non-numeric string GITHUB_APP_ID is rejected."""
+        from app.config import GitHubAppSettings
+
+        with pytest.raises(ValidationError, match="valid integer"):
+            GitHubAppSettings(GITHUB_APP_ID="not-a-number")
+
+    def test_empty_string_enterprise_slug_coerced_to_none(self) -> None:
+        """Empty string GITHUB_ENTERPRISE_SLUG (from env var) is coerced to None."""
+        from app.config import GitHubAppSettings
+
+        s = GitHubAppSettings(GITHUB_ENTERPRISE_SLUG="")
+        assert s.GITHUB_ENTERPRISE_SLUG is None
+
+    def test_whitespace_enterprise_slug_coerced_to_none(self) -> None:
+        """Whitespace-only GITHUB_ENTERPRISE_SLUG is coerced to None."""
+        from app.config import GitHubAppSettings
+
+        s = GitHubAppSettings(GITHUB_ENTERPRISE_SLUG="  ")
+        assert s.GITHUB_ENTERPRISE_SLUG is None
+
+    def test_all_github_vars_empty_strings_accepted(self) -> None:
+        """App starts with all GitHub vars as empty strings (simulates env)."""
+        from app.config import GitHubAppSettings
+
+        s = GitHubAppSettings(
+            GITHUB_APP_ID="",
+            GITHUB_ENTERPRISE_SLUG="",
+            GITHUB_APP_PRIVATE_KEY_PATH="",
+        )
+        assert s.GITHUB_APP_ID is None
+        assert s.GITHUB_ENTERPRISE_SLUG is None
+        assert s.GITHUB_APP_PRIVATE_KEY_PATH is None
+
 
 # ─── Router Tests ─────────────────────────────────────────────────────────────
 
