@@ -201,10 +201,29 @@ async def get_scoped_orgs(
     )
 
     if scope.is_global:
+        # Primary source: distinct orgs from the events table
         result = await session.execute(
             text("SELECT DISTINCT org FROM events WHERE org IS NOT NULL LIMIT 1000")
         )
-        return [row[0] for row in result.fetchall()]
+        orgs = [row[0] for row in result.fetchall()]
+        if orgs:
+            return orgs
+
+        # Fallback: synced orgs from enterprise_orgs / github_app_configs
+        # (covers fresh installs where sync has run but no audit events yet)
+        for fallback_query in (
+            "SELECT DISTINCT org_login FROM enterprise_orgs WHERE org_login IS NOT NULL",
+            "SELECT DISTINCT org_login FROM github_app_configs WHERE enabled = true AND org_login IS NOT NULL",
+        ):
+            try:
+                fb = await session.execute(text(fallback_query))
+                orgs = [row[0] for row in fb.fetchall()]
+                if orgs:
+                    return orgs
+            except Exception:
+                continue
+
+        return []
 
     return scope.scoped_orgs
 

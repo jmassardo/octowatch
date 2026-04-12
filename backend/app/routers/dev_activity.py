@@ -26,9 +26,13 @@ async def _resolve_orgs(
     db: AsyncSession,
     current_user: AuthenticatedUser,
 ) -> list[str]:
-    """Resolve RBAC-scoped orgs and raise 403 when the list is empty."""
+    """Resolve RBAC-scoped orgs and raise 403 when the list is empty.
+
+    Global (sys_admin) users with no orgs yet get an empty list (no data)
+    rather than 403, since it means no events/orgs have been synced yet.
+    """
     scoped_orgs = await rbac_service.get_scoped_orgs(db, current_user)
-    if not scoped_orgs:
+    if not scoped_orgs and current_user.scope_type != "global":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No org access",
