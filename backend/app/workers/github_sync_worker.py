@@ -131,6 +131,8 @@ ScopeType = Literal[
     "actions_workflows",
     "mfa_status",
     "audit_log",
+    "repo_commits",
+    "pull_requests",
 ]
 
 
@@ -347,6 +349,8 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         "code_scanning_alerts",
         "actions_workflows",
         "mfa_status",
+        "repo_commits",
+        "pull_requests",
     }
 
     entity_types: list[str] = (
@@ -1508,6 +1512,285 @@ async def _fetch_page(
 
         next_cursor = str(page + 1) if _has_next_page(resp.headers) else None
         return items, next_cursor
+
+    # ── Repo commits (iterate repos, fetch recent commits per repo) ───────
+    if entity_type == "repo_commits":
+        cursor_data = json.loads(cursor) if cursor else {"repo_idx": 0, "page": 1}
+        repo_idx: int = cursor_data["repo_idx"]
+        page = cursor_data["page"]
+
+        # Load all non-archived repos for the org from the database
+        from sqlalchemy import select as sa_select
+
+        from app.models.github_sync import Repository
+
+        sf = _make_session_factory()
+        async with sf() as db_session:
+            result = await db_session.execute(
+                sa_select(Repository.repo_name).where(
+                    Repository.org == org,
+                    Repository.archived == False,  # noqa: E712
+                )
+            )
+            repo_names: list[str] = [row[0] for row in result.fetchall()]
+
+        if not repo_names or repo_idx >= len(repo_names):
+            return [], None
+
+        items: list[dict] = []
+        default_since = datetime.now(UTC) - timedelta(days=90)
+        since_dt = delta_since or default_since
+
+        while repo_idx < len(repo_names):
+            repo_name = repo_names[repo_idx]
+            commits_url = f"{_GITHUB_API_BASE}/repos/{org}/{repo_name}/commits"
+            params = {
+                "per_page": page_size,
+                "page": page,
+                "since": since_dt.isoformat(),
+            }
+
+            resp = await _github_get(commits_url, headers, params, rate_limiter)
+
+            if resp.status_code == 404:
+                # Repo may have been deleted or made inaccessible — skip
+                logger.debug("github_sync.repo_commits_404", org=org, repo=repo_name)
+                repo_idx += 1
+                page = 1
+                continue
+            if resp.status_code == 409:
+                # Empty repository (no commits) — skip
+                logger.debug("github_sync.repo_commits_empty", org=org, repo=repo_name)
+                repo_idx += 1
+                page = 1
+                continue
+            if resp.status_code == 403:
+                logger.warning(
+                    "github_sync.repo_commits_forbidden",
+                    org=org,
+                    repo=repo_name,
+                )
+                repo_idx += 1
+                page = 1
+                continue
+            resp.raise_for_status()
+            commits = resp.json()
+
+            for c in commits:
+                author_login = None
+                author_id = None
+                if c.get("author"):
+                    author_login = c["author"].get("login")
+                    author_id = c["author"].get("id")
+                elif c.get("committer"):
+                    author_login = c["committer"].get("login")
+                    author_id = c["committer"].get("id")
+                if not author_login:
+                    author_login = (c.get("commit") or {}).get("author", {}).get("name")
+
+                commit_date_str = (c.get("commit") or {}).get("author", {}).get(
+                    "date"
+                ) or datetime.now(UTC).isoformat()
+                try:
+                    commit_date = datetime.fromisoformat(commit_date_str.replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    commit_date = datetime.now(UTC)
+
+                sha = c.get("sha", "")
+                message = ((c.get("commit") or {}).get("message") or "")[:500]
+
+                items.append(
+                    {
+                        "action": "git.push",
+                        "actor": author_login,
+                        "actor_id": author_id,
+                        "actor_is_bot": bool(author_login and str(author_login).endswith("[bot]")),
+                        "org": org,
+                        "repo": f"{org}/{repo_name}",
+                        "created_at": commit_date,
+                        "document_id": f"commit-{sha}",
+                        "data": json.dumps(
+                            {
+                                "sha": sha,
+                                "message": message,
+                                "url": c.get("html_url", ""),
+                            }
+                        ),
+                        "ingestion_source": "github_api_sync",
+                        "source_file_path": f"api/{org}/{repo_name}/commits",
+                    }
+                )
+
+            has_more = _has_next_page(resp.headers) and bool(commits)
+            if has_more:
+                # More pages for this repo — return current batch and continue
+                next_cursor_data = {"repo_idx": repo_idx, "page": page + 1}
+                return items, json.dumps(next_cursor_data)
+
+            # Move to the next repo
+            repo_idx += 1
+            page = 1
+
+        # All repos processed
+        return items, None
+
+    # ── Pull requests (iterate repos, fetch recent PRs per repo) ──────────
+    if entity_type == "pull_requests":
+        cursor_data = json.loads(cursor) if cursor else {"repo_idx": 0, "page": 1}
+        repo_idx = cursor_data["repo_idx"]
+        page = cursor_data["page"]
+
+        from sqlalchemy import select as sa_select
+
+        from app.models.github_sync import Repository
+
+        sf = _make_session_factory()
+        async with sf() as db_session:
+            result = await db_session.execute(
+                sa_select(Repository.repo_name).where(
+                    Repository.org == org,
+                    Repository.archived == False,  # noqa: E712
+                )
+            )
+            repo_names = [row[0] for row in result.fetchall()]
+
+        if not repo_names or repo_idx >= len(repo_names):
+            return [], None
+
+        items = []
+
+        while repo_idx < len(repo_names):
+            repo_name = repo_names[repo_idx]
+            prs_url = f"{_GITHUB_API_BASE}/repos/{org}/{repo_name}/pulls"
+            params = {
+                "state": "all",
+                "sort": "updated",
+                "direction": "desc",
+                "per_page": page_size,
+                "page": page,
+            }
+
+            resp = await _github_get(prs_url, headers, params, rate_limiter)
+
+            if resp.status_code == 404:
+                logger.debug("github_sync.pull_requests_404", org=org, repo=repo_name)
+                repo_idx += 1
+                page = 1
+                continue
+            if resp.status_code == 403:
+                logger.warning(
+                    "github_sync.pull_requests_forbidden",
+                    org=org,
+                    repo=repo_name,
+                )
+                repo_idx += 1
+                page = 1
+                continue
+            resp.raise_for_status()
+            prs = resp.json()
+
+            # For initial sync (no delta_since), limit to 90 days of data
+            default_cutoff = datetime.now(UTC) - timedelta(days=90)
+            cutoff = delta_since or default_cutoff
+
+            stop_early = False
+            for pr in prs:
+                # Delta sync: stop when PRs are older than the cutoff
+                updated_at_str = pr.get("updated_at", "")
+                if delta_since and updated_at_str:
+                    try:
+                        updated_at = datetime.fromisoformat(updated_at_str.replace("Z", "+00:00"))
+                        if updated_at < cutoff:
+                            stop_early = True
+                            break
+                    except (ValueError, AttributeError):
+                        pass
+
+                # For initial sync, skip PRs with created_at older than 90 days
+                if not delta_since:
+                    created_at_str = pr.get("created_at", "")
+                    if created_at_str:
+                        try:
+                            pr_created = datetime.fromisoformat(
+                                created_at_str.replace("Z", "+00:00")
+                            )
+                            if pr_created < cutoff:
+                                stop_early = True
+                                break
+                        except (ValueError, AttributeError):
+                            pass
+
+                # Determine action from PR state
+                merged = pr.get("merged_at") is not None or pr.get("merged", False)
+                state = pr.get("state", "open")
+                if merged:
+                    action = "pull_request.merged"
+                    action_suffix = "merged"
+                elif state == "closed":
+                    action = "pull_request.closed"
+                    action_suffix = "closed"
+                else:
+                    action = "pull_request.opened"
+                    action_suffix = "opened"
+
+                # Pick the most relevant timestamp
+                if merged and pr.get("merged_at"):
+                    ts_str = pr["merged_at"]
+                elif state == "closed" and pr.get("closed_at"):
+                    ts_str = pr["closed_at"]
+                else:
+                    ts_str = pr.get("created_at", datetime.now(UTC).isoformat())
+
+                try:
+                    created_at = datetime.fromisoformat(str(ts_str).replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    created_at = datetime.now(UTC)
+
+                actor_login = (pr.get("user") or {}).get("login")
+                actor_id = (pr.get("user") or {}).get("id")
+                pr_number = pr.get("number", 0)
+
+                items.append(
+                    {
+                        "action": action,
+                        "actor": actor_login,
+                        "actor_id": actor_id,
+                        "actor_is_bot": bool(actor_login and str(actor_login).endswith("[bot]")),
+                        "org": org,
+                        "repo": f"{org}/{repo_name}",
+                        "created_at": created_at,
+                        "document_id": (f"pr-{org}/{repo_name}#{pr_number}-{action_suffix}"),
+                        "data": json.dumps(
+                            {
+                                "number": pr_number,
+                                "title": pr.get("title", ""),
+                                "state": state,
+                                "merged": merged,
+                                "url": pr.get("html_url", ""),
+                                "additions": pr.get("additions", 0),
+                                "deletions": pr.get("deletions", 0),
+                                "changed_files": pr.get("changed_files", 0),
+                            }
+                        ),
+                        "ingestion_source": "github_api_sync",
+                        "source_file_path": f"api/{org}/{repo_name}/pulls",
+                    }
+                )
+
+            if stop_early:
+                # No more relevant PRs — done with all repos
+                return items, None
+
+            has_more = _has_next_page(resp.headers) and bool(prs)
+            if has_more:
+                next_cursor_data = {"repo_idx": repo_idx, "page": page + 1}
+                return items, json.dumps(next_cursor_data)
+
+            # Move to the next repo
+            repo_idx += 1
+            page = 1
+
+        return items, None
 
     # ── Installations (uses App JWT, not installation token) ──────────────
     if entity_type == "installations":
@@ -2812,6 +3095,8 @@ async def _upsert_items(
         await _upsert_mfa_status(session, org_str, items)
     elif entity_type == "audit_log":
         await _upsert_audit_log_events(session, org, items)
+    elif entity_type in ("repo_commits", "pull_requests"):
+        await _upsert_activity_events(session, org_str, items)
     else:
         logger.error("github_sync.unknown_upsert_entity", entity_type=entity_type)
 
@@ -2943,14 +3228,13 @@ async def _upsert_audit_log_events(
                     :geo_latitude, :geo_longitude, :geo_is_proxy,
                     :user_agent, :ingestion_source, :source_file_path
                 )
-                ON CONFLICT (document_id, created_at) DO NOTHING
                 RETURNING id
             """),
             normalized,
         )
         row = result.fetchone()
         if not row:
-            continue  # duplicate — already exists
+            continue
         event_id = row[0]
 
         # Insert dedup record
@@ -2975,6 +3259,119 @@ async def _upsert_audit_log_events(
             inserted=inserted,
             total=len(items),
             enterprise=enterprise_slug,
+        )
+
+
+async def _upsert_activity_events(
+    session: AsyncSession,
+    org_str: str,
+    items: list[dict[str, object]],
+) -> None:
+    """Insert pre-normalized activity events (commits, PRs) into the events table.
+
+    Each item in *items* is already normalized by the ``_fetch_page`` handler
+    for ``repo_commits`` or ``pull_requests`` — all required fields are present.
+    Deduplication uses the ``document_id`` via the ``event_dedup`` table,
+    matching the pattern used by ``_upsert_audit_log_events``.
+    """
+    from sqlalchemy import text
+
+    if not items:
+        return
+
+    inserted = 0
+    for event in items:
+        document_id = event.get("document_id")
+        if not document_id:
+            continue
+
+        action = event.get("action")
+        if not action:
+            continue
+
+        created_at = event.get("created_at")
+        if created_at is None:
+            created_at = datetime.now(UTC)
+
+        # Check dedup table for existing record
+        existing = await session.execute(
+            text("SELECT 1 FROM event_dedup WHERE document_id = :doc_id"),
+            {"doc_id": document_id},
+        )
+        if existing.fetchone():
+            continue
+
+        data_value = event.get("data", "{}")
+        if isinstance(data_value, dict):
+            import json as _json
+
+            data_value = _json.dumps(data_value)
+
+        normalized = {
+            "document_id": document_id,
+            "action": action,
+            "actor": event.get("actor"),
+            "actor_id": event.get("actor_id"),
+            "actor_is_bot": bool(event.get("actor_is_bot", False)),
+            "org": event.get("org") or org_str,
+            "repo": event.get("repo"),
+            "source_ip": None,
+            "created_at": created_at,
+            "data": data_value,
+            "geo_country_code": None,
+            "geo_city": None,
+            "geo_latitude": None,
+            "geo_longitude": None,
+            "geo_is_proxy": None,
+            "user_agent": None,
+            "ingestion_source": event.get("ingestion_source", "github_api_sync"),
+            "source_file_path": event.get("source_file_path", f"api/{org_str}/unknown"),
+        }
+
+        result = await session.execute(
+            text("""
+                INSERT INTO events (
+                    document_id, action, actor, actor_id, actor_is_bot,
+                    org, repo, source_ip, created_at, data,
+                    geo_country_code, geo_city, geo_latitude, geo_longitude, geo_is_proxy,
+                    user_agent, ingestion_source, source_file_path
+                ) VALUES (
+                    :document_id, :action, :actor, :actor_id, :actor_is_bot,
+                    :org, :repo, :source_ip, :created_at, CAST(:data AS jsonb),
+                    :geo_country_code, :geo_city,
+                    :geo_latitude, :geo_longitude, :geo_is_proxy,
+                    :user_agent, :ingestion_source, :source_file_path
+                )
+                RETURNING id
+            """),
+            normalized,
+        )
+        row = result.fetchone()
+        if not row:
+            continue
+        event_id = row[0]
+
+        await session.execute(
+            text(
+                "INSERT INTO event_dedup (document_id, event_id, created_at) "
+                "VALUES (:doc_id, :event_id, :ts) ON CONFLICT DO NOTHING"
+            ),
+            {
+                "doc_id": document_id,
+                "event_id": event_id,
+                "ts": created_at,
+            },
+        )
+        inserted += 1
+
+    await session.commit()
+
+    if inserted:
+        logger.info(
+            "github_sync.activity_events_inserted",
+            inserted=inserted,
+            total=len(items),
+            org=org_str,
         )
 
 
