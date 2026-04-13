@@ -351,6 +351,7 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         "mfa_status",
         "repo_commits",
         "pull_requests",
+        "workflow_runs",
     }
 
     entity_types: list[str] = (
@@ -667,12 +668,41 @@ async def _sync_entity_async(
     # binds to the current event loop and can't survive across asyncio.run()
     rate_limiter = GitHubRateLimiter(rate_per_hour=15_000, max_burst=50, max_concurrent=80)
 
+    # ── Resolve enterprise PAT for audit_log entity ───────────────────────
+    # The audit log API requires a classic PAT with admin:enterprise scope;
+    # GitHub App installation tokens get 403.  Retrieve the stored PAT from
+    # app_settings and use it instead of the installation token.
+    enterprise_pat: str | None = None
+    if entity_type == "audit_log":
+        from app.services.settings_service import get_setting as _get_setting
+
+        async with _make_session_factory()() as pat_session:
+            enterprise_pat = await _get_setting(pat_session, "enterprise_pat")
+        if enterprise_pat:
+            logger.info(
+                "github_sync.audit_log_using_enterprise_pat",
+                entity_type=entity_type,
+                org=org,
+            )
+        else:
+            logger.warning(
+                "github_sync.audit_log_no_enterprise_pat",
+                entity_type=entity_type,
+                org=org,
+                hint="Configure a classic PAT with admin:enterprise scope "
+                "in Settings → GitHub → Classic PAT to sync audit logs.",
+            )
+
     try:
         # ── Paginate and upsert ───────────────────────────────────────────
         current_cursor = resume_cursor
         page_num = 0
         while True:
-            token = await token_manager.get_installation_token(installation_id)
+            # Use enterprise PAT for audit_log, installation token otherwise
+            if entity_type == "audit_log" and enterprise_pat:
+                token = enterprise_pat
+            else:
+                token = await token_manager.get_installation_token(installation_id)
             items, next_cursor = await _fetch_page(
                 entity_type=entity_type,
                 org=org,
@@ -1787,6 +1817,146 @@ async def _fetch_page(
                 return items, json.dumps(next_cursor_data)
 
             # Move to the next repo
+            repo_idx += 1
+            page = 1
+
+        return items, None
+
+    # ── Workflow runs (iterate repos, fetch completed Actions runs) ────────
+    if entity_type == "workflow_runs":
+        cursor_data = json.loads(cursor) if cursor else {"repo_idx": 0, "page": 1}
+        repo_idx = cursor_data["repo_idx"]
+        page = cursor_data["page"]
+
+        from sqlalchemy import select as sa_select
+
+        from app.models.github_sync import Repository
+
+        sf = _make_session_factory()
+        async with sf() as db_session:
+            result = await db_session.execute(
+                sa_select(Repository.repo_name).where(
+                    Repository.org == org,
+                    Repository.archived == False,  # noqa: E712
+                )
+            )
+            repo_names = [row[0] for row in result.fetchall()]
+
+        if not repo_names or repo_idx >= len(repo_names):
+            return [], None
+
+        items: list[dict] = []
+        default_since = datetime.now(UTC) - timedelta(days=90)
+        since_dt = delta_since or default_since
+
+        while repo_idx < len(repo_names):
+            repo_name = repo_names[repo_idx]
+            runs_url = f"{_GITHUB_API_BASE}/repos/{org}/{repo_name}/actions/runs"
+            params = {
+                "per_page": page_size,
+                "page": page,
+                "status": "completed",
+                "created": f">{since_dt.strftime('%Y-%m-%dT%H:%M:%SZ')}",
+            }
+
+            resp = await _github_get(runs_url, headers, params, rate_limiter)
+
+            if resp.status_code == 404:
+                logger.debug("github_sync.workflow_runs_404", org=org, repo=repo_name)
+                repo_idx += 1
+                page = 1
+                continue
+            if resp.status_code == 403:
+                logger.warning(
+                    "github_sync.workflow_runs_forbidden",
+                    org=org,
+                    repo=repo_name,
+                )
+                repo_idx += 1
+                page = 1
+                continue
+            resp.raise_for_status()
+            runs_data = resp.json()
+            runs = runs_data.get("workflow_runs", []) if isinstance(runs_data, dict) else []
+
+            for run in runs:
+                conclusion = run.get("conclusion") or "unknown"
+                run_status = run.get("status", "")
+
+                if run_status != "completed":
+                    continue
+
+                actor_login = None
+                actor_id = None
+                triggering_actor = run.get("triggering_actor") or run.get("actor")
+                if triggering_actor:
+                    actor_login = triggering_actor.get("login")
+                    actor_id = triggering_actor.get("id")
+
+                run_id = run.get("id", 0)
+                run_created_str = run.get("created_at", "")
+                run_started_str = run.get("run_started_at", "")
+                updated_str = run.get("updated_at", "")
+
+                try:
+                    created_at = datetime.fromisoformat(
+                        run_created_str.replace("Z", "+00:00")
+                    )
+                except (ValueError, AttributeError):
+                    created_at = datetime.now(UTC)
+
+                duration_seconds = None
+                if run_started_str and updated_str:
+                    try:
+                        started_dt = datetime.fromisoformat(
+                            run_started_str.replace("Z", "+00:00")
+                        )
+                        updated_dt = datetime.fromisoformat(
+                            updated_str.replace("Z", "+00:00")
+                        )
+                        duration_seconds = (updated_dt - started_dt).total_seconds()
+                    except (ValueError, AttributeError):
+                        pass
+
+                repo_full = f"{org}/{repo_name}"
+                items.append(
+                    {
+                        "action": f"workflow_run.{conclusion}",
+                        "actor": actor_login,
+                        "actor_id": actor_id,
+                        "actor_is_bot": bool(
+                            actor_login and str(actor_login).endswith("[bot]")
+                        ),
+                        "org": org,
+                        "repo": repo_full,
+                        "created_at": created_at,
+                        "document_id": f"workflow-run-{repo_full}-{run_id}",
+                        "data": json.dumps(
+                            {
+                                "workflow_name": run.get("name", ""),
+                                "workflow_id": run.get("workflow_id", 0),
+                                "run_number": run.get("run_number", 0),
+                                "run_id": run_id,
+                                "head_branch": run.get("head_branch", ""),
+                                "event": run.get("event", ""),
+                                "conclusion": conclusion,
+                                "status": run_status,
+                                "run_started_at": run_started_str,
+                                "updated_at": updated_str,
+                                "html_url": run.get("html_url", ""),
+                                "duration_seconds": duration_seconds,
+                            }
+                        ),
+                        "ingestion_source": "github_api_sync",
+                        "source_file_path": f"api/{org}/{repo_name}/actions/runs",
+                    }
+                )
+
+            has_more = _has_next_page(resp.headers) and bool(runs)
+            if has_more:
+                next_cursor_data = {"repo_idx": repo_idx, "page": page + 1}
+                return items, json.dumps(next_cursor_data)
+
             repo_idx += 1
             page = 1
 
@@ -3381,7 +3551,7 @@ async def _upsert_items(
         await _upsert_mfa_status(session, org_str, items)
     elif entity_type == "audit_log":
         await _upsert_audit_log_events(session, org, items)
-    elif entity_type in ("repo_commits", "pull_requests"):
+    elif entity_type in ("repo_commits", "pull_requests", "workflow_runs"):
         await _upsert_activity_events(session, org_str, items)
     else:
         logger.error("github_sync.unknown_upsert_entity", entity_type=entity_type)
