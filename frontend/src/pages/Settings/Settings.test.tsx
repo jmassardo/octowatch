@@ -105,6 +105,10 @@ vi.mock('../../api/setup', () => ({
   setupTLS: vi.fn().mockResolvedValue(undefined),
   completeSetup: vi.fn().mockResolvedValue(undefined),
   getSetupCurrentConfig: vi.fn().mockResolvedValue({}),
+  getEnterprisePATStatus: vi.fn().mockResolvedValue({ configured: false, masked: null }),
+  saveEnterprisePAT: vi.fn().mockResolvedValue({ status: 'ok', masked: 'ghp_****...wxyz' }),
+  deleteEnterprisePAT: vi.fn().mockResolvedValue({ status: 'ok', message: 'Enterprise PAT removed' }),
+  testEnterprisePAT: vi.fn().mockResolvedValue({ status: 'ok', login: 'admin-bot', scopes: 'admin:enterprise' }),
 }));
 
 vi.mock('../../api/integrations', () => ({
@@ -513,5 +517,78 @@ describe('SettingsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Data Import')).toBeInTheDocument();
     });
+  });
+
+  /* ---------------------------------------------------------------- */
+  /*  Enterprise PAT section                                           */
+  /* ---------------------------------------------------------------- */
+
+  it('shows Classic PAT section on GitHub tab', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'GitHub' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Classic PAT for Audit Log')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/requires a classic Personal Access Token/)).toBeInTheDocument();
+  });
+
+  it('shows PAT input field on GitHub tab', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'GitHub' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('enterprise-pat-section')).toBeInTheDocument();
+    });
+
+    const input = screen.getByLabelText('Classic Personal Access Token');
+    expect(input).toBeInTheDocument();
+  });
+
+  it('shows Not configured status when no PAT is set', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'GitHub' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Not configured')).toBeInTheDocument();
+    });
+  });
+
+  it('shows Save button disabled when input is empty', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'GitHub' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('enterprise-pat-section')).toBeInTheDocument();
+    });
+
+    const saveBtn = screen.getByRole('button', { name: 'Save' });
+    expect(saveBtn).toBeDisabled();
+  });
+
+  it('enables Save button when token is entered', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'GitHub' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('enterprise-pat-section')).toBeInTheDocument();
+    });
+
+    const input = screen.getByLabelText('Classic Personal Access Token');
+    await user.type(input, 'ghp_testtoken123');
+
+    const saveBtn = screen.getByRole('button', { name: 'Save' });
+    expect(saveBtn).toBeEnabled();
   });
 });

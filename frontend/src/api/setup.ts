@@ -101,3 +101,45 @@ export function deleteSetting(key: string): Promise<void> {
 export function getSettingsAuditTrail(): Promise<SettingAuditEntry[]> {
   return api.get<SettingAuditEntry[]>('/admin/settings/audit/trail');
 }
+
+/* ------------------------------------------------------------------ */
+/*  Enterprise PAT management                                          */
+/* ------------------------------------------------------------------ */
+
+export interface EnterprisePATStatus {
+  configured: boolean;
+  masked: string | null;
+}
+
+export interface EnterprisePATSaveResult {
+  status: string;
+  masked: string;
+}
+
+export interface EnterprisePATTestResult {
+  status: string;
+  message?: string;
+  scopes?: string;
+  login?: string;
+}
+
+export interface EnterprisePATDeleteResult {
+  status: string;
+  message: string;
+}
+
+export function getEnterprisePATStatus(): Promise<EnterprisePATStatus> {
+  return api.get<EnterprisePATStatus>('/admin/enterprise-pat');
+}
+
+export function saveEnterprisePAT(token: string): Promise<EnterprisePATSaveResult> {
+  return api.put<EnterprisePATSaveResult>('/admin/enterprise-pat', { token });
+}
+
+export function deleteEnterprisePAT(): Promise<EnterprisePATDeleteResult> {
+  return api.delete<EnterprisePATDeleteResult>('/admin/enterprise-pat');
+}
+
+export function testEnterprisePAT(): Promise<EnterprisePATTestResult> {
+  return api.post<EnterprisePATTestResult>('/admin/enterprise-pat/test');
+}

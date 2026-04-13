@@ -1,7 +1,16 @@
 import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listSettings, updateSetting, deleteSetting, getSettingsAuditTrail } from '../../api/setup';
+import {
+  listSettings,
+  updateSetting,
+  deleteSetting,
+  getSettingsAuditTrail,
+  getEnterprisePATStatus,
+  saveEnterprisePAT,
+  deleteEnterprisePAT,
+  testEnterprisePAT,
+} from '../../api/setup';
 import type { AppSetting, SettingAuditEntry } from '../../api/setup';
 import {
   listNotificationConfigs,
@@ -265,6 +274,166 @@ function FeaturesPane() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Enterprise PAT Section                                             */
+/* ------------------------------------------------------------------ */
+
+function EnterprisePATSection() {
+  const queryClient = useQueryClient();
+  const [tokenInput, setTokenInput] = useState('');
+  const [testMessage, setTestMessage] = useState<string | null>(null);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+
+  const { data: patStatus, isLoading: patLoading } = useQuery({
+    queryKey: ['enterprise-pat-status'],
+    queryFn: getEnterprisePATStatus,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (token: string) => saveEnterprisePAT(token),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['enterprise-pat-status'] });
+      setTokenInput('');
+      setSaveError(null);
+      setSaveSuccess(`PAT saved successfully (${result.masked}).`);
+      setTestMessage(null);
+      setTestError(null);
+      setTimeout(() => setSaveSuccess(null), 5000);
+    },
+    onError: (err: Error & { status?: number; body?: { detail?: string } }) => {
+      const detail =
+        (err as unknown as { body?: { detail?: string } }).body?.detail ?? err.message;
+      setSaveError(detail);
+      setSaveSuccess(null);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteEnterprisePAT(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['enterprise-pat-status'] });
+      setTestMessage(null);
+      setTestError(null);
+      setSaveError(null);
+      setSaveSuccess('Enterprise PAT removed.');
+      setTimeout(() => setSaveSuccess(null), 5000);
+    },
+    onError: (err: Error) => {
+      setSaveError(err.message);
+    },
+  });
+
+  const testMutation = useMutation({
+    mutationFn: () => testEnterprisePAT(),
+    onSuccess: (result) => {
+      if (result.status === 'ok') {
+        setTestMessage(
+          `Connected as ${result.login ?? 'unknown'}. Scopes: ${result.scopes || 'none detected'}.`,
+        );
+        setTestError(null);
+      } else {
+        setTestError(result.message ?? 'Test failed.');
+        setTestMessage(null);
+      }
+    },
+    onError: (err: Error) => {
+      setTestError(err.message);
+      setTestMessage(null);
+    },
+  });
+
+  const configured = patStatus?.configured ?? false;
+
+  return (
+    <div className={styles.configForm} data-testid="enterprise-pat-section">
+      <div className={styles.configField}>
+        <label className={styles.configLabel} htmlFor="enterprise-pat-token">
+          Classic Personal Access Token
+        </label>
+        {patLoading ? (
+          <Spinner />
+        ) : configured ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              className={styles.configInput}
+              value={patStatus?.masked ?? ''}
+              disabled
+              style={{ flex: 1 }}
+            />
+            <span
+              className={styles.integrationStatus}
+              data-status="active"
+            >
+              Configured
+            </span>
+          </div>
+        ) : (
+          <span
+            className={styles.integrationStatus}
+            data-status="inactive"
+          >
+            Not configured
+          </span>
+        )}
+      </div>
+      <div className={styles.configField}>
+        <input
+          id="enterprise-pat-token"
+          className={styles.configInput}
+          type="password"
+          value={tokenInput}
+          onChange={(e) => {
+            setTokenInput(e.target.value);
+            setSaveError(null);
+            setSaveSuccess(null);
+          }}
+          placeholder={configured ? 'Enter new token to replace…' : 'ghp_… or github_pat_…'}
+          autoComplete="off"
+        />
+        <span className={styles.configHelp}>
+          Required for audit log ingestion. Create a classic PAT with{' '}
+          <code>admin:enterprise</code> scope in your GitHub Enterprise settings.
+        </span>
+      </div>
+      {saveSuccess && <div className={styles.configSuccess}>{saveSuccess}</div>}
+      {saveError && <div className={styles.configError}>{saveError}</div>}
+      {testMessage && <div className={styles.configSuccess}>{testMessage}</div>}
+      {testError && <div className={styles.configError}>{testError}</div>}
+      <div className={styles.configActions}>
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={!tokenInput.trim() || saveMutation.isPending}
+          onClick={() => saveMutation.mutate(tokenInput.trim())}
+        >
+          {saveMutation.isPending ? 'Saving…' : 'Save'}
+        </Button>
+        {configured && (
+          <>
+            <Button
+              size="sm"
+              disabled={testMutation.isPending}
+              onClick={() => testMutation.mutate()}
+            >
+              {testMutation.isPending ? 'Testing…' : 'Test Connection'}
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate()}
+            >
+              {deleteMutation.isPending ? 'Removing…' : 'Remove'}
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  GitHub Pane                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -275,6 +444,16 @@ function GitHubPane() {
         GitHub Enterprise connection and data import settings. Connection credentials are configured
         during initial setup.
       </p>
+
+      <div className={styles.integrationsSectionDivider}>
+        <h3 className={styles.integrationsSectionTitle}>Classic PAT for Audit Log</h3>
+        <p className={styles.featuresDescription}>
+          The enterprise audit log API requires a classic Personal Access Token with{' '}
+          <code>admin:enterprise</code> scope. GitHub App installation tokens cannot access
+          this endpoint.
+        </p>
+      </div>
+      <EnterprisePATSection />
 
       <div className={styles.integrationsSectionDivider}>
         <h3 className={styles.integrationsSectionTitle}>Audit Log Streaming</h3>

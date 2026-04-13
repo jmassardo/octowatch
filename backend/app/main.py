@@ -33,6 +33,7 @@ from app.routers import (
     cross_org,
     detections,
     dev_activity,
+    enterprise_pat,
     events,
     features,
     health,
@@ -541,6 +542,7 @@ def create_app() -> FastAPI:
     app.include_router(rule_library.router, prefix=API_PREFIX)
     app.include_router(admin.router, prefix=API_PREFIX)
     app.include_router(admin_settings.router, prefix=API_PREFIX)
+    app.include_router(enterprise_pat.router, prefix=API_PREFIX)
     app.include_router(integrations.router, prefix=API_PREFIX)
     app.include_router(health_signals.router, prefix=API_PREFIX)
     app.include_router(copilot.router, prefix=API_PREFIX)
