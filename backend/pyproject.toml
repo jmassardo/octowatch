@@ -11,7 +11,7 @@ dependencies = [
     # Web framework
     "fastapi==0.135.2",
     "uvicorn[standard]==0.42.0",
-    "python-multipart==0.0.22",
+    "python-multipart==0.0.26",
 
     # Data validation
     "pydantic==2.12.5",
