@@ -7,6 +7,7 @@ import { Button } from '../../components/primitives/Button';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { LineAreaChart } from '../../components/charts/LineAreaChart';
+import { MetricsThatMatter } from './MetricsThatMatter';
 import styles from './ExecutiveView.module.css';
 
 type Period = 7 | 30 | 90;
@@ -221,6 +222,8 @@ export function ExecutiveView() {
         <CardHeader>Top Risks</CardHeader>
         <TopRisksList summary={summary} />
       </Card>
+
+      <MetricsThatMatter period={period} />
     </div>
   );
 }

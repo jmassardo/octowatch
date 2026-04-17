@@ -1,0 +1,204 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sectionHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.sectionSubtitle {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+/* 3-column grid */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+.columnCard {
+  padding: 0;
+}
+
+/* Column layout */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.columnHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-muted);
+  margin-bottom: 4px;
+}
+
+.columnIcon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.columnTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+/* Metric card */
+.metricCard {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--canvas-subtle);
+  border-radius: 6px;
+  border: 1px solid var(--border-muted);
+}
+
+.metricLabel {
+  font-size: 12px;
+  color: var(--fg-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.metricValue {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.metricSmall {
+  font-size: 12px;
+  font-weight: 600;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metricDanger {
+  color: var(--danger);
+}
+
+.metricSuccess {
+  color: var(--success);
+}
+
+/* Help tooltip icon */
+.helpIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--fg-muted);
+  font-size: 10px;
+  font-style: normal;
+  cursor: help;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.helpIcon:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Chart area */
+.chartWrapper {
+  margin-top: 4px;
+}
+
+.chartLabel {
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin-bottom: 4px;
+  padding: 0 4px;
+}
+
+.emptyChart {
+  text-align: center;
+  font-size: 12px;
+  color: var(--fg-muted);
+  padding: 16px 0;
+  background: var(--canvas-subtle);
+  border-radius: 6px;
+  border: 1px dashed var(--border-muted);
+}
+
+/* Skeleton states */
+.skeletonTitle {
+  height: 16px;
+  width: 120px;
+  background: var(--border-muted);
+  border-radius: 4px;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.skeletonLabel {
+  height: 12px;
+  width: 80px;
+  background: var(--border-muted);
+  border-radius: 4px;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.skeletonValue {
+  height: 20px;
+  width: 50px;
+  background: var(--border-muted);
+  border-radius: 4px;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.skeletonChart {
+  height: 100px;
+  background: var(--border-muted);
+  border-radius: 6px;
+  margin-top: 8px;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

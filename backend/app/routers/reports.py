@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import csv
 import io
+import json as _json_mod
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import redis.asyncio as aioredis
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import HTMLResponse, StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role
+from app.deps import AuthenticatedUser, get_db, get_valkey, require_role
 from app.schemas.report import (
     ComplianceReportEnvelope,
     ReportEnvelope,
@@ -31,6 +34,46 @@ from app.services.pdf_service import render_compliance_report_html
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = structlog.get_logger(__name__)
+
+
+# ── Metrics That Matter Pydantic models ──────────────────────────────────────
+
+
+class ShippingFasterMetrics(BaseModel):
+    avg_pr_lifecycle_hours: float | None
+    avg_pr_review_rounds: float | None
+    deployment_frequency_per_week: float | None
+    pr_merge_rate_pct: float | None
+    trend: list[dict[str, Any]]
+
+
+class ShippingSaferMetrics(BaseModel):
+    workflow_success_rate_pct: float | None
+    codeql_alerts_opened: int
+    codeql_alerts_closed: int
+    secret_alerts_opened: int
+    secret_alerts_resolved: int
+    branch_protection_compliance_pct: float | None
+    change_failure_rate_pct: float | None
+    trend: list[dict[str, Any]]
+
+
+class ShippingCheaperMetrics(BaseModel):
+    failed_run_waste_pct: float | None
+    rerun_rate_pct: float | None
+    automation_merge_rate_pct: float | None
+    avg_pr_review_rounds: float | None
+    top_wasteful_workflows: list[dict[str, Any]]
+    trend: list[dict[str, Any]]
+
+
+class MetricsThatMatterResponse(BaseModel):
+    period_days: int
+    generated_at: datetime
+    shipping_faster: ShippingFasterMetrics
+    shipping_safer: ShippingSaferMetrics
+    shipping_cheaper: ShippingCheaperMetrics
+
 
 _WINDOW_VALUES = {30, 60, 90}
 _GRANULARITY_VALUES = {"daily", "weekly", "monthly", "hourly"}
@@ -956,6 +999,36 @@ async def export_executive_summary_pdf(
     # Build an HTML page for print/PDF
     html = _render_executive_html(summary)
     return HTMLResponse(content=html)
+
+
+@router.get("/metrics-that-matter", response_model=MetricsThatMatterResponse)
+async def get_metrics_that_matter_endpoint(
+    period: int = Query(30, description="Lookback period in days (7, 30, or 90)"),
+    org: str | None = Query(None, description="Filter to a specific GitHub org"),
+    current_user: AuthenticatedUser = Depends(
+        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
+    ),
+    db: AsyncSession = Depends(get_db),
+    valkey: aioredis.Redis = Depends(get_valkey),
+) -> MetricsThatMatterResponse:
+    """Metrics That Matter: shipping faster, safer, and cheaper KPIs from audit log events."""
+    if period not in (7, 30, 90):
+        period = 30
+
+    org_key = org or "all"
+    cache_key = f"metrics_that_matter:{period}:{org_key}"
+    cached = await valkey.get(cache_key)
+    if cached:
+        try:
+            data = _json_mod.loads(cached)
+            return MetricsThatMatterResponse.model_validate(data)
+        except Exception:
+            logger.warning("metrics_that_matter.cache_parse_error")
+
+    result_dict = await report_service.get_metrics_that_matter(db, period_days=period, org=org)
+    result = MetricsThatMatterResponse.model_validate(result_dict)
+    await valkey.setex(cache_key, 600, _json_mod.dumps(result.model_dump(mode="json")))
+    return result
 
 
 def _render_executive_html(summary: dict[str, Any]) -> str:

@@ -87,3 +87,75 @@ export function getDetectionTimeline(
     `/detections/${detectionId}/timeline`,
   );
 }
+
+// ── Metrics That Matter ─────────────────────────────────────────────────────
+
+export interface FasterTrendPoint {
+  readonly date: string;
+  readonly avg_pr_hours: number | null;
+  readonly deployments: number;
+}
+
+export interface SaferTrendPoint {
+  readonly date: string;
+  readonly success_rate: number | null;
+  readonly codeql_delta: number;
+  readonly secret_delta: number;
+}
+
+export interface CheaperTrendPoint {
+  readonly date: string;
+  readonly failed_waste_pct: number | null;
+  readonly rerun_rate: number | null;
+}
+
+export interface WastefulWorkflow {
+  readonly workflow: string;
+  readonly waste_pct: number;
+}
+
+export interface ShippingFasterMetrics {
+  readonly avg_pr_lifecycle_hours: number | null;
+  readonly avg_pr_review_rounds: number | null;
+  readonly deployment_frequency_per_week: number | null;
+  readonly pr_merge_rate_pct: number | null;
+  readonly trend: readonly FasterTrendPoint[];
+}
+
+export interface ShippingSaferMetrics {
+  readonly workflow_success_rate_pct: number | null;
+  readonly codeql_alerts_opened: number;
+  readonly codeql_alerts_closed: number;
+  readonly secret_alerts_opened: number;
+  readonly secret_alerts_resolved: number;
+  readonly branch_protection_compliance_pct: number | null;
+  readonly change_failure_rate_pct: number | null;
+  readonly trend: readonly SaferTrendPoint[];
+}
+
+export interface ShippingCheaperMetrics {
+  readonly failed_run_waste_pct: number | null;
+  readonly rerun_rate_pct: number | null;
+  readonly automation_merge_rate_pct: number | null;
+  readonly avg_pr_review_rounds: number | null;
+  readonly top_wasteful_workflows: readonly WastefulWorkflow[];
+  readonly trend: readonly CheaperTrendPoint[];
+}
+
+export interface MetricsThatMatter {
+  readonly period_days: number;
+  readonly generated_at: string;
+  readonly shipping_faster: ShippingFasterMetrics;
+  readonly shipping_safer: ShippingSaferMetrics;
+  readonly shipping_cheaper: ShippingCheaperMetrics;
+}
+
+export function getMetricsThatMatter(
+  period: 7 | 30 | 90 = 30,
+  org?: string,
+): Promise<MetricsThatMatter> {
+  return api.get<MetricsThatMatter>('/reports/metrics-that-matter', {
+    period,
+    ...(org ? { org } : {}),
+  });
+}
