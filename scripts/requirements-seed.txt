@@ -1,0 +1,6 @@
+# Dependencies for scripts/seed_demo_data.py
+# Install with: pip install -r scripts/requirements-seed.txt
+psycopg2-binary>=2.9
+faker>=24.0
+tqdm>=4.66
+python-dotenv>=1.0

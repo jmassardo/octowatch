@@ -245,38 +245,6 @@ valkey:
       - "--appendonly yes"
 
 # ---------------------------------------------------------------------------
-# MinIO — MinIO operator or standalone deployment
-# See docs/security-and-deployment.md §1.2 for credential scoping details
-# ---------------------------------------------------------------------------
-minio:
-  enabled: true  # Set to false to use an external MinIO or AWS S3 endpoint
-
-  rootUser: ""        # Injected via existingSecret; see secrets management
-  rootPassword: ""    # Injected via existingSecret
-
-  # See docs/security-and-deployment.md for env var details
-  existingSecret: octowatch-minio-secret
-
-  persistence:
-    enabled: true
-    size: 100Gi  # Raw storage for .json.gz audit log files before ingestion
-
-  bucketName: audit-logs  # Created automatically by post-install job
-
-  # Bucket event notifications → Valkey pub/sub for near-real-time ingestion
-  notifyRedis:
-    enabled: true
-    # Address and password injected from Valkey service at deploy time
-
-  resources:
-    requests:
-      cpu: "250m"
-      memory: "512Mi"
-    limits:
-      cpu: "1000m"
-      memory: "2Gi"
-
-# ---------------------------------------------------------------------------
 # Ingress — routes external traffic to nginx / api / frontend
 # ---------------------------------------------------------------------------
 ingress:
@@ -308,8 +276,8 @@ githubRules:
 # Ingestion mode and storage backend configuration
 # ---------------------------------------------------------------------------
 ingestion:
-  # Active backend: minio | s3 | azure_blob
-  mode: minio
+  # Active backend: hec | s3 | azure_blob
+  mode: hec
 
   # AWS S3 settings — only used when mode=s3
   s3:
@@ -392,13 +360,13 @@ observability:
     endpoint: ""  # OTLP gRPC endpoint, e.g. "http://otel-collector:4317"
 
 # ---------------------------------------------------------------------------
-# Database Backup — automated CronJob for TimescaleDB backups to S3/MinIO
+# Database Backup — automated CronJob for TimescaleDB backups to S3
 # Set backup.enabled=true and configure bucket/schedule to activate.
 # ---------------------------------------------------------------------------
 backup:
   enabled: false
   schedule: "0 2 * * *"           # Daily at 02:00 UTC
-  bucket: "octowatch-backups"     # S3 or MinIO bucket for backup storage
+  bucket: "octowatch-backups"     # S3 bucket for backup storage
   retentionDays: 30               # Number of days to retain backup files
   image: timescale/timescaledb:2.25.1-pg16
   resources:

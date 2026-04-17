@@ -106,7 +106,7 @@ class TestMetricsServiceRegistration:
         """INGESTION_EVENTS_TOTAL counter must accept label values."""
         from app.services.metrics_service import INGESTION_EVENTS_TOTAL
 
-        INGESTION_EVENTS_TOTAL.labels(source="minio").inc()
+        INGESTION_EVENTS_TOTAL.labels(source="hec").inc()
 
     def test_detection_count_counter_exists(self) -> None:
         """DETECTION_COUNT counter must accept severity labels."""

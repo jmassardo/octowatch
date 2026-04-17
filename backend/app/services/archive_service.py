@@ -1,4 +1,4 @@
-"""Archive service: export expired data to S3/MinIO before deletion.
+"""Archive service: export expired data to S3/Azure Blob before deletion.
 
 Archives are written as compressed NDJSON files organised by table and date:
 ``archive/{table}/{year}/{month}/data.ndjson.gz``
@@ -309,7 +309,7 @@ def get_s3_client() -> Any:
 
     import boto3
 
-    endpoint_url = os.environ.get("MINIO_ENDPOINT_URL") or os.environ.get("AWS_S3_ENDPOINT_URL")
+    endpoint_url = os.environ.get("AWS_S3_ENDPOINT_URL")
     return boto3.client(
         "s3",
         endpoint_url=endpoint_url,
@@ -323,4 +323,4 @@ def get_archive_bucket() -> str:
     """Return the configured archive bucket name."""
     import os
 
-    return os.environ.get("ARCHIVE_BUCKET", os.environ.get("MINIO_AUDIT_BUCKET", "audit-logs"))
+    return os.environ.get("ARCHIVE_BUCKET", "audit-logs")

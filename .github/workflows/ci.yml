@@ -157,7 +157,7 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/audit_log_test
           VALKEY_URL: redis://localhost:6379/0
           SECRET_KEY: testsecretkey_for_unit_tests_only_32ch
-          INGESTION_MODE: minio
+          INGESTION_MODE: hec
           GEOIP_DB_PATH: /tmp/GeoLite2-City.mmdb
       - name: Upload coverage report
         if: always()
@@ -319,12 +319,7 @@ jobs:
           VALKEY_URL=redis://:test@valkey:6379/0
           VALKEY_PASSWORD=test
           SECRET_KEY=e2e-test-secret-key-not-for-production
-          INGESTION_MODE=minio
-          MINIO_ROOT_USER=minioadmin
-          MINIO_ROOT_PASSWORD=minioadmin123
-          MINIO_AUDIT_BUCKET=audit-logs
-          MINIO_INGEST_USER=ingest
-          MINIO_INGEST_PASSWORD=ingestpass123
+          INGESTION_MODE=hec
           GEOIP_DB_PATH=/tmp/GeoLite2-City.mmdb
           GITHUB_CLIENT_ID=dummy
           GITHUB_CLIENT_SECRET=dummy
@@ -345,7 +340,7 @@ jobs:
           openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
             -keyout nginx/ssl/key.pem -out nginx/ssl/cert.pem \
             -subj "/CN=localhost" 2>/dev/null
-          docker compose up -d db valkey minio
+          docker compose up -d db valkey
           sleep 15
           docker compose run --rm migrate || true
           docker compose up -d api frontend nginx

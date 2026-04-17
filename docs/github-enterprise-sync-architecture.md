@@ -1783,7 +1783,6 @@ class Settings(
     DatabaseSettings,
     ValkeySettings,
     AuthSettings,
-    MinIOSettings,
     S3Settings,
     AzureBlobSettings,
     # ... existing nested classes ...

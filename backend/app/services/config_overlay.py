@@ -41,13 +41,6 @@ SETTING_MAP: dict[str, tuple[str | None, str]] = {
     "saml_idp_metadata_url": ("AUTH", "SAML_IDP_METADATA_URL"),
     "saml_sp_cert": ("AUTH", "SAML_SP_CERT"),
     "saml_sp_key": ("AUTH", "SAML_SP_KEY"),
-    # MinIO
-    "minio_endpoint_url": ("MINIO", "MINIO_ENDPOINT_URL"),
-    "minio_ingest_user": ("MINIO", "MINIO_INGEST_USER"),
-    "minio_ingest_password": ("MINIO", "MINIO_INGEST_PASSWORD"),
-    "minio_audit_bucket": ("MINIO", "MINIO_AUDIT_BUCKET"),
-    "minio_stream_user": ("MINIO", "MINIO_STREAM_USER"),
-    "minio_stream_password": ("MINIO", "MINIO_STREAM_PASSWORD"),
     # App config
     "app_base_url": ("AUTH", "APP_BASE_URL"),
     "detection_confidence_threshold": (None, "DETECTION_CONFIDENCE_THRESHOLD"),

@@ -742,35 +742,17 @@ async def get_audit_stream_config(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Get current audit log streaming configuration."""
-    stream_user = await get_setting(db, "minio_stream_user")
-    stream_password = await get_setting(db, "minio_stream_password")
     hec_token = await get_setting(db, "hec_token")
 
     base_url = settings.AUTH.APP_BASE_URL
-    # HEC endpoint must point to the API port (8000), not the frontend proxy.
-    # Replace the frontend port in the base URL if present.
     hec_base = os.environ.get("HEC_BASE_URL", "")
     if not hec_base:
         hec_base = base_url.replace("-5173.", "-8000.") if "-5173." in base_url else base_url
-    bucket = settings.MINIO.MINIO_AUDIT_BUCKET
 
     return {
-        "configured": bool(stream_user and stream_password) or bool(hec_token),
-        "stream_user": stream_user or "",
-        "s3_endpoint": f"{base_url}/s3",
-        "bucket": bucket,
-        "region": "us-east-1",
+        "configured": bool(hec_token),
         "hec_endpoint": f"{hec_base}/services/collector",
         "hec_configured": bool(hec_token),
-        "instructions": {
-            "step_1": "Go to GitHub Enterprise → Settings → Audit Log → Log Streaming",
-            "step_2": "Select 'Amazon S3' as the provider",
-            "step_3": f"S3 Endpoint: {base_url}/s3",
-            "step_4": f"Bucket: {bucket}",
-            "step_5": f"Access Key ID: {stream_user or '<configure first>'}",
-            "step_6": "Secret Access Key: <use the password configured in the vault>",
-            "step_7": "Region: us-east-1",
-        },
         "hec_instructions": {
             "step_1": "Go to GitHub Enterprise → Settings → Audit Log → Log Streaming",
             "step_2": "Select 'Splunk' as the provider",
@@ -778,54 +760,6 @@ async def get_audit_stream_config(
             "step_4": "HEC Token: <use the token configured below>",
             "step_5": "Enable SSL verification (if using TLS)",
         },
-    }
-
-
-@router.put("/audit-stream/config", dependencies=[Depends(verify_csrf)])
-async def update_audit_stream_config(
-    payload: dict[str, str],
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, str]:
-    """Update audit log streaming credentials in the vault."""
-    stream_user = payload.get("stream_user", "").strip()
-    stream_password = payload.get("stream_password", "").strip()
-
-    if not stream_user or not stream_password:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Both stream_user and stream_password are required",
-        )
-    if len(stream_password) < 8:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="stream_password must be at least 8 characters (MinIO requirement)",
-        )
-
-    await set_setting(
-        db,
-        "minio_stream_user",
-        stream_user,
-        category="audit_stream",
-        sensitivity="sensitive",
-        description="MinIO streaming service account username",
-        changed_by=current_user.github_login,
-    )
-    await set_setting(
-        db,
-        "minio_stream_password",
-        stream_password,
-        category="audit_stream",
-        sensitivity="critical",
-        description="MinIO streaming service account password",
-        changed_by=current_user.github_login,
-    )
-
-    return {
-        "status": "ok",
-        "message": (
-            "Streaming credentials updated. Restart minio-setup to provision the user in MinIO."
-        ),
     }
 
 

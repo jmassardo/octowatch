@@ -9,8 +9,6 @@ def gen(n):
 secret_key = gen(32)
 postgres_pw = gen(16)
 valkey_pw = gen(16)
-minio_root_pw = gen(16)
-minio_ingest_pw = gen(16)
 
 lines = [
     "# Core Application",
@@ -18,7 +16,7 @@ lines = [
     f"SECRET_KEY={secret_key}",
     f"VALKEY_URL=redis://:{valkey_pw}@valkey:6379/0",
     "LOG_LEVEL=INFO",
-    "INGESTION_MODE=minio",
+    "INGESTION_MODE=hec",
     "GEOIP_DB_PATH=/app/data/GeoLite2-City.mmdb",
     "GITHUB_RULES_REPO=",
     "GITHUB_RULES_TOKEN=",
@@ -45,13 +43,8 @@ lines = [
     "# Valkey",
     f"VALKEY_PASSWORD={valkey_pw}",
     "",
-    "# MinIO",
-    "MINIO_ENDPOINT_URL=http://minio:9000",
-    "MINIO_AUDIT_BUCKET=audit-logs",
-    "MINIO_ROOT_USER=minioadmin",
-    f"MINIO_ROOT_PASSWORD={minio_root_pw}",
-    "MINIO_INGEST_USER=ingest-service",
-    f"MINIO_INGEST_PASSWORD={minio_ingest_pw}",
+    "# HEC (Splunk-compatible audit log streaming)",
+    f"HEC_TOKEN={gen(32)}",
     "",
     "# GeoIP (optional - leave MAXMIND_LICENSE_KEY blank to disable)",
     "MAXMIND_LICENSE_KEY=",

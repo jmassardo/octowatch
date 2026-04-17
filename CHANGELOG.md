@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **HEC ingestion endpoint** — Splunk HEC-compatible receiver at `POST /services/collector`; supports single JSON, NDJSON, and concatenated JSON payloads; auth via `Authorization: Splunk <HEC_TOKEN>` with constant-time comparison
+- **Workflow failure / timeout metrics** — new `/api/v1/workflow-metrics` endpoint surfacing always-failing and always-timing-out workflows; results cached in Valkey for 5 minutes
+- **"Metrics That Matter" executive dashboard** — high-level security posture summary for non-technical stakeholders
+- **Detection service** — 8-step detection pipeline with confidence scoring (`DETECTION_CONFIDENCE_THRESHOLD` configurable)
+- **Suggestions endpoint** — RBAC-scoped typeahead for actions, fields, and actors at `/api/v1/suggestions`
+- **Workflow security scanner** — Celery worker that detects security anti-patterns in `workflows.*` audit events without requiring GitHub API calls; runs on the `baseline` queue
 - Enterprise GitHub sync with GraphQL-based org discovery and delta sync
 - Security Posture page with enterprise/org/repo drill-down
 - Posture assessment detection system
@@ -25,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive deployment guide
 
 ### Changed
+- **`INGESTION_MODE` default changed from `minio` to `hec`**; valid values are now `hec`, `webhook`, `s3`, `azure_blob`
+- **`events.ingestion_source` and `ingestion_cursors.source_type`** CHECK constraints updated: `minio` removed, `hec` and `webhook` added
+- **`events.source_file_path`** is now nullable (null for push-based modes `hec`/`webhook`)
 - Moved integrations section to Settings with real settings controls
 - Replaced org tabs with filterable dropdown across all pages
 - Stat cards and metric chips are now clickable with drill-down
@@ -33,6 +42,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Auto-formatted entire codebase with ruff and prettier
 - Updated architecture docs to reflect React 19 and Vite 8
 - Aligned coverage threshold to 60% across CI, Makefile, and docs
+
+### Removed
+- **MinIO ingestion backend** — removed due to EOL of the embedded single-node configuration and AGPL-3.0 license concerns (see [ADR-001](docs/adr/ADR-001-hec-ingestion.md))
+- `MINIO_ROOT_PASSWORD`, `MINIO_ROOT_USER`, `MINIO_INGEST_PASSWORD`, `MINIO_INGEST_USER`, `MINIO_AUDIT_BUCKET`, `MINIO_ENDPOINT_URL` environment variables
+- `minio_data` Docker volume and associated Helm PersistentVolumeClaim
+- `minio-setup` sidecar container
 
 ### Fixed
 - Security hardening: SAML CSRF protection, XFF spoofing prevention, configurable role refresh
