@@ -37,7 +37,7 @@ export function ModelsPane() {
   } = useQuery({
     queryKey: ['copilot', 'models'],
     queryFn: getCopilotModels,
-    staleTime: 300_000,
+    staleTime: 30 * 60 * 1000,
   });
 
   const modelUsage = models?.models ?? [];

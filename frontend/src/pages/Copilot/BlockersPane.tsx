@@ -28,7 +28,7 @@ export function BlockersPane() {
   } = useQuery({
     queryKey: ['copilot', 'blockers'],
     queryFn: getCopilotBlockers,
-    staleTime: 300_000,
+    staleTime: 30 * 60 * 1000,
   });
 
   if (isLoading) return <Spinner />;

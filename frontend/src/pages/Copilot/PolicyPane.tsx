@@ -30,7 +30,7 @@ export function PolicyPane() {
   } = useQuery({
     queryKey: ['copilot', 'policy-changes'],
     queryFn: getCopilotPolicyChanges,
-    staleTime: 300_000,
+    staleTime: 30 * 60 * 1000,
   });
 
   if (isLoading) return <Spinner />;

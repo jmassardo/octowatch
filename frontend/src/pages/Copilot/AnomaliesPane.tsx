@@ -24,7 +24,7 @@ export function AnomaliesPane() {
   } = useQuery({
     queryKey: ['copilot', 'anomalies'],
     queryFn: getCopilotAnomalies,
-    staleTime: 300_000,
+    staleTime: 30 * 60 * 1000,
   });
   const anomalies = anomalyData?.anomalies ?? [];
 
