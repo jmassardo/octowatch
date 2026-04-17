@@ -388,3 +388,18 @@
     min-width: 0;
   }
 }
+
+.helpIcon {
+  display: inline-block;
+  margin-left: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--fg-subtle);
+  cursor: help;
+  opacity: 0.7;
+  vertical-align: middle;
+}
+
+.helpIcon:hover {
+  opacity: 1;
+  color: var(--accent);
+}

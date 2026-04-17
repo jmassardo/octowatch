@@ -23,7 +23,7 @@ export function ROIPane() {
   } = useQuery({
     queryKey: ['copilot', 'roi'],
     queryFn: getCopilotROI,
-    staleTime: 300_000,
+    staleTime: 30 * 60 * 1000,
   });
 
   if (isLoading) return <Spinner />;

@@ -8,10 +8,18 @@ import { WorkflowsPage } from './index';
 
 const mockListFindings = vi.fn();
 const mockGetScores = vi.fn();
+const mockTriggerRepoScan = vi.fn();
 
 vi.mock('../../api/workflowScanner', () => ({
   listWorkflowFindings: (...args: unknown[]) => mockListFindings(...args),
   getRepoSecurityScores: (...args: unknown[]) => mockGetScores(...args),
+  triggerRepoScan: (...args: unknown[]) => mockTriggerRepoScan(...args),
+}));
+
+vi.mock('../../api/workflowMetrics', () => ({
+  getAlwaysFailingWorkflows: vi.fn().mockResolvedValue({ workflows: [], total: 0 }),
+  getAlwaysTimingOutWorkflows: vi.fn().mockResolvedValue({ workflows: [], total: 0 }),
+  getWorkflowRunHistory: vi.fn().mockResolvedValue({ runs: [], workflow_path: '' }),
 }));
 
 /* ── Fixtures ──────────────────────────────────────────────────────── */

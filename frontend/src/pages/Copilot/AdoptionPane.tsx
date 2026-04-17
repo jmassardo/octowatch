@@ -33,7 +33,7 @@ export function AdoptionPane() {
   } = useQuery({
     queryKey: ['copilot', 'adoption'],
     queryFn: getCopilotAdoption,
-    staleTime: 300_000,
+    staleTime: 30 * 60 * 1000,
   });
 
   const tiers = adoption?.tiers ?? [];
