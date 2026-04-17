@@ -151,33 +151,14 @@ def sync_ticket_statuses_task(self: Task) -> dict[str, object]:
 
 async def _sync_tickets() -> int:
     """Async wrapper for ticket status synchronization."""
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-    from sqlalchemy.pool import NullPool
-
-    from app.config import settings
+    from app.database import AsyncSessionLocal
     from app.services.ticketing_service import sync_ticket_statuses
 
-    tmp_engine = create_async_engine(
-        settings.DATABASE_URL,
-        poolclass=NullPool,
-        echo=settings.LOG_LEVEL == "DEBUG",
-    )
-    tmp_session_factory = async_sessionmaker(
-        bind=tmp_engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-        autoflush=False,
-        autocommit=False,
-    )
-
-    try:
-        async with tmp_session_factory() as session:
-            try:
-                updated = await sync_ticket_statuses(session)
-                await session.commit()
-                return updated
-            except Exception:
-                await session.rollback()
-                raise
-    finally:
-        await tmp_engine.dispose()
+    async with AsyncSessionLocal() as session:
+        try:
+            updated = await sync_ticket_statuses(session)
+            await session.commit()
+            return updated
+        except Exception:
+            await session.rollback()
+            raise

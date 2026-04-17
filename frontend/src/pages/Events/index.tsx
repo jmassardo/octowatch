@@ -337,7 +337,7 @@ export function EventsPage() {
           <>
             <div className={styles.panelHeader}>
               <div style={{ fontWeight: 600 }}>{detailEvent.action}</div>
-              <button className={styles.panelClose} onClick={() => setDetailEvent(null)}>
+              <button className={styles.panelClose} aria-label="Close" onClick={() => setDetailEvent(null)}>
                 &#215;
               </button>
             </div>

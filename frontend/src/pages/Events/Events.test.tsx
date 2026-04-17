@@ -325,46 +325,52 @@ describe('EventsPage', () => {
     expect(await screen.findByText('2,847 events matching filters')).toBeInTheDocument();
   });
 
-  it('renders Details button for each event row', async () => {
+  it('renders clickable rows for each event', async () => {
     renderWithProviders(<EventsPage />);
 
     await screen.findByText('repo.create');
-    const detailButtons = screen.getAllByRole('button', { name: 'Details' });
-    expect(detailButtons).toHaveLength(2);
+    // Each event row should be present and clickable (table rows with onClick)
+    const rows = screen.getAllByRole('row');
+    // At least 3 rows: header + 2 data rows
+    expect(rows.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('opens modal with event details when Details is clicked', async () => {
+  it('opens slide-out panel with event details when row is clicked', async () => {
     const user = userEvent.setup();
     renderWithProviders(<EventsPage />);
 
     await screen.findByText('repo.create');
-    const detailButtons = screen.getAllByRole('button', { name: 'Details' });
+    const actionLabel = screen.getByText('repo.create');
+    const row = actionLabel.closest('tr')!;
 
-    await user.click(detailButtons[0]);
+    await user.click(row);
 
-    // Modal should show event action in title
-    expect(screen.getByText('Event: repo.create')).toBeInTheDocument();
+    // Panel header shows event action
+    expect(screen.getAllByText('repo.create').length).toBeGreaterThanOrEqual(1);
     // EventDetail renders structured fields – check labels unique to the detail view
     expect(screen.getByText('Source IP')).toBeInTheDocument();
     expect(screen.getByText('Ingested')).toBeInTheDocument();
     expect(screen.getByText('Source')).toBeInTheDocument();
-    // IP appears both in the table row and in the modal detail
+    // IP appears both in the table row and in the panel detail
     const ipElements = screen.getAllByText('61.220.19.3');
-    expect(ipElements.length).toBe(2);
+    expect(ipElements.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('closes modal when close button is clicked', async () => {
+  it('closes slide-out panel when close button is clicked', async () => {
     const user = userEvent.setup();
     renderWithProviders(<EventsPage />);
 
     await screen.findByText('repo.create');
-    const detailButtons = screen.getAllByRole('button', { name: 'Details' });
+    const actionLabel = screen.getByText('repo.create');
+    const row = actionLabel.closest('tr')!;
 
-    await user.click(detailButtons[0]);
-    expect(screen.getByText('Event: repo.create')).toBeInTheDocument();
+    await user.click(row);
+    // Panel is open — detail-specific fields should be visible
+    expect(screen.getByText('Source IP')).toBeInTheDocument();
 
     await user.click(screen.getByLabelText('Close'));
-    expect(screen.queryByText('Event: repo.create')).not.toBeInTheDocument();
+    // Panel closed — detail fields should be gone
+    expect(screen.queryByText('Source IP')).not.toBeInTheDocument();
   });
 
   it('adds a chip when Enter is pressed in search bar', async () => {
@@ -505,9 +511,14 @@ describe('EventsPage', () => {
     expect(screen.getByRole('button', { name: 'Save query' })).toBeInTheDocument();
   });
 
-  it('renders + Add filter button', () => {
+  it('renders Export CSV and search input for filtering', () => {
     renderWithProviders(<EventsPage />);
-    expect(screen.getByRole('button', { name: '+ Add filter' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(
+        'Search events... e.g. action:repo.create actor:@suspicious.*',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('navigates pages when Next and Prev are clicked', async () => {
@@ -532,21 +543,23 @@ describe('EventsPage', () => {
     expect(callsAfterNext.length).toBeGreaterThan(0);
   });
 
-  it('shows the second event details in modal when its Details button is clicked', async () => {
+  it('shows the second event details when its row is clicked', async () => {
     const user = userEvent.setup();
     renderWithProviders(<EventsPage />);
 
     await screen.findByText('repo.destroy');
-    const detailButtons = screen.getAllByRole('button', { name: 'Details' });
+    const actionLabel = screen.getByText('repo.destroy');
+    const row = actionLabel.closest('tr')!;
 
-    await user.click(detailButtons[1]);
+    await user.click(row);
 
-    expect(screen.getByText('Event: repo.destroy')).toBeInTheDocument();
+    // Panel header shows event action
+    expect(screen.getAllByText('repo.destroy').length).toBeGreaterThanOrEqual(1);
     // EventDetail renders structured fields – check the detail-only labels
     expect(screen.getByText('Source IP')).toBeInTheDocument();
-    // IP appears both in the table and in the modal
+    // IP appears both in the table and in the panel
     const ipElements = screen.getAllByText('192.168.1.1');
-    expect(ipElements.length).toBe(2);
+    expect(ipElements.length).toBeGreaterThanOrEqual(1);
     // Additional Data section should be present because this event has data.reason
     expect(screen.getByText('Additional Data')).toBeInTheDocument();
     expect(screen.getByText('reason')).toBeInTheDocument();

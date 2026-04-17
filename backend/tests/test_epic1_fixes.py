@@ -172,7 +172,7 @@ class TestSyncTicketStatuses:
 
         with (
             patch(
-                "app.workers.detection_worker.AsyncSessionLocal",
+                "app.database.AsyncSessionLocal",
                 return_value=mock_factory,
             ),
             patch(
@@ -367,14 +367,25 @@ class TestDetectionWorkerNotificationChain:
         mock_pipeline_result.detections_written = 2
         mock_pipeline_result.detection_ids = [100, 200]
 
-        # Build a proper async context manager mock for AsyncSessionLocal
+        # Build a proper async context manager mock for the session factory
         mock_ctx = AsyncMock()
         mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
         mock_ctx.__aexit__ = AsyncMock(return_value=False)
-        mock_factory = MagicMock(return_value=mock_ctx)
+        mock_session_factory = MagicMock(return_value=mock_ctx)
+
+        # Mock the disposable engine created inside _run_pipeline
+        mock_engine = AsyncMock()
+        mock_engine.dispose = AsyncMock()
 
         with (
-            patch("app.workers.detection_worker.AsyncSessionLocal", mock_factory),
+            patch(
+                "sqlalchemy.ext.asyncio.create_async_engine",
+                return_value=mock_engine,
+            ),
+            patch(
+                "sqlalchemy.ext.asyncio.async_sessionmaker",
+                return_value=mock_session_factory,
+            ),
             patch(
                 "app.services.detection_service.run_detection_pipeline",
                 new_callable=AsyncMock,

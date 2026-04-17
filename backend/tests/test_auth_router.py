@@ -103,13 +103,17 @@ class TestGithubLogin:
         # state param should be present in redirect URL
         assert "state=" in resp.headers["location"]
 
-    def test_oauth_state_cookie_set(self):
-        """CSRF state cookie must be set on the redirect response."""
-        app, _, _ = _build_auth_app()
+    def test_oauth_state_stored_in_valkey(self):
+        """OAuth state is stored server-side in Valkey (not in a cookie)."""
+        app, _, mock_valkey = _build_auth_app()
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/api/v1/auth/github/login")
-        set_cookie = resp.headers.get("set-cookie", "")
-        assert "oauth_state" in set_cookie
+        assert resp.status_code in (302, 307)
+        # State is stored in Valkey, not in a cookie
+        mock_valkey.setex.assert_called_once()
+        call_args = mock_valkey.setex.call_args[0]
+        assert call_args[0].startswith("oauth_state:")
+        assert call_args[1] == 600
 
 
 # ─── /me ─────────────────────────────────────────────────────────────────────
