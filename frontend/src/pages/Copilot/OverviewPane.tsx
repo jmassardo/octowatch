@@ -36,7 +36,7 @@ export function OverviewPane({
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['copilot', 'overview'],
     queryFn: getCopilotOverview,
-    staleTime: 300_000,
+    staleTime: 30 * 60 * 1000,
   });
 
   const languages = overview?.languages ?? [];

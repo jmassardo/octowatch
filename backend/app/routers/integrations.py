@@ -259,25 +259,26 @@ async def test_siem_config(
         success = await send_splunk_hec(config, test_payload, sourcetype="octowatch:test")
 
     elif config.export_type == "webhook":
-        # Create a minimal mock detection for testing
-        from unittest.mock import MagicMock
+        # Create a minimal stub detection for testing
+        from types import SimpleNamespace
 
-        mock_detection = MagicMock()
-        mock_detection.id = 0
-        mock_detection.title = "Test Detection"
-        mock_detection.description = "OctoWatch SIEM export test event"
-        mock_detection.severity = "info"
-        mock_detection.confidence = "high"
-        mock_detection.confidence_score = 0.0
-        mock_detection.status = "test"
-        mock_detection.actor = "octowatch-test"
-        mock_detection.org = None
-        mock_detection.repo = None
-        mock_detection.source_ip = None
-        mock_detection.triggered_at = None
-        mock_detection.event_ids = []
-        mock_detection.context_data = {}
-        mock_detection.rule_id = 0
+        mock_detection = SimpleNamespace(
+            id=0,
+            title="Test Detection",
+            description="OctoWatch SIEM export test event",
+            severity="info",
+            confidence="high",
+            confidence_score=0.0,
+            status="test",
+            actor="octowatch-test",
+            org=None,
+            repo=None,
+            source_ip=None,
+            triggered_at=None,
+            event_ids=[],
+            context_data={},
+            rule_id=0,
+        )
         success = await send_soar_webhook(config, mock_detection)
 
     return JSONResponse(

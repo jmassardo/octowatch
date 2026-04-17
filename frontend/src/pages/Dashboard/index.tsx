@@ -50,11 +50,13 @@ function StatPill({
   label,
   variant,
   onClick,
+  helpText,
 }: {
   value: string;
   label: string;
   variant?: 'danger' | 'success' | 'accent' | 'done';
   onClick?: () => void;
+  helpText?: string;
 }) {
   return (
     <div
@@ -77,6 +79,11 @@ function StatPill({
       }
     >
       <span className={styles.pillVal}>{value}</span>&nbsp;{label}
+      {helpText && (
+        <span className={styles.helpIcon} title={helpText} aria-label={`Help: ${label}`}>
+          ⓘ
+        </span>
+      )}
       {onClick && (
         <span className={styles.pillArrow} aria-hidden="true">
           →
@@ -153,43 +160,41 @@ export function DashboardPage() {
   } = useQuery({
     queryKey: ['detections', 'open'],
     queryFn: () => listDetections({ status: 'open', page_size: 100 }),
-    refetchInterval: 60_000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: events, isLoading: loadingEvents } = useQuery({
     queryKey: ['events', 'recent'],
     queryFn: () => listEvents({ page_size: 10, sort: 'created_at_desc' }),
-    refetchInterval: 60_000,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch a larger page of events for the heatmap (up to 500 most recent)
   const { data: calendarEvents } = useQuery({
     queryKey: ['events', 'calendar'],
     queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc' }),
-    refetchInterval: 60_000,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch actions volume data for workflow success metrics
   const { data: actionsReport } = useQuery({
     queryKey: ['reports', 'actions-volume-dashboard'],
     queryFn: () => getActionsVolumeReport({ window_days: 7, granularity: 'daily' }),
-    refetchInterval: 60_000,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch extended health summary for security pills
   const { data: healthSummary } = useQuery({
     queryKey: ['health-signals', 'summary-dashboard'],
     queryFn: getExtendedHealthSummary,
-    staleTime: 60_000,
-    refetchInterval: 60_000,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch system health for ingestion banner
   const { data: systemHealth } = useQuery({
     queryKey: ['health-signals', 'system-dashboard'],
     queryFn: getSystemHealth,
-    staleTime: 60_000,
-    refetchInterval: 60_000,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Derive workflow metrics from actions volume data
@@ -282,17 +287,20 @@ export function DashboardPage() {
         <StatPill
           value={eventCountLabel || '—'}
           label="events today"
+          helpText="Audit log events received today via HEC ingest. Source: events table."
           onClick={() => navigate('/events')}
         />
         <StatPill
           value={String(openThreats)}
           label="open threats"
           variant={openThreats > 0 ? 'danger' : undefined}
+          helpText="Active threat detections in Open status from the detection engine."
           onClick={() => navigate('/threats')}
         />
         <StatPill
           value={workflowSuccessRate != null ? `${workflowSuccessRate}%` : '—'}
           label="pipeline success"
+          helpText="7-day Actions workflow success rate. Calculated from workflow_run.completed events."
           variant={
             workflowSuccessRate != null && parseFloat(workflowSuccessRate) >= 90
               ? 'success'
@@ -304,18 +312,21 @@ export function DashboardPage() {
           value={String(uniqueActors || '—')}
           label="active devs"
           variant="done"
+          helpText="Unique human actors (non-bot) seen in audit log events over the last 30 days."
           onClick={() => navigate('/devactivity')}
         />
-        <StatPill value="—" label="API calls (24h)" onClick={() => navigate('/reports')} />
+        <StatPill value="—" label="API calls (24h)" helpText="GitHub API usage from usage reports. Not yet available." onClick={() => navigate('/reports')} />
         <StatPill
           value={formatCount(calendarEvents?.total ?? 0)}
           label="total events"
           variant="accent"
+          helpText="Total audit log events stored across all time. Source: events table count."
           onClick={() => navigate('/events')}
         />
         <StatPill
           value={String(healthSummary?.unresolved_secret_alerts ?? '—')}
           label="unresolved secrets"
+          helpText="Open secret scanning alerts from health signals. Go to Health → Security to review."
           variant={
             healthSummary != null && healthSummary.unresolved_secret_alerts > 0
               ? 'danger'
@@ -326,6 +337,7 @@ export function DashboardPage() {
         <StatPill
           value={String(healthSummary?.security_feature_disables_7d ?? '—')}
           label="feature disables (7d)"
+          helpText="Security feature disable events (e.g. branch protection removed) in the last 7 days."
           variant={
             healthSummary != null && healthSummary.security_feature_disables_7d > 0
               ? 'danger'

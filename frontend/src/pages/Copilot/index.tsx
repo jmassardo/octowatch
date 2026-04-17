@@ -59,13 +59,13 @@ export function CopilotPage() {
   const { data: anomalyData } = useQuery({
     queryKey: ['copilot', 'anomalies'],
     queryFn: getCopilotAnomalies,
-    staleTime: 300_000,
+    staleTime: 30 * 60 * 1000,
   });
 
   const { data: blockersData } = useQuery({
     queryKey: ['copilot', 'blockers'],
     queryFn: getCopilotBlockers,
-    staleTime: 300_000,
+    staleTime: 30 * 60 * 1000,
   });
 
   if (!features.copilot_insights) {
