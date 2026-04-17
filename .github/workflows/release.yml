@@ -115,7 +115,6 @@ jobs:
         run: |
           helm repo add bitnami https://charts.bitnami.com/bitnami
           helm repo add gitea https://dl.gitea.io/charts/
-          helm repo add minio https://charts.min.io/
           helm repo update
       - name: Package chart
         run: |
@@ -175,8 +174,7 @@ jobs:
 
             ```bash
             helm repo add bitnami https://charts.bitnami.com/bitnami
-            helm repo add minio https://charts.min.io/
-            helm repo add gitea https://dl.gitea.io/charts/
+              helm repo add gitea https://dl.gitea.io/charts/
             helm install audit-log ./octowatch-*.tgz \
               --namespace audit-log --create-namespace \
               --set global.image.tag=${{ github.ref_name }}

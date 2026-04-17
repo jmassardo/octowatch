@@ -9,7 +9,7 @@
 ## Table of Contents
 
 1. [System Overview](#1-system-overview)
-2. [Component Breakdown](#2-component-breakdown) _(18 components, including embedded MinIO)_
+2. [Component Breakdown](#2-component-breakdown) _(21 components)_
 3. [Database Schema](#3-database-schema)
 4. [Technology Stack Table](#4-technology-stack-table)
 5. [Technical Risks](#5-technical-risks)
@@ -28,38 +28,35 @@
                 │   monitoring-activity-in-your-enterprise/streaming-the-     │
                 │   audit-log-for-your-enterprise)                            │
                 └──────────────────────┬──────────────────────────────────────┘
-                                       │  Streams YYYY/MM/DD/HH/MM/<uuid>.json.gz
-                          ┌────────────┴────────────┬─────────────────────────┐
-                          │                         │                         │
-               ┌──────────▼──────────┐   ┌──────────▼──────────────┐  ┌───────▼──────────────┐
-               │    AWS S3 Bucket    │   │  Azure Blob Container   │  │  MinIO (Embedded)    │
-               │    (read-only)      │   │      (read-only)        │  │  S3-compatible,      │
-               │                     │   │                         │  │  self-hosted.        │
-               └──────────┬──────────┘   └──────────┬──────────────┘  │  GitHub streams      │
-                          │                          │                 │  directly here via   │
-                          │                          │                 │  S3 protocol.        │
-                          │                          │                 │  Bucket event →      │
-                          │                          │                 │  Valkey pub/sub      │
-                          │                          │                 │  (no poll needed)    │
-                          │                          │                 └──────────┬───────────┘
-                          └─────────────────┬────────┘                           │
-                                            └──────────────────┬─────────────────┘
-                                                               │ list objects + stream-download
-                                                               │ (or push-notify for MinIO mode)
-                    ┌────────────────────▼────────────────────┐
+                                       │
+                  HEC push (real-time) │                  poll (1–15 min)
+                  POST /services/      │
+                  collector            │
+                       ┌──────────────▼──────────┬─────────────────────────┐
+                       │                         │                         │
+            ┌──────────▼──────────┐   ┌──────────▼──────────────┐
+            │  OctoWatch HEC      │   │  AWS S3 Bucket  or      │
+            │  Receiver Endpoint  │   │  Azure Blob Container   │
+            │  (FastAPI router)   │   │  (read-only)            │
+            │  Auth: Splunk token │   │                         │
+            └──────────┬──────────┘   └──────────┬──────────────┘
+                       │  enqueue via Celery       │ list objects +
+                       │                           │ stream-download
+                       └──────────────┬────────────┘
+                                      │
+                    ┌─────────────────▼───────────────────────┐
                     │           INGESTION WORKERS              │
-                    │   Celery Beat (scheduler, 1–15 min)      │
+                    │   Celery Beat (scheduler, poll modes)    │
                     │   Celery Workers (parallel per source)   │
                     │  ─────────────────────────────────────  │
-                    │  1. Claim cursor (FOR UPDATE SKIP LOCKED)│
-                    │  2. List prefixes newer than last_prefix │
-                    │  3. Stream-download + decompress .gz     │
-                    │  4. Check dedup (Valkey bloom → PG)      │
-                    │  5. Normalize raw JSON → EventSchema     │
-                    │  6. GeoIP enrich via MaxMind mmdb        │
-                    │  7. Bulk INSERT events (ON CONFLICT SKIP)│
-                    │  8. Commit cursor + dedup in same txn    │
-                    │  9. Enqueue detection batch task         │
+                    │  1. Receive (HEC push) or claim cursor + │
+                    │     list prefixes (poll modes)           │
+                    │  2. Check dedup (Valkey bloom → PG)      │
+                    │  3. Normalize raw JSON → EventSchema     │
+                    │  4. GeoIP enrich via MaxMind mmdb        │
+                    │  5. Bulk INSERT events (ON CONFLICT SKIP)│
+                    │  6. Commit cursor + dedup in same txn    │
+                    │  7. Enqueue detection batch task         │
                     └──┬──────────────┬──────────────┬─────────┘
                        │              │              │
           ┌────────────▼──┐  ┌────────▼────┐  ┌────▼──────────────────┐
@@ -147,11 +144,12 @@
 
 ### 1.2 Data Flow Narrative
 
-**Poll / Push** — Three ingestion modes are supported, selected per-source via `ingestion_cursors.source_type`:
+**Poll / Push** — Four ingestion modes are supported, selected via `INGESTION_MODE` env var:
 
+- **`hec`** _(default)_ — GitHub Enterprise streams audit log events directly to the Splunk HEC-compatible endpoint (`POST /services/collector`). Authenticated with `Authorization: Splunk <HEC_TOKEN>`. No polling required; real-time ingestion.
+- **`webhook`** — Raw GitHub audit log webhook payloads received at `POST /api/v1/ingest/webhook`. Authenticated with a shared HMAC secret.
 - **`s3`** — Celery Beat fires `ingestion.poll_sources` every 1–15 minutes. Worker lists all S3 object keys with a prefix lexicographically greater than `last_prefix` using `ListObjectsV2 StartAfter`.
 - **`azure_blob`** — Same polling model; uses `list_blobs(name_starts_with=last_prefix)`.
-- **`minio`** — Embedded MinIO service runs inside the Docker Compose / Helm stack. GitHub streams directly to MinIO (S3-compatible endpoint). MinIO bucket notifications publish to a Valkey channel (`minio:events`) on each new `.json.gz` PUT. Worker subscribes via Valkey pub/sub; new-file notifications trigger immediate processing without waiting for the Celery Beat tick.
 
 For all modes, each Ingestion Worker acquires a source lock using `SELECT id FROM ingestion_cursors WHERE status = 'active' AND source_type = $1 FOR UPDATE SKIP LOCKED LIMIT 1`. Multiple workers can run in parallel, each processing a different source.
 
@@ -175,20 +173,19 @@ For all modes, each Ingestion Worker acquires a source lock using `SELECT id FRO
 
 | Attribute | Detail |
 |-----------|--------|
-| **Responsibility** | Read new `.json.gz` objects from S3, Azure Blob, or embedded MinIO; decompress; dedup; normalize; GeoIP-enrich; bulk-write events; advance cursor atomically |
+| **Responsibility** | Accept events via HEC push (`POST /services/collector`) or webhook push, OR poll new `.json.gz` objects from S3 or Azure Blob; dedup; normalize; GeoIP-enrich; bulk-write events; advance cursor atomically |
 | **Technology** | Python 3.12, Celery 5.4 (BSD-3), boto3 1.34 (Apache 2.0), azure-storage-blob 12.19 (MIT), geoip2 4.8 (Apache 2.0) |
-| **Key Interfaces** | `ingestion_cursors` R/W; `events` W; `event_raw_payloads` W; `event_dedup` R/W; Valkey dedup SET; Valkey `minio:events` pub/sub (MinIO mode); Celery detection queue W |
-| **Scalability** | One worker per concurrent source; row-level advisory lock via `FOR UPDATE SKIP LOCKED`; backfill parallelized by splitting prefix date ranges across multiple workers |
+| **Key Interfaces** | `ingestion_cursors` R/W (poll modes); `events` W; `event_raw_payloads` W; `event_dedup` R/W; Valkey dedup SET; Celery detection queue W |
+| **Scalability** | One worker per concurrent source (poll modes); stateless for HEC/webhook push; backfill parallelized by splitting prefix date ranges across multiple workers |
 
 **Ingestion modes:**
 
 | Mode | `source_type` | Trigger mechanism | GitHub streams to |
 |------|--------------|-------------------|------------------|
+| HEC (Splunk) | `hec` | HTTP push (real-time) | OctoWatch `POST /services/collector` |
+| Webhook | `webhook` | HTTP push (real-time) | OctoWatch `POST /api/v1/ingest/webhook` |
 | AWS S3 | `s3` | Celery Beat poll (1–15 min) | External AWS S3 bucket |
 | Azure Blob | `azure_blob` | Celery Beat poll (1–15 min) | External Azure Blob container |
-| Embedded MinIO | `minio` | Valkey pub/sub push (near-instant) | MinIO service inside this stack |
-
-> **MinIO mode requirement:** The MinIO service needs a TLS-terminated, publicly accessible endpoint so GitHub can validate SSL when streaming. Operators expose this via an ingress, reverse proxy (nginx/Caddy), or a tunnel (Cloudflare Tunnel). For private/air-gapped environments, fall back to S3 or Azure Blob.
 
 ### 2.2 Event Store
 
@@ -375,35 +372,25 @@ For all modes, each Ingestion Worker acquires a source lock using `SELECT id FRO
 
 > **Why Valkey, not Redis:** Redis 7.x uses the RSAL (Redis Source Available License), which restricts use cases in competing products. Valkey is its BSD-3-licensed, Linux Foundation-maintained community fork, API-compatible at the protocol level. The `redis-py` client and Celery both work with Valkey without code changes — just update the connection URL.
 
-### 2.18 Embedded Object Store (MinIO)
+### 2.18 HEC Ingestion Endpoint
 
 | Attribute | Detail |
 |-----------|--------|
-| **Responsibility** | S3-compatible object storage that receives GitHub audit log streams directly, eliminating the need for an external AWS or Azure account in simple deployments |
-| **Technology** | **MinIO** RELEASE.2024-06 (AGPL-3.0); `mc` CLI for bucket configuration; `boto3` client (same as S3 mode — no code changes) |
-| **Key Interfaces** | GitHub streams `.json.gz` files via S3 `PutObject`; MinIO bucket notification webhook publishes to Valkey channel `minio:events` on each new file; Ingestion Worker subscribes to that channel and triggers immediate processing |
-| **Scalability** | Single-node for most deployments (MinIO standalone); MinIO Distributed mode available for large deployments; volume-backed for persistence |
+| **Responsibility** | Accept Splunk HEC-format audit log events from GitHub Enterprise Cloud's audit log streaming feature in real time |
+| **Technology** | FastAPI router (`app/routers/ingest_hec.py`); Celery task enqueue; `hmac.compare_digest` for constant-time token validation |
+| **Key Interfaces** | `POST /services/collector` — authenticated with `Authorization: Splunk <HEC_TOKEN>`; `GET /services/collector/health` — GitHub connectivity check; delegates to `ingest_webhook_event_task` Celery task |
+| **Scalability** | Stateless HTTP receiver; horizontally scalable via nginx upstream; token validated in memory (no DB round-trip) |
 
-**Setup flow (operator):**
+**HEC protocol support:**
+- Single JSON object: `{"event": {...}}`
+- NDJSON: one `{"event": {...}}` per line
+- Concatenated JSON: `{"event": {...}}{"event": {...}}`
 
-1. Deploy the stack (MinIO starts with access key + secret key from env vars).
-2. Expose MinIO's S3 port (9000) via TLS-terminated reverse proxy or Kubernetes ingress — GitHub requires HTTPS with a valid certificate.
-3. In the Admin Portal under **Ingestion Sources → Add MinIO source**, obtain the generated access key and the public endpoint URL.
-4. In the GitHub Enterprise admin, configure Audit Log Streaming → Amazon S3, using the MinIO endpoint URL, access key, and secret key, and bucket name `audit-logs`.
-5. MinIO automatically fires bucket notifications → Valkey → Ingestion Worker begins processing within seconds of each file upload.
-
-**Bucket notification configuration** (applied by the stack at startup via `mc event add`):
-
-```
-mc event add minio/audit-logs arn:minio:sqs::1:valkey \
-  --event put \
-  --suffix .json.gz
-```
-
-**When MinIO is NOT the right choice:**
-- The analyzer host cannot be exposed to the public internet (use S3 or Azure Blob instead).
-- The enterprise already has an existing streaming destination configured (use the matching source type).
-- Air-gapped / highly regulated environments that restrict running additional services (use S3 or Azure Blob with existing bucket).
+**GitHub audit log stream configuration:**
+1. In GitHub Enterprise Cloud org settings → **Audit log** → **Streams**
+2. Set destination: **Custom HTTPS** → Splunk HEC
+3. URL: `https://<your-host>/services/collector`
+4. Authorization header: `Splunk <HEC_TOKEN>` (set `HEC_TOKEN` in your `.env`)
 
 ---
 
@@ -590,8 +577,8 @@ Tracks the last successfully-processed object prefix per source. Used for resuma
 CREATE TABLE ingestion_cursors (
     id                SERIAL      PRIMARY KEY,
     source_type       TEXT        NOT NULL
-                      CHECK (source_type IN ('s3', 'azure_blob', 'minio')),
-    source_name       TEXT        NOT NULL,  -- S3 bucket name or Azure container name
+                      CHECK (source_type IN ('s3', 'azure_blob', 'hec', 'webhook')),
+    source_name       TEXT        NOT NULL,  -- S3 bucket name, Azure container name, or HEC endpoint label
     -- Connection config (no credentials stored — use env vars)
     source_region     TEXT,                  -- AWS region (S3 only)
     source_prefix     TEXT        NOT NULL DEFAULT '',  -- optional key prefix filter
@@ -1099,9 +1086,9 @@ CREATE TABLE notification_configs (
 | Python Valkey client | redis-py | 5.0 | MIT | API-compatible with Valkey; used by both app code and Celery |
 | Primary Database | PostgreSQL | 16 | PostgreSQL License | ACID, JSONB, partitioning, row-level security, pgcrypto |
 | Time-Series Extension | TimescaleDB OSS | 2.14 | Apache-2.0 | Automatic chunking, compression, continuous aggregates, retention policies |
-| S3 Client | boto3 | 1.34 | Apache-2.0 | Official AWS SDK; streaming object reads; also used as MinIO client (same S3 protocol) |
+| S3 Client | boto3 | 1.34 | Apache-2.0 | Official AWS SDK; streaming object reads (used for S3 ingestion mode) |
 | Azure Blob Client | azure-storage-blob | 12.19 | MIT | Official Azure SDK; streaming blob reads |
-| Embedded Object Store | MinIO | RELEASE.2024-06 | AGPL-3.0 | S3-compatible self-hosted object store; GitHub streams directly here; push notifications via bucket events → Valkey pub/sub; eliminates need for external cloud storage in simple deployments |
+| HEC Receiver | FastAPI router | — | Apache-2.0 | Splunk HEC-compatible endpoint; accepts GitHub audit log streams directly |
 | HTTP Client | httpx | 0.27 | BSD-3-Clause | Async-first; used by enrichment and ticketing services |
 | GeoIP Lookup | MaxMind GeoLite2 + geoip2 | DB 2024, lib 4.8 | CC BY-SA 4.0 / Apache-2.0 | Industry-standard IP geolocation; includes proxy/VPN detection; free tier |
 | OAuth 2.0 | Authlib | 1.3 | BSD-3-Clause | Full OAuth 2.0 / OIDC client; GitHub OAuth integration |
@@ -1139,8 +1126,6 @@ CREATE TABLE notification_configs (
 | Orchestration | Kubernetes | 1.30 | Apache-2.0 | Production orchestration |
 | Helm | Helm | 3.15 | Apache-2.0 | Kubernetes packaging |
 | Static Server | nginx | 1.26 | BSD-2-Clause | Serves React SPA; reverse proxy to FastAPI |
-
-> **Note on MinIO AGPL-3.0:** MinIO is licensed under AGPL-3.0. Because this project is already open-source (and MinIO runs as a separate service process, not linked into the application), the AGPL copyleft obligation is satisfied by the project's own open-source license. Operators who require a non-AGPL embedded store may substitute any S3-compatible alternative (e.g., SeaweedFS — Apache 2.0) by updating the MinIO service definition; the ingestion worker uses standard `boto3` and requires no code changes.
 
 > **Note on pglast GPL-3.0:** pglast is used only server-side for SQL validation at the API layer boundary. As a web application, the GPL-3.0 license requires the application itself to be open-source — which is already the case. If a commercial fork is created later, replace pglast with sqlglot (MIT) and implement a custom AST validation pass.
 

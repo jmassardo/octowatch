@@ -74,7 +74,7 @@ async def main(files: list[str]) -> None:
     from app.workers.ingestion.base import AbstractIngestWorker
 
     class LocalImportWorker(AbstractIngestWorker):
-        ingestion_source = "minio"  # closest valid value per DB CHECK constraint
+        ingestion_source = "hec"  # default source; subclasses override
 
         async def run(self) -> None:
             pass  # not used for one-time import

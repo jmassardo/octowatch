@@ -62,7 +62,7 @@ This specification defines a four-phase implementation plan to close that gap wi
 ### 2.2 Out of Scope
 
 - Changes to the core detection engine evaluation pipeline (covered by prior spec)
-- Changes to the ingestion storage backend (S3/Blob/MinIO architecture)
+- Changes to the ingestion storage backend (S3/Blob/HEC architecture)
 - Multi-tenancy or plugin system (ROADMAP items)
 - Real-time alerting via Slack/email (separate roadmap item, but socket events from Phase 1 are prerequisite infrastructure)
 

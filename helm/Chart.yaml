@@ -2,7 +2,7 @@ apiVersion: v2
 name: octowatch
 description: >
   GitHub Enterprise Cloud audit log ingestion, detection, and reporting platform.
-  FastAPI backend, Celery workers, TimescaleDB, Valkey, MinIO, Gitea.
+  FastAPI backend, Celery workers, TimescaleDB, Valkey, Gitea.
 
 type: application
 version: 0.1.0
@@ -35,8 +35,3 @@ dependencies:
     repository: https://charts.bitnami.com/bitnami
     condition: valkey.enabled
 
-  # MinIO — set minio.enabled=false to use external S3/MinIO endpoint
-  - name: minio
-    version: "5.x.x"
-    repository: https://charts.min.io/
-    condition: minio.enabled

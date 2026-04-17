@@ -36,7 +36,7 @@ updates, backups, TLS, networking, and troubleshooting.
 | Docker Engine | 24+ | With Docker Compose v2 (`docker compose`) |
 | CPU | 4 vCPU | 8 vCPU recommended for production |
 | RAM | 8 GB | 16 GB recommended for production |
-| Disk | 100 GB | SSD strongly recommended; TimescaleDB and MinIO are I/O heavy |
+| Disk | 100 GB | SSD strongly recommended; TimescaleDB is I/O heavy |
 | Python | 3.10+ | Only needed on the deploy host to run `scripts/gen_env.py` |
 | Domain name | — | Required for production TLS; optional for local dev |
 
@@ -122,8 +122,7 @@ python scripts/gen_env.py
 ```
 
 This creates a `.env` in the repository root with random secrets for
-`SECRET_KEY`, `POSTGRES_PASSWORD`, `VALKEY_PASSWORD`, `MINIO_ROOT_PASSWORD`,
-and `MINIO_INGEST_PASSWORD`.
+`SECRET_KEY`, `POSTGRES_PASSWORD`, `VALKEY_PASSWORD`, and `HEC_TOKEN`.
 
 ### Step 3 — Set GitHub OAuth credentials
 
@@ -252,8 +251,7 @@ echo "SECRET_KEY=$(openssl rand -hex 32)"
 echo "ENCRYPTION_KEY=$(openssl rand -hex 32)"
 echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
 echo "VALKEY_PASSWORD=$(openssl rand -hex 16)"
-echo "MINIO_ROOT_PASSWORD=$(openssl rand -hex 16)"
-echo "MINIO_INGEST_PASSWORD=$(openssl rand -hex 16)"
+echo "HEC_TOKEN=$(openssl rand -hex 32)"
 ```
 
 Update `.env` with these values and ensure `DATABASE_URL` and `VALKEY_URL`
@@ -286,18 +284,12 @@ volumes:
       type: none
       o: bind
       device: /mnt/data/octowatch/valkey
-  minio_data:
-    driver: local
-    driver_opts:
-      type: none
-      device: /mnt/data/octowatch/minio
-      o: bind
 ```
 
 Create the directories before starting the stack:
 
 ```bash
-sudo mkdir -p /mnt/data/octowatch/{postgres,valkey,minio}
+sudo mkdir -p /mnt/data/octowatch/{postgres,valkey}
 ```
 
 ### 4.5 Start the production stack
@@ -340,8 +332,7 @@ sudo systemctl enable --now octowatch
 ## 5. Kubernetes Deployment (Helm)
 
 The `helm/` directory contains a full Helm chart with templates for all
-OctoWatch services, plus Bitnami subcharts for PostgreSQL and Valkey, and the
-MinIO chart for object storage.
+OctoWatch services, plus Bitnami subcharts for PostgreSQL and Valkey.
 
 ### 5.1 Prerequisites
 
@@ -406,11 +397,6 @@ kubectl create secret generic octowatch-db-secret \
 kubectl create secret generic octowatch-valkey-secret \
   --from-literal=valkey-password="$(openssl rand -hex 16)"
 
-# MinIO credentials
-kubectl create secret generic octowatch-minio-secret \
-  --from-literal=rootUser=minioadmin \
-  --from-literal=rootPassword="$(openssl rand -hex 16)"
-
 # Application secrets
 kubectl create secret generic octowatch-app-secret \
   --from-literal=secret-key="$(openssl rand -hex 32)" \
@@ -438,7 +424,61 @@ automatically before the API deployment starts.
 
 ---
 
-## 6. Updating the Application
+## 6. Configuring GitHub Audit Log Stream → HEC
+
+OctoWatch's default ingestion mode (`INGESTION_MODE=hec`) uses a Splunk
+HEC-compatible receiver to accept events directly from GitHub Enterprise
+Cloud's audit log streaming feature — no intermediate object storage required.
+
+### 6.1 Prerequisites
+
+- OctoWatch is publicly accessible over HTTPS (required by GitHub for streaming)
+- `HEC_TOKEN` is set to a strong random secret in your `.env`:
+  ```bash
+  echo "HEC_TOKEN=$(openssl rand -hex 32)"
+  ```
+
+### 6.2 Configure the audit log stream in GitHub Enterprise Cloud
+
+1. Go to your GitHub organization or enterprise settings.
+2. Navigate to **Audit log** → **Streams** (or **Log streaming** in enterprise settings).
+3. Click **Add new stream** or **Configure stream**.
+4. Set the stream **destination type** to **Splunk** (or **Custom HTTPS endpoint**
+   if that appears instead).
+5. Set the **Endpoint URL**:
+   ```
+   https://<your-octowatch-host>/services/collector
+   ```
+6. Set the **Token** field to the value of your `HEC_TOKEN`.
+   GitHub will send `Authorization: Splunk <token>` with each request.
+7. Leave other fields at their defaults (JSON format).
+8. Click **Save** and verify GitHub shows the stream as **Active**.
+
+### 6.3 Verify events are flowing
+
+```bash
+# Watch API logs for incoming HEC events
+docker compose logs api --tail=50 -f | grep "hec\."
+
+# Or test manually with a sample event
+curl -sk -X POST https://<your-host>/services/collector \
+  -H "Authorization: Splunk ${HEC_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"event": {"action": "org.add_member", "actor": "test-user", "org": "acme-corp"}}'
+# Expected: {"text": "Success", "code": 0}
+```
+
+### 6.4 Switching to S3 or Azure Blob (optional)
+
+If you prefer poll-based ingestion, set `INGESTION_MODE=s3` or
+`INGESTION_MODE=azure_blob` in your `.env`. See the
+[Object Storage (S3)](#object-storage-s3--when-ingestion_modes3) and
+[Object Storage (Azure)](#object-storage-azure--when-ingestion_modeazure_blob) sections
+below for the additional required environment variables.
+
+---
+
+## 7. Updating the Application
 
 ### Your data is safe
 
@@ -449,7 +489,6 @@ Container image updates **never** touch these volumes:
 |---|---|
 | `pg_data` | TimescaleDB — all events, rules, users, detections |
 | `valkey_data` | Valkey AOF — Celery results, dedup keys, sessions |
-| `minio_data` | Raw audit log files (`.json.gz`) |
 
 Updating containers is like swapping the engine on a car — the chassis (your
 data) stays exactly where it is.
@@ -470,7 +509,7 @@ docker image prune -f
 ```
 
 That's it. Docker Compose detects which images changed and only restarts those
-containers. Infrastructure services (TimescaleDB, Valkey, MinIO) are unaffected
+containers. Infrastructure services (TimescaleDB, Valkey) are unaffected
 unless you explicitly update their image tags.
 
 ### Database migrations run automatically
@@ -562,7 +601,6 @@ applying any pending Alembic migrations before the new API pods start.
 | Volume | Service | Contents | Critical? |
 |---|---|---|---|
 | `pg_data` | TimescaleDB | Events, detections, rules, users, baselines | **Yes** — primary data store |
-| `minio_data` | MinIO | Raw audit log files (`.json.gz`) | **Yes** — source of truth for re-ingestion |
 | `valkey_data` | Valkey | Celery task results, dedup keys, sessions | No — ephemeral cache; rebuilt on restart |
 
 ### Backup strategy
@@ -601,24 +639,6 @@ plus filesystem-level snapshots (LVM, ZFS, or cloud disk snapshots).
   > "/mnt/backups/octowatch-$(date +\%Y\%m\%d).dump" 2>&1
 ```
 
-#### MinIO (critical)
-
-Use the MinIO client (`mc`) to mirror the bucket to a backup location:
-
-```bash
-# Configure mc alias
-docker compose exec minio mc alias set local http://localhost:9000 \
-  "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
-
-# Mirror to a local backup directory
-docker compose exec minio mc mirror \
-  local/audit-logs /tmp/minio-backup/
-
-# Or mirror to an external S3-compatible target
-mc alias set backup https://backup-s3.example.com ACCESS_KEY SECRET_KEY
-mc mirror local/audit-logs backup/octowatch-audit-logs
-```
-
 #### Valkey (not critical)
 
 Valkey data is an ephemeral cache. It is automatically rebuilt from the database
@@ -645,18 +665,9 @@ docker compose exec -T db pg_restore \
 docker compose up -d
 ```
 
-#### Restore MinIO
-
-```bash
-# Mirror backup files back into the MinIO bucket
-mc mirror /path/to/backup/ local/audit-logs
-```
-
 ---
 
-## 8. Environment Variables Reference
-
-All configuration is driven by environment variables. Set them in a `.env` file
+## 8. Environment Variables Reference Set them in a `.env` file
 (Docker Compose reads it automatically) or as Kubernetes Secrets / ConfigMaps.
 
 ### Core
@@ -668,7 +679,7 @@ All configuration is driven by environment variables. Set them in a `.env` file
 | `APP_BASE_URL` | **Yes** | — | Public URL of the app (e.g. `https://octowatch.example.com`). Used for OAuth callbacks and SAML ACS. |
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`. |
 | `ENVIRONMENT` | No | `development` | Deployment environment label. |
-| `INGESTION_MODE` | No | `minio` | Storage backend: `minio`, `s3`, or `azure_blob`. |
+| `INGESTION_MODE` | No | `hec` | Ingestion backend: `hec`, `webhook`, `s3`, or `azure_blob`. |
 | `INITIAL_ADMIN_LOGINS` | No | `""` | Comma-separated GitHub usernames granted admin on first login. |
 | `DETECTION_CONFIDENCE_THRESHOLD` | No | `0.7` | Minimum confidence score (0.0–1.0) for a detection to be persisted. |
 | `QUERY_MAX_ROWS` | No | `100000` | Max rows returned by the self-service query engine. |
@@ -690,17 +701,11 @@ All configuration is driven by environment variables. Set them in a `.env` file
 | `VALKEY_URL` | **Yes** | — | Valkey/Redis connection string. Must start with `redis://`, `rediss://`, or `unix://`. |
 | `VALKEY_PASSWORD` | **Yes** | — | Valkey authentication password (used by the `valkey` container). |
 
-### Object Storage (MinIO)
+### HEC Ingestion — when `INGESTION_MODE=hec` (default)
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `MINIO_ENDPOINT_URL` | No | `http://minio:9000` | MinIO API endpoint. |
-| `MINIO_AUDIT_BUCKET` | **Yes** | — | Bucket name for audit log files. |
-| `MINIO_INGEST_USER` | **Yes** | — | MinIO user for the ingestion service (read-only policy). |
-| `MINIO_INGEST_PASSWORD` | **Yes** | — | Password for the MinIO ingestion user. |
-| `MINIO_ROOT_USER` | **Yes** | — | MinIO root administrator username. |
-| `MINIO_ROOT_PASSWORD` | **Yes** | — | MinIO root administrator password. |
-| `MINIO_HMAC_SECRET` | No | `""` | HMAC secret for MinIO webhook signature verification. |
+| `HEC_TOKEN` | No | `""` | Shared secret for HEC authentication. Set in GitHub's audit log stream config as `Authorization: Splunk <token>`. Strongly recommended in production. |
 
 ### Object Storage (S3) — when `INGESTION_MODE=s3`
 
@@ -828,10 +833,9 @@ octowatch.example.com {
         reverse_proxy api:8000
     }
 
-    # MinIO S3-compatible endpoint (for audit log uploads)
-    handle /s3/* {
-        uri strip_prefix /s3
-        reverse_proxy minio:9000
+    # HEC endpoint for GitHub audit log streaming
+    handle /services/* {
+        reverse_proxy api:8000
     }
 
     # Security headers
@@ -894,14 +898,14 @@ share a network.
                                      │   sync    │    │  data network
                                      └────────┬──┘    │
                                               │       │
-                           ┌──────────────────┼───────┼─────────────────┐
-                           │                  │       │                 │
-                    ┌──────┴──────┐    ┌──────┴───┐  ┌┴──────────┐     │
-                    │ TimescaleDB │    │  Valkey   │  │   MinIO   │     │
-                    │   (pg16)    │    │  (cache)  │  │ (storage) │     │
-                    └─────────────┘    └──────────┘  └───────────┘     │
-                                                                       │
-                                                           ┌───────────┴──┐
+                           ┌──────────────────┼────────────────────────────┐
+                           │                  │                           │
+                    ┌──────┴──────┐    ┌──────┴───┐                      │
+                    │ TimescaleDB │    │  Valkey   │                      │
+                    │   (pg16)    │    │  (cache)  │                      │
+                    └─────────────┘    └──────────┘                      │
+                                                                         │
+                                                           ┌─────────────┴┐
                                                            │     beat     │
                                                            │ (scheduler)  │
                                                            └──────────────┘
@@ -911,17 +915,16 @@ share a network.
 |---|---|---|
 | `frontend` | nginx/Caddy, frontend, api | Browser-facing traffic: serves the SPA and proxies API calls |
 | `backend` | api, all workers, beat | Internal application traffic: API dispatches tasks to Celery workers |
-| `data` | api, all workers, beat, db, valkey, minio, nginx | Data-plane traffic: database queries, cache ops, object storage |
+| `data` | api, all workers, beat, db, valkey, nginx | Data-plane traffic: database queries, cache operations |
 
 **Key design decisions:**
 
 - The `frontend` container (static React SPA) has **no access** to the data
-  network — it cannot reach the database, cache, or object storage directly.
+  network — it cannot reach the database or cache directly.
 - Workers communicate with the database and Valkey on the `data` network but
   are not exposed to external traffic.
 - nginx/Caddy sits on all three networks because it reverse-proxies to both the
-  frontend (on `frontend`) and the API (on `backend`), and proxies MinIO S3
-  uploads (on `data`).
+  frontend (on `frontend`) and the API (on `backend`).
 
 ---
 
@@ -998,17 +1001,22 @@ docker compose exec valkey valkey-cli -a "$VALKEY_PASSWORD" ping
 docker compose exec api celery -A app.celery_app inspect active
 ```
 
-### MinIO not accepting uploads
+### HEC not receiving events
 
 ```bash
-# Check MinIO health
-docker compose exec minio mc ready local
+# Test connectivity with a minimal HEC event
+curl -sk -X POST https://localhost/services/collector \
+  -H "Authorization: Splunk ${HEC_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"event": {"action": "test.event", "actor": "octowatch-test", "org": "test-org"}}'
+# Expected: {"text": "Success", "code": 0}
 
-# Verify bucket exists
-docker compose exec minio mc ls local/
+# Check HEC health endpoint
+curl -sk https://localhost/services/collector/health
+# Expected: {"text": "HEC is healthy", "code": 17}
 
-# Check minio-setup completed successfully
-docker compose logs minio-setup
+# Check API logs for auth failures
+docker compose logs api --tail=50 | grep "hec\."
 ```
 
 ### "Invalid date" or timezone errors
@@ -1027,8 +1035,6 @@ docker compose exec db psql -U appuser -d audit_logs -c "SHOW timezone;"
   See the [TimescaleDB compression docs](https://docs.timescale.com/use-timescale/latest/compression/).
 - **Workers:** Reduce `-c` (concurrency) flags in the worker commands if
   workers are OOM-killed. The defaults are tuned for a 4-vCPU / 8-GB server.
-- **MinIO:** Large file uploads buffer in memory. If processing very large
-  audit log exports, increase MinIO's memory limit.
 
 ### Viewing health and readiness
 

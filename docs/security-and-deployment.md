@@ -130,8 +130,7 @@ The following secrets must be rotated via environment variable replacement and c
 - `VALKEY_PASSWORD`
 - `GITHUB_CLIENT_SECRET`
 - `SAML_SP_KEY`
-- `MINIO_ROOT_PASSWORD`
-- `MINIO_INGEST_PASSWORD`
+- `HEC_TOKEN`
 - `MAXMIND_LICENSE_KEY`
 
 #### TLS Enforcement
@@ -190,16 +189,20 @@ engine = create_async_engine(
 )
 ```
 
-#### MinIO Credential Scoping
+#### HEC Ingestion Token Security
 
-MinIO service accounts follow least-privilege:
+The HEC ingestion endpoint uses a pre-shared token validated with `hmac.compare_digest` (constant-time comparison — immune to timing attacks). The `HEC_TOKEN` is the only credential required for push-based ingestion:
 
-| Account | Permissions | Used by |
-|---------|------------|---------|
-| `MINIO_ROOT_USER` | Full admin | `minio-setup` sidecar only |
-| `MINIO_INGEST_USER` | `s3:GetObject`, `s3:ListBucket` on audit bucket only | Ingestion Worker |
+| Token | Permissions | Used by |
+|-------|-------------|---------|
+| `HEC_TOKEN` | Write access to `/services/collector` | GitHub audit log stream only |
 
-The ingestion worker never has access to `MINIO_ROOT_PASSWORD`. Credential separation is enforced at MinIO policy level (see `ingestion-ro` policy in `minio-setup`).
+OctoWatch never writes back to GitHub using the HEC token. The ingestion worker has no write access to GitHub or any external system.
+
+**Recommendations:**
+- Set `HEC_TOKEN` to a 256-bit random value (`openssl rand -hex 32`)
+- Rotate `HEC_TOKEN` quarterly or after any suspected exposure
+- Allowlist GitHub's IP ranges at the network layer (see [GitHub's meta API](https://api.github.com/meta) for current ranges)
 
 ---
 
@@ -273,20 +276,20 @@ Pydantic raises `422 Unprocessable Entity` before the route handler executes for
 
 The React frontend uses React's built-in JSX escaping for all dynamic content. `dangerouslySetInnerHTML` is prohibited via ESLint rule `react/no-danger`. The Monaco Editor renders detection rule YAML as a code editor (sandboxed) — it does not interpret YAML as HTML. Apache ECharts receives typed data structures, not raw HTML strings.
 
-#### Webhook / MinIO Event HMAC Validation
+#### HEC / Webhook HMAC Validation
 
-MinIO bucket event notifications arrive on the Valkey `minio:events` channel. Before the ingestion worker processes any notification, the HMAC-SHA256 signature included in the notification envelope is verified:
+GitHub audit log stream events arrive at `POST /services/collector`. Every request must carry an `Authorization: Splunk <token>` header, which is validated with `hmac.compare_digest` before any payload processing occurs:
 
 ```python
-# app/ingestion/minio_subscriber.py
-def verify_event_hmac(payload: bytes, signature: str, secret: str) -> bool:
-    expected = hmac.new(
-        secret.encode(), payload, digestmod=hashlib.sha256
-    ).hexdigest()
-    return hmac.compare_digest(expected, signature)
+# app/routers/ingest_hec.py
+def _verify_hec_token(authorization: str | None, expected: str) -> bool:
+    if not authorization or not authorization.startswith("Splunk "):
+        return False
+    provided = authorization.removeprefix("Splunk ")
+    return hmac.compare_digest(provided, expected)
 ```
 
-Events that fail HMAC validation are discarded and logged as a security event.
+Requests that fail token validation are rejected with `401 Unauthorized` and logged as a security event. The token comparison is always constant-time regardless of token length.
 
 #### No Dynamic Code Execution
 
@@ -309,7 +312,7 @@ This document (Section 1) serves as the primary threat model artifact. Identifie
 | JWT session | Token theft via XSS | HTTP-only cookie; `SameSite=Strict`; short TTL (1h); Valkey revocation |
 | SAML assertion | XML signature wrapping attacks | `python3-saml` strict mode; both response and assertion must be signed; cert pinned |
 | User-authored SQL | Data exfiltration beyond scope | pglast rewrite enforces scope CTE; readonly DB role; row/time limits |
-| MinIO bucket | Unauthorized upload of fake events | MinIO credentials scope: ingest user has read-only; only GitHub streaming credentials have write access (configured externally by operator) |
+| HEC endpoint | Unauthorized event injection | Token auth via `hmac.compare_digest`; IP allowlisting of GitHub source ranges recommended |
 
 #### Detection Rule Versioning and Promotion Workflow
 
@@ -413,25 +416,6 @@ server_tokens off;
 
 The `style-src 'self' 'unsafe-inline'` exception is required for TailwindCSS's runtime-injected styles and will be narrowed to a nonce once the build pipeline supports CSP nonces.
 
-#### MinIO Bucket Policy
-
-MinIO is configured with a private bucket policy (no public read). The CORS policy restricts preflight requests to the application origin only:
-
-```json
-{
-  "CORSConfiguration": {
-    "CORSRule": [{
-      "AllowedOrigins": ["https://YOUR_APP_DOMAIN"],
-      "AllowedHeaders": ["Authorization", "Content-Type"],
-      "AllowedMethods": ["GET", "PUT"],
-      "MaxAgeSeconds": 3000
-    }]
-  }
-}
-```
-
-The MinIO console port (9001) is exposed only on `127.0.0.1` and is never proxied through Nginx.
-
 ---
 
 ### 1.6 A06 – Vulnerable and Outdated Components
@@ -454,7 +438,7 @@ Dependabot is enabled for all three ecosystems (`pip`, `npm`, `docker`) with wee
 
 #### License Compliance
 
-Because MinIO (AGPL-3.0) and pglast (GPL-3.0) are included as infrastructure components (not bundled into distributed binaries), their copyleft licenses are acceptable for self-hosted deployment. This is documented and gated in CI via:
+Because pglast (GPL-3.0) is included as an infrastructure component (not bundled into distributed binaries), its copyleft license is acceptable for self-hosted deployment. This is documented and gated in CI via:
 
 ```bash
 # Run in CI on every dependency update PR
@@ -462,11 +446,7 @@ pip-licenses --order=license --fail-on="GPL-2.0;LGPL-2.0"
 npx license-checker --failOn "GPL-2.0;LGPL-2.0"
 ```
 
-AGPL components (MinIO) are listed in `NOTICE.md` with the required attribution.
-
-#### Image Pinning
-
-All Docker images in `docker-compose.yml` and Helm chart are pinned to exact version tags or digest SHAs. `minio/mc:latest` is the only exception (used in the one-time `minio-setup` sidecar) and is noted in comments.
+All Docker images in `docker-compose.yml` and Helm chart are pinned to exact version tags or digest SHAs.
 
 ---
 
@@ -573,9 +553,9 @@ The SBOM (SPDX format) is uploaded to the container registry as an attestation a
 
 Database migrations are managed by Alembic. Each migration file is checksummed: `alembic upgrade head` verifies that the down_revision and `rev_id` chain is unbroken before applying. Migration files are committed to the repository and cannot be modified after merging (enforced by branch protection and the Alembic checksum chain).
 
-#### MinIO Event HMAC
+#### HEC Token Validation
 
-Bucket event notification payloads from `minio:events` Valkey channel are HMAC-SHA256 validated before processing (see also [Section 1.3 – Injection](#13-a03--injection)).
+HEC endpoint token validation failures (requests with missing or incorrect `Authorization: Splunk <token>`) are rejected with `401` and logged as a security event (see also [Section 1.3 – Injection](#13-a03--injection)).
 
 ---
 
@@ -620,7 +600,7 @@ CREATE TABLE audit_trail (
 | Detection rule create/update/delete | `audit_trail` + Gitea commit | INFO |
 | SAML assertion received | Structured log (no PII in payload) | DEBUG |
 | pglast SQL validation rejection | Structured log | WARNING |
-| MinIO HMAC validation failure | Structured log | ERROR |
+| HEC token validation failure | Structured log | ERROR |
 
 #### Request Logging Middleware
 
@@ -690,9 +670,11 @@ When `INGESTION_MODE=s3`, the `AWS_DEFAULT_REGION` and `S3_AUDIT_BUCKET` are val
 
 When `INGESTION_MODE=azure_blob`, the `AZURE_STORAGE_CONNECTION_STRING` is parsed and the account endpoint hostname is validated against `*.blob.core.windows.net`.
 
-#### MinIO Internal Addressing
+#### HEC Endpoint Source Validation
 
-The `MINIO_ENDPOINT_URL` for internal service communication defaults to `http://minio:9000` (Docker Compose internal network) and is validated at startup to be either the internal Docker network address or an operator-configured private hostname. It is never derived from request parameters.
+When `INGESTION_MODE=hec`, the `/services/collector` endpoint accepts connections only over HTTPS (enforced at the Nginx/Caddy reverse proxy layer). The `HEC_TOKEN` is loaded from the environment at startup and from the in-memory admin cache for live rotation — it is never derived from request parameters.
+
+Operators are strongly advised to allowlist GitHub's published IP ranges at the firewall or Nginx `allow` directive level to restrict access to the HEC endpoint.
 
 ---
 
@@ -709,7 +691,7 @@ Variables are grouped by subsystem, then sorted alphabetically within each group
 | `GEOIP_DB_PATH` | api, worker-ingestion | No | `/app/data/GeoLite2-City.mmdb` | Filesystem path to the MaxMind GeoLite2 City `.mmdb` file |
 | `GITEA_TOKEN` | api | Yes | — | Gitea bot account access token with `repo` scope for rule CRUD operations |
 | `GITEA_URL` | api | Yes | — | Base URL of the embedded Gitea instance. Example: `http://gitea:3000` |
-| `INGESTION_MODE` | api, worker-ingestion | No | `minio` | Active ingestion backend: `minio`, `s3`, or `azure_blob` |
+| `INGESTION_MODE` | api, worker-ingestion | No | `hec` | Active ingestion backend: `hec`, `webhook`, `s3`, or `azure_blob` |
 | `LOG_LEVEL` | api, all workers | No | `INFO` | Structured log level: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `QUERY_MAX_ROWS` | api | No | `100000` | Maximum rows returned by the self-service SQL query engine per execution |
 | `QUERY_TIMEOUT_SECONDS` | api | No | `30` | Server-side timeout for self-service SQL queries |
@@ -731,16 +713,11 @@ Variables are grouped by subsystem, then sorted alphabetically within each group
 | `SAML_SP_CERT` | api | No | — | PEM-encoded SP certificate (public key). Required if SAML is enabled |
 | `SAML_SP_KEY` | api | No | — | PEM-encoded SP private key. Required if SAML is enabled. Never commit to git |
 
-### 2.4 Storage — MinIO (Embedded)
+### 2.4 HEC Ingestion
 
 | Variable | Service(s) | Required | Default | Description |
 |----------|------------|----------|---------|-------------|
-| `MINIO_AUDIT_BUCKET` | minio, minio-setup, api, worker-ingestion | Yes | — | Name of the MinIO bucket storing GitHub audit log `.json.gz` files |
-| `MINIO_ENDPOINT_URL` | api, worker-ingestion | No | `http://minio:9000` | Internal MinIO S3-compatible API endpoint |
-| `MINIO_INGEST_PASSWORD` | minio-setup, worker-ingestion | Yes | — | Password for the scoped MinIO service account with read-only access to the audit bucket |
-| `MINIO_INGEST_USER` | minio-setup, worker-ingestion | Yes | — | Username for the scoped MinIO service account with read-only access to the audit bucket |
-| `MINIO_ROOT_PASSWORD` | minio, minio-setup | Yes | — | MinIO admin password. Never used by application workers |
-| `MINIO_ROOT_USER` | minio, minio-setup | Yes | — | MinIO admin username. Never used by application workers |
+| `HEC_TOKEN` | api | Yes (when `INGESTION_MODE=hec`) | — | Pre-shared token for the HEC push endpoint. Validated with `hmac.compare_digest`. Generate with: `openssl rand -hex 32` |
 
 ### 2.5 Storage — AWS S3
 
@@ -826,7 +803,6 @@ This section defines health check commands for Docker Compose and the equivalent
 | `worker-baseline` | `celery inspect ping -d celery@$HOSTNAME` | `celery inspect ping -d celery@$HOSTNAME` | None |
 | `db` | `pg_isready -U $POSTGRES_USER -d $POSTGRES_DB` | `pg_isready -U $POSTGRES_USER -d $POSTGRES_DB` | `pg_isready` — `failureThreshold: 6`, `periodSeconds: 10` (allows 1 min for first boot) |
 | `valkey` | `valkey-cli -a $VALKEY_PASSWORD ping` | `valkey-cli -a $VALKEY_PASSWORD ping` | None |
-| `minio` | `curl -f http://localhost:9000/minio/health/live` — process alive | `curl -f http://localhost:9000/minio/health/cluster` — fully initialized and erasure set healthy | `curl -f http://localhost:9000/minio/health/live` — `failureThreshold: 10`, `periodSeconds: 10` |
 | `gitea` | `curl -f http://localhost:3000/api/healthz` | `curl -f http://localhost:3000/api/healthz` — database connection verified by Gitea | `curl -f http://localhost:3000/api/healthz` — `failureThreshold: 30`, `periodSeconds: 10` (allows 5 min for db migration on first boot) |
 
 ### 3.2 API `/health` vs `/ready` Contract
@@ -999,36 +975,6 @@ readinessProbe:
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
-```
-
-**MinIO:**
-
-```yaml
-livenessProbe:
-  httpGet:
-    path: /minio/health/live
-    port: 9000
-  initialDelaySeconds: 10
-  periodSeconds: 30
-  timeoutSeconds: 20
-  failureThreshold: 3
-
-readinessProbe:
-  httpGet:
-    path: /minio/health/cluster
-    port: 9000
-  initialDelaySeconds: 10
-  periodSeconds: 30
-  timeoutSeconds: 20
-  failureThreshold: 3
-
-startupProbe:
-  httpGet:
-    path: /minio/health/live
-    port: 9000
-  failureThreshold: 10
-  periodSeconds: 10
-  timeoutSeconds: 20
 ```
 
 **Gitea:**

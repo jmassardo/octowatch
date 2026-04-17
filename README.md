@@ -8,7 +8,7 @@
 
 ## What is OctoWatch?
 
-OctoWatch is an open-source security analytics platform that ingests GitHub Enterprise Cloud audit log streams and transforms them into actionable security intelligence. It continuously monitors audit events from S3, Azure Blob Storage, or MinIO for signs of insider threats, account compromise, privilege escalation, and policy violations — giving security teams and GitHub administrators the visibility they need to protect their organization.
+OctoWatch is an open-source security analytics platform that ingests GitHub Enterprise Cloud audit log streams and transforms them into actionable security intelligence. It continuously monitors audit events pushed via Splunk HEC, or polled from S3 or Azure Blob Storage, for signs of insider threats, account compromise, privilege escalation, and policy violations — giving security teams and GitHub administrators the visibility they need to protect their organization.
 
 Beyond threat detection, OctoWatch provides operational dashboards covering monthly active users, license seat utilization, Copilot adoption, GitHub Actions usage, and personal access token lifecycle — all queryable through a self-service SQL interface. Role-based access control ensures that repository owners see only their own data while security teams retain full visibility.
 
@@ -16,7 +16,7 @@ OctoWatch is designed for self-hosted deployment. It ships as Docker containers 
 
 ## Key Features
 
-- **Audit Event Ingestion** — Poll and ingest audit log streams from Amazon S3, Azure Blob Storage, and MinIO with automatic cursor tracking
+- **Audit Event Ingestion** — Receive audit log streams via Splunk HEC push (default), or poll from Amazon S3 / Azure Blob Storage, with automatic cursor tracking
 - **Threat Detection Engine** — Behavioral baselines, impossible travel detection, sequence-based rules, and tunable severity classification with detection lifecycle management
 - **Role-Based Access Control** — GitHub team-based role assignments with scope injection (org/repo/global), ensuring data isolation at every query
 - **Self-Service Query Engine** — Run SQL queries against audit events with allowlist validation, row caps, and query cost controls
@@ -46,9 +46,9 @@ OctoWatch is designed for self-hosted deployment. It ships as Docker containers 
                           ┌─────────────────────────┼─────────────────────────┐
                           │                         │                         │
                    ┌──────┴──────┐          ┌───────┴───────┐         ┌───────┴───────┐
-                   │ TimescaleDB │          │    Valkey     │         │     MinIO     │
-                   │ (PostgreSQL)│          │(Redis-compat) │         │ (S3-compat)   │
-                   │   :5432     │          │    :6379      │         │   :9000       │
+                   │ TimescaleDB │          │    Valkey     │         │    GitHub     │
+                   │ (PostgreSQL)│          │(Redis-compat) │         │  HEC push /   │
+                   │   :5432     │          │    :6379      │         │  S3 / Azure   │
                    └─────────────┘          └───────────────┘         └───────────────┘
 
              ┌──────────────────────────────────────────────────────────┐
@@ -109,10 +109,10 @@ npm install
 npm run dev
 ```
 
-The backend requires TimescaleDB, Valkey, and MinIO — start just the infrastructure with:
+The backend requires TimescaleDB and Valkey — start just the infrastructure with:
 
 ```bash
-docker compose up -d db valkey minio
+docker compose up -d db valkey
 ```
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development guide including linting, testing, and pre-commit hooks.

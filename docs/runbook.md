@@ -49,11 +49,6 @@ cp backend/.env.example .env   # create this file if it doesn't exist
 #   DATABASE_URL          — Full asyncpg URL: postgresql+asyncpg://user:pass@db:5432/dbname
 #   VALKEY_URL            — redis://:password@valkey:6379/0
 #   VALKEY_PASSWORD       — Valkey auth password
-#   MINIO_ROOT_USER       — MinIO root user
-#   MINIO_ROOT_PASSWORD   — MinIO root password
-#   MINIO_AUDIT_BUCKET    — Name of the audit log bucket (e.g. audit-logs)
-#   MINIO_INGEST_USER     — Read-only MinIO service account username
-#   MINIO_INGEST_PASSWORD — Read-only MinIO service account password
 #   GITHUB_CLIENT_ID      — GitHub OAuth App Client ID
 #   GITHUB_CLIENT_SECRET  — GitHub OAuth App Client Secret
 #   GITHUB_RULES_REPO     — GitHub repo for detection rule YAML files (optional, e.g. my-org/audit-rules)
@@ -98,12 +93,12 @@ MAXMIND_LICENSE_KEY=YOUR_LICENSE_KEY
 ### Step 3 — Start infrastructure services and wait for health checks
 
 ```bash
-docker compose up -d db valkey minio
+docker compose up -d db valkey
 echo "Waiting for services to be healthy..."
 sleep 15
 
-# Verify all three are healthy
-docker compose ps db valkey minio
+# Verify both are healthy
+docker compose ps db valkey
 ```
 
 ### Step 4 — Run database migrations
@@ -137,10 +132,6 @@ curl -sk https://localhost/ready | jq .
 docker compose ps
 ```
 
-### Step 6 — Access MinIO console (optional)
-
-The MinIO console is bound to localhost only (127.0.0.1:9001). Open in browser: http://localhost:9001
-
 ---
 
 ## 2. Kubernetes/Helm: First-time Install
@@ -155,7 +146,6 @@ The MinIO console is bound to localhost only (127.0.0.1:9001). Open in browser: 
 
 ```bash
 helm repo add bitnami https://charts.bitnami.com/bitnami
-helm repo add minio   https://charts.min.io/
 helm repo update
 ```
 
@@ -173,8 +163,6 @@ kubectl create namespace audit-log
 SECRET_KEY=$(openssl rand -hex 32)
 POSTGRES_PASSWORD=$(openssl rand -hex 16)
 VALKEY_PASSWORD=$(openssl rand -hex 16)
-MINIO_ROOT_PASSWORD=$(openssl rand -hex 16)
-MINIO_INGEST_PASSWORD=$(openssl rand -hex 16)
 
 # Application secrets
 kubectl create secret generic octowatch-secrets \
@@ -184,11 +172,7 @@ kubectl create secret generic octowatch-secrets \
   --from-literal=valkey-url="redis://:${VALKEY_PASSWORD}@release-valkey-master:6379/0" \
   --from-literal=github-client-id="YOUR_GITHUB_CLIENT_ID" \
   --from-literal=github-client-secret="YOUR_GITHUB_CLIENT_SECRET" \
-  --from-literal=github-rules-token="" \
-  --from-literal=minio-root-user="minioadmin" \
-  --from-literal=minio-root-password="${MINIO_ROOT_PASSWORD}" \
-  --from-literal=minio-ingest-user="ingest" \
-  --from-literal=minio-ingest-password="${MINIO_INGEST_PASSWORD}"
+  --from-literal=github-rules-token=""
 
 # Database password secret (consumed by Bitnami PostgreSQL subchart)
 kubectl create secret generic octowatch-db-secret \
@@ -297,11 +281,11 @@ Use this to reprocess a time range or failed batch.
 ```bash
 docker compose exec api python -c "
 from app.celery_app import celery_app
-from app.workers.ingestion.minio_worker import ingest_prefix
+from app.workers.ingestion.hec_worker import ingest_batch
 
 # Trigger ingestion for a specific date prefix
 result = celery_app.send_task(
-    'app.workers.ingestion.minio_worker.ingest_prefix',
+    'app.workers.ingestion.hec_worker.ingest_batch',
     kwargs={'prefix': '2026/03/25/', 'bucket': 'audit-logs'},
     queue='ingestion'
 )
@@ -317,7 +301,7 @@ kubectl exec -n audit-log \
   -- python -c "
 from app.celery_app import celery_app
 result = celery_app.send_task(
-    'app.workers.ingestion.minio_worker.ingest_prefix',
+    'app.workers.ingestion.hec_worker.ingest_batch',
     kwargs={'prefix': '2026/03/25/', 'bucket': 'audit-logs'},
     queue='ingestion'
 )
@@ -434,7 +418,7 @@ in your `values.yaml`:
 backup:
   enabled: true
   schedule: "0 2 * * *"           # Daily at 02:00 UTC
-  bucket: "octowatch-backups"     # S3 or MinIO bucket
+  bucket: "octowatch-backups"     # S3 bucket
   retentionDays: 30               # Keep backups for 30 days
 ```
 
@@ -445,7 +429,7 @@ helm upgrade audit-log ./helm -n audit-log -f values.yaml
 ```
 
 The CronJob runs `pg_dump` with `--format=custom --compress=9` and uploads the
-result to the configured S3/MinIO bucket at
+result to the configured S3 bucket at
 `s3://<bucket>/octowatch/backups/<timestamp>.sql.gz`.
 
 Verify the CronJob is scheduled:
@@ -704,7 +688,6 @@ All services emit structured JSON logs via `structlog`. Key fields:
 | DB connection pool exhaustion | `pool_timeout` errors in logs | Increase `SQLALCHEMY_POOL_SIZE` or add connection pooler |
 | Disk usage (TimescaleDB) | > 80% | Enable TimescaleDB compression; add storage |
 | Detection worker memory | > 1.8 GiB per pod | Check for memory leak; restart pod |
-| MinIO storage usage | > 80% | Archive or delete old `.json.gz` files |
 
 ### Valkey (Session / Dedup) Health
 
@@ -766,7 +749,7 @@ kubectl logs -n audit-log deploy/octowatch-api --since=5m | \
 | API availability | 99.9% (43.8 min downtime/month) | `successful_requests / total_requests` over a rolling 30-day window |
 | API p95 latency | < 500 ms | Measured at the nginx access log level |
 | API p99 latency | < 2,000 ms | Measured at the nginx access log level |
-| Ingestion lag | < 5 min end-to-end | Time from MinIO PUT event to event stored in DB |
+| Ingestion lag | < 5 min end-to-end | Time from ingest receipt to event stored in DB |
 | Detection freshness | < 2 min | Time from event ingest to detection rule evaluation |
 
 ### Error Budget Policy

@@ -14,8 +14,7 @@
 3. [External Collaborator Registry Table](#3-external-collaborator-registry-table)
 4. [Health Signal SQL Queries](#4-health-signal-sql-queries)
 5. [Security Controls](#5-security-controls)
-6. [MinIO Deprecation Roadmap](#6-minio-deprecation-roadmap)
-7. [Alembic Migration Checklist](#7-alembic-migration-checklist)
+6. [Alembic Migration Checklist](#6-alembic-migration-checklist)
 
 ---
 
@@ -1212,131 +1211,7 @@ All `external_collaborators` write operations (insert, soft-delete) made through
 
 ---
 
-## 6. MinIO Deprecation Roadmap
-
-### 6.1 Current state
-
-MinIO is used in two distinct roles:
-
-1. **`ingestion_source` column in `events`** — records where each event was ingested from; current allowed values: `('s3', 'azure_blob', 'minio')`
-2. **`source_type` column in `ingestion_cursors`** — selects which ingestion worker to use; same allowed values
-3. **MinIO bucket notifications → Valkey pub/sub** — the low-latency ingestion path unique to MinIO mode (vs. polling for S3/Azure)
-
-### 6.2 Why deprecate
-
-MinIO is self-hosted infrastructure with an operational burden: volume management, bucket policies, TLS cert rotation, and upgrade cadence. Additionally, MinIO changed its license from AGPL-3.0 to AGPL-3.0 + Business Source License for commercial use in some contexts. The long-term preferred architecture is:
-
-- **Option A (self-hosted remains):** Replace MinIO with a bring-your-own S3-compatible backend (Garage, SeaweedFS, or AWS S3). MinIO functionally becomes just an S3 endpoint — collapse `minio` into `s3`.
-- **Option B (push-based):** Add a `webhook` source type to ingest GitHub audit log streaming webhooks directly into OctoWatch's HTTP ingestion endpoint, eliminating the need for intermediary blob storage entirely.
-
-Option A is lower risk and can be done in a single migration sprint. Option B is the right long-term architecture but requires GitHub Enterprise's audit log streaming webhook configuration.
-
-### 6.3 Option A migration: collapse `minio` → `s3`
-
-**Step 1 — Data migration** (migration `0003_deprecate_minio.py`):
-
-```python
-def upgrade() -> None:
-    # Migrate existing minio rows to s3 before dropping the constraint
-    op.execute("""
-        UPDATE events
-        SET    ingestion_source = 's3'
-        WHERE  ingestion_source = 'minio'
-    """)
-
-    op.execute("""
-        UPDATE ingestion_cursors
-        SET    source_type = 's3'
-        WHERE  source_type = 'minio'
-    """)
-
-    # Drop and recreate constraints without 'minio'
-    op.execute("""
-        ALTER TABLE events
-        DROP CONSTRAINT IF EXISTS events_ingestion_source_check
-    """)
-    op.execute("""
-        ALTER TABLE events
-        ADD CONSTRAINT events_ingestion_source_check
-        CHECK (ingestion_source IN ('s3', 'azure_blob'))
-    """)
-
-    op.execute("""
-        ALTER TABLE ingestion_cursors
-        DROP CONSTRAINT IF EXISTS ingestion_cursors_source_type_check
-    """)
-    op.execute("""
-        ALTER TABLE ingestion_cursors
-        ADD CONSTRAINT ingestion_cursors_source_type_check
-        CHECK (source_type IN ('s3', 'azure_blob'))
-    """)
-
-def downgrade() -> None:
-    # Revert constraints (cannot restore which rows were originally 'minio')
-    op.execute("""
-        ALTER TABLE events
-        DROP CONSTRAINT events_ingestion_source_check
-    """)
-    op.execute("""
-        ALTER TABLE events
-        ADD CONSTRAINT events_ingestion_source_check
-        CHECK (ingestion_source IN ('s3', 'azure_blob', 'minio'))
-    """)
-    op.execute("""
-        ALTER TABLE ingestion_cursors
-        DROP CONSTRAINT ingestion_cursors_source_type_check
-    """)
-    op.execute("""
-        ALTER TABLE ingestion_cursors
-        ADD CONSTRAINT ingestion_cursors_source_type_check
-        CHECK (source_type IN ('s3', 'azure_blob', 'minio'))
-    """)
-```
-
-**Step 2 — Code changes:**
-- Update `AbstractIngestWorker.ingestion_source` default from `"minio"` to `"s3"`
-- Update `MinIOIngestWorker` class to set `ingestion_source = "s3"` — the MinIO-specific features (Valkey pub/sub notifications) are preserved in the worker class; the column value just changes
-- Update `ingestion_source` Pydantic literals in `schemas/`
-
-**Step 3 — Infrastructure:**
-- Update `docker-compose.yml` MinIO service name/documentation to clarify it uses S3-compatible protocol
-- If using Helm, no change to MinIO chart itself — just update the env var `MINIO_SOURCE_TYPE=s3`
-
-### 6.4 Option B migration: add `webhook` source type
-
-**Step 1 — Schema addition** (migration `0003b_add_webhook_source.py`):
-
-```python
-def upgrade() -> None:
-    op.execute("""
-        ALTER TABLE events
-        DROP CONSTRAINT events_ingestion_source_check
-    """)
-    op.execute("""
-        ALTER TABLE events
-        ADD CONSTRAINT events_ingestion_source_check
-        CHECK (ingestion_source IN ('s3', 'azure_blob', 'minio', 'webhook'))
-    """)
-    # same for ingestion_cursors
-```
-
-**Step 2 — New ingestion worker:** `backend/app/workers/ingestion/webhook_worker.py` implementing `AbstractIngestWorker` with an HTTP POST receiver instead of blob storage polling. GitHub Enterprise's audit log streaming webhook sends events in the same NDJSON format as the file-based streaming.
-
-**Step 3 — Deprecation of MinIO** follows Option A's path above after the webhook worker is validated in production.
-
-### 6.5 Timeline recommendation
-
-| Phase | Duration | Action |
-|---|---|---|
-| P0 | Now | Merge `0002_seed_expansion_rules.py` (rules + ext_collaborators) |
-| P1 | Sprint +1 | Engine enhancements (§2.1–2.3), health signal service, Org Health API endpoints |
-| P2 | Sprint +2 | Frontend: Org Health cards for new signals, External Collaborators tab |
-| P3 | Sprint +3 | Option A MinIO consolidation: merge `0003_deprecate_minio.py`, update worker |
-| P4 | Future | Option B webhook source type (if GitHub Enterprise streaming webhook is available) |
-
----
-
-## 7. Alembic Migration Checklist
+## 6. Alembic Migration Checklist
 
 The CI pipeline runs `alembic upgrade head → downgrade -1 → upgrade head` on every PR that touches `alembic/versions/`. All new migrations must satisfy:
 
@@ -1356,7 +1231,6 @@ The CI pipeline runs `alembic upgrade head → downgrade -1 → upgrade head` on
 | File | Change |
 |---|---|
 | `backend/alembic/versions/0002_seed_expansion_rules.py` | New migration: all 11 rule INSERTs + `external_collaborators` DDL |
-| `backend/alembic/versions/0003_deprecate_minio.py` | New migration: collapse minio→s3 (Phase P3) |
 | `backend/app/services/detection_service.py` | §2.1 threshold evaluator rewrite + §2.3 `scope_contains` operator |
 | `backend/app/services/health_signal_service.py` | New service: all 8 health signal query functions, each accepting `scoped_orgs` |
 | `backend/app/models/external_collaborator.py` | New ORM model for `external_collaborators` |

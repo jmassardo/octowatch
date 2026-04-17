@@ -13,7 +13,7 @@ from app.models.audit_event import Base
 class IngestionCursor(Base):
     """Tracks last successfully-processed object prefix per source.
 
-    Used for resumable polling (S3, Azure Blob) and status for MinIO push.
+    Used for resumable polling (S3, Azure Blob) and cursor tracking for HEC push.
     Row-level locking via SELECT ... FOR UPDATE SKIP LOCKED ensures only one
     worker processes each source at a time.
     """

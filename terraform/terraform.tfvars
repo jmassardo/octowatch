@@ -1,0 +1,144 @@
+# OctoWatch — Terraform Variables Example
+# Copy this file to terraform.tfvars and fill in your values.
+# DO NOT commit terraform.tfvars — it contains secrets.
+# Add terraform.tfvars to .gitignore.
+
+# ── Core Infrastructure ────────────────────────────────────────────────────────
+
+location    = "eastus2"
+environment = "prod" # dev | staging | prod
+owner_tag   = "platform-team"
+
+extra_tags = {
+  # cost_center = "engineering"
+  # project     = "octowatch"
+}
+
+# ── Virtual Machine ────────────────────────────────────────────────────────────
+
+vm_size           = "Standard_D4s_v5"
+data_disk_size_gb = 256
+
+# SSH public key content (not the file path — paste the key contents).
+# Generate with: ssh-keygen -t ed25519 -C "octowatch-vm" -f ~/.ssh/octowatch_vm
+ssh_public_key = "ssh-ed25519 AAAA...your-public-key-here... octowatch-vm"
+
+# Restrict SSH to your IP in production: "203.0.113.10/32"
+ssh_source_cidr = "*"
+
+# DNS label for the Azure public IP.
+# The FQDN will be: <dns_label>.<location>.cloudapp.azure.com
+dns_label = "octowatch-prod"
+
+# ── TLS / Certificates ─────────────────────────────────────────────────────────
+
+# "selfsigned" (default) or "letsencrypt"
+tls_mode = "selfsigned"
+
+# Custom domain. Leave empty to use the Azure FQDN.
+# Required if tls_mode = "letsencrypt" and DNS must already resolve to the VM IP.
+tls_domain = ""
+# tls_domain = "octowatch.yourdomain.com"
+
+# Required when tls_mode = "letsencrypt"
+certbot_email = ""
+# certbot_email = "ops@yourdomain.com"
+
+# ── GHCR Container Registry ────────────────────────────────────────────────────
+
+ghcr_username  = "your-github-username"
+ghcr_token     = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+ghcr_image_tag = "latest"
+ghcr_owner     = "your-github-org"
+
+# ── Application Secrets (Core) ─────────────────────────────────────────────────
+
+# Full PostgreSQL connection URL.
+# Format: postgresql://user:password@host:5432/dbname
+# For Docker Compose: postgresql://octowatch:changeme@db:5432/octowatch
+secret_database_url = "postgresql://octowatch:CHANGEME@db:5432/octowatch"
+
+# Long random string for JWT/session signing. Generate with:
+# python3 -c "import secrets; print(secrets.token_hex(64))"
+secret_secret_key = "CHANGEME-generate-a-long-random-secret-key-here"
+
+# Optional Fernet-compatible base64 encryption key. Leave empty to disable.
+# Generate with: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+secret_encryption_key = ""
+
+# Valkey (Redis-compatible) connection URL.
+# Format: redis://:password@host:6379/0
+# For Docker Compose: redis://:changeme@valkey:6379/0
+secret_valkey_url      = "redis://:CHANGEME@valkey:6379/0"
+secret_valkey_password = "CHANGEME"
+
+# PostgreSQL credentials (used by the db service in Docker Compose).
+secret_postgres_user     = "octowatch"
+secret_postgres_password = "CHANGEME"
+secret_postgres_db       = "octowatch"
+
+# GitHub OAuth App credentials.
+# Create at: https://github.com/settings/developers → OAuth Apps
+secret_github_client_id     = "Iv1.xxxxxxxxxxxx"
+secret_github_client_secret = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# GitHub detection rules repository (optional).
+# Format: "org/repo" — leave empty to disable.
+secret_github_rules_repo  = ""
+secret_github_rules_token = ""
+
+# Password for the GitHub audit log streaming user.
+# Leave empty to skip creation (configure later in the admin UI).
+
+# Comma-separated GitHub logins to grant admin role on first login.
+secret_initial_admin_logins = "your-github-username"
+
+# Public base URL of the application.
+secret_app_base_url = "https://octowatch-prod.eastus2.cloudapp.azure.com"
+
+# ── Application Secrets (Optional Integrations) ────────────────────────────────
+# Leave empty to disable each integration.
+
+# GitHub App for Enterprise Sync.
+secret_github_app_id          = ""
+secret_github_app_private_key = "" # PEM file contents
+secret_github_enterprise_slug = ""
+
+# MaxMind GeoLite2 — IP geolocation enrichment.
+# Register at: https://www.maxmind.com/en/geolite2/signup
+secret_maxmind_license_key = ""
+
+# Okta IdP enrichment.
+secret_okta_org_url   = "" # e.g. "https://yourorg.okta.com"
+secret_okta_api_token = ""
+
+# Azure AD / Entra IdP enrichment.
+secret_azure_ad_tenant_id     = ""
+secret_azure_ad_client_id     = ""
+secret_azure_ad_client_secret = ""
+
+# Slack notifications.
+# Create a Slack app with "chat:write" scope: https://api.slack.com/apps
+secret_slack_bot_token = "" # xoxb-...
+
+# SMTP email notifications.
+secret_smtp_host     = "" # e.g. "smtp.sendgrid.net"
+secret_smtp_username = ""
+secret_smtp_password = ""
+
+# Jira ticket creation.
+secret_jira_url       = "" # e.g. "https://yourorg.atlassian.net"
+secret_jira_username  = "" # email address
+secret_jira_api_token = ""
+
+# ── Optional Features ──────────────────────────────────────────────────────────
+
+# Enable customer-managed key disk encryption (requires extra KV setup).
+enable_disk_encryption_set = false
+
+# Enable Microsoft Defender for Cloud on the VM.
+enable_defender = false
+
+# Enable daily auto-shutdown (useful for dev/staging cost savings).
+enable_auto_shutdown = false
+auto_shutdown_time   = "2300" # HHMM UTC — 11 PM UTC
