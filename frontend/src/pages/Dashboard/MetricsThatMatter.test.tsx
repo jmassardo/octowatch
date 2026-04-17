@@ -21,7 +21,9 @@ const mockGetMetricsThatMatter = vi.fn().mockResolvedValue({
     secret_alerts_resolved: 1,
     branch_protection_compliance_pct: 85.0,
     change_failure_rate_pct: 3.1,
-    trend: [{ date: '2024-01-08T00:00:00Z', success_rate: 94.2, codeql_delta: -2, secret_delta: 1 }],
+    trend: [
+      { date: '2024-01-08T00:00:00Z', success_rate: 94.2, codeql_delta: -2, secret_delta: 1 },
+    ],
   },
   shipping_cheaper: {
     failed_run_waste_pct: 8.3,

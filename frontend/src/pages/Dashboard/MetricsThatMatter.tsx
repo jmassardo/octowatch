@@ -71,7 +71,9 @@ function ShippingFasterColumn({ data }: { data: ShippingFasterMetrics }) {
   return (
     <div className={styles.column}>
       <div className={styles.columnHeader}>
-        <span className={styles.columnIcon} aria-hidden="true">🚀</span>
+        <span className={styles.columnIcon} aria-hidden="true">
+          🚀
+        </span>
         <span className={styles.columnTitle}>Shipping Faster</span>
       </div>
 
@@ -168,9 +170,7 @@ function ShippingFasterColumn({ data }: { data: ShippingFasterMetrics }) {
           />
         </div>
       )}
-      {!hasTrend && (
-        <div className={styles.emptyChart}>No trend data yet</div>
-      )}
+      {!hasTrend && <div className={styles.emptyChart}>No trend data yet</div>}
     </div>
   );
 }
@@ -187,7 +187,9 @@ function ShippingSaferColumn({ data }: { data: ShippingSaferMetrics }) {
   return (
     <div className={styles.column}>
       <div className={styles.columnHeader}>
-        <span className={styles.columnIcon} aria-hidden="true">🔒</span>
+        <span className={styles.columnIcon} aria-hidden="true">
+          🔒
+        </span>
         <span className={styles.columnTitle}>Shipping Safer</span>
       </div>
 
@@ -224,8 +226,14 @@ function ShippingSaferColumn({ data }: { data: ShippingSaferMetrics }) {
         <span
           className={[
             styles.metricValue,
-            alertNetClosed > 0 ? styles.metricDanger : alertNetClosed < 0 ? styles.metricSuccess : '',
-          ].filter(Boolean).join(' ')}
+            alertNetClosed > 0
+              ? styles.metricDanger
+              : alertNetClosed < 0
+                ? styles.metricSuccess
+                : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           title={`${data.codeql_alerts_opened} opened, ${data.codeql_alerts_closed} closed`}
         >
           {alertNetClosed > 0 ? `+${alertNetClosed}` : alertNetClosed}
@@ -247,12 +255,12 @@ function ShippingSaferColumn({ data }: { data: ShippingSaferMetrics }) {
           className={[
             styles.metricValue,
             data.secret_alerts_opened > 0 ? styles.metricDanger : styles.metricSuccess,
-          ].filter(Boolean).join(' ')}
+          ]
+            .filter(Boolean)
+            .join(' ')}
           title={`${data.secret_alerts_opened} opened, ${data.secret_alerts_resolved} resolved`}
         >
-          {data.secret_alerts_opened > 0
-            ? `${data.secret_alerts_opened} open`
-            : '0 open'}
+          {data.secret_alerts_opened > 0 ? `${data.secret_alerts_opened} open` : '0 open'}
         </span>
       </div>
 
@@ -292,9 +300,7 @@ function ShippingSaferColumn({ data }: { data: ShippingSaferMetrics }) {
           />
         </div>
       )}
-      {!hasTrend && (
-        <div className={styles.emptyChart}>No trend data yet</div>
-      )}
+      {!hasTrend && <div className={styles.emptyChart}>No trend data yet</div>}
     </div>
   );
 }
@@ -309,7 +315,9 @@ function ShippingCheaperColumn({ data }: { data: ShippingCheaperMetrics }) {
   return (
     <div className={styles.column}>
       <div className={styles.columnHeader}>
-        <span className={styles.columnIcon} aria-hidden="true">💰</span>
+        <span className={styles.columnIcon} aria-hidden="true">
+          💰
+        </span>
         <span className={styles.columnTitle}>Shipping Cheaper</span>
       </div>
 
@@ -410,9 +418,7 @@ function ShippingCheaperColumn({ data }: { data: ShippingCheaperMetrics }) {
           />
         </div>
       )}
-      {!hasTrend && (
-        <div className={styles.emptyChart}>No trend data yet</div>
-      )}
+      {!hasTrend && <div className={styles.emptyChart}>No trend data yet</div>}
     </div>
   );
 }
@@ -420,12 +426,7 @@ function ShippingCheaperColumn({ data }: { data: ShippingCheaperMetrics }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function MetricsThatMatter({ period, org }: Props) {
-  const {
-    data,
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['metrics-that-matter', period, org],
     queryFn: () => getMetricsThatMatter(period, org),
     staleTime: 5 * 60_000,
@@ -448,9 +449,7 @@ export function MetricsThatMatter({ period, org }: Props) {
         </div>
       )}
 
-      {isError && (
-        <ErrorBanner message="Failed to load Metrics That Matter" onRetry={refetch} />
-      )}
+      {isError && <ErrorBanner message="Failed to load Metrics That Matter" onRetry={refetch} />}
 
       {data && !isLoading && (
         <div className={styles.grid}>

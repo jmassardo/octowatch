@@ -37,19 +37,14 @@ export interface MonthOverMonth {
   readonly event_change_pct: number;
 }
 
-export function getExecutiveSummary(
-  period: 7 | 30 | 90 = 30,
-): Promise<ExecutiveSummary> {
+export function getExecutiveSummary(period: 7 | 30 | 90 = 30): Promise<ExecutiveSummary> {
   return api.get<ExecutiveSummary>('/reports/executive-summary', {
     period,
   });
 }
 
 export function exportExecutivePdf(period: 7 | 30 | 90 = 30): void {
-  window.open(
-    `/api/v1/reports/executive-summary/pdf?period=${period}`,
-    '_blank',
-  );
+  window.open(`/api/v1/reports/executive-summary/pdf?period=${period}`, '_blank');
 }
 
 /** Detection investigation timeline. */
@@ -80,12 +75,8 @@ export interface DetectionTimeline {
   readonly context_data: Record<string, unknown>;
 }
 
-export function getDetectionTimeline(
-  detectionId: number,
-): Promise<DetectionTimeline> {
-  return api.get<DetectionTimeline>(
-    `/detections/${detectionId}/timeline`,
-  );
+export function getDetectionTimeline(detectionId: number): Promise<DetectionTimeline> {
+  return api.get<DetectionTimeline>(`/detections/${detectionId}/timeline`);
 }
 
 // ── Metrics That Matter ─────────────────────────────────────────────────────
