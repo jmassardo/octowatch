@@ -115,7 +115,7 @@ describe('WorkflowsPage — Findings Tab', () => {
   it('renders empty state when no findings', async () => {
     mockListFindings.mockResolvedValue({ findings: [], total: 0 });
     renderWithProviders(<WorkflowsPage />);
-    expect(await screen.findByText('No workflow findings found')).toBeInTheDocument();
+    expect(await screen.findByText('No workflow findings yet')).toBeInTheDocument();
   });
 
   it('renders severity filter dropdown', async () => {
@@ -140,7 +140,7 @@ describe('WorkflowsPage — Scores Tab', () => {
   it('switches to scores tab and shows repo scores', async () => {
     const user = userEvent.setup();
     renderWithProviders(<WorkflowsPage />);
-    const scoresTab = await screen.findByText('Repo Scores');
+    const scoresTab = await screen.findByRole('button', { name: 'Repo Scores' });
     await user.click(scoresTab);
     expect(await screen.findByText('myorg/myrepo')).toBeInTheDocument();
     expect(await screen.findByText('myorg/secure-repo')).toBeInTheDocument();
@@ -149,7 +149,7 @@ describe('WorkflowsPage — Scores Tab', () => {
   it('shows score values', async () => {
     const user = userEvent.setup();
     renderWithProviders(<WorkflowsPage />);
-    await user.click(await screen.findByText('Repo Scores'));
+    await user.click(await screen.findByRole('button', { name: 'Repo Scores' }));
     expect(await screen.findByText('65')).toBeInTheDocument();
     expect(await screen.findByText('95')).toBeInTheDocument();
   });
@@ -157,7 +157,7 @@ describe('WorkflowsPage — Scores Tab', () => {
   it('shows finding counts on score cards', async () => {
     const user = userEvent.setup();
     renderWithProviders(<WorkflowsPage />);
-    await user.click(await screen.findByText('Repo Scores'));
+    await user.click(await screen.findByRole('button', { name: 'Repo Scores' }));
     expect(await screen.findByText('3 findings')).toBeInTheDocument();
     expect(await screen.findByText('0 findings')).toBeInTheDocument();
   });

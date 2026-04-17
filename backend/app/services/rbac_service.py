@@ -213,14 +213,18 @@ async def get_scoped_orgs(
         # (covers fresh installs where sync has run but no audit events yet)
         for fallback_query in (
             "SELECT DISTINCT org_login FROM enterprise_orgs WHERE org_login IS NOT NULL",
-            "SELECT DISTINCT org_login FROM github_app_configs WHERE enabled = true AND org_login IS NOT NULL",
+            (
+                "SELECT DISTINCT org_login FROM github_app_configs"
+                " WHERE enabled = true AND org_login IS NOT NULL"
+            ),
         ):
             try:
                 fb = await session.execute(text(fallback_query))
                 orgs = [row[0] for row in fb.fetchall()]
                 if orgs:
                     return orgs
-            except Exception:
+            except Exception:  # noqa: BLE001
+                logger.debug("rbac_service.fallback_query_failed", query=fallback_query[:60])
                 continue
 
         return []
