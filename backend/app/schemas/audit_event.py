@@ -36,7 +36,7 @@ class EventListParams(BaseModel):
     geo_country_code: str | None = Field(None, min_length=2, max_length=2, pattern=r"^[A-Z]{2}$")
     sort: str = Field(
         default="created_at_desc",
-        pattern=r"^(created_at_desc|created_at_asc)$",
+        pattern=r"^(created_at|action|actor|repo)_(asc|desc)$",
     )
     page: int = Field(default=1, ge=1, le=10_000)
     page_size: int = Field(default=50, ge=1, le=500)

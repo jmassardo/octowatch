@@ -204,7 +204,7 @@ async def _api_stats(
         text("""
             SELECT COALESCE(
                        data->>'operation_type',
-                       data->>'request_method' || ' ' || data->>'request_path',
+                       (data->>'request_method') || ' ' || (data->>'request_path'),
                        action
                    ) AS endpoint,
                    COUNT(*) AS cnt

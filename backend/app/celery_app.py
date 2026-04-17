@@ -35,12 +35,19 @@ app.config_from_object(
         # ─── Queue definitions ───────────────────────────────────────────────
         "task_routes": {
             "app.workers.ingestion.*": {"queue": "ingestion"},
+            "app.workers.ingest_webhook_worker.*": {"queue": "ingestion"},
             "app.workers.detection_worker.*": {"queue": "detection"},
             "app.workers.baseline_worker.*": {"queue": "baseline"},
             "app.workers.notification.*": {"queue": "notification"},
             "app.workers.report_worker.*": {"queue": "notification"},
             "app.workers.github_sync.*": {"queue": "github_sync"},
             "app.workers.copilot_metrics_worker.*": {"queue": "github_sync"},
+            "app.workers.siem_export_worker.*": {"queue": "notification"},
+            "app.workers.threat_intel_worker.*": {"queue": "baseline"},
+            "app.workers.retention_worker.*": {"queue": "baseline"},
+            "app.workers.ingestion_health.*": {"queue": "baseline"},
+            "app.workers.github_ip_allowlist_worker.*": {"queue": "baseline"},
+            "app.workers.workflow_scan_worker.*": {"queue": "baseline"},
         },
         # ─── Soft / hard time limits ─────────────────────────────────────────
         "task_soft_time_limit": 1800,  # 30 minutes
@@ -106,6 +113,12 @@ app.config_from_object(
                 "schedule": crontab(hour=6, minute=0),
                 "options": {"queue": "github_sync"},
             },
+            # Workflow security scan — daily at 04:00 UTC
+            "scan-workflow-security": {
+                "task": "app.workers.workflow_scan_worker.scan_all_workflows",
+                "schedule": crontab(hour=4, minute=0),
+                "options": {"queue": "baseline"},
+            },
         },
     }
 )
@@ -130,6 +143,11 @@ app.conf.include = [
     "app.workers.ingestion.s3_worker",
     "app.workers.ingestion.azure_worker",
     "app.workers.ingestion.base",
+    "app.workers.ingest_webhook_worker",
+    "app.workers.siem_export_worker",
+    "app.workers.ingestion_health",
+    "app.workers.threat_intel_worker",
+    "app.workers.workflow_scan_worker",
 ]
 
 # Conditionally add GitHub sync heartbeat to beat schedule

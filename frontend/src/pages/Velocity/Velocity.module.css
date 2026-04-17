@@ -61,6 +61,71 @@
   margin-bottom: 24px;
 }
 
+/* ── Metric definitions panel ── */
+.defsPanel {
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--canvas-subtle);
+}
+
+.defsSummary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.defsSummary::-webkit-details-marker {
+  display: none;
+}
+
+.defsSummary::after {
+  content: '▸';
+  margin-left: auto;
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+
+.defsPanel[open] > .defsSummary::after {
+  transform: rotate(90deg);
+}
+
+.defsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-top: 1px solid var(--border);
+}
+
+.defItem {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.defItem:nth-child(odd) {
+  border-right: 1px solid var(--border);
+}
+
+.defLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 2px;
+}
+
+.defText {
+  font-size: 11px;
+  color: var(--fg-muted);
+  line-height: 1.5;
+}
+
 .chartsGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -206,8 +271,8 @@
 
 /* Workflow name monospace */
 .workflowName {
-  font-family:
-    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono',
+    monospace;
   font-size: 12px;
 }
 
@@ -217,6 +282,24 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 12px 8px;
+}
+
+.modalMetricClickable {
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.modalMetricClickable:hover {
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.06);
+}
+
+.modalMetricActive {
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.1);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 .modalMetricVal {
@@ -230,6 +313,46 @@
   font-size: 11px;
   color: var(--fg-muted);
   margin-top: 4px;
+}
+
+/* Drill-down event table inside modal */
+.drillTable {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.drillTable table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.drillTable thead th {
+  position: sticky;
+  top: 0;
+  background: var(--canvas-subtle);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.drillTable tbody td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.drillTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.drillTable tbody tr:hover {
+  background: rgba(88, 166, 255, 0.04);
 }
 
 /* Chart skeleton loading state */

@@ -1095,6 +1095,23 @@ async def run_detection_pipeline(
             total_rules=len(rules),
         )
 
+    # Event-driven posture auto-resolution: if an incoming event remediated
+    # an issue tracked by a posture detection, resolve it immediately rather
+    # than waiting for the next full posture assessment cycle.
+    try:
+        resolved_count = await _auto_resolve_from_events(session, events)
+        if resolved_count:
+            logger.info(
+                "detection.event_driven_auto_resolve",
+                resolved=resolved_count,
+            )
+    except Exception as exc:
+        logger.warning(
+            "detection.event_driven_auto_resolve_failed",
+            error=str(exc),
+            exc_info=True,
+        )
+
     return PipelineResult(
         detections_written=detections_written,
         detection_ids=detection_ids,
@@ -1858,6 +1875,148 @@ async def _write_posture_detection(
         repo=repo,
     )
     return True
+
+
+# ─── Event-driven posture auto-resolution ────────────────────────────────────
+
+# Map of remediation events to dedup-key prefix builders.
+# When one of these events arrives and its conditions are met, we resolve
+# any open posture detection whose dedup_key starts with the built prefix.
+_REMEDIATION_MAP: list[dict[str, Any]] = [
+    {
+        # Repo made private/internal → resolve "Public Repository in Enterprise"
+        "actions": ["repo.access"],
+        "conditions": [
+            {"field": "data.visibility", "values": ["private", "internal"]},
+        ],
+        "dedup_prefix_fn": lambda e: (
+            f"posture:posture-public-repo-in-enterprise:{e.org}:{_repo_short(e.repo)}"
+        ),
+    },
+    {
+        # 2FA enabled → resolve "2FA Not Required"
+        "actions": ["org.enable_two_factor_requirement"],
+        "conditions": [],
+        "dedup_prefix_fn": lambda e: f"posture:posture-2fa-not-required:{e.org}:",
+    },
+    {
+        # IP allow list enabled → resolve "IP Allow List Disabled"
+        "actions": ["ip_allow_list.enable"],
+        "conditions": [],
+        "dedup_prefix_fn": lambda e: f"posture:posture-ip-allow-list-disabled:{e.org}:",
+    },
+    {
+        # SAML SSO enabled → resolve "SAML SSO Disabled"
+        "actions": ["org.enable_saml"],
+        "conditions": [],
+        "dedup_prefix_fn": lambda e: f"posture:posture-saml-sso-disabled:{e.org}:",
+    },
+    {
+        # Secret scanning enabled → resolve "Secret Scanning Disabled"
+        "actions": ["secret_scanning.enable", "repository_secret_scanning.enable"],
+        "conditions": [],
+        "dedup_prefix_fn": lambda e: (
+            f"posture:posture-secret-scanning-disabled:{e.org}:{_repo_short(e.repo)}"
+        ),
+    },
+    {
+        # Branch protection created → resolve "No Branch Protection on Default Branch"
+        "actions": ["protected_branch.create"],
+        "conditions": [],
+        "dedup_prefix_fn": lambda e: (
+            f"posture:posture-no-branch-protection-on-default-branch:{e.org}:{_repo_short(e.repo)}"
+        ),
+    },
+]
+
+
+def _repo_short(repo: str | None) -> str:
+    """Extract the repo name from 'org/repo' format."""
+    if not repo:
+        return ""
+    return repo.split("/", 1)[-1] if "/" in repo else repo
+
+
+def _resolve_field(event: AuditEvent, field_path: str) -> Any:
+    """Resolve a field from event top-level attrs or nested data."""
+    if field_path.startswith("data."):
+        key = field_path[5:]
+        data = event.data or {}
+        return data.get(key)
+    return getattr(event, field_path, None)
+
+
+async def _auto_resolve_from_events(
+    session: AsyncSession,
+    events: list[AuditEvent],
+) -> int:
+    """Check incoming events for remediation patterns and resolve matching open detections."""
+    dedup_prefixes: list[str] = []
+
+    for event in events:
+        for mapping in _REMEDIATION_MAP:
+            if event.action not in mapping["actions"]:
+                continue
+
+            # Check conditions
+            conditions_met = True
+            for cond in mapping.get("conditions", []):
+                actual = _resolve_field(event, cond["field"])
+                if actual not in cond["values"]:
+                    conditions_met = False
+                    break
+
+            if not conditions_met:
+                continue
+
+            prefix = mapping["dedup_prefix_fn"](event)
+            if prefix:
+                dedup_prefixes.append(prefix)
+
+    if not dedup_prefixes:
+        return 0
+
+    # Find open posture detections with matching dedup keys
+    conditions = [
+        Detection.context_data["dedup_key"].astext.startswith(prefix) for prefix in dedup_prefixes
+    ]
+
+    result = await session.execute(
+        select(Detection).where(
+            Detection.status.in_(["open", "investigating"]),
+            or_(*conditions),
+        )
+    )
+    open_detections = list(result.scalars().all())
+
+    if not open_detections:
+        return 0
+
+    now = datetime.now(UTC)
+    resolved = 0
+    for det in open_detections:
+        ctx = det.context_data or {}
+        dedup_key = ctx.get("dedup_key", "")
+        if any(dedup_key.startswith(prefix) for prefix in dedup_prefixes):
+            await session.execute(
+                update(Detection)
+                .where(Detection.id == det.id)
+                .values(
+                    status="resolved",
+                    resolved_at=now,
+                    resolved_by="system",
+                    resolution_note="Auto-resolved: remediation event received",
+                    updated_at=now,
+                )
+            )
+            logger.info(
+                "detection.event_auto_resolved",
+                detection_id=det.id,
+                dedup_key=dedup_key,
+            )
+            resolved += 1
+
+    return resolved
 
 
 async def _auto_resolve_posture_detections(

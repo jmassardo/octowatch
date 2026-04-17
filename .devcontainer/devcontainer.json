@@ -9,18 +9,23 @@
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
 
-  "forwardPorts": [
-    8000,
-    5173,
-    9001
-  ],
+  "forwardPorts": [8000, 5173, 9001],
   "portsAttributes": {
-    "8000": { "label": "Backend API", "onAutoForward": "notify" },
-    "5173": { "label": "Frontend (Vite)", "onAutoForward": "openBrowser" },
+    "8000": {
+      "label": "Backend API",
+      "onAutoForward": "notify",
+      "visibility": "public"
+    },
+    "5173": {
+      "label": "Frontend (Vite)",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    },
     "9001": { "label": "MinIO Console", "onAutoForward": "notify" }
   },
 
   "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "initializeCommand": "bash -c 'if [ -n \"$CODESPACE_NAME\" ]; then echo APP_BASE_URL=https://${CODESPACE_NAME}-5173.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN} > .devcontainer/.env; else touch .devcontainer/.env; fi'",
 
   "customizations": {
     "vscode": {

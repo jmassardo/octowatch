@@ -14,6 +14,7 @@ export interface CrossOrgTimelineEvent {
 export interface CrossOrgCorrelation {
   actor: string;
   orgs: string[];
+  org_count: number;
   event_count: number;
   distinct_actions: number;
   first_seen: string;
@@ -29,6 +30,24 @@ export interface CrossOrgTimelineResponse {
 export interface CrossOrgCorrelationResponse {
   correlations: CrossOrgCorrelation[];
   total: number;
+}
+
+export interface ActorOrgEvent {
+  id: number;
+  created_at: string;
+  action: string;
+  repo: string | null;
+  source_ip: string | null;
+  geo_country_code: string | null;
+}
+
+export interface ActorDetailResponse {
+  actor: string;
+  days: number;
+  organizations: string[];
+  org_count: number;
+  total_events: number;
+  timeline_by_org: Record<string, ActorOrgEvent[]>;
 }
 
 export function getCrossOrgTimeline(params: {
@@ -47,4 +66,10 @@ export function getCrossOrgCorrelations(params?: {
   page_size?: number;
 }) {
   return api.get<CrossOrgCorrelationResponse>('/cross-org/correlations', params);
+}
+
+export function getActorCrossOrgDetail(login: string, days?: number) {
+  return api.get<ActorDetailResponse>(`/cross-org/actors/${encodeURIComponent(login)}`, {
+    days: days ?? 30,
+  });
 }

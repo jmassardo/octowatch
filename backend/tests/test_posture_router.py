@@ -298,6 +298,31 @@ class TestClassifyRules:
         assert len(org_rules) == 2  # id=1 (org), id=4 (default)
         assert len(repo_rules) == 2  # id=2 (repo), id=3 (repository)
 
+    def test_no_entity_inferred_repo_from_detections(self) -> None:
+        """Rule with no entity but repo-level detections → repo rule."""
+        rule = FakeRule(id=58, logic_config={})
+        det = FakeDetection(id=100, rule_id=58, org="my-org", repo="my-repo")
+        org_rules, repo_rules = _classify_rules([rule], [det])
+        assert len(org_rules) == 0
+        assert len(repo_rules) == 1
+        assert repo_rules[0].id == 58
+
+    def test_no_entity_stays_org_without_repo_detections(self) -> None:
+        """Rule with no entity and org-level detections → org rule."""
+        rule = FakeRule(id=54, logic_config={})
+        det = FakeDetection(id=100, rule_id=54, org="my-org", repo=None)
+        org_rules, repo_rules = _classify_rules([rule], [det])
+        assert len(org_rules) == 1
+        assert len(repo_rules) == 0
+
+    def test_entity_takes_precedence_over_detections(self) -> None:
+        """Explicit entity config is used even with conflicting detections."""
+        rule = FakeRule(id=1, logic_config={"entity": "org"})
+        det = FakeDetection(id=100, rule_id=1, org="my-org", repo="some-repo")
+        org_rules, repo_rules = _classify_rules([rule], [det])
+        assert len(org_rules) == 1
+        assert len(repo_rules) == 0
+
 
 # ── _check_pass / _check_from_detection ──────────────────────────────────────
 

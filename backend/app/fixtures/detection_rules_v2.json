@@ -33,9 +33,12 @@
         "public_key.create"
       ],
       "sequence_steps": [
-        {"step": 1, "action": "two_factor_authentication.recovery_codes_used"},
-        {"step": 2, "action": "user.update_password"},
-        {"step": 3, "action": "public_key.create"}
+        {
+          "step": 1,
+          "action": "two_factor_authentication.recovery_codes_used"
+        },
+        { "step": 2, "action": "user.update_password" },
+        { "step": 3, "action": "public_key.create" }
       ],
       "aggregation_key": "actor",
       "time_window_minutes": 30,
@@ -81,7 +84,7 @@
           "value": "curl/*"
         }
       ],
-      "confidence": 0.40
+      "confidence": 0.4
     },
     "created_by": "system"
   },
@@ -102,7 +105,7 @@
           "value": "Go-http-client*"
         }
       ],
-      "confidence": 0.40
+      "confidence": 0.4
     },
     "created_by": "system"
   },
@@ -121,7 +124,7 @@
         "engine": "threat_intel_webhook",
         "check_field": "data.config.url"
       },
-      "confidence": 0.80
+      "confidence": 0.8
     },
     "created_by": "system"
   },
@@ -157,12 +160,12 @@
         "deployment.create"
       ],
       "sequence_steps": [
-        {"step": 1, "action": "environment.delete_protection_rule"},
-        {"step": 2, "action": "deployment.create"}
+        { "step": 1, "action": "environment.delete_protection_rule" },
+        { "step": 2, "action": "deployment.create" }
       ],
       "aggregation_key": "actor",
       "time_window_minutes": 10,
-      "confidence": 0.80
+      "confidence": 0.8
     },
     "created_by": "system"
   },
@@ -182,7 +185,7 @@
         "signal_type": "aging_vulnerability",
         "requires": "ghas_integration"
       },
-      "confidence": 0.30
+      "confidence": 0.3
     },
     "created_by": "system",
     "enabled": false
@@ -207,7 +210,7 @@
           "value": 5
         }
       ],
-      "confidence": 0.60
+      "confidence": 0.6
     },
     "created_by": "system"
   },
@@ -225,7 +228,7 @@
         "actions.self_hosted_runner_online"
       ],
       "field_conditions": [],
-      "confidence": 0.50
+      "confidence": 0.5
     },
     "created_by": "system"
   },
@@ -284,7 +287,58 @@
     "logic_config": {
       "action_filters": ["protected_branch.update_required_status_checks"],
       "field_conditions": [],
-      "confidence": 0.70
+      "confidence": 0.7
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Repository Ruleset Deleted",
+    "slug": "repository-ruleset-deleted",
+    "description": "Detects when a repository ruleset is deleted, which may weaken branch protection, code review, and merge safeguards previously enforced by the ruleset.",
+    "category": "supply_chain",
+    "default_severity": "critical",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": ["repository_ruleset.destroy"],
+      "field_conditions": [],
+      "confidence": 0.85
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Repository Ruleset Modified",
+    "slug": "repository-ruleset-modified",
+    "description": "Detects when a repository ruleset is edited, which could weaken enforcement of branch protection, required reviews, or status checks.",
+    "category": "supply_chain",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": ["repository_ruleset.edit"],
+      "field_conditions": [],
+      "confidence": 0.7
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Ruleset Status Check Override",
+    "slug": "ruleset-status-check-override",
+    "description": "Detects modifications to required status checks enforced via repository rulesets, which could bypass CI gates.",
+    "category": "cicd",
+    "default_severity": "high",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": ["repository_ruleset.edit"],
+      "field_conditions": [
+        {
+          "field": "data.changes",
+          "operator": "contains",
+          "value": "required_status_checks"
+        }
+      ],
+      "confidence": 0.7
     },
     "created_by": "system"
   }

@@ -10,6 +10,12 @@ export const SEARCH_KEY_MAP: Record<string, keyof EventListParams> = {
   until: 'until',
   after: 'since',
   before: 'until',
+  namespace: 'namespace',
+  ip: 'source_ip',
+  source_ip: 'source_ip',
+  country: 'geo_country_code',
+  geo_country_code: 'geo_country_code',
+  bot: 'actor_is_bot',
 };
 
 /**
@@ -18,16 +24,21 @@ export const SEARCH_KEY_MAP: Record<string, keyof EventListParams> = {
  */
 export function parseSearchFilters(input: string): Partial<EventListParams> {
   if (!input) return {};
-  const filters: Record<string, string> = {};
-  const pattern = /\b(org|action|actor|repo|since|until|after|before):(\S+)/g;
+  const filters: Record<string, string | boolean> = {};
+  const pattern =
+    /\b(org|action|actor|repo|since|until|after|before|namespace|ip|source_ip|country|geo_country_code|bot):(\S+)/g;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(input)) !== null) {
     const paramKey = SEARCH_KEY_MAP[match[1]];
     if (paramKey) {
-      filters[paramKey] = match[2];
+      if (paramKey === 'actor_is_bot') {
+        filters[paramKey] = match[2].toLowerCase() === 'true';
+      } else {
+        filters[paramKey] = match[2];
+      }
     }
   }
-  return filters;
+  return filters as Partial<EventListParams>;
 }
 
 /** Sanitize a cell value to prevent spreadsheet formula injection. */

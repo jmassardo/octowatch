@@ -1,4 +1,14 @@
-.page {
+.splitLayout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: 100%;
+}
+
+.splitMain {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
   padding: 24px;
 }
 
@@ -32,6 +42,8 @@
   color: var(--fg);
   font-size: 13px;
   flex: 1;
+  width: 100%;
+  min-width: 0;
   font-family: inherit;
 }
 
@@ -239,4 +251,69 @@
 .eventDataRow dd {
   margin: 0;
   word-break: break-all;
+}
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.sortable:hover {
+  color: var(--fg);
+}
+
+.sortIndicator {
+  font-size: 10px;
+  margin-left: 2px;
+  opacity: 0.8;
+}
+
+/* Clickable rows */
+.clickableRow {
+  cursor: pointer;
+}
+
+.clickableRow:hover td {
+  background: rgba(177, 186, 196, 0.06);
+}
+
+.selectedRow td {
+  background: rgba(88, 166, 255, 0.06);
+}
+
+/* Slide-out panel */
+.splitPanel {
+  width: 480px;
+  min-width: 480px;
+  background: var(--canvas-subtle);
+  border-left: 1px solid var(--border);
+  padding: 20px;
+  overflow-y: auto;
+  display: none;
+}
+
+.splitPanelOpen {
+  display: block;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.panelClose {
+  cursor: pointer;
+  color: var(--fg-muted);
+  font-size: 20px;
+  line-height: 1;
+  background: none;
+  border: none;
+  font-family: inherit;
+}
+
+.panelClose:hover {
+  color: var(--fg);
 }

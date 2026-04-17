@@ -972,17 +972,41 @@ async def get_workflow_health(
     scoped_orgs: list[str],
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Workflow failure rates (30 days)."""
+    """Workflow failure rates (30 days).
+
+    Uses both ``workflow_run.*`` events (action suffix encodes conclusion)
+    and ``workflows.completed_workflow_run`` events (conclusion in JSONB data).
+    """
     result = await session.execute(
         text("""
             WITH run_outcomes AS (
+                -- workflow_run.* events: the action suffix IS the conclusion
                 SELECT
                     org,
                     repo,
-                    data->>'name'           AS workflow_name,
-                    data->>'workflow_id'    AS workflow_id,
-                    data->>'conclusion'     AS conclusion,
-                    data->>'head_branch'    AS head_branch,
+                    COALESCE(data->>'workflow_name', data->>'name',
+                             SPLIT_PART(action, '.', 1)) AS workflow_name,
+                    CASE
+                        WHEN action = 'workflow_run.success' THEN 'success'
+                        WHEN action IN ('workflow_run.failure',
+                                        'workflow_run.startup_failure') THEN 'failure'
+                        WHEN action = 'workflow_run.cancelled' THEN 'cancelled'
+                        ELSE SPLIT_PART(action, '.', 2)
+                    END AS conclusion,
+                    created_at
+                FROM events
+                WHERE action LIKE 'workflow_run.%%'
+                  AND org = ANY(:scoped_orgs)
+                  AND created_at >= NOW() - INTERVAL '30 days'
+
+                UNION ALL
+
+                -- workflows.completed_workflow_run events: conclusion in JSONB
+                SELECT
+                    org,
+                    repo,
+                    COALESCE(data->>'name', 'unknown') AS workflow_name,
+                    data->>'conclusion'                 AS conclusion,
                     created_at
                 FROM events
                 WHERE action = 'workflows.completed_workflow_run'
@@ -1007,7 +1031,7 @@ async def get_workflow_health(
                 MAX(created_at) AS last_run_at
             FROM run_outcomes
             GROUP BY org, repo, workflow_name
-            HAVING COUNT(*) >= 5
+            HAVING COUNT(*) >= 3
             ORDER BY failure_rate_pct DESC
             LIMIT :limit
         """),

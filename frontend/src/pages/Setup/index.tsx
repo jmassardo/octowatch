@@ -458,13 +458,17 @@ function InitialSyncStep({
           <Button type="button" onClick={onSkip} disabled={phase === 'syncing'}>
             Skip
           </Button>
-          {phase === 'failed' ? (
+          {phase === 'syncing' ? (
+            <Button variant="primary" onClick={onComplete}>
+              Continue — sync runs in background
+            </Button>
+          ) : phase === 'failed' ? (
             <Button variant="primary" onClick={handleStartSync}>
               Retry
             </Button>
           ) : (
-            <Button variant="primary" onClick={handleStartSync} disabled={phase === 'syncing'}>
-              {phase === 'syncing' ? 'Syncing…' : 'Start Sync'}
+            <Button variant="primary" onClick={handleStartSync}>
+              Start Sync
             </Button>
           )}
         </div>

@@ -12,9 +12,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     retry: false,
   });
 
-  const { data: user, isLoading, isError } = useCurrentUser();
+  // Wait for setup check to complete before firing the user query.
+  // This prevents the /auth/me 401 from triggering a redirect to /login
+  // before we can redirect to /setup on first run.
+  const {
+    data: user,
+    isLoading,
+    isError,
+  } = useCurrentUser(!setupLoading && !setupStatus?.setup_required);
 
-  if (setupLoading || isLoading) {
+  if (setupLoading || (!setupStatus?.setup_required && isLoading)) {
     return (
       <div
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}

@@ -70,10 +70,24 @@ async def list_events(
     total: int = (await session.execute(count_stmt)).scalar_one()
 
     # Ordering
-    if params.sort == "created_at_asc":
-        base_stmt = base_stmt.order_by(AuditEvent.created_at.asc())
+    sort_columns = {
+        "created_at": AuditEvent.created_at,
+        "action": AuditEvent.action,
+        "actor": AuditEvent.actor,
+        "repo": AuditEvent.repo,
+    }
+    if params.sort.endswith("_asc"):
+        col_key = params.sort[:-4]
+        ascending = True
     else:
-        base_stmt = base_stmt.order_by(AuditEvent.created_at.desc())
+        col_key = params.sort[:-5]
+        ascending = False
+    sort_col = sort_columns.get(col_key, AuditEvent.created_at)
+    order_clause = sort_col.asc() if ascending else sort_col.desc()
+    if col_key != "created_at":
+        base_stmt = base_stmt.order_by(order_clause, AuditEvent.created_at.desc())
+    else:
+        base_stmt = base_stmt.order_by(order_clause)
 
     # Pagination
     offset = (params.page - 1) * params.page_size

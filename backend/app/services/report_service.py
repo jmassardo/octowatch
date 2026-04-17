@@ -182,7 +182,7 @@ async def get_actions_volume_report(
     granularity: str = "daily",
     org: str | None = None,
 ) -> list[dict]:
-    """GitHub Actions workflow volume per time bucket."""
+    """GitHub Actions workflow volume per time bucket with success/failure breakdown."""
     interval = _bucket_interval(granularity)
     start = _window_start(window_days)
 
@@ -191,13 +191,18 @@ async def get_actions_volume_report(
         SELECT
             time_bucket(:interval, created_at)   AS bucket,
             org,
-            COUNT(*)                             AS workflow_runs,
+            COUNT(*)                             AS workflow_runs_total,
+            COUNT(*) FILTER (WHERE action = 'workflow_run.success')
+                AS workflow_runs_succeeded,
+            COUNT(*) FILTER (WHERE action IN (
+                'workflow_run.failure', 'workflow_run.startup_failure'
+            ))  AS workflow_runs_failed,
             COUNT(DISTINCT actor)                AS unique_actors,
             COUNT(DISTINCT repo)                 AS unique_repos
         FROM events
         WHERE created_at >= :start
           {org_filter}
-          AND action LIKE 'workflow_run.%'
+          AND action LIKE 'workflow_run.%%'
         GROUP BY 1, 2
         ORDER BY 1 ASC, 2
     """)
@@ -206,16 +211,25 @@ async def get_actions_volume_report(
         params["org"] = org
 
     result = await session.execute(stmt, params)
-    return [
-        {
-            "bucket": row.bucket.isoformat(),
-            "org": row.org,
-            "workflow_runs": row.workflow_runs,
-            "unique_actors": row.unique_actors,
-            "unique_repos": row.unique_repos,
-        }
-        for row in result.fetchall()
-    ]
+    rows = []
+    for row in result.fetchall():
+        total = row.workflow_runs_total or 0
+        succeeded = row.workflow_runs_succeeded or 0
+        success_pct = round(100.0 * succeeded / total, 2) if total > 0 else 0.0
+        rows.append(
+            {
+                "bucket": row.bucket.isoformat(),
+                "org": row.org,
+                "workflow_runs": total,
+                "workflow_runs_total": total,
+                "workflow_runs_succeeded": succeeded,
+                "workflow_runs_failed": row.workflow_runs_failed or 0,
+                "success_rate_pct": success_pct,
+                "unique_actors": row.unique_actors,
+                "unique_repos": row.unique_repos,
+            }
+        )
+    return rows
 
 
 async def get_copilot_seats_report(

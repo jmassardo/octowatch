@@ -1,0 +1,284 @@
+# ---------------------------------------------------------------------------
+# docker-compose.dev.yml — Development override
+# ---------------------------------------------------------------------------
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#   (or: make dev-up)
+#
+# What this does:
+#   - Keeps infrastructure services (db, valkey, minio) running in containers
+#   - Replaces pre-built app images with volume-mounted source + live reload
+#   - Exposes db (5432) and valkey (6379) on localhost for local tooling
+#   - Runs backend (uvicorn) and frontend (vite) with hot reload
+#   - Skips nginx — access services directly on their ports
+#   - No .env file needed — all dev credentials are hardcoded below
+# ---------------------------------------------------------------------------
+
+# Hardcoded dev environment shared by api + workers + beat.
+# Overrides the base x-app-env that reads from ${...} env vars.
+x-app-env: &app-env
+  DATABASE_URL: postgresql+asyncpg://appuser:devpass@db:5432/audit_logs
+  VALKEY_URL: redis://:devpass@valkey:6379/0
+  SECRET_KEY: dev-only-secret-key-do-not-use-in-production
+  ENCRYPTION_KEY: dev-only-encryption-key-0000000000000
+  GITHUB_CLIENT_ID: ""
+  GITHUB_CLIENT_SECRET: ""
+  GITHUB_RULES_REPO: ""
+  GITHUB_RULES_TOKEN: ""
+  GITHUB_RULES_BRANCH: main
+  LOG_LEVEL: DEBUG
+  GEOIP_DB_PATH: /app/data/GeoLite2-City.mmdb
+  APP_BASE_URL: ${APP_BASE_URL:-http://localhost:5173}
+  INITIAL_ADMIN_LOGINS: ${INITIAL_ADMIN_LOGINS:-jmassardo}
+
+services:
+
+  # Expose db to host for local psql / pgAdmin / IDE database tools
+  db:
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: audit_logs
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U appuser -d audit_logs"]
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  # Expose valkey to host for local redis-cli / debugging
+  valkey:
+    command:
+      - valkey-server
+      - --requirepass
+      - devpass
+      - --appendonly
+      - "yes"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "-a", "devpass", "ping"]
+    ports:
+      - "127.0.0.1:6379:6379"
+
+  # MinIO — hardcode dev credentials
+  minio:
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_NOTIFY_REDIS_ENABLE_PRIMARY: "on"
+      MINIO_NOTIFY_REDIS_ADDRESS_PRIMARY: valkey:6379
+      MINIO_NOTIFY_REDIS_PASSWORD_PRIMARY: devpass
+      MINIO_NOTIFY_REDIS_KEY_PRIMARY: minio:events
+      MINIO_NOTIFY_REDIS_FORMAT_PRIMARY: access
+
+  # MinIO setup — hardcode dev credentials
+  minio-setup:
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_AUDIT_BUCKET: audit-logs
+      MINIO_INGEST_USER: ingest-service
+      MINIO_INGEST_PASSWORD: ingest-devpass
+      MINIO_STREAM_USER: github-stream
+      MINIO_STREAM_PASSWORD: stream-devpass
+
+  # ---------------------------------------------------------------------------
+  # migrate — use local source instead of pre-built image
+  # ---------------------------------------------------------------------------
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://appuser:devpass@db:5432/audit_logs
+    volumes:
+      - ./backend:/app/src:cached
+    command: >
+      sh -c "cd /app/src && alembic upgrade head"
+
+  # ---------------------------------------------------------------------------
+  # api — uvicorn with --reload, source mounted from host
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+      INGESTION_MODE: minio
+      MINIO_ENDPOINT_URL: http://minio:9000
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_INGEST_USER: ingest-service
+      MINIO_INGEST_PASSWORD: ingest-devpass
+      MINIO_AUDIT_BUCKET: audit-logs
+      SAML_SP_CERT: ""
+      SAML_SP_KEY: ""
+      SAML_IDP_METADATA_URL: ""
+      MAXMIND_LICENSE_KEY: ""
+      DETECTION_CONFIDENCE_THRESHOLD: "0.7"
+      QUERY_MAX_ROWS: "100000"
+      QUERY_TIMEOUT_SECONDS: "30"
+      GITHUB_APP_ID: ""
+      GITHUB_APP_PRIVATE_KEY_PATH: ""
+      GITHUB_ENTERPRISE_SLUG: ""
+      GITHUB_SYNC_ENABLED: "false"
+      GITHUB_SYNC_INTERVAL_DAYS: "60"
+      GITHUB_SYNC_ORGS: ""
+      HEC_TOKEN: dev-hec-token
+    command: >
+      sh -c "cd /app/src && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
+    volumes:
+      - ./backend:/app/src:cached
+    ports:
+      - "8000:8000"
+
+  # ---------------------------------------------------------------------------
+  # worker-ingestion — celery with watchfiles auto-reload
+  # ---------------------------------------------------------------------------
+  worker-ingestion:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+      INGESTION_MODE: minio
+      MINIO_ENDPOINT_URL: http://minio:9000
+      MINIO_INGEST_USER: ingest-service
+      MINIO_INGEST_PASSWORD: ingest-devpass
+      MINIO_AUDIT_BUCKET: audit-logs
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+      AWS_DEFAULT_REGION: ""
+      S3_AUDIT_BUCKET: ""
+      AZURE_STORAGE_CONNECTION_STRING: ""
+      AZURE_AUDIT_CONTAINER: ""
+      MAXMIND_LICENSE_KEY: ""
+    command: ["sh", "-c", "pip install watchfiles 2>/dev/null; cd /app/src && watchfiles --filter python 'celery -A app.celery_app worker -Q ingestion -c 2 --loglevel DEBUG' app/"]
+    volumes:
+      - ./backend:/app/src:cached
+
+  # ---------------------------------------------------------------------------
+  # worker-detection — celery with watchfiles auto-reload
+  # ---------------------------------------------------------------------------
+  worker-detection:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+      DETECTION_CONFIDENCE_THRESHOLD: "0.7"
+      OKTA_ORG_URL: ""
+      OKTA_API_TOKEN: ""
+      AZURE_AD_TENANT_ID: ""
+      AZURE_AD_CLIENT_ID: ""
+      AZURE_AD_CLIENT_SECRET: ""
+      GOOGLE_WORKSPACE_DOMAIN: ""
+      GOOGLE_SERVICE_ACCOUNT_JSON: ""
+      SLACK_BOT_TOKEN: ""
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM_ADDRESS: ""
+      JIRA_URL: ""
+      JIRA_USERNAME: ""
+      JIRA_API_TOKEN: ""
+    command: ["sh", "-c", "pip install watchfiles 2>/dev/null; cd /app/src && watchfiles --filter python 'celery -A app.celery_app worker -Q detection -c 2 --loglevel DEBUG' app/"]
+    volumes:
+      - ./backend:/app/src:cached
+
+  # ---------------------------------------------------------------------------
+  # worker-notification — celery with watchfiles auto-reload
+  # ---------------------------------------------------------------------------
+  worker-notification:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+      SLACK_BOT_TOKEN: ""
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM_ADDRESS: ""
+    command: ["sh", "-c", "pip install watchfiles 2>/dev/null; cd /app/src && watchfiles --filter python 'celery -A app.celery_app worker -Q notification -c 1 --loglevel DEBUG' app/"]
+    volumes:
+      - ./backend:/app/src:cached
+
+  # ---------------------------------------------------------------------------
+  # worker-baseline — celery with watchfiles auto-reload
+  # ---------------------------------------------------------------------------
+  worker-baseline:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+    command: ["sh", "-c", "pip install watchfiles 2>/dev/null; cd /app/src && watchfiles --filter python 'celery -A app.celery_app worker -Q baseline -c 1 --loglevel DEBUG' app/"]
+    volumes:
+      - ./backend:/app/src:cached
+
+  # ---------------------------------------------------------------------------
+  # worker-sync — celery with watchfiles auto-reload
+  # ---------------------------------------------------------------------------
+  worker-sync:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+      INGESTION_MODE: minio
+      MINIO_ENDPOINT_URL: http://minio:9000
+      MINIO_INGEST_USER: ingest-service
+      MINIO_INGEST_PASSWORD: ingest-devpass
+      MINIO_AUDIT_BUCKET: audit-logs
+      GITHUB_APP_ID: ""
+      GITHUB_APP_PRIVATE_KEY_PATH: ""
+      GITHUB_ENTERPRISE_SLUG: ""
+      GITHUB_SYNC_ENABLED: "false"
+      GITHUB_SYNC_INTERVAL_DAYS: "60"
+      GITHUB_SYNC_ORGS: ""
+    command: ["sh", "-c", "pip install watchfiles 2>/dev/null; cd /app/src && watchfiles --filter python 'celery -A app.celery_app worker -Q github_sync --pool=solo --loglevel DEBUG' app/"]
+    volumes:
+      - ./backend:/app/src:cached
+
+  # ---------------------------------------------------------------------------
+  # beat — no auto-reload needed, but mount source for consistency
+  # ---------------------------------------------------------------------------
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+    command: ["sh", "-c", "cd /app/src && celery -A app.celery_app beat --scheduler celery.beat:PersistentScheduler --loglevel DEBUG"]
+    volumes:
+      - ./backend:/app/src:cached
+
+  # ---------------------------------------------------------------------------
+  # frontend — vite dev server with HMR
+  # ---------------------------------------------------------------------------
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - ./frontend:/app:cached
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      NODE_ENV: development
+      VITE_API_PROXY_TARGET: http://api:8000
+    networks:
+      - frontend
+      - backend
+
+  # ---------------------------------------------------------------------------
+  # nginx — disabled in dev mode; access api:8000 and frontend:5173 directly
+  # ---------------------------------------------------------------------------
+  nginx:
+    profiles:
+      - disabled
+
+volumes:
+  frontend_node_modules:

@@ -133,7 +133,7 @@ class AbstractIngestWorker(ABC):
         if not to_insert:
             return 0
 
-        inserted = 0
+        inserted_ids: list[int] = []
         async with self._make_session() as session:
             from sqlalchemy import text
 
@@ -194,17 +194,37 @@ class AbstractIngestWorker(ABC):
 
                 # Mark bloom filter
                 await self._mark_bloom(dedup_hash)
-                inserted += 1
+                inserted_ids.append(event_id)
 
                 # WS-4: Upsert external_collaborators for lifecycle events
                 await self._upsert_external_collaborator(session, normalized, event_id)
 
             await session.commit()
 
-        if inserted:
-            logger.info("ingest.batch_complete", inserted=inserted, total=len(raw_events))
+        if inserted_ids:
+            logger.info(
+                "ingest.batch_complete",
+                inserted=len(inserted_ids),
+                total=len(raw_events),
+            )
 
-        return inserted
+            # Chain detection pipeline for newly inserted events
+            try:
+                from app.workers.detection_worker import run_detection_pipeline_task
+
+                run_detection_pipeline_task.delay(inserted_ids)
+                logger.info(
+                    "ingest.detection_chained",
+                    event_count=len(inserted_ids),
+                )
+            except Exception:
+                logger.warning(
+                    "ingest.detection_chain_failed",
+                    event_ids=inserted_ids[:5],
+                    exc_info=True,
+                )
+
+        return len(inserted_ids)
 
     # External collaborator lifecycle actions
     _COLLAB_ADD_ACTIONS = frozenset(

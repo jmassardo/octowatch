@@ -32,9 +32,12 @@
         "public_key.create"
       ],
       "sequence_steps": [
-        {"action": "two_factor_authentication.recovery_codes_used", "min_count": 1},
-        {"action": "user.update_password", "min_count": 1},
-        {"action": "public_key.create", "min_count": 1}
+        {
+          "action": "two_factor_authentication.recovery_codes_used",
+          "min_count": 1
+        },
+        { "action": "user.update_password", "min_count": 1 },
+        { "action": "public_key.create", "min_count": 1 }
       ],
       "aggregation_key": "actor",
       "time_window_minutes": 30,
@@ -57,7 +60,7 @@
         "speed_threshold_kmh": 900
       },
       "time_window_minutes": 120,
-      "confidence": 0.80
+      "confidence": 0.8
     }
   },
   {
@@ -131,7 +134,7 @@
           "value": "admin"
         }
       ],
-      "confidence": 0.80
+      "confidence": 0.8
     }
   },
   {
@@ -214,7 +217,7 @@
       "threshold": 20,
       "time_window_minutes": 60,
       "field_conditions": [],
-      "confidence": 0.60
+      "confidence": 0.6
     }
   },
   {
@@ -287,7 +290,7 @@
         "actions.self_hosted_runner_online"
       ],
       "field_conditions": [],
-      "confidence": 0.50
+      "confidence": 0.5
     }
   },
   {
@@ -310,7 +313,7 @@
           "value": 5
         }
       ],
-      "confidence": 0.60
+      "confidence": 0.6
     }
   },
   {
@@ -324,7 +327,7 @@
     "logic_config": {
       "action_filters": ["protected_branch.update_required_status_checks"],
       "field_conditions": [],
-      "confidence": 0.70
+      "confidence": 0.7
     }
   },
   {
@@ -342,6 +345,34 @@
     }
   },
   {
+    "name": "Repository Ruleset Deleted",
+    "slug": "repository-ruleset-deleted",
+    "description": "Detects when a repository ruleset is deleted, which may weaken branch protection, code review, and merge safeguards previously enforced by the ruleset.",
+    "category": "supply_chain",
+    "default_severity": "critical",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": ["repository_ruleset.destroy"],
+      "field_conditions": [],
+      "confidence": 0.85
+    }
+  },
+  {
+    "name": "Repository Ruleset Modified",
+    "slug": "repository-ruleset-modified",
+    "description": "Detects when a repository ruleset is edited, which could weaken enforcement of branch protection, required reviews, or status checks.",
+    "category": "supply_chain",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": ["repository_ruleset.edit"],
+      "field_conditions": [],
+      "confidence": 0.7
+    }
+  },
+  {
     "name": "New Deploy Key Added",
     "slug": "new-deploy-key-added",
     "description": "Detects creation of new deploy keys on repositories, which could be used for unauthorized automated access.",
@@ -352,7 +383,7 @@
     "logic_config": {
       "action_filters": ["public_key.create", "deploy_key.create"],
       "field_conditions": [],
-      "confidence": 0.50
+      "confidence": 0.5
     }
   },
   {
@@ -370,7 +401,7 @@
         "engine": "unusual_actor_check",
         "scope": "package"
       },
-      "confidence": 0.60
+      "confidence": 0.6
     }
   },
   {
@@ -408,7 +439,7 @@
         "ip_allow_list.disable"
       ],
       "field_conditions": [],
-      "confidence": 0.80
+      "confidence": 0.8
     }
   },
   {
@@ -440,7 +471,7 @@
     "logic_config": {
       "action_filters": ["hook.destroy"],
       "field_conditions": [],
-      "confidence": 0.70
+      "confidence": 0.7
     }
   },
   {
@@ -458,16 +489,20 @@
       "steps": [
         {
           "action_filters": ["org.update_member", "org.add_member"],
-          "field_conditions": [{"field": "data.permission", "operator": "eq", "value": "admin"}],
+          "field_conditions": [
+            { "field": "data.permission", "operator": "eq", "value": "admin" }
+          ],
           "min_count": 1
         },
         {
           "action_filters": ["org.update_member", "org.add_member"],
-          "field_conditions": [{"field": "data.permission", "operator": "eq", "value": "admin"}],
+          "field_conditions": [
+            { "field": "data.permission", "operator": "eq", "value": "admin" }
+          ],
           "min_count": 1
         }
       ],
-      "confidence": 0.80
+      "confidence": 0.8
     }
   },
   {
@@ -521,7 +556,7 @@
           "min_count": 1
         }
       ],
-      "confidence": 0.60
+      "confidence": 0.6
     }
   }
 ]

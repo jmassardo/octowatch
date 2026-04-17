@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from typing import Any
 
@@ -743,16 +744,24 @@ async def get_audit_stream_config(
     """Get current audit log streaming configuration."""
     stream_user = await get_setting(db, "minio_stream_user")
     stream_password = await get_setting(db, "minio_stream_password")
+    hec_token = await get_setting(db, "hec_token")
 
     base_url = settings.AUTH.APP_BASE_URL
+    # HEC endpoint must point to the API port (8000), not the frontend proxy.
+    # Replace the frontend port in the base URL if present.
+    hec_base = os.environ.get("HEC_BASE_URL", "")
+    if not hec_base:
+        hec_base = base_url.replace("-5173.", "-8000.") if "-5173." in base_url else base_url
     bucket = settings.MINIO.MINIO_AUDIT_BUCKET
 
     return {
-        "configured": bool(stream_user and stream_password),
+        "configured": bool(stream_user and stream_password) or bool(hec_token),
         "stream_user": stream_user or "",
         "s3_endpoint": f"{base_url}/s3",
         "bucket": bucket,
         "region": "us-east-1",
+        "hec_endpoint": f"{hec_base}/services/collector",
+        "hec_configured": bool(hec_token),
         "instructions": {
             "step_1": "Go to GitHub Enterprise → Settings → Audit Log → Log Streaming",
             "step_2": "Select 'Amazon S3' as the provider",
@@ -761,6 +770,13 @@ async def get_audit_stream_config(
             "step_5": f"Access Key ID: {stream_user or '<configure first>'}",
             "step_6": "Secret Access Key: <use the password configured in the vault>",
             "step_7": "Region: us-east-1",
+        },
+        "hec_instructions": {
+            "step_1": "Go to GitHub Enterprise → Settings → Audit Log → Log Streaming",
+            "step_2": "Select 'Splunk' as the provider",
+            "step_3": f"HEC URL: {hec_base}/services/collector",
+            "step_4": "HEC Token: <use the token configured below>",
+            "step_5": "Enable SSL verification (if using TLS)",
         },
     }
 
@@ -810,6 +826,41 @@ async def update_audit_stream_config(
         "message": (
             "Streaming credentials updated. Restart minio-setup to provision the user in MinIO."
         ),
+    }
+
+
+@router.put("/audit-stream/hec-token", dependencies=[Depends(verify_csrf)])
+async def update_hec_token(
+    payload: dict[str, str],
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Update or generate the HEC token for Splunk-compatible streaming."""
+    import secrets as _secrets
+
+    token = payload.get("hec_token", "").strip()
+    if not token:
+        token = _secrets.token_urlsafe(32)
+
+    await set_setting(
+        db,
+        "hec_token",
+        token,
+        category="audit_stream",
+        sensitivity="critical",
+        description="Splunk HEC token for audit log streaming",
+        changed_by=current_user.github_login,
+    )
+
+    # Update the in-memory cache so the HEC router picks it up immediately
+    from app.routers.ingest_hec import set_hec_token_cache
+
+    set_hec_token_cache(token)
+
+    return {
+        "status": "ok",
+        "hec_token": token,
+        "message": "HEC token saved. Use this token in GitHub's Splunk streaming configuration.",
     }
 
 

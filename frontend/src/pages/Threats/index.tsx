@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -7,16 +7,18 @@ import {
   deleteDetection,
   assignDetection,
 } from '../../api/detections';
+import { listRules } from '../../api/rules';
 import type { DetectionResponse } from '../../types/detections';
 import { SeverityDot } from '../../components/primitives/SeverityDot';
 import { Label } from '../../components/primitives/Label';
 import { Button } from '../../components/primitives/Button';
-import { CodeBlock } from '../../components/primitives/CodeBlock';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Pagination } from '../../components/primitives/Pagination';
 import { InvestigationTimeline } from './InvestigationTimeline';
 import { formatRelativeShort } from '../../utils/dates';
+import { useOrg } from '../../hooks/useOrg';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 import styles from './Threats.module.css';
 
 /**
@@ -55,6 +57,95 @@ function hasEntries(value: unknown): value is Record<string, unknown> {
   );
 }
 
+function EvidenceValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (value === null || value === undefined) {
+    return <span className={styles.evidenceMuted}>—</span>;
+  }
+  if (typeof value === 'string') {
+    return <span className={styles.evidenceVal}>{value}</span>;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return <span className={styles.evidenceVal}>{String(value)}</span>;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return <span className={styles.evidenceMuted}>[]</span>;
+    }
+    const allPrimitive = value.every(
+      (v) => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean',
+    );
+    if (allPrimitive && value.length <= 5) {
+      return <span className={styles.evidenceVal}>{value.join(', ')}</span>;
+    }
+    return (
+      <div>
+        <button
+          type="button"
+          className={styles.expandToggle}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? '▾' : '▸'} {value.length} item{value.length !== 1 ? 's' : ''}
+        </button>
+        {expanded && (
+          <div className={styles.evidenceNested}>
+            {value.map((item, i) => (
+              <div key={i} className={styles.evidenceRow}>
+                <span className={styles.evidenceKey}>[{i}]</span>
+                <EvidenceValue value={item} depth={depth + 1} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) {
+      return <span className={styles.evidenceMuted}>{'{}'}</span>;
+    }
+    return (
+      <div>
+        <button
+          type="button"
+          className={styles.expandToggle}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? '▾' : '▸'} {entries.length} field{entries.length !== 1 ? 's' : ''}
+        </button>
+        {expanded && (
+          <div className={styles.evidenceNested}>
+            {entries.map(([k, v]) => (
+              <div key={k} className={styles.evidenceRow}>
+                <span className={styles.evidenceKey}>{k}</span>
+                <EvidenceValue value={v} depth={depth + 1} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+  return <span className={styles.evidenceVal}>{String(value)}</span>;
+}
+
+function EvidenceDisplay({ data }: { data: Record<string, unknown> }) {
+  return (
+    <div className={styles.evidenceTable}>
+      {Object.entries(data).map(([key, value]) => (
+        <div key={key} className={styles.evidenceRow}>
+          <span className={styles.evidenceKey}>{key}</span>
+          <div className={styles.evidenceValWrap}>
+            <EvidenceValue value={value} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 type TabFilter = 'open' | 'investigating' | 'closed' | 'acknowledged' | 'all';
 
 export function ThreatsPage() {
@@ -63,9 +154,56 @@ export function ThreatsPage() {
   const [selected, setSelected] = useState<DetectionResponse | null>(null);
   const [investigatingId, setInvestigatingId] = useState<number | null>(null);
   const initialSeverity = searchParams.get('severity') ?? '';
-  const [filtersVisible, setFiltersVisible] = useState(initialSeverity !== '');
+  const initialRepo = searchParams.get('repo') ?? '';
+  const initialActor = searchParams.get('actor') ?? '';
+  const initialSince = searchParams.get('since') ?? '';
+  const initialUntil = searchParams.get('until') ?? '';
+  const initialOrg = searchParams.get('org') ?? '';
+  const initialRuleId = searchParams.get('rule_id') ?? '';
+  const [filtersVisible, setFiltersVisible] = useState(
+    initialSeverity !== '' ||
+      initialRepo !== '' ||
+      initialActor !== '' ||
+      initialSince !== '' ||
+      initialUntil !== '' ||
+      initialOrg !== '' ||
+      initialRuleId !== '',
+  );
   const [severityFilter, setSeverityFilter] = useState(initialSeverity);
+  const [repoFilter, setRepoFilter] = useState(initialRepo);
+  const [debouncedRepo, setDebouncedRepo] = useState(initialRepo);
+  const [actorFilter, setActorFilter] = useState(initialActor);
+  const [debouncedActor, setDebouncedActor] = useState(initialActor);
+  const [sinceFilter, setSinceFilter] = useState(initialSince);
+  const [untilFilter, setUntilFilter] = useState(initialUntil);
+  const [orgFilter, setOrgFilter] = useState(initialOrg);
+  const [ruleIdFilter, setRuleIdFilter] = useState(initialRuleId);
   const [page, setPage] = useState(1);
+  const { selectedOrg } = useOrg();
+  const { data: currentUser } = useCurrentUser();
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedRepo(repoFilter), 300);
+    return () => clearTimeout(id);
+  }, [repoFilter]);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedActor(actorFilter), 300);
+    return () => clearTimeout(id);
+  }, [actorFilter]);
+
+  // Fetch rules for the rule filter dropdown
+  const { data: rulesData } = useQuery({
+    queryKey: ['rules', 'all'],
+    queryFn: () => listRules({ limit: 500 }),
+    staleTime: 5 * 60 * 1000,
+  });
+  const ruleOptions = rulesData?.items ?? [];
+  const orgs: readonly string[] = currentUser?.scoped_orgs ?? [];
+
+  // Effective org: explicit orgFilter takes priority, then global selectedOrg
+  const effectiveOrg = orgFilter || selectedOrg || undefined;
+
   const qc = useQueryClient();
   const navigate = useNavigate();
 
@@ -79,12 +217,47 @@ export function ThreatsPage() {
 
   const PAGE_SIZE = 25;
 
+  const syncFilters = (overrides: Record<string, string> = {}) => {
+    const all: Record<string, string> = {
+      severity: severityFilter,
+      repo: repoFilter,
+      actor: actorFilter,
+      since: sinceFilter,
+      until: untilFilter,
+      org: orgFilter,
+      rule_id: ruleIdFilter,
+      ...overrides,
+    };
+    const next: Record<string, string> = {};
+    for (const [k, v] of Object.entries(all)) {
+      if (v) next[k] = v;
+    }
+    setSearchParams(next, { replace: true });
+  };
+
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['detections', tab, severityFilter, page],
+    queryKey: [
+      'detections',
+      tab,
+      severityFilter,
+      debouncedRepo,
+      debouncedActor,
+      sinceFilter,
+      untilFilter,
+      effectiveOrg,
+      ruleIdFilter,
+      page,
+    ],
     queryFn: () =>
       listDetections({
         status: statusMap[tab],
         severity: severityFilter || undefined,
+        repo: debouncedRepo || undefined,
+        actor: debouncedActor || undefined,
+        since: sinceFilter || undefined,
+        until: untilFilter || undefined,
+        org: effectiveOrg,
+        rule_id: ruleIdFilter ? Number(ruleIdFilter) : undefined,
         page,
         page_size: PAGE_SIZE,
       }),
@@ -92,24 +265,24 @@ export function ThreatsPage() {
 
   // Fetch counts for each tab so badges stay current
   const { data: openData } = useQuery({
-    queryKey: ['detections', 'count-open'],
-    queryFn: () => listDetections({ status: 'open', page_size: 1 }),
+    queryKey: ['detections', 'count-open', effectiveOrg],
+    queryFn: () => listDetections({ status: 'open', org: effectiveOrg, page_size: 1 }),
   });
   const { data: investData } = useQuery({
-    queryKey: ['detections', 'count-investigating'],
-    queryFn: () => listDetections({ status: 'investigating', page_size: 1 }),
+    queryKey: ['detections', 'count-investigating', effectiveOrg],
+    queryFn: () => listDetections({ status: 'investigating', org: effectiveOrg, page_size: 1 }),
   });
   const { data: closedData } = useQuery({
-    queryKey: ['detections', 'count-closed'],
-    queryFn: () => listDetections({ status: 'resolved', page_size: 1 }),
+    queryKey: ['detections', 'count-closed', effectiveOrg],
+    queryFn: () => listDetections({ status: 'resolved', org: effectiveOrg, page_size: 1 }),
   });
   const { data: ackData } = useQuery({
-    queryKey: ['detections', 'count-ack'],
-    queryFn: () => listDetections({ status: 'false_positive', page_size: 1 }),
+    queryKey: ['detections', 'count-ack', effectiveOrg],
+    queryFn: () => listDetections({ status: 'false_positive', org: effectiveOrg, page_size: 1 }),
   });
   const { data: allData } = useQuery({
-    queryKey: ['detections', 'count-all'],
-    queryFn: () => listDetections({ page_size: 1 }),
+    queryKey: ['detections', 'count-all', effectiveOrg],
+    queryFn: () => listDetections({ org: effectiveOrg, page_size: 1 }),
   });
 
   const tabCounts: Record<TabFilter, number | null> = {
@@ -168,34 +341,119 @@ export function ThreatsPage() {
           </Button>
         </div>
         {filtersVisible && (
-          <div className={styles.topActions} style={{ gap: 8 }}>
-            <select
-              value={severityFilter}
-              onChange={(e) => {
-                const value = e.target.value;
-                setSeverityFilter(value);
-                setPage(1);
-                if (value) {
-                  setSearchParams({ severity: value }, { replace: true });
-                } else {
-                  setSearchParams({}, { replace: true });
-                }
-              }}
-              style={{
-                padding: '4px 8px',
-                borderRadius: 6,
-                border: '1px solid var(--border)',
-                background: 'var(--canvas-subtle)',
-                color: 'var(--fg)',
-                fontSize: 13,
-              }}
-            >
-              <option value="">All severities</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
+          <div className={styles.filterBar}>
+            {/* Row 1: dropdowns */}
+            <div className={styles.filterRow}>
+              <select
+                value={severityFilter}
+                onChange={(e) => {
+                  setSeverityFilter(e.target.value);
+                  setPage(1);
+                  syncFilters({ severity: e.target.value });
+                }}
+                className={styles.filterSelect}
+              >
+                <option value="">All severities</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+
+              {orgs.length > 1 && (
+                <select
+                  value={orgFilter}
+                  onChange={(e) => {
+                    setOrgFilter(e.target.value);
+                    setPage(1);
+                    syncFilters({ org: e.target.value });
+                  }}
+                  className={styles.filterSelect}
+                >
+                  <option value="">All organizations</option>
+                  {[...orgs]
+                    .sort((a, b) => a.localeCompare(b))
+                    .map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                </select>
+              )}
+
+              <select
+                value={ruleIdFilter}
+                onChange={(e) => {
+                  setRuleIdFilter(e.target.value);
+                  setPage(1);
+                  syncFilters({ rule_id: e.target.value });
+                }}
+                className={styles.filterSelect}
+              >
+                <option value="">All rules</option>
+                {[...ruleOptions]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((r) => (
+                    <option key={r.id} value={String(r.id)}>
+                      {r.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            {/* Row 2: text inputs + date/time pickers */}
+            <div className={styles.filterRow}>
+              <input
+                type="text"
+                placeholder="Filter by repo…"
+                value={repoFilter}
+                onChange={(e) => {
+                  setRepoFilter(e.target.value);
+                  setPage(1);
+                  syncFilters({ repo: e.target.value });
+                }}
+                className={styles.filterInput}
+              />
+              <input
+                type="text"
+                placeholder="Filter by actor…"
+                value={actorFilter}
+                onChange={(e) => {
+                  setActorFilter(e.target.value);
+                  setPage(1);
+                  syncFilters({ actor: e.target.value });
+                }}
+                className={styles.filterInput}
+              />
+              <div className={styles.dateGroup}>
+                <label className={styles.dateLabel}>From</label>
+                <input
+                  type="datetime-local"
+                  aria-label="Since date/time"
+                  value={sinceFilter}
+                  onChange={(e) => {
+                    setSinceFilter(e.target.value);
+                    setPage(1);
+                    syncFilters({ since: e.target.value });
+                  }}
+                  className={styles.filterDatetime}
+                />
+              </div>
+              <div className={styles.dateGroup}>
+                <label className={styles.dateLabel}>To</label>
+                <input
+                  type="datetime-local"
+                  aria-label="Until date/time"
+                  value={untilFilter}
+                  onChange={(e) => {
+                    setUntilFilter(e.target.value);
+                    setPage(1);
+                    syncFilters({ until: e.target.value });
+                  }}
+                  className={styles.filterDatetime}
+                />
+              </div>
+            </div>
           </div>
         )}
 
@@ -270,7 +528,14 @@ export function ThreatsPage() {
                   {d.rule_name && <Label variant="muted">{safeText(d.rule_name)}</Label>}
                   {d.actor && (
                     <span>
-                      actor: <Link to={`/actors/${encodeURIComponent(d.actor)}`} className={styles.mention} onClick={(e) => e.stopPropagation()}>@{safeText(d.actor)}</Link>
+                      actor:{' '}
+                      <Link
+                        to={`/actors/${encodeURIComponent(d.actor)}`}
+                        className={styles.mention}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        @{safeText(d.actor)}
+                      </Link>
                     </span>
                   )}
                   {d.org && <span>· {safeText(d.org)}</span>}
@@ -343,18 +608,12 @@ export function ThreatsPage() {
             {hasEntries(selected.context_data) && (
               <>
                 <div className={styles.evidenceLabel}>Evidence</div>
-                <CodeBlock className={styles.evidence}>
-                  {JSON.stringify(selected.context_data, null, 2)}
-                </CodeBlock>
+                <EvidenceDisplay data={selected.context_data} />
               </>
             )}
 
             <div className={styles.panelActions}>
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => setInvestigatingId(selected.id)}
-              >
+              <Button size="sm" variant="primary" onClick={() => setInvestigatingId(selected.id)}>
                 🔍 Investigate
               </Button>
               <Button

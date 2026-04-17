@@ -3,6 +3,9 @@ services:
     build:
       context: ..
       dockerfile: .devcontainer/Dockerfile
+    env_file:
+      - path: .env
+        required: false
     volumes:
       - ..:/workspaces/octowatch:cached
     command: sleep infinity
@@ -22,7 +25,6 @@ services:
       MINIO_AUDIT_BUCKET: audit-logs
       MINIO_STREAM_USER: github-stream
       MINIO_STREAM_PASSWORD: stream-devpass
-      APP_BASE_URL: http://localhost:8000
       GITHUB_CLIENT_ID: ""
       GITHUB_CLIENT_SECRET: ""
       GITHUB_RULES_REPO: ""
@@ -31,6 +33,7 @@ services:
       QUERY_MAX_ROWS: "100000"
       QUERY_TIMEOUT_SECONDS: "30"
       INITIAL_ADMIN_LOGINS: ""
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:5173}
     depends_on:
       db:
         condition: service_healthy

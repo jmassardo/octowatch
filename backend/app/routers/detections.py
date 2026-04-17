@@ -68,6 +68,9 @@ async def list_detections(
         stmt = stmt.where(Detection.actor == params.actor)
     if params.org:
         stmt = stmt.where(Detection.org == params.org)
+    if params.repo:
+        safe_repo = params.repo.replace("%", r"\%").replace("_", r"\_")
+        stmt = stmt.where(Detection.repo.ilike(f"%{safe_repo}%"))
     if params.since:
         stmt = stmt.where(Detection.triggered_at >= params.since)
     if params.until:

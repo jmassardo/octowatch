@@ -6,7 +6,18 @@ import styles from './EventSearchInput.module.css';
 const MAX_VISIBLE = 8;
 
 /** Filter key suggestions offered when the user hasn't started a key:value pair. */
-const FILTER_KEYS = ['action:', 'actor:', 'repo:', 'org:', 'since:', 'until:'];
+const FILTER_KEYS = [
+  'action:',
+  'actor:',
+  'repo:',
+  'org:',
+  'namespace:',
+  'ip:',
+  'country:',
+  'bot:',
+  'since:',
+  'until:',
+];
 
 interface EventSearchInputProps {
   /** Current search text (controlled). */
@@ -19,6 +30,12 @@ interface EventSearchInputProps {
   actionSuggestions: string[];
   /** Distinct actor values for autocomplete. */
   actorSuggestions: string[];
+  /** Distinct repo values for autocomplete. */
+  repoSuggestions?: string[];
+  /** Distinct org values for autocomplete. */
+  orgSuggestions?: string[];
+  /** Distinct namespace values for autocomplete. */
+  namespaceSuggestions?: string[];
   /** Placeholder for the input. */
   placeholder?: string;
   /** HTML id for the input element (allows external focusing). */
@@ -115,6 +132,9 @@ export function EventSearchInput({
   onSubmit,
   actionSuggestions,
   actorSuggestions,
+  repoSuggestions = [],
+  orgSuggestions = [],
+  namespaceSuggestions = [],
   placeholder,
   id,
 }: EventSearchInputProps) {
@@ -139,8 +159,24 @@ export function EventSearchInput({
     if (context.prefix === 'actor') {
       return filterItems(context.query, actorSuggestions);
     }
+    if (context.prefix === 'repo') {
+      return filterItems(context.query, repoSuggestions);
+    }
+    if (context.prefix === 'org') {
+      return filterItems(context.query, orgSuggestions);
+    }
+    if (context.prefix === 'namespace') {
+      return filterItems(context.query, namespaceSuggestions);
+    }
     return [];
-  }, [context, actionSuggestions, actorSuggestions]);
+  }, [
+    context,
+    actionSuggestions,
+    actorSuggestions,
+    repoSuggestions,
+    orgSuggestions,
+    namespaceSuggestions,
+  ]);
 
   // Clamp activeIndex within bounds (derived state, no effect needed)
   const clampedActiveIndex = activeIndex >= suggestions.length ? -1 : activeIndex;

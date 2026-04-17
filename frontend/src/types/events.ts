@@ -42,7 +42,15 @@ export interface EventListParams {
   until?: string;
   actor_is_bot?: boolean;
   geo_country_code?: string;
-  sort?: 'created_at_desc' | 'created_at_asc';
+  sort?:
+    | 'created_at_desc'
+    | 'created_at_asc'
+    | 'action_desc'
+    | 'action_asc'
+    | 'actor_desc'
+    | 'actor_asc'
+    | 'repo_desc'
+    | 'repo_asc';
   page?: number;
   page_size?: number;
 }
