@@ -30,6 +30,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import structlog
+from celery import Task
 from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -546,7 +547,7 @@ async def _analyze_events() -> dict:
     max_retries=1,
     default_retry_delay=60,
 )
-def scan_all_workflows(self) -> dict:
+def scan_all_workflows(self: Task) -> dict:
     """Celery task: analyze workflow audit-log events for security issues.
 
     No GitHub API calls are made — reads events already in the DB.

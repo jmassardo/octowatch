@@ -74,7 +74,8 @@ describe('VelocityPage', () => {
   it('renders the DORA tier label and pending badge when no data', () => {
     renderWithProviders(<VelocityPage />);
 
-    expect(screen.getByText('DORA tier')).toBeInTheDocument();
+    // "DORA tier" appears in both the header badge and the definitions panel — use getAllBy
+    expect(screen.getAllByText('DORA tier').length).toBeGreaterThanOrEqual(1);
     // With no workflow data, DORA tier shows pending state
     expect(screen.getByText('— Pending')).toBeInTheDocument();
   });
@@ -97,16 +98,17 @@ describe('VelocityPage', () => {
   it('renders all 8 metric card labels', () => {
     renderWithProviders(<VelocityPage />);
 
-    expect(screen.getByText('PRs merged (30d)')).toBeInTheDocument();
-    // "Lead time for changes" also appears in chart title; verify at least the metric card
+    // Labels appear in both metric cards and the definitions panel — use getAllBy where needed
+    expect(screen.getAllByText('PRs merged (30d)').length).toBeGreaterThanOrEqual(1);
+    // "Lead time for changes" also appears in chart title; verify at least one
     expect(screen.getAllByText(/Lead time for changes/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('PR activity (30d)')).toBeInTheDocument();
+    expect(screen.getAllByText('PR activity (30d)').length).toBeGreaterThanOrEqual(1);
     // "Change failure rate" also appears in chart title and table header
     expect(screen.getAllByText(/Change failure rate/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Successful workflows (30d)')).toBeInTheDocument();
-    expect(screen.getByText('Workflow success')).toBeInTheDocument();
-    expect(screen.getByText('WIP (items in flight)')).toBeInTheDocument();
-    expect(screen.getByText('Review coverage')).toBeInTheDocument();
+    expect(screen.getAllByText('Successful workflows (30d)').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Workflow success').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('WIP (items in flight)').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Review coverage').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows dash for metrics that require external API integration', () => {
@@ -655,8 +657,8 @@ describe('VelocityPage failure row modal', () => {
     const row = failedLabel.closest('tr');
     await user.click(row!);
 
-    // Modal should show the title with "Workflow failures"
-    expect(screen.getByText(/Workflow failures/)).toBeInTheDocument();
+    // Modal title is "Workflow runs — <date>"
+    expect(screen.getByText(/Workflow runs/)).toBeInTheDocument();
     // Modal contains metric labels (these also exist in the table, so use getAllBy)
     const totalRunsLabels = screen.getAllByText('Total runs');
     expect(totalRunsLabels.length).toBeGreaterThanOrEqual(2); // table header + modal
@@ -677,7 +679,7 @@ describe('VelocityPage failure row modal', () => {
     const row = failedLabel.closest('tr');
     await user.click(row!);
 
-    expect(screen.getByText(/Workflow failures/)).toBeInTheDocument();
+    expect(screen.getByText(/Workflow runs/)).toBeInTheDocument();
 
     const closeBtn = screen.getByLabelText('Close');
     await user.click(closeBtn);

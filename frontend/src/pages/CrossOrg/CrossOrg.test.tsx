@@ -105,16 +105,17 @@ describe('CrossOrgPage — Correlations Tab', () => {
     expect(await screen.findByText('42 events')).toBeInTheDocument();
   });
 
-  it('shows total actors count', async () => {
+  it('shows total actors count badge', async () => {
     renderWithProviders(<CrossOrgPage />);
-    expect(await screen.findByText('2 actors across multiple orgs')).toBeInTheDocument();
+    // The tab badge shows the total count from the API response (total: 2)
+    expect(await screen.findByText('2')).toBeInTheDocument();
   });
 
   it('renders empty state when no correlations', async () => {
     mockGetCorrelations.mockResolvedValue({ correlations: [], total: 0 });
     renderWithProviders(<CrossOrgPage />);
     expect(
-      await screen.findByText('No cross-org correlations found in the last 7 days'),
+      await screen.findByText('No cross-org correlations found in the selected time window'),
     ).toBeInTheDocument();
   });
 });
@@ -132,7 +133,8 @@ describe('CrossOrgPage — Timeline Tab', () => {
     renderWithProviders(<CrossOrgPage />);
     const timelineTab = await screen.findByText('Timeline');
     await user.click(timelineTab);
-    expect(await screen.findByText('2 events')).toBeInTheDocument();
+    // After switching to timeline tab, timeline events are rendered
+    expect(await screen.findByText('org.add_member')).toBeInTheDocument();
   });
 
   it('shows timeline events', async () => {
@@ -144,8 +146,11 @@ describe('CrossOrgPage — Timeline Tab', () => {
   });
 
   it('renders search input', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<CrossOrgPage />);
-    const input = screen.getByPlaceholderText('Filter by actor username…');
+    // Switch to timeline tab to make the filter input visible
+    await user.click(await screen.findByText('Timeline'));
+    const input = await screen.findByPlaceholderText('Filter by actor…');
     expect(input).toBeInTheDocument();
   });
 });
