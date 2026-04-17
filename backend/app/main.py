@@ -38,6 +38,7 @@ from app.routers import (
     features,
     health,
     health_signals,
+    ingest_hec,
     ingest_webhook,
     integrations,
     org_config,
@@ -264,6 +265,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 # Load DB-backed settings overlay
                 count = await load_settings_overlay(db_session)
                 logger.info("settings_overlay.loaded", count=count)
+
+                # Load HEC token from DB into the in-memory cache
+                from app.services.settings_service import get_setting
+
+                db_hec_token = await get_setting(db_session, "hec_token")
+                if db_hec_token:
+                    from app.routers.ingest_hec import set_hec_token_cache
+
+                    set_hec_token_cache(db_hec_token)
+                    logger.info("hec.token_loaded_from_db")
 
                 # Generate setup token on first boot if setup is not complete
                 if not await is_setup_complete(db_session):
@@ -555,6 +566,7 @@ def create_app() -> FastAPI:
     app.include_router(threat_intel.router, prefix=API_PREFIX)
     app.include_router(actors.router, prefix=API_PREFIX)
     app.include_router(ingest_webhook.router, prefix=API_PREFIX)
+    app.include_router(ingest_hec.router)  # No prefix — GitHub expects /services/collector
     app.include_router(cross_org.router, prefix=API_PREFIX)
     app.include_router(playbooks.router, prefix=API_PREFIX)
     app.include_router(workflow_scanner.router, prefix=API_PREFIX)

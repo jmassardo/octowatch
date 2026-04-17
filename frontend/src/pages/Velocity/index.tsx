@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getActionsVolumeReport } from '../../api/reports';
@@ -47,8 +47,9 @@ function buildCalendarData(events: readonly EventResponse[]): CalendarDay[] {
     counts.set(d.toISOString().slice(0, 10), 0);
   }
 
-  // Count events per day
+  // Count events per day (skip noisy api.request events)
   for (const e of events) {
+    if (e.action === 'api.request') continue;
     const day = e.created_at.slice(0, 10);
     if (counts.has(day)) {
       counts.set(day, (counts.get(day) ?? 0) + 1);
@@ -80,6 +81,8 @@ function computeRepoStats(events: readonly EventResponse[]): RepoActivityStats[]
   >();
   for (const e of events) {
     if (!e.repo) continue;
+    // Skip noisy api.request events — not meaningful for repo activity
+    if (e.action === 'api.request') continue;
     const existing = repoMap.get(e.repo) ?? { total: 0, pr: 0, push: 0, actors: new Set<string>() };
     existing.total++;
     if (e.action.includes('pull_request')) existing.pr++;
@@ -241,6 +244,8 @@ export function VelocityPage() {
   const { features } = useFeatures();
   const [doraModalOpen, setDoraModalOpen] = useState(false);
   const [failureBucket, setFailureBucket] = useState<ActionsVolumeBucket | null>(null);
+  const [drillFilter, setDrillFilter] = useState<'total' | 'succeeded' | 'failed' | null>(null);
+  const [defsOpen, setDefsOpen] = useState(false);
   const changeFailureRef = useRef<HTMLDivElement>(null);
   const workflowSuccessRef = useRef<HTMLDivElement>(null);
   const dailyRunsRef = useRef<HTMLDivElement>(null);
@@ -260,12 +265,17 @@ export function VelocityPage() {
 
   const { data: prEvents } = useQuery({
     queryKey: ['events', 'pr-events'],
-    queryFn: () => listEvents({ action: 'pull_request', page_size: 500, sort: 'created_at_desc' }),
+    queryFn: () =>
+      listEvents({ action: 'pull_request.*', page_size: 500, sort: 'created_at_desc' }),
   });
 
   const { data: repoEvents } = useQuery({
     queryKey: ['events', 'velocity-repos'],
-    queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc' }),
+    queryFn: () =>
+      listEvents({
+        page_size: 2000,
+        sort: 'created_at_desc',
+      }),
   });
 
   const { data: workflowHealthData } = useQuery({
@@ -289,7 +299,7 @@ export function VelocityPage() {
 
   const { data: calendarEvents } = useQuery({
     queryKey: ['events', 'calendar-activity', calendarSince],
-    queryFn: () => listEvents({ since: calendarSince, page_size: 500, sort: 'created_at_desc' }),
+    queryFn: () => listEvents({ since: calendarSince, page_size: 2000, sort: 'created_at_desc' }),
     staleTime: 60_000,
   });
 
@@ -297,6 +307,50 @@ export function VelocityPage() {
     () => (calendarEvents?.items ? buildCalendarData(calendarEvents.items) : undefined),
     [calendarEvents],
   );
+
+  // Drill-down: fetch actual workflow events for the selected bucket & filter
+  const drillAction = useMemo(() => {
+    if (!drillFilter) return undefined;
+    if (drillFilter === 'total') return 'workflow_run.*';
+    if (drillFilter === 'succeeded') return 'workflow_run.success';
+    return 'workflow_run.failure';
+  }, [drillFilter]);
+
+  const drillSince = useMemo(() => {
+    if (!failureBucket) return undefined;
+    return new Date(failureBucket.bucket).toISOString();
+  }, [failureBucket]);
+
+  const drillUntil = useMemo(() => {
+    if (!failureBucket) return undefined;
+    const d = new Date(failureBucket.bucket);
+    d.setDate(d.getDate() + 1);
+    return d.toISOString();
+  }, [failureBucket]);
+
+  const { data: drillEvents, isLoading: drillLoading } = useQuery({
+    queryKey: ['events', 'drill', drillAction, drillSince],
+    queryFn: () =>
+      listEvents({
+        action: drillAction,
+        since: drillSince,
+        until: drillUntil,
+        page_size: 200,
+        sort: 'created_at_desc',
+      }),
+    enabled: !!failureBucket && !!drillFilter,
+    staleTime: 30_000,
+  });
+
+  const handleOpenBucket = useCallback((b: ActionsVolumeBucket) => {
+    setDrillFilter(null);
+    setFailureBucket(b);
+  }, []);
+
+  const handleCloseBucket = useCallback(() => {
+    setFailureBucket(null);
+    setDrillFilter(null);
+  }, []);
 
   const buckets = (actionsData?.data ?? []) as unknown as ActionsVolumeBucket[];
 
@@ -400,6 +454,8 @@ export function VelocityPage() {
       delta: 'last 30 days',
       dir: 'neutral' as const,
       scrollRef: 'calendar' as const,
+      definition:
+        'Count of pull_request.merged events from the enterprise audit log over the last 30 days.',
     },
     {
       value: avgLeadTime != null && avgLeadTime > 0 ? `${avgLeadTime.toFixed(1)}h` : '—',
@@ -410,6 +466,8 @@ export function VelocityPage() {
           : 'Insufficient data — requires deployment tracking',
       dir: 'neutral' as const,
       scrollRef: null,
+      definition:
+        'DORA metric. Estimated as 24 ÷ successful workflow runs per day. More frequent deployments imply shorter lead times. Actual lead time requires commit-to-deploy tracking.',
     },
     {
       value: prReviewCount != null ? prReviewCount.toLocaleString() : '—',
@@ -417,6 +475,8 @@ export function VelocityPage() {
       delta: prReviewCount != null ? 'pull_request events from audit log' : 'No PR events found',
       dir: 'neutral' as const,
       scrollRef: 'calendar' as const,
+      definition:
+        'Total pull_request.* events (opened, closed, merged, reviewed) from the enterprise audit log over the last 30 days.',
     },
     {
       value: changeFailureRate != null ? `${changeFailureRate}%` : '—',
@@ -432,6 +492,8 @@ export function VelocityPage() {
           ? ('up' as const)
           : ('down' as const),
       scrollRef: 'changeFailure' as const,
+      definition:
+        'DORA metric. Percentage of workflow runs that failed: (failed runs ÷ total runs) × 100. Elite teams target < 5%.',
     },
     {
       value: deploymentProxy != null ? deploymentProxy.toLocaleString() : '—',
@@ -439,6 +501,8 @@ export function VelocityPage() {
       delta: deploymentProxy != null ? 'proxy for deployment frequency' : 'No workflow data',
       dir: deploymentProxy != null ? ('neutral' as const) : ('neutral' as const),
       scrollRef: 'workflowSuccess' as const,
+      definition:
+        'Count of workflow_run.success events over 30 days. Used as a proxy for deployment frequency (DORA). Includes CI, CD, and scheduled workflows.',
     },
     {
       value: overallSuccessRate != null ? `${overallSuccessRate}%` : '—',
@@ -449,6 +513,8 @@ export function VelocityPage() {
           ? ('up' as const)
           : ('down' as const),
       scrollRef: 'workflowSuccess' as const,
+      definition:
+        'Percentage of workflow runs that succeeded: (succeeded ÷ total) × 100, computed daily and averaged over 30 days.',
     },
     {
       value: wipEstimate != null ? wipEstimate.toString() : '—',
@@ -456,6 +522,8 @@ export function VelocityPage() {
       delta: wipEstimate != null ? 'estimated from PR events' : 'No PR data available',
       dir: 'neutral' as const,
       scrollRef: null,
+      definition:
+        'Estimated work-in-progress: PR opened/created events minus PR closed/merged events. High WIP can indicate bottlenecks or stalled reviews.',
     },
     {
       value: reviewCoverage != null ? `${reviewCoverage}%` : '—',
@@ -463,6 +531,8 @@ export function VelocityPage() {
       delta: reviewCoverage != null ? 'reviews per merged PR' : 'No PR data',
       dir: reviewCoverage != null && reviewCoverage >= 80 ? ('up' as const) : ('neutral' as const),
       scrollRef: null,
+      definition:
+        'Ratio of PR review events to merged PRs: (review events ÷ merged PRs) × 100, capped at 100%. Measures how many PRs receive review before merging.',
     },
   ];
 
@@ -571,6 +641,41 @@ export function VelocityPage() {
           />
         ))}
       </div>
+
+      <details
+        className={styles.defsPanel}
+        open={defsOpen}
+        onToggle={(e) => setDefsOpen((e.target as HTMLDetailsElement).open)}
+      >
+        <summary className={styles.defsSummary}>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            style={{ flexShrink: 0 }}
+          >
+            <path d="M0 8a8 8 0 1116 0A8 8 0 010 8zm8-6.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 7.75A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 110-2 1 1 0 010 2z" />
+          </svg>
+          How are these metrics calculated?
+        </summary>
+        <div className={styles.defsGrid}>
+          {metrics.map((m, i) => (
+            <div key={i} className={styles.defItem}>
+              <div className={styles.defLabel}>{m.label}</div>
+              <div className={styles.defText}>{m.definition}</div>
+            </div>
+          ))}
+          <div className={styles.defItem}>
+            <div className={styles.defLabel}>DORA tier</div>
+            <div className={styles.defText}>
+              Weighted average of Deployment Frequency (successful workflows/day) and Change Failure
+              Rate scores. Elite ≥ 3.5, High ≥ 2.5, Medium ≥ 1.5, Low &lt; 1.5. Full DORA requires
+              deployment and incident tracking.
+            </div>
+          </div>
+        </div>
+      </details>
 
       {isLoading && <Spinner />}
 
@@ -777,7 +882,7 @@ export function VelocityPage() {
               ]}
               data={recentFailingBuckets}
               rowKey={(b) => b.bucket}
-              onRowClick={(b) => setFailureBucket(b)}
+              onRowClick={(b) => handleOpenBucket(b)}
             />
           </div>
         </div>
@@ -797,9 +902,7 @@ export function VelocityPage() {
                   key: 'workflow_name',
                   header: 'Workflow',
                   filterable: true,
-                  render: (wf) => (
-                    <span className={styles.workflowName}>{wf.workflow_name}</span>
-                  ),
+                  render: (wf) => <span className={styles.workflowName}>{wf.workflow_name}</span>,
                   filterValue: (wf) => wf.workflow_name,
                 },
                 {
@@ -946,7 +1049,8 @@ export function VelocityPage() {
             {
               metric: 'Deployment Frequency',
               threshold: 'On-demand (multiple deploys/day)',
-              current: deploymentProxy != null ? `${deploymentProxy.toLocaleString()} workflows` : '—',
+              current:
+                deploymentProxy != null ? `${deploymentProxy.toLocaleString()} workflows` : '—',
             },
             {
               metric: 'Lead Time for Changes',
@@ -1013,29 +1117,62 @@ export function VelocityPage() {
 
       <Modal
         open={failureBucket !== null}
-        onClose={() => setFailureBucket(null)}
-        title={`Workflow failures — ${failureBucket ? formatBucketDate(failureBucket.bucket) : ''}`}
-        width={560}
+        onClose={handleCloseBucket}
+        title={`Workflow runs — ${failureBucket ? formatBucketDate(failureBucket.bucket) : ''}`}
+        width={680}
       >
         {failureBucket && (
           <div>
             <div className={styles.modalMetrics}>
-              <div className={styles.modalMetric}>
-                <div className={styles.modalMetricVal}>{failureBucket.workflow_runs_total}</div>
-                <div className={styles.modalMetricLbl}>Total runs</div>
-              </div>
-              <div className={styles.modalMetric}>
-                <div className={styles.modalMetricVal} style={{ color: 'var(--success)' }}>
-                  {failureBucket.workflow_runs_succeeded}
+              {[
+                {
+                  key: 'total' as const,
+                  val: failureBucket.workflow_runs_total,
+                  label: 'Total runs',
+                  color: undefined,
+                },
+                {
+                  key: 'succeeded' as const,
+                  val: failureBucket.workflow_runs_succeeded,
+                  label: 'Succeeded',
+                  color: 'var(--success)',
+                },
+                {
+                  key: 'failed' as const,
+                  val: failureBucket.workflow_runs_failed,
+                  label: 'Failed',
+                  color: 'var(--danger)',
+                },
+              ].map((chip) => (
+                <div
+                  key={chip.key}
+                  className={[
+                    styles.modalMetric,
+                    styles.modalMetricClickable,
+                    drillFilter === chip.key && styles.modalMetricActive,
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`View ${chip.label.toLowerCase()}`}
+                  onClick={() => setDrillFilter(drillFilter === chip.key ? null : chip.key)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setDrillFilter(drillFilter === chip.key ? null : chip.key);
+                    }
+                  }}
+                >
+                  <div
+                    className={styles.modalMetricVal}
+                    style={chip.color ? { color: chip.color } : undefined}
+                  >
+                    {chip.val}
+                  </div>
+                  <div className={styles.modalMetricLbl}>{chip.label}</div>
                 </div>
-                <div className={styles.modalMetricLbl}>Succeeded</div>
-              </div>
-              <div className={styles.modalMetric}>
-                <div className={styles.modalMetricVal} style={{ color: 'var(--danger)' }}>
-                  {failureBucket.workflow_runs_failed}
-                </div>
-                <div className={styles.modalMetricLbl}>Failed</div>
-              </div>
+              ))}
               <div className={styles.modalMetric}>
                 <div className={styles.modalMetricVal}>
                   {failureBucket.success_rate_pct != null
@@ -1045,15 +1182,111 @@ export function VelocityPage() {
                 <div className={styles.modalMetricLbl}>Success rate</div>
               </div>
             </div>
-            <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 16, lineHeight: 1.5 }}>
-              Date bucket: <strong>{formatBucketDate(failureBucket.bucket)}</strong>
-              <br />
-              Unique workflows: <strong>{failureBucket.unique_workflows}</strong>
-            </p>
-            <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 12, lineHeight: 1.5 }}>
-              Workflow-level failure details require GitHub Actions API integration for individual
-              run data.
-            </p>
+
+            {!drillFilter && (
+              <p
+                style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 16, lineHeight: 1.5 }}
+              >
+                Click a metric above to see individual workflow runs.
+              </p>
+            )}
+
+            {drillFilter && (
+              <div style={{ marginTop: 16 }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    marginBottom: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  {drillFilter === 'total'
+                    ? 'All'
+                    : drillFilter === 'succeeded'
+                      ? 'Succeeded'
+                      : 'Failed'}{' '}
+                  workflow runs
+                  {drillLoading && <Spinner />}
+                </div>
+                {drillEvents && drillEvents.items.length > 0 ? (
+                  <div className={styles.drillTable}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Repository</th>
+                          <th>Workflow</th>
+                          <th>Status</th>
+                          <th>Time</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {drillEvents.items.map((ev) => (
+                          <tr key={ev.id}>
+                            <td>{ev.repo?.split('/').pop() ?? ev.repo ?? '—'}</td>
+                            <td className={styles.workflowName}>
+                              {(ev.data?.workflow_name as string) ??
+                                (ev.data?.name as string) ??
+                                '—'}
+                            </td>
+                            <td>
+                              <Label
+                                variant={
+                                  ev.action.includes('success')
+                                    ? 'success'
+                                    : ev.action.includes('failure')
+                                      ? 'danger'
+                                      : 'attention'
+                                }
+                              >
+                                {ev.action.split('.').pop()}
+                              </Label>
+                            </td>
+                            <td style={{ color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>
+                              {new Date(ev.created_at).toLocaleTimeString()}
+                            </td>
+                            <td>
+                              {ev.data?.html_url && (
+                                <a
+                                  href={ev.data.html_url as string}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ fontSize: 11, color: 'var(--accent)' }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  View
+                                </a>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {drillEvents.total > drillEvents.items.length && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: 'var(--fg-subtle)',
+                          marginTop: 8,
+                          textAlign: 'center',
+                        }}
+                      >
+                        Showing {drillEvents.items.length} of {drillEvents.total} runs
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  !drillLoading && (
+                    <div style={{ fontSize: 12, color: 'var(--fg-subtle)', padding: '12px 0' }}>
+                      No events found for this filter.
+                    </div>
+                  )
+                )}
+              </div>
+            )}
           </div>
         )}
       </Modal>

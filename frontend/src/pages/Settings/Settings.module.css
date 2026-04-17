@@ -383,6 +383,35 @@
   gap: 1.25rem;
 }
 
+.methodToggle {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border, #30363d);
+}
+
+.methodTab {
+  padding: 0.5rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary, #8b949e);
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.methodTab:hover {
+  color: var(--text-primary, #e6edf3);
+}
+
+.methodTabActive {
+  color: var(--text-primary, #e6edf3);
+  border-bottom-color: var(--accent, #58a6ff);
+}
+
 .configGrid {
   display: flex;
   flex-direction: column;

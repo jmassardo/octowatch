@@ -46,34 +46,56 @@ def ingest_webhook_event_task(self: Task, event: dict[str, Any]) -> dict[str, ob
 
 
 async def _ingest_event(event: dict[str, Any]) -> dict[str, object]:
-    """Async wrapper that uses the standard ingestion pipeline for a single event."""
+    """Async wrapper that uses the standard ingestion pipeline for a single event.
+
+    Creates a disposable engine with NullPool per invocation to avoid
+    asyncio event-loop mismatch: Celery's ``asyncio.run()`` creates a new
+    loop each call, but pooled asyncpg connections are bound to the loop
+    that opened them.  NullPool opens a fresh connection each time and
+    closes it immediately, eliminating cross-loop leaks.
+    """
     import redis.asyncio as aioredis
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
 
     from app.config import settings
-    from app.database import AsyncSessionLocal
     from app.workers.ingestion.base import AbstractIngestWorker
 
     class WebhookIngestWorker(AbstractIngestWorker):
-        """Minimal ingest worker for webhook events."""
+        """Minimal ingest worker for HEC/webhook events."""
 
-        ingestion_source: str = "webhook"
+        ingestion_source: str = "hec"
 
         async def run(self) -> None:
             """Not used for single-event ingestion."""
             raise NotImplementedError
 
+    # Disposable engine — no pool, no cross-loop leaks
+    tmp_engine = create_async_engine(
+        settings.DATABASE_URL,
+        poolclass=NullPool,
+        echo=settings.LOG_LEVEL == "DEBUG",
+    )
+    tmp_session_factory = async_sessionmaker(
+        bind=tmp_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+        autocommit=False,
+    )
+
     valkey = aioredis.from_url(settings.VALKEY_URL, decode_responses=False)
     try:
         worker = WebhookIngestWorker(
             valkey_client=valkey,
-            db_session_factory=AsyncSessionLocal,
+            db_session_factory=tmp_session_factory,
         )
         inserted = await worker.ingest_batch(
             raw_events=[event],
-            source_file_path="webhook",
+            source_file_path="hec",
         )
 
-        # Chain detection pipeline if events were inserted
+        # Detection pipeline is chained automatically by ingest_batch()
         if inserted > 0:
             logger.info(
                 "ingest_webhook_worker.inserted",
@@ -84,3 +106,4 @@ async def _ingest_event(event: dict[str, Any]) -> dict[str, object]:
         return {"inserted": inserted}
     finally:
         await valkey.aclose()
+        await tmp_engine.dispose()

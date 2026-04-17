@@ -30,6 +30,82 @@
   margin-bottom: 12px;
 }
 
+/* Filter Bar */
+.filterBar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.filterRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.filterSelect {
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--canvas-default);
+  color: var(--fg);
+  font-size: 13px;
+  font-family: inherit;
+  min-width: 140px;
+}
+
+.filterInput {
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--canvas-default);
+  color: var(--fg);
+  font-size: 13px;
+  font-family: inherit;
+  min-width: 160px;
+  flex: 1;
+}
+
+.dateGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dateLabel {
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+
+.filterDatetime {
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--canvas-default);
+  color: var(--fg);
+  font-size: 13px;
+  font-family: inherit;
+  color-scheme: dark light;
+  cursor: pointer;
+}
+
+.filterDatetime::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(0.7);
+  opacity: 0.8;
+}
+
+.filterDatetime::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 /* Issue List */
 .issueList {
   border: 1px solid var(--border);
@@ -262,4 +338,77 @@
   z-index: 100;
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
   overflow-y: auto;
+}
+
+/* Evidence structured display */
+.evidenceTable {
+  margin-bottom: 14px;
+  font-size: 12px;
+  border: 1px solid var(--border-muted);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.evidenceTable .evidenceRow {
+  display: flex;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.evidenceTable .evidenceRow:last-child {
+  border-bottom: none;
+}
+
+.evidenceTable .evidenceKey {
+  color: var(--fg-muted);
+  font-weight: 500;
+  min-width: 100px;
+  flex-shrink: 0;
+  word-break: break-word;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+}
+
+.evidenceValWrap {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.evidenceVal {
+  color: var(--fg);
+  word-break: break-word;
+}
+
+.evidenceMuted {
+  color: var(--fg-subtle);
+  font-style: italic;
+}
+
+.evidenceNested {
+  margin-left: 12px;
+  margin-top: 4px;
+  border-left: 2px solid var(--border-muted);
+  padding-left: 8px;
+}
+
+.evidenceNested .evidenceRow {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.expandToggle {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  font-family: inherit;
+}
+
+.expandToggle:hover {
+  text-decoration: underline;
 }

@@ -35,20 +35,19 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.get("/github/login")
-async def github_login(request: Request) -> RedirectResponse:
+async def github_login(
+    request: Request,
+    valkey: Redis = Depends(get_valkey),
+) -> RedirectResponse:
     """Initiate GitHub OAuth flow. Redirects user to GitHub authorization page."""
     state = secrets.token_urlsafe(32)
+    # Store state in Valkey (server-side) instead of a cookie.
+    # Cookies fail in Codespaces where the login request goes through the
+    # frontend proxy (port 5173) but the callback arrives on the backend
+    # origin (port 8000) — a different domain, so the cookie is not sent.
+    await valkey.setex(f"oauth_state:{state}", 600, "1")
     url = build_github_authorize_url(state=state)
-    response = RedirectResponse(url=url)
-    response.set_cookie(
-        "oauth_state",
-        state,
-        httponly=True,
-        samesite="lax",
-        max_age=600,
-        secure=True,
-    )
-    return response
+    return RedirectResponse(url=url)
 
 
 @router.get("/github/callback")
@@ -61,8 +60,10 @@ async def github_callback(
     valkey: Redis = Depends(get_valkey),
 ) -> Response:
     """Handle GitHub OAuth callback. Exchanges code for access token and issues JWT."""
-    stored_state = request.cookies.get("oauth_state")
-    if not stored_state or stored_state != state:
+    # Validate state from Valkey (delete on use to prevent replay)
+    key = f"oauth_state:{state}"
+    valid = await valkey.delete(key)
+    if not valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state")
 
     token_data = await exchange_github_code(code=code)
@@ -111,7 +112,6 @@ async def github_callback(
     )
     final_response = HTMLResponse(content=html, status_code=200)
     set_auth_cookies(final_response, jwt_token, csrf_token)
-    final_response.delete_cookie("oauth_state")
     return final_response
 
 

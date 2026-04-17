@@ -2,14 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { listEvents } from '../../api/events';
-import { getSuggestedActions, getSuggestedActors } from '../../api/suggestions';
-import type { EventResponse } from '../../types/events';
+import {
+  getSuggestedActions,
+  getSuggestedActors,
+  getSuggestedRepos,
+  getSuggestedOrgs,
+  getSuggestedNamespaces,
+} from '../../api/suggestions';
+import type { EventListParams, EventResponse } from '../../types/events';
 import { useDebounce } from '../../hooks/useDebounce';
 import { Label } from '../../components/primitives/Label';
 import { Button } from '../../components/primitives/Button';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
-import { Modal } from '../../components/primitives/Modal';
+
 import { EventSearchInput } from './EventSearchInput';
 import { EventDetail } from './EventDetail';
 import { SEARCH_KEY_MAP, parseSearchFilters, downloadCsv } from './utils';
@@ -29,16 +35,37 @@ export function EventsPage() {
   const [chips, setChips] = useState<string[]>(() => {
     // Initialize chips from URL query params on first render
     const urlChips: string[] = [];
-    const supportedParams = ['repo', 'actor', 'action', 'org', 'since', 'until'];
+    const supportedParams = [
+      'repo',
+      'actor',
+      'action',
+      'org',
+      'since',
+      'until',
+      'namespace',
+      'source_ip',
+      'geo_country_code',
+      'actor_is_bot',
+    ];
     for (const param of supportedParams) {
       const val = searchParams.get(param);
       if (val) {
-        urlChips.push(`${param}:${val}`);
+        // Reverse-map API param names to user-friendly chip keys
+        const chipKey =
+          param === 'source_ip'
+            ? 'ip'
+            : param === 'geo_country_code'
+              ? 'country'
+              : param === 'actor_is_bot'
+                ? 'bot'
+                : param;
+        urlChips.push(`${chipKey}:${val}`);
       }
     }
     return urlChips;
   });
   const [page, setPage] = useState(1);
+  const [sortKey, setSortKey] = useState<NonNullable<EventListParams['sort']>>('created_at_desc');
   const [detailEvent, setDetailEvent] = useState<EventResponse | null>(null);
   const clearedUrlParams = useRef(false);
 
@@ -54,14 +81,46 @@ export function EventsPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: reposData } = useQuery({
+    queryKey: ['suggestions', 'repos'],
+    queryFn: getSuggestedRepos,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: orgsData } = useQuery({
+    queryKey: ['suggestions', 'orgs'],
+    queryFn: getSuggestedOrgs,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: namespacesData } = useQuery({
+    queryKey: ['suggestions', 'namespaces'],
+    queryFn: getSuggestedNamespaces,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const actionSuggestions = actionsData?.actions ?? [];
   const actorSuggestions = actorsData?.actors ?? [];
+  const repoSuggestions = reposData?.repos ?? [];
+  const orgSuggestions = orgsData?.orgs ?? [];
+  const namespaceSuggestions = namespacesData?.namespaces ?? [];
 
   // Clear URL params after they have been applied as initial chips
   useEffect(() => {
     if (clearedUrlParams.current) return;
     clearedUrlParams.current = true;
-    const supportedParams = ['repo', 'actor', 'action', 'org', 'since', 'until'];
+    const supportedParams = [
+      'repo',
+      'actor',
+      'action',
+      'org',
+      'since',
+      'until',
+      'namespace',
+      'source_ip',
+      'geo_country_code',
+      'actor_is_bot',
+    ];
     const hasParams = supportedParams.some((p) => searchParams.has(p));
     if (hasParams) {
       setSearchParams({}, { replace: true });
@@ -79,8 +138,9 @@ export function EventsPage() {
       const v = c.slice(idx + 1);
       if (!k || !v) return [];
       const paramKey = SEARCH_KEY_MAP[k];
-      if (paramKey) return [[paramKey, v]];
-      return [];
+      if (!paramKey) return [];
+      if (paramKey === 'actor_is_bot') return [[paramKey, v.toLowerCase() === 'true']];
+      return [[paramKey, v]];
     }),
   );
 
@@ -88,8 +148,9 @@ export function EventsPage() {
   const searchFilters = parseSearchFilters(debouncedSearch);
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['events', chips, debouncedSearch, page],
-    queryFn: () => listEvents({ ...chipParams, ...searchFilters, page, page_size: 20 }),
+    queryKey: ['events', chips, debouncedSearch, page, sortKey],
+    queryFn: () =>
+      listEvents({ ...chipParams, ...searchFilters, sort: sortKey, page, page_size: 20 }),
   });
 
   const items = data?.items ?? [];
@@ -99,156 +160,191 @@ export function EventsPage() {
     setChips((prev) => prev.filter((c) => c !== chip));
   }
 
+  function toggleSort(column: string) {
+    setSortKey((prev) => {
+      const next = prev === `${column}_desc` ? `${column}_asc` : `${column}_desc`;
+      return next as NonNullable<EventListParams['sort']>;
+    });
+    setPage(1);
+  }
+
+  function sortIndicator(column: string) {
+    if (sortKey === `${column}_asc`) return ' ↑';
+    if (sortKey === `${column}_desc`) return ' ↓';
+    return '';
+  }
+
   return (
-    <div className={styles.page}>
-      <div className={styles.pageTitle}>Events Explorer</div>
-      <div className={styles.pageSub}>
-        Search and explore raw audit log events across all organizations
-      </div>
+    <div className={styles.splitLayout}>
+      <div className={styles.splitMain}>
+        <div className={styles.pageTitle}>Events Explorer</div>
+        <div className={styles.pageSub}>
+          Search and explore raw audit log events across all organizations
+        </div>
 
-      <div className={styles.searchBar}>
-        <svg width="16" height="16" fill="var(--fg-subtle)" viewBox="0 0 16 16">
-          <path d="M10.68 11.74a6 6 0 01-7.922-8.982 6 6 0 018.982 7.922l3.04 3.04a.749.749 0 11-1.06 1.06zm-3.18.26a4.5 4.5 0 100-9 4.5 4.5 0 000 9z" />
-        </svg>
-        <EventSearchInput
-          value={search}
-          onChange={setSearch}
-          onSubmit={(val) => {
-            if (val.trim() && !chips.includes(val.trim())) {
-              setChips((prev) => [...prev, val.trim()]);
-            }
-            setSearch('');
-          }}
-          actionSuggestions={actionSuggestions}
-          actorSuggestions={actorSuggestions}
-          placeholder="Search events... e.g. action:repo.create actor:@suspicious.*"
-          id="events-search-input"
-        />
-      </div>
-
-      <div className={styles.filterChips}>
-        {chips.map((c) => (
-          <span key={c} className={styles.chip}>
-            {c}
-            <span className={styles.chipX} onClick={() => removeChip(c)}>
-              &#215;
-            </span>
-          </span>
-        ))}
-        <Button
-          size="sm"
-          style={{ borderRadius: 12 }}
-          onClick={() => document.getElementById('events-search-input')?.focus()}
-        >
-          + Add filter
-        </Button>
-      </div>
-
-      <div className={styles.tableHeader}>
-        <span className={styles.resultCount}>{total.toLocaleString()} events matching filters</span>
-        <div className={styles.tableActions}>
-          <Button size="sm" onClick={() => downloadCsv(items)} disabled={items.length === 0}>
-            Export CSV
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => {
-              const name = window.prompt('Query name');
-              if (name?.trim()) {
-                const saved = JSON.parse(
-                  localStorage.getItem('octowatch-saved-queries') ?? '[]',
-                ) as { name: string; chips: string[] }[];
-                saved.push({ name: name.trim(), chips });
-                localStorage.setItem('octowatch-saved-queries', JSON.stringify(saved));
+        <div className={styles.searchBar}>
+          <svg width="16" height="16" fill="var(--fg-subtle)" viewBox="0 0 16 16">
+            <path d="M10.68 11.74a6 6 0 01-7.922-8.982 6 6 0 018.982 7.922l3.04 3.04a.749.749 0 11-1.06 1.06zm-3.18.26a4.5 4.5 0 100-9 4.5 4.5 0 000 9z" />
+          </svg>
+          <EventSearchInput
+            value={search}
+            onChange={setSearch}
+            onSubmit={(val) => {
+              if (val.trim() && !chips.includes(val.trim())) {
+                setChips((prev) => [...prev, val.trim()]);
               }
+              setSearch('');
             }}
-          >
-            Save query
-          </Button>
+            actionSuggestions={actionSuggestions}
+            actorSuggestions={actorSuggestions}
+            repoSuggestions={repoSuggestions}
+            orgSuggestions={orgSuggestions}
+            namespaceSuggestions={namespaceSuggestions}
+            placeholder="Search events... e.g. action:repo.create actor:@suspicious.*"
+            id="events-search-input"
+          />
         </div>
-      </div>
 
-      {isError && <ErrorBanner message="Failed to load events" onRetry={refetch} />}
+        <div className={styles.filterChips}>
+          {chips.map((c) => (
+            <span key={c} className={styles.chip}>
+              {c}
+              <span className={styles.chipX} onClick={() => removeChip(c)}>
+                &#215;
+              </span>
+            </span>
+          ))}
+        </div>
 
-      <div className={styles.tableWrap}>
-        <table>
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Action</th>
-              <th>Actor</th>
-              <th>Repository</th>
-              <th>IP / Location</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && (
-              <tr>
-                <td colSpan={6} style={{ padding: 24, textAlign: 'center' }}>
-                  <Spinner />
-                </td>
-              </tr>
-            )}
-            {!isLoading && items.length === 0 && (
-              <tr>
-                <td
-                  colSpan={6}
-                  style={{ padding: 24, textAlign: 'center', color: 'var(--fg-muted)' }}
-                >
-                  No events found
-                </td>
-              </tr>
-            )}
-            {items.map((e) => (
-              <tr key={e.id}>
-                <td className={styles.ts}>{formatCompact(e.created_at)}</td>
-                <td>
-                  <Label variant={actionVariant(e.action)}>{e.action}</Label>
-                </td>
-                <td>
-                  <span className={styles.mention}>@{e.actor ?? '—'}</span>
-                </td>
-                <td>{e.repo ?? e.org ?? '—'}</td>
-                <td>
-                  {e.source_ip && <code style={{ fontSize: 11 }}>{e.source_ip}</code>}
-                  {e.geo_country_code && (
-                    <span className={styles.country}>{e.geo_country_code}</span>
-                  )}
-                </td>
-                <td>
-                  <Button size="sm" onClick={() => setDetailEvent(e)}>
-                    Details
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {data && data.total > 20 && (
-        <div className={styles.pagination}>
-          <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-            ← Prev
-          </Button>
-          <span className={styles.pageInfo}>
-            Page {page} of {Math.ceil(total / 20)}
+        <div className={styles.tableHeader}>
+          <span className={styles.resultCount}>
+            {total.toLocaleString()} events matching filters
           </span>
-          <Button size="sm" disabled={!data.has_next} onClick={() => setPage((p) => p + 1)}>
-            Next →
-          </Button>
+          <div className={styles.tableActions}>
+            <Button size="sm" onClick={() => downloadCsv(items)} disabled={items.length === 0}>
+              Export CSV
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                const name = window.prompt('Query name');
+                if (name?.trim()) {
+                  const saved = JSON.parse(
+                    localStorage.getItem('octowatch-saved-queries') ?? '[]',
+                  ) as { name: string; chips: string[] }[];
+                  saved.push({ name: name.trim(), chips });
+                  localStorage.setItem('octowatch-saved-queries', JSON.stringify(saved));
+                }
+              }}
+            >
+              Save query
+            </Button>
+          </div>
         </div>
-      )}
 
-      <Modal
-        open={detailEvent !== null}
-        onClose={() => setDetailEvent(null)}
-        title={detailEvent ? `Event: ${detailEvent.action}` : ''}
-        width={640}
+        {isError && <ErrorBanner message="Failed to load events" onRetry={refetch} />}
+
+        <div className={styles.tableWrap}>
+          <table>
+            <thead>
+              <tr>
+                <th className={styles.sortable} onClick={() => toggleSort('created_at')}>
+                  Timestamp
+                  <span className={styles.sortIndicator}>{sortIndicator('created_at')}</span>
+                </th>
+                <th className={styles.sortable} onClick={() => toggleSort('action')}>
+                  Action
+                  <span className={styles.sortIndicator}>{sortIndicator('action')}</span>
+                </th>
+                <th className={styles.sortable} onClick={() => toggleSort('actor')}>
+                  Actor
+                  <span className={styles.sortIndicator}>{sortIndicator('actor')}</span>
+                </th>
+                <th className={styles.sortable} onClick={() => toggleSort('repo')}>
+                  Repository
+                  <span className={styles.sortIndicator}>{sortIndicator('repo')}</span>
+                </th>
+                <th>IP / Location</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading && (
+                <tr>
+                  <td colSpan={5} style={{ padding: 24, textAlign: 'center' }}>
+                    <Spinner />
+                  </td>
+                </tr>
+              )}
+              {!isLoading && items.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={5}
+                    style={{ padding: 24, textAlign: 'center', color: 'var(--fg-muted)' }}
+                  >
+                    No events found
+                  </td>
+                </tr>
+              )}
+              {items.map((e) => (
+                <tr
+                  key={e.id}
+                  className={[styles.clickableRow, detailEvent?.id === e.id && styles.selectedRow]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onClick={() => setDetailEvent(e)}
+                >
+                  <td className={styles.ts}>{formatCompact(e.created_at)}</td>
+                  <td>
+                    <Label variant={actionVariant(e.action)}>{e.action}</Label>
+                  </td>
+                  <td>
+                    <span className={styles.mention}>@{e.actor ?? '—'}</span>
+                  </td>
+                  <td>{e.repo ?? e.org ?? '—'}</td>
+                  <td>
+                    {e.source_ip && <code style={{ fontSize: 11 }}>{e.source_ip}</code>}
+                    {e.geo_country_code && (
+                      <span className={styles.country}>{e.geo_country_code}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {data && data.total > 20 && (
+          <div className={styles.pagination}>
+            <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              ← Prev
+            </Button>
+            <span className={styles.pageInfo}>
+              Page {page} of {Math.ceil(total / 20)}
+            </span>
+            <Button size="sm" disabled={!data.has_next} onClick={() => setPage((p) => p + 1)}>
+              Next →
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div
+        className={[styles.splitPanel, detailEvent && styles.splitPanelOpen]
+          .filter(Boolean)
+          .join(' ')}
       >
-        {detailEvent && <EventDetail event={detailEvent} />}
-      </Modal>
+        {detailEvent && (
+          <>
+            <div className={styles.panelHeader}>
+              <div style={{ fontWeight: 600 }}>{detailEvent.action}</div>
+              <button className={styles.panelClose} onClick={() => setDetailEvent(null)}>
+                &#215;
+              </button>
+            </div>
+            <EventDetail event={detailEvent} />
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -16,7 +16,7 @@ logger = structlog.get_logger(__name__)
 
 
 @celery_app.task(
-    name="workers.refresh_threat_intel_feeds",
+    name="app.workers.threat_intel_worker.refresh_threat_intel_feeds",
     bind=True,
     max_retries=2,
 )

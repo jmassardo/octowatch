@@ -1,14 +1,28 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getCrossOrgTimeline, getCrossOrgCorrelations } from '../../api/crossOrg';
+import {
+  getCrossOrgTimeline,
+  getCrossOrgCorrelations,
+  getActorCrossOrgDetail,
+} from '../../api/crossOrg';
 import type { CrossOrgCorrelation, CrossOrgTimelineEvent } from '../../api/crossOrg';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Button } from '../../components/primitives/Button';
+import { Label } from '../../components/primitives/Label';
 import { formatRelativeShort } from '../../utils/dates';
 import styles from './CrossOrg.module.css';
 
 type Tab = 'correlations' | 'timeline';
+type SortKey = 'risk_score' | 'event_count' | 'org_count' | 'last_seen';
+
+const HOURS_OPTIONS = [
+  { label: '24 hours', value: 24 },
+  { label: '3 days', value: 72 },
+  { label: '7 days', value: 168 },
+  { label: '30 days', value: 720 },
+];
 
 function riskClass(score: number): string {
   if (score >= 70) return styles.riskHigh;
@@ -22,9 +36,22 @@ function riskLabel(score: number): string {
   return 'Low';
 }
 
-function CorrelationCard({ correlation }: { correlation: CrossOrgCorrelation }) {
+function CorrelationCard({
+  correlation,
+  selected,
+  onClick,
+}: {
+  correlation: CrossOrgCorrelation;
+  selected: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className={styles.correlationCard}>
+    <div
+      className={[styles.correlationCard, selected && styles.cardSelected]
+        .filter(Boolean)
+        .join(' ')}
+      onClick={onClick}
+    >
       <div className={styles.cardHeader}>
         <span className={styles.actorName}>{correlation.actor}</span>
         <span className={`${styles.riskBadge} ${riskClass(correlation.risk_score)}`}>
@@ -32,6 +59,7 @@ function CorrelationCard({ correlation }: { correlation: CrossOrgCorrelation }) 
         </span>
       </div>
       <div className={styles.cardMeta}>
+        <span>{correlation.org_count ?? correlation.orgs.length} orgs</span>
         <span>{correlation.event_count} events</span>
         <span>{correlation.distinct_actions} actions</span>
         <span>Last seen {formatRelativeShort(correlation.last_seen)}</span>
@@ -54,14 +82,23 @@ function TimelineRow({ event }: { event: CrossOrgTimelineEvent }) {
       <span className={styles.timelineAction}>{event.action}</span>
       <span className={styles.timelineActor}>{event.actor}</span>
       <span className={styles.timelineOrg}>{event.org}</span>
+      <span className={styles.timelineIp}>
+        {event.source_ip && <code>{event.source_ip}</code>}
+        {event.country && <span className={styles.country}>{event.country}</span>}
+      </span>
     </div>
   );
 }
 
 export function CrossOrgPage() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('correlations');
   const [actor, setActor] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [hours, setHours] = useState(168);
+  const [sortKey, setSortKey] = useState<SortKey>('risk_score');
+  const [selectedActor, setSelectedActor] = useState<string | null>(null);
+  const [timelinePage, setTimelinePage] = useState(1);
 
   const {
     data: correlationData,
@@ -69,8 +106,8 @@ export function CrossOrgPage() {
     isError: correlationError,
     refetch: refetchCorrelations,
   } = useQuery({
-    queryKey: ['cross-org', 'correlations'],
-    queryFn: () => getCrossOrgCorrelations({ min_orgs: 2, hours: 168 }),
+    queryKey: ['cross-org', 'correlations', hours],
+    queryFn: () => getCrossOrgCorrelations({ min_orgs: 2, hours }),
   });
 
   const {
@@ -79,101 +116,355 @@ export function CrossOrgPage() {
     isError: timelineError,
     refetch: refetchTimeline,
   } = useQuery({
-    queryKey: ['cross-org', 'timeline', actor],
-    queryFn: () => getCrossOrgTimeline({ actor: actor || undefined, hours: 168 }),
+    queryKey: ['cross-org', 'timeline', actor, hours, timelinePage],
+    queryFn: () =>
+      getCrossOrgTimeline({ actor: actor || undefined, hours, page: timelinePage, page_size: 50 }),
     enabled: tab === 'timeline',
+  });
+
+  const { data: actorDetail, isLoading: loadingDetail } = useQuery({
+    queryKey: ['cross-org', 'actor-detail', selectedActor],
+    queryFn: () => getActorCrossOrgDetail(selectedActor!, Math.ceil(hours / 24)),
+    enabled: !!selectedActor,
   });
 
   const handleSearch = () => {
     setActor(searchInput.trim());
+    setTimelinePage(1);
   };
 
+  // Sort correlations
+  const sortedCorrelations = [...(correlationData?.correlations ?? [])].sort((a, b) => {
+    switch (sortKey) {
+      case 'risk_score':
+        return b.risk_score - a.risk_score;
+      case 'event_count':
+        return b.event_count - a.event_count;
+      case 'org_count':
+        return (b.org_count ?? b.orgs.length) - (a.org_count ?? a.orgs.length);
+      case 'last_seen':
+        return new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime();
+      default:
+        return 0;
+    }
+  });
+
+  const timelineTotal = timelineData?.total ?? 0;
+  const timelinePages = Math.ceil(timelineTotal / 50);
+
   return (
-    <div className={styles.page}>
-      <div className={styles.pageTitle}>Cross-Organization Correlation</div>
-      <div className={styles.pageSub}>
-        Identify actors operating across multiple organizations and detect coordinated activity
-      </div>
+    <div className={styles.splitLayout}>
+      <div className={styles.splitMain}>
+        <div className={styles.pageTitle}>Cross-Organization Correlation</div>
+        <div className={styles.pageSub}>
+          Identify users active across multiple organizations. Cross-org activity can indicate
+          compromised accounts, insider threats, or misconfigured service accounts.
+        </div>
 
-      <div className={styles.searchBar}>
-        <input
-          className={styles.searchInput}
-          placeholder="Filter by actor username…"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSearch();
-          }}
-        />
-        <Button size="sm" onClick={handleSearch}>
-          Search
-        </Button>
-      </div>
+        <div className={styles.guidanceBox}>
+          <div className={styles.guidanceTitle}>How to use this page</div>
+          <ul className={styles.guidanceList}>
+            <li>
+              <strong>Review high-risk actors</strong> — Users with high scores are active across
+              many orgs with high event volume. Click a card to see their activity by org.
+            </li>
+            <li>
+              <strong>Check for anomalies</strong> — Look for unusual IP addresses, actions outside
+              normal patterns, or activity in orgs where the user shouldn't be.
+            </li>
+            <li>
+              <strong>Take action</strong> — From the detail panel you can view all events in the
+              Events Explorer, or investigate a specific actor.
+            </li>
+            <li>
+              <strong>Timeline tab</strong> — Switch to Timeline for a chronological view of all
+              cross-org activity, filterable by actor.
+            </li>
+          </ul>
+        </div>
 
-      <div className={styles.tabs}>
-        <button
-          className={`${styles.tab} ${tab === 'correlations' ? styles.tabActive : ''}`}
-          onClick={() => setTab('correlations')}
-        >
-          Correlations
-        </button>
-        <button
-          className={`${styles.tab} ${tab === 'timeline' ? styles.tabActive : ''}`}
-          onClick={() => setTab('timeline')}
-        >
-          Timeline
-        </button>
-      </div>
-
-      {tab === 'correlations' && (
-        <div className={styles.section}>
-          {loadingCorrelations && <Spinner />}
-          {correlationError && (
-            <ErrorBanner message="Failed to load correlations" onRetry={() => void refetchCorrelations()} />
-          )}
-          {correlationData && correlationData.correlations.length === 0 && (
-            <div className={styles.emptyState}>
-              No cross-org correlations found in the last 7 days
-            </div>
-          )}
-          {correlationData && correlationData.correlations.length > 0 && (
-            <>
-              <div className={styles.sectionTitle}>
-                {correlationData.total} actors across multiple orgs
+        <div className={styles.controlBar}>
+          <div className={styles.controlLeft}>
+            <select
+              className={styles.filterSelect}
+              value={hours}
+              onChange={(e) => {
+                setHours(Number(e.target.value));
+                setSelectedActor(null);
+              }}
+            >
+              {HOURS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            {tab === 'correlations' && (
+              <select
+                className={styles.filterSelect}
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as SortKey)}
+              >
+                <option value="risk_score">Sort: Risk score</option>
+                <option value="event_count">Sort: Event count</option>
+                <option value="org_count">Sort: Org count</option>
+                <option value="last_seen">Sort: Last seen</option>
+              </select>
+            )}
+            {tab === 'timeline' && (
+              <div className={styles.timelineSearch}>
+                <input
+                  className={styles.searchInput}
+                  placeholder="Filter by actor…"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSearch();
+                  }}
+                />
+                <Button size="sm" onClick={handleSearch}>
+                  Filter
+                </Button>
+                {actor && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setActor('');
+                      setSearchInput('');
+                      setTimelinePage(1);
+                    }}
+                  >
+                    Clear
+                  </Button>
+                )}
               </div>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.tabs}>
+          <button
+            className={`${styles.tab} ${tab === 'correlations' ? styles.tabActive : ''}`}
+            onClick={() => setTab('correlations')}
+          >
+            Correlations
+            {correlationData && <span className={styles.tabBadge}>{correlationData.total}</span>}
+          </button>
+          <button
+            className={`${styles.tab} ${tab === 'timeline' ? styles.tabActive : ''}`}
+            onClick={() => setTab('timeline')}
+          >
+            Timeline
+          </button>
+        </div>
+
+        {tab === 'correlations' && (
+          <div className={styles.section}>
+            {loadingCorrelations && <Spinner />}
+            {correlationError && (
+              <ErrorBanner
+                message="Failed to load correlations"
+                onRetry={() => void refetchCorrelations()}
+              />
+            )}
+            {correlationData && sortedCorrelations.length === 0 && (
+              <div className={styles.emptyState}>
+                No cross-org correlations found in the selected time window
+              </div>
+            )}
+            {sortedCorrelations.length > 0 && (
               <div className={styles.correlationGrid}>
-                {correlationData.correlations.map((c) => (
-                  <CorrelationCard key={c.actor} correlation={c} />
+                {sortedCorrelations.map((c) => (
+                  <CorrelationCard
+                    key={c.actor}
+                    correlation={c}
+                    selected={selectedActor === c.actor}
+                    onClick={() => setSelectedActor(selectedActor === c.actor ? null : c.actor)}
+                  />
                 ))}
               </div>
-            </>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
 
-      {tab === 'timeline' && (
-        <div className={styles.section}>
-          {loadingTimeline && <Spinner />}
-          {timelineError && (
-            <ErrorBanner message="Failed to load timeline" onRetry={() => void refetchTimeline()} />
-          )}
-          {timelineData && timelineData.events.length === 0 && (
-            <div className={styles.emptyState}>
-              {actor ? `No events found for ${actor}` : 'No cross-org events found'}
-            </div>
-          )}
-          {timelineData && timelineData.events.length > 0 && (
-            <>
-              <div className={styles.sectionTitle}>{timelineData.total} events</div>
-              <div className={styles.timelineList}>
-                {timelineData.events.map((event) => (
-                  <TimelineRow key={event.id} event={event} />
-                ))}
+        {tab === 'timeline' && (
+          <div className={styles.section}>
+            {loadingTimeline && <Spinner />}
+            {timelineError && (
+              <ErrorBanner
+                message="Failed to load timeline"
+                onRetry={() => void refetchTimeline()}
+              />
+            )}
+            {timelineData && timelineData.events.length === 0 && (
+              <div className={styles.emptyState}>
+                {actor ? `No events found for ${actor}` : 'No cross-org events found'}
               </div>
-            </>
-          )}
-        </div>
-      )}
+            )}
+            {timelineData && timelineData.events.length > 0 && (
+              <>
+                <div className={styles.timelineHeader}>
+                  <div className={styles.timelineHeaderCell}>Time</div>
+                  <div className={styles.timelineHeaderCell}>Action</div>
+                  <div className={styles.timelineHeaderCell}>Actor</div>
+                  <div className={styles.timelineHeaderCell}>Org</div>
+                  <div className={styles.timelineHeaderCell}>IP / Location</div>
+                </div>
+                <div className={styles.timelineList}>
+                  {timelineData.events.map((event) => (
+                    <TimelineRow key={event.id} event={event} />
+                  ))}
+                </div>
+                {timelinePages > 1 && (
+                  <div className={styles.pagination}>
+                    <Button
+                      size="sm"
+                      disabled={timelinePage <= 1}
+                      onClick={() => setTimelinePage((p) => p - 1)}
+                    >
+                      ← Prev
+                    </Button>
+                    <span className={styles.pageInfo}>
+                      Page {timelinePage} of {timelinePages}
+                    </span>
+                    <Button
+                      size="sm"
+                      disabled={timelinePage >= timelinePages}
+                      onClick={() => setTimelinePage((p) => p + 1)}
+                    >
+                      Next →
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Detail slide-out panel */}
+      <div
+        className={[styles.splitPanel, selectedActor && styles.splitPanelOpen]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        {selectedActor && (
+          <>
+            <div className={styles.panelHeader}>
+              <div className={styles.panelTitle}>{selectedActor}</div>
+              <button className={styles.panelClose} onClick={() => setSelectedActor(null)}>
+                &#215;
+              </button>
+            </div>
+
+            {loadingDetail && <Spinner />}
+
+            {actorDetail && (
+              <>
+                <div className={styles.panelSummary}>
+                  <Label variant="accent">{actorDetail.org_count} orgs</Label>
+                  <Label variant="muted">{actorDetail.total_events} events</Label>
+                  <Label variant="muted">Last {actorDetail.days} days</Label>
+                </div>
+
+                <div className={styles.panelSection}>
+                  <div className={styles.panelSectionTitle}>Activity by Organization</div>
+                  {actorDetail.organizations.map((org) => {
+                    const events = actorDetail.timeline_by_org[org] ?? [];
+                    const ips = [...new Set(events.map((e) => e.source_ip).filter(Boolean))];
+                    const countries = [
+                      ...new Set(events.map((e) => e.geo_country_code).filter(Boolean)),
+                    ];
+                    const actions = [...new Set(events.map((e) => e.action))];
+                    return (
+                      <div key={org} className={styles.orgSection}>
+                        <div className={styles.orgSectionHeader}>
+                          <span className={styles.orgName}>{org}</span>
+                          <span className={styles.orgEventCount}>{events.length} events</span>
+                        </div>
+                        <div className={styles.orgDetails}>
+                          {ips.length > 0 && (
+                            <div className={styles.orgDetailRow}>
+                              <span className={styles.orgDetailLabel}>IPs</span>
+                              <span>{ips.join(', ')}</span>
+                            </div>
+                          )}
+                          {countries.length > 0 && (
+                            <div className={styles.orgDetailRow}>
+                              <span className={styles.orgDetailLabel}>Countries</span>
+                              <span>{countries.join(', ')}</span>
+                            </div>
+                          )}
+                          <div className={styles.orgDetailRow}>
+                            <span className={styles.orgDetailLabel}>Actions</span>
+                            <span className={styles.actionList}>
+                              {actions.slice(0, 5).map((a) => (
+                                <code key={a} className={styles.actionCode}>
+                                  {a}
+                                </code>
+                              ))}
+                              {actions.length > 5 && (
+                                <span className={styles.muted}>+{actions.length - 5} more</span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className={styles.panelSection}>
+                  <div className={styles.panelSectionTitle}>Investigation Actions</div>
+                  <div className={styles.panelActions}>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => navigate(`/events?actor=${encodeURIComponent(selectedActor)}`)}
+                    >
+                      View all events
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setTab('timeline');
+                        setSearchInput(selectedActor);
+                        setActor(selectedActor);
+                        setTimelinePage(1);
+                      }}
+                    >
+                      View timeline
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        navigate(
+                          `/query?sql=${encodeURIComponent(
+                            `SELECT action, org, repo, source_ip, geo_country_code, created_at\nFROM events\nWHERE actor = '${selectedActor.replace(/'/g, "''")}'`,
+                          )}`,
+                        )
+                      }
+                    >
+                      Query events
+                    </Button>
+                  </div>
+                </div>
+
+                <div className={styles.panelSection}>
+                  <div className={styles.panelSectionTitle}>What to look for</div>
+                  <ul className={styles.panelGuidance}>
+                    <li>Activity from unexpected IP addresses or countries</li>
+                    <li>Admin or elevated actions in orgs where the user is not an admin</li>
+                    <li>Rapid switching between orgs in a short time window</li>
+                    <li>Repository cloning or data download patterns across orgs</li>
+                    <li>Service account tokens being used from human IP ranges</li>
+                  </ul>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

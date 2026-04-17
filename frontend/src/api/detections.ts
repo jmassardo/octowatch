@@ -10,6 +10,11 @@ export interface DetectionListParams {
   status?: string;
   severity?: string;
   org?: string;
+  repo?: string;
+  actor?: string;
+  rule_id?: number;
+  since?: string;
+  until?: string;
   page?: number;
   page_size?: number;
 }

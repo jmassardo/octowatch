@@ -48,9 +48,18 @@ class FindingResponse(BaseModel):
     severity: str
     title: str
     description: str
-    details: dict[str, Any]
-    suggested_fix: str | None = None
-    scanned_at: str
+    recommendation: str | None = None
+    snippet: str | None = None
+    first_seen: str
+    last_seen: str
+    status: str = "open"
+
+
+class FindingsListResponse(BaseModel):
+    """Paginated list of findings."""
+
+    findings: list[FindingResponse]
+    total: int
 
 
 class ScanResultResponse(BaseModel):
@@ -77,19 +86,20 @@ class RepoScoreResponse(BaseModel):
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 
-@router.get("/findings", response_model=list[FindingResponse])
+@router.get("/findings", response_model=FindingsListResponse)
 async def list_findings(
     org: str | None = None,
     repo: str | None = None,
     severity: str | None = None,
-    limit: int = Query(default=100, ge=1, le=500),
+    status: str | None = None,
+    page_size: int = Query(default=100, ge=1, le=500),
     current_user: AuthenticatedUser = Depends(
         require_role(["analyst", "report_admin", "sys_admin"])
     ),
     db: AsyncSession = Depends(get_db),
-) -> list[FindingResponse]:
+) -> FindingsListResponse:
     """List workflow security findings, optionally filtered by org/repo/severity."""
-    stmt = select(WorkflowFinding).order_by(WorkflowFinding.scanned_at.desc()).limit(limit)
+    stmt = select(WorkflowFinding).order_by(WorkflowFinding.scanned_at.desc()).limit(page_size)
     if org:
         stmt = stmt.where(WorkflowFinding.org == org)
     if repo:
@@ -99,22 +109,38 @@ async def list_findings(
 
     result = await db.execute(stmt)
     findings = result.scalars().all()
-    return [
-        FindingResponse(
-            id=f.id,
-            repo=f.repo,
-            org=f.org,
-            workflow_path=f.workflow_path,
-            rule_id=f.rule_id,
-            severity=f.severity,
-            title=f.title,
-            description=f.description,
-            details=f.details,
-            suggested_fix=f.suggested_fix,
-            scanned_at=str(f.scanned_at),
-        )
-        for f in findings
-    ]
+
+    # Build count query for total (same filters, no limit)
+    count_stmt = select(func.count()).select_from(WorkflowFinding)
+    if org:
+        count_stmt = count_stmt.where(WorkflowFinding.org == org)
+    if repo:
+        count_stmt = count_stmt.where(WorkflowFinding.repo == repo)
+    if severity:
+        count_stmt = count_stmt.where(WorkflowFinding.severity == severity)
+    total = (await db.execute(count_stmt)).scalar() or 0
+
+    return FindingsListResponse(
+        findings=[
+            FindingResponse(
+                id=f.id,
+                repo=f.repo,
+                org=f.org,
+                workflow_path=f.workflow_path,
+                rule_id=f.rule_id,
+                severity=f.severity,
+                title=f.title,
+                description=f.description,
+                recommendation=f.suggested_fix,
+                snippet=f.details.get("snippet") if isinstance(f.details, dict) else None,
+                first_seen=str(f.scanned_at),
+                last_seen=str(f.scanned_at),
+                status="open",
+            )
+            for f in findings
+        ],
+        total=total,
+    )
 
 
 @router.get("/findings/{finding_id}/fix")
@@ -239,3 +265,20 @@ async def list_repo_scores(
         )
 
     return scores
+
+
+@router.post("/scan-repos", dependencies=[Depends(verify_csrf)])
+async def trigger_repo_scan(
+    current_user: AuthenticatedUser = Depends(require_role(["analyst", "sys_admin"])),
+) -> dict[str, str]:
+    """Queue analysis of workflow audit-log events for security issues.
+
+    No GitHub API calls are made — analyses events already in the database.
+    """
+    from app.celery_app import celery_app
+
+    result = celery_app.send_task(
+        "app.workers.workflow_scan_worker.scan_all_workflows",
+        queue="baseline",
+    )
+    return {"task_id": result.id, "status": "queued"}

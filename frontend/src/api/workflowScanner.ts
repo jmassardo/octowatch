@@ -38,7 +38,7 @@ export function listWorkflowFindings(params?: {
   page?: number;
   page_size?: number;
 }) {
-  return api.get<WorkflowFindingsResponse>('/workflow-scanner/findings', params);
+  return api.get<WorkflowFindingsResponse>('/workflows/findings', params);
 }
 
 export function getRepoSecurityScores(params?: {
@@ -46,9 +46,13 @@ export function getRepoSecurityScores(params?: {
   min_score?: number;
   max_score?: number;
 }) {
-  return api.get<RepoSecurityScore[]>('/workflow-scanner/scores', params);
+  return api.get<RepoSecurityScore[]>('/workflows/scores', params);
 }
 
 export function scanWorkflow(body: { content: string; path?: string }) {
-  return api.post<{ findings: WorkflowFinding[] }>('/workflow-scanner/scan', body);
+  return api.post<{ findings: WorkflowFinding[] }>('/workflows/scan', body);
+}
+
+export function triggerRepoScan() {
+  return api.post<{ task_id: string; status: string }>('/workflows/scan-repos', {});
 }

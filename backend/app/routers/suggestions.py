@@ -89,3 +89,72 @@ async def suggest_actors(
     )
     actors = [row[0] for row in result.fetchall()]
     return {"actors": actors}
+
+
+@router.get("/repos", response_model=dict[str, Any])
+async def suggest_repos(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, list[str]]:
+    """Return distinct repo values from events visible to the current user."""
+    scoped_orgs = await get_scoped_orgs(db, current_user)
+    if not scoped_orgs:
+        return {"repos": []}
+
+    result = await db.execute(
+        text(
+            "SELECT DISTINCT repo FROM events"
+            " WHERE org = ANY(:scoped_orgs)"
+            " AND repo IS NOT NULL AND repo != ''"
+            " ORDER BY repo"
+        ),
+        {"scoped_orgs": scoped_orgs},
+    )
+    repos = [row[0] for row in result.fetchall()]
+    return {"repos": repos}
+
+
+@router.get("/orgs", response_model=dict[str, Any])
+async def suggest_orgs(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, list[str]]:
+    """Return distinct org values from events visible to the current user."""
+    scoped_orgs = await get_scoped_orgs(db, current_user)
+    if not scoped_orgs:
+        return {"orgs": []}
+
+    result = await db.execute(
+        text(
+            "SELECT DISTINCT org FROM events"
+            " WHERE org = ANY(:scoped_orgs)"
+            " AND org IS NOT NULL AND org != ''"
+            " ORDER BY org"
+        ),
+        {"scoped_orgs": scoped_orgs},
+    )
+    orgs = [row[0] for row in result.fetchall()]
+    return {"orgs": orgs}
+
+
+@router.get("/namespaces", response_model=dict[str, Any])
+async def suggest_namespaces(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, list[str]]:
+    """Return distinct namespace values from events visible to the current user."""
+    scoped_orgs = await get_scoped_orgs(db, current_user)
+    if not scoped_orgs:
+        return {"namespaces": []}
+
+    result = await db.execute(
+        text(
+            "SELECT DISTINCT namespace FROM events"
+            " WHERE org = ANY(:scoped_orgs)"
+            " AND namespace IS NOT NULL AND namespace != ''"
+            " ORDER BY namespace"
+        ),
+        {"scoped_orgs": scoped_orgs},
+    )
+    namespaces = [row[0] for row in result.fetchall()]
+    return {"namespaces": namespaces}

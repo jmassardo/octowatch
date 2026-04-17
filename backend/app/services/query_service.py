@@ -12,6 +12,7 @@ Security model:
 
 from __future__ import annotations
 
+import re
 import time
 import uuid
 from typing import Any
@@ -268,6 +269,32 @@ def _check_no_multi_statements(sql: str) -> None:
         )
 
 
+# Regex: comparison/string operators followed by a double-quoted string.
+# Matches patterns like  = "foo",  LIKE "bar%",  != "baz",  ILIKE "qux"
+# but not bare identifiers used as aliases (SELECT x AS "MyCol").
+_DQ_STRING_AFTER_OP = re.compile(
+    r"""(?:=|!=|<>|LIKE|ILIKE|IN\s*\()\s*"([^"]*)" """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def _check_double_quoted_strings(sql: str) -> None:
+    """Warn when double-quoted strings are used as values.
+
+    In PostgreSQL, double quotes delimit identifiers (table/column names)
+    while single quotes delimit string literals.  A query like
+        WHERE action LIKE "repo.push"
+    parses as an identifier reference and silently returns no rows.
+    """
+    match = _DQ_STRING_AFTER_OP.search(sql)
+    if match:
+        value = match.group(1)
+        raise QueryValidationError(
+            f'Double-quoted string "{value}" is treated as a column/table name in PostgreSQL, '
+            f"not a text value. Use single quotes instead: '{value}'"
+        )
+
+
 def validate_and_prepare(sql: str, scope: OrgRepoScope) -> tuple[str, dict[str, Any]]:
     """Parse, validate, and rewrite user SQL with scope CTE injection.
 
@@ -276,6 +303,9 @@ def validate_and_prepare(sql: str, scope: OrgRepoScope) -> tuple[str, dict[str, 
     """
     # 0. Block multi-statement injection before any parsing
     _check_no_multi_statements(sql)
+
+    # 0a. Catch double-quoted string literals (common PostgreSQL mistake)
+    _check_double_quoted_strings(sql)
 
     # 0b. Strip trailing semicolons — they break CTE wrapping
     sql = sql.rstrip().rstrip(";").rstrip()

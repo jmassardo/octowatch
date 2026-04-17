@@ -1,8 +1,32 @@
-.page {
-  padding: 24px;
-  max-width: 1200px;
+/* ── Layout ── */
+.splitLayout {
+  display: flex;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
 }
 
+.splitMain {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.splitPanel {
+  width: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--border);
+  background: var(--bg-card);
+  transition: width 0.2s ease;
+}
+
+.splitPanelOpen {
+  width: 400px;
+  overflow-y: auto;
+}
+
+/* ── Page header ── */
 .pageTitle {
   font-size: 20px;
   font-weight: 600;
@@ -12,31 +36,80 @@
 .pageSub {
   font-size: 13px;
   color: var(--fg-muted);
+  margin-bottom: 16px;
+}
+
+/* ── Guidance box ── */
+.guidanceBox {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
   margin-bottom: 20px;
 }
 
-.searchBar {
+.guidanceTitle {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.guidanceList {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  line-height: 1.7;
+}
+
+.guidanceList strong {
+  color: var(--fg);
+}
+
+/* ── Control bar ── */
+.controlBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.controlLeft {
   display: flex;
   gap: 8px;
-  margin-bottom: 20px;
   align-items: center;
 }
 
-.searchInput {
-  flex: 1;
-  max-width: 360px;
-  padding: 6px 10px;
+.filterSelect {
+  padding: 5px 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-card);
   color: var(--fg);
-  font-size: 13px;
+  font-size: 12px;
+}
+
+.timelineSearch {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.searchInput {
+  width: 200px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--fg);
+  font-size: 12px;
 }
 
 .searchInput::placeholder {
   color: var(--fg-muted);
 }
 
+/* ── Tabs ── */
 .tabs {
   display: flex;
   gap: 0;
@@ -53,7 +126,12 @@
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .tab:hover {
@@ -65,14 +143,17 @@
   border-bottom-color: var(--accent);
 }
 
-.section {
-  margin-bottom: 24px;
+.tabBadge {
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--bg-hover);
+  padding: 1px 7px;
+  border-radius: 10px;
 }
 
-.sectionTitle {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 12px;
+/* ── Correlation grid ── */
+.section {
+  margin-bottom: 24px;
 }
 
 .correlationGrid {
@@ -86,6 +167,19 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 14px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.correlationCard:hover {
+  border-color: var(--accent);
+}
+
+.cardSelected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 .cardHeader {
@@ -144,6 +238,26 @@
   color: var(--fg-muted);
 }
 
+/* ── Timeline ── */
+.timelineHeader {
+  display: grid;
+  grid-template-columns: 120px 1fr 120px 100px 140px;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 2px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.timelineHeaderCell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .timelineList {
   display: flex;
   flex-direction: column;
@@ -152,7 +266,7 @@
 
 .timelineItem {
   display: grid;
-  grid-template-columns: 140px 1fr 120px 100px;
+  grid-template-columns: 120px 1fr 120px 100px 140px;
   gap: 12px;
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
@@ -180,12 +294,173 @@
 
 .timelineTime {
   color: var(--fg-muted);
-  text-align: right;
 }
 
+.timelineIp {
+  font-size: 11px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.timelineIp code {
+  font-size: 10px;
+  background: var(--bg-hover);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.country {
+  font-size: 10px;
+  color: var(--fg-muted);
+}
+
+/* ── Pagination ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  justify-content: center;
+}
+
+.pageInfo {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+/* ── Empty state ── */
 .emptyState {
   text-align: center;
   padding: 48px 16px;
   color: var(--fg-muted);
   font-size: 13px;
+}
+
+/* ── Detail panel ── */
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panelTitle {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.panelClose {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.panelClose:hover {
+  color: var(--fg);
+}
+
+.panelSummary {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  flex-wrap: wrap;
+}
+
+.panelSection {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.panelSectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--fg-muted);
+  margin-bottom: 10px;
+}
+
+.panelActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panelGuidance {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  line-height: 1.8;
+}
+
+/* ── Org detail sections in panel ── */
+.orgSection {
+  background: var(--bg-hover);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.orgSectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.orgName {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.orgEventCount {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.orgDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.orgDetailRow {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  align-items: baseline;
+}
+
+.orgDetailLabel {
+  font-weight: 600;
+  color: var(--fg-muted);
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+.actionList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.actionCode {
+  font-size: 10px;
+  background: var(--bg-card);
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+
+.muted {
+  color: var(--fg-muted);
+  font-size: 10px;
 }

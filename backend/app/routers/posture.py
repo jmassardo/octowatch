@@ -189,14 +189,26 @@ def _build_org_posture(
 
 def _classify_rules(
     posture_rules: list[RuleDefinition],
+    detections: list[Detection] | None = None,
 ) -> tuple[list[RuleDefinition], list[RuleDefinition]]:
-    """Split posture rules into org-level and repo-level."""
+    """Split posture rules into org-level and repo-level.
+
+    When ``entity`` is missing from ``logic_config``, fall back to detection
+    data: if a rule produced any detection with a ``repo`` value it is treated
+    as a repo-level rule.
+    """
+    repo_det_rule_ids: set[int] = set()
+    if detections:
+        repo_det_rule_ids = {d.rule_id for d in detections if d.repo}
+
     org_rules: list[RuleDefinition] = []
     repo_rules: list[RuleDefinition] = []
     for r in posture_rules:
         cfg = r.logic_config or {}
         entity = cfg.get("entity", "")
         if entity in ("repo", "repository"):
+            repo_rules.append(r)
+        elif not entity and r.id in repo_det_rule_ids:
             repo_rules.append(r)
         else:
             org_rules.append(r)
@@ -219,9 +231,9 @@ async def get_posture(
     scope = await get_user_scope(db, current_user.github_login, current_user.roles)
 
     rules = await _load_rules(db)
-    org_rules, repo_rules = _classify_rules(rules["posture"])
     event_rules = rules["event"]
     detections = await _load_open_detections(db, scope.scoped_orgs, org, repo)
+    org_rules, repo_rules = _classify_rules(rules["posture"], detections)
 
     # Last sync timestamp
     sync_result = await db.execute(

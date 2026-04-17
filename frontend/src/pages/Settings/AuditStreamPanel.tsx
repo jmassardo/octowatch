@@ -1,6 +1,10 @@
 import { useState, useCallback, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAuditStreamConfig, updateAuditStreamConfig } from '../../api/auditStream';
+import {
+  getAuditStreamConfig,
+  updateAuditStreamConfig,
+  updateHecToken,
+} from '../../api/auditStream';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
@@ -188,10 +192,80 @@ function CredentialsForm({ currentUser }: { currentUser: string }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  HEC Token form                                                     */
+/* ------------------------------------------------------------------ */
+
+function HecTokenForm() {
+  const queryClient = useQueryClient();
+  const [successMsg, setSuccessMsg] = useState('');
+  const [generatedToken, setGeneratedToken] = useState('');
+
+  const mutation = useMutation({
+    mutationFn: updateHecToken,
+    onSuccess: (data) => {
+      setSuccessMsg(data.message || 'HEC token saved.');
+      setGeneratedToken(data.hec_token);
+      void queryClient.invalidateQueries({ queryKey: ['audit-stream-config'] });
+      setTimeout(() => setSuccessMsg(''), 6000);
+    },
+  });
+
+  const handleGenerate = () => {
+    mutation.mutate({ hec_token: '' }); // empty = auto-generate
+  };
+
+  return (
+    <div className={styles.editForm}>
+      <p className={styles.formHint}>
+        Generate a token to use in GitHub&apos;s Splunk streaming configuration.
+      </p>
+
+      {mutation.isError && (
+        <ErrorBanner
+          message={
+            mutation.error instanceof Error ? mutation.error.message : 'Failed to save HEC token.'
+          }
+        />
+      )}
+
+      {successMsg && <div className={styles.successBanner}>{successMsg}</div>}
+
+      {generatedToken && (
+        <div className={styles.configRow}>
+          <span className={styles.configLabel}>HEC Token</span>
+          <span className={styles.configValue}>
+            <code>{generatedToken}</code>
+            <CopyButton text={generatedToken} />
+          </span>
+        </div>
+      )}
+
+      <div className={styles.formActions}>
+        <Button
+          type="button"
+          variant="primary"
+          onClick={handleGenerate}
+          disabled={mutation.isPending}
+        >
+          {mutation.isPending ? 'Generating…' : 'Generate HEC Token'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Streaming method toggle                                            */
+/* ------------------------------------------------------------------ */
+
+type StreamMethod = 's3' | 'splunk';
+
+/* ------------------------------------------------------------------ */
 /*  Main panel                                                         */
 /* ------------------------------------------------------------------ */
 
 export function AuditStreamPanel() {
+  const [method, setMethod] = useState<StreamMethod>('splunk');
   const {
     data: config,
     isLoading,
@@ -243,22 +317,60 @@ export function AuditStreamPanel() {
       </CardHeader>
 
       <div className={styles.auditStreamBody}>
-        {/* Connection details */}
-        <div className={styles.configGrid}>
-          <ConfigRow label="S3 Endpoint" value={config.s3_endpoint} copyable />
-          <ConfigRow label="Bucket" value={config.bucket} copyable />
-          <ConfigRow label="Access Key ID" value={config.stream_user} copyable />
-          <ConfigRow label="Region" value={config.region} copyable />
+        {/* Method toggle */}
+        <div className={styles.methodToggle}>
+          <button
+            type="button"
+            className={`${styles.methodTab} ${method === 'splunk' ? styles.methodTabActive : ''}`}
+            onClick={() => setMethod('splunk')}
+          >
+            Splunk HEC
+          </button>
+          <button
+            type="button"
+            className={`${styles.methodTab} ${method === 's3' ? styles.methodTabActive : ''}`}
+            onClick={() => setMethod('s3')}
+          >
+            Amazon S3
+          </button>
         </div>
 
-        {/* Instructions */}
-        <InstructionsList instructions={config.instructions} />
+        {method === 'splunk' ? (
+          <>
+            {/* Splunk HEC connection details */}
+            <div className={styles.configGrid}>
+              <ConfigRow label="HEC URL" value={config.hec_endpoint} copyable />
+            </div>
 
-        {/* Update credentials */}
-        <div className={styles.auditStreamCredentials}>
-          <h4 className={styles.configSectionTitle}>Update Credentials</h4>
-          <CredentialsForm currentUser={config.stream_user} />
-        </div>
+            {/* HEC Instructions */}
+            <InstructionsList instructions={config.hec_instructions} />
+
+            {/* Generate HEC token */}
+            <div className={styles.auditStreamCredentials}>
+              <h4 className={styles.configSectionTitle}>HEC Token</h4>
+              <HecTokenForm />
+            </div>
+          </>
+        ) : (
+          <>
+            {/* S3 connection details */}
+            <div className={styles.configGrid}>
+              <ConfigRow label="S3 Endpoint" value={config.s3_endpoint} copyable />
+              <ConfigRow label="Bucket" value={config.bucket} copyable />
+              <ConfigRow label="Access Key ID" value={config.stream_user} copyable />
+              <ConfigRow label="Region" value={config.region} copyable />
+            </div>
+
+            {/* S3 Instructions */}
+            <InstructionsList instructions={config.instructions} />
+
+            {/* Update S3 credentials */}
+            <div className={styles.auditStreamCredentials}>
+              <h4 className={styles.configSectionTitle}>Update Credentials</h4>
+              <CredentialsForm currentUser={config.stream_user} />
+            </div>
+          </>
+        )}
       </div>
     </Card>
   );

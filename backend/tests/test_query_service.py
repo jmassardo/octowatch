@@ -7,6 +7,7 @@ import pytest
 from app.services.query_service import (
     ALLOWED_TABLES,
     QueryValidationError,
+    _check_double_quoted_strings,
     _check_function_allowlist,
     _check_no_multi_statements,
     _check_no_writes,
@@ -432,6 +433,50 @@ class TestMultiStatementBlock:
         """Semicolon in the middle of input should be blocked."""
         with pytest.raises((QueryValidationError, Exception)):
             validate_and_prepare("SELECT 1; DELETE FROM events", _scope())
+
+
+class TestDoubleQuotedStrings:
+    """Tests for double-quoted string detection (common PostgreSQL mistake)."""
+
+    def test_single_quoted_value_passes(self):
+        """Standard single-quoted string should pass."""
+        _check_double_quoted_strings("SELECT * FROM events WHERE action = 'repo.push'")
+
+    def test_like_single_quoted_passes(self):
+        """LIKE with single-quoted pattern should pass."""
+        _check_double_quoted_strings("SELECT * FROM events WHERE action LIKE 'repository%'")
+
+    def test_double_quoted_equals_blocked(self):
+        """Double-quoted string after = should be caught."""
+        with pytest.raises(QueryValidationError, match="single quotes"):
+            _check_double_quoted_strings('SELECT * FROM events WHERE action = "repo.push"')
+
+    def test_double_quoted_like_blocked(self):
+        """Double-quoted string after LIKE should be caught."""
+        with pytest.raises(QueryValidationError, match="single quotes"):
+            _check_double_quoted_strings(
+                'SELECT * FROM events WHERE action LIKE "repository_ruleset.update"'
+            )
+
+    def test_double_quoted_ilike_blocked(self):
+        """Double-quoted string after ILIKE should be caught."""
+        with pytest.raises(QueryValidationError, match="single quotes"):
+            _check_double_quoted_strings('SELECT * FROM events WHERE action ILIKE "repo%"')
+
+    def test_double_quoted_not_equals_blocked(self):
+        """Double-quoted string after != should be caught."""
+        with pytest.raises(QueryValidationError, match="single quotes"):
+            _check_double_quoted_strings('SELECT * FROM events WHERE action != "push"')
+
+    def test_double_quoted_in_list_blocked(self):
+        """Double-quoted string inside IN() should be caught."""
+        with pytest.raises(QueryValidationError, match="single quotes"):
+            _check_double_quoted_strings('SELECT * FROM events WHERE action IN ("push", "pull")')
+
+    def test_validate_and_prepare_catches_double_quotes(self):
+        """Full pipeline should reject double-quoted string values."""
+        with pytest.raises(QueryValidationError, match="single quotes"):
+            validate_and_prepare('SELECT * FROM events WHERE action = "repo.push"', _scope())
 
 
 class TestIntegrationScenarios:
