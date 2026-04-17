@@ -113,7 +113,7 @@ class RoleAssignmentResponse(BaseModel):
 
 
 class IngestionSourceCreate(BaseModel):
-    source_type: str = Field(..., pattern=r"^(s3|azure_blob|minio)$")
+    source_type: str = Field(..., pattern=r"^(s3|azure_blob|hec)$")
     source_name: str = Field(..., min_length=1, max_length=255)
     source_region: str | None = Field(None, max_length=50)
     source_prefix: str = Field(default="", max_length=500)

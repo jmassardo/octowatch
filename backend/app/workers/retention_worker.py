@@ -1,7 +1,7 @@
 """Celery worker: enforce retention policies for all managed tables.
 
 Runs daily via Celery beat.  For each table the worker:
-1. (optionally) archives rows to S3/MinIO before deletion
+1. (optionally) archives rows to S3/Azure Blob before deletion
 2. deletes rows older than the configured retention window
 
 Archive behaviour is controlled by the ``archive.enabled`` app setting.

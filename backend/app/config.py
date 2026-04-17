@@ -89,51 +89,6 @@ class AuthSettings(BaseSettings):
         return v
 
 
-class MinIOSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
-
-    MINIO_ENDPOINT_URL: str = Field(
-        default="http://minio:9000",
-        description="Internal MinIO S3-compatible API endpoint",
-    )
-    MINIO_AUDIT_BUCKET: str = Field(..., description="MinIO bucket for audit logs")
-    MINIO_INGEST_USER: str = Field(..., description="MinIO read-only service account username")
-    MINIO_INGEST_PASSWORD: str = Field(..., description="MinIO read-only service account password")
-
-    MINIO_HMAC_SECRET: str | None = Field(
-        None,
-        description="HMAC secret for MinIO bucket notification signature verification",
-    )
-
-    MINIO_STREAM_USER: str = Field(
-        default="github-stream",
-        description="MinIO service account for GitHub audit log streaming (write access)",
-    )
-    MINIO_STREAM_PASSWORD: str = Field(
-        default="",
-        description="Password for the MinIO streaming service account",
-    )
-
-    @field_validator("MINIO_ENDPOINT_URL")
-    @classmethod
-    def validate_minio_endpoint(cls, v: str) -> str:
-        parsed = urlparse(v)
-        if parsed.scheme not in ("http", "https"):
-            raise ValueError("MINIO_ENDPOINT_URL must be http or https")
-        # SSRF protection: block cloud metadata IP ranges
-        host = (parsed.hostname or "").lower()
-        _SSRF_BLOCKED = (
-            "169.254.169.254",
-            "metadata.google.internal",
-            "169.254.170.2",
-        )
-        if host in _SSRF_BLOCKED or host.startswith("169.254."):
-            raise ValueError(
-                "SSRF protection: MINIO_ENDPOINT_URL must not point to cloud metadata addresses"
-            )
-        return v
-
-
 class S3Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
@@ -449,7 +404,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = Field(
         default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"]
     )
-    INGESTION_MODE: Literal["minio", "s3", "azure_blob"] = "minio"
+    INGESTION_MODE: Literal["hec", "s3", "azure_blob"] = "hec"
     # Comma-separated GitHub logins that are unconditionally granted sys_admin.
     # Used to bootstrap the first admin before any DB role assignment exists.
     # Example: INITIAL_ADMIN_LOGINS=alice,bob
@@ -465,7 +420,6 @@ class Settings(BaseSettings):
     DB: DatabaseSettings = Field(default_factory=DatabaseSettings)
     VALKEY: ValkeySettings = Field(default_factory=ValkeySettings)
     AUTH: AuthSettings = Field(default_factory=AuthSettings)
-    MINIO: MinIOSettings = Field(default_factory=MinIOSettings)
     S3: S3Settings = Field(default_factory=S3Settings)
     AZURE: AzureBlobSettings = Field(default_factory=AzureBlobSettings)
     GEOIP: GeoIPSettings = Field(default_factory=GeoIPSettings)
@@ -531,11 +485,6 @@ def _build_settings() -> Settings:
         DB=DatabaseSettings(),
         VALKEY=ValkeySettings(),
         AUTH=AuthSettings(),
-        MINIO=MinIOSettings(
-            MINIO_AUDIT_BUCKET=os.getenv("MINIO_AUDIT_BUCKET", "audit-logs"),
-            MINIO_INGEST_USER=os.getenv("MINIO_INGEST_USER", ""),
-            MINIO_INGEST_PASSWORD=os.getenv("MINIO_INGEST_PASSWORD", ""),
-        ),
         S3=S3Settings(),
         AZURE=AzureBlobSettings(),
         GEOIP=GeoIPSettings(),

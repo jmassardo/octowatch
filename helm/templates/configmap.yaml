@@ -11,12 +11,9 @@ data:
   # Logging
   LOG_LEVEL: "INFO"
 
-  # Ingestion backend: "minio" | "s3" | "azure_blob"
-  INGESTION_MODE: "minio"
+  # Ingestion backend: "hec" | "s3" | "azure_blob"
+  INGESTION_MODE: "hec"
 
-  # MinIO endpoint (internal service name when minio.enabled=true)
-  MINIO_ENDPOINT_URL: "http://{{ include "octowatch.fullname" . }}-minio:9000"
-  MINIO_AUDIT_BUCKET: {{ .Values.minio.bucketName | default "audit-logs" | quote }}
 
   # GitHub Rules integration (optional — leave empty to disable rule sync)
   GITHUB_RULES_BRANCH: {{ .Values.githubRules.branch | default "main" | quote }}

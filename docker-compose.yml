@@ -24,7 +24,7 @@ networks:
   # Segmented networks — least-privilege connectivity between services.
   # frontend: nginx ↔ frontend SPA container
   # backend:  nginx ↔ api; workers & beat coordinate via api
-  # data:     api/workers/beat ↔ db, valkey, minio
+  # data:     api/workers/beat ↔ db, valkey
   frontend:
     driver: bridge
   backend:
@@ -35,7 +35,6 @@ networks:
 volumes:
   pg_data:
   valkey_data:
-  minio_data:
 
 services:
 
@@ -64,8 +63,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # Valkey 7.2 (BSD-3 Redis-compatible)
-  # Used as: Celery broker, JWT session store, dedup bloom filter,
-  #          RBAC team cache, MinIO event pub/sub channel minio:events.
+  # Used as: Celery broker, JWT session store, dedup bloom filter, RBAC team cache.
   # ---------------------------------------------------------------------------
   valkey:
     image: valkey/valkey:9.0.3-alpine
@@ -87,148 +85,6 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
-
-  # ---------------------------------------------------------------------------
-  # MinIO RELEASE.2024-06-13T22-53-53Z (AGPL-3.0)
-  # Self-hosted S3-compatible object store. GitHub streams audit logs directly
-  # here via the nginx /s3/ reverse proxy (TLS-terminated).
-  # Bucket event notifications are published to Valkey pub/sub channel
-  # `minio:events` on every new .json.gz PUT, triggering near-real-time
-  # ingestion without waiting for the Celery Beat polling tick.
-  #
-  # Ports exposed only on 127.0.0.1 — nginx proxies public S3 traffic from
-  # /s3/ → minio:9000. Do not expose MinIO ports directly.
-  # See architecture.md §2.1 MinIO mode requirement.
-  # ---------------------------------------------------------------------------
-  minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      # Bucket event notifications → Valkey pub/sub (primary target)
-      MINIO_NOTIFY_REDIS_ENABLE_PRIMARY: "on"
-      MINIO_NOTIFY_REDIS_ADDRESS_PRIMARY: valkey:6379
-      MINIO_NOTIFY_REDIS_PASSWORD_PRIMARY: ${VALKEY_PASSWORD}
-      MINIO_NOTIFY_REDIS_KEY_PRIMARY: minio:events
-      # access format: publishes the full S3 event notification JSON (Records
-      # array) to the Valkey channel via PUBLISH, which the MinioIngestWorker
-      # consumes via pub/sub.  (The "namespace" format uses SET, not PUBLISH.)
-      MINIO_NOTIFY_REDIS_FORMAT_PRIMARY: access
-    volumes:
-      - minio_data:/data
-    ports:
-      # S3 API — bound to localhost only; expose via reverse proxy with TLS
-      - "127.0.0.1:9000:9000"
-      # MinIO console — bound to localhost only; never expose publicly
-      - "127.0.0.1:9001:9001"
-    networks:
-      - data
-    depends_on:
-      valkey:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-      start_period: 30s
-    restart: unless-stopped
-
-  # ---------------------------------------------------------------------------
-  # minio-setup — one-time initialization sidecar (minio/mc)
-  # Creates bucket, attaches event notification, creates read-only service
-  # account for ingestion workers. Uses `latest` because mc is a CLI tool
-  # and version drift does not affect application behaviour.
-  # restart: on-failure ensures it retries if MinIO is not yet fully ready.
-  # ---------------------------------------------------------------------------
-  minio-setup:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
-    depends_on:
-      minio:
-        condition: service_healthy
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_AUDIT_BUCKET: ${MINIO_AUDIT_BUCKET}
-      MINIO_INGEST_USER: ${MINIO_INGEST_USER}
-      MINIO_INGEST_PASSWORD: ${MINIO_INGEST_PASSWORD}
-      MINIO_STREAM_USER: ${MINIO_STREAM_USER:-github-stream}
-      MINIO_STREAM_PASSWORD: ${MINIO_STREAM_PASSWORD:-}
-    networks:
-      - data
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -e
-        # Register local alias
-        mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}
-
-        # Create audit log bucket (idempotent)
-        mc mb --ignore-existing local/$${MINIO_AUDIT_BUCKET}
-
-        # Attach bucket event notification: PUT events → Valkey primary target
-        mc event add local/$${MINIO_AUDIT_BUCKET} arn:minio:sqs::PRIMARY:redis --event put || true
-
-        # Create read-only ingestion policy (GetObject + ListBucket on audit bucket only)
-        cat > /tmp/ro-policy.json <<EOF
-        {
-          "Version": "2012-10-17",
-          "Statement": [
-            {
-              "Effect": "Allow",
-              "Action": ["s3:GetObject","s3:ListBucket"],
-              "Resource": [
-                "arn:aws:s3:::$${MINIO_AUDIT_BUCKET}",
-                "arn:aws:s3:::$${MINIO_AUDIT_BUCKET}/*"
-              ]
-            }
-          ]
-        }
-        EOF
-        mc admin policy create local ingestion-ro /tmp/ro-policy.json || true
-
-        # Create scoped service account for ingestion workers
-        mc admin user add local $${MINIO_INGEST_USER} $${MINIO_INGEST_PASSWORD} || true
-        mc admin policy attach local ingestion-ro --user $${MINIO_INGEST_USER} || true
-
-        # Create write policy for GitHub audit log streaming (PutObject + required S3 ops)
-        cat > /tmp/stream-policy.json <<EOF
-        {
-          "Version": "2012-10-17",
-          "Statement": [
-            {
-              "Effect": "Allow",
-              "Action": [
-                "s3:PutObject",
-                "s3:GetBucketLocation",
-                "s3:ListBucket",
-                "s3:ListBucketMultipartUploads",
-                "s3:ListMultipartUploadParts",
-                "s3:AbortMultipartUpload"
-              ],
-              "Resource": [
-                "arn:aws:s3:::$${MINIO_AUDIT_BUCKET}",
-                "arn:aws:s3:::$${MINIO_AUDIT_BUCKET}/*"
-              ]
-            }
-          ]
-        }
-        EOF
-        mc admin policy create local streaming-write /tmp/stream-policy.json || true
-
-        # Create GitHub streaming service account (only if password is configured)
-        if [ -n "$${MINIO_STREAM_PASSWORD}" ]; then
-          mc admin user add local $${MINIO_STREAM_USER} $${MINIO_STREAM_PASSWORD} || true
-          mc admin policy attach local streaming-write --user $${MINIO_STREAM_USER} || true
-          echo "minio-setup: streaming user '$${MINIO_STREAM_USER}' provisioned"
-        else
-          echo "minio-setup: MINIO_STREAM_PASSWORD not set, skipping streaming user creation"
-          echo "minio-setup: configure via OctoWatch admin UI → Audit Log Streaming"
-        fi
-
-        echo "minio-setup: completed successfully"
-    restart: on-failure
 
   # ---------------------------------------------------------------------------
   # migrate — runs Alembic schema migrations before the API starts.
@@ -261,14 +117,7 @@ services:
     environment:
       <<: *app-env
       # Ingestion mode determines which storage backend to use
-      INGESTION_MODE: ${INGESTION_MODE:-minio}
-      # MinIO connection (used by api for presigned URL generation and status)
-      MINIO_ENDPOINT_URL: ${MINIO_ENDPOINT_URL:-http://minio:9000}
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_INGEST_USER: ${MINIO_INGEST_USER}
-      MINIO_INGEST_PASSWORD: ${MINIO_INGEST_PASSWORD}
-      MINIO_AUDIT_BUCKET: ${MINIO_AUDIT_BUCKET}
+      INGESTION_MODE: ${INGESTION_MODE:-hec}
       # SAML — optional; leave blank to disable SAML auth
       SAML_SP_CERT: ${SAML_SP_CERT:-}
       SAML_SP_KEY: ${SAML_SP_KEY:-}
@@ -317,12 +166,8 @@ services:
     command: ["celery", "-A", "app.celery_app", "worker", "-Q", "ingestion", "-c", "4", "--loglevel", "${LOG_LEVEL:-INFO}"]
     environment:
       <<: *app-env
-      INGESTION_MODE: ${INGESTION_MODE:-minio}
-      MINIO_ENDPOINT_URL: ${MINIO_ENDPOINT_URL:-http://minio:9000}
+      INGESTION_MODE: ${INGESTION_MODE:-hec}
       # Ingestion worker uses the scoped service account, not root credentials
-      MINIO_INGEST_USER: ${MINIO_INGEST_USER}
-      MINIO_INGEST_PASSWORD: ${MINIO_INGEST_PASSWORD}
-      MINIO_AUDIT_BUCKET: ${MINIO_AUDIT_BUCKET}
       # AWS S3 credentials — only required when INGESTION_MODE=s3
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
@@ -339,8 +184,6 @@ services:
       db:
         condition: service_healthy
       valkey:
-        condition: service_healthy
-      minio:
         condition: service_healthy
     restart: unless-stopped
 
@@ -443,11 +286,7 @@ services:
     command: ["celery", "-A", "app.celery_app", "worker", "-Q", "github_sync", "--pool=solo", "--loglevel", "${LOG_LEVEL:-INFO}"]
     environment:
       <<: *app-env
-      INGESTION_MODE: ${INGESTION_MODE:-minio}
-      MINIO_ENDPOINT_URL: ${MINIO_ENDPOINT_URL:-http://minio:9000}
-      MINIO_INGEST_USER: ${MINIO_INGEST_USER}
-      MINIO_INGEST_PASSWORD: ${MINIO_INGEST_PASSWORD}
-      MINIO_AUDIT_BUCKET: ${MINIO_AUDIT_BUCKET}
+      INGESTION_MODE: ${INGESTION_MODE:-hec}
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
       GITHUB_APP_PRIVATE_KEY_PATH: ${GITHUB_APP_PRIVATE_KEY_PATH:+/app/secrets/github-app-key.pem}
       GITHUB_ENTERPRISE_SLUG: ${GITHUB_ENTERPRISE_SLUG:-}
@@ -500,7 +339,6 @@ services:
   # ---------------------------------------------------------------------------
   # nginx 1.26 — TLS termination and reverse proxy
   # Proxies: /api/  → api:8000
-  #          /s3/   → minio:9000 (GitHub audit log streaming)
   #          /      → frontend:3001
   # HTTP → HTTPS redirect enforced. HSTS header applied.
   # Mount your TLS certificates into ./nginx/ssl/ before starting.

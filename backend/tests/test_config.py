@@ -20,30 +20,6 @@ class TestValkeySettings:
             ValkeySettings(VALKEY_URL="http://localhost:6379")
 
 
-class TestMinIOSettings:
-    def test_valid_endpoint(self):
-        from app.config import MinIOSettings
-
-        s = MinIOSettings(
-            MINIO_ENDPOINT_URL="http://minio:9000",
-            MINIO_AUDIT_BUCKET="audit",
-            MINIO_INGEST_USER="user",
-            MINIO_INGEST_PASSWORD="pass",
-        )
-        assert s.MINIO_ENDPOINT_URL == "http://minio:9000"
-
-    def test_invalid_scheme_rejected(self):
-        from app.config import MinIOSettings
-
-        with pytest.raises(ValidationError):
-            MinIOSettings(
-                MINIO_ENDPOINT_URL="ftp://minio:9000",
-                MINIO_AUDIT_BUCKET="audit",
-                MINIO_INGEST_USER="user",
-                MINIO_INGEST_PASSWORD="pass",
-            )
-
-
 class TestS3Settings:
     def test_valid_config(self):
         from app.config import S3Settings

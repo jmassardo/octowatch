@@ -33,7 +33,7 @@ npm install
 
 ### Full Stack (Docker Compose)
 
-For running the complete application with all services (TimescaleDB, Valkey, MinIO, nginx):
+For running the complete application with all services (TimescaleDB, Valkey, nginx):
 
 ```bash
 # Generate environment configuration

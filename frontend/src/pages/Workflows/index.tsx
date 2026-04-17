@@ -11,9 +11,10 @@ import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
 import { formatRelativeShort } from '../../utils/dates';
+import { WorkflowMetricsTab } from './WorkflowMetricsTab';
 import styles from './Workflows.module.css';
 
-type Tab = 'findings' | 'scores';
+type Tab = 'findings' | 'scores' | 'metrics';
 
 function sevVariant(sev: string) {
   if (sev === 'critical') return 'danger' as const;
@@ -150,6 +151,12 @@ export function WorkflowsPage() {
           >
             Repo Scores
           </button>
+          <button
+            className={`${styles.tab} ${tab === 'metrics' ? styles.tabActive : ''}`}
+            onClick={() => setTab('metrics')}
+          >
+            Failure Metrics
+          </button>
         </div>
 
         {tab === 'findings' && (
@@ -261,6 +268,8 @@ export function WorkflowsPage() {
             )}
           </>
         )}
+
+        {tab === 'metrics' && <WorkflowMetricsTab />}
       </div>
 
       {/* Detail slide-out panel */}

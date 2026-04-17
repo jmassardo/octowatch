@@ -6,7 +6,7 @@
 #   (or: make dev-up)
 #
 # What this does:
-#   - Keeps infrastructure services (db, valkey, minio) running in containers
+#   - Keeps infrastructure services (db, valkey) running in containers
 #   - Replaces pre-built app images with volume-mounted source + live reload
 #   - Exposes db (5432) and valkey (6379) on localhost for local tooling
 #   - Runs backend (uvicorn) and frontend (vite) with hot reload
@@ -57,28 +57,6 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
 
-  # MinIO — hardcode dev credentials
-  minio:
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_NOTIFY_REDIS_ENABLE_PRIMARY: "on"
-      MINIO_NOTIFY_REDIS_ADDRESS_PRIMARY: valkey:6379
-      MINIO_NOTIFY_REDIS_PASSWORD_PRIMARY: devpass
-      MINIO_NOTIFY_REDIS_KEY_PRIMARY: minio:events
-      MINIO_NOTIFY_REDIS_FORMAT_PRIMARY: access
-
-  # MinIO setup — hardcode dev credentials
-  minio-setup:
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_AUDIT_BUCKET: audit-logs
-      MINIO_INGEST_USER: ingest-service
-      MINIO_INGEST_PASSWORD: ingest-devpass
-      MINIO_STREAM_USER: github-stream
-      MINIO_STREAM_PASSWORD: stream-devpass
-
   # ---------------------------------------------------------------------------
   # migrate — use local source instead of pre-built image
   # ---------------------------------------------------------------------------
@@ -102,13 +80,7 @@ services:
       dockerfile: Dockerfile
     environment:
       <<: *app-env
-      INGESTION_MODE: minio
-      MINIO_ENDPOINT_URL: http://minio:9000
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_INGEST_USER: ingest-service
-      MINIO_INGEST_PASSWORD: ingest-devpass
-      MINIO_AUDIT_BUCKET: audit-logs
+      INGESTION_MODE: hec
       SAML_SP_CERT: ""
       SAML_SP_KEY: ""
       SAML_IDP_METADATA_URL: ""
@@ -139,11 +111,7 @@ services:
       dockerfile: Dockerfile
     environment:
       <<: *app-env
-      INGESTION_MODE: minio
-      MINIO_ENDPOINT_URL: http://minio:9000
-      MINIO_INGEST_USER: ingest-service
-      MINIO_INGEST_PASSWORD: ingest-devpass
-      MINIO_AUDIT_BUCKET: audit-logs
+      INGESTION_MODE: hec
       AWS_ACCESS_KEY_ID: ""
       AWS_SECRET_ACCESS_KEY: ""
       AWS_DEFAULT_REGION: ""
@@ -226,11 +194,7 @@ services:
       dockerfile: Dockerfile
     environment:
       <<: *app-env
-      INGESTION_MODE: minio
-      MINIO_ENDPOINT_URL: http://minio:9000
-      MINIO_INGEST_USER: ingest-service
-      MINIO_INGEST_PASSWORD: ingest-devpass
-      MINIO_AUDIT_BUCKET: audit-logs
+      INGESTION_MODE: hec
       GITHUB_APP_ID: ""
       GITHUB_APP_PRIVATE_KEY_PATH: ""
       GITHUB_ENTERPRISE_SLUG: ""

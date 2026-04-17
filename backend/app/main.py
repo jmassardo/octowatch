@@ -52,6 +52,7 @@ from app.routers import (
     suggestions,
     sync,
     threat_intel,
+    workflow_metrics,
     workflow_scanner,
 )
 from app.services.geoip_service import close_geoip_db, load_geoip_db
@@ -570,6 +571,7 @@ def create_app() -> FastAPI:
     app.include_router(cross_org.router, prefix=API_PREFIX)
     app.include_router(playbooks.router, prefix=API_PREFIX)
     app.include_router(workflow_scanner.router, prefix=API_PREFIX)
+    app.include_router(workflow_metrics.router, prefix=API_PREFIX)
     app.include_router(copilot_governance.router, prefix=API_PREFIX)
 
     return app
