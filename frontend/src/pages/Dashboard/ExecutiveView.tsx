@@ -35,8 +35,8 @@ function ScoreCard({ summary }: { summary: ExecutiveSummaryType }) {
             : undefined
         }
       >
-        <span aria-hidden="true">{isDown ? '▼' : '▲'}</span>{' '}
-        {Math.abs(score_delta).toFixed(1)} ({Math.abs(score_delta_pct).toFixed(1)}%)
+        <span aria-hidden="true">{isDown ? '▼' : '▲'}</span> {Math.abs(score_delta).toFixed(1)} (
+        {Math.abs(score_delta_pct).toFixed(1)}%)
       </div>
     </div>
   );
@@ -96,10 +96,7 @@ function MomCards({ summary }: { summary: ExecutiveSummaryType }) {
         <div className={styles.momValue}>{m.current_detections}</div>
         <div className={styles.momLabel}>Detections</div>
         <div
-          className={[
-            styles.momChange,
-            m.detection_change_pct > 0 ? styles.momUp : styles.momDn,
-          ]
+          className={[styles.momChange, m.detection_change_pct > 0 ? styles.momUp : styles.momDn]
             .filter(Boolean)
             .join(' ')}
         >
@@ -111,10 +108,7 @@ function MomCards({ summary }: { summary: ExecutiveSummaryType }) {
         <div className={styles.momValue}>{m.current_events.toLocaleString()}</div>
         <div className={styles.momLabel}>Events</div>
         <div
-          className={[
-            styles.momChange,
-            m.event_change_pct > 0 ? styles.momUp : styles.momDn,
-          ]
+          className={[styles.momChange, m.event_change_pct > 0 ? styles.momUp : styles.momDn]
             .filter(Boolean)
             .join(' ')}
         >
@@ -161,9 +155,7 @@ export function ExecutiveView() {
       <div className={styles.header}>
         <div>
           <div className={styles.title}>Executive Security Summary</div>
-          <div className={styles.subtitle}>
-            Organization-level security posture overview
-          </div>
+          <div className={styles.subtitle}>Organization-level security posture overview</div>
         </div>
         <div className={styles.headerActions}>
           <div className={styles.periodToggle}>
@@ -179,11 +171,7 @@ export function ExecutiveView() {
               </button>
             ))}
           </div>
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => exportExecutivePdf(period)}
-          >
+          <Button size="sm" variant="primary" onClick={() => exportExecutivePdf(period)}>
             Export as PDF
           </Button>
         </div>
