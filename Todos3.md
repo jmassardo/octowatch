@@ -2,7 +2,7 @@
     - we need to rework both pages on the dashboard to be more of a single page overview of the estate. right now, it feels like a randome collection of widgets.
     - The operations dashboard should be focused on things an ops team responsible for github as a service care about
     - the exec dashboard should be focused on business posture and impact. something that would be presented at the C-level
-    - we need other dashboards that is focused on a couple other personas, mainly Securith eng. and CI/CD team 
+    - we need other dashboards that is focused on a couple other personas, mainly Securith eng. and CI/CD team
 - Threats
     - pick out the important data from the event and display. For example, I looked at one threat and it says branch protections weakened I had to do to the event then read through a bunch of poorly formatted data fields to find the actual think that happened.
     - threats should have a parameter in the url that allows sharing a direct link
