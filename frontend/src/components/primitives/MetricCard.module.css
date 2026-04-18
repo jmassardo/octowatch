@@ -27,6 +27,29 @@
   color: var(--fg-subtle);
 }
 
+.helpIcon {
+  position: absolute;
+  top: 8px;
+  right: 26px;
+  font-size: 12px;
+  color: var(--fg-subtle);
+  cursor: help;
+  opacity: 0.6;
+}
+
+.helpIcon:hover {
+  opacity: 1;
+}
+
+.helpIcon {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 11px;
+  color: var(--fg-subtle);
+  cursor: help;
+}
+
 .val {
   font-size: 24px;
   font-weight: 600;

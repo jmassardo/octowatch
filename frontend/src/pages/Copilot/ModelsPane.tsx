@@ -17,12 +17,14 @@ const metricValueColumns: ColumnDef<MetricRow>[] = [
     key: 'metric',
     header: 'Metric',
     filterable: true,
+    helpText: 'The name of the model or feature metric. From daily Copilot usage API sync.',
     render: (row) => <span style={{ color: 'var(--fg-muted)' }}>{row.metric}</span>,
     filterValue: (row) => row.metric,
   },
   {
     key: 'value',
     header: 'Value',
+    helpText: 'The value of this metric. From daily Copilot usage API sync data.',
     render: (row) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{row.value}</span>,
   },
 ];

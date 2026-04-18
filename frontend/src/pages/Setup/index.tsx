@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   setupLogin,
@@ -340,60 +341,41 @@ function InitialSyncStep({
 }) {
   const [phase, setPhase] = useState<SyncPhase>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [entityProgress, setEntityProgress] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [polling, setPolling] = useState(false);
 
-  useEffect(() => {
-    return () => {
-      if (pollRef.current !== null) {
-        clearInterval(pollRef.current);
-      }
-    };
-  }, []);
-
-  function stopPolling() {
-    if (pollRef.current !== null) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  }
-
-  function startPolling() {
-    pollRef.current = setInterval(async () => {
-      try {
-        const status = await getSyncStatus();
-        if (status === null) {
-          return;
-        }
-        if (status.entity_counts) {
-          const parts = Object.entries(status.entity_counts).map(
-            ([entity, count]) => `${entity}: ${count}`,
-          );
-          setEntityProgress(parts.join(', '));
-        }
-        if (status.status === 'completed') {
-          stopPolling();
-          setPhase('completed');
-        } else if (status.status === 'failed') {
-          stopPolling();
-          setPhase('failed');
-          setError(status.error_message ?? 'Sync failed. Please try again.');
-        }
-      } catch {
-        stopPolling();
+  const { data: syncStatus } = useQuery({
+    queryKey: ['setup-sync-status'],
+    queryFn: async () => {
+      const status = await getSyncStatus();
+      // Transition phase inside queryFn callback to avoid setState-in-effect
+      if (status?.status === 'completed') {
+        setPolling(false);
+        setPhase('completed');
+      } else if (status?.status === 'failed') {
+        setPolling(false);
         setPhase('failed');
-        setError('Failed to check sync status.');
+        setError(status?.error_message ?? 'Sync failed. Please try again.');
       }
-    }, 5000);
-  }
+      return status;
+    },
+    enabled: polling,
+    refetchInterval: polling ? 5000 : false,
+    staleTime: 0,
+  });
+
+  // Derive entityProgress from query data (no setState needed)
+  const entityProgress = syncStatus?.entity_counts
+    ? Object.entries(syncStatus.entity_counts)
+        .map(([entity, count]) => `${entity}: ${count}`)
+        .join(', ')
+    : null;
 
   async function handleStartSync() {
     setPhase('syncing');
     setError(null);
-    setEntityProgress(null);
     try {
       await triggerSync('full');
-      startPolling();
+      setPolling(true);
     } catch {
       setPhase('failed');
       setError('Failed to start sync. Please try again.');
@@ -606,39 +588,31 @@ function ReviewStep({
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  const isTerminal = (s: string) => s === 'completed' || s === 'failed';
+
+  const { data: syncStatusData } = useQuery({
+    queryKey: ['setup-sync-status'],
+    queryFn: getSyncStatus,
+    enabled: !!completedSteps.sync,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status && isTerminal(status)) return false;
+      return 5000;
+    },
+  });
+
+  useEffect(() => {
+    if (!completedSteps.sync || !syncStatusData) return;
+    if (syncStatusData.status === 'completed') setSyncStatus('completed');
+    else if (syncStatusData.status === 'failed') setSyncStatus('failed');
+    else setSyncStatus('running');
+  }, [completedSteps.sync, syncStatusData]);
+
   useEffect(() => {
     if (!done) return;
     const timer = setTimeout(() => navigate('/login', { replace: true }), 3000);
     return () => clearTimeout(timer);
   }, [done, navigate]);
-
-  useEffect(() => {
-    if (!completedSteps.sync) return;
-    let cancelled = false;
-    async function poll() {
-      try {
-        const status = await getSyncStatus();
-        if (cancelled) return;
-        if (status === null) {
-          setSyncStatus('unknown');
-        } else if (status.status === 'completed') {
-          setSyncStatus('completed');
-        } else if (status.status === 'failed') {
-          setSyncStatus('failed');
-        } else {
-          setSyncStatus('running');
-        }
-      } catch {
-        if (!cancelled) setSyncStatus('unknown');
-      }
-    }
-    poll();
-    const iv = setInterval(poll, 5000);
-    return () => {
-      cancelled = true;
-      clearInterval(iv);
-    };
-  }, [completedSteps.sync]);
 
   async function handleComplete() {
     setLoading(true);

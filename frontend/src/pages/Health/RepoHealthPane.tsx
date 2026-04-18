@@ -5,7 +5,8 @@ import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { BarChart } from '../../components/charts/BarChart';
-import { DrilldownModal } from '../../components/primitives/DrilldownModal';
+import { DrilldownDrawer } from '../../components/primitives/DrilldownDrawer';
+import { Drawer } from '../../components/primitives/Drawer';
 import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
 import { getRepoHealth } from '../../api/healthSignals';
 import type { StaleRepo, ArchivedRepo, AbandonedFork } from '../../api/healthSignals';
@@ -97,6 +98,7 @@ interface RepoRow {
 }
 
 function RepoHealthTable({ repos }: { repos: RepoRow[] }) {
+  const [selectedRow, setSelectedRow] = useState<RepoRow | null>(null);
   const columns: ColumnDef<RepoRow>[] = [
     {
       key: 'repository',
@@ -113,6 +115,8 @@ function RepoHealthTable({ repos }: { repos: RepoRow[] }) {
       ),
       sortValue: (r) => `${r.org}/${r.repo}`,
       filterValue: (r) => `${r.org}/${r.repo}`,
+      helpText:
+        'Repository name and organization. Derived from git.push and repo.create audit events.',
     },
     {
       key: 'lastPush',
@@ -120,14 +124,12 @@ function RepoHealthTable({ repos }: { repos: RepoRow[] }) {
       sortable: true,
       render: (r) => {
         const pushVariant =
-          r.daysSinceActivity > 180
-            ? 'danger'
-            : r.daysSinceActivity > 30
-              ? 'attention'
-              : 'success';
+          r.daysSinceActivity > 180 ? 'danger' : r.daysSinceActivity > 30 ? 'attention' : 'success';
         return <Label variant={pushVariant}>{formatDaysAgo(r.daysSinceActivity)}</Label>;
       },
       sortValue: (r) => r.daysSinceActivity,
+      helpText:
+        'Days since the last git push event. Repos without pushes for 90+ days are considered stale.',
     },
     {
       key: 'overall',
@@ -148,6 +150,8 @@ function RepoHealthTable({ repos }: { repos: RepoRow[] }) {
         );
       },
       sortValue: (r) => r.daysSinceActivity,
+      helpText:
+        'Overall repo health classification based on days since last push activity. Critical (365+ days), High (180+), Medium (90+), Good (recent).',
     },
   ];
 
@@ -158,11 +162,26 @@ function RepoHealthTable({ repos }: { repos: RepoRow[] }) {
         data={repos}
         rowKey={(r) => `${r.org}/${r.repo}`}
         emptyMessage="No stale repositories found"
+        onRowClick={(row) => setSelectedRow(row)}
       />
       <div style={{ fontSize: 11, color: 'var(--fg-subtle)', padding: '8px 12px' }}>
         ℹ️ Additional repository health data (branch protection, secret scanning, Dependabot, CI)
         requires GitHub API integration.
       </div>
+      <Drawer open={!!selectedRow} onClose={() => setSelectedRow(null)} title="Repository Details">
+        {selectedRow && (
+          <dl style={{ padding: '16px' }}>
+            {Object.entries(selectedRow).map(([key, value]) => (
+              <div key={key} style={{ marginBottom: 8 }}>
+                <dt style={{ fontSize: '0.8em', color: 'var(--fg-muted)', marginBottom: 2 }}>
+                  {key}
+                </dt>
+                <dd style={{ margin: 0 }}>{String(value ?? '—')}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </Drawer>
     </div>
   );
 }
@@ -224,15 +243,29 @@ function UnhealthySummaryCards({ stale }: { stale: StaleRepo[] }) {
       render: (r) => `${r.org}/${r.repo}`,
       sortValue: (r) => `${r.org}/${r.repo}`,
       filterValue: (r) => `${r.org}/${r.repo}`,
+      helpText: 'Repository name and organization. Filter to focus on specific repos.',
     },
-    { key: 'org', header: 'Organization', render: (r) => r.org },
-    { key: 'last_event', header: 'Last Activity', render: (r) => formatDateOnly(r.last_event_at) },
+    {
+      key: 'org',
+      header: 'Organization',
+      render: (r) => r.org,
+      helpText: 'The GitHub organization that owns this repository.',
+    },
+    {
+      key: 'last_event',
+      header: 'Last Activity',
+      render: (r) => formatDateOnly(r.last_event_at),
+      helpText:
+        'Date of the last recorded audit event for this repository. Derived from git.push and other repo-level events.',
+    },
     {
       key: 'days',
       header: 'Days Inactive',
       sortable: true,
       render: (r) => String(r.days_since_activity),
       sortValue: (r) => r.days_since_activity,
+      helpText:
+        'Number of days since the last repository activity. Repos inactive 180+ days are candidates for archiving or deletion.',
     },
   ];
 
@@ -264,8 +297,8 @@ function UnhealthySummaryCards({ stale }: { stale: StaleRepo[] }) {
             .join(', ') || 'None detected'}
         </div>
         <div className={styles.cardFooter}>
-          ℹ Detected via <code className={styles.codeSnippet}>protected_branch.destroy</code> events
-          + missing corresponding create events in baseline.
+          ℹ Detected via <code className={styles.codeSnippet}>protected_branch.destroy</code>{' '}
+          events + missing corresponding create events in baseline.
           {critical.length + high.length > 0 && (
             <>
               {' '}
@@ -297,7 +330,7 @@ function UnhealthySummaryCards({ stale }: { stale: StaleRepo[] }) {
           <code className={styles.codeSnippet}>disable_secret_scanning</code> events
         </div>
       </Card>
-      <DrilldownModal
+      <DrilldownDrawer
         open={drilldown !== null}
         onClose={() => setDrilldown(null)}
         title={drilldownTitle}

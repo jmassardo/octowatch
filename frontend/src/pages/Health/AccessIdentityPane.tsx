@@ -6,7 +6,8 @@ import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { BarChart } from '../../components/charts/BarChart';
-import { DrilldownModal } from '../../components/primitives/DrilldownModal';
+import { DrilldownDrawer } from '../../components/primitives/DrilldownDrawer';
+import { Drawer } from '../../components/primitives/Drawer';
 import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
 import {
   getPatHealth,
@@ -111,17 +112,27 @@ function MemberActivityOverview({ dormant }: { dormant: DormantCollaborator[] })
       render: (d) => `@${d.github_login}`,
       sortValue: (d) => d.github_login,
       filterValue: (d) => d.github_login,
+      helpText: 'GitHub username of the organization member. Derived from audit log actor fields.',
     },
-    { key: 'org', header: 'Organization', render: (d) => d.org },
+    {
+      key: 'org',
+      header: 'Organization',
+      render: (d) => d.org,
+      helpText: 'The GitHub organization this member belongs to.',
+    },
     {
       key: 'role',
       header: 'Role',
       render: (d) => (d.role === 'outside_collaborator' ? 'outside collaborator' : d.role),
+      helpText:
+        'Member role within the organization. Outside collaborators have limited access and should be reviewed periodically.',
     },
     {
       key: 'last_seen',
       header: 'Last Seen',
       render: (d) => (d.last_event_at ? formatDateOnly(d.last_event_at) : '—'),
+      helpText:
+        'Last recorded activity for this user from audit log events. Users inactive for 90+ days may be candidates for access review.',
     },
     {
       key: 'days',
@@ -129,6 +140,8 @@ function MemberActivityOverview({ dormant }: { dormant: DormantCollaborator[] })
       sortable: true,
       render: (d) => String(d.days_inactive),
       sortValue: (d) => d.days_inactive,
+      helpText:
+        'Number of days since the last audit log event for this user. Consider removing access for users inactive 90+ days.',
     },
   ];
 
@@ -205,7 +218,7 @@ function MemberActivityOverview({ dormant }: { dormant: DormantCollaborator[] })
         ℹ Derived from <code className={styles.codeSnippet}>org.add_member</code>,{' '}
         <code className={styles.codeSnippet}>user.login</code>, and per-actor event timestamps
       </div>
-      <DrilldownModal
+      <DrilldownDrawer
         open={drilldown !== null}
         onClose={() => setDrilldown(null)}
         title={drilldownTitle}
@@ -258,16 +271,37 @@ function PatHealthSnapshot({
       render: (t) => t.github_login,
       sortValue: (t) => t.github_login,
       filterValue: (t) => t.github_login,
+      helpText: 'The GitHub user who owns this personal access token.',
     },
-    { key: 'token_name', header: 'Token Name', render: (t) => t.token_name ?? '—' },
-    { key: 'token_type', header: 'Type', render: (t) => t.token_type ?? '—' },
-    { key: 'created', header: 'Created', render: (t) => formatDateOnly(t.created_at) },
+    {
+      key: 'token_name',
+      header: 'Token Name',
+      render: (t) => t.token_name ?? '—',
+      helpText:
+        'Name assigned to the personal access token. Derived from personal_access_token.* audit events.',
+    },
+    {
+      key: 'token_type',
+      header: 'Type',
+      render: (t) => t.token_type ?? '—',
+      helpText:
+        'Token type (classic or fine-grained). Fine-grained tokens are recommended for least-privilege access.',
+    },
+    {
+      key: 'created',
+      header: 'Created',
+      render: (t) => formatDateOnly(t.created_at),
+      helpText:
+        'Date the token was created. Older tokens may have broader scopes and should be audited.',
+    },
     {
       key: 'age',
       header: 'Age (days)',
       sortable: true,
       render: (t) => String(t.age_days),
       sortValue: (t) => t.age_days,
+      helpText:
+        'Number of days since token creation. Tokens older than 90 days without rotation increase risk.',
     },
   ];
 
@@ -344,7 +378,7 @@ function PatHealthSnapshot({
         ℹ Derived from <code className={styles.codeSnippet}>personal_access_token.*</code> events
         and <code className={styles.codeSnippet}>authentication.token</code> usage in audit log
       </div>
-      <DrilldownModal
+      <DrilldownDrawer
         open={drilldown !== null}
         onClose={() => setDrilldown(null)}
         title={drilldownTitle}
@@ -357,6 +391,7 @@ function PatHealthSnapshot({
 }
 
 function BypassOffendersTable({ offenders }: { offenders: BypassOffender[] }) {
+  const [selectedRow, setSelectedRow] = useState<BypassOffender | null>(null);
   const columns: ColumnDef<BypassOffender>[] = [
     {
       key: 'actor',
@@ -366,6 +401,8 @@ function BypassOffendersTable({ offenders }: { offenders: BypassOffender[] }) {
       render: (o) => <span className={styles.mention}>@{o.actor}</span>,
       sortValue: (o) => o.actor,
       filterValue: (o) => o.actor,
+      helpText:
+        'GitHub user who bypassed branch protection or push protection. Derived from audit log actor fields.',
     },
     {
       key: 'total_bypasses',
@@ -375,11 +412,7 @@ function BypassOffendersTable({ offenders }: { offenders: BypassOffender[] }) {
         <span className={styles.numCol}>
           <Label
             variant={
-              o.total_bypasses > 10
-                ? 'danger'
-                : o.total_bypasses > 5
-                  ? 'attention'
-                  : 'muted'
+              o.total_bypasses > 10 ? 'danger' : o.total_bypasses > 5 ? 'attention' : 'muted'
             }
           >
             {o.total_bypasses}
@@ -387,6 +420,8 @@ function BypassOffendersTable({ offenders }: { offenders: BypassOffender[] }) {
         </span>
       ),
       sortValue: (o) => o.total_bypasses,
+      helpText:
+        'Combined count of push protection and branch policy bypasses. Users with 10+ bypasses should be reviewed.',
     },
     {
       key: 'push_protection',
@@ -394,6 +429,8 @@ function BypassOffendersTable({ offenders }: { offenders: BypassOffender[] }) {
       sortable: true,
       render: (o) => <span className={styles.numCol}>{o.push_protection_bypasses}</span>,
       sortValue: (o) => o.push_protection_bypasses,
+      helpText:
+        'Number of push protection bypasses. Derived from secret_scanning_push_protection.bypass events.',
     },
     {
       key: 'branch_policy',
@@ -401,6 +438,8 @@ function BypassOffendersTable({ offenders }: { offenders: BypassOffender[] }) {
       sortable: true,
       render: (o) => <span className={styles.numCol}>{o.branch_protection_overrides}</span>,
       sortValue: (o) => o.branch_protection_overrides,
+      helpText:
+        'Number of branch protection overrides. Derived from protected_branch.policy_override events.',
     },
     {
       key: 'active_days',
@@ -408,6 +447,8 @@ function BypassOffendersTable({ offenders }: { offenders: BypassOffender[] }) {
       sortable: true,
       render: (o) => <span className={styles.numCol}>{o.active_days}</span>,
       sortValue: (o) => o.active_days,
+      helpText:
+        'Number of distinct days this actor performed bypasses. Frequent bypass activity warrants a policy review.',
     },
     {
       key: 'last_bypass',
@@ -417,6 +458,8 @@ function BypassOffendersTable({ offenders }: { offenders: BypassOffender[] }) {
         <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(o.last_bypass_at)}</span>
       ),
       sortValue: (o) => o.last_bypass_at,
+      helpText:
+        'Date of the most recent bypass event. Recent bypasses may need immediate investigation.',
     },
   ];
 
@@ -429,8 +472,27 @@ function BypassOffendersTable({ offenders }: { offenders: BypassOffender[] }) {
           data={offenders}
           rowKey={(o) => o.actor}
           emptyMessage="No bypass offenders found"
+          onRowClick={(row) => setSelectedRow(row)}
         />
       </div>
+      <Drawer
+        open={!!selectedRow}
+        onClose={() => setSelectedRow(null)}
+        title="Bypass Offender Details"
+      >
+        {selectedRow && (
+          <dl style={{ padding: '16px' }}>
+            {Object.entries(selectedRow).map(([key, value]) => (
+              <div key={key} style={{ marginBottom: 8 }}>
+                <dt style={{ fontSize: '0.8em', color: 'var(--fg-muted)', marginBottom: 2 }}>
+                  {key}
+                </dt>
+                <dd style={{ margin: 0 }}>{String(value ?? '—')}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </Drawer>
     </div>
   );
 }
@@ -442,6 +504,7 @@ function ExternalCollaboratorsTable({
   collaborators: ExternalCollaborator[];
   summary: CollabSummary;
 }) {
+  const [selectedRow, setSelectedRow] = useState<ExternalCollaborator | null>(null);
   const columns: ColumnDef<ExternalCollaborator>[] = [
     {
       key: 'collaborator',
@@ -451,6 +514,8 @@ function ExternalCollaboratorsTable({
       render: (c) => <span className={styles.mention}>@{c.github_login}</span>,
       sortValue: (c) => c.github_login,
       filterValue: (c) => c.github_login,
+      helpText:
+        'GitHub username of the outside collaborator. Derived from org.add_outside_collaborator audit events.',
     },
     {
       key: 'repo',
@@ -462,6 +527,8 @@ function ExternalCollaboratorsTable({
       ),
       sortValue: (c) => c.repo ?? c.org,
       filterValue: (c) => c.repo ?? c.org,
+      helpText:
+        'Repository or org-level scope of access. Org-level collaborators have broader access and should be reviewed.',
     },
     {
       key: 'permission',
@@ -469,6 +536,8 @@ function ExternalCollaboratorsTable({
       sortable: true,
       render: (c) => <Label variant={c.role === 'admin' ? 'danger' : 'severe'}>{c.role}</Label>,
       sortValue: (c) => c.role,
+      helpText:
+        'Permission level granted. Admin-level access for outside collaborators is high risk and should be time-limited.',
     },
     {
       key: 'added',
@@ -478,17 +547,19 @@ function ExternalCollaboratorsTable({
         <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(c.granted_at)}</span>
       ),
       sortValue: (c) => c.granted_at,
+      helpText:
+        'Date the collaborator was granted access. Derived from member.add or org.add_outside_collaborator events.',
     },
     {
       key: 'last_active',
       header: 'Last active',
       sortable: true,
       render: (c) => (
-        <span style={{ color: 'var(--fg-muted)' }}>
-          {formatDaysAgo(c.days_since_last_event)}
-        </span>
+        <span style={{ color: 'var(--fg-muted)' }}>{formatDaysAgo(c.days_since_last_event)}</span>
       ),
       sortValue: (c) => c.days_since_last_event ?? Infinity,
+      helpText:
+        'Days since last activity from audit log events. Collaborators inactive 90+ days are candidates for access removal.',
     },
     {
       key: 'risk',
@@ -502,6 +573,8 @@ function ExternalCollaboratorsTable({
         if (days !== null && days > 30) return 1;
         return 0;
       },
+      helpText:
+        'Computed risk level based on inactivity duration and permission level. Admin access with dormancy is highest risk.',
     },
   ];
 
@@ -521,13 +594,33 @@ function ExternalCollaboratorsTable({
           data={collaborators}
           rowKey={(c) => `${c.github_login}-${c.org}-${c.repo ?? 'org'}`}
           emptyMessage="No external collaborators found"
+          onRowClick={(row) => setSelectedRow(row)}
         />
       </div>
+      <Drawer
+        open={!!selectedRow}
+        onClose={() => setSelectedRow(null)}
+        title="External Collaborator Details"
+      >
+        {selectedRow && (
+          <dl style={{ padding: '16px' }}>
+            {Object.entries(selectedRow).map(([key, value]) => (
+              <div key={key} style={{ marginBottom: 8 }}>
+                <dt style={{ fontSize: '0.8em', color: 'var(--fg-muted)', marginBottom: 2 }}>
+                  {key}
+                </dt>
+                <dd style={{ margin: 0 }}>{String(value ?? '—')}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </Drawer>
     </div>
   );
 }
 
 function DormantMembersTable({ dormant }: { dormant: DormantCollaborator[] }) {
+  const [selectedRow, setSelectedRow] = useState<DormantCollaborator | null>(null);
   const sorted = [...dormant].sort((a, b) => b.days_inactive - a.days_inactive);
 
   const columns: ColumnDef<DormantCollaborator>[] = [
@@ -539,6 +632,7 @@ function DormantMembersTable({ dormant }: { dormant: DormantCollaborator[] }) {
       render: (d) => <span className={styles.mention}>@{d.github_login}</span>,
       sortValue: (d) => d.github_login,
       filterValue: (d) => d.github_login,
+      helpText: 'GitHub login of the dormant member. Derived from audit log actor fields.',
     },
     {
       key: 'org',
@@ -548,6 +642,8 @@ function DormantMembersTable({ dormant }: { dormant: DormantCollaborator[] }) {
       render: (d) => <span style={{ color: 'var(--fg-muted)' }}>{d.org}</span>,
       sortValue: (d) => d.org,
       filterValue: (d) => d.org,
+      helpText:
+        'Organization the member belongs to. Members may be dormant in one org but active in another.',
     },
     {
       key: 'role',
@@ -559,6 +655,8 @@ function DormantMembersTable({ dormant }: { dormant: DormantCollaborator[] }) {
         </Label>
       ),
       sortValue: (d) => d.role,
+      helpText:
+        'Organization role of the dormant member. Outside collaborators should be reviewed first for removal.',
     },
     {
       key: 'last_seen',
@@ -568,6 +666,8 @@ function DormantMembersTable({ dormant }: { dormant: DormantCollaborator[] }) {
         <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(d.last_event_at)}</span>
       ),
       sortValue: (d) => d.last_event_at ?? '',
+      helpText:
+        'Last recorded activity for this user from audit log events. Users inactive for 90+ days may be candidates for access review.',
     },
     {
       key: 'days_inactive',
@@ -581,6 +681,8 @@ function DormantMembersTable({ dormant }: { dormant: DormantCollaborator[] }) {
         </span>
       ),
       sortValue: (d) => d.days_inactive,
+      helpText:
+        'Number of days since the last audit log event. 90+ days qualifies as dormant; consider removing access to reclaim licenses.',
     },
     {
       key: 'status',
@@ -592,6 +694,8 @@ function DormantMembersTable({ dormant }: { dormant: DormantCollaborator[] }) {
         return <Label variant={statusVariant}>{statusText}</Label>;
       },
       sortValue: (d) => d.days_inactive,
+      helpText:
+        'Dormancy status based on inactivity threshold. "Dormant" (90+ days) members still consume a license seat.',
     },
   ];
 
@@ -604,8 +708,27 @@ function DormantMembersTable({ dormant }: { dormant: DormantCollaborator[] }) {
           data={sorted}
           rowKey={(d) => `${d.github_login}-${d.org}-${d.days_inactive}`}
           emptyMessage="No dormant members found"
+          onRowClick={(row) => setSelectedRow(row)}
         />
       </div>
+      <Drawer
+        open={!!selectedRow}
+        onClose={() => setSelectedRow(null)}
+        title="Dormant Member Details"
+      >
+        {selectedRow && (
+          <dl style={{ padding: '16px' }}>
+            {Object.entries(selectedRow).map(([key, value]) => (
+              <div key={key} style={{ marginBottom: 8 }}>
+                <dt style={{ fontSize: '0.8em', color: 'var(--fg-muted)', marginBottom: 2 }}>
+                  {key}
+                </dt>
+                <dd style={{ margin: 0 }}>{String(value ?? '—')}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </Drawer>
     </div>
   );
 }

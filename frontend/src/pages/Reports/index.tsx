@@ -18,7 +18,7 @@ import { Label } from '../../components/primitives/Label';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
-import { Modal } from '../../components/primitives/Modal';
+import { Drawer } from '../../components/primitives/Drawer';
 import { DataTable } from '../../components/primitives/DataTable';
 import type { ColumnDef } from '../../components/primitives/DataTable';
 import type { ReportParams } from '../../types/reports';
@@ -28,8 +28,9 @@ import styles from './Reports.module.css';
 export function ReportsPage() {
   const { selectedOrg } = useOrg();
   const [windowDays, setWindowDays] = useState<30 | 60 | 90>(30);
-  const [bucketModal, setBucketModal] = useState<string | null>(null);
+  const [filterBucket, setFilterBucket] = useState<string | null>(null);
   const [viewReport, setViewReport] = useState<string | null>(null);
+  const [selectedRow, setSelectedRow] = useState<Record<string, unknown> | null>(null);
   const params: ReportParams = { window_days: windowDays, granularity: 'daily' };
 
   const {
@@ -101,6 +102,8 @@ export function ReportsPage() {
     {
       key: 'mau',
       label: 'Total MAU buckets',
+      helpText:
+        'Monthly active user time-series buckets derived from audit log events. Each bucket represents a time period with aggregated unique user counts.',
       dataSource: mauData?.data_source ?? 'Audit Events',
       value: mauData?.data.length ?? '—',
       data: mauData?.data,
@@ -108,6 +111,8 @@ export function ReportsPage() {
     {
       key: 'actions',
       label: 'Actions buckets',
+      helpText:
+        'GitHub Actions workflow run volume buckets. Tracks CI/CD pipeline execution frequency over the selected time window.',
       dataSource: actionsData?.data_source ?? 'Audit Events',
       value: actionsData?.data.length ?? '—',
       data: actionsData?.data,
@@ -115,6 +120,8 @@ export function ReportsPage() {
     {
       key: 'seat',
       label: 'Platform seat util buckets',
+      helpText:
+        'Platform seat utilization over time. Tracks how many GHEC license seats are actively used versus provisioned.',
       dataSource: seatData?.data_source ?? 'Audit Events',
       value: seatData?.data.length ?? '—',
       data: seatData?.data,
@@ -122,6 +129,8 @@ export function ReportsPage() {
     {
       key: 'copilot',
       label: 'Copilot seat buckets',
+      helpText:
+        'Copilot seat assignment changes over time. Tracks seat grants, removals, and net seat count for license optimization.',
       dataSource: copilotData?.data_source ?? 'Audit Events (Copilot)',
       value: copilotData?.data.length ?? '—',
       data: copilotData?.data,
@@ -129,6 +138,8 @@ export function ReportsPage() {
     {
       key: 'repo-creation',
       label: 'Repo creation buckets',
+      helpText:
+        'Repository creation rate over time. Derived from repo.create audit events. Useful for tracking org growth.',
       dataSource: repoCreationData?.data_source ?? 'Audit Events',
       value: repoCreationData?.data.length ?? '—',
       data: repoCreationData?.data,
@@ -136,6 +147,8 @@ export function ReportsPage() {
     {
       key: 'pat-counts',
       label: 'PAT event buckets',
+      helpText:
+        'Personal Access Token lifecycle events over time. Tracks token creation, usage, and revocation patterns.',
       dataSource: patCountsData?.data_source ?? 'Audit Events',
       value: patCountsData?.data.length ?? '—',
       data: patCountsData?.data,
@@ -143,6 +156,8 @@ export function ReportsPage() {
     {
       key: 'webhook-counts',
       label: 'Webhook event buckets',
+      helpText:
+        'Webhook lifecycle events over time. Tracks webhook creation, modification, and deletion activity.',
       dataSource: webhookCountsData?.data_source ?? 'Audit Events',
       value: webhookCountsData?.data.length ?? '—',
       data: webhookCountsData?.data,
@@ -150,13 +165,15 @@ export function ReportsPage() {
     {
       key: 'codespace-hours',
       label: 'Codespace hours buckets',
+      helpText:
+        'Codespace compute hours consumed over time. Tracks codespace lifecycle events for cost management.',
       dataSource: codespaceHoursData?.data_source ?? 'Audit Events',
       value: codespaceHoursData?.data.length ?? '—',
       data: codespaceHoursData?.data,
     },
   ];
 
-  const activeBucket = summaries.find((s) => s.key === bucketModal);
+  const activeBucket = summaries.find((s) => s.key === filterBucket);
 
   const reportDataMap: Record<
     string,
@@ -271,12 +288,13 @@ export function ReportsPage() {
                     <Spinner />
                   ) : isClickable ? (
                     <span
-                      className={styles.clickableValue}
+                      className={`${styles.clickableValue}${filterBucket === s.key ? ` ${styles.clickableValueActive}` : ''}`}
                       role="button"
                       tabIndex={0}
-                      onClick={() => setBucketModal(s.key)}
+                      onClick={() => setFilterBucket(filterBucket === s.key ? null : s.key)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') setBucketModal(s.key);
+                        if (e.key === 'Enter' || e.key === ' ')
+                          setFilterBucket(filterBucket === s.key ? null : s.key);
                       }}
                     >
                       {s.value}
@@ -286,12 +304,50 @@ export function ReportsPage() {
                   )}
                 </div>
                 <div className={styles.summaryLabel}>{s.label}</div>
+                {s.helpText && (
+                  <span
+                    title={s.helpText}
+                    style={{
+                      cursor: 'help',
+                      fontSize: 12,
+                      color: 'var(--fg-muted)',
+                      marginLeft: 4,
+                    }}
+                  >
+                    ⓘ
+                  </span>
+                )}
                 <div className={styles.dataSourceLabel}>Source: {s.dataSource}</div>
               </div>
             );
           })}
         </div>
       </Card>
+
+      {filterBucket && activeBucket && (
+        <Card style={{ marginBottom: 20 }}>
+          <CardHeader>
+            <div className={styles.filterHeader}>
+              <span>{activeBucket.label}</span>
+              <Button size="sm" onClick={() => setFilterBucket(null)}>
+                Clear filter
+              </Button>
+            </div>
+          </CardHeader>
+          <div className={styles.modalDataSource}>Source: {activeBucket.dataSource}</div>
+          {activeBucket.data && activeBucket.data.length > 0 ? (
+            <DataTable<Record<string, unknown>>
+              columns={buildDynamicColumns(activeBucket.data)}
+              data={activeBucket.data.map((row, i) => ({ ...row, __idx: i }))}
+              rowKey={(row) => row.__idx as number}
+              emptyMessage="No data available"
+              onRowClick={(row) => setSelectedRow(row)}
+            />
+          ) : (
+            <p style={{ padding: 16 }}>No data available.</p>
+          )}
+        </Card>
+      )}
 
       <div className={styles.reportList}>
         {catalogLoading ? (
@@ -344,32 +400,10 @@ export function ReportsPage() {
         )}
       </div>
 
-      <Modal
-        open={bucketModal !== null}
-        onClose={() => setBucketModal(null)}
-        title={activeBucket?.label ?? ''}
-        width={600}
-      >
-        {activeBucket && (
-          <div className={styles.modalDataSource}>Source: {activeBucket.dataSource}</div>
-        )}
-        {activeBucket?.data && activeBucket.data.length > 0 ? (
-          <DataTable<Record<string, unknown>>
-            columns={buildDynamicColumns(activeBucket.data)}
-            data={activeBucket.data.map((row, i) => ({ ...row, __idx: i }))}
-            rowKey={(row) => row.__idx as number}
-            emptyMessage="No data available"
-          />
-        ) : (
-          <p>No data available.</p>
-        )}
-      </Modal>
-
-      <Modal
+      <Drawer
         open={viewReport !== null}
         onClose={() => setViewReport(null)}
         title={activeReport?.title ?? 'Report Data'}
-        width={800}
       >
         <div className={styles.reportTableContainer}>
           {activeReport && (
@@ -381,12 +415,28 @@ export function ReportsPage() {
               data={activeReport.data.map((row, i) => ({ ...row, __idx: i }))}
               rowKey={(row) => row.__idx as number}
               emptyMessage="No data available for this report type"
+              onRowClick={(row) => setSelectedRow(row)}
             />
           ) : (
             <p>No data available for this report type.</p>
           )}
         </div>
-      </Modal>
+      </Drawer>
+
+      <Drawer open={!!selectedRow} onClose={() => setSelectedRow(null)} title="Details">
+        {selectedRow && (
+          <dl style={{ padding: '16px' }}>
+            {Object.entries(selectedRow).map(([key, value]) => (
+              <div key={key} style={{ marginBottom: 8 }}>
+                <dt style={{ fontSize: '0.8em', color: 'var(--fg-muted)', marginBottom: 2 }}>
+                  {key}
+                </dt>
+                <dd style={{ margin: 0 }}>{String(value ?? '—')}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </Drawer>
     </div>
   );
 }

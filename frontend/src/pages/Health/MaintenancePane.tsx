@@ -69,6 +69,8 @@ export function MaintenancePane() {
       render: (wf) => wf.workflow_name || '(unnamed)',
       sortValue: (wf) => wf.workflow_name ?? '',
       filterValue: (wf) => wf.workflow_name ?? '',
+      helpText:
+        'Name of the disabled or deleted workflow. Derived from workflows.disable_workflow and workflows.delete_workflow events.',
     },
     {
       key: 'repository',
@@ -78,6 +80,7 @@ export function MaintenancePane() {
       render: (wf) => `${wf.org}/${wf.repo}`,
       sortValue: (wf) => `${wf.org}/${wf.repo}`,
       filterValue: (wf) => `${wf.org}/${wf.repo}`,
+      helpText: 'Repository where the workflow was disabled or deleted.',
     },
     {
       key: 'action',
@@ -89,6 +92,8 @@ export function MaintenancePane() {
         </Label>
       ),
       sortValue: (wf) => wf.action,
+      helpText:
+        'Whether the workflow was disabled or deleted. Disabled workflows can be re-enabled; deleted ones need to be recreated.',
     },
     {
       key: 'actor',
@@ -98,6 +103,8 @@ export function MaintenancePane() {
       render: (wf) => <span style={{ color: 'var(--fg-muted)' }}>{wf.actor}</span>,
       sortValue: (wf) => wf.actor,
       filterValue: (wf) => wf.actor,
+      helpText:
+        'GitHub user who disabled or deleted the workflow. Verify the action was intentional.',
     },
     {
       key: 'date',
@@ -107,6 +114,8 @@ export function MaintenancePane() {
         <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.created_at)}</span>
       ),
       sortValue: (wf) => wf.created_at,
+      helpText:
+        'Date the workflow was disabled or deleted. Recent changes may indicate CI pipeline disruption.',
     },
   ];
 

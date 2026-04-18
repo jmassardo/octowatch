@@ -6,7 +6,7 @@ import type { RuleVersionResponse } from '../../api/rules';
 import type { RuleResponse, RuleCreate, RuleCategory } from '../../types/detections';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
-import { Modal } from '../../components/primitives/Modal';
+import { Drawer } from '../../components/primitives/Drawer';
 import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
@@ -332,6 +332,8 @@ function VersionHistory({ rule }: { rule: RuleResponse }) {
               {
                 key: 'version',
                 header: 'Version',
+                helpText:
+                  'Semantic version number for this rule revision. Incremented on each edit.',
                 sortable: true,
                 sortValue: (v) => v.version,
                 render: (v) => `v${v.version}`,
@@ -339,6 +341,7 @@ function VersionHistory({ rule }: { rule: RuleResponse }) {
               {
                 key: 'changed_by',
                 header: 'Changed by',
+                helpText: 'The user who authored this rule version change.',
                 sortable: true,
                 filterable: true,
                 sortValue: (v) => v.changed_by.toLowerCase(),
@@ -348,6 +351,7 @@ function VersionHistory({ rule }: { rule: RuleResponse }) {
               {
                 key: 'date',
                 header: 'Date',
+                helpText: 'When this rule version was created or saved.',
                 sortable: true,
                 sortValue: (v) => v.created_at,
                 render: (v) => formatAbsolute(v.created_at),
@@ -355,6 +359,7 @@ function VersionHistory({ rule }: { rule: RuleResponse }) {
               {
                 key: 'summary',
                 header: 'Summary',
+                helpText: 'Author-provided description of what changed in this version.',
                 filterable: true,
                 filterValue: (v) => v.change_summary ?? '',
                 render: (v) => v.change_summary ?? '—',
@@ -362,6 +367,8 @@ function VersionHistory({ rule }: { rule: RuleResponse }) {
               {
                 key: 'commit',
                 header: 'Commit',
+                helpText:
+                  'Git commit SHA associated with this rule change, if synced from a repository.',
                 render: (v) =>
                   v.git_commit_sha ? (
                     <span className={styles.versionHash}>{v.git_commit_sha.slice(0, 7)}</span>
@@ -458,11 +465,7 @@ export function RulesPage() {
               <p className={styles.pageSub}>Manage built-in and custom detection rules</p>
             </div>
             <div className={styles.headerActions}>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setShowLibrary(true)}
-              >
+              <Button variant="default" size="sm" onClick={() => setShowLibrary(true)}>
                 Rule Library
               </Button>
               <Button
@@ -481,205 +484,214 @@ export function RulesPage() {
             </div>
           </div>
 
-      {syncMessage && (
-        <div
-          style={{
-            padding: '8px 12px',
-            marginBottom: 12,
-            borderRadius: 6,
-            background: 'var(--success-subtle, #2ea04333)',
-            color: 'var(--success)',
-            fontSize: 13,
-            fontWeight: 500,
-          }}
-        >
-          {syncMessage}
-        </div>
-      )}
-      {isError && <ErrorBanner message="Failed to load rules" onRetry={() => refetch()} />}
-
-      {isLoading ? (
-        <Spinner />
-      ) : (
-        <div className={styles.tableWrap}>
-          <DataTable<RuleResponse>
-            columns={[
-              {
-                key: 'status',
-                header: 'Status',
-                sortable: true,
-                sortValue: (rule) => rule.status,
-                render: (rule) => (
-                  <Label variant={rule.status === 'active' ? 'success' : 'muted'}>
-                    {rule.status === 'active' ? 'active' : 'draft'}
-                  </Label>
-                ),
-              },
-              {
-                key: 'name',
-                header: 'Rule name',
-                sortable: true,
-                filterable: true,
-                sortValue: (rule) => rule.name.toLowerCase(),
-                filterValue: (rule) => rule.name,
-                render: (rule) => <div className={styles.ruleName}>{rule.name}</div>,
-              },
-              {
-                key: 'logic',
-                header: 'Logic',
-                sortable: true,
-                filterable: true,
-                sortValue: (rule) => rule.logic_type.toLowerCase(),
-                filterValue: (rule) => rule.logic_type,
-                render: (rule) => <Label variant="muted">{rule.logic_type}</Label>,
-              },
-              {
-                key: 'severity',
-                header: 'Severity',
-                sortable: true,
-                filterable: true,
-                sortValue: (rule) => rule.default_severity.toLowerCase(),
-                filterValue: (rule) => rule.default_severity,
-                render: (rule) => (
-                  <Label variant={SEVERITY_VARIANT[rule.default_severity] ?? 'muted'}>
-                    {rule.default_severity}
-                  </Label>
-                ),
-              },
-              {
-                key: 'detections',
-                header: 'Detections (30d)',
-                sortable: true,
-                sortValue: (rule) => (rule.status === 'active' ? 0 : -1),
-                render: (rule) => (
-                  <span className={styles.muted}>
-                    {rule.status === 'active'
-                      ? (() => {
-                          const count = 0;
-                          return count > 0 ? (
-                            <span
-                              className={styles.clickableCount}
-                              role="link"
-                              tabIndex={0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/threats?rule_id=${rule.id}`);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') navigate(`/threats?rule_id=${rule.id}`);
-                              }}
-                            >
-                              {count}
-                            </span>
-                          ) : (
-                            '0'
-                          );
-                        })()
-                      : '—'}
-                  </span>
-                ),
-              },
-              {
-                key: 'version',
-                header: 'Version',
-                sortable: true,
-                sortValue: (rule) => rule.version,
-                render: (rule) => (
-                  <span
-                    className={`${styles.versionMono} ${styles.clickableVersion}`}
-                    role="link"
-                    tabIndex={0}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setVersionRule(rule);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') setVersionRule(rule);
-                    }}
-                  >
-                    v{rule.version}.0.0
-                  </span>
-                ),
-              },
-              {
-                key: 'actions',
-                header: '',
-                render: (rule) => (
-                  <div className={styles.headerActions}>
-                    <Button
-                      size="sm"
-                      variant="default"
-                      onClick={(e: React.MouseEvent) => {
-                        e.stopPropagation();
-                        setTestRuleTarget(rule);
-                      }}
-                    >
-                      Test
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="default"
-                      onClick={(e: React.MouseEvent) => {
-                        e.stopPropagation();
-                        setEditRule(rule);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  </div>
-                ),
-              },
-            ]}
-            data={rules?.items ? [...rules.items] : []}
-            rowKey={(rule) => rule.id}
-            onRowClick={(rule) => setEditRule(rule)}
-            emptyMessage="No rules configured"
-          />
-          {rules && (
-            <Pagination
-              page={page}
-              pageSize={PAGE_SIZE}
-              total={rules.total}
-              onPageChange={setPage}
-            />
+          {syncMessage && (
+            <div
+              style={{
+                padding: '8px 12px',
+                marginBottom: 12,
+                borderRadius: 6,
+                background: 'var(--success-subtle, #2ea04333)',
+                color: 'var(--success)',
+                fontSize: 13,
+                fontWeight: 500,
+              }}
+            >
+              {syncMessage}
+            </div>
           )}
-        </div>
-      )}
+          {isError && <ErrorBanner message="Failed to load rules" onRetry={() => refetch()} />}
 
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Create rule" width={720}>
-        <RuleForm onSave={(v) => createMutation.mutate(v)} onCancel={() => setShowCreate(false)} />
-      </Modal>
+          {isLoading ? (
+            <Spinner />
+          ) : (
+            <div className={styles.tableWrap}>
+              <DataTable<RuleResponse>
+                columns={[
+                  {
+                    key: 'status',
+                    header: 'Status',
+                    helpText:
+                      'Whether the rule is actively evaluating audit events. Draft rules are not executed.',
+                    sortable: true,
+                    sortValue: (rule) => rule.status,
+                    render: (rule) => (
+                      <Label variant={rule.status === 'active' ? 'success' : 'muted'}>
+                        {rule.status === 'active' ? 'active' : 'draft'}
+                      </Label>
+                    ),
+                  },
+                  {
+                    key: 'name',
+                    header: 'Rule name',
+                    helpText: 'Human-readable name identifying this detection rule.',
+                    sortable: true,
+                    filterable: true,
+                    sortValue: (rule) => rule.name.toLowerCase(),
+                    filterValue: (rule) => rule.name,
+                    render: (rule) => <div className={styles.ruleName}>{rule.name}</div>,
+                  },
+                  {
+                    key: 'logic',
+                    header: 'Logic',
+                    helpText:
+                      'The detection logic type — threshold, anomaly, or pattern. Determines how audit events are analyzed.',
+                    sortable: true,
+                    filterable: true,
+                    sortValue: (rule) => rule.logic_type.toLowerCase(),
+                    filterValue: (rule) => rule.logic_type,
+                    render: (rule) => <Label variant="muted">{rule.logic_type}</Label>,
+                  },
+                  {
+                    key: 'severity',
+                    header: 'Severity',
+                    helpText:
+                      'Default severity assigned to detections created by this rule. Can be critical, high, medium, low, or info.',
+                    sortable: true,
+                    filterable: true,
+                    sortValue: (rule) => rule.default_severity.toLowerCase(),
+                    filterValue: (rule) => rule.default_severity,
+                    render: (rule) => (
+                      <Label variant={SEVERITY_VARIANT[rule.default_severity] ?? 'muted'}>
+                        {rule.default_severity}
+                      </Label>
+                    ),
+                  },
+                  {
+                    key: 'detections',
+                    header: 'Detections (30d)',
+                    helpText:
+                      'Number of times this rule triggered a detection in the last 30 days. From audit log event analysis.',
+                    sortable: true,
+                    sortValue: (rule) => (rule.status === 'active' ? 0 : -1),
+                    render: (rule) => (
+                      <span className={styles.muted}>
+                        {rule.status === 'active'
+                          ? (() => {
+                              const count = 0;
+                              return count > 0 ? (
+                                <span
+                                  className={styles.clickableCount}
+                                  role="link"
+                                  tabIndex={0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/threats?rule_id=${rule.id}`);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') navigate(`/threats?rule_id=${rule.id}`);
+                                  }}
+                                >
+                                  {count}
+                                </span>
+                              ) : (
+                                '0'
+                              );
+                            })()
+                          : '—'}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: 'version',
+                    header: 'Version',
+                    helpText:
+                      'Current semantic version of the rule. Click to view full version history.',
+                    sortable: true,
+                    sortValue: (rule) => rule.version,
+                    render: (rule) => (
+                      <span
+                        className={`${styles.versionMono} ${styles.clickableVersion}`}
+                        role="link"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setVersionRule(rule);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') setVersionRule(rule);
+                        }}
+                      >
+                        v{rule.version}.0.0
+                      </span>
+                    ),
+                  },
+                  {
+                    key: 'actions',
+                    header: '',
+                    render: (rule) => (
+                      <div className={styles.headerActions}>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            setTestRuleTarget(rule);
+                          }}
+                        >
+                          Test
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            setEditRule(rule);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                      </div>
+                    ),
+                  },
+                ]}
+                data={rules?.items ? [...rules.items] : []}
+                rowKey={(rule) => rule.id}
+                onRowClick={(rule) => setEditRule(rule)}
+                emptyMessage="No rules configured"
+              />
+              {rules && (
+                <Pagination
+                  page={page}
+                  pageSize={PAGE_SIZE}
+                  total={rules.total}
+                  onPageChange={setPage}
+                />
+              )}
+            </div>
+          )}
 
-      <Modal open={!!editRule} onClose={() => setEditRule(null)} title="Edit rule" width={720}>
-        {editRule && (
-          <RuleForm
-            initial={editRule}
-            onSave={(v) => updateMutation.mutate({ id: editRule.id, data: v })}
-            onCancel={() => setEditRule(null)}
+          <Drawer open={showCreate} onClose={() => setShowCreate(false)} title="Create rule">
+            <RuleForm
+              onSave={(v) => createMutation.mutate(v)}
+              onCancel={() => setShowCreate(false)}
+            />
+          </Drawer>
+
+          <Drawer open={!!editRule} onClose={() => setEditRule(null)} title="Edit rule">
+            {editRule && (
+              <RuleForm
+                initial={editRule}
+                onSave={(v) => updateMutation.mutate({ id: editRule.id, data: v })}
+                onCancel={() => setEditRule(null)}
+              />
+            )}
+          </Drawer>
+
+          <Drawer open={!!versionRule} onClose={() => setVersionRule(null)} title="Version history">
+            {versionRule && <VersionHistory rule={versionRule} />}
+          </Drawer>
+
+          <ConfirmDialog
+            open={!!deleteTarget}
+            onClose={() => setDeleteTarget(null)}
+            title="Delete rule"
+            message={deleteTarget ? `Delete "${deleteTarget.name}"? This cannot be undone.` : ''}
+            confirmLabel="Delete"
+            confirmVariant="danger"
+            onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
           />
-        )}
-      </Modal>
 
-      <Modal
-        open={!!versionRule}
-        onClose={() => setVersionRule(null)}
-        title="Version history"
-        width={720}
-      >
-        {versionRule && <VersionHistory rule={versionRule} />}
-      </Modal>
-
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        title="Delete rule"
-        message={deleteTarget ? `Delete "${deleteTarget.name}"? This cannot be undone.` : ''}
-        confirmLabel="Delete"
-        confirmVariant="danger"
-        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
-      />
-
-      <TestRuleModal rule={testRuleTarget} onClose={() => setTestRuleTarget(null)} />
+          <TestRuleModal rule={testRuleTarget} onClose={() => setTestRuleTarget(null)} />
         </>
       )}
     </div>

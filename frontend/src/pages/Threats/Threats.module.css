@@ -221,6 +221,67 @@
   display: block;
 }
 
+/* Severity accent borders */
+.splitPanel.severityCritical {
+  border-left: 4px solid var(--danger);
+}
+
+.splitPanel.severityHigh {
+  border-left: 4px solid var(--severe);
+}
+
+.splitPanel.severityMedium {
+  border-left: 4px solid var(--attention);
+}
+
+.splitPanel.severityLow {
+  border-left: 4px solid var(--accent);
+}
+
+.splitPanel.severityInfo {
+  border-left: 4px solid var(--fg-subtle);
+}
+
+/* Section headers */
+.sectionHeader {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--fg-subtle);
+  letter-spacing: 0.06em;
+  padding-bottom: 6px;
+  margin-top: 16px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.sectionHeader:first-of-type {
+  margin-top: 0;
+}
+
+/* Key details summary */
+.keyDetails {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.keyDetailsLabel {
+  color: var(--fg-muted);
+  font-weight: 500;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.keyDetailsValue {
+  color: var(--fg);
+  font-size: 12px;
+  word-break: break-word;
+  min-width: 0;
+}
+
 .panelHeader {
   display: flex;
   align-items: center;

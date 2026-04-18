@@ -12,11 +12,12 @@ export interface ColumnDef<T> {
   sortValue?: (row: T) => string | number | Date | null;
   filterValue?: (row: T) => string;
   width?: string;
+  helpText?: string;
 }
 
 interface DataTableProps<T> {
   columns: ColumnDef<T>[];
-  data: T[];
+  data: readonly T[];
   rowKey: (row: T) => string | number;
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
@@ -65,9 +66,7 @@ export function DataTable<T>({
     if (sortAnnouncementRef.current) {
       const col = columns.find((c) => c.key === key);
       const dirLabel = newDir === 'asc' ? 'ascending' : newDir === 'desc' ? 'descending' : 'none';
-      sortAnnouncementRef.current.textContent = col
-        ? `Sorted by ${col.header}, ${dirLabel}`
-        : '';
+      sortAnnouncementRef.current.textContent = col ? `Sorted by ${col.header}, ${dirLabel}` : '';
     }
   }
 
@@ -162,12 +161,7 @@ export function DataTable<T>({
   return (
     <div className={`${styles.tableWrap} ${className ?? ''}`}>
       {/* Screen reader announcement for sort changes */}
-      <div
-        ref={sortAnnouncementRef}
-        className="sr-only"
-        aria-live="polite"
-        aria-atomic="true"
-      />
+      <div ref={sortAnnouncementRef} className="sr-only" aria-live="polite" aria-atomic="true" />
       <table
         className={styles.table}
         aria-rowcount={sortedData.length}
@@ -195,6 +189,15 @@ export function DataTable<T>({
               >
                 <span className={styles.headerContent}>
                   {col.header}
+                  {col.helpText && (
+                    <span
+                      className={styles.helpIcon}
+                      title={col.helpText}
+                      aria-label={`Help: ${col.header}`}
+                    >
+                      ⓘ
+                    </span>
+                  )}
                   {col.sortable && (
                     <span className={styles.sortIcon} aria-hidden="true">
                       {sortColumn === col.key
@@ -241,9 +244,7 @@ export function DataTable<T>({
               <tr
                 key={rowKey(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                onKeyDown={
-                  onRowClick ? (e) => handleRowKeyDown(e, row, index) : undefined
-                }
+                onKeyDown={onRowClick ? (e) => handleRowKeyDown(e, row, index) : undefined}
                 className={onRowClick ? styles.clickableRow : undefined}
                 tabIndex={onRowClick ? 0 : undefined}
                 aria-rowindex={index + 1}

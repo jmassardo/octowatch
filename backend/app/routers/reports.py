@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, get_valkey, require_role
+from app.deps import AuthenticatedUser, get_db, get_valkey, require_role, verify_csrf
 from app.schemas.report import (
     ComplianceReportEnvelope,
     ReportEnvelope,
@@ -682,7 +682,12 @@ def _flatten_compliance_report(report_data: dict[str, Any]) -> list[dict[str, An
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-@router.post("/schedules", response_model=ReportScheduleResponse, status_code=201)
+@router.post(
+    "/schedules",
+    response_model=ReportScheduleResponse,
+    status_code=201,
+    dependencies=[Depends(verify_csrf)],
+)
 async def create_schedule(
     payload: ReportScheduleCreate,
     current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
@@ -719,7 +724,11 @@ async def list_schedules(
     return [ReportScheduleResponse.model_validate(s) for s in schedules]
 
 
-@router.patch("/schedules/{schedule_id}", response_model=ReportScheduleResponse)
+@router.patch(
+    "/schedules/{schedule_id}",
+    response_model=ReportScheduleResponse,
+    dependencies=[Depends(verify_csrf)],
+)
 async def update_schedule(
     schedule_id: int,
     payload: ReportScheduleUpdate,
@@ -747,7 +756,7 @@ async def update_schedule(
     return ReportScheduleResponse.model_validate(schedule)
 
 
-@router.delete("/schedules/{schedule_id}", status_code=204)
+@router.delete("/schedules/{schedule_id}", status_code=204, dependencies=[Depends(verify_csrf)])
 async def delete_schedule(
     schedule_id: int,
     current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),

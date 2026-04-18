@@ -37,7 +37,7 @@ _API_VERSION = "2026-03-10"
 # Valkey cache key patterns
 _CACHE_KEY = "copilot:metrics:{enterprise_slug}"
 _CACHE_SEATS_KEY = "copilot:seats:{org_slug}"
-_CACHE_TTL_SECONDS = 3600  # 1 hour
+_CACHE_TTL_SECONDS = 90000  # 25 hours (survives between daily syncs)
 
 # ── Colour palette ────────────────────────────────────────────────────────────
 
@@ -551,12 +551,217 @@ def _classify_user(seat: dict[str, Any]) -> str:
     return "inactive"
 
 
+# ── Cache / DB readers (no live API calls) ────────────────────────────────────
+
+
+async def _check_feature_enabled(db: AsyncSession) -> dict[str, str] | None:
+    """Check feature toggle and enterprise config.  Returns error dict or None."""
+    from app.services.settings_service import get_setting
+
+    copilot_enabled = await get_setting(db, "feature_copilot_insights")
+    if copilot_enabled is None or copilot_enabled.lower() not in ("true", "1", "yes", "on"):
+        return {
+            "error": "feature_disabled",
+            "message": "Copilot Insights is disabled. Enable it in Settings → Features.",
+        }
+
+    enterprise_slug = settings.github_app.GITHUB_ENTERPRISE_SLUG
+    if not enterprise_slug:
+        return {"error": "no_enterprise_config", "message": "GITHUB_ENTERPRISE_SLUG is not set."}
+
+    return None
+
+
+async def _read_metrics_from_store(db: AsyncSession) -> list[dict[str, Any]] | dict[str, str]:
+    """Read Copilot metrics from Valkey cache or DB.  Never calls GitHub API.
+
+    Returns the same shape as ``_fetch_metrics_raw`` (list of daily metric
+    dicts) so that all downstream public functions work unchanged.
+    """
+    err = await _check_feature_enabled(db)
+    if err is not None:
+        return err
+
+    enterprise_slug = settings.github_app.GITHUB_ENTERPRISE_SLUG or ""
+
+    # Try Valkey cache first
+    cache_key = _CACHE_KEY.format(enterprise_slug=enterprise_slug)
+    try:
+        valkey = aioredis.Redis.from_url(
+            settings.VALKEY_URL, decode_responses=True, max_connections=5
+        )
+        try:
+            cached = await valkey.get(cache_key)
+            if cached:
+                logger.debug("copilot_metrics.store_cache_hit", enterprise=enterprise_slug)
+                return json.loads(cached)  # type: ignore[no-any-return]
+        finally:
+            await valkey.aclose()
+    except Exception:
+        logger.warning("copilot_metrics.store_cache_read_failed", exc_info=True)
+
+    # Fall back to DB reconstruction
+    return await _reconstruct_metrics_from_db(db, enterprise_slug)
+
+
+async def _reconstruct_metrics_from_db(
+    db: AsyncSession, enterprise_slug: str
+) -> list[dict[str, Any]]:
+    """Reconstruct the raw API response shape from ``CopilotDailyMetric`` rows."""
+    from app.models.copilot_metrics import CopilotDailyMetric
+
+    result = await db.execute(
+        select(CopilotDailyMetric)
+        .where(CopilotDailyMetric.org_slug == enterprise_slug)
+        .order_by(CopilotDailyMetric.date)
+    )
+    rows = list(result.scalars().all())
+    if not rows:
+        return []
+
+    days_map: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        date_str = row.date.isoformat()
+        if date_str not in days_map:
+            days_map[date_str] = {
+                "date": date_str,
+                "total_active_users": 0,
+                "total_engaged_users": 0,
+                "copilot_ide_code_completions": {"total_engaged_users": 0, "editors": []},
+                "copilot_ide_chat": {"total_engaged_users": 0, "editors": []},
+                "copilot_dotcom_chat": {"total_engaged_users": 0},
+                "copilot_dotcom_pull_requests": {"total_engaged_users": 0},
+            }
+
+        day = days_map[date_str]
+
+        if row.metric_type == "summary":
+            day["total_active_users"] = row.active_users
+            day["total_engaged_users"] = row.engaged_users
+        elif row.metric_type == "completions":
+            completions = day["copilot_ide_code_completions"]
+            editor_name = row.editor or "Unknown"
+            model_name = row.model or "Unknown"
+            lang_name = row.language or "Unknown"
+
+            # Find or create editor
+            editor_obj = None
+            for e in completions["editors"]:
+                if e["name"] == editor_name:
+                    editor_obj = e
+                    break
+            if editor_obj is None:
+                editor_obj = {"name": editor_name, "total_engaged_users": 0, "models": []}
+                completions["editors"].append(editor_obj)
+
+            # Find or create model
+            model_obj = None
+            for m in editor_obj["models"]:
+                if m["name"] == model_name:
+                    model_obj = m
+                    break
+            if model_obj is None:
+                model_obj = {
+                    "name": model_name,
+                    "total_engaged_users": row.engaged_users,
+                    "languages": [],
+                }
+                editor_obj["models"].append(model_obj)
+
+            model_obj["languages"].append(
+                {
+                    "name": lang_name,
+                    "total_code_suggestions": row.total_suggestions,
+                    "total_code_acceptances": row.total_acceptances,
+                    "total_code_lines_suggested": row.total_lines_suggested,
+                    "total_code_lines_accepted": row.total_lines_accepted,
+                }
+            )
+            # Update editor and section engaged-user estimates
+            editor_obj["total_engaged_users"] = max(
+                editor_obj["total_engaged_users"], row.engaged_users
+            )
+            completions["total_engaged_users"] = max(
+                completions["total_engaged_users"], row.engaged_users
+            )
+        elif row.metric_type == "chat":
+            day["copilot_ide_chat"]["total_engaged_users"] = row.engaged_users
+        elif row.metric_type == "dotcom_chat":
+            day["copilot_dotcom_chat"]["total_engaged_users"] = row.engaged_users
+        elif row.metric_type == "pr":
+            day["copilot_dotcom_pull_requests"]["total_engaged_users"] = row.engaged_users
+
+    return list(days_map.values())
+
+
+async def _read_seats_from_store(db: AsyncSession) -> list[dict[str, Any]] | dict[str, str]:
+    """Read Copilot seat data from Valkey cache or DB.  Never calls GitHub API."""
+    err = await _check_feature_enabled(db)
+    if err is not None:
+        return err
+
+    enterprise_slug = settings.github_app.GITHUB_ENTERPRISE_SLUG or ""
+
+    # Try Valkey cache first
+    cache_key = _CACHE_SEATS_KEY.format(org_slug=enterprise_slug)
+    try:
+        valkey = aioredis.Redis.from_url(
+            settings.VALKEY_URL, decode_responses=True, max_connections=5
+        )
+        try:
+            cached = await valkey.get(cache_key)
+            if cached:
+                logger.debug("copilot_seats.store_cache_hit", enterprise=enterprise_slug)
+                return json.loads(cached)  # type: ignore[no-any-return]
+        finally:
+            await valkey.aclose()
+    except Exception:
+        logger.warning("copilot_seats.store_cache_read_failed", exc_info=True)
+
+    # Fall back to DB reconstruction
+    return await _reconstruct_seats_from_db(db)
+
+
+async def _reconstruct_seats_from_db(db: AsyncSession) -> list[dict[str, Any]]:
+    """Reconstruct seat data from the most recent ``CopilotSeatSnapshot`` rows."""
+    from sqlalchemy import func
+
+    from app.models.copilot_metrics import CopilotSeatSnapshot
+
+    latest_result = await db.execute(select(func.max(CopilotSeatSnapshot.snapshot_date)))
+    latest_date = latest_result.scalar()
+    if not latest_date:
+        return []
+
+    result = await db.execute(
+        select(CopilotSeatSnapshot).where(CopilotSeatSnapshot.snapshot_date == latest_date)
+    )
+    snapshots = list(result.scalars().all())
+
+    seats: list[dict[str, Any]] = []
+    for snap in snapshots:
+        seats.append(
+            {
+                "assignee": {"login": snap.github_login},
+                "_org_slug": snap.org_slug,
+                "plan_type": snap.plan_type,
+                "last_activity_at": (
+                    snap.last_activity_at.isoformat() if snap.last_activity_at else None
+                ),
+                "last_activity_editor": snap.last_activity_editor,
+                "pending_cancellation_date": snap.pending_cancellation_date,
+            }
+        )
+
+    return seats
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 
 async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
     """Data for the Overview pane: acceptance rates, language breakdown, user counts."""
-    raw = await _fetch_metrics_raw(db)
+    raw = await _read_metrics_from_store(db)
     if isinstance(raw, dict) and "error" in raw:
         return raw
 
@@ -640,7 +845,7 @@ async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
 
 async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
     """Data for the Adoption pane: tiers, feature adoption, per-user data."""
-    raw = await _fetch_metrics_raw(db)
+    raw = await _read_metrics_from_store(db)
     if isinstance(raw, dict) and "error" in raw:
         return raw
 
@@ -658,7 +863,7 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
 
     # ── Try to get per-user data from seats API ───────────────────────────────
     try:
-        seats_data = await _fetch_copilot_seats(db)
+        seats_data = await _read_seats_from_store(db)
         has_seat_data = isinstance(seats_data, list) and len(seats_data) > 0
     except Exception:
         logger.debug("copilot_adoption.seats_fetch_fallback", exc_info=True)
@@ -818,7 +1023,7 @@ def _count_features(seat: dict[str, Any]) -> int:
 
 async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
     """Data for the Models pane: model usage, feature counts, editors."""
-    raw = await _fetch_metrics_raw(db)
+    raw = await _read_metrics_from_store(db)
     if isinstance(raw, dict) and "error" in raw:
         return raw
 
@@ -892,7 +1097,7 @@ async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
 
 async def get_copilot_anomalies(db: AsyncSession) -> dict[str, Any]:
     """Data for the Anomalies pane: detect metric deviations from baselines."""
-    raw = await _fetch_metrics_raw(db)
+    raw = await _read_metrics_from_store(db)
     if isinstance(raw, dict) and "error" in raw:
         return raw
 
@@ -1051,7 +1256,7 @@ async def get_copilot_teams(db: AsyncSession) -> dict[str, Any]:
     Cross-references seat data with org_teams and org_team_members tables
     to produce team-level adoption metrics.
     """
-    seats_data = await _fetch_copilot_seats(db)
+    seats_data = await _read_seats_from_store(db)
     if isinstance(seats_data, dict) and "error" in seats_data:
         return seats_data
 
@@ -1144,7 +1349,7 @@ async def get_copilot_blockers(db: AsyncSession) -> dict[str, Any]:
     Cross-references seat data, policy events, and content exclusions to
     categorize blockers and generate actionable recommendations.
     """
-    seats_data = await _fetch_copilot_seats(db)
+    seats_data = await _read_seats_from_store(db)
     if isinstance(seats_data, dict) and "error" in seats_data:
         return seats_data
 
@@ -1343,8 +1548,8 @@ async def get_copilot_roi(db: AsyncSession) -> dict[str, Any]:
     Calculates seat cost, utilization, waste, savings opportunities,
     and generates cost optimization recommendations.
     """
-    seats_data = await _fetch_copilot_seats(db)
-    metrics_data = await _fetch_metrics_raw(db)
+    seats_data = await _read_seats_from_store(db)
+    metrics_data = await _read_metrics_from_store(db)
 
     # Handle error cases
     if isinstance(seats_data, dict) and "error" in seats_data:

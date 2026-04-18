@@ -31,6 +31,8 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
       key: 'date',
       header: 'Date',
       filterable: true,
+      helpText:
+        'The date of this daily Copilot usage snapshot. Synced once per day from the GitHub Copilot API.',
       render: (b) => <span style={mutedText}>{formatBucketDate(b.bucket)}</span>,
       filterValue: (b) => formatBucketDate(b.bucket),
     }),
@@ -44,9 +46,9 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
         key: 'provisioned',
         header: 'Provisioned',
         sortable: true,
-        render: (b) => (
-          <span style={tabNums}>{b.provisioned_seat_count ?? '—'}</span>
-        ),
+        helpText:
+          'Total Copilot seats provisioned (assigned) on this day. From the GitHub Copilot seat management API.',
+        render: (b) => <span style={tabNums}>{b.provisioned_seat_count ?? '—'}</span>,
         sortValue: (b) => b.provisioned_seat_count,
       },
     ],
@@ -60,15 +62,17 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
         key: 'active',
         header: 'Active',
         sortable: true,
-        render: (b) => (
-          <span style={tabNums}>{b.active_seat_count ?? '—'}</span>
-        ),
+        helpText:
+          'Number of seats with recorded Copilot activity on this day. From daily usage sync.',
+        render: (b) => <span style={tabNums}>{b.active_seat_count ?? '—'}</span>,
         sortValue: (b) => b.active_seat_count,
       },
       {
         key: 'utilization',
         header: 'Utilization %',
         sortable: true,
+        helpText:
+          'Percentage of provisioned Copilot seats that were active. Synced daily from GitHub Copilot API. Target 70%+ utilization to maximize ROI.',
         render: (b) => (
           <span style={tabNums}>
             {b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}
@@ -87,10 +91,10 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
         key: 'inactive',
         header: 'Inactive',
         sortable: true,
+        helpText:
+          'Number of provisioned seats with no Copilot activity. Calculated as provisioned minus active. Consider reclaiming these seats.',
         render: (b) => (
-          <span style={tabNums}>
-            {b.provisioned_seat_count - b.active_seat_count}
-          </span>
+          <span style={tabNums}>{b.provisioned_seat_count - b.active_seat_count}</span>
         ),
         sortValue: (b) => b.provisioned_seat_count - b.active_seat_count,
       },
@@ -98,9 +102,9 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
         key: 'provisioned',
         header: 'Provisioned',
         sortable: true,
-        render: (b) => (
-          <span style={tabNums}>{b.provisioned_seat_count ?? '—'}</span>
-        ),
+        helpText:
+          'Total Copilot seats provisioned (assigned) on this day. From the GitHub Copilot seat management API.',
+        render: (b) => <span style={tabNums}>{b.provisioned_seat_count ?? '—'}</span>,
         sortValue: (b) => b.provisioned_seat_count,
       },
     ],
@@ -114,10 +118,10 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
         key: 'inactive',
         header: 'Inactive',
         sortable: true,
+        helpText:
+          'Number of provisioned seats with no Copilot activity. Calculated as provisioned minus active. Consider reclaiming these seats.',
         render: (b) => (
-          <span style={tabNums}>
-            {b.provisioned_seat_count - b.active_seat_count}
-          </span>
+          <span style={tabNums}>{b.provisioned_seat_count - b.active_seat_count}</span>
         ),
         sortValue: (b) => b.provisioned_seat_count - b.active_seat_count,
       },
@@ -125,16 +129,13 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
         key: 'monthlyCost',
         header: 'Monthly cost',
         sortable: true,
+        helpText:
+          'Estimated cost of unused Copilot seats. Based on provisioned vs. active seat counts from daily sync data.',
         render: (b) => {
           const bucketInactive = b.provisioned_seat_count - b.active_seat_count;
-          return (
-            <span style={tabNums}>
-              ${(bucketInactive * costPerSeat).toLocaleString()}
-            </span>
-          );
+          return <span style={tabNums}>${(bucketInactive * costPerSeat).toLocaleString()}</span>;
         },
-        sortValue: (b) =>
-          (b.provisioned_seat_count - b.active_seat_count) * costPerSeat,
+        sortValue: (b) => (b.provisioned_seat_count - b.active_seat_count) * costPerSeat,
       },
     ],
     [dateColumn, costPerSeat],
@@ -217,6 +218,7 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
           delta="provisioned"
           deltaDir="neutral"
           onClick={() => setDrillDown('total')}
+          helpText="Total Copilot seats currently provisioned in your organization. From the GitHub Copilot seat management API, synced daily."
         />
         <MetricCard
           value={activeSeats > 0 ? String(activeSeats) : '—'}
@@ -226,6 +228,7 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
           }
           deltaDir="neutral"
           onClick={() => setDrillDown('active')}
+          helpText="Number of provisioned seats with recorded Copilot activity in the last 30 days. From daily usage sync. Target 70%+ of total seats."
         />
         <MetricCard
           value={inactiveSeats > 0 ? String(inactiveSeats) : '—'}
@@ -233,6 +236,7 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
           delta="provisioned but not active in 30d"
           deltaDir={inactiveSeats > 0 ? 'down' : 'neutral'}
           onClick={() => setDrillDown('inactive')}
+          helpText="Number of provisioned seats with no Copilot activity in the last 30 days. These are candidates for seat reclamation to reduce costs."
         />
         <MetricCard
           value={monthlyWaste > 0 ? `$${monthlyWaste.toLocaleString()}` : '—'}
@@ -247,6 +251,7 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
               costSectionRef.current.scrollIntoView({ behavior: 'smooth' });
             }
           }}
+          helpText="Estimated cost of unused Copilot seats. Based on provisioned vs. active seat counts from daily sync data. Revoke inactive seats to reclaim this spend."
         />
       </div>
 

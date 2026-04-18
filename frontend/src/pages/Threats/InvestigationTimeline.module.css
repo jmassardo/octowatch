@@ -109,7 +109,9 @@
   border-radius: 8px;
   margin-bottom: 8px;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .eventCard:hover {
@@ -210,4 +212,25 @@
   color: var(--fg-subtle);
   letter-spacing: 0.06em;
   margin-bottom: 6px;
+}
+
+.dataHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.dataEntry {
+  display: contents;
+}
+
+.dataEntry > div:first-child {
+  word-break: break-all;
+}
+
+.dataEntry > div:last-child {
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
 }

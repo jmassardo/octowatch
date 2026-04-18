@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -151,7 +151,7 @@ type TabFilter = 'open' | 'investigating' | 'closed' | 'acknowledged' | 'all';
 export function ThreatsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<TabFilter>('open');
-  const [selected, setSelected] = useState<DetectionResponse | null>(null);
+  const [selectedOverride, setSelectedOverride] = useState<DetectionResponse | null>(null);
   const [investigatingId, setInvestigatingId] = useState<number | null>(null);
   const initialSeverity = searchParams.get('severity') ?? '';
   const initialRepo = searchParams.get('repo') ?? '';
@@ -160,15 +160,7 @@ export function ThreatsPage() {
   const initialUntil = searchParams.get('until') ?? '';
   const initialOrg = searchParams.get('org') ?? '';
   const initialRuleId = searchParams.get('rule_id') ?? '';
-  const [filtersVisible, setFiltersVisible] = useState(
-    initialSeverity !== '' ||
-      initialRepo !== '' ||
-      initialActor !== '' ||
-      initialSince !== '' ||
-      initialUntil !== '' ||
-      initialOrg !== '' ||
-      initialRuleId !== '',
-  );
+  const selectedIdParam = searchParams.get('id') ?? '';
   const [severityFilter, setSeverityFilter] = useState(initialSeverity);
   const [repoFilter, setRepoFilter] = useState(initialRepo);
   const [debouncedRepo, setDebouncedRepo] = useState(initialRepo);
@@ -217,23 +209,57 @@ export function ThreatsPage() {
 
   const PAGE_SIZE = 25;
 
-  const syncFilters = (overrides: Record<string, string> = {}) => {
-    const all: Record<string, string> = {
-      severity: severityFilter,
-      repo: repoFilter,
-      actor: actorFilter,
-      since: sinceFilter,
-      until: untilFilter,
-      org: orgFilter,
-      rule_id: ruleIdFilter,
-      ...overrides,
-    };
-    const next: Record<string, string> = {};
-    for (const [k, v] of Object.entries(all)) {
-      if (v) next[k] = v;
-    }
-    setSearchParams(next, { replace: true });
-  };
+  const syncFilters = useCallback(
+    (overrides: Record<string, string> = {}) => {
+      const all: Record<string, string> = {
+        severity: severityFilter,
+        repo: repoFilter,
+        actor: actorFilter,
+        since: sinceFilter,
+        until: untilFilter,
+        org: orgFilter,
+        rule_id: ruleIdFilter,
+        ...overrides,
+      };
+      // Preserve the id param if a detection is selected
+      if (selectedIdParam) {
+        all.id = selectedIdParam;
+      }
+      const next: Record<string, string> = {};
+      for (const [k, v] of Object.entries(all)) {
+        if (v) next[k] = v;
+      }
+      setSearchParams(next, { replace: true });
+    },
+    [
+      severityFilter,
+      repoFilter,
+      actorFilter,
+      sinceFilter,
+      untilFilter,
+      orgFilter,
+      ruleIdFilter,
+      selectedIdParam,
+      setSearchParams,
+    ],
+  );
+
+  // Select detection and update URL with id param
+  const selectDetection = useCallback(
+    (d: DetectionResponse | null) => {
+      setSelectedOverride(d);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (d) {
+          next.set('id', String(d.id));
+        } else {
+          next.delete('id');
+        }
+        return next;
+      });
+    },
+    [setSearchParams],
+  );
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: [
@@ -262,6 +288,13 @@ export function ThreatsPage() {
         page_size: PAGE_SIZE,
       }),
   });
+
+  // Derive `selected` from URL id param + data, with override for user clicks
+  const selected: DetectionResponse | null =
+    selectedOverride ??
+    (selectedIdParam && data?.items
+      ? (data.items.find((d) => String(d.id) === selectedIdParam) ?? null)
+      : null);
 
   // Fetch counts for each tab so badges stay current
   const { data: openData } = useQuery({
@@ -311,7 +344,7 @@ export function ThreatsPage() {
   const suspendMutation = useMutation({
     mutationFn: (id: number) => deleteDetection(id),
     onSuccess: () => {
-      setSelected(null);
+      selectDetection(null);
       void qc.invalidateQueries({ queryKey: ['detections'] });
     },
   });
@@ -332,18 +365,10 @@ export function ThreatsPage() {
         <div className={styles.pageSub}>
           Rule-based and ML-powered detections from audit log analysis
         </div>
-        <div className={styles.topActions}>
-          <Button size="sm" onClick={() => setFiltersVisible((v) => !v)}>
-            Filter
-          </Button>
-          <Button size="sm" variant="primary" onClick={() => navigate('/rules')}>
-            New rule
-          </Button>
-        </div>
-        {filtersVisible && (
-          <div className={styles.filterBar}>
-            {/* Row 1: dropdowns */}
-            <div className={styles.filterRow}>
+        <div className={styles.filterBar}>
+          {/* Row 1: dropdowns */}
+          <div className={styles.filterRow}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
               <select
                 value={severityFilter}
                 onChange={(e) => {
@@ -359,8 +384,16 @@ export function ThreatsPage() {
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
               </select>
+              <span
+                title="Detection severity as defined by the triggering rule. Critical = immediate response needed."
+                style={{ cursor: 'help', opacity: 0.5, fontSize: '0.8em', marginLeft: 4 }}
+              >
+                ⓘ
+              </span>
+            </label>
 
-              {orgs.length > 1 && (
+            {orgs.length > 1 && (
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
                 <select
                   value={orgFilter}
                   onChange={(e) => {
@@ -379,8 +412,16 @@ export function ThreatsPage() {
                       </option>
                     ))}
                 </select>
-              )}
+                <span
+                  title="Filter detections by the GitHub organization where the event originated."
+                  style={{ cursor: 'help', opacity: 0.5, fontSize: '0.8em', marginLeft: 4 }}
+                >
+                  ⓘ
+                </span>
+              </label>
+            )}
 
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
               <select
                 value={ruleIdFilter}
                 onChange={(e) => {
@@ -399,10 +440,18 @@ export function ThreatsPage() {
                     </option>
                   ))}
               </select>
-            </div>
+              <span
+                title="Filter by the detection rule that triggered the alert."
+                style={{ cursor: 'help', opacity: 0.5, fontSize: '0.8em', marginLeft: 4 }}
+              >
+                ⓘ
+              </span>
+            </label>
+          </div>
 
-            {/* Row 2: text inputs + date/time pickers */}
-            <div className={styles.filterRow}>
+          {/* Row 2: text inputs + date/time pickers */}
+          <div className={styles.filterRow}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
               <input
                 type="text"
                 placeholder="Filter by repo…"
@@ -414,6 +463,14 @@ export function ThreatsPage() {
                 }}
                 className={styles.filterInput}
               />
+              <span
+                title="Filter by repository name. Matches detections linked to a specific repo."
+                style={{ cursor: 'help', opacity: 0.5, fontSize: '0.8em', marginLeft: 4 }}
+              >
+                ⓘ
+              </span>
+            </label>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
               <input
                 type="text"
                 placeholder="Filter by actor…"
@@ -425,37 +482,59 @@ export function ThreatsPage() {
                 }}
                 className={styles.filterInput}
               />
-              <div className={styles.dateGroup}>
-                <label className={styles.dateLabel}>From</label>
-                <input
-                  type="datetime-local"
-                  aria-label="Since date/time"
-                  value={sinceFilter}
-                  onChange={(e) => {
-                    setSinceFilter(e.target.value);
-                    setPage(1);
-                    syncFilters({ since: e.target.value });
-                  }}
-                  className={styles.filterDatetime}
-                />
-              </div>
-              <div className={styles.dateGroup}>
-                <label className={styles.dateLabel}>To</label>
-                <input
-                  type="datetime-local"
-                  aria-label="Until date/time"
-                  value={untilFilter}
-                  onChange={(e) => {
-                    setUntilFilter(e.target.value);
-                    setPage(1);
-                    syncFilters({ until: e.target.value });
-                  }}
-                  className={styles.filterDatetime}
-                />
-              </div>
+              <span
+                title="Filter by the GitHub user who performed the action that triggered the detection."
+                style={{ cursor: 'help', opacity: 0.5, fontSize: '0.8em', marginLeft: 4 }}
+              >
+                ⓘ
+              </span>
+            </label>
+            <div className={styles.dateGroup}>
+              <label className={styles.dateLabel}>
+                From{' '}
+                <span
+                  title="Start of the time range for detection results. Only detections triggered after this time are shown."
+                  style={{ cursor: 'help', opacity: 0.5, fontSize: '0.8em', marginLeft: 2 }}
+                >
+                  ⓘ
+                </span>
+              </label>
+              <input
+                type="datetime-local"
+                aria-label="Since date/time"
+                value={sinceFilter}
+                onChange={(e) => {
+                  setSinceFilter(e.target.value);
+                  setPage(1);
+                  syncFilters({ since: e.target.value });
+                }}
+                className={styles.filterDatetime}
+              />
+            </div>
+            <div className={styles.dateGroup}>
+              <label className={styles.dateLabel}>
+                To{' '}
+                <span
+                  title="End of the time range for detection results. Only detections triggered before this time are shown."
+                  style={{ cursor: 'help', opacity: 0.5, fontSize: '0.8em', marginLeft: 2 }}
+                >
+                  ⓘ
+                </span>
+              </label>
+              <input
+                type="datetime-local"
+                aria-label="Until date/time"
+                value={untilFilter}
+                onChange={(e) => {
+                  setUntilFilter(e.target.value);
+                  setPage(1);
+                  syncFilters({ until: e.target.value });
+                }}
+                className={styles.filterDatetime}
+              />
             </div>
           </div>
-        )}
+        </div>
 
         <div className={styles.issueList}>
           <div className={styles.ilFilters}>
@@ -518,7 +597,7 @@ export function ThreatsPage() {
               className={[styles.ilRow, selected?.id === d.id && styles.selected]
                 .filter(Boolean)
                 .join(' ')}
-              onClick={() => setSelected(d)}
+              onClick={() => selectDetection(d)}
             >
               <SeverityDot severity={d.severity} style={{ marginTop: 4 }} />
               <div className={styles.ilMeta}>
@@ -557,12 +636,23 @@ export function ThreatsPage() {
         </div>
       </div>
 
-      <div className={[styles.splitPanel, selected && styles.open].filter(Boolean).join(' ')}>
+      <div
+        className={[
+          styles.splitPanel,
+          selected && styles.open,
+          selected &&
+            styles[
+              `severity${selected.severity.charAt(0).toUpperCase()}${selected.severity.slice(1)}` as keyof typeof styles
+            ],
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
         {selected && (
           <>
             <div className={styles.panelHeader}>
               <div style={{ fontWeight: 600 }}>{safeText(selected.title)}</div>
-              <button className={styles.panelClose} onClick={() => setSelected(null)}>
+              <button className={styles.panelClose} onClick={() => selectDetection(null)}>
                 &#215;
               </button>
             </div>
@@ -573,7 +663,89 @@ export function ThreatsPage() {
               {selected.confidence && <Label variant="done">{safeText(selected.confidence)}</Label>}
             </div>
 
+            <div className={styles.sectionHeader}>Summary</div>
             <p className={styles.panelDesc}>{safeText(selected.description)}</p>
+
+            <div className={styles.sectionHeader}>Key Details</div>
+            <div className={styles.keyDetails}>
+              {selected.actor && (
+                <>
+                  <span className={styles.keyDetailsLabel}>Actor</span>
+                  <span className={styles.keyDetailsValue}>
+                    <Link
+                      to={`/actors/${encodeURIComponent(selected.actor)}`}
+                      className={styles.mention}
+                    >
+                      @{safeText(selected.actor)}
+                    </Link>
+                  </span>
+                </>
+              )}
+              {safeText(
+                selected.repo || selected.context_data?.repo || selected.context_data?.repository,
+              ) && (
+                <>
+                  <span className={styles.keyDetailsLabel}>Repository</span>
+                  <span className={styles.keyDetailsValue}>
+                    {safeText(
+                      selected.repo ||
+                        selected.context_data?.repo ||
+                        selected.context_data?.repository,
+                    )}
+                  </span>
+                </>
+              )}
+              {safeText(
+                selected.org || selected.context_data?.org || selected.context_data?.organization,
+              ) && (
+                <>
+                  <span className={styles.keyDetailsLabel}>Organization</span>
+                  <span className={styles.keyDetailsValue}>
+                    {safeText(
+                      selected.org ||
+                        selected.context_data?.org ||
+                        selected.context_data?.organization,
+                    )}
+                  </span>
+                </>
+              )}
+              {safeText(selected.context_data?.action) && (
+                <>
+                  <span className={styles.keyDetailsLabel}>Action</span>
+                  <span className={styles.keyDetailsValue}>
+                    {safeText(selected.context_data.action)}
+                  </span>
+                </>
+              )}
+              {safeText(selected.context_data?.what_changed) && (
+                <>
+                  <span className={styles.keyDetailsLabel}>What Changed</span>
+                  <span className={styles.keyDetailsValue}>
+                    {safeText(selected.context_data.what_changed)}
+                  </span>
+                </>
+              )}
+              {selected.source_ip && (
+                <>
+                  <span className={styles.keyDetailsLabel}>Source IP</span>
+                  <span className={styles.keyDetailsValue}>{safeText(selected.source_ip)}</span>
+                </>
+              )}
+              {selected.triggered_at && (
+                <>
+                  <span className={styles.keyDetailsLabel}>Triggered</span>
+                  <span className={styles.keyDetailsValue}>
+                    {formatRelativeShort(selected.triggered_at)}
+                  </span>
+                </>
+              )}
+              {selected.assigned_to && (
+                <>
+                  <span className={styles.keyDetailsLabel}>Assigned To</span>
+                  <span className={styles.keyDetailsValue}>{safeText(selected.assigned_to)}</span>
+                </>
+              )}
+            </div>
 
             {safeArrayLength(selected.event_ids) > 0 && (
               <div className={styles.relatedEvents}>
@@ -607,7 +779,7 @@ export function ThreatsPage() {
 
             {hasEntries(selected.context_data) && (
               <>
-                <div className={styles.evidenceLabel}>Evidence</div>
+                <div className={styles.sectionHeader}>Evidence</div>
                 <EvidenceDisplay data={selected.context_data} />
               </>
             )}
