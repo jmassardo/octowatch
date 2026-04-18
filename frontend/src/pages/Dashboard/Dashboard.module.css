@@ -330,7 +330,9 @@
   color: var(--fg-muted);
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .viewBtn:not(:last-child) {
@@ -402,4 +404,56 @@
 .helpIcon:hover {
   opacity: 1;
   color: var(--accent);
+}
+
+/* Card grid (used by Security, CI/CD views) */
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.section {
+  margin-bottom: 24px;
+}
+
+.systemHealthBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.systemHealthBar.healthWarning {
+  background: color-mix(in srgb, var(--attention) 12%, transparent);
+  border-color: color-mix(in srgb, var(--attention) 40%, transparent);
+  color: var(--fg);
+}
+
+.systemHealthDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.systemHealthDot.ok {
+  background: var(--success);
+}
+
+.systemHealthDot.warn {
+  background: var(--attention);
+}
+
+@media (max-width: 768px) {
+  .cardGrid {
+    grid-template-columns: 1fr 1fr;
+  }
 }

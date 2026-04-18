@@ -11,6 +11,8 @@ interface MetricCardProps {
   style?: React.CSSProperties;
   onClick?: () => void;
   to?: string;
+  helpText?: string;
+  helpText?: string;
 }
 
 /** Internal presentational card — does NOT use router hooks. */
@@ -23,6 +25,7 @@ function MetricCardBase({
   className,
   style,
   onClick,
+  helpText,
 }: Omit<MetricCardProps, 'to'>) {
   const isClickable = !!onClick;
 
@@ -55,6 +58,11 @@ function MetricCardBase({
       {isClickable && (
         <span className={styles.arrow} aria-hidden="true">
           →
+        </span>
+      )}
+      {helpText && (
+        <span className={styles.helpIcon} title={helpText} aria-label={`Help: ${label}`}>
+          ⓘ
         </span>
       )}
       <div className={styles.val}>{value}</div>

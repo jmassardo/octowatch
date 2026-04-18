@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   getSyncStatus,
@@ -198,68 +198,40 @@ function PostProcessingStatusDisplay({ status }: { status: PostProcessingStatus 
 /*  Sync log viewer                                                    */
 /* ------------------------------------------------------------------ */
 
+function useSyncLogAccumulator(runId: string) {
+  return { key: ['sync-log-seq', runId] as const };
+}
+
 function SyncLogViewer({ runId, isActive }: { runId: string; isActive: boolean }) {
   const [expanded, setExpanded] = useState(false);
-  const [entries, setEntries] = useState<SyncLogEntry[]>([]);
-  const lastSeqRef = useRef(0);
   const logEndRef = useRef<HTMLDivElement>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queryClient = useQueryClient();
+  const seqMeta = useSyncLogAccumulator(runId);
 
-  const fetchLogs = useCallback(async () => {
-    try {
-      const response = await getSyncLogs(runId, lastSeqRef.current);
-      if (response.entries.length > 0) {
-        setEntries((prev) => [...prev, ...response.entries]);
-        lastSeqRef.current = response.last_seq;
+  const { data: entries = [] } = useQuery({
+    queryKey: ['sync-logs-accumulated', runId],
+    queryFn: async () => {
+      // Keep lastSeq in query cache metadata to avoid refs/state during render
+      const lastSeq = queryClient.getQueryData<number>(seqMeta.key) ?? 0;
+      const prev = queryClient.getQueryData<SyncLogEntry[]>(['sync-logs-accumulated', runId]) ?? [];
+      const logData = await getSyncLogs(runId, lastSeq);
+      if (logData?.entries?.length && logData.last_seq !== lastSeq) {
+        queryClient.setQueryData(seqMeta.key, logData.last_seq);
+        return [...prev, ...logData.entries];
       }
-    } catch {
-      // Silently ignore fetch errors — log viewer is non-critical
-    }
-  }, [runId]);
-
-  // Initial fetch when expanded
-  useEffect(() => {
-    if (expanded) {
-      void fetchLogs();
-    }
-  }, [expanded, fetchLogs]);
-
-  // Poll for new entries
-  useEffect(() => {
-    if (!expanded) return;
-
-    // Poll while active or once after terminal to catch final entries
-    intervalRef.current = setInterval(() => {
-      void fetchLogs();
-    }, 3000);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [expanded, isActive, fetchLogs]);
-
-  // Stop polling once terminal and we've done one final fetch
-  useEffect(() => {
-    if (!isActive && intervalRef.current) {
-      // Do one final fetch then stop
-      void fetchLogs().then(() => {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-      });
-    }
-  }, [isActive, fetchLogs]);
+      return prev;
+    },
+    enabled: expanded,
+    refetchInterval: isActive ? 3000 : false,
+    staleTime: 0,
+  });
 
   // Auto-scroll to bottom
   useEffect(() => {
     if (expanded && logEndRef.current && typeof logEndRef.current.scrollIntoView === 'function') {
       logEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [entries, expanded]);
+  }, [entries.length, expanded]);
 
   const levelClass = (level: string): string => {
     switch (level) {

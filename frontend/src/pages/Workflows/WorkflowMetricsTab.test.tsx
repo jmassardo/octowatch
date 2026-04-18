@@ -163,18 +163,12 @@ describe('WorkflowMetricsTab — With Data', () => {
     expect(await screen.findByText('3×')).toBeInTheDocument();
   });
 
-  it('shows "View Runs" buttons', async () => {
-    renderWithProviders(<WorkflowMetricsTab />);
-    const buttons = await screen.findAllByText('View Runs');
-    expect(buttons.length).toBeGreaterThan(0);
-  });
-
-  it('opens run history modal on View Runs click', async () => {
+  it('opens run history modal on row click', async () => {
     const user = userEvent.setup();
     renderWithProviders(<WorkflowMetricsTab />);
 
-    const viewRunsButtons = await screen.findAllByText('View Runs');
-    await user.click(viewRunsButtons[0]);
+    const row = await screen.findByText('CI Build');
+    await user.click(row.closest('tr')!);
 
     expect(await screen.findByText('Run History')).toBeInTheDocument();
   });
@@ -183,8 +177,8 @@ describe('WorkflowMetricsTab — With Data', () => {
     const user = userEvent.setup();
     renderWithProviders(<WorkflowMetricsTab />);
 
-    const viewRunsButtons = await screen.findAllByText('View Runs');
-    await user.click(viewRunsButtons[0]);
+    const row = await screen.findByText('CI Build');
+    await user.click(row.closest('tr')!);
 
     expect(await screen.findByText('run-100')).toBeInTheDocument();
     expect(await screen.findByText('run-99')).toBeInTheDocument();
@@ -194,8 +188,8 @@ describe('WorkflowMetricsTab — With Data', () => {
     const user = userEvent.setup();
     renderWithProviders(<WorkflowMetricsTab />);
 
-    const viewRunsButtons = await screen.findAllByText('View Runs');
-    await user.click(viewRunsButtons[0]);
+    const row = await screen.findByText('CI Build');
+    await user.click(row.closest('tr')!);
 
     // Modal is open
     expect(await screen.findByText('Run History')).toBeInTheDocument();

@@ -10,8 +10,8 @@ import { BarChart } from '../../components/charts/BarChart';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
-import { DataTable } from '../../components/primitives/DataTable';
-import { Modal } from '../../components/primitives/Modal';
+import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
+import { Drawer } from '../../components/primitives/Drawer';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { useFeatures } from '../../hooks/useFeatures';
@@ -152,48 +152,85 @@ function WorkflowHealthSection({ workflows }: { workflows: WorkflowRow[] }) {
     .sort((a, b) => b.failure_rate_pct - a.failure_rate_pct)
     .slice(0, 10);
 
+  const workflowColumns: ColumnDef<WorkflowRow>[] = [
+    {
+      key: 'repo',
+      header: 'Repository',
+      sortable: true,
+      filterable: true,
+      helpText: 'The repository the workflow belongs to',
+      render: (wf) => <>{wf.repo}</>,
+      sortValue: (wf) => wf.repo,
+      filterValue: (wf) => wf.repo,
+    },
+    {
+      key: 'workflow_name',
+      header: 'Workflow',
+      sortable: true,
+      filterable: true,
+      helpText: 'The name of the CI/CD workflow',
+      render: (wf) => <span className={styles.workflowName}>{wf.workflow_name}</span>,
+      sortValue: (wf) => wf.workflow_name,
+      filterValue: (wf) => wf.workflow_name,
+    },
+    {
+      key: 'total_runs',
+      header: 'Total runs',
+      sortable: true,
+      filterable: true,
+      helpText: 'Total number of workflow runs in the period',
+      render: (wf) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.total_runs}</span>,
+      sortValue: (wf) => wf.total_runs,
+      filterValue: (wf) => String(wf.total_runs),
+    },
+    {
+      key: 'failures',
+      header: 'Failures',
+      sortable: true,
+      filterable: true,
+      helpText: 'Number of failed runs',
+      render: (wf) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.failures}</span>,
+      sortValue: (wf) => wf.failures,
+      filterValue: (wf) => String(wf.failures),
+    },
+    {
+      key: 'failure_rate_pct',
+      header: 'Failure rate',
+      sortable: true,
+      filterable: true,
+      helpText: 'Percentage of runs that failed',
+      render: (wf) => (
+        <Label variant={getFailureRateVariant(wf.failure_rate_pct)}>
+          {wf.failure_rate_pct.toFixed(1)}%
+        </Label>
+      ),
+      sortValue: (wf) => wf.failure_rate_pct,
+      filterValue: (wf) => `${wf.failure_rate_pct.toFixed(1)}%`,
+    },
+    {
+      key: 'last_run',
+      header: 'Last run',
+      sortable: true,
+      filterable: true,
+      helpText: 'When the workflow last ran',
+      render: (wf) => (
+        <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.last_run)}</span>
+      ),
+      sortValue: (wf) => new Date(wf.last_run),
+      filterValue: (wf) => formatDateOnly(wf.last_run),
+    },
+  ];
+
   return (
     <div style={{ marginTop: 8 }}>
       <div className={styles.sectionTitle}>Workflow health — audit log signals</div>
-      <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
-        <table>
-          <thead>
-            <tr>
-              <th>Repository</th>
-              <th>Workflow</th>
-              <th>Total runs</th>
-              <th>Failures</th>
-              <th>Failure rate</th>
-              <th>Last run</th>
-            </tr>
-          </thead>
-          <tbody>
-            {topFailing.length === 0 && (
-              <tr>
-                <td
-                  colSpan={6}
-                  style={{ textAlign: 'center', color: 'var(--fg-muted)', padding: 24 }}
-                >
-                  No failing workflows detected
-                </td>
-              </tr>
-            )}
-            {topFailing.map((wf) => (
-              <tr key={`${wf.repo}/${wf.workflow_name}`}>
-                <td>{wf.repo}</td>
-                <td className={styles.workflowName}>{wf.workflow_name}</td>
-                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.total_runs}</td>
-                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.failures}</td>
-                <td>
-                  <Label variant={getFailureRateVariant(wf.failure_rate_pct)}>
-                    {wf.failure_rate_pct.toFixed(1)}%
-                  </Label>
-                </td>
-                <td style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.last_run)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div style={{ marginBottom: 20 }}>
+        <DataTable<WorkflowRow>
+          columns={workflowColumns}
+          data={topFailing}
+          rowKey={(wf) => `${wf.repo}/${wf.workflow_name}`}
+          emptyMessage="No failing workflows detected"
+        />
       </div>
     </div>
   );
@@ -842,6 +879,8 @@ export function VelocityPage() {
                 {
                   key: 'bucket',
                   header: 'Date bucket',
+                  helpText:
+                    'Time window for aggregated workflow run data. Based on workflow_run audit events.',
                   filterable: true,
                   render: (b) => <>{formatBucketDate(b.bucket)}</>,
                   filterValue: (b) => formatBucketDate(b.bucket),
@@ -849,6 +888,8 @@ export function VelocityPage() {
                 {
                   key: 'workflow_runs_total',
                   header: 'Total runs',
+                  helpText:
+                    'Total number of workflow runs in this bucket. From workflow_run audit events.',
                   sortable: true,
                   render: (b) => (
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -860,6 +901,8 @@ export function VelocityPage() {
                 {
                   key: 'workflow_runs_failed',
                   header: 'Failed',
+                  helpText:
+                    'Number of workflow runs that failed in this bucket. From workflow_run audit events.',
                   sortable: true,
                   render: (b) => (
                     <Label variant={(b.workflow_runs_failed ?? 0) > 10 ? 'danger' : 'attention'}>
@@ -871,6 +914,8 @@ export function VelocityPage() {
                 {
                   key: 'success_rate_pct',
                   header: 'Success rate',
+                  helpText:
+                    'Percentage of workflow runs that succeeded. Based on workflow_run audit events. DORA elite teams target 95%+.',
                   sortable: true,
                   render: (b) => (
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -901,6 +946,7 @@ export function VelocityPage() {
                 {
                   key: 'workflow_name',
                   header: 'Workflow',
+                  helpText: 'Name of the GitHub Actions workflow. From workflow_run audit events.',
                   filterable: true,
                   render: (wf) => <span className={styles.workflowName}>{wf.workflow_name}</span>,
                   filterValue: (wf) => wf.workflow_name,
@@ -908,6 +954,7 @@ export function VelocityPage() {
                 {
                   key: 'repo',
                   header: 'Repository',
+                  helpText: 'Repository this workflow belongs to. From workflow_run audit events.',
                   filterable: true,
                   render: (wf) => <>{wf.repo}</>,
                   filterValue: (wf) => wf.repo,
@@ -915,6 +962,8 @@ export function VelocityPage() {
                 {
                   key: 'failure_rate_pct',
                   header: 'Failure rate',
+                  helpText:
+                    'Percentage of runs that failed for this workflow. From workflow_run audit events. Investigate consistently failing workflows.',
                   sortable: true,
                   render: (wf) => (
                     <Label variant={getFailureRateVariant(wf.failure_rate_pct)}>
@@ -926,6 +975,8 @@ export function VelocityPage() {
                 {
                   key: 'last_run',
                   header: 'Last run',
+                  helpText:
+                    'Timestamp of the most recent run of this workflow. From workflow_run audit events.',
                   sortable: true,
                   render: (wf) => (
                     <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.last_run)}</span>
@@ -935,6 +986,8 @@ export function VelocityPage() {
                 {
                   key: 'total_runs',
                   header: 'Total runs',
+                  helpText:
+                    'Total number of runs recorded for this workflow. From workflow_run audit events.',
                   sortable: true,
                   render: (wf) => (
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.total_runs}</span>
@@ -959,6 +1012,8 @@ export function VelocityPage() {
             {
               key: 'name',
               header: 'Repository',
+              helpText:
+                'Repository name. Activity is aggregated from all audit log events associated with this repo.',
               filterable: true,
               render: (r) => (
                 <span style={{ fontWeight: 500, color: 'var(--accent)', cursor: 'pointer' }}>
@@ -970,6 +1025,7 @@ export function VelocityPage() {
             {
               key: 'totalEvents',
               header: 'Events',
+              helpText: 'Total audit log events for this repository in the last 30 days.',
               sortable: true,
               render: (r) => (
                 <span style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -981,6 +1037,8 @@ export function VelocityPage() {
             {
               key: 'prEvents',
               header: 'PR events',
+              helpText:
+                'Pull request related audit events (open, close, merge, review). From pull_request audit events.',
               sortable: true,
               render: (r) => (
                 <span style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -992,6 +1050,7 @@ export function VelocityPage() {
             {
               key: 'pushEvents',
               header: 'Push events',
+              helpText: 'Code push events to this repository. From push and git.push audit events.',
               sortable: true,
               render: (r) => (
                 <span style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -1003,6 +1062,8 @@ export function VelocityPage() {
             {
               key: 'contributors',
               header: 'Contributors',
+              helpText:
+                'Unique developers who triggered events in this repo. From push and PR audit events.',
               sortable: true,
               render: (r) => (
                 <span style={{ fontVariantNumeric: 'tabular-nums' }}>{r.contributors}</span>
@@ -1029,11 +1090,10 @@ export function VelocityPage() {
       {/* Branch Protection Changes */}
       <BranchProtectionSection branchProt={branchProtData} />
 
-      <Modal
+      <Drawer
         open={doraModalOpen}
         onClose={() => setDoraModalOpen(false)}
         title={`DORA Metrics — ${doraTier ? doraTier.name : 'Pending'} Tier`}
-        width={520}
       >
         <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16, lineHeight: 1.5 }}>
           DORA (DevOps Research and Assessment) metrics measure software delivery performance. Teams
@@ -1088,6 +1148,7 @@ export function VelocityPage() {
                 {
                   key: 'metric',
                   header: 'Metric',
+                  helpText: 'DORA metric name. Measures software delivery performance.',
                   filterable: true,
                   render: (row) => <span style={{ fontWeight: 500 }}>{row.metric}</span>,
                   filterValue: (row) => row.metric,
@@ -1095,11 +1156,13 @@ export function VelocityPage() {
                 {
                   key: 'threshold',
                   header: 'Elite threshold',
+                  helpText: 'The benchmark value for DORA elite-performing teams.',
                   render: (row) => <>{row.threshold}</>,
                 },
                 {
                   key: 'current',
                   header: 'Current',
+                  helpText: 'Your current value for this metric, computed from audit log data.',
                   render: (row) => <>{row.current}</>,
                 },
               ]}
@@ -1113,13 +1176,12 @@ export function VelocityPage() {
           Tier is computed from deployment frequency and change failure rate. Full DORA calculation
           requires deployment and incident tracking integrations.
         </p>
-      </Modal>
+      </Drawer>
 
-      <Modal
+      <Drawer
         open={failureBucket !== null}
         onClose={handleCloseBucket}
         title={`Workflow runs — ${failureBucket ? formatBucketDate(failureBucket.bucket) : ''}`}
-        width={680}
       >
         {failureBucket && (
           <div>
@@ -1249,7 +1311,7 @@ export function VelocityPage() {
                               {new Date(ev.created_at).toLocaleTimeString()}
                             </td>
                             <td>
-                              {ev.data?.html_url && (
+                              {ev.data?.html_url ? (
                                 <a
                                   href={ev.data.html_url as string}
                                   target="_blank"
@@ -1259,7 +1321,7 @@ export function VelocityPage() {
                                 >
                                   View
                                 </a>
-                              )}
+                              ) : null}
                             </td>
                           </tr>
                         ))}
@@ -1289,7 +1351,7 @@ export function VelocityPage() {
             )}
           </div>
         )}
-      </Modal>
+      </Drawer>
     </div>
   );
 }

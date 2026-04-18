@@ -127,10 +127,13 @@ describe('EventDetail', () => {
     expect(screen.getByText('5')).toBeInTheDocument();
   });
 
-  it('renders nested objects in data as JSON strings', () => {
+  it('renders nested objects in data as flattened dot-notation keys', () => {
     const event = { ...BASE_EVENT, data: { nested: { a: 1, b: 2 } } };
     renderWithProviders(<EventDetail event={event} />);
-    expect(screen.getByText('{"a":1,"b":2}')).toBeInTheDocument();
+    expect(screen.getByText('nested.a')).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('nested.b')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
   });
 
   it('renders null data values as em-dash', () => {

@@ -8,7 +8,8 @@ import {
 import type { WorkflowFailureSummary } from '../../api/workflowMetrics';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
-import { Button } from '../../components/primitives/Button';
+import { DataTable } from '../../components/primitives/DataTable';
+import type { ColumnDef } from '../../components/primitives/DataTable';
 import { formatRelativeShort } from '../../utils/dates';
 import styles from './Workflows.module.css';
 
@@ -81,10 +82,7 @@ function RunHistoryModal({ workflow, lookbackDays, onClose }: RunHistoryModalPro
         <div className={styles.modalBody}>
           {isLoading && <Spinner />}
           {isError && (
-            <ErrorBanner
-              message="Failed to load run history"
-              onRetry={() => void refetch()}
-            />
+            <ErrorBanner message="Failed to load run history" onRetry={() => void refetch()} />
           )}
           {data && data.runs.length === 0 && (
             <div className={styles.emptyState}>
@@ -108,10 +106,26 @@ function RunHistoryModal({ workflow, lookbackDays, onClose }: RunHistoryModalPro
               <tbody>
                 {data.runs.map((run, idx) => (
                   <tr key={run.run_id ?? idx}>
-                    <td className={styles.repoPath}>{run.run_id ?? '—'}</td>
+                    <td className={styles.repoPath}>
+                      {run.run_id ? (
+                        <a
+                          href={`https://github.com/${workflow.org}/${workflow.repo}/actions/runs/${run.run_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.ghLink}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          #{run.run_id}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                     <td className={styles.timeCell}>{formatRelativeShort(run.started_at)}</td>
                     <td>
-                      <span className={`${styles.conclusionBadge} ${conclusionBadge(run.conclusion)}`}>
+                      <span
+                        className={`${styles.conclusionBadge} ${conclusionBadge(run.conclusion)}`}
+                      >
                         {run.conclusion}
                       </span>
                     </td>
@@ -139,6 +153,65 @@ interface MetricsTableProps {
   emptyMessage: string;
 }
 
+const metricsColumns: ColumnDef<WorkflowFailureSummary>[] = [
+  {
+    key: 'org',
+    header: 'Org',
+    sortable: true,
+    filterable: true,
+    render: (row) => row.org,
+    helpText: 'GitHub organization that owns the workflow.',
+  },
+  {
+    key: 'repo',
+    header: 'Repository',
+    sortable: true,
+    filterable: true,
+    render: (row) => (
+      <a
+        href={`https://github.com/${row.org}/${row.repo}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={styles.ghLink}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {row.repo}
+      </a>
+    ),
+    helpText: 'Repository containing the workflow definition.',
+  },
+  {
+    key: 'workflow_name',
+    header: 'Workflow',
+    sortable: true,
+    filterable: true,
+    render: (row) => <span className={styles.repoPath}>{row.workflow_name}</span>,
+    helpText: 'GitHub Actions workflow name from the YAML file.',
+  },
+  {
+    key: 'consecutive_count',
+    header: 'Consecutive',
+    sortable: true,
+    render: (row) => (
+      <span className={`${styles.conclusionBadge} ${conclusionBadge(row.last_conclusion)}`}>
+        {row.consecutive_count}×
+      </span>
+    ),
+    sortValue: (row) => row.consecutive_count,
+    helpText: 'Number of consecutive runs with this conclusion.',
+  },
+  {
+    key: 'last_run',
+    header: 'Last Run',
+    sortable: true,
+    render: (row) => (
+      <span className={styles.timeCell}>{formatRelativeShort(row.last_run_at)}</span>
+    ),
+    sortValue: (row) => row.last_run_at,
+    helpText: 'When the most recent run completed.',
+  },
+];
+
 function MetricsTable({
   title,
   items,
@@ -152,7 +225,9 @@ function MetricsTable({
     <div className={styles.metricsSection}>
       <div className={styles.metricsSectionTitle}>{title}</div>
       {isLoading && <Spinner />}
-      {isError && <ErrorBanner message={`Failed to load ${title.toLowerCase()}`} onRetry={onRetry} />}
+      {isError && (
+        <ErrorBanner message={`Failed to load ${title.toLowerCase()}`} onRetry={onRetry} />
+      )}
       {!isLoading && !isError && items && items.length === 0 && (
         <div className={styles.metricsEmptyState}>
           <span className={styles.metricsEmptyIcon}>✅</span>
@@ -160,38 +235,13 @@ function MetricsTable({
         </div>
       )}
       {!isLoading && !isError && items && items.length > 0 && (
-        <table className={styles.findingsTable}>
-          <thead>
-            <tr>
-              <th>Org</th>
-              <th>Repository</th>
-              <th>Workflow</th>
-              <th>Consecutive</th>
-              <th>Last Run</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={`${item.org}/${item.repo}/${item.workflow_name}`}>
-                <td>{item.org}</td>
-                <td className={styles.repoPath}>{item.repo}</td>
-                <td className={styles.repoPath}>{item.workflow_name}</td>
-                <td>
-                  <span className={`${styles.conclusionBadge} ${conclusionBadge(item.last_conclusion)}`}>
-                    {item.consecutive_count}×
-                  </span>
-                </td>
-                <td className={styles.timeCell}>{formatRelativeShort(item.last_run_at)}</td>
-                <td>
-                  <Button size="sm" variant="default" onClick={() => onViewRuns(item)}>
-                    View Runs
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          columns={metricsColumns}
+          data={items}
+          rowKey={(row) => `${row.org}/${row.repo}/${row.workflow_name}`}
+          onRowClick={(row) => onViewRuns(row)}
+          emptyMessage={emptyMessage}
+        />
       )}
     </div>
   );
@@ -215,13 +265,7 @@ export function WorkflowMetricsTab({ orgFilter }: WorkflowMetricsTabProps) {
     isError: failingError,
     refetch: refetchFailing,
   } = useQuery({
-    queryKey: [
-      'workflow-metrics',
-      'failing',
-      failThreshold,
-      lookbackDays,
-      orgFilter ?? 'all',
-    ],
+    queryKey: ['workflow-metrics', 'failing', failThreshold, lookbackDays, orgFilter ?? 'all'],
     queryFn: () =>
       getAlwaysFailingWorkflows({
         threshold: failThreshold,
@@ -263,10 +307,7 @@ export function WorkflowMetricsTab({ orgFilter }: WorkflowMetricsTabProps) {
             {([7, 14, 30, 60, 90] as const).map((days) => (
               <button
                 key={days}
-                className={[
-                  styles.statusChip,
-                  lookbackDays === days ? styles.statusChipActive : '',
-                ]
+                className={[styles.statusChip, lookbackDays === days ? styles.statusChipActive : '']
                   .filter(Boolean)
                   .join(' ')}
                 onClick={() => setLookbackDays(days)}

@@ -184,6 +184,17 @@
   color: var(--accent);
 }
 
+.ghLink {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--fg-accent, var(--accent));
+  text-decoration: none;
+}
+
+.ghLink:hover {
+  text-decoration: underline;
+}
+
 .timeCell {
   color: var(--fg-muted);
   white-space: nowrap;
@@ -374,7 +385,9 @@
   border: 1px solid var(--border-color, #30363d);
   background: transparent;
   color: var(--fg-muted);
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .statusChipActive {

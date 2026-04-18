@@ -15,6 +15,7 @@ import { Label } from '../../components/primitives/Label';
 import { Button } from '../../components/primitives/Button';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
 
 import { EventSearchInput } from './EventSearchInput';
 import { EventDetail } from './EventDetail';
@@ -65,7 +66,7 @@ export function EventsPage() {
     return urlChips;
   });
   const [page, setPage] = useState(1);
-  const [sortKey, setSortKey] = useState<NonNullable<EventListParams['sort']>>('created_at_desc');
+  const [sortKey] = useState<NonNullable<EventListParams['sort']>>('created_at_desc');
   const [detailEvent, setDetailEvent] = useState<EventResponse | null>(null);
   const clearedUrlParams = useRef(false);
 
@@ -131,7 +132,7 @@ export function EventsPage() {
 
   // Parse chips into params (split only on first colon to preserve values like timestamps)
   const chipParams = Object.fromEntries(
-    chips.flatMap((c) => {
+    chips.flatMap((c): [string, string | boolean][] => {
       const idx = c.indexOf(':');
       if (idx === -1) return [];
       const k = c.slice(0, idx);
@@ -160,19 +161,153 @@ export function EventsPage() {
     setChips((prev) => prev.filter((c) => c !== chip));
   }
 
-  function toggleSort(column: string) {
-    setSortKey((prev) => {
-      const next = prev === `${column}_desc` ? `${column}_asc` : `${column}_desc`;
-      return next as NonNullable<EventListParams['sort']>;
-    });
-    setPage(1);
-  }
-
-  function sortIndicator(column: string) {
-    if (sortKey === `${column}_asc`) return ' ↑';
-    if (sortKey === `${column}_desc`) return ' ↓';
-    return '';
-  }
+  const eventColumns: ColumnDef<EventResponse>[] = [
+    {
+      key: 'created_at',
+      header: 'Timestamp',
+      sortable: true,
+      filterable: true,
+      helpText: 'When the event occurred',
+      render: (e) => <span className={styles.ts}>{formatCompact(e.created_at)}</span>,
+      sortValue: (e) => new Date(e.created_at),
+      filterValue: (e) => formatCompact(e.created_at),
+    },
+    {
+      key: 'action',
+      header: 'Action',
+      sortable: true,
+      filterable: true,
+      helpText: 'The audit log action that was performed',
+      render: (e) => (
+        <span
+          role="button"
+          tabIndex={0}
+          style={{ cursor: 'pointer' }}
+          title={`Filter by action: ${e.action}`}
+          onClick={(ev) => {
+            ev.stopPropagation();
+            const chip = `action:${e.action}`;
+            if (!chips.includes(chip)) {
+              setChips((prev) => [...prev, chip]);
+              setPage(1);
+            }
+          }}
+          onKeyDown={(ev) => {
+            if (ev.key === 'Enter' || ev.key === ' ') {
+              ev.stopPropagation();
+              const chip = `action:${e.action}`;
+              if (!chips.includes(chip)) {
+                setChips((prev) => [...prev, chip]);
+                setPage(1);
+              }
+            }
+          }}
+        >
+          <Label variant={actionVariant(e.action)}>{e.action}</Label>
+        </span>
+      ),
+      sortValue: (e) => e.action,
+      filterValue: (e) => e.action,
+    },
+    {
+      key: 'actor',
+      header: 'Actor',
+      sortable: true,
+      filterable: true,
+      helpText: 'The user or bot that performed the action',
+      render: (e) => (
+        <span
+          className={styles.mention}
+          role="button"
+          tabIndex={0}
+          style={{ cursor: e.actor ? 'pointer' : undefined }}
+          title={e.actor ? `Filter by actor: ${e.actor}` : undefined}
+          onClick={(ev) => {
+            if (!e.actor) return;
+            ev.stopPropagation();
+            const chip = `actor:${e.actor}`;
+            if (!chips.includes(chip)) {
+              setChips((prev) => [...prev, chip]);
+              setPage(1);
+            }
+          }}
+          onKeyDown={(ev) => {
+            if (!e.actor) return;
+            if (ev.key === 'Enter' || ev.key === ' ') {
+              ev.stopPropagation();
+              const chip = `actor:${e.actor}`;
+              if (!chips.includes(chip)) {
+                setChips((prev) => [...prev, chip]);
+                setPage(1);
+              }
+            }
+          }}
+        >
+          @{e.actor ?? '—'}
+        </span>
+      ),
+      sortValue: (e) => e.actor ?? '',
+      filterValue: (e) => e.actor ?? '',
+    },
+    {
+      key: 'repo',
+      header: 'Repository',
+      sortable: true,
+      filterable: true,
+      helpText: 'The repository or organization associated with the event',
+      render: (e) => {
+        const val = e.repo ?? e.org;
+        const chipKey = e.repo ? 'repo' : 'org';
+        return (
+          <span
+            role="button"
+            tabIndex={0}
+            style={{ cursor: val ? 'pointer' : undefined }}
+            title={val ? `Filter by ${chipKey}: ${val}` : undefined}
+            onClick={(ev) => {
+              if (!val) return;
+              ev.stopPropagation();
+              const chip = `${chipKey}:${val}`;
+              if (!chips.includes(chip)) {
+                setChips((prev) => [...prev, chip]);
+                setPage(1);
+              }
+            }}
+            onKeyDown={(ev) => {
+              if (!val) return;
+              if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.stopPropagation();
+                const chip = `${chipKey}:${val}`;
+                if (!chips.includes(chip)) {
+                  setChips((prev) => [...prev, chip]);
+                  setPage(1);
+                }
+              }
+            }}
+          >
+            {val ?? '—'}
+          </span>
+        );
+      },
+      sortValue: (e) => e.repo ?? e.org ?? '',
+      filterValue: (e) => e.repo ?? e.org ?? '',
+    },
+    {
+      key: 'ip_location',
+      header: 'IP / Location',
+      sortable: true,
+      filterable: true,
+      helpText: 'Source IP address and geographic location of the event',
+      render: (e) => (
+        <>
+          {e.source_ip && <code style={{ fontSize: 11 }}>{e.source_ip}</code>}
+          {e.geo_country_code && <span className={styles.country}>{e.geo_country_code}</span>}
+        </>
+      ),
+      sortValue: (e) => e.source_ip ?? '',
+      filterValue: (e) => [e.source_ip ?? '', e.geo_country_code ?? ''].join(' ').trim(),
+    },
+  ];
 
   return (
     <div className={styles.splitLayout}>
@@ -245,72 +380,19 @@ export function EventsPage() {
         {isError && <ErrorBanner message="Failed to load events" onRetry={refetch} />}
 
         <div className={styles.tableWrap}>
-          <table>
-            <thead>
-              <tr>
-                <th className={styles.sortable} onClick={() => toggleSort('created_at')}>
-                  Timestamp
-                  <span className={styles.sortIndicator}>{sortIndicator('created_at')}</span>
-                </th>
-                <th className={styles.sortable} onClick={() => toggleSort('action')}>
-                  Action
-                  <span className={styles.sortIndicator}>{sortIndicator('action')}</span>
-                </th>
-                <th className={styles.sortable} onClick={() => toggleSort('actor')}>
-                  Actor
-                  <span className={styles.sortIndicator}>{sortIndicator('actor')}</span>
-                </th>
-                <th className={styles.sortable} onClick={() => toggleSort('repo')}>
-                  Repository
-                  <span className={styles.sortIndicator}>{sortIndicator('repo')}</span>
-                </th>
-                <th>IP / Location</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && (
-                <tr>
-                  <td colSpan={5} style={{ padding: 24, textAlign: 'center' }}>
-                    <Spinner />
-                  </td>
-                </tr>
-              )}
-              {!isLoading && items.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    style={{ padding: 24, textAlign: 'center', color: 'var(--fg-muted)' }}
-                  >
-                    No events found
-                  </td>
-                </tr>
-              )}
-              {items.map((e) => (
-                <tr
-                  key={e.id}
-                  className={[styles.clickableRow, detailEvent?.id === e.id && styles.selectedRow]
-                    .filter(Boolean)
-                    .join(' ')}
-                  onClick={() => setDetailEvent(e)}
-                >
-                  <td className={styles.ts}>{formatCompact(e.created_at)}</td>
-                  <td>
-                    <Label variant={actionVariant(e.action)}>{e.action}</Label>
-                  </td>
-                  <td>
-                    <span className={styles.mention}>@{e.actor ?? '—'}</span>
-                  </td>
-                  <td>{e.repo ?? e.org ?? '—'}</td>
-                  <td>
-                    {e.source_ip && <code style={{ fontSize: 11 }}>{e.source_ip}</code>}
-                    {e.geo_country_code && (
-                      <span className={styles.country}>{e.geo_country_code}</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {isLoading ? (
+            <div style={{ padding: 24, textAlign: 'center' }}>
+              <Spinner />
+            </div>
+          ) : (
+            <DataTable<EventResponse>
+              columns={eventColumns}
+              data={items}
+              rowKey={(e) => e.id}
+              onRowClick={(e) => setDetailEvent(e)}
+              emptyMessage="No events found"
+            />
+          )}
         </div>
 
         {data && data.total > 20 && (
@@ -337,7 +419,11 @@ export function EventsPage() {
           <>
             <div className={styles.panelHeader}>
               <div style={{ fontWeight: 600 }}>{detailEvent.action}</div>
-              <button className={styles.panelClose} aria-label="Close" onClick={() => setDetailEvent(null)}>
+              <button
+                className={styles.panelClose}
+                aria-label="Close"
+                onClick={() => setDetailEvent(null)}
+              >
                 &#215;
               </button>
             </div>

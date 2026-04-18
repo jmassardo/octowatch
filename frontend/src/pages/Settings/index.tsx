@@ -20,17 +20,14 @@ import {
   createTicketingConfig,
   createSiemConfig,
 } from '../../api/integrations';
-import {
-  getRetentionPolicies,
-  updateRetentionPolicies,
-} from '../../api/admin';
+import { getRetentionPolicies, updateRetentionPolicies } from '../../api/admin';
 import type { RetentionPolicyItem } from '../../api/admin';
 import { SyncPanel } from '../Integrations/SyncPanel';
 import { SyncRunHistory } from '../Integrations/SyncRunHistory';
 import { ManualIngestPanel } from '../Integrations/ManualIngestPanel';
 import { AuditStreamPanel } from './AuditStreamPanel';
 import { Button } from '../../components/primitives/Button';
-import { Modal } from '../../components/primitives/Modal';
+import { Drawer } from '../../components/primitives/Drawer';
 import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
@@ -45,18 +42,19 @@ import styles from './Settings.module.css';
 const CATEGORIES = ['All', 'GitHub', 'Security', 'Storage', 'Notifications', 'System'] as const;
 type Category = (typeof CATEGORIES)[number];
 
-const SLUG_TO_TAB: Record<string, Category | 'Audit' | 'Features' | 'Integrations' | 'Retention'> = {
-  all: 'All',
-  github: 'GitHub',
-  security: 'Security',
-  storage: 'Storage',
-  notifications: 'Notifications',
-  system: 'System',
-  audit: 'Audit',
-  features: 'Features',
-  integrations: 'Integrations',
-  retention: 'Retention',
-};
+const SLUG_TO_TAB: Record<string, Category | 'Audit' | 'Features' | 'Integrations' | 'Retention'> =
+  {
+    all: 'All',
+    github: 'GitHub',
+    security: 'Security',
+    storage: 'Storage',
+    notifications: 'Notifications',
+    system: 'System',
+    audit: 'Audit',
+    features: 'Features',
+    integrations: 'Integrations',
+    retention: 'Retention',
+  };
 
 const TAB_TO_SLUG: Record<string, string> = Object.fromEntries(
   Object.entries(SLUG_TO_TAB).map(([slug, tab]) => [tab, slug]),
@@ -302,8 +300,7 @@ function EnterprisePATSection() {
       setTimeout(() => setSaveSuccess(null), 5000);
     },
     onError: (err: Error & { status?: number; body?: { detail?: string } }) => {
-      const detail =
-        (err as unknown as { body?: { detail?: string } }).body?.detail ?? err.message;
+      const detail = (err as unknown as { body?: { detail?: string } }).body?.detail ?? err.message;
       setSaveError(detail);
       setSaveSuccess(null);
     },
@@ -364,6 +361,7 @@ function EnterprisePATSection() {
             <span
               className={styles.integrationStatus}
               data-status="active"
+              title="Enterprise PAT is configured and ready for audit log ingestion"
             >
               Configured
             </span>
@@ -372,6 +370,7 @@ function EnterprisePATSection() {
           <span
             className={styles.integrationStatus}
             data-status="inactive"
+            title="No Enterprise PAT has been configured yet"
           >
             Not configured
           </span>
@@ -392,8 +391,8 @@ function EnterprisePATSection() {
           autoComplete="off"
         />
         <span className={styles.configHelp}>
-          Required for audit log ingestion. Create a classic PAT with{' '}
-          <code>admin:enterprise</code> scope in your GitHub Enterprise settings.
+          Required for audit log ingestion. Create a classic PAT with <code>admin:enterprise</code>{' '}
+          scope in your GitHub Enterprise settings.
         </span>
       </div>
       {saveSuccess && <div className={styles.configSuccess}>{saveSuccess}</div>}
@@ -449,8 +448,8 @@ function GitHubPane() {
         <h3 className={styles.integrationsSectionTitle}>Classic PAT for Audit Log</h3>
         <p className={styles.featuresDescription}>
           The enterprise audit log API requires a classic Personal Access Token with{' '}
-          <code>admin:enterprise</code> scope. GitHub App installation tokens cannot access
-          this endpoint.
+          <code>admin:enterprise</code> scope. GitHub App installation tokens cannot access this
+          endpoint.
         </p>
       </div>
       <EnterprisePATSection />
@@ -681,6 +680,9 @@ function SlackConfigForm({ onClose }: { onClose: () => void }) {
           onChange={(e) => setDisplayName(e.target.value)}
           placeholder="e.g. #security-alerts"
         />
+        <span className={styles.configHelp}>
+          A friendly name to identify this Slack integration in the dashboard.
+        </span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="slack-webhook-url">
@@ -694,6 +696,9 @@ function SlackConfigForm({ onClose }: { onClose: () => void }) {
           placeholder="https://hooks.slack.com/services/..."
           required
         />
+        <span className={styles.configHelp}>
+          Incoming webhook URL from your Slack app. Create one at api.slack.com.
+        </span>
       </div>
       <div className={styles.configField}>
         <span className={styles.configLabel}>Alert severities</span>
@@ -722,6 +727,9 @@ function SlackConfigForm({ onClose }: { onClose: () => void }) {
             </label>
           ))}
         </div>
+        <span className={styles.configHelp}>
+          Select which severity levels trigger Slack notifications.
+        </span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="slack-cooldown">
@@ -804,6 +812,9 @@ function JiraConfigForm({ onClose }: { onClose: () => void }) {
           onChange={(e) => setDisplayName(e.target.value)}
           placeholder="e.g. Security Project"
         />
+        <span className={styles.configHelp}>
+          A friendly name to identify this Jira integration in the dashboard.
+        </span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="jira-base-url">
@@ -817,6 +828,9 @@ function JiraConfigForm({ onClose }: { onClose: () => void }) {
           placeholder="https://your-org.atlassian.net"
           required
         />
+        <span className={styles.configHelp}>
+          The root URL of your Jira Cloud or Server instance.
+        </span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="jira-project-key">
@@ -859,6 +873,9 @@ function JiraConfigForm({ onClose }: { onClose: () => void }) {
             onChange={(e) => setAutoCreate(e.target.checked)}
           />
         </div>
+        <span className={styles.configHelp}>
+          When enabled, Jira issues are automatically filed for critical and high severity findings.
+        </span>
       </div>
       {createMutation.isError && (
         <div className={styles.configError}>Failed to save configuration. Please try again.</div>
@@ -935,6 +952,9 @@ function WebhookConfigForm({ name, onClose }: { name: string; onClose: () => voi
           onChange={(e) => setDisplayName(e.target.value)}
           placeholder={name}
         />
+        <span className={styles.configHelp}>
+          A friendly name to identify this integration in the dashboard.
+        </span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="webhook-url">
@@ -948,6 +968,9 @@ function WebhookConfigForm({ name, onClose }: { name: string; onClose: () => voi
           placeholder={placeholderUrl}
           required
         />
+        <span className={styles.configHelp}>
+          The HTTPS endpoint that will receive alert payloads via POST.
+        </span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="webhook-credential">
@@ -991,6 +1014,9 @@ function WebhookConfigForm({ name, onClose }: { name: string; onClose: () => voi
             </label>
           ))}
         </div>
+        <span className={styles.configHelp}>
+          Select which severity levels trigger notifications to this endpoint.
+        </span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="webhook-cooldown">
@@ -1071,6 +1097,9 @@ function SyslogConfigForm({ onClose }: { onClose: () => void }) {
           onChange={(e) => setDisplayName(e.target.value)}
           placeholder="Syslog / CEF"
         />
+        <span className={styles.configHelp}>
+          A friendly name to identify this syslog export in the dashboard.
+        </span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="syslog-host">
@@ -1084,6 +1113,7 @@ function SyslogConfigForm({ onClose }: { onClose: () => void }) {
           placeholder="syslog.example.com"
           required
         />
+        <span className={styles.configHelp}>Hostname or IP address of the syslog receiver.</span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="syslog-port">
@@ -1098,6 +1128,9 @@ function SyslogConfigForm({ onClose }: { onClose: () => void }) {
           value={port}
           onChange={(e) => setPort(Number(e.target.value))}
         />
+        <span className={styles.configHelp}>
+          Network port the syslog receiver listens on (default: 514).
+        </span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="syslog-protocol">
@@ -1113,6 +1146,9 @@ function SyslogConfigForm({ onClose }: { onClose: () => void }) {
           <option value="tcp">TCP</option>
           <option value="tls">TLS</option>
         </select>
+        <span className={styles.configHelp}>
+          Transport protocol. Use TLS for encrypted delivery.
+        </span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="syslog-format">
@@ -1127,6 +1163,9 @@ function SyslogConfigForm({ onClose }: { onClose: () => void }) {
           <option value="cef">CEF (Common Event Format)</option>
           <option value="leef">LEEF (QRadar)</option>
         </select>
+        <span className={styles.configHelp}>
+          CEF is widely supported; LEEF is preferred for IBM QRadar.
+        </span>
       </div>
       {createMutation.isError && (
         <div className={styles.configError}>Failed to save configuration. Please try again.</div>
@@ -1192,6 +1231,9 @@ function SplunkHecConfigForm({ onClose }: { onClose: () => void }) {
           onChange={(e) => setDisplayName(e.target.value)}
           placeholder="Splunk HEC"
         />
+        <span className={styles.configHelp}>
+          A friendly name to identify this Splunk HEC export in the dashboard.
+        </span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="splunk-url">
@@ -1205,6 +1247,9 @@ function SplunkHecConfigForm({ onClose }: { onClose: () => void }) {
           placeholder="https://splunk.example.com:8088/services/collector"
           required
         />
+        <span className={styles.configHelp}>
+          Splunk HTTP Event Collector URL including port and path.
+        </span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="splunk-token">
@@ -1233,6 +1278,9 @@ function SplunkHecConfigForm({ onClose }: { onClose: () => void }) {
           onChange={(e) => setSplunkIndex(e.target.value)}
           placeholder="main"
         />
+        <span className={styles.configHelp}>
+          Target Splunk index for ingested events. Defaults to &apos;main&apos;.
+        </span>
       </div>
       <div className={styles.configField}>
         <label
@@ -1251,6 +1299,9 @@ function SplunkHecConfigForm({ onClose }: { onClose: () => void }) {
           />
           Also stream raw audit events (not just detections)
         </label>
+        <span className={styles.configHelp}>
+          When checked, raw audit log events are also forwarded alongside detection exports.
+        </span>
       </div>
       {createMutation.isError && (
         <div className={styles.configError}>Failed to save configuration. Please try again.</div>
@@ -1316,6 +1367,9 @@ function SoarWebhookConfigForm({ onClose }: { onClose: () => void }) {
           onChange={(e) => setDisplayName(e.target.value)}
           placeholder="SOAR Webhook"
         />
+        <span className={styles.configHelp}>
+          A friendly name to identify this SOAR webhook in the dashboard.
+        </span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="soar-url">
@@ -1329,6 +1383,9 @@ function SoarWebhookConfigForm({ onClose }: { onClose: () => void }) {
           placeholder="https://soar.example.com/api/webhook/octowatch"
           required
         />
+        <span className={styles.configHelp}>
+          The HTTPS endpoint of your SOAR platform that will receive detection events.
+        </span>
       </div>
       <div className={styles.configField}>
         <label className={styles.configLabel} htmlFor="soar-secret">
@@ -1398,8 +1455,7 @@ function IntegrationsPane() {
       }
       case 'sentinel': {
         const found = notifConfigs.filter(
-          (c) =>
-            c.channel_type === 'webhook' && c.display_name.toLowerCase().includes('sentinel'),
+          (c) => c.channel_type === 'webhook' && c.display_name.toLowerCase().includes('sentinel'),
         );
         return { configured: found.length > 0, enabled: found.some((c) => c.enabled) };
       }
@@ -1447,7 +1503,11 @@ function IntegrationsPane() {
           return (
             <div key={key} className={styles.featureRow} data-testid={`integration-card-${key}`}>
               <div className={styles.integrationCardLeft}>
-                <div className={styles.integrationIcon} style={{ backgroundColor: iconBg }}>
+                <div
+                  className={styles.integrationIcon}
+                  style={{ backgroundColor: iconBg }}
+                  title={label}
+                >
                   {icon}
                 </div>
                 <div className={styles.featureInfo}>
@@ -1457,12 +1517,21 @@ function IntegrationsPane() {
                       <span
                         className={styles.integrationStatus}
                         data-status={enabled ? 'active' : 'configured'}
+                        title={
+                          enabled
+                            ? `${label} is active and sending data`
+                            : `${label} is configured but currently disabled`
+                        }
                       >
                         {enabled ? 'Active' : 'Configured'}
                       </span>
                     )}
                     {!configured && (
-                      <span className={styles.integrationStatus} data-status="inactive">
+                      <span
+                        className={styles.integrationStatus}
+                        data-status="inactive"
+                        title={`${label} has not been set up yet`}
+                      >
                         Not configured
                       </span>
                     )}
@@ -1483,33 +1552,28 @@ function IntegrationsPane() {
       </div>
 
       {/* Slack config modal */}
-      <Modal
+      <Drawer
         open={configTarget === 'slack'}
         onClose={() => setConfigTarget(null)}
         title="Configure Slack"
-        width={520}
       >
         <SlackConfigForm onClose={() => setConfigTarget(null)} />
-      </Modal>
+      </Drawer>
 
       {/* Jira config modal */}
-      <Modal
+      <Drawer
         open={configTarget === 'jira'}
         onClose={() => setConfigTarget(null)}
         title="Configure Jira"
-        width={520}
       >
         <JiraConfigForm onClose={() => setConfigTarget(null)} />
-      </Modal>
+      </Drawer>
 
       {/* Webhook-based config modal (Sentinel, Splunk, PagerDuty) */}
-      <Modal
-        open={
-          configTarget !== null && ['sentinel', 'splunk', 'pagerduty'].includes(configTarget)
-        }
+      <Drawer
+        open={configTarget !== null && ['sentinel', 'splunk', 'pagerduty'].includes(configTarget)}
         onClose={() => setConfigTarget(null)}
         title={getConfigModalTitle(configTarget ?? '')}
-        width={520}
       >
         {configTarget && ['sentinel', 'splunk', 'pagerduty'].includes(configTarget) && (
           <WebhookConfigForm
@@ -1517,37 +1581,34 @@ function IntegrationsPane() {
             onClose={() => setConfigTarget(null)}
           />
         )}
-      </Modal>
+      </Drawer>
 
       {/* Syslog/CEF config modal */}
-      <Modal
+      <Drawer
         open={configTarget === 'syslog_cef'}
         onClose={() => setConfigTarget(null)}
         title="Configure Syslog / CEF Export"
-        width={520}
       >
         <SyslogConfigForm onClose={() => setConfigTarget(null)} />
-      </Modal>
+      </Drawer>
 
       {/* Splunk HEC config modal */}
-      <Modal
+      <Drawer
         open={configTarget === 'splunk_hec'}
         onClose={() => setConfigTarget(null)}
         title="Configure Splunk HEC Export"
-        width={520}
       >
         <SplunkHecConfigForm onClose={() => setConfigTarget(null)} />
-      </Modal>
+      </Drawer>
 
       {/* SOAR Webhook config modal */}
-      <Modal
+      <Drawer
         open={configTarget === 'soar_webhook'}
         onClose={() => setConfigTarget(null)}
         title="Configure SOAR Webhook"
-        width={520}
       >
         <SoarWebhookConfigForm onClose={() => setConfigTarget(null)} />
-      </Modal>
+      </Drawer>
     </div>
   );
 }
@@ -1690,12 +1751,7 @@ function CategorySettingsForm({
         {saveMessage && <div className={styles.configSuccess}>{saveMessage}</div>}
         {saveError && <div className={styles.configError}>{saveError}</div>}
         <div className={styles.categoryFormActions}>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={saving || !hasChanges}
-            onClick={handleSave}
-          >
+          <Button variant="primary" size="sm" disabled={saving || !hasChanges} onClick={handleSave}>
             {saving ? 'Saving…' : 'Save changes'}
           </Button>
         </div>
@@ -1755,14 +1811,15 @@ function RetentionPane() {
     }
   };
 
-  if (isError) return <ErrorBanner message="Failed to load retention policies" onRetry={() => refetch()} />;
+  if (isError)
+    return <ErrorBanner message="Failed to load retention policies" onRetry={() => refetch()} />;
   if (isLoading || !data) return <Spinner />;
 
   return (
     <div>
       <p style={{ color: 'var(--fg-subtle)', fontSize: '0.875rem', marginBottom: '1rem' }}>
-        Configure how long each data type is retained before automatic cleanup.
-        Expired data can be archived to S3/MinIO before deletion if archival is enabled.
+        Configure how long each data type is retained before automatic cleanup. Expired data can be
+        archived to S3/MinIO before deletion if archival is enabled.
       </p>
       <div className={styles.tableWrap}>
         <table className={styles.table}>
@@ -1780,7 +1837,9 @@ function RetentionPane() {
             {data.policies.map((p: RetentionPolicyItem) => (
               <tr key={p.table_name}>
                 <td className={styles.settingKey}>{TABLE_LABELS[p.table_name] ?? p.table_name}</td>
-                <td style={{ color: 'var(--fg-subtle)', fontSize: '0.8125rem' }}>{p.time_column}</td>
+                <td style={{ color: 'var(--fg-subtle)', fontSize: '0.8125rem' }}>
+                  {p.time_column}
+                </td>
                 <td>
                   <input
                     type="number"
@@ -1788,7 +1847,11 @@ function RetentionPane() {
                     max={3650}
                     value={edited[p.table_name] ?? p.retention_days}
                     onChange={(e) =>
-                      handleChange(p.table_name, parseInt(e.target.value, 10) || 1, p.retention_days)
+                      handleChange(
+                        p.table_name,
+                        parseInt(e.target.value, 10) || 1,
+                        p.retention_days,
+                      )
                     }
                     className={styles.formInput}
                     style={{ width: '5rem' }}

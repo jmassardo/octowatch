@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listDetections } from '../../api/detections';
 import { listEvents } from '../../api/events';
 import { getActionsVolumeReport } from '../../api/reports';
@@ -11,12 +10,16 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { UnifiedSecurityWidget } from '../../components/widgets/UnifiedSecurityWidget';
 import { ExecutiveView } from './ExecutiveView';
+import { SecurityView } from './SecurityView';
+import { CiCdView } from './CiCdView';
 import { useOrg } from '../../hooks/useOrg';
 import type { EventResponse } from '../../types/events';
 import type { ActionsVolumeBucket } from '../../types/reports';
 import type { DetectionSeverity } from '../../types/detections';
 import { formatRelative } from '../../utils/dates';
 import styles from './Dashboard.module.css';
+
+type DashboardView = 'operations' | 'executive' | 'security' | 'cicd';
 
 function ClickableValue({
   children,
@@ -148,7 +151,17 @@ function formatCount(n: number): string {
 export function DashboardPage() {
   const navigate = useNavigate();
   const { selectedOrg } = useOrg();
-  const [view, setView] = useState<'operations' | 'executive'>('operations');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const VALID_VIEWS: DashboardView[] = ['operations', 'executive', 'security', 'cicd'];
+  const rawView = searchParams.get('view') ?? 'operations';
+  const view: DashboardView = VALID_VIEWS.includes(rawView as DashboardView)
+    ? (rawView as DashboardView)
+    : 'operations';
+
+  function setView(v: DashboardView) {
+    setSearchParams(v === 'operations' ? {} : { view: v }, { replace: true });
+  }
 
   const orgLabel = !selectedOrg || selectedOrg === 'all' ? 'All organizations' : selectedOrg;
 
@@ -267,7 +280,7 @@ export function DashboardPage() {
             .join(' ')}
           onClick={() => setView('operations')}
         >
-          Operations View
+          Operations
         </button>
         <button
           className={[styles.viewBtn, view === 'executive' && styles.viewActive]
@@ -275,280 +288,344 @@ export function DashboardPage() {
             .join(' ')}
           onClick={() => setView('executive')}
         >
-          Executive View
+          Executive
+        </button>
+        <button
+          className={[styles.viewBtn, view === 'security' && styles.viewActive]
+            .filter(Boolean)
+            .join(' ')}
+          onClick={() => setView('security')}
+        >
+          Security Engineering
+        </button>
+        <button
+          className={[styles.viewBtn, view === 'cicd' && styles.viewActive]
+            .filter(Boolean)
+            .join(' ')}
+          onClick={() => setView('cicd')}
+        >
+          CI/CD
         </button>
       </div>
 
       {view === 'executive' ? (
         <ExecutiveView />
+      ) : view === 'security' ? (
+        <SecurityView />
+      ) : view === 'cicd' ? (
+        <CiCdView />
       ) : (
         <>
+          {systemHealth != null && (
+            <div
+              className={[styles.systemHealthBar, systemHealth.gap_detected && styles.healthWarning]
+                .filter(Boolean)
+                .join(' ')}
+            >
+              <span
+                className={[
+                  styles.systemHealthDot,
+                  systemHealth.gap_detected ? styles.warn : styles.ok,
+                ].join(' ')}
+              />
+              {systemHealth.gap_detected ? (
+                <span>
+                  Ingestion gap detected
+                  {systemHealth.gap_duration_minutes != null && (
+                    <> — {systemHealth.gap_duration_minutes}m of missing data</>
+                  )}
+                </span>
+              ) : (
+                <span>
+                  System healthy
+                  {systemHealth.last_event_at && (
+                    <> · Last event: {formatRelative(systemHealth.last_event_at)}</>
+                  )}
+                </span>
+              )}
+            </div>
+          )}
+
           <div className={styles.pills}>
-        <StatPill
-          value={eventCountLabel || '—'}
-          label="events today"
-          helpText="Audit log events received today via HEC ingest. Source: events table."
-          onClick={() => navigate('/events')}
-        />
-        <StatPill
-          value={String(openThreats)}
-          label="open threats"
-          variant={openThreats > 0 ? 'danger' : undefined}
-          helpText="Active threat detections in Open status from the detection engine."
-          onClick={() => navigate('/threats')}
-        />
-        <StatPill
-          value={workflowSuccessRate != null ? `${workflowSuccessRate}%` : '—'}
-          label="pipeline success"
-          helpText="7-day Actions workflow success rate. Calculated from workflow_run.completed events."
-          variant={
-            workflowSuccessRate != null && parseFloat(workflowSuccessRate) >= 90
-              ? 'success'
-              : undefined
-          }
-          onClick={() => navigate('/velocity')}
-        />
-        <StatPill
-          value={String(uniqueActors || '—')}
-          label="active devs"
-          variant="done"
-          helpText="Unique human actors (non-bot) seen in audit log events over the last 30 days."
-          onClick={() => navigate('/devactivity')}
-        />
-        <StatPill value="—" label="API calls (24h)" helpText="GitHub API usage from usage reports. Not yet available." onClick={() => navigate('/reports')} />
-        <StatPill
-          value={formatCount(calendarEvents?.total ?? 0)}
-          label="total events"
-          variant="accent"
-          helpText="Total audit log events stored across all time. Source: events table count."
-          onClick={() => navigate('/events')}
-        />
-        <StatPill
-          value={String(healthSummary?.unresolved_secret_alerts ?? '—')}
-          label="unresolved secrets"
-          helpText="Open secret scanning alerts from health signals. Go to Health → Security to review."
-          variant={
-            healthSummary != null && healthSummary.unresolved_secret_alerts > 0
-              ? 'danger'
-              : undefined
-          }
-          onClick={() => navigate('/health/security')}
-        />
-        <StatPill
-          value={String(healthSummary?.security_feature_disables_7d ?? '—')}
-          label="feature disables (7d)"
-          helpText="Security feature disable events (e.g. branch protection removed) in the last 7 days."
-          variant={
-            healthSummary != null && healthSummary.security_feature_disables_7d > 0
-              ? 'danger'
-              : undefined
-          }
-          onClick={() => navigate('/health/security')}
-        />
-      </div>
-
-      {systemHealth != null && systemHealth.gap_detected && (
-        <div className={styles.ingestionBanner}>
-          <span className={styles.ingestionIcon}>⚠</span>
-          <span>
-            Data ingestion gap detected
-            {systemHealth.gap_duration_minutes != null && (
-              <> — {systemHealth.gap_duration_minutes} minutes of missing data</>
-            )}
-            . Some health signals may be incomplete.
-          </span>
-        </div>
-      )}
-
-      {threatError && <ErrorBanner message="Could not load threat data" onRetry={refetchThreats} />}
-
-      <UnifiedSecurityWidget />
-
-      <Card className={styles.calCard}>
-        <CardHeader
-          actions={
-            <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span
-                style={{
-                  width: 10,
-                  height: 10,
-                  background: 'rgba(248,81,73,0.8)',
-                  borderRadius: 2,
-                  display: 'inline-block',
-                }}
-              />
-              Security&nbsp;
-              <span
-                style={{
-                  width: 10,
-                  height: 10,
-                  background: '#39d353',
-                  borderRadius: 2,
-                  display: 'inline-block',
-                }}
-              />
-              Platform
-            </span>
-          }
-        >
-          Activity heatmap — last 13 weeks
-        </CardHeader>
-        <ContributionCalendar data={calendarData} />
-      </Card>
-
-      <div className={styles.grid}>
-        <div className={styles.flex1}>
-          <div className={styles.sectionTitle}>Activity feed</div>
-          <div className={styles.timeline}>
-            {loadingEvents && <Spinner />}
-            {(events?.items ?? []).map((event) => (
-              <EventFeedItem key={event.id} event={event} />
-            ))}
-            {!loadingEvents && (events?.items ?? []).length === 0 && (
-              <div style={{ color: 'var(--fg-muted)', padding: '12px 0' }}>No recent events</div>
-            )}
+            <StatPill
+              value={eventCountLabel || '—'}
+              label="events today"
+              helpText="Audit log events received today via HEC ingest. Source: events table."
+              onClick={() => navigate('/events')}
+            />
+            <StatPill
+              value={String(openThreats)}
+              label="open threats"
+              variant={openThreats > 0 ? 'danger' : undefined}
+              helpText="Active threat detections in Open status from the detection engine."
+              onClick={() => navigate('/threats')}
+            />
+            <StatPill
+              value={workflowSuccessRate != null ? `${workflowSuccessRate}%` : '—'}
+              label="pipeline success"
+              helpText="7-day Actions workflow success rate. Calculated from workflow_run.completed events."
+              variant={
+                workflowSuccessRate != null && parseFloat(workflowSuccessRate) >= 90
+                  ? 'success'
+                  : undefined
+              }
+              onClick={() => navigate('/velocity')}
+            />
+            <StatPill
+              value={String(uniqueActors || '—')}
+              label="active devs"
+              variant="done"
+              helpText="Unique human actors (non-bot) seen in audit log events over the last 30 days."
+              onClick={() => navigate('/devactivity')}
+            />
+            <StatPill
+              value="—"
+              label="API calls (24h)"
+              helpText="GitHub API usage from usage reports. Not yet available."
+              onClick={() => navigate('/reports')}
+            />
+            <StatPill
+              value={formatCount(calendarEvents?.total ?? 0)}
+              label="total events"
+              variant="accent"
+              helpText="Total audit log events stored across all time. Source: events table count."
+              onClick={() => navigate('/events')}
+            />
+            <StatPill
+              value={String(healthSummary?.unresolved_secret_alerts ?? '—')}
+              label="unresolved secrets"
+              helpText="Open secret scanning alerts from health signals. Go to Health → Security to review."
+              variant={
+                healthSummary != null && healthSummary.unresolved_secret_alerts > 0
+                  ? 'danger'
+                  : undefined
+              }
+              onClick={() => navigate('/health/security')}
+            />
+            <StatPill
+              value={String(healthSummary?.security_feature_disables_7d ?? '—')}
+              label="feature disables (7d)"
+              helpText="Security feature disable events (e.g. branch protection removed) in the last 7 days."
+              variant={
+                healthSummary != null && healthSummary.security_feature_disables_7d > 0
+                  ? 'danger'
+                  : undefined
+              }
+              onClick={() => navigate('/health/security')}
+            />
           </div>
-        </div>
 
-        <div className={styles.sidebar}>
-          <Card>
-            <CardHeader>Open threats by severity</CardHeader>
-            {loadingThreats ? (
-              <Spinner />
-            ) : (
-              <div className={styles.sevBars}>
-                {[
-                  {
-                    sev: 'Critical',
-                    key: 'critical' as DetectionSeverity,
-                    color: 'var(--danger)',
-                    count: severityCounts.critical,
-                  },
-                  {
-                    sev: 'High',
-                    key: 'high' as DetectionSeverity,
-                    color: 'var(--severe)',
-                    count: severityCounts.high,
-                  },
-                  {
-                    sev: 'Medium',
-                    key: 'medium' as DetectionSeverity,
-                    color: 'var(--attention)',
-                    count: severityCounts.medium,
-                  },
-                  {
-                    sev: 'Low',
-                    key: 'low' as DetectionSeverity,
-                    color: 'var(--success)',
-                    count: severityCounts.low,
-                  },
-                ].map(({ sev, key, color, count }) => {
-                  const maxCount = Math.max(
-                    severityCounts.critical,
-                    severityCounts.high,
-                    severityCounts.medium,
-                    severityCounts.low,
-                    1,
-                  );
-                  const w =
-                    count > 0 ? `${Math.max(8, Math.round((count / maxCount) * 100))}%` : '2px';
-                  return (
-                    <div
-                      key={key}
-                      className={[styles.sevRow, styles.sevRowClickable].join(' ')}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`${count} ${sev} threats — click to filter`}
-                      onClick={() => navigate(`/threats?severity=${key}`)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          navigate(`/threats?severity=${key}`);
-                        }
-                      }}
-                    >
-                      <div className={[styles.sevDot, styles[key]].join(' ')} />
-                      <span className={styles.sevLbl}>{sev}</span>
-                      <div className={styles.sevTrack}>
-                        <div
-                          style={{ height: '100%', background: color, borderRadius: 4, width: w }}
-                        />
-                      </div>
-                      <span className={styles.sevCount}>{count}</span>
-                      <span className={styles.sevArrow} aria-hidden="true">
-                        →
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+          {systemHealth != null && systemHealth.gap_detected && (
+            <div className={styles.ingestionBanner}>
+              <span className={styles.ingestionIcon}>⚠</span>
+              <span>
+                Data ingestion gap detected
+                {systemHealth.gap_duration_minutes != null && (
+                  <> — {systemHealth.gap_duration_minutes} minutes of missing data</>
+                )}
+                . Some health signals may be incomplete.
+              </span>
+            </div>
+          )}
+
+          {threatError && (
+            <ErrorBanner message="Could not load threat data" onRetry={refetchThreats} />
+          )}
+
+          <UnifiedSecurityWidget />
+
+          <Card className={styles.calCard}>
+            <CardHeader
+              actions={
+                <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      background: 'rgba(248,81,73,0.8)',
+                      borderRadius: 2,
+                      display: 'inline-block',
+                    }}
+                  />
+                  Security&nbsp;
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      background: '#39d353',
+                      borderRadius: 2,
+                      display: 'inline-block',
+                    }}
+                  />
+                  Platform
+                </span>
+              }
+            >
+              Activity heatmap — last 13 weeks
+            </CardHeader>
+            <ContributionCalendar data={calendarData} />
           </Card>
 
-          <Card>
-            <CardHeader>Platform alerts</CardHeader>
-            <div className={styles.alerts}>
-              <div className={styles.alertRow}>
-                <span
-                  className={styles.alertIcon}
-                  style={{ color: failedWorkflowRuns > 0 ? 'var(--danger)' : 'var(--success)' }}
-                >
-                  {failedWorkflowRuns > 0 ? '⚠' : '✓'}
-                </span>
-                <div>
-                  Workflow runs:{' '}
-                  <ClickableValue
-                    onClick={() => navigate('/velocity')}
-                    label={`${succeededWorkflowRuns} succeeded — view velocity`}
-                  >
-                    <strong>{succeededWorkflowRuns} succeeded</strong>
-                  </ClickableValue>
-                  ,{' '}
-                  <ClickableValue
-                    onClick={() => navigate('/velocity')}
-                    label={`${failedWorkflowRuns} failed — view velocity`}
-                  >
-                    <strong>{failedWorkflowRuns} failed</strong>
-                  </ClickableValue>
-                  {totalWorkflowRuns > 0 ? ` (${workflowSuccessRate}% success)` : ''}
-                </div>
-              </div>
-              <div className={`${styles.alertRow} ${styles.alertBorder}`}>
-                <span className={styles.alertIcon} style={{ color: 'var(--attention)' }}>
-                  ⚡
-                </span>
-                <div>
-                  Events volume:{' '}
-                  <ClickableValue
-                    onClick={() => navigate('/events')}
-                    label={`${formatCount(calendarEvents?.total ?? 0)} events — view all events`}
-                  >
-                    <strong>{formatCount(calendarEvents?.total ?? 0)} events</strong>
-                  </ClickableValue>{' '}
-                  tracked
-                </div>
-              </div>
-              <div className={`${styles.alertRow} ${styles.alertBorder}`}>
-                <span
-                  className={styles.alertIcon}
-                  style={{ color: openThreats > 0 ? 'var(--attention)' : 'var(--success)' }}
-                >
-                  {openThreats > 0 ? '⚠' : '✓'}
-                </span>
-                <div>
-                  Active detections:{' '}
-                  <ClickableValue
-                    onClick={() => navigate('/threats')}
-                    label={`${openThreats} investigating — view threats`}
-                  >
-                    <strong>{openThreats} investigating</strong>
-                  </ClickableValue>
-                </div>
+          <div className={styles.grid}>
+            <div className={styles.flex1}>
+              <div className={styles.sectionTitle}>Activity feed</div>
+              <div className={styles.timeline}>
+                {loadingEvents && <Spinner />}
+                {(events?.items ?? []).map((event) => (
+                  <EventFeedItem key={event.id} event={event} />
+                ))}
+                {!loadingEvents && (events?.items ?? []).length === 0 && (
+                  <div style={{ color: 'var(--fg-muted)', padding: '12px 0' }}>
+                    No recent events
+                  </div>
+                )}
               </div>
             </div>
-          </Card>
-        </div>
-      </div>
+
+            <div className={styles.sidebar}>
+              <Card>
+                <CardHeader>Open threats by severity</CardHeader>
+                {loadingThreats ? (
+                  <Spinner />
+                ) : (
+                  <div className={styles.sevBars}>
+                    {[
+                      {
+                        sev: 'Critical',
+                        key: 'critical' as DetectionSeverity,
+                        color: 'var(--danger)',
+                        count: severityCounts.critical,
+                      },
+                      {
+                        sev: 'High',
+                        key: 'high' as DetectionSeverity,
+                        color: 'var(--severe)',
+                        count: severityCounts.high,
+                      },
+                      {
+                        sev: 'Medium',
+                        key: 'medium' as DetectionSeverity,
+                        color: 'var(--attention)',
+                        count: severityCounts.medium,
+                      },
+                      {
+                        sev: 'Low',
+                        key: 'low' as DetectionSeverity,
+                        color: 'var(--success)',
+                        count: severityCounts.low,
+                      },
+                    ].map(({ sev, key, color, count }) => {
+                      const maxCount = Math.max(
+                        severityCounts.critical,
+                        severityCounts.high,
+                        severityCounts.medium,
+                        severityCounts.low,
+                        1,
+                      );
+                      const w =
+                        count > 0 ? `${Math.max(8, Math.round((count / maxCount) * 100))}%` : '2px';
+                      return (
+                        <div
+                          key={key}
+                          className={[styles.sevRow, styles.sevRowClickable].join(' ')}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`${count} ${sev} threats — click to filter`}
+                          onClick={() => navigate(`/threats?severity=${key}`)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              navigate(`/threats?severity=${key}`);
+                            }
+                          }}
+                        >
+                          <div className={[styles.sevDot, styles[key]].join(' ')} />
+                          <span className={styles.sevLbl}>{sev}</span>
+                          <div className={styles.sevTrack}>
+                            <div
+                              style={{
+                                height: '100%',
+                                background: color,
+                                borderRadius: 4,
+                                width: w,
+                              }}
+                            />
+                          </div>
+                          <span className={styles.sevCount}>{count}</span>
+                          <span className={styles.sevArrow} aria-hidden="true">
+                            →
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+
+              <Card>
+                <CardHeader>Platform alerts</CardHeader>
+                <div className={styles.alerts}>
+                  <div className={styles.alertRow}>
+                    <span
+                      className={styles.alertIcon}
+                      style={{ color: failedWorkflowRuns > 0 ? 'var(--danger)' : 'var(--success)' }}
+                    >
+                      {failedWorkflowRuns > 0 ? '⚠' : '✓'}
+                    </span>
+                    <div>
+                      Workflow runs:{' '}
+                      <ClickableValue
+                        onClick={() => navigate('/velocity')}
+                        label={`${succeededWorkflowRuns} succeeded — view velocity`}
+                      >
+                        <strong>{succeededWorkflowRuns} succeeded</strong>
+                      </ClickableValue>
+                      ,{' '}
+                      <ClickableValue
+                        onClick={() => navigate('/velocity')}
+                        label={`${failedWorkflowRuns} failed — view velocity`}
+                      >
+                        <strong>{failedWorkflowRuns} failed</strong>
+                      </ClickableValue>
+                      {totalWorkflowRuns > 0 ? ` (${workflowSuccessRate}% success)` : ''}
+                    </div>
+                  </div>
+                  <div className={`${styles.alertRow} ${styles.alertBorder}`}>
+                    <span className={styles.alertIcon} style={{ color: 'var(--attention)' }}>
+                      ⚡
+                    </span>
+                    <div>
+                      Events volume:{' '}
+                      <ClickableValue
+                        onClick={() => navigate('/events')}
+                        label={`${formatCount(calendarEvents?.total ?? 0)} events — view all events`}
+                      >
+                        <strong>{formatCount(calendarEvents?.total ?? 0)} events</strong>
+                      </ClickableValue>{' '}
+                      tracked
+                    </div>
+                  </div>
+                  <div className={`${styles.alertRow} ${styles.alertBorder}`}>
+                    <span
+                      className={styles.alertIcon}
+                      style={{ color: openThreats > 0 ? 'var(--attention)' : 'var(--success)' }}
+                    >
+                      {openThreats > 0 ? '⚠' : '✓'}
+                    </span>
+                    <div>
+                      Active detections:{' '}
+                      <ClickableValue
+                        onClick={() => navigate('/threats')}
+                        label={`${openThreats} investigating — view threats`}
+                      >
+                        <strong>{openThreats} investigating</strong>
+                      </ClickableValue>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
         </>
       )}
     </div>

@@ -9,6 +9,7 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { SeverityDot } from '../../components/primitives/SeverityDot';
 import { Label } from '../../components/primitives/Label';
+import { Button } from '../../components/primitives/Button';
 import { formatCompact } from '../../utils/dates';
 import { GeoMap } from '../../components/charts/GeoMap';
 import styles from './InvestigationTimeline.module.css';
@@ -19,13 +20,28 @@ function isSeverity(v: string): v is Severity {
   return ['critical', 'high', 'medium', 'low'].includes(v);
 }
 
-function EventCard({
-  event,
-  onClick,
-}: {
-  event: TimelineEvent;
-  onClick: () => void;
-}) {
+/** Flatten a record into dot-notation key-value pairs for readable display. */
+function flattenRecord(
+  obj: Record<string, unknown>,
+  prefix = '',
+): Array<{ key: string; value: string }> {
+  const rows: Array<{ key: string; value: string }> = [];
+  for (const [k, v] of Object.entries(obj)) {
+    const fullKey = prefix ? `${prefix}.${k}` : k;
+    if (v === null || v === undefined) {
+      rows.push({ key: fullKey, value: '—' });
+    } else if (Array.isArray(v)) {
+      rows.push({ key: fullKey, value: JSON.stringify(v) });
+    } else if (typeof v === 'object') {
+      rows.push(...flattenRecord(v as Record<string, unknown>, fullKey));
+    } else {
+      rows.push({ key: fullKey, value: String(v) });
+    }
+  }
+  return rows;
+}
+
+function EventCard({ event, onClick }: { event: TimelineEvent; onClick: () => void }) {
   return (
     <div
       className={[styles.eventCard, event.is_sequence_step && styles.sequenceStep]
@@ -43,9 +59,7 @@ function EventCard({
       }}
     >
       {event.is_sequence_step && (
-        <div className={styles.stepBadge}>
-          Step {(event.sequence_index ?? 0) + 1}
-        </div>
+        <div className={styles.stepBadge}>Step {(event.sequence_index ?? 0) + 1}</div>
       )}
       <div className={styles.eventTime}>{formatCompact(event.created_at)}</div>
       <div className={styles.eventAction}>{event.action}</div>
@@ -76,11 +90,9 @@ interface InvestigationTimelineProps {
   onClose: () => void;
 }
 
-export function InvestigationTimeline({
-  detectionId,
-  onClose,
-}: InvestigationTimelineProps) {
+export function InvestigationTimeline({ detectionId, onClose }: InvestigationTimelineProps) {
   const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(null);
+  const [showRawData, setShowRawData] = useState(false);
 
   const {
     data: timeline,
@@ -110,12 +122,10 @@ export function InvestigationTimeline({
       })) ?? [];
 
   const uniqueLocations = geoPoints.filter(
-    (p, i, arr) =>
-      arr.findIndex((q) => q.lat === p.lat && q.lng === p.lng) === i,
+    (p, i, arr) => arr.findIndex((q) => q.lat === p.lat && q.lng === p.lng) === i,
   );
   const isImpossibleTravel =
-    timeline?.detection_category === 'impossible_travel' &&
-    uniqueLocations.length >= 2;
+    timeline?.detection_category === 'impossible_travel' && uniqueLocations.length >= 2;
 
   if (isLoading) {
     return (
@@ -171,18 +181,13 @@ export function InvestigationTimeline({
 
       <div className={styles.timeline}>
         {timeline.events.length === 0 && (
-          <div className={styles.emptyState}>
-            No events found for this detection
-          </div>
+          <div className={styles.emptyState}>No events found for this detection</div>
         )}
         {timeline.events.map((event, idx) => (
           <div key={event.id} className={styles.timelineItem}>
             <div className={styles.timelineConnector}>
               <div
-                className={[
-                  styles.timelineDot,
-                  event.is_sequence_step && styles.sequenceDot,
-                ]
+                className={[styles.timelineDot, event.is_sequence_step && styles.sequenceDot]
                   .filter(Boolean)
                   .join(' ')}
               />
@@ -199,10 +204,7 @@ export function InvestigationTimeline({
                 />
               )}
             </div>
-            <EventCard
-              event={event}
-              onClick={() => setSelectedEvent(event)}
-            />
+            <EventCard event={event} onClick={() => setSelectedEvent(event)} />
           </div>
         ))}
       </div>
@@ -243,20 +245,36 @@ export function InvestigationTimeline({
               </div>
             </div>
 
-            <div className={styles.rawSection}>
-              <div className={styles.rawLabel}>Event Data</div>
-              <CodeBlock>
-                {JSON.stringify(selectedEvent.data, null, 2)}
-              </CodeBlock>
-            </div>
+            {Object.keys(selectedEvent.data).length > 0 && (
+              <div className={styles.rawSection}>
+                <div className={styles.dataHeader}>
+                  <span className={styles.rawLabel}>Event Data</span>
+                  <Button size="sm" variant="default" onClick={() => setShowRawData((v) => !v)}>
+                    {showRawData ? 'Formatted' : 'Raw JSON'}
+                  </Button>
+                </div>
+                {showRawData ? (
+                  <CodeBlock>{JSON.stringify(selectedEvent.data, null, 2)}</CodeBlock>
+                ) : (
+                  <div className={styles.detailGrid}>
+                    {flattenRecord(selectedEvent.data as Record<string, unknown>).map(
+                      ({ key, value }) => (
+                        <div key={key} className={styles.dataEntry}>
+                          <div className={styles.detailLabel}>{key}</div>
+                          <div>{value}</div>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {rawLoading && <Spinner />}
             {rawPayload && (
               <div className={styles.rawSection}>
                 <div className={styles.rawLabel}>Raw Payload</div>
-                <CodeBlock>
-                  {JSON.stringify(rawPayload, null, 2)}
-                </CodeBlock>
+                <CodeBlock>{JSON.stringify(rawPayload, null, 2)}</CodeBlock>
               </div>
             )}
           </div>

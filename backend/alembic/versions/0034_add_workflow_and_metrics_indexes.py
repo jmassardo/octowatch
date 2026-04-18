@@ -20,39 +20,36 @@ depends_on = None
 def upgrade() -> None:
     """Create partial expression indexes for workflow metrics queries.
 
-    Uses AUTOCOMMIT because CREATE INDEX CONCURRENTLY cannot run inside a
-    transaction block.
+    Note: TimescaleDB hypertables do not support CREATE INDEX CONCURRENTLY,
+    so we use regular CREATE INDEX instead.
     """
-    connection = op.get_bind()
-    connection.execution_options(isolation_level="AUTOCOMMIT")
-
-    connection.execute(
+    op.execute(
         sa.text("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_events_workflow_conclusion
+        CREATE INDEX IF NOT EXISTS idx_events_workflow_conclusion
             ON events (org, (data->>'conclusion'), created_at DESC)
             WHERE action = 'workflows.completed_workflow_run'
     """)
     )
 
-    connection.execute(
+    op.execute(
         sa.text("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_events_workflow_run_conclusion
+        CREATE INDEX IF NOT EXISTS idx_events_workflow_run_conclusion
             ON events (org, (data->>'conclusion'), created_at DESC)
             WHERE action LIKE 'workflow_run.%'
     """)
     )
 
-    connection.execute(
+    op.execute(
         sa.text("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_events_pr_lifecycle
+        CREATE INDEX IF NOT EXISTS idx_events_pr_lifecycle
             ON events (org, repo, (data->>'pull_request_id'), created_at)
             WHERE action IN ('pull_request.close', 'pull_request.create')
     """)
     )
 
-    connection.execute(
+    op.execute(
         sa.text("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_events_push_ref
+        CREATE INDEX IF NOT EXISTS idx_events_push_ref
             ON events (org, repo, (data->>'ref'), created_at)
             WHERE action = 'git.push'
     """)
@@ -61,12 +58,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Drop workflow metrics and executive metrics indexes."""
-    connection = op.get_bind()
-    connection.execution_options(isolation_level="AUTOCOMMIT")
-
-    connection.execute(sa.text("DROP INDEX CONCURRENTLY IF EXISTS idx_events_workflow_conclusion"))
-    connection.execute(
-        sa.text("DROP INDEX CONCURRENTLY IF EXISTS idx_events_workflow_run_conclusion")
-    )
-    connection.execute(sa.text("DROP INDEX CONCURRENTLY IF EXISTS idx_events_pr_lifecycle"))
-    connection.execute(sa.text("DROP INDEX CONCURRENTLY IF EXISTS idx_events_push_ref"))
+    op.execute(sa.text("DROP INDEX IF EXISTS idx_events_workflow_conclusion"))
+    op.execute(sa.text("DROP INDEX IF EXISTS idx_events_workflow_run_conclusion"))
+    op.execute(sa.text("DROP INDEX IF EXISTS idx_events_pr_lifecycle"))
+    op.execute(sa.text("DROP INDEX IF EXISTS idx_events_push_ref"))
