@@ -3,6 +3,7 @@ import { api } from './client';
 export interface CopilotPolicy {
   id: number;
   name: string;
+  description: string | null;
   policy_type: string;
   severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
   enabled: boolean;

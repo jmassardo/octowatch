@@ -134,6 +134,9 @@ ScopeType = Literal[
     "audit_log",
     "repo_commits",
     "pull_requests",
+    "workflow_runs",
+    "issues",
+    "deployments",
 ]
 
 
@@ -353,6 +356,16 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         "repo_commits",
         "pull_requests",
         "workflow_runs",
+        "team_repos",
+        "repo_collaborators",
+        "credential_authorizations",
+        "org_webhooks",
+        "repo_webhooks",
+        "actions_permissions",
+        "self_hosted_runners",
+        "deploy_keys",
+        "issues",
+        "deployments",
     }
 
     entity_types: list[str] = (
@@ -1295,6 +1308,8 @@ _SIMPLE_ENTITY_URLS: dict[str, str] = {
     "repositories": "/orgs/{org}/repos",
     "teams": "/orgs/{org}/teams",
     "outside_collaborators": "/orgs/{org}/outside_collaborators",
+    "credential_authorizations": "/orgs/{org}/credential-authorizations",
+    "org_webhooks": "/orgs/{org}/hooks",
 }
 
 
@@ -1373,6 +1388,95 @@ async def _github_get(
 
 def _has_next_page(headers: httpx.Headers | dict[str, str]) -> bool:
     return 'rel="next"' in (headers.get("link") or "")
+
+
+async def _enrich_prs_with_linked_issues(
+    items: list[dict],
+    token: str,
+    rate_limiter: GitHubRateLimiter,
+) -> None:
+    """Best-effort: enrich merged PR items with linked issue data via GraphQL.
+
+    Mutates *items* in-place — updates the ``data`` JSON string to include
+    a ``linked_issues`` array.  On any GraphQL error the items retain their
+    empty ``linked_issues`` lists and the sync is not interrupted.
+    """
+    import json as _json
+
+    BATCH_SIZE = 25
+
+    # Group items by (org, repo_name) and pr number for query building
+    merged_items = [i for i in items if i.get("action") == "pull_request.merged"]
+    if not merged_items:
+        return
+
+    for batch_start in range(0, len(merged_items), BATCH_SIZE):
+        batch = merged_items[batch_start : batch_start + BATCH_SIZE]
+
+        # Build aliased GraphQL query
+        fragments = []
+        alias_map: dict[str, dict] = {}  # alias -> item
+        for idx, item in enumerate(batch):
+            repo_full = item.get("repo", "")
+            parts = repo_full.split("/", 1)
+            if len(parts) != 2:
+                continue
+            owner, repo_name = parts
+            data_dict = _json.loads(item["data"])
+            pr_num = data_dict.get("number")
+            if not pr_num:
+                continue
+
+            alias = f"pr{idx}"
+            alias_map[alias] = item
+            fragments.append(
+                f'{alias}: repository(owner: "{owner}", name: "{repo_name}") {{\n'
+                f"  pullRequest(number: {pr_num}) {{\n"
+                f"    closingIssuesReferences(first: 10) {{\n"
+                f"      nodes {{ number createdAt repository {{ nameWithOwner }} }}\n"
+                f"    }}\n"
+                f"  }}\n"
+                f"}}"
+            )
+
+        if not fragments:
+            continue
+
+        query = "query LinkedIssues {\n" + "\n".join(fragments) + "\n}"
+
+        try:
+            result = await _graphql_page(
+                token,
+                query,
+                {},
+                rate_limiter=rate_limiter,
+            )
+        except Exception:
+            logger.warning("github_sync.linked_issues_graphql_failed", batch_size=len(batch))
+            continue
+
+        if not result or not result.get("data"):
+            continue
+
+        data = result["data"]
+        for alias, item in alias_map.items():
+            pr_data = (data.get(alias) or {}).get("pullRequest")
+            if not pr_data:
+                continue
+            refs = (pr_data.get("closingIssuesReferences") or {}).get("nodes") or []
+            linked = []
+            for node in refs:
+                linked.append(
+                    {
+                        "number": node.get("number"),
+                        "created_at": node.get("createdAt"),
+                        "repo": ((node.get("repository") or {}).get("nameWithOwner", "")),
+                    }
+                )
+            if linked:
+                item_data = _json.loads(item["data"])
+                item_data["linked_issues"] = linked
+                item["data"] = _json.dumps(item_data)
 
 
 async def _fetch_page(
@@ -1882,6 +1986,11 @@ async def _fetch_page(
                                 "additions": pr.get("additions", 0),
                                 "deletions": pr.get("deletions", 0),
                                 "changed_files": pr.get("changed_files", 0),
+                                "merge_commit_sha": pr.get("merge_commit_sha"),
+                                "head_sha": (pr.get("head") or {}).get("sha"),
+                                "head_ref": (pr.get("head") or {}).get("ref"),
+                                "pr_created_at": pr.get("created_at"),
+                                "linked_issues": [],
                             }
                         ),
                         "ingestion_source": "github_api_sync",
@@ -1890,17 +1999,417 @@ async def _fetch_page(
                 )
 
             if stop_early:
-                # No more relevant PRs — done with all repos
-                return items, None
+                # This repo's PRs are older than the cutoff — move to next repo
+                repo_idx += 1
+                page = 1
+                if items:
+                    try:
+                        await _enrich_prs_with_linked_issues(items, token, rate_limiter)
+                    except Exception:
+                        logger.warning("github_sync.pr_enrichment_failed")
+                    next_cursor = (
+                        json.dumps({"repo_idx": repo_idx, "page": 1})
+                        if repo_idx < len(repo_names)
+                        else None
+                    )
+                    return items, next_cursor
+                continue
 
             has_more = _has_next_page(resp.headers) and bool(prs)
             if has_more:
                 next_cursor_data = {"repo_idx": repo_idx, "page": page + 1}
+                if items:
+                    try:
+                        await _enrich_prs_with_linked_issues(items, token, rate_limiter)
+                    except Exception:
+                        logger.warning("github_sync.pr_enrichment_failed")
                 return items, json.dumps(next_cursor_data)
 
             # Move to the next repo
             repo_idx += 1
             page = 1
+            if items:
+                try:
+                    await _enrich_prs_with_linked_issues(items, token, rate_limiter)
+                except Exception:
+                    logger.warning("github_sync.pr_enrichment_failed")
+                next_cursor = (
+                    json.dumps({"repo_idx": repo_idx, "page": 1})
+                    if repo_idx < len(repo_names)
+                    else None
+                )
+                return items, next_cursor
+
+        # Enrich merged PRs with linked issues (best-effort GraphQL)
+        if items:
+            try:
+                await _enrich_prs_with_linked_issues(items, token, rate_limiter)
+            except Exception:
+                logger.warning("github_sync.pr_enrichment_failed")
+        return items, None
+
+    # ── Issues (iterate repos, fetch open & closed issues) ────────────────
+    if entity_type == "issues":
+        cursor_data = json.loads(cursor) if cursor else {"repo_idx": 0, "page": 1}
+        repo_idx = cursor_data["repo_idx"]
+        page = cursor_data["page"]
+
+        from sqlalchemy import select as sa_select
+
+        from app.models.github_sync import Repository
+
+        sf = _make_session_factory()
+        async with sf() as db_session:
+            result = await db_session.execute(
+                sa_select(Repository.repo_name).where(
+                    Repository.org == org,
+                    Repository.archived == False,  # noqa: E712
+                )
+            )
+            repo_names = [row[0] for row in result.fetchall()]
+
+        if not repo_names or repo_idx >= len(repo_names):
+            return [], None
+
+        items: list[dict] = []
+        default_cutoff = datetime.now(UTC) - timedelta(days=90)
+        cutoff = delta_since or default_cutoff
+
+        while repo_idx < len(repo_names):
+            repo_name = repo_names[repo_idx]
+            issues_url = f"{_GITHUB_API_BASE}/repos/{org}/{repo_name}/issues"
+            params: dict[str, object] = {
+                "state": "all",
+                "sort": "updated",
+                "direction": "desc",
+                "per_page": page_size,
+                "page": page,
+            }
+            if delta_since:
+                params["since"] = delta_since.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            resp = await _github_get(
+                issues_url,
+                headers,
+                params,
+                rate_limiter,
+                etag_cache=etag_cache,
+            )
+
+            if resp.status_code in (404, 403):
+                logger.debug(
+                    "github_sync.issues_skip",
+                    org=org,
+                    repo=repo_name,
+                    status=resp.status_code,
+                )
+                repo_idx += 1
+                page = 1
+                continue
+            resp.raise_for_status()
+            issues_list = resp.json()
+
+            stop_early = False
+            for issue in issues_list:
+                # Skip pull requests (GitHub issues endpoint includes them)
+                if issue.get("pull_request"):
+                    continue
+
+                updated_at_str = issue.get("updated_at", "")
+                if updated_at_str:
+                    try:
+                        updated_at = datetime.fromisoformat(updated_at_str.replace("Z", "+00:00"))
+                        if updated_at < cutoff:
+                            stop_early = True
+                            break
+                    except (ValueError, AttributeError):
+                        pass
+
+                state = issue.get("state", "open")
+                if state == "closed":
+                    action = "issue.closed"
+                    ts_str = (
+                        issue.get("closed_at") or issue.get("updated_at") or issue.get("created_at")
+                    )
+                else:
+                    action = "issue.opened"
+                    ts_str = issue.get("created_at")
+
+                try:
+                    created_at = datetime.fromisoformat(str(ts_str).replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    created_at = datetime.now(UTC)
+
+                actor = issue.get("user") or {}
+                actor_login = actor.get("login")
+                issue_number = issue.get("number", 0)
+
+                items.append(
+                    {
+                        "action": action,
+                        "actor": actor_login,
+                        "actor_id": actor.get("id"),
+                        "actor_is_bot": bool(actor_login and str(actor_login).endswith("[bot]")),
+                        "org": org,
+                        "repo": f"{org}/{repo_name}",
+                        "created_at": created_at,
+                        "document_id": f"issue-{org}/{repo_name}#{issue_number}-{state}",
+                        "data": json.dumps(
+                            {
+                                "number": issue_number,
+                                "title": issue.get("title", ""),
+                                "state": state,
+                                "state_reason": issue.get("state_reason"),
+                                "url": issue.get("html_url", ""),
+                                "labels": [lbl["name"] for lbl in (issue.get("labels") or [])],
+                                "milestone": (issue.get("milestone") or {}).get("title"),
+                                "assignees": [a["login"] for a in (issue.get("assignees") or [])],
+                                "issue_created_at": issue.get("created_at"),
+                                "closed_at": issue.get("closed_at"),
+                                "user": {"login": actor_login, "id": actor.get("id")},
+                            }
+                        ),
+                        "ingestion_source": "github_api_sync",
+                        "source_file_path": f"api/{org}/{repo_name}/issues",
+                    }
+                )
+
+            if stop_early:
+                repo_idx += 1
+                page = 1
+                if items:
+                    next_cursor = (
+                        json.dumps({"repo_idx": repo_idx, "page": 1})
+                        if repo_idx < len(repo_names)
+                        else None
+                    )
+                    return items, next_cursor
+                continue
+
+            has_more = _has_next_page(resp.headers) and bool(issues_list)
+            if has_more:
+                return items, json.dumps({"repo_idx": repo_idx, "page": page + 1})
+
+            repo_idx += 1
+            page = 1
+            if items:
+                next_cursor = (
+                    json.dumps({"repo_idx": repo_idx, "page": 1})
+                    if repo_idx < len(repo_names)
+                    else None
+                )
+                return items, next_cursor
+
+        return items, None
+
+    # ── Deployments + deployment statuses (iterate repos) ─────────────────
+    if entity_type == "deployments":
+        cursor_data = json.loads(cursor) if cursor else {"repo_idx": 0, "page": 1}
+        repo_idx = cursor_data["repo_idx"]
+        page = cursor_data["page"]
+
+        from sqlalchemy import select as sa_select
+
+        from app.models.github_sync import Repository
+
+        sf = _make_session_factory()
+        async with sf() as db_session:
+            result = await db_session.execute(
+                sa_select(Repository.repo_name).where(
+                    Repository.org == org,
+                    Repository.archived == False,  # noqa: E712
+                )
+            )
+            repo_names = [row[0] for row in result.fetchall()]
+
+        if not repo_names or repo_idx >= len(repo_names):
+            return [], None
+
+        items: list[dict] = []
+        default_cutoff = datetime.now(UTC) - timedelta(days=90)
+        cutoff = delta_since or default_cutoff
+
+        while repo_idx < len(repo_names):
+            repo_name = repo_names[repo_idx]
+            deploys_url = f"{_GITHUB_API_BASE}/repos/{org}/{repo_name}/deployments"
+            params: dict[str, object] = {
+                "per_page": page_size,
+                "page": page,
+            }
+
+            resp = await _github_get(
+                deploys_url,
+                headers,
+                params,
+                rate_limiter,
+                etag_cache=etag_cache,
+            )
+
+            if resp.status_code in (404, 403):
+                logger.debug(
+                    "github_sync.deployments_skip",
+                    org=org,
+                    repo=repo_name,
+                    status=resp.status_code,
+                )
+                repo_idx += 1
+                page = 1
+                continue
+            resp.raise_for_status()
+            deployments = resp.json()
+
+            stop_early = False
+            for deploy in deployments:
+                deploy_created_str = deploy.get("created_at", "")
+                try:
+                    deploy_created = datetime.fromisoformat(
+                        deploy_created_str.replace("Z", "+00:00")
+                    )
+                except (ValueError, AttributeError):
+                    deploy_created = datetime.now(UTC)
+
+                if deploy_created < cutoff:
+                    stop_early = True
+                    break
+
+                creator = deploy.get("creator") or {}
+                deploy_id = deploy.get("id", 0)
+                repo_full = f"{org}/{repo_name}"
+
+                items.append(
+                    {
+                        "action": "deployment.created",
+                        "actor": creator.get("login"),
+                        "actor_id": creator.get("id"),
+                        "actor_is_bot": bool(
+                            creator.get("login") and str(creator.get("login")).endswith("[bot]")
+                        ),
+                        "org": org,
+                        "repo": repo_full,
+                        "created_at": deploy_created,
+                        "document_id": f"deployment-{repo_full}-{deploy_id}",
+                        "data": json.dumps(
+                            {
+                                "deployment_id": deploy_id,
+                                "environment": deploy.get("environment", ""),
+                                "ref": deploy.get("ref", ""),
+                                "sha": deploy.get("sha", ""),
+                                "task": deploy.get("task", "deploy"),
+                                "description": deploy.get("description"),
+                                "url": deploy.get("html_url") or deploy.get("url", ""),
+                                "creator": {
+                                    "login": creator.get("login"),
+                                    "id": creator.get("id"),
+                                },
+                            }
+                        ),
+                        "ingestion_source": "github_api_sync",
+                        "source_file_path": f"api/{org}/{repo_name}/deployments",
+                    }
+                )
+
+                # Fetch deployment statuses (nested, max 3 pages)
+                for status_page in range(1, 4):
+                    statuses_url = (
+                        f"{_GITHUB_API_BASE}/repos/{org}/{repo_name}"
+                        f"/deployments/{deploy_id}/statuses"
+                    )
+                    status_params: dict[str, object] = {"per_page": 100, "page": status_page}
+                    try:
+                        status_resp = await _github_get(
+                            statuses_url,
+                            headers,
+                            status_params,
+                            rate_limiter,
+                            etag_cache=etag_cache,
+                        )
+                    except Exception:
+                        logger.debug("github_sync.deploy_status_fetch_failed", deploy_id=deploy_id)
+                        break
+
+                    if status_resp.status_code in (404, 403):
+                        break
+                    status_resp.raise_for_status()
+                    statuses = status_resp.json()
+                    if not statuses:
+                        break
+
+                    for dep_status in statuses:
+                        status_creator = dep_status.get("creator") or {}
+                        status_state = dep_status.get("state", "unknown")
+                        status_ts_str = dep_status.get("created_at", "")
+                        try:
+                            status_ts = datetime.fromisoformat(status_ts_str.replace("Z", "+00:00"))
+                        except (ValueError, AttributeError):
+                            status_ts = datetime.now(UTC)
+
+                        items.append(
+                            {
+                                "action": f"deployment_status.{status_state}",
+                                "actor": status_creator.get("login"),
+                                "actor_id": status_creator.get("id"),
+                                "actor_is_bot": bool(
+                                    status_creator.get("login")
+                                    and str(status_creator.get("login")).endswith("[bot]")
+                                ),
+                                "org": org,
+                                "repo": repo_full,
+                                "created_at": status_ts,
+                                "document_id": (
+                                    f"deploy-status-{repo_full}"
+                                    f"-{deploy_id}-{dep_status.get('id', 0)}"
+                                ),
+                                "data": json.dumps(
+                                    {
+                                        "deployment_id": deploy_id,
+                                        "status_id": dep_status.get("id", 0),
+                                        "environment": deploy.get("environment", ""),
+                                        "state": status_state,
+                                        "sha": deploy.get("sha", ""),
+                                        "description": dep_status.get("description"),
+                                        "environment_url": dep_status.get("environment_url"),
+                                        "url": dep_status.get("url", ""),
+                                        "creator": {
+                                            "login": status_creator.get("login"),
+                                            "id": status_creator.get("id"),
+                                        },
+                                    }
+                                ),
+                                "ingestion_source": "github_api_sync",
+                                "source_file_path": (
+                                    f"api/{org}/{repo_name}/deployments/{deploy_id}/statuses"
+                                ),
+                            }
+                        )
+
+                    if not _has_next_page(status_resp.headers):
+                        break
+
+            if stop_early:
+                repo_idx += 1
+                page = 1
+                if items:
+                    next_cursor = (
+                        json.dumps({"repo_idx": repo_idx, "page": 1})
+                        if repo_idx < len(repo_names)
+                        else None
+                    )
+                    return items, next_cursor
+                continue
+
+            has_more = _has_next_page(resp.headers) and bool(deployments)
+            if has_more:
+                return items, json.dumps({"repo_idx": repo_idx, "page": page + 1})
+
+            repo_idx += 1
+            page = 1
+            if items:
+                next_cursor = (
+                    json.dumps({"repo_idx": repo_idx, "page": 1})
+                    if repo_idx < len(repo_names)
+                    else None
+                )
+                return items, next_cursor
 
         return items, None
 
@@ -2024,6 +2533,7 @@ async def _fetch_page(
                                 "updated_at": updated_str,
                                 "html_url": run.get("html_url", ""),
                                 "duration_seconds": duration_seconds,
+                                "head_sha": run.get("head_sha"),
                             }
                         ),
                         "ingestion_source": "github_api_sync",
@@ -2617,6 +3127,368 @@ async def _fetch_page(
             next_cursor = None
 
         return events, next_cursor
+
+    # ── Team repos (nested: teams → repos per team) ──────────────────────
+    if entity_type == "team_repos":
+        if cursor is None:
+            all_slugs: list[str] = []
+            teams_url = f"{_GITHUB_API_BASE}/orgs/{org}/teams"
+            tp = 1
+            while True:
+                resp = await _github_get(
+                    teams_url,
+                    headers,
+                    {"per_page": 100, "page": tp},
+                    rate_limiter,
+                    etag_cache=etag_cache,
+                )
+                if resp.status_code == 403:
+                    return [], None
+                resp.raise_for_status()
+                batch = resp.json()
+                all_slugs.extend(t["slug"] for t in batch)
+                if not batch or not _has_next_page(resp.headers):
+                    break
+                tp += 1
+            all_slugs.sort()
+            if not all_slugs:
+                return [], None
+            state = {"teams": all_slugs, "current": all_slugs[0], "page": 1}
+        else:
+            state = json.loads(cursor)
+
+        team_slug = state["current"]
+        page = state["page"]
+        all_slugs = state["teams"]
+
+        repos_url = f"{_GITHUB_API_BASE}/orgs/{org}/teams/{team_slug}/repos"
+        resp = await _github_get(
+            repos_url,
+            headers,
+            {"per_page": page_size, "page": page},
+            rate_limiter,
+            etag_cache=etag_cache,
+        )
+        if resp.status_code == 403:
+            # Skip this team, advance
+            try:
+                idx = all_slugs.index(team_slug)
+            except ValueError:
+                return [], None
+            if idx + 1 < len(all_slugs):
+                state["current"] = all_slugs[idx + 1]
+                state["page"] = 1
+                return [], json.dumps(state)
+            return [], None
+        resp.raise_for_status()
+        items = resp.json()
+        for item in items:
+            item["_team_slug"] = team_slug
+            # Extract highest permission
+            perms = item.get("permissions", {})
+            for perm_level in ("admin", "maintain", "push", "triage", "pull"):
+                if perms.get(perm_level):
+                    item["_permission"] = perm_level
+                    break
+            else:
+                item["_permission"] = "pull"
+
+        if _has_next_page(resp.headers):
+            state["page"] = page + 1
+            return items, json.dumps(state)
+
+        try:
+            idx = all_slugs.index(team_slug)
+        except ValueError:
+            return items, None
+        if idx + 1 < len(all_slugs):
+            state["current"] = all_slugs[idx + 1]
+            state["page"] = 1
+            return items, json.dumps(state)
+        return items, None
+
+    # ── Repo collaborators (iterate repos, fetch direct collaborators) ────
+    if entity_type == "repo_collaborators":
+        cursor_data = json.loads(cursor) if cursor else {"repo_idx": 0, "page": 1}
+        repo_idx = cursor_data["repo_idx"]
+        page = cursor_data["page"]
+
+        from sqlalchemy import select as sa_select
+
+        from app.models.github_sync import Repository
+
+        sf = _make_session_factory()
+        async with sf() as db_session:
+            result = await db_session.execute(
+                sa_select(Repository.repo_name).where(
+                    Repository.org == org,
+                    Repository.archived == False,  # noqa: E712
+                )
+            )
+            repo_names: list[str] = [row[0] for row in result.fetchall()]
+
+        if not repo_names or repo_idx >= len(repo_names):
+            return [], None
+
+        items: list[dict] = []
+        while repo_idx < len(repo_names):
+            repo_name = repo_names[repo_idx]
+            collab_url = f"{_GITHUB_API_BASE}/repos/{org}/{repo_name}/collaborators"
+            resp = await _github_get(
+                collab_url,
+                headers,
+                {"per_page": page_size, "page": page, "affiliation": "direct"},
+                rate_limiter,
+                etag_cache=etag_cache,
+            )
+            if resp.status_code in (403, 404):
+                repo_idx += 1
+                page = 1
+                continue
+            resp.raise_for_status()
+            collabs = resp.json()
+            for c in collabs:
+                perms = c.get("permissions", {})
+                perm = "read"
+                for p in ("admin", "maintain", "push", "triage", "pull"):
+                    if perms.get(p):
+                        perm = {"pull": "read"}.get(p, p)
+                        break
+                items.append(
+                    {
+                        "_repo_name": repo_name,
+                        "login": c.get("login"),
+                        "id": c.get("id"),
+                        "permission": perm,
+                    }
+                )
+
+            if _has_next_page(resp.headers):
+                return items, json.dumps({"repo_idx": repo_idx, "page": page + 1})
+
+            repo_idx += 1
+            page = 1
+            # Return batch after each repo to keep pages manageable
+            if items:
+                next_cursor = (
+                    json.dumps({"repo_idx": repo_idx, "page": 1})
+                    if repo_idx < len(repo_names)
+                    else None
+                )
+                return items, next_cursor
+
+        return items, None
+
+    # ── Repo webhooks (iterate repos, fetch hooks per repo) ───────────────
+    if entity_type == "repo_webhooks":
+        cursor_data = json.loads(cursor) if cursor else {"repo_idx": 0, "page": 1}
+        repo_idx = cursor_data["repo_idx"]
+        page = cursor_data["page"]
+
+        from sqlalchemy import select as sa_select
+
+        from app.models.github_sync import Repository
+
+        sf = _make_session_factory()
+        async with sf() as db_session:
+            result = await db_session.execute(
+                sa_select(Repository.repo_name).where(
+                    Repository.org == org,
+                    Repository.archived == False,  # noqa: E712
+                )
+            )
+            repo_names: list[str] = [row[0] for row in result.fetchall()]
+
+        if not repo_names or repo_idx >= len(repo_names):
+            return [], None
+
+        items: list[dict] = []
+        while repo_idx < len(repo_names):
+            repo_name = repo_names[repo_idx]
+            hooks_url = f"{_GITHUB_API_BASE}/repos/{org}/{repo_name}/hooks"
+            resp = await _github_get(
+                hooks_url,
+                headers,
+                {"per_page": page_size, "page": page},
+                rate_limiter,
+                etag_cache=etag_cache,
+            )
+            if resp.status_code in (403, 404):
+                repo_idx += 1
+                page = 1
+                continue
+            resp.raise_for_status()
+            hooks = resp.json()
+            for h in hooks:
+                config = h.get("config", {})
+                items.append(
+                    {
+                        "_repo_name": repo_name,
+                        "hook_id": h.get("id"),
+                        "name": h.get("name", "web"),
+                        "active": h.get("active", False),
+                        "config_url": config.get("url"),
+                        "config_content_type": config.get("content_type"),
+                        "config_insecure_ssl": config.get("insecure_ssl"),
+                        "events": h.get("events", []),
+                    }
+                )
+
+            if _has_next_page(resp.headers):
+                return items, json.dumps({"repo_idx": repo_idx, "page": page + 1})
+
+            repo_idx += 1
+            page = 1
+            if items:
+                next_cursor = (
+                    json.dumps({"repo_idx": repo_idx, "page": 1})
+                    if repo_idx < len(repo_names)
+                    else None
+                )
+                return items, next_cursor
+
+        return items, None
+
+    # ── Actions permissions (org-level, single call per org) ──────────────
+    if entity_type == "actions_permissions":
+        if cursor is not None:
+            return [], None  # Single-page entity
+        perm_url = f"{_GITHUB_API_BASE}/orgs/{org}/actions/permissions"
+        resp = await _github_get(perm_url, headers, {}, rate_limiter, etag_cache=etag_cache)
+        if resp.status_code == 403:
+            return [], None
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Also fetch selected actions if applicable
+        allowed_actions = data.get("allowed_actions")
+        github_owned = True
+        verified = False
+        patterns: list[str] = []
+        if allowed_actions == "selected":
+            sel_url = f"{_GITHUB_API_BASE}/orgs/{org}/actions/permissions/selected-actions"
+            sel_resp = await _github_get(sel_url, headers, {}, rate_limiter, etag_cache=etag_cache)
+            if sel_resp.status_code == 200:
+                sel_data = sel_resp.json()
+                github_owned = sel_data.get("github_owned_allowed", True)
+                verified = sel_data.get("verified_allowed", False)
+                patterns = sel_data.get("patterns_allowed", [])
+
+        items = [
+            {
+                "enabled_repositories": data.get("enabled_repositories", "all"),
+                "allowed_actions": allowed_actions,
+                "github_owned_allowed": github_owned,
+                "verified_allowed": verified,
+                "patterns_allowed": patterns,
+            }
+        ]
+        return items, None
+
+    # ── Self-hosted runners (paginated, nested in "runners" key) ──────────
+    if entity_type == "self_hosted_runners":
+        page = int(cursor) if cursor else 1
+        runners_url = f"{_GITHUB_API_BASE}/orgs/{org}/actions/runners"
+        resp = await _github_get(
+            runners_url,
+            headers,
+            {"per_page": page_size, "page": page},
+            rate_limiter,
+            etag_cache=etag_cache,
+        )
+        if resp.status_code == 403:
+            return [], None
+        resp.raise_for_status()
+        data = resp.json()
+        runners = data.get("runners", [])
+        items = []
+        for r in runners:
+            labels = [lb.get("name", "") for lb in (r.get("labels") or [])]
+            rg = r.get("runner_group_id")
+            rg_name = r.get("runner_group_name")
+            items.append(
+                {
+                    "runner_id": r.get("id"),
+                    "name": r.get("name", ""),
+                    "os": r.get("os", "unknown"),
+                    "status": r.get("status", "offline"),
+                    "busy": r.get("busy", False),
+                    "labels": labels,
+                    "runner_group_id": rg,
+                    "runner_group_name": rg_name,
+                }
+            )
+        # Determine if more pages: total_count > page * page_size
+        total = data.get("total_count", 0)
+        if page * page_size < total:
+            return items, str(page + 1)
+        return items, None
+
+    # ── Deploy keys (iterate repos, fetch keys per repo) ──────────────────
+    if entity_type == "deploy_keys":
+        cursor_data = json.loads(cursor) if cursor else {"repo_idx": 0, "page": 1}
+        repo_idx = cursor_data["repo_idx"]
+        page = cursor_data["page"]
+
+        from sqlalchemy import select as sa_select
+
+        from app.models.github_sync import Repository
+
+        sf = _make_session_factory()
+        async with sf() as db_session:
+            result = await db_session.execute(
+                sa_select(Repository.repo_name).where(
+                    Repository.org == org,
+                    Repository.archived == False,  # noqa: E712
+                )
+            )
+            repo_names: list[str] = [row[0] for row in result.fetchall()]
+
+        if not repo_names or repo_idx >= len(repo_names):
+            return [], None
+
+        items: list[dict] = []
+        while repo_idx < len(repo_names):
+            repo_name = repo_names[repo_idx]
+            keys_url = f"{_GITHUB_API_BASE}/repos/{org}/{repo_name}/keys"
+            resp = await _github_get(
+                keys_url,
+                headers,
+                {"per_page": page_size, "page": page},
+                rate_limiter,
+                etag_cache=etag_cache,
+            )
+            if resp.status_code in (403, 404):
+                repo_idx += 1
+                page = 1
+                continue
+            resp.raise_for_status()
+            keys = resp.json()
+            for k in keys:
+                items.append(
+                    {
+                        "_repo_name": repo_name,
+                        "key_id": k.get("id"),
+                        "title": k.get("title", ""),
+                        "read_only": k.get("read_only", True),
+                        "created_at": k.get("created_at"),
+                    }
+                )
+
+            if _has_next_page(resp.headers):
+                return items, json.dumps({"repo_idx": repo_idx, "page": page + 1})
+
+            repo_idx += 1
+            page = 1
+            if items:
+                next_cursor = (
+                    json.dumps({"repo_idx": repo_idx, "page": 1})
+                    if repo_idx < len(repo_names)
+                    else None
+                )
+                return items, next_cursor
+
+        return items, None
 
     logger.error("github_sync.unknown_entity_type", entity_type=entity_type)
     return [], None
@@ -3665,8 +4537,24 @@ async def _upsert_items(
         await _upsert_mfa_status(session, org_str, items)
     elif entity_type == "audit_log":
         await _upsert_audit_log_events(session, org, items)
-    elif entity_type in ("repo_commits", "pull_requests", "workflow_runs"):
+    elif entity_type in ("repo_commits", "pull_requests", "workflow_runs", "issues", "deployments"):
         await _upsert_activity_events(session, org_str, items)
+    elif entity_type == "team_repos":
+        await _upsert_team_repos(session, org_str, items)
+    elif entity_type == "repo_collaborators":
+        await _upsert_repo_collaborators(session, org_str, items)
+    elif entity_type == "credential_authorizations":
+        await _upsert_credential_authorizations(session, org_str, items)
+    elif entity_type == "org_webhooks":
+        await _upsert_org_webhooks(session, org_str, items)
+    elif entity_type == "repo_webhooks":
+        await _upsert_repo_webhooks(session, org_str, items)
+    elif entity_type == "actions_permissions":
+        await _upsert_actions_permissions(session, org_str, items)
+    elif entity_type == "self_hosted_runners":
+        await _upsert_self_hosted_runners(session, org_str, items)
+    elif entity_type == "deploy_keys":
+        await _upsert_deploy_keys(session, org_str, items)
     else:
         logger.error("github_sync.unknown_upsert_entity", entity_type=entity_type)
 
@@ -3943,6 +4831,304 @@ async def _upsert_activity_events(
             total=len(items),
             org=org_str,
         )
+
+
+async def _upsert_team_repos(session: AsyncSession, org: str, items: list[dict]) -> None:
+    """Upsert team-repo access mappings."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import OrgTeamRepo
+
+    for item in items:
+        stmt = (
+            insert(OrgTeamRepo)
+            .values(
+                org=org,
+                team_slug=item.get("_team_slug", ""),
+                repo_name=item.get("name", ""),
+                repo_id=item.get("id", 0),
+                permission=item.get("_permission", "pull"),
+            )
+            .on_conflict_do_update(
+                constraint="uq_org_team_repos_org_team_repo",
+                set_={
+                    "repo_id": item.get("id", 0),
+                    "permission": item.get("_permission", "pull"),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_repo_collaborators(session: AsyncSession, org: str, items: list[dict]) -> None:
+    """Upsert direct repo collaborators."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import RepoCollaborator
+
+    for item in items:
+        login = item.get("login")
+        if not login:
+            continue
+        stmt = (
+            insert(RepoCollaborator)
+            .values(
+                org=org,
+                repo_name=item.get("_repo_name", ""),
+                github_login=login,
+                github_id=item.get("id"),
+                permission=item.get("permission", "read"),
+            )
+            .on_conflict_do_update(
+                constraint="uq_repo_collaborators_org_repo_login",
+                set_={
+                    "github_id": item.get("id"),
+                    "permission": item.get("permission", "read"),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_credential_authorizations(
+    session: AsyncSession, org: str, items: list[dict]
+) -> None:
+    """Upsert SAML/SSO credential authorizations."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import OrgCredentialAuthorization
+
+    for item in items:
+        cred_id = item.get("credential_id")
+        if not cred_id:
+            continue
+        stmt = (
+            insert(OrgCredentialAuthorization)
+            .values(
+                org=org,
+                github_login=item.get("login", ""),
+                credential_id=cred_id,
+                credential_type=item.get("credential_type", "unknown"),
+                token_last_eight=item.get("token_last_eight"),
+                credential_authorized_at=item.get("credential_authorized_at"),
+                credential_accessed_at=item.get("credential_accessed_at"),
+                scopes=item.get("scopes"),
+            )
+            .on_conflict_do_update(
+                constraint="uq_org_credential_auth_org_cred",
+                set_={
+                    "github_login": item.get("login", ""),
+                    "credential_type": item.get("credential_type", "unknown"),
+                    "token_last_eight": item.get("token_last_eight"),
+                    "credential_authorized_at": item.get("credential_authorized_at"),
+                    "credential_accessed_at": item.get("credential_accessed_at"),
+                    "scopes": item.get("scopes"),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_org_webhooks(session: AsyncSession, org: str, items: list[dict]) -> None:
+    """Upsert org-level webhooks."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import OrgWebhook
+
+    for item in items:
+        hook_id = item.get("id")
+        if not hook_id:
+            continue
+        config = item.get("config", {})
+        stmt = (
+            insert(OrgWebhook)
+            .values(
+                org=org,
+                hook_id=hook_id,
+                name=item.get("name", "web"),
+                active=item.get("active", False),
+                config_url=config.get("url"),
+                config_content_type=config.get("content_type"),
+                config_insecure_ssl=config.get("insecure_ssl"),
+                events=item.get("events"),
+            )
+            .on_conflict_do_update(
+                constraint="uq_org_webhooks_org_hook",
+                set_={
+                    "name": item.get("name", "web"),
+                    "active": item.get("active", False),
+                    "config_url": config.get("url"),
+                    "config_content_type": config.get("content_type"),
+                    "config_insecure_ssl": config.get("insecure_ssl"),
+                    "events": item.get("events"),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_repo_webhooks(session: AsyncSession, org: str, items: list[dict]) -> None:
+    """Upsert repo-level webhooks."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import RepoWebhook
+
+    for item in items:
+        hook_id = item.get("hook_id")
+        if not hook_id:
+            continue
+        stmt = (
+            insert(RepoWebhook)
+            .values(
+                org=org,
+                repo_name=item.get("_repo_name", ""),
+                hook_id=hook_id,
+                name=item.get("name", "web"),
+                active=item.get("active", False),
+                config_url=item.get("config_url"),
+                config_content_type=item.get("config_content_type"),
+                config_insecure_ssl=item.get("config_insecure_ssl"),
+                events=item.get("events"),
+            )
+            .on_conflict_do_update(
+                constraint="uq_repo_webhooks_org_repo_hook",
+                set_={
+                    "name": item.get("name", "web"),
+                    "active": item.get("active", False),
+                    "config_url": item.get("config_url"),
+                    "config_content_type": item.get("config_content_type"),
+                    "config_insecure_ssl": item.get("config_insecure_ssl"),
+                    "events": item.get("events"),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_actions_permissions(session: AsyncSession, org: str, items: list[dict]) -> None:
+    """Upsert org-level Actions permissions."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import OrgActionsPermissions
+
+    for item in items:
+        stmt = (
+            insert(OrgActionsPermissions)
+            .values(
+                org=org,
+                enabled_repositories=item.get("enabled_repositories", "all"),
+                allowed_actions=item.get("allowed_actions"),
+                github_owned_allowed=item.get("github_owned_allowed", True),
+                verified_allowed=item.get("verified_allowed", False),
+                patterns_allowed=item.get("patterns_allowed"),
+            )
+            .on_conflict_do_update(
+                constraint="uq_org_actions_permissions_org",
+                set_={
+                    "enabled_repositories": item.get("enabled_repositories", "all"),
+                    "allowed_actions": item.get("allowed_actions"),
+                    "github_owned_allowed": item.get("github_owned_allowed", True),
+                    "verified_allowed": item.get("verified_allowed", False),
+                    "patterns_allowed": item.get("patterns_allowed"),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_self_hosted_runners(session: AsyncSession, org: str, items: list[dict]) -> None:
+    """Upsert org-level self-hosted runners."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import OrgSelfHostedRunner
+
+    for item in items:
+        runner_id = item.get("runner_id")
+        if not runner_id:
+            continue
+        stmt = (
+            insert(OrgSelfHostedRunner)
+            .values(
+                org=org,
+                runner_id=runner_id,
+                name=item.get("name", ""),
+                os=item.get("os", "unknown"),
+                status=item.get("status", "offline"),
+                busy=item.get("busy", False),
+                labels=item.get("labels"),
+                runner_group_id=item.get("runner_group_id"),
+                runner_group_name=item.get("runner_group_name"),
+            )
+            .on_conflict_do_update(
+                constraint="uq_org_self_hosted_runners_org_runner",
+                set_={
+                    "name": item.get("name", ""),
+                    "os": item.get("os", "unknown"),
+                    "status": item.get("status", "offline"),
+                    "busy": item.get("busy", False),
+                    "labels": item.get("labels"),
+                    "runner_group_id": item.get("runner_group_id"),
+                    "runner_group_name": item.get("runner_group_name"),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
+async def _upsert_deploy_keys(session: AsyncSession, org: str, items: list[dict]) -> None:
+    """Upsert repo deploy keys."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import RepoDeployKey
+
+    for item in items:
+        key_id = item.get("key_id")
+        if not key_id:
+            continue
+        stmt = (
+            insert(RepoDeployKey)
+            .values(
+                org=org,
+                repo_name=item.get("_repo_name", ""),
+                key_id=key_id,
+                title=item.get("title", ""),
+                read_only=item.get("read_only", True),
+                key_added_at=item.get("created_at"),
+            )
+            .on_conflict_do_update(
+                constraint="uq_repo_deploy_keys_org_repo_key",
+                set_={
+                    "title": item.get("title", ""),
+                    "read_only": item.get("read_only", True),
+                    "key_added_at": item.get("created_at"),
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
 
 
 async def _sync_installation_configs(existing_configs: list, settings: object) -> list:

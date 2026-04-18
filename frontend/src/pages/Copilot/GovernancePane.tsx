@@ -28,10 +28,14 @@ function PolicyCard({
           {policy.enabled ? 'Active' : 'Disabled'}
         </Label>
       </div>
+      {policy.description && <span className={styles.govCardDesc}>{policy.description}</span>}
       <div className={styles.govCardMeta}>
         <span>Type: {policy.policy_type}</span>
         <span>
-          Severity: <Label variant={policy.severity === 'critical' ? 'danger' : 'muted'}>{policy.severity}</Label>
+          Severity:{' '}
+          <Label variant={policy.severity === 'critical' ? 'danger' : 'muted'}>
+            {policy.severity}
+          </Label>
         </span>
       </div>
       <div className={styles.govCardActions}>
@@ -147,7 +151,10 @@ export function GovernancePane() {
 
         {loadingViolations && <Spinner />}
         {violationError && (
-          <ErrorBanner message="Failed to load violations" onRetry={() => void refetchViolations()} />
+          <ErrorBanner
+            message="Failed to load violations"
+            onRetry={() => void refetchViolations()}
+          />
         )}
         {violationData && violationData.violations.length === 0 && (
           <div className={styles.govEmpty}>No violations found</div>

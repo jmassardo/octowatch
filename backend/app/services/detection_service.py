@@ -349,9 +349,11 @@ async def evaluate_threshold_rule(
             f"distinct_count_field '{distinct_count_field}' is not a permitted column."
         )
 
-    # §1.4: When action_filters is empty, skip evaluation entirely
+    # §1.4: When action_filters is empty, skip evaluation entirely.
+    # A single wildcard ["*"] means "match all actions" — do not skip.
+    has_wildcard = "*" in action_filters
     cleaned_actions = [a for a in action_filters if a != "*"]
-    if not cleaned_actions:
+    if not cleaned_actions and not has_wildcard:
         return []
 
     # Get distinct aggregation key values from matching events
@@ -392,25 +394,28 @@ async def evaluate_threshold_rule(
         "COUNT(DISTINCT " + distinct_count_field + ")" if distinct_count_field else "COUNT(*)"
     )
 
-    # Batch query: count per aggregation key value in one query
+    # Batch query: count per aggregation key value in one query.
+    # When has_wildcard is True and cleaned_actions is empty, skip the action filter.
+    action_clause = "AND action = ANY(:actions) " if cleaned_actions else ""
     batch_sql = (
         "SELECT " + group_col + " AS agg_val, " + count_expr + " AS cnt "
         "FROM events "
         "WHERE created_at >= :window_start "
-        "AND " + group_col + " = ANY(:agg_values) "
-        "AND action = ANY(:actions) "
-        "AND org = ANY(:scoped_orgs) "
+        "AND " + group_col + " = ANY(:agg_values) " + action_clause + "AND org = ANY(:scoped_orgs) "
         "GROUP BY " + group_col
     )
 
+    batch_params: dict[str, Any] = {
+        "window_start": window_start,
+        "agg_values": list(agg_values),
+        "scoped_orgs": scoped_orgs if scoped_orgs else [""],
+    }
+    if cleaned_actions:
+        batch_params["actions"] = cleaned_actions
+
     batch_result = await session.execute(
         text(batch_sql),
-        {
-            "window_start": window_start,
-            "agg_values": list(agg_values),
-            "actions": cleaned_actions,
-            "scoped_orgs": scoped_orgs if scoped_orgs else [""],
-        },
+        batch_params,
     )
     counts_by_agg = {row.agg_val: row.cnt for row in batch_result.fetchall()}
 
@@ -983,6 +988,90 @@ async def evaluate_cross_namespace_sequence(
     return results
 
 
+async def _check_x_config_engine(
+    event: AuditEvent,
+    rule: RuleDefinition,
+    session: AsyncSession,
+) -> bool:
+    """Evaluate x_config engine for pattern rules.
+
+    Returns True if the event passes the engine check (or no engine configured).
+    Returns False if the engine rejects the event.
+    """
+    config = rule.logic_config
+    x_config = config.get("x_config")
+    if not x_config:
+        return True  # No engine — basic pattern match is sufficient
+
+    engine = x_config.get("engine", "")
+
+    if engine == "threat_intel_webhook":
+        check_field = x_config.get("check_field", "data.config.url")
+        return await _check_threat_intel_field(event, check_field, session)
+
+    elif engine == "threat_intel_app_install":
+        check_field = x_config.get("check_field", "data.app.slug")
+        return await _check_threat_intel_field(event, check_field, session)
+
+    elif engine == "health_signal":
+        # Health signal rules always pass pattern match — signal is informational
+        return True
+
+    elif engine == "workflow_modification_check":
+        # Check if workflow was modified by a non-admin or bot
+        actor_is_bot = getattr(event, "actor_is_bot", False)
+        if actor_is_bot:
+            return True  # Bots modifying workflows is suspicious
+        return True  # Default pass — additional checks can be added
+
+    else:
+        logger.warning(
+            "detection.unknown_x_config_engine",
+            engine=engine,
+            rule_id=rule.id,
+            rule_name=rule.name,
+        )
+        return True  # Unknown engine — fall through to basic pattern match
+
+
+async def _check_threat_intel_field(
+    event: AuditEvent,
+    check_field: str,
+    session: AsyncSession,
+) -> bool:
+    """Check if a field value matches any active threat intelligence indicators."""
+    # Extract field value from event
+    if check_field.startswith("data."):
+        field_path = check_field[5:]  # Strip "data." prefix
+        value = event.data.get(field_path) if event.data else None
+    else:
+        value = getattr(event, check_field, None)
+
+    if not value:
+        return False  # No value to check — skip detection
+
+    # Check against threat indicators
+    try:
+        from app.models.threat_intel import ThreatIntelIndicator
+
+        stmt = (
+            select(ThreatIntelIndicator)
+            .where(ThreatIntelIndicator.value == str(value))
+            .where(ThreatIntelIndicator.active.is_(True))
+            .where(
+                (ThreatIntelIndicator.expires_at.is_(None))
+                | (ThreatIntelIndicator.expires_at > datetime.now(UTC))
+            )
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        indicator = result.scalar_one_or_none()
+        return indicator is not None
+    except Exception:
+        logger.debug("detection.threat_intel_check_failed", exc_info=True)
+        return False  # On error, don't generate false detection
+
+
 async def run_detection_pipeline(
     session: AsyncSession,
     event_ids: list[int],
@@ -1031,6 +1120,9 @@ async def run_detection_pipeline(
                 # Every matching event fires a detection
                 for event in events:
                     if not event_matches_rule(event, rule):
+                        continue
+                    # Check x_config engine (threat intel, health signal, etc.)
+                    if not await _check_x_config_engine(event, rule, session):
                         continue
                     det_id = await _write_detection_for_event(session, rule, event, orgs)
                     if det_id is not None:

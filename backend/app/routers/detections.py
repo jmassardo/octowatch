@@ -125,7 +125,7 @@ async def update_detection_status(
 ) -> DetectionResponse:
     """Update the status of a detection (e.g. open → investigating → closed)."""
     scope = await get_user_scope(db, current_user.github_login, current_user.roles)
-    detection = await _get_detection_or_404(db, detection_id, scope.org_allowlist)
+    detection = await _get_detection_or_404(db, detection_id, scope.scoped_orgs)
 
     valid_transitions = {
         "open": {"investigating", "resolved", "false_positive"},
@@ -172,7 +172,7 @@ async def assign_detection(
 ) -> DetectionResponse:
     """Assign a detection to a user."""
     scope = await get_user_scope(db, current_user.github_login, current_user.roles)
-    detection = await _get_detection_or_404(db, detection_id, scope.org_allowlist)
+    detection = await _get_detection_or_404(db, detection_id, scope.scoped_orgs)
 
     detection.assigned_to = payload.assigned_to
     await db.flush()
@@ -199,7 +199,7 @@ async def suppress_from_detection(
 ) -> dict:
     """Create a suppression rule scoped to the actor/org of this detection."""
     scope = await get_user_scope(db, current_user.github_login, current_user.roles)
-    detection = await _get_detection_or_404(db, detection_id, scope.org_allowlist)
+    detection = await _get_detection_or_404(db, detection_id, scope.scoped_orgs)
 
     from app.models.detection import DetectionSuppression
 

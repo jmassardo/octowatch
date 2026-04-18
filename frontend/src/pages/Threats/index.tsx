@@ -8,6 +8,7 @@ import {
   assignDetection,
 } from '../../api/detections';
 import { listRules } from '../../api/rules';
+import { getSuggestedRepos, getSuggestedActors } from '../../api/suggestions';
 import type { DetectionResponse } from '../../types/detections';
 import { SeverityDot } from '../../components/primitives/SeverityDot';
 import { Label } from '../../components/primitives/Label';
@@ -15,6 +16,7 @@ import { Button } from '../../components/primitives/Button';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Pagination } from '../../components/primitives/Pagination';
+import { Autocomplete } from '../../components/primitives/Autocomplete';
 import { InvestigationTimeline } from './InvestigationTimeline';
 import { formatRelativeShort } from '../../utils/dates';
 import { useOrg } from '../../hooks/useOrg';
@@ -192,6 +194,21 @@ export function ThreatsPage() {
   });
   const ruleOptions = rulesData?.items ?? [];
   const orgs: readonly string[] = currentUser?.scoped_orgs ?? [];
+
+  const { data: reposData } = useQuery({
+    queryKey: ['suggestions', 'repos'],
+    queryFn: getSuggestedRepos,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: actorsData } = useQuery({
+    queryKey: ['suggestions', 'actors'],
+    queryFn: getSuggestedActors,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const repoSuggestions = reposData?.repos ?? [];
+  const actorSuggestions = actorsData?.actors ?? [];
 
   // Effective org: explicit orgFilter takes priority, then global selectedOrg
   const effectiveOrg = orgFilter || selectedOrg || undefined;
@@ -452,16 +469,17 @@ export function ThreatsPage() {
           {/* Row 2: text inputs + date/time pickers */}
           <div className={styles.filterRow}>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
-              <input
-                type="text"
-                placeholder="Filter by repo…"
+              <Autocomplete
                 value={repoFilter}
-                onChange={(e) => {
-                  setRepoFilter(e.target.value);
+                onChange={(v) => {
+                  setRepoFilter(v);
                   setPage(1);
-                  syncFilters({ repo: e.target.value });
+                  syncFilters({ repo: v });
                 }}
+                suggestions={repoSuggestions}
+                placeholder="Filter by repo…"
                 className={styles.filterInput}
+                ariaLabel="Filter by repo"
               />
               <span
                 title="Filter by repository name. Matches detections linked to a specific repo."
@@ -471,16 +489,17 @@ export function ThreatsPage() {
               </span>
             </label>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
-              <input
-                type="text"
-                placeholder="Filter by actor…"
+              <Autocomplete
                 value={actorFilter}
-                onChange={(e) => {
-                  setActorFilter(e.target.value);
+                onChange={(v) => {
+                  setActorFilter(v);
                   setPage(1);
-                  syncFilters({ actor: e.target.value });
+                  syncFilters({ actor: v });
                 }}
+                suggestions={actorSuggestions}
+                placeholder="Filter by actor…"
                 className={styles.filterInput}
+                ariaLabel="Filter by actor"
               />
               <span
                 title="Filter by the GitHub user who performed the action that triggered the detection."

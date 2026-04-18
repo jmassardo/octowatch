@@ -28,6 +28,7 @@ import { ManualIngestPanel } from '../Integrations/ManualIngestPanel';
 import { AuditStreamPanel } from './AuditStreamPanel';
 import { Button } from '../../components/primitives/Button';
 import { Drawer } from '../../components/primitives/Drawer';
+import { Modal } from '../../components/primitives/Modal';
 import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';

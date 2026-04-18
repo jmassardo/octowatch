@@ -34,11 +34,11 @@
       ],
       "sequence_steps": [
         {
-          "step": 1,
-          "action": "two_factor_authentication.recovery_codes_used"
+          "action": "two_factor_authentication.recovery_codes_used",
+          "min_count": 1
         },
-        { "step": 2, "action": "user.update_password" },
-        { "step": 3, "action": "public_key.create" }
+        { "action": "user.update_password", "min_count": 1 },
+        { "action": "public_key.create", "min_count": 1 }
       ],
       "aggregation_key": "actor",
       "time_window_minutes": 30,
@@ -160,8 +160,8 @@
         "deployment.create"
       ],
       "sequence_steps": [
-        { "step": 1, "action": "environment.delete_protection_rule" },
-        { "step": 2, "action": "deployment.create" }
+        { "action": "environment.delete_protection_rule", "min_count": 1 },
+        { "action": "deployment.create", "min_count": 1 }
       ],
       "aggregation_key": "actor",
       "time_window_minutes": 10,
