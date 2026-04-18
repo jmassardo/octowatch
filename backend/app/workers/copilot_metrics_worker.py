@@ -220,8 +220,7 @@ async def _persist_daily_metrics(
         )
         await db.execute(stmt)
     except Exception:
-        # If PostgreSQL dialect not available (e.g., SQLite), fall back to simple insert
-        logger.debug("copilot_sync.pg_upsert_fallback", exc_info=True)
+        logger.error("copilot_sync.daily_metrics_upsert_failed", exc_info=True)
 
     return len(rows)
 
@@ -278,6 +277,6 @@ async def _persist_seat_snapshots(
         )
         await db.execute(stmt)
     except Exception:
-        logger.debug("copilot_sync.seat_pg_upsert_fallback", exc_info=True)
+        logger.error("copilot_sync.seat_snapshots_upsert_failed", exc_info=True)
 
     return len(rows)

@@ -81,6 +81,17 @@ class AuthSettings(BaseSettings):
     @field_validator("APP_BASE_URL")
     @classmethod
     def validate_base_url(cls, v: str) -> str:
+        # Auto-detect GitHub Codespaces: if CODESPACE_NAME is set and
+        # APP_BASE_URL still points to localhost, override with the
+        # Codespace port-forwarded URL (port 5173 = frontend proxy).
+        codespace_name = os.environ.get("CODESPACE_NAME")
+        forwarding_domain = os.environ.get(
+            "GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN",
+            "app.github.dev",
+        )
+        if codespace_name and "localhost" in v:
+            v = f"https://{codespace_name}-5173.{forwarding_domain}"
+
         parsed = urlparse(v)
         if parsed.scheme not in ("http", "https"):
             raise ValueError("APP_BASE_URL must be http or https")

@@ -47,6 +47,7 @@ class CopilotGovernanceService:
         description: str | None,
         policy_type: str,
         config: dict[str, Any],
+        severity: str = "medium",
         created_by: str,
     ) -> CopilotPolicy:
         """Create a new governance policy."""
@@ -55,6 +56,7 @@ class CopilotGovernanceService:
             description=description,
             policy_type=policy_type,
             config=config,
+            severity=severity,
             created_by=created_by,
         )
         db.add(policy)

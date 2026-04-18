@@ -27,16 +27,10 @@ export interface ActionsVolumeBucket {
   readonly workflow_runs: number;
   readonly unique_actors: number;
   readonly unique_repos: number;
-  /** @deprecated Not returned by current backend — retained for Velocity/Dashboard compat. */
-  readonly workflow_runs_total?: number;
-  /** @deprecated Not returned by current backend — retained for Velocity/Dashboard compat. */
-  readonly workflow_runs_succeeded?: number;
-  /** @deprecated Not returned by current backend — retained for Velocity/Dashboard compat. */
-  readonly workflow_runs_failed?: number;
-  /** @deprecated Not returned by current backend — retained for Velocity/Dashboard compat. */
-  readonly success_rate_pct?: number;
-  /** @deprecated Not returned by current backend — retained for Velocity/Dashboard compat. */
-  readonly unique_workflows?: number;
+  readonly workflow_runs_total: number;
+  readonly workflow_runs_succeeded: number;
+  readonly workflow_runs_failed: number;
+  readonly success_rate_pct: number;
 }
 
 export interface CopilotSeatsBucket {

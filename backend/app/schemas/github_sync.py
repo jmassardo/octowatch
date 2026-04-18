@@ -33,6 +33,8 @@ class SyncTriggerRequest(BaseModel):
         "repo_commits",
         "pull_requests",
         "workflow_runs",
+        "issues",
+        "deployments",
     ] = "full"
 
 
@@ -159,6 +161,8 @@ class SyncScheduleUpdateRequest(BaseModel):
             "repo_commits",
             "pull_requests",
             "workflow_runs",
+            "issues",
+            "deployments",
         }
         if v is not None and v not in valid_scopes:
             msg = f"scope must be one of {sorted(valid_scopes)}"
