@@ -6,7 +6,7 @@ import { translateNLQuery } from '../../api/nlQuery';
 import type { NLInterpretation } from '../../api/nlQuery';
 import type { QueryRunResponse } from '../../types/query';
 import { Button } from '../../components/primitives/Button';
-import { Modal } from '../../components/primitives/Modal';
+import { Drawer } from '../../components/primitives/Drawer';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { DataTable } from '../../components/primitives/DataTable';
@@ -864,6 +864,7 @@ export function QueryPage() {
       header: col,
       sortable: true,
       filterable: true,
+      helpText: `Column: ${col} — click header to sort, use filter to search values`,
       sortValue: (row: QueryResultRow) => {
         const val = row[col];
         if (val == null) return '';
@@ -1093,26 +1094,28 @@ export function QueryPage() {
       <div className={styles.nlBar}>
         <input
           className={styles.nlInput}
-          placeholder="Ask in plain English… e.g. &quot;show me failed logins in the last 24 hours&quot;"
+          placeholder='Ask in plain English… e.g. "show me failed logins in the last 24 hours"'
           value={nlInput}
           onChange={(e) => setNlInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleNlSubmit();
           }}
           role="searchbox"
+          title="Describe what you want to query in plain English and it will be translated to SQL"
         />
-        <Button size="sm" onClick={handleNlSubmit} disabled={nlMutation.isPending}>
+        <Button
+          size="sm"
+          onClick={handleNlSubmit}
+          disabled={nlMutation.isPending}
+          title="Translate natural language to SQL"
+        >
           {nlMutation.isPending ? '…' : 'Translate'}
         </Button>
       </div>
       {nlResults.length > 0 && (
         <div className={styles.nlResults}>
           {nlResults.map((interp, i) => (
-            <button
-              key={i}
-              className={styles.nlCard}
-              onClick={() => handleNlSelect(interp)}
-            >
+            <button key={i} className={styles.nlCard} onClick={() => handleNlSelect(interp)}>
               <div className={styles.nlCardDesc}>{interp.description}</div>
               <div className={styles.nlCardConf}>
                 {Math.round(interp.confidence * 100)}% confidence
@@ -1122,17 +1125,24 @@ export function QueryPage() {
           ))}
         </div>
       )}
-      {nlMutation.isError && (
-        <ErrorBanner message="Failed to translate query" />
-      )}
+      {nlMutation.isError && <ErrorBanner message="Failed to translate query" />}
 
       <div className={styles.queryLayout}>
         {/* Schema tree */}
         <div className={styles.schemaTree}>
-          <div className={styles.schemaTitle}>Schema</div>
+          <div
+            className={styles.schemaTitle}
+            title="Available database tables and columns you can query"
+          >
+            Schema
+          </div>
           {SCHEMA.map((s) => (
             <div key={s.table}>
-              <div className={styles.schemaTable} onClick={() => toggleTable(s.table)}>
+              <div
+                className={styles.schemaTable}
+                onClick={() => toggleTable(s.table)}
+                title={`Toggle columns for the ${s.table} table`}
+              >
                 {expandedTables.has(s.table) ? '▼' : '▶'} {s.table}
               </div>
               {expandedTables.has(s.table) &&
@@ -1143,6 +1153,7 @@ export function QueryPage() {
                     onClick={() => insertAtCursor(c.name)}
                     role="button"
                     tabIndex={0}
+                    title={`Insert ${c.name} (${c.type}) into query`}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') insertAtCursor(c.name);
                     }}
@@ -1193,15 +1204,25 @@ export function QueryPage() {
                   variant="primary"
                   onClick={() => runMutation.mutate(sql)}
                   disabled={runMutation.isPending}
+                  title="Execute the SQL query against the audit events database"
                 >
                   {runMutation.isPending ? '…' : '▶ Run'}
                 </Button>
                 <span className={styles.shortcutHint}>{IS_MAC ? '⌘' : 'Ctrl'}+↵</span>
-                <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
+                <Button
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={saveMutation.isPending}
+                  title="Save this query as a reusable template"
+                >
                   {saveMutation.isPending ? '…' : 'Save'}
                 </Button>
                 <div className={styles.historyWrap}>
-                  <Button size="sm" onClick={() => setShowHistory((v) => !v)}>
+                  <Button
+                    size="sm"
+                    onClick={() => setShowHistory((v) => !v)}
+                    title="Show previously executed queries"
+                  >
                     History
                   </Button>
                   {showHistory && (
@@ -1294,6 +1315,7 @@ export function QueryPage() {
                     if (e.key === 'Enter')
                       resultsTableRef.current?.scrollIntoView({ behavior: 'smooth' });
                   }}
+                  title="Total rows returned by the query. Click to scroll to results."
                 >
                   {results.row_count} row{results.row_count !== 1 ? 's' : ''}
                 </span>
@@ -1306,6 +1328,7 @@ export function QueryPage() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') setShowExecModal(true);
                   }}
+                  title="Server-side execution time in milliseconds. Click for full details."
                 >
                   {results.execution_ms}ms
                 </span>
@@ -1327,11 +1350,10 @@ export function QueryPage() {
       </div>
 
       {results && (
-        <Modal
+        <Drawer
           open={showExecModal}
           onClose={() => setShowExecModal(false)}
           title="Query Execution Details"
-          width={420}
         >
           <dl className={styles.execDetail}>
             <dt>Query ID</dt>
@@ -1347,7 +1369,7 @@ export function QueryPage() {
             Additional metrics like rows scanned and bytes processed require query engine
             instrumentation.
           </p>
-        </Modal>
+        </Drawer>
       )}
     </div>
   );

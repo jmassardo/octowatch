@@ -1,4 +1,10 @@
-"""Health check endpoints: liveness and readiness probes."""
+"""Health check endpoints: liveness and readiness probes.
+
+These endpoints are intentionally unauthenticated so that Kubernetes
+(and other orchestrators) can call them without credentials.  The
+liveness probe reveals no sensitive information; the readiness probe
+only exposes aggregate ok/error status for DB and Valkey connectivity.
+"""
 
 from __future__ import annotations
 
@@ -32,15 +38,15 @@ async def readiness(
 
         await db.execute(text("SELECT 1"))
         checks["database"] = "ok"
-    except Exception as exc:
-        checks["database"] = f"error: {exc}"
+    except Exception:
+        checks["database"] = "error"
 
     # Valkey check
     try:
         await valkey.ping()
         checks["valkey"] = "ok"
-    except Exception as exc:
-        checks["valkey"] = f"error: {exc}"
+    except Exception:
+        checks["valkey"] = "error"
 
     all_ok = all(v == "ok" for v in checks.values())
     if not all_ok:

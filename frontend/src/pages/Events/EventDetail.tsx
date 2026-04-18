@@ -13,14 +13,29 @@ function actionVariant(action: string) {
 }
 
 /**
- * Render a single value from the event `data` record in a human-friendly way.
- * Objects / arrays are serialised to compact JSON; primitives are converted to
- * strings. Null / undefined show an em-dash.
+ * Flatten a record into dot-notation key-value pairs so nested objects render
+ * as readable rows rather than inline JSON blobs.
+ *
+ * Arrays are kept as compact JSON because drilling into indices rarely helps.
  */
-function renderDataValue(value: unknown): string {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
+function flattenRecord(
+  obj: Record<string, unknown>,
+  prefix = '',
+): Array<{ key: string; value: string }> {
+  const rows: Array<{ key: string; value: string }> = [];
+  for (const [k, v] of Object.entries(obj)) {
+    const fullKey = prefix ? `${prefix}.${k}` : k;
+    if (v === null || v === undefined) {
+      rows.push({ key: fullKey, value: '—' });
+    } else if (Array.isArray(v)) {
+      rows.push({ key: fullKey, value: JSON.stringify(v) });
+    } else if (typeof v === 'object') {
+      rows.push(...flattenRecord(v as Record<string, unknown>, fullKey));
+    } else {
+      rows.push({ key: fullKey, value: String(v) });
+    }
+  }
+  return rows;
 }
 
 /**
@@ -98,10 +113,10 @@ export function EventDetail({ event }: { event: EventResponse }) {
             <pre className={styles.eventJson}>{JSON.stringify(event.data, null, 2)}</pre>
           ) : (
             <dl className={styles.eventDataList}>
-              {Object.entries(event.data).map(([key, value]) => (
+              {flattenRecord(event.data as Record<string, unknown>).map(({ key, value }) => (
                 <div key={key} className={styles.eventDataRow}>
                   <dt>{key}</dt>
-                  <dd>{renderDataValue(value)}</dd>
+                  <dd>{value}</dd>
                 </div>
               ))}
             </dl>

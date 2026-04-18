@@ -188,6 +188,7 @@ export function OverviewPane({
           delta={avgUtilPct != null ? `${avgUtilPct}% avg utilization` : '—'}
           deltaDir="neutral"
           onClick={handleActiveSeatsClick}
+          helpText="Currently active vs. total provisioned Copilot seats. Synced daily from the GitHub Copilot API. Click to scroll to the utilization table."
         />
         <MetricCard
           value={totalAssigned > 0 ? String(totalAssigned) : '—'}
@@ -195,6 +196,7 @@ export function OverviewPane({
           delta="cumulative"
           deltaDir="up"
           onClick={() => setDrillDown('assigned')}
+          helpText="Total Copilot seats assigned in the last 30 days. From daily seat-change sync. A rising trend indicates growing adoption."
         />
         <MetricCard
           value={totalRevoked > 0 ? String(totalRevoked) : '—'}
@@ -202,6 +204,7 @@ export function OverviewPane({
           delta="cumulative"
           deltaDir={totalRevoked > 0 ? 'down' : 'neutral'}
           onClick={() => setDrillDown('revoked')}
+          helpText="Total Copilot seats revoked in the last 30 days. From daily seat-change sync. Review revocations to ensure intentional offboarding."
         />
         <MetricCard
           value={netSeats !== 0 ? `${netSeats > 0 ? '+' : ''}${netSeats}` : '—'}
@@ -209,6 +212,7 @@ export function OverviewPane({
           delta="assigned minus revoked"
           deltaDir={netSeats > 0 ? 'up' : netSeats < 0 ? 'down' : 'neutral'}
           onClick={() => setDrillDown('net')}
+          helpText="Net change in Copilot seats (assigned minus revoked) over 30 days. From daily sync data. Positive means fleet is growing."
         />
       </div>
 
@@ -226,28 +230,50 @@ export function OverviewPane({
                 key: 'date',
                 header: 'Date',
                 filterable: true,
-                render: (b) => <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>,
+                helpText:
+                  'The date of this daily Copilot usage snapshot. Synced once per day from the GitHub Copilot API.',
+                render: (b) => (
+                  <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>
+                ),
                 filterValue: (b) => formatBucketDate(b.bucket),
               },
               {
                 key: 'active',
                 header: 'Active',
                 sortable: true,
-                render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count ?? '—'}</span>,
+                helpText:
+                  'Number of seats with recorded Copilot activity on this day. From daily usage sync.',
+                render: (b) => (
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {b.active_seat_count ?? '—'}
+                  </span>
+                ),
                 sortValue: (b) => b.active_seat_count ?? 0,
               },
               {
                 key: 'provisioned',
                 header: 'Provisioned',
                 sortable: true,
-                render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count ?? '—'}</span>,
+                helpText:
+                  'Total Copilot seats provisioned (assigned) on this day. From the GitHub Copilot seat management API.',
+                render: (b) => (
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {b.provisioned_seat_count ?? '—'}
+                  </span>
+                ),
                 sortValue: (b) => b.provisioned_seat_count ?? 0,
               },
               {
                 key: 'utilization',
                 header: 'Utilization %',
                 sortable: true,
-                render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}</span>,
+                helpText:
+                  'Percentage of provisioned Copilot seats that were active. Synced daily from GitHub Copilot API. Target 70%+ utilization to maximize ROI.',
+                render: (b) => (
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}
+                  </span>
+                ),
                 sortValue: (b) => b.utilization_pct ?? 0,
               },
             ]}
@@ -262,14 +288,24 @@ export function OverviewPane({
                 key: 'date',
                 header: 'Date',
                 filterable: true,
-                render: (b) => <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>,
+                helpText:
+                  'The date of this daily Copilot seat-change snapshot. Synced once per day from the GitHub Copilot API.',
+                render: (b) => (
+                  <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>
+                ),
                 filterValue: (b) => formatBucketDate(b.bucket),
               },
               {
                 key: 'assigned',
                 header: 'Assigned',
                 sortable: true,
-                render: (b) => <span style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>+{b.seats_assigned ?? 0}</span>,
+                helpText:
+                  'Number of new Copilot seats assigned on this day. From daily seat-change sync.',
+                render: (b) => (
+                  <span style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
+                    +{b.seats_assigned ?? 0}
+                  </span>
+                ),
                 sortValue: (b) => b.seats_assigned ?? 0,
               },
             ]}
@@ -284,15 +320,26 @@ export function OverviewPane({
                 key: 'date',
                 header: 'Date',
                 filterable: true,
-                render: (b) => <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>,
+                helpText:
+                  'The date of this daily Copilot seat-change snapshot. Synced once per day from the GitHub Copilot API.',
+                render: (b) => (
+                  <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>
+                ),
                 filterValue: (b) => formatBucketDate(b.bucket),
               },
               {
                 key: 'revoked',
                 header: 'Revoked',
                 sortable: true,
+                helpText:
+                  'Number of Copilot seats revoked on this day. From daily seat-change sync. Spikes may indicate offboarding events.',
                 render: (b) => (
-                  <span style={{ color: b.seats_revoked > 0 ? 'var(--danger)' : undefined, fontVariantNumeric: 'tabular-nums' }}>
+                  <span
+                    style={{
+                      color: b.seats_revoked > 0 ? 'var(--danger)' : undefined,
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
                     {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
                   </span>
                 ),
@@ -310,22 +357,39 @@ export function OverviewPane({
                 key: 'date',
                 header: 'Date',
                 filterable: true,
-                render: (b) => <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>,
+                helpText:
+                  'The date of this daily Copilot seat-change snapshot. Synced once per day from the GitHub Copilot API.',
+                render: (b) => (
+                  <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>
+                ),
                 filterValue: (b) => formatBucketDate(b.bucket),
               },
               {
                 key: 'assigned',
                 header: 'Assigned',
                 sortable: true,
-                render: (b) => <span style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>+{b.seats_assigned ?? 0}</span>,
+                helpText:
+                  'Number of new Copilot seats assigned on this day. From daily seat-change sync.',
+                render: (b) => (
+                  <span style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
+                    +{b.seats_assigned ?? 0}
+                  </span>
+                ),
                 sortValue: (b) => b.seats_assigned ?? 0,
               },
               {
                 key: 'revoked',
                 header: 'Revoked',
                 sortable: true,
+                helpText:
+                  'Number of Copilot seats revoked on this day. From daily seat-change sync.',
                 render: (b) => (
-                  <span style={{ color: b.seats_revoked > 0 ? 'var(--danger)' : undefined, fontVariantNumeric: 'tabular-nums' }}>
+                  <span
+                    style={{
+                      color: b.seats_revoked > 0 ? 'var(--danger)' : undefined,
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
                     {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
                   </span>
                 ),
@@ -335,7 +399,13 @@ export function OverviewPane({
                 key: 'net',
                 header: 'Net',
                 sortable: true,
-                render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.seats_net > 0 ? `+${b.seats_net}` : b.seats_net}</span>,
+                helpText:
+                  'Net seat change (assigned minus revoked) for this day. Positive values indicate fleet growth.',
+                render: (b) => (
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {b.seats_net > 0 ? `+${b.seats_net}` : b.seats_net}
+                  </span>
+                ),
                 sortValue: (b) => b.seats_net ?? 0,
               },
             ]}
@@ -404,28 +474,50 @@ export function OverviewPane({
                   key: 'date',
                   header: 'Date',
                   filterable: true,
-                  render: (b) => <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>,
+                  helpText:
+                    'The date of this daily Copilot usage snapshot. Synced once per day from the GitHub Copilot API.',
+                  render: (b) => (
+                    <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>
+                  ),
                   filterValue: (b) => formatBucketDate(b.bucket),
                 },
                 {
                   key: 'active',
                   header: 'Active seats',
                   sortable: true,
-                  render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count ?? '—'}</span>,
+                  helpText:
+                    'Number of seats with recorded Copilot activity on this day. From daily usage sync.',
+                  render: (b) => (
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {b.active_seat_count ?? '—'}
+                    </span>
+                  ),
                   sortValue: (b) => b.active_seat_count ?? 0,
                 },
                 {
                   key: 'provisioned',
                   header: 'Provisioned',
                   sortable: true,
-                  render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count ?? '—'}</span>,
+                  helpText:
+                    'Total Copilot seats provisioned (assigned) on this day. From the GitHub Copilot seat management API.',
+                  render: (b) => (
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {b.provisioned_seat_count ?? '—'}
+                    </span>
+                  ),
                   sortValue: (b) => b.provisioned_seat_count ?? 0,
                 },
                 {
                   key: 'utilization',
                   header: 'Utilization',
                   sortable: true,
-                  render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}</span>,
+                  helpText:
+                    'Percentage of provisioned Copilot seats that were active. Synced daily from GitHub Copilot API. Target 70%+ utilization to maximize ROI.',
+                  render: (b) => (
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}
+                    </span>
+                  ),
                   sortValue: (b) => b.utilization_pct ?? 0,
                 },
               ]}
@@ -503,13 +595,19 @@ export function OverviewPane({
                   key: 'date',
                   header: 'Date',
                   filterable: true,
-                  render: (b) => <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>,
+                  helpText:
+                    'The date of this daily Copilot seat-change snapshot. Synced once per day from the GitHub Copilot API.',
+                  render: (b) => (
+                    <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>
+                  ),
                   filterValue: (b) => formatBucketDate(b.bucket),
                 },
                 {
                   key: 'assigned',
                   header: 'Assigned',
                   sortable: true,
+                  helpText:
+                    'Number of new Copilot seats assigned on this day. From daily seat-change sync.',
                   render: (b) => (
                     <span style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
                       +{b.seats_assigned ?? 0}
@@ -521,8 +619,15 @@ export function OverviewPane({
                   key: 'revoked',
                   header: 'Revoked',
                   sortable: true,
+                  helpText:
+                    'Number of Copilot seats revoked on this day. From daily seat-change sync.',
                   render: (b) => (
-                    <span style={{ color: b.seats_revoked ? 'var(--danger)' : undefined, fontVariantNumeric: 'tabular-nums' }}>
+                    <span
+                      style={{
+                        color: b.seats_revoked ? 'var(--danger)' : undefined,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
                       {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
                     </span>
                   ),
@@ -532,7 +637,13 @@ export function OverviewPane({
                   key: 'net',
                   header: 'Net',
                   sortable: true,
-                  render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.seats_net > 0 ? `+${b.seats_net}` : b.seats_net}</span>,
+                  helpText:
+                    'Net seat change (assigned minus revoked) for this day. Positive values indicate fleet growth.',
+                  render: (b) => (
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {b.seats_net > 0 ? `+${b.seats_net}` : b.seats_net}
+                    </span>
+                  ),
                   sortValue: (b) => b.seats_net ?? 0,
                 },
               ]}
@@ -625,31 +736,52 @@ export function OverviewPane({
               key: 'date',
               header: 'Date',
               filterable: true,
-              render: (b) => <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>,
+              helpText:
+                'The date of this daily Copilot usage snapshot. Synced once per day from the GitHub Copilot API.',
+              render: (b) => (
+                <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>
+              ),
               filterValue: (b) => formatBucketDate(b.bucket),
             },
             {
               key: 'active',
               header: 'Active',
               sortable: true,
-              render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count}</span>,
+              helpText:
+                'Number of seats with recorded Copilot activity on this day. From daily usage sync.',
+              render: (b) => (
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.active_seat_count}</span>
+              ),
               sortValue: (b) => b.active_seat_count ?? 0,
             },
             {
               key: 'provisioned',
               header: 'Provisioned',
               sortable: true,
-              render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.provisioned_seat_count}</span>,
+              helpText:
+                'Total Copilot seats provisioned (assigned) on this day. From the GitHub Copilot seat management API.',
+              render: (b) => (
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {b.provisioned_seat_count}
+                </span>
+              ),
               sortValue: (b) => b.provisioned_seat_count ?? 0,
             },
             {
               key: 'inactive',
               header: 'Inactive',
               sortable: true,
+              helpText:
+                'Number of provisioned seats with no Copilot activity. Calculated as provisioned minus active. Consider reclaiming these seats.',
               render: (b) => {
                 const inactive = b.provisioned_seat_count - b.active_seat_count;
                 return (
-                  <span style={{ fontVariantNumeric: 'tabular-nums', color: inactive > 0 ? 'var(--danger)' : undefined }}>
+                  <span
+                    style={{
+                      fontVariantNumeric: 'tabular-nums',
+                      color: inactive > 0 ? 'var(--danger)' : undefined,
+                    }}
+                  >
                     {inactive}
                   </span>
                 );
@@ -660,14 +792,26 @@ export function OverviewPane({
               key: 'utilization',
               header: 'Utilization %',
               sortable: true,
-              render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}</span>,
+              helpText:
+                'Percentage of provisioned Copilot seats that were active. Synced daily from GitHub Copilot API. Target 70%+ utilization to maximize ROI.',
+              render: (b) => (
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}
+                </span>
+              ),
               sortValue: (b) => b.utilization_pct ?? 0,
             },
             {
               key: 'cost',
               header: 'Cost ($/mo)',
               sortable: true,
-              render: (b) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>${(b.provisioned_seat_count * costPerSeat).toLocaleString()}</span>,
+              helpText:
+                'Estimated monthly cost based on provisioned seats times the configured cost per seat. Adjust cost per seat in org settings.',
+              render: (b) => (
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  ${(b.provisioned_seat_count * costPerSeat).toLocaleString()}
+                </span>
+              ),
               sortValue: (b) => b.provisioned_seat_count * costPerSeat,
             },
           ]}
@@ -685,10 +829,10 @@ export function OverviewPane({
         width={520}
       >
         <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
-          Some seats show activity (suggestions served) but have an acceptance rate
-          below 10%. This indicates Copilot is active on these seats but suggestions are being
-          dismissed frequently. Use the <strong>Adoption</strong> and <strong>Teams</strong> tabs
-          to identify specific users and teams for targeted training.
+          Some seats show activity (suggestions served) but have an acceptance rate below 10%. This
+          indicates Copilot is active on these seats but suggestions are being dismissed frequently.
+          Use the <strong>Adoption</strong> and <strong>Teams</strong> tabs to identify specific
+          users and teams for targeted training.
         </p>
       </Modal>
 
@@ -699,10 +843,9 @@ export function OverviewPane({
         width={520}
       >
         <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
-          Teams with &gt;30% acceptance rate tend to show shorter cycle times
-          on average compared to teams below 20% acceptance. This correlation suggests that teams
-          effectively using Copilot suggestions deliver faster. Use the <strong>Teams</strong> tab
-          for per-team breakdowns.
+          Teams with &gt;30% acceptance rate tend to show shorter cycle times on average compared to
+          teams below 20% acceptance. This correlation suggests that teams effectively using Copilot
+          suggestions deliver faster. Use the <strong>Teams</strong> tab for per-team breakdowns.
         </p>
       </Modal>
 

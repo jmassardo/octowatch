@@ -5,7 +5,8 @@ import { Label } from '../../components/primitives/Label';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
-import { DrilldownModal } from '../../components/primitives/DrilldownModal';
+import { DrilldownDrawer } from '../../components/primitives/DrilldownDrawer';
+import { Drawer } from '../../components/primitives/Drawer';
 import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
 import {
   getSecurityPosture,
@@ -28,6 +29,7 @@ function formatHours(hours: number): string {
 /* ---------- sub-components ---------- */
 
 function SsoStatusTable({ orgs }: { orgs: SsoOrgStatus[] }) {
+  const [selectedRow, setSelectedRow] = useState<SsoOrgStatus | null>(null);
   const ssoTableColumns: ColumnDef<SsoOrgStatus>[] = [
     {
       key: 'org',
@@ -37,6 +39,7 @@ function SsoStatusTable({ orgs }: { orgs: SsoOrgStatus[] }) {
       render: (o) => o.org,
       sortValue: (o) => o.org,
       filterValue: (o) => o.org,
+      helpText: 'GitHub organization name. Filter to check SSO status for a specific org.',
     },
     {
       key: 'sso_status',
@@ -48,6 +51,8 @@ function SsoStatusTable({ orgs }: { orgs: SsoOrgStatus[] }) {
         </Label>
       ),
       sortValue: (o) => (o.sso_enabled ? 'enabled' : 'disabled'),
+      helpText:
+        'Whether SSO is enforced for this organization. Sourced from org.enable_saml / org.disable_saml audit events. Orgs without SSO should be prioritized for enforcement.',
     },
   ];
 
@@ -65,8 +70,23 @@ function SsoStatusTable({ orgs }: { orgs: SsoOrgStatus[] }) {
           data={orgs}
           rowKey={(o) => o.org}
           emptyMessage="No SSO data available"
+          onRowClick={(row) => setSelectedRow(row)}
         />
       </div>
+      <Drawer open={!!selectedRow} onClose={() => setSelectedRow(null)} title="SSO Details">
+        {selectedRow && (
+          <dl style={{ padding: '16px' }}>
+            {Object.entries(selectedRow).map(([key, value]) => (
+              <div key={key} style={{ marginBottom: 8 }}>
+                <dt style={{ fontSize: '0.8em', color: 'var(--fg-muted)', marginBottom: 2 }}>
+                  {key}
+                </dt>
+                <dd style={{ margin: 0 }}>{String(value ?? '—')}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </Drawer>
     </div>
   );
 }
@@ -151,6 +171,7 @@ export function SecurityPosturePane() {
       render: (o) => o.org,
       sortValue: (o) => o.org,
       filterValue: (o) => o.org,
+      helpText: 'GitHub organization name.',
     },
     {
       key: 'sso_status',
@@ -162,6 +183,8 @@ export function SecurityPosturePane() {
         </Label>
       ),
       sortValue: (o) => (o.sso_enabled ? 'enabled' : 'disabled'),
+      helpText:
+        'Whether SSO is enforced for this organization. Sourced from org.enable_saml / org.disable_saml audit events.',
     },
   ];
 
@@ -186,6 +209,7 @@ export function SecurityPosturePane() {
           <MetricCard
             value={String(posture?.repos_with_secret_scanning ?? 0)}
             label="Secret scanning enabled"
+            helpText="Number of repositories with GitHub secret scanning enabled. Derived from repository.enable_secret_scanning audit events. Aim for 100% coverage."
             onClick={() =>
               setSecurityDrilldown({
                 title: 'Repos with secret scanning enabled',
@@ -196,6 +220,7 @@ export function SecurityPosturePane() {
           <MetricCard
             value={String(posture?.repos_with_dependabot ?? 0)}
             label="Dependabot enabled"
+            helpText="Number of repositories with Dependabot alerts enabled. Derived from dependabot_alerts.enable audit events. Repos without Dependabot miss vulnerability notifications."
             onClick={() =>
               setSecurityDrilldown({
                 title: 'Repos with Dependabot enabled',
@@ -206,6 +231,7 @@ export function SecurityPosturePane() {
           <MetricCard
             value={String(posture?.repos_with_codeql ?? 0)}
             label="CodeQL enabled"
+            helpText="Number of repositories with CodeQL code scanning enabled. Derived from code_scanning.enable audit events. CodeQL detects security vulnerabilities in source code."
             onClick={() =>
               setSecurityDrilldown({
                 title: 'Repos with CodeQL enabled',
@@ -216,6 +242,7 @@ export function SecurityPosturePane() {
           <MetricCard
             value={String(posture?.repos_with_ghas ?? 0)}
             label="GHAS enabled"
+            helpText="Number of repositories with GitHub Advanced Security enabled. GHAS includes secret scanning, code scanning, and Dependabot security updates."
             onClick={() =>
               setSecurityDrilldown({
                 title: 'Repos with GHAS enabled',
@@ -227,6 +254,7 @@ export function SecurityPosturePane() {
             value={String(posture?.features_disabled_count ?? 0)}
             label="Features disabled"
             accent={posture != null && posture.features_disabled_count > 0}
+            helpText="Number of security features disabled across repositories. Derived from *.disable audit events. Investigate any unexpected disabling of security features."
             onClick={() =>
               setSecurityDrilldown({
                 title: 'Security features disabled',
@@ -238,7 +266,7 @@ export function SecurityPosturePane() {
       </div>
 
       {/* Security Coverage Drilldown */}
-      <DrilldownModal
+      <DrilldownDrawer
         open={securityDrilldown !== null}
         onClose={() => setSecurityDrilldown(null)}
         title={securityDrilldown?.title ?? ''}
@@ -294,6 +322,7 @@ export function SecurityPosturePane() {
             value={String(secrets?.unresolved_total ?? 0)}
             label="Unresolved total"
             accent={secrets != null && secrets.unresolved_total > 0}
+            helpText="Total number of unresolved secret scanning alerts. These represent leaked credentials that have not been revoked or dismissed."
             onClick={() =>
               setSecurityDrilldown({
                 title: 'Unresolved secret scanning alerts',
@@ -308,6 +337,7 @@ export function SecurityPosturePane() {
               secrets != null &&
               (secrets.push_protection_bypassed_count ?? secrets.publicly_leaked ?? 0) > 0
             }
+            helpText="Number of secrets that bypassed push protection. Derived from secret_scanning_push_protection.bypass events. Review each bypass for credential exposure."
             onClick={() =>
               setSecurityDrilldown({
                 title: 'Push protection bypassed alerts',
@@ -318,6 +348,7 @@ export function SecurityPosturePane() {
           <MetricCard
             value={String(secrets?.unresolved_gt_7d ?? secrets?.open_gt_7d ?? 0)}
             label="Open > 7 days"
+            helpText="Secret scanning alerts open for more than 7 days. Secrets should be rotated within 24 hours; alerts open this long indicate delayed response."
             onClick={() =>
               setSecurityDrilldown({
                 title: 'Secret alerts open > 7 days',
@@ -328,6 +359,7 @@ export function SecurityPosturePane() {
           <MetricCard
             value={String(secrets?.unresolved_gt_30d ?? secrets?.open_gt_30d ?? 0)}
             label="Open > 30 days"
+            helpText="Secret scanning alerts open for more than 30 days. These represent chronic unresolved credential exposures requiring escalation."
             onClick={() =>
               setSecurityDrilldown({
                 title: 'Secret alerts open > 30 days',
@@ -336,8 +368,13 @@ export function SecurityPosturePane() {
             }
           />
           <MetricCard
-            value={secrets != null ? formatHours(secrets.avg_hours_to_resolve ?? secrets.mttr_hours ?? 0) : '—'}
+            value={
+              secrets != null
+                ? formatHours(secrets.avg_hours_to_resolve ?? secrets.mttr_hours ?? 0)
+                : '—'
+            }
             label="MTTR"
+            helpText="Mean time to resolution for secret scanning alerts. Lower is better; aim for under 24 hours for credential rotation."
             onClick={() =>
               setSecurityDrilldown({
                 title: 'Mean time to resolution',
@@ -346,12 +383,9 @@ export function SecurityPosturePane() {
             }
           />
           <MetricCard
-            value={
-              secrets?.resolution_rate_pct != null
-                ? `${secrets.resolution_rate_pct}%`
-                : '—'
-            }
+            value={secrets?.resolution_rate_pct != null ? `${secrets.resolution_rate_pct}%` : '—'}
             label="Resolution rate"
+            helpText="Percentage of secret scanning alerts that have been resolved. A rate below 80% suggests insufficient incident response coverage."
             onClick={() =>
               setSecurityDrilldown({
                 title: 'Alert resolution rate',
@@ -378,6 +412,7 @@ export function SecurityPosturePane() {
             value={String(privilege?.admin_promotions ?? 0)}
             label="Admin promotions"
             accent={privilege != null && privilege.admin_promotions > 0}
+            helpText="Number of users promoted to admin in the last 30 days. Derived from org.update_member events. Verify each promotion was authorized."
             onClick={() =>
               setPrivilegeDrilldown({
                 title: 'Admin promotions (30d)',
@@ -388,6 +423,7 @@ export function SecurityPosturePane() {
           <MetricCard
             value={String(privilege?.integration_manager_grants ?? 0)}
             label="Integration manager grants"
+            helpText="Number of integration manager role grants in the last 30 days. Derived from org.update_member events. This role can install and manage GitHub Apps."
             onClick={() =>
               setPrivilegeDrilldown({
                 title: 'Integration manager grants (30d)',
@@ -398,6 +434,7 @@ export function SecurityPosturePane() {
           <MetricCard
             value={String(privilege?.custom_role_changes ?? 0)}
             label="Custom role changes"
+            helpText="Number of custom role modifications in the last 30 days. Derived from custom_role.* audit events. Review changes for privilege escalation."
             onClick={() =>
               setPrivilegeDrilldown({
                 title: 'Custom role changes (30d)',
@@ -409,7 +446,7 @@ export function SecurityPosturePane() {
       </div>
 
       {/* Privilege Changes Drilldown */}
-      <DrilldownModal
+      <DrilldownDrawer
         open={privilegeDrilldown !== null}
         onClose={() => setPrivilegeDrilldown(null)}
         title={privilegeDrilldown?.title ?? ''}
@@ -480,7 +517,7 @@ export function SecurityPosturePane() {
         </div>
       </div>
 
-      <DrilldownModal
+      <DrilldownDrawer
         open={ssoDrilldownOpen}
         onClose={() => setSsoDrilldownOpen(false)}
         title="SSO status by organization"

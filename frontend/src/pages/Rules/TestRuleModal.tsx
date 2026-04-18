@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { testRule } from '../../api/rules';
 import type { RuleTestEventResponse } from '../../api/rules';
 import type { RuleResponse, RuleCategory } from '../../types/detections';
-import { Modal } from '../../components/primitives/Modal';
+import { Drawer } from '../../components/primitives/Drawer';
 import { Button } from '../../components/primitives/Button';
 import styles from './Rules.module.css';
 
@@ -150,7 +150,7 @@ export function TestRuleModal({ rule, onClose }: TestRuleModalProps) {
   }
 
   return (
-    <Modal open={!!rule} onClose={handleClose} title={`Test Rule: ${rule?.name ?? ''}`} width={640}>
+    <Drawer open={!!rule} onClose={handleClose} title={`Test Rule: ${rule?.name ?? ''}`}>
       <div className={styles.testModalContent}>
         <div className={styles.formRow}>
           <label className={styles.formLabel} htmlFor="test-event-json">
@@ -212,6 +212,6 @@ export function TestRuleModal({ rule, onClose }: TestRuleModalProps) {
           </Button>
         </div>
       </div>
-    </Modal>
+    </Drawer>
   );
 }

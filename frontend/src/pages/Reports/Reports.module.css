@@ -122,6 +122,18 @@
   color: var(--accent);
 }
 
+.clickableValueActive {
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--accent);
+}
+
+.filterHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
 .reportTitleClickable {
   cursor: pointer;
   transition: color 0.15s;

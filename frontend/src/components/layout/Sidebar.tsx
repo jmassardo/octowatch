@@ -70,10 +70,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
   const navContent = (
     <nav
-      className={[
-        styles.sidebar,
-        mobileOpen === true && styles.sidebarMobileOpen,
-      ]
+      className={[styles.sidebar, mobileOpen === true && styles.sidebarMobileOpen]
         .filter(Boolean)
         .join(' ')}
       aria-label="Main navigation"
@@ -202,6 +199,17 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           }
         >
           Workflow Security
+        </NavItem>
+        <NavItem
+          to="/advanced-security"
+          onClick={handleNavClick}
+          icon={
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M8.533.133a1.75 1.75 0 00-1.066 0L2.217 1.813A1.75 1.75 0 001 3.48V7c0 1.566.32 3.182 1.303 4.682.983 1.498 2.585 2.813 5.032 3.855a1.697 1.697 0 001.33 0c2.447-1.042 4.049-2.357 5.032-3.855C14.68 10.182 15 8.566 15 7V3.48a1.75 1.75 0 00-1.217-1.667zM8 9a1 1 0 100-2 1 1 0 000 2zm0-6a.75.75 0 01.75.75v2.5a.75.75 0 01-1.5 0v-2.5A.75.75 0 018 3z" />
+            </svg>
+          }
+        >
+          Advanced Security
         </NavItem>
       </div>
 

@@ -156,8 +156,8 @@ class AzureBlobIngestWorker(AbstractIngestWorker):
                     events = [e for e in parsed if isinstance(e, dict)]
                 elif isinstance(parsed, dict):
                     events = [parsed]
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as exc:
+                logger.debug("azure_worker.json_parse_failed", error=str(exc))
 
         return events
 

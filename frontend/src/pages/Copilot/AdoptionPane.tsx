@@ -78,6 +78,7 @@ export function AdoptionPane() {
       key: 'user',
       header: 'User',
       filterable: true,
+      helpText: 'GitHub username of the Copilot user. From daily Copilot usage API sync.',
       render: (u) => <span style={{ fontWeight: 500 }}>{u.user}</span>,
       filterValue: (u) => u.user,
     },
@@ -85,6 +86,8 @@ export function AdoptionPane() {
       key: 'days_active',
       header: 'Days active',
       sortable: true,
+      helpText:
+        'Number of days with recorded Copilot activity in the period. From daily usage sync. Power users typically have 20+ active days per month.',
       render: (u) => (
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>
           <span
@@ -109,6 +112,8 @@ export function AdoptionPane() {
       key: 'features_used',
       header: 'Features used',
       sortable: true,
+      helpText:
+        'Number of distinct Copilot features used (e.g. completions, chat, CLI). From daily usage sync. More features used indicates deeper adoption.',
       render: (u) => (
         <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--success)' }}>
           <span
@@ -136,6 +141,7 @@ export function AdoptionPane() {
       key: 'user',
       header: 'User',
       filterable: true,
+      helpText: 'GitHub username of the Copilot user. From daily Copilot usage API sync.',
       render: (u) => <span style={{ fontWeight: 500 }}>{u.user}</span>,
       filterValue: (u) => u.user,
     },
@@ -143,6 +149,8 @@ export function AdoptionPane() {
       key: 'days_active',
       header: 'Days active',
       sortable: true,
+      helpText:
+        'Number of days with recorded Copilot activity in the period. From daily usage sync. Users with 0 days may be candidates for seat reclamation.',
       render: (u) => (
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>
           <span
@@ -167,6 +175,8 @@ export function AdoptionPane() {
       key: 'last_feature',
       header: 'Last feature',
       filterable: true,
+      helpText:
+        'The most recent Copilot feature used by this user. From daily usage sync. Indicates which feature the user is most familiar with.',
       render: (u) => <span style={{ color: 'var(--fg-muted)' }}>{u.last_feature}</span>,
       filterValue: (u) => u.last_feature,
     },
@@ -198,6 +208,7 @@ export function AdoptionPane() {
       key: 'user',
       header: 'User',
       filterable: true,
+      helpText: 'GitHub username of the Copilot user. From daily Copilot usage API sync.',
       render: (u) => <span style={{ fontWeight: 500 }}>{u.user}</span>,
       filterValue: (u) => u.user,
     },
@@ -205,15 +216,17 @@ export function AdoptionPane() {
       key: 'days_active',
       header: 'Days active',
       sortable: true,
-      render: (u) => (
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{u.days_active}d</span>
-      ),
+      helpText:
+        'Number of days with recorded Copilot activity in the period. From daily usage sync.',
+      render: (u) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{u.days_active}d</span>,
       sortValue: (u) => u.days_active,
     },
     {
       key: 'features_used',
       header: 'Features used',
       sortable: true,
+      helpText:
+        'Number of distinct Copilot features used (e.g. completions, chat, CLI). From daily usage sync.',
       render: (u) => (
         <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--success)' }}>
           {u.features_used}
@@ -228,6 +241,7 @@ export function AdoptionPane() {
       key: 'user',
       header: 'User',
       filterable: true,
+      helpText: 'GitHub username of the Copilot user. From daily Copilot usage API sync.',
       render: (u) => <span style={{ fontWeight: 500 }}>{u.user}</span>,
       filterValue: (u) => u.user,
     },
@@ -235,15 +249,16 @@ export function AdoptionPane() {
       key: 'days_active',
       header: 'Days active',
       sortable: true,
-      render: (u) => (
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{u.days_active}</span>
-      ),
+      helpText:
+        'Number of days with recorded Copilot activity in the period. From daily usage sync. Users with 0 days may be candidates for seat reclamation.',
+      render: (u) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{u.days_active}</span>,
       sortValue: (u) => u.days_active,
     },
     {
       key: 'last_feature',
       header: 'Last feature',
       filterable: true,
+      helpText: 'The most recent Copilot feature used by this user. From daily usage sync.',
       render: (u) => <span style={{ color: 'var(--fg-muted)' }}>{u.last_feature}</span>,
       filterValue: (u) => u.last_feature,
     },
@@ -253,11 +268,13 @@ export function AdoptionPane() {
     {
       key: 'metric',
       header: 'Metric',
+      helpText: 'The name of the activity metric for this user. From daily Copilot usage API sync.',
       render: (r) => <span style={{ color: 'var(--fg-muted)' }}>{r.metric}</span>,
     },
     {
       key: 'value',
       header: 'Value',
+      helpText: 'The value of this metric. From daily Copilot usage API sync data.',
       render: (r) => {
         if (r.metric === 'User') return <span style={{ fontWeight: 500 }}>{r.value}</span>;
         if (r.metric === 'Days active')

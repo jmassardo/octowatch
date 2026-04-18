@@ -45,7 +45,10 @@ function boolDisplay(
 
 function ScoreGauge({ score, label }: { score: number; label: string }) {
   return (
-    <div className={`${styles.scoreGauge} ${scoreClass(score)}`}>
+    <div
+      className={`${styles.scoreGauge} ${scoreClass(score)}`}
+      title={`${label}: ${Math.round(score)}/100. Weighted average of all security checks. Green ≥ 80, yellow ≥ 50, red < 50.`}
+    >
       <span className={styles.scoreValue}>{Math.round(score)}</span>
       <span className={styles.scoreLabel}>{label}</span>
     </div>
@@ -90,7 +93,10 @@ function CheckRow({
         }
       }}
     >
-      <span className={`${styles.checkIcon} ${passing ? styles.checkPass : styles.checkFail}`}>
+      <span
+        className={`${styles.checkIcon} ${passing ? styles.checkPass : styles.checkFail}`}
+        title={passing ? 'Check is passing' : 'Check is failing'}
+      >
         {passing ? '✓' : '✕'}
       </span>
       <div className={styles.checkInfo}>
@@ -132,7 +138,11 @@ function Filters({
 }) {
   return (
     <div className={styles.filters}>
-      <select value={severity} onChange={(e) => setSeverity(e.target.value)}>
+      <select
+        value={severity}
+        onChange={(e) => setSeverity(e.target.value)}
+        title="Filter checks by severity level"
+      >
         <option value="">All severities</option>
         <option value="critical">Critical</option>
         <option value="high">High</option>
@@ -140,13 +150,21 @@ function Filters({
         <option value="low">Low</option>
         <option value="info">Info</option>
       </select>
-      <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+      <select
+        value={statusFilter}
+        onChange={(e) => setStatusFilter(e.target.value)}
+        title="Filter by check pass/fail status"
+      >
         <option value="">All statuses</option>
         <option value="fail">Failing</option>
         <option value="pass">Passing</option>
       </select>
       {showVisibility && setVisibility && (
-        <select value={visibility} onChange={(e) => setVisibility(e.target.value)}>
+        <select
+          value={visibility}
+          onChange={(e) => setVisibility(e.target.value)}
+          title="Filter repositories by visibility type"
+        >
           <option value="">All visibility</option>
           <option value="public">Public</option>
           <option value="private">Private</option>
@@ -210,6 +228,8 @@ function EnterpriseView({
             placeholder="Search organizations..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            title="Search repositories by name"
+            title="Search organizations by name"
             style={{
               padding: '4px 8px',
               borderRadius: 6,
@@ -233,14 +253,22 @@ function EnterpriseView({
               key={org.org_login}
               className={styles.orgCard}
               onClick={() => navigate(`/posture/${org.org_login}`)}
+              title={`View posture details for ${org.org_login}`}
             >
               <div className={styles.orgCardHeader}>
                 <span className={styles.orgName}>{org.org_login}</span>
-                <span className={styles.orgMiniScore} style={{ color: scoreColor(org.score) }}>
+                <span
+                  className={styles.orgMiniScore}
+                  style={{ color: scoreColor(org.score) }}
+                  title={`Security score: ${Math.round(org.score)}/100`}
+                >
                   {Math.round(org.score)}
                 </span>
               </div>
-              <div className={styles.scoreBar}>
+              <div
+                className={styles.scoreBar}
+                title={`Score: ${Math.round(org.score)}% — green ≥ 80, yellow ≥ 50, red < 50`}
+              >
                 <div
                   className={styles.scoreBarFill}
                   style={{ width: `${org.score}%`, background: scoreColor(org.score) }}
@@ -302,7 +330,12 @@ function EnterpriseView({
           if (!sorted.length) return null;
           return (
             <div className={styles.section}>
-              <div className={styles.sectionTitle}>Top Findings</div>
+              <div
+                className={styles.sectionTitle}
+                title="Highest-severity failing checks across all organizations"
+              >
+                Top Findings
+              </div>
               <div className={styles.checkList}>
                 {sorted.slice(0, 20).map((c, i) => (
                   <CheckRow key={`${c.rule_id}-${i}`} check={c} navigate={navigate} />
@@ -375,29 +408,44 @@ function OrgView({
         {/* Org metadata */}
         <div className={styles.metaCard}>
           <div className={styles.metaGrid}>
-            <div className={styles.metaItem}>
+            <div
+              className={styles.metaItem}
+              title="Whether two-factor authentication is required for all org members"
+            >
               <div className={styles.metaLabel}>2FA Required</div>
               <div className={styles.metaValue}>
                 {boolDisplay(org.two_factor_required, 'Required', 'Not Required')}
               </div>
             </div>
-            <div className={styles.metaItem}>
+            <div
+              className={styles.metaItem}
+              title="The default permission level granted to members on new repositories"
+            >
               <div className={styles.metaLabel}>Default Repo Permission</div>
               <div className={styles.metaValue}>{org.default_repo_permission ?? 'Unknown'}</div>
             </div>
-            <div className={styles.metaItem}>
+            <div
+              className={styles.metaItem}
+              title="Whether org members can fork private repositories"
+            >
               <div className={styles.metaLabel}>Private Fork</div>
               <div className={styles.metaValue}>
                 {boolDisplay(org.members_can_fork_private_repos, 'Allowed', 'Blocked')}
               </div>
             </div>
-            <div className={styles.metaItem}>
+            <div
+              className={styles.metaItem}
+              title="Whether org members can create public repositories"
+            >
               <div className={styles.metaLabel}>Public Repo Creation</div>
               <div className={styles.metaValue}>
                 {boolDisplay(org.members_can_create_public_repos, 'Allowed', 'Blocked')}
               </div>
             </div>
-            <div className={styles.metaItem}>
+            <div
+              className={styles.metaItem}
+              title="Whether an IP allow-list restricts access to org resources"
+            >
               <div className={styles.metaLabel}>IP Allow List</div>
               <div className={styles.metaValue}>{boolDisplay(org.ip_allow_list_enabled)}</div>
             </div>
@@ -406,7 +454,12 @@ function OrgView({
 
         {/* Org-level checks */}
         <div className={styles.section}>
-          <div className={styles.sectionTitle}>Organization Security Checks</div>
+          <div
+            className={styles.sectionTitle}
+            title="Security policy checks evaluated at the organization level"
+          >
+            Organization Security Checks
+          </div>
           <Filters
             severity={severity}
             setSeverity={setSeverity}
@@ -423,7 +476,12 @@ function OrgView({
 
         {/* Repos table */}
         <div className={styles.section}>
-          <div className={styles.sectionTitle}>Repositories</div>
+          <div
+            className={styles.sectionTitle}
+            title="All repositories in this organization with their security posture"
+          >
+            Repositories
+          </div>
           <div className={styles.filters}>
             <input
               type="text"
@@ -453,17 +511,25 @@ function OrgView({
           <table className={styles.repoTable}>
             <thead>
               <tr>
-                <th onClick={() => toggleSort('name')}>
+                <th onClick={() => toggleSort('name')} title="Sort by repository name">
                   Repository {sortCol === 'name' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </th>
-                <th onClick={() => toggleSort('score')}>
+                <th
+                  onClick={() => toggleSort('score')}
+                  title="Weighted security score (0–100). Click to sort."
+                >
                   Score {sortCol === 'score' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </th>
-                <th onClick={() => toggleSort('visibility')}>
+                <th
+                  onClick={() => toggleSort('visibility')}
+                  title="Repository visibility: public, private, or internal"
+                >
                   Visibility {sortCol === 'visibility' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </th>
-                <th>Checks</th>
-                <th>Detections</th>
+                <th title="Number of passing and failing security checks">Checks</th>
+                <th title="Number of detection rules that have triggered for this repo">
+                  Detections
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -558,27 +624,42 @@ function RepoView({ data }: { data: PostureResponse }) {
         {/* Repo metadata */}
         <div className={styles.metaCard}>
           <div className={styles.metaGrid}>
-            <div className={styles.metaItem}>
+            <div
+              className={styles.metaItem}
+              title="Whether this repository is public, private, or internal"
+            >
               <div className={styles.metaLabel}>Visibility</div>
               <div className={styles.metaValue}>{repo.visibility ?? 'Unknown'}</div>
             </div>
-            <div className={styles.metaItem}>
+            <div
+              className={styles.metaItem}
+              title="The branch used as the default for pull requests and code browsing"
+            >
               <div className={styles.metaLabel}>Default Branch</div>
               <div className={styles.metaValue}>{repo.default_branch ?? '—'}</div>
             </div>
-            <div className={styles.metaItem}>
+            <div
+              className={styles.metaItem}
+              title="Primary programming language detected in this repository"
+            >
               <div className={styles.metaLabel}>Language</div>
               <div className={styles.metaValue}>{repo.language ?? '—'}</div>
             </div>
-            <div className={styles.metaItem}>
+            <div className={styles.metaItem} title="Date of the most recent push to any branch">
               <div className={styles.metaLabel}>Last Push</div>
               <div className={styles.metaValue}>{formatDateOnly(repo.pushed_at)}</div>
             </div>
-            <div className={styles.metaItem}>
+            <div
+              className={styles.metaItem}
+              title="Whether this repository has been archived and is read-only"
+            >
               <div className={styles.metaLabel}>Archived</div>
               <div className={styles.metaValue}>{repo.archived ? 'Yes' : 'No'}</div>
             </div>
-            <div className={styles.metaItem}>
+            <div
+              className={styles.metaItem}
+              title="Whether this repository is a fork of another repository"
+            >
               <div className={styles.metaLabel}>Fork</div>
               <div className={styles.metaValue}>{repo.fork ? 'Yes' : 'No'}</div>
             </div>
@@ -587,7 +668,12 @@ function RepoView({ data }: { data: PostureResponse }) {
 
         {/* All checks */}
         <div className={styles.section}>
-          <div className={styles.sectionTitle}>Security Checks</div>
+          <div
+            className={styles.sectionTitle}
+            title="Security configuration checks evaluated for this repository"
+          >
+            Security Checks
+          </div>
           <Filters
             severity={severity}
             setSeverity={setSeverity}

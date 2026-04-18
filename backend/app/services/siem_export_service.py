@@ -755,8 +755,8 @@ def _build_splunk_event_payload(event: dict[str, Any]) -> dict[str, Any]:
     elif isinstance(ts, str):
         try:
             epoch = int(datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp())
-        except ValueError:
-            pass
+        except ValueError as exc:
+            logger.debug("siem_export.splunk_timestamp_parse_failed", value=ts, error=str(exc))
 
     return {
         "time": epoch,

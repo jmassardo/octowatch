@@ -199,7 +199,9 @@ describe('VelocityPage', () => {
     // Get only the first header row (DataTable may add a filter row)
     const headerRow = table!.querySelector('thead tr');
     const headers = headerRow!.querySelectorAll('th');
-    const headerTexts = Array.from(headers).map((h) => h.textContent?.replace(/[⇅↑↓]/g, '').trim());
+    const headerTexts = Array.from(headers).map((h) =>
+      h.textContent?.replace(/[⇅↑↓ⓘ]/g, '').trim(),
+    );
 
     expect(headerTexts).toEqual([
       'Workflow',
@@ -244,7 +246,9 @@ describe('VelocityPage', () => {
     // Get only the first header row (DataTable may add a filter row)
     const headerRow = table!.querySelector('thead tr');
     const headers = headerRow!.querySelectorAll('th');
-    const headerTexts = Array.from(headers).map((h) => h.textContent?.replace(/[⇅↑↓]/g, '').trim());
+    const headerTexts = Array.from(headers).map((h) =>
+      h.textContent?.replace(/[⇅↑↓ⓘ]/g, '').trim(),
+    );
 
     expect(headerTexts).toEqual([
       'Repository',
@@ -453,7 +457,9 @@ describe('VelocityPage with data', () => {
     expect(repoTable).toBeTruthy();
     const headerRow = repoTable!.querySelector('thead tr');
     const headers = headerRow!.querySelectorAll('th');
-    const headerTexts = Array.from(headers).map((h) => h.textContent?.replace(/[⇅↑↓]/g, '').trim());
+    const headerTexts = Array.from(headers).map((h) =>
+      h.textContent?.replace(/[⇅↑↓ⓘ]/g, '').trim(),
+    );
     expect(headerTexts).toContain('Events');
     expect(headerTexts).toContain('PR events');
     expect(headerTexts).toContain('Push events');

@@ -16,13 +16,14 @@ interface LabelProps {
   variant?: LabelVariant;
   children: React.ReactNode;
   className?: string;
+  title?: string;
 }
 
-export function Label({ variant = 'muted', children, className }: LabelProps) {
+export function Label({ variant = 'muted', children, className, title }: LabelProps) {
   const cls = [styles.label, styles[variant], className].filter(Boolean).join(' ');
   const statusPrefix = VARIANT_LABELS[variant];
   return (
-    <span className={cls}>
+    <span className={cls} title={title}>
       {statusPrefix && <span className="sr-only">{statusPrefix}: </span>}
       {children}
     </span>

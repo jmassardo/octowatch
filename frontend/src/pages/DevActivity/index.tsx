@@ -13,7 +13,6 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { DataTable } from '../../components/primitives/DataTable';
 import type { ColumnDef } from '../../components/primitives/DataTable';
-import { Modal } from '../../components/primitives/Modal';
 import { Drawer } from '../../components/primitives/Drawer';
 import { MiniBarChart } from '../../components/charts/MiniBarChart';
 import { formatRelativeShort } from '../../utils/dates';
@@ -539,67 +538,80 @@ export function DevActivityPage() {
         <ApiUsageWidget stats={usageStats} navigate={navigate} />
       </div>
 
-      <Modal
+      <Drawer
         open={othersModalOpen}
         onClose={() => setOthersModalOpen(false)}
         title="Other contributors"
-        width={420}
       >
         <DataTable<{ handle: string; eventCount: number }>
-          columns={[
-            {
-              key: 'handle',
-              header: 'Developer',
-              filterable: true,
-              filterValue: (row) => row.handle,
-              render: (row) => <>@{row.handle}</>,
-            },
-            {
-              key: 'eventCount',
-              header: 'Events',
-              sortable: true,
-              sortValue: (row) => row.eventCount,
-              render: (row) => <>{row.eventCount}</>,
-            },
-          ] satisfies ColumnDef<{ handle: string; eventCount: number }>[]}
+          columns={
+            [
+              {
+                key: 'handle',
+                header: 'Developer',
+                helpText: 'GitHub login handle of the contributor. From audit log actor fields.',
+                filterable: true,
+                filterValue: (row) => row.handle,
+                render: (row) => <>@{row.handle}</>,
+              },
+              {
+                key: 'eventCount',
+                header: 'Events',
+                helpText:
+                  'Total audit log events attributed to this developer in the last 30 days.',
+                sortable: true,
+                sortValue: (row) => row.eventCount,
+                render: (row) => <>{row.eventCount}</>,
+              },
+            ] satisfies ColumnDef<{ handle: string; eventCount: number }>[]
+          }
           data={othersActors}
           rowKey={(a) => a.handle}
           className={styles.othersTable}
         />
-      </Modal>
+      </Drawer>
 
-      <Modal
+      <Drawer
         open={concentrationModalOpen}
         onClose={() => setConcentrationModalOpen(false)}
         title="Activity concentration"
-        width={420}
       >
         <DataTable<{ handle: string; pct: number; color: string; textColor?: string }>
-          columns={[
-            {
-              key: 'handle',
-              header: 'Developer',
-              filterable: true,
-              filterValue: (row) => row.handle,
-              render: (row) => <>@{row.handle}</>,
-            },
-            {
-              key: 'pct',
-              header: 'Share',
-              sortable: true,
-              sortValue: (row) => row.pct,
-              render: (row) => (
-                <span style={row.textColor ? { color: row.textColor } : undefined}>
-                  {row.pct}%
-                </span>
-              ),
-            },
-          ] satisfies ColumnDef<{ handle: string; pct: number; color: string; textColor?: string }>[]}
+          columns={
+            [
+              {
+                key: 'handle',
+                header: 'Developer',
+                helpText: 'GitHub login handle of the contributor. From audit log actor fields.',
+                filterable: true,
+                filterValue: (row) => row.handle,
+                render: (row) => <>@{row.handle}</>,
+              },
+              {
+                key: 'pct',
+                header: 'Share',
+                helpText:
+                  "This developer's share of total activity. High concentration (>40%) in one person may indicate bus factor risk.",
+                sortable: true,
+                sortValue: (row) => row.pct,
+                render: (row) => (
+                  <span style={row.textColor ? { color: row.textColor } : undefined}>
+                    {row.pct}%
+                  </span>
+                ),
+              },
+            ] satisfies ColumnDef<{
+              handle: string;
+              pct: number;
+              color: string;
+              textColor?: string;
+            }>[]
+          }
           data={activityConcentrationData}
           rowKey={(d) => d.handle}
           className={styles.othersTable}
         />
-      </Modal>
+      </Drawer>
 
       {/* Developer detail slide-out panel */}
       <Drawer

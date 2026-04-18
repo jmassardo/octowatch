@@ -195,7 +195,7 @@ class TestCopilotOverview:
         db = AsyncMock(spec=AsyncSession)
         with patch.object(
             copilot_metrics_service,
-            "_fetch_metrics_raw",
+            "_read_metrics_from_store",
             return_value={"error": "no_enterprise_config", "message": "test"},
         ):
             result = await copilot_metrics_service.get_copilot_overview(db)
@@ -204,7 +204,7 @@ class TestCopilotOverview:
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_days(self) -> None:
         db = AsyncMock(spec=AsyncSession)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=[]):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=[]):
             result = await copilot_metrics_service.get_copilot_overview(db)
         assert result["acceptance_rate_days"] == []
         assert result["acceptance_rate_values"] == []
@@ -215,7 +215,7 @@ class TestCopilotOverview:
     async def test_computes_acceptance_rates(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
         assert len(result["acceptance_rate_values"]) == 7
         assert all(isinstance(v, float) for v in result["acceptance_rate_values"])
@@ -225,7 +225,7 @@ class TestCopilotOverview:
     async def test_returns_language_breakdown(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
         assert len(result["languages"]) > 0
         lang_names = {lang["lang"] for lang in result["languages"]}
@@ -236,7 +236,7 @@ class TestCopilotOverview:
     async def test_languages_sorted_by_pct_descending(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
         pcts = [lang["pct"] for lang in result["languages"]]
         assert pcts == sorted(pcts, reverse=True)
@@ -245,7 +245,7 @@ class TestCopilotOverview:
     async def test_returns_user_counts(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
         assert result["total_active_users"] > 0
         assert result["total_engaged_users"] > 0
@@ -254,7 +254,7 @@ class TestCopilotOverview:
     async def test_acceptance_threshold_present(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
         assert result["acceptance_threshold"] == 25
 
@@ -262,7 +262,7 @@ class TestCopilotOverview:
     async def test_handles_fewer_than_seven_days(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(3)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
         assert len(result["acceptance_rate_values"]) == 3
 
@@ -276,7 +276,7 @@ class TestCopilotAdoption:
         db = AsyncMock(spec=AsyncSession)
         with patch.object(
             copilot_metrics_service,
-            "_fetch_metrics_raw",
+            "_read_metrics_from_store",
             return_value={"error": "copilot_not_available", "message": "test"},
         ):
             result = await copilot_metrics_service.get_copilot_adoption(db)
@@ -285,7 +285,7 @@ class TestCopilotAdoption:
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_days(self) -> None:
         db = AsyncMock(spec=AsyncSession)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=[]):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=[]):
             result = await copilot_metrics_service.get_copilot_adoption(db)
         assert result["tiers"] == []
         assert result["total_adoption"] == 0
@@ -294,7 +294,7 @@ class TestCopilotAdoption:
     async def test_returns_four_tiers(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(28)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_adoption(db)
         assert len(result["tiers"]) == 4
         tier_ids = {t["id"] for t in result["tiers"]}
@@ -304,7 +304,7 @@ class TestCopilotAdoption:
     async def test_tiers_have_required_fields(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(28)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_adoption(db)
         for tier in result["tiers"]:
             assert "id" in tier
@@ -317,7 +317,7 @@ class TestCopilotAdoption:
     async def test_returns_feature_adoption(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(28)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_adoption(db)
         assert len(result["feature_adoption"]) == 4
         feature_names = {f["feature"] for f in result["feature_adoption"]}
@@ -329,7 +329,7 @@ class TestCopilotAdoption:
         """Per-user data requires the billing/seats API; service returns empty lists."""
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(28)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_adoption(db)
         assert result["power_users"] == []
         assert result["minimal_users"] == []
@@ -344,7 +344,7 @@ class TestCopilotModels:
         db = AsyncMock(spec=AsyncSession)
         with patch.object(
             copilot_metrics_service,
-            "_fetch_metrics_raw",
+            "_read_metrics_from_store",
             return_value={"error": "copilot_not_available", "message": "test"},
         ):
             result = await copilot_metrics_service.get_copilot_models(db)
@@ -353,7 +353,7 @@ class TestCopilotModels:
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_days(self) -> None:
         db = AsyncMock(spec=AsyncSession)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=[]):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=[]):
             result = await copilot_metrics_service.get_copilot_models(db)
         assert result["models"] == []
         assert result["features"] == []
@@ -363,7 +363,7 @@ class TestCopilotModels:
     async def test_aggregates_model_usage(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_models(db)
         assert len(result["models"]) > 0
         model_names = {m["model"] for m in result["models"]}
@@ -374,7 +374,7 @@ class TestCopilotModels:
     async def test_model_pcts_sum_to_100(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_models(db)
         total_pct = sum(m["pct"] for m in result["models"])
         assert abs(total_pct - 100) < 1  # allow rounding tolerance
@@ -383,7 +383,7 @@ class TestCopilotModels:
     async def test_aggregates_editors(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_models(db)
         assert len(result["editors"]) > 0
         editor_names = {e["name"] for e in result["editors"]}
@@ -393,7 +393,7 @@ class TestCopilotModels:
     async def test_features_include_all_categories(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_models(db)
         feature_names = {f["feature"] for f in result["features"]}
         assert feature_names == {"IDE completions", "IDE chat", "Dotcom chat", "PR summaries"}
@@ -402,7 +402,7 @@ class TestCopilotModels:
     async def test_models_sorted_descending(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_models(db)
         pcts = [m["pct"] for m in result["models"]]
         assert pcts == sorted(pcts, reverse=True)
@@ -417,7 +417,7 @@ class TestCopilotAnomalies:
         db = AsyncMock(spec=AsyncSession)
         with patch.object(
             copilot_metrics_service,
-            "_fetch_metrics_raw",
+            "_read_metrics_from_store",
             return_value={"error": "copilot_not_available", "message": "test"},
         ):
             result = await copilot_metrics_service.get_copilot_anomalies(db)
@@ -427,7 +427,7 @@ class TestCopilotAnomalies:
     async def test_returns_empty_anomalies_when_too_few_days(self) -> None:
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(3)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_anomalies(db)
         assert result["anomalies"] == []
 
@@ -436,7 +436,7 @@ class TestCopilotAnomalies:
         """With uniform data, no anomalies should be detected."""
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(28)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_anomalies(db)
         assert isinstance(result["anomalies"], list)
 
@@ -456,7 +456,9 @@ class TestCopilotAnomalies:
                         lang["total_code_acceptances"] = 1
             baseline.append(day)
 
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=baseline):
+        with patch.object(
+            copilot_metrics_service, "_read_metrics_from_store", return_value=baseline
+        ):
             result = await copilot_metrics_service.get_copilot_anomalies(db)
         anomalies = result["anomalies"]
         assert len(anomalies) >= 1
@@ -475,7 +477,9 @@ class TestCopilotAnomalies:
             day["total_active_users"] = 200  # big spike from ~42
             baseline.append(day)
 
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=baseline):
+        with patch.object(
+            copilot_metrics_service, "_read_metrics_from_store", return_value=baseline
+        ):
             result = await copilot_metrics_service.get_copilot_anomalies(db)
         anomalies = result["anomalies"]
         user_anomalies = [a for a in anomalies if "active user" in a["title"].lower()]
@@ -492,7 +496,9 @@ class TestCopilotAnomalies:
             day["total_active_users"] = 200
             baseline.append(day)
 
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=baseline):
+        with patch.object(
+            copilot_metrics_service, "_read_metrics_from_store", return_value=baseline
+        ):
             result = await copilot_metrics_service.get_copilot_anomalies(db)
         for anomaly in result["anomalies"]:
             assert "id" in anomaly
@@ -662,7 +668,7 @@ class TestMissingFields:
         """Days with no copilot_ide_code_completions should not crash."""
         db = AsyncMock(spec=AsyncSession)
         sample = [{"date": "2025-01-01", "total_active_users": 5, "total_engaged_users": 3}]
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
         assert result["acceptance_rate_values"] == [0.0]
         assert result["languages"] == []
@@ -672,7 +678,7 @@ class TestMissingFields:
         """Days with no editor data should produce empty model/editor lists."""
         db = AsyncMock(spec=AsyncSession)
         sample = [{"date": "2025-01-01", "total_active_users": 5, "total_engaged_users": 3}]
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_models(db)
         assert result["models"] == []
         assert result["editors"] == []
@@ -687,7 +693,7 @@ class TestMissingFields:
         sample[-1].pop("copilot_ide_chat", None)
         sample[-1].pop("copilot_dotcom_chat", None)
         sample[-1].pop("copilot_dotcom_pull_requests", None)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_adoption(db)
         assert "feature_adoption" in result
 
@@ -1127,7 +1133,9 @@ class TestAnomalyMediumSeverity:
                         lang["total_code_acceptances"] = int(orig * 0.59)
             baseline.append(day)
 
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=baseline):
+        with patch.object(
+            copilot_metrics_service, "_read_metrics_from_store", return_value=baseline
+        ):
             result = await copilot_metrics_service.get_copilot_anomalies(db)
         anomalies = result["anomalies"]
         rate_anomalies = [a for a in anomalies if "acceptance rate" in a["title"].lower()]
@@ -1146,7 +1154,9 @@ class TestAnomalyMediumSeverity:
             day["copilot_dotcom_chat"]["total_engaged_users"] = 500
             baseline.append(day)
 
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=baseline):
+        with patch.object(
+            copilot_metrics_service, "_read_metrics_from_store", return_value=baseline
+        ):
             result = await copilot_metrics_service.get_copilot_anomalies(db)
         anomalies = result["anomalies"]
         spike_anomalies = [a for a in anomalies if "usage spike" in a["title"].lower()]
@@ -1157,7 +1167,7 @@ class TestAnomalyMediumSeverity:
         """With exactly 4 days, the split works (1 baseline + 3 recent)."""
         db = AsyncMock(spec=AsyncSession)
         sample = _make_sample_days(4)
-        with patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample):
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
             result = await copilot_metrics_service.get_copilot_anomalies(db)
         assert isinstance(result["anomalies"], list)
 
@@ -1193,3 +1203,279 @@ class TestGetEnterpriseInstallation:
             result = await copilot_metrics_service._get_enterprise_installation(db)
         assert result is mock_config
         db.execute.assert_called_once()
+
+
+# ── Tests for cache/DB-only readers ──────────────────────────────────────────
+
+
+class TestReadMetricsFromStore:
+    """_read_metrics_from_store reads from Valkey cache or DB, never GitHub."""
+
+    @pytest.mark.asyncio
+    async def test_returns_error_when_feature_disabled(self) -> None:
+        db = AsyncMock(spec=AsyncSession)
+        with patch(
+            "app.services.settings_service.get_setting",
+            new_callable=AsyncMock,
+            return_value="false",
+        ):
+            result = await copilot_metrics_service._read_metrics_from_store(db)
+        assert isinstance(result, dict)
+        assert result["error"] == "feature_disabled"
+
+    @pytest.mark.asyncio
+    async def test_returns_error_when_no_enterprise_slug(self) -> None:
+        db = AsyncMock(spec=AsyncSession)
+        with (
+            patch(
+                "app.services.settings_service.get_setting",
+                new_callable=AsyncMock,
+                return_value="true",
+            ),
+            patch.object(
+                copilot_metrics_service.settings.github_app,
+                "GITHUB_ENTERPRISE_SLUG",
+                None,
+            ),
+        ):
+            result = await copilot_metrics_service._read_metrics_from_store(db)
+        assert isinstance(result, dict)
+        assert result["error"] == "no_enterprise_config"
+
+    @pytest.mark.asyncio
+    async def test_returns_cached_data(self) -> None:
+        db = AsyncMock(spec=AsyncSession)
+        cached = json.dumps(_make_sample_days(3))
+        with (
+            patch(
+                "app.services.settings_service.get_setting",
+                new_callable=AsyncMock,
+                return_value="true",
+            ),
+            patch.object(
+                copilot_metrics_service.settings.github_app,
+                "GITHUB_ENTERPRISE_SLUG",
+                "test-ent",
+            ),
+            patch("app.services.copilot_metrics_service.aioredis") as mock_aioredis,
+        ):
+            mock_valkey = AsyncMock()
+            mock_valkey.get = AsyncMock(return_value=cached)
+            mock_valkey.aclose = AsyncMock()
+            mock_aioredis.Redis.from_url.return_value = mock_valkey
+
+            result = await copilot_metrics_service._read_metrics_from_store(
+                db,
+            )
+        assert isinstance(result, list)
+        assert len(result) == 3
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_db_on_cache_miss(self) -> None:
+        db = AsyncMock(spec=AsyncSession)
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        db.execute = AsyncMock(return_value=mock_result)
+
+        with (
+            patch(
+                "app.services.settings_service.get_setting",
+                new_callable=AsyncMock,
+                return_value="true",
+            ),
+            patch.object(
+                copilot_metrics_service.settings.github_app,
+                "GITHUB_ENTERPRISE_SLUG",
+                "test-ent",
+            ),
+            patch("app.services.copilot_metrics_service.aioredis") as mock_aioredis,
+        ):
+            mock_valkey = AsyncMock()
+            mock_valkey.get = AsyncMock(return_value=None)
+            mock_valkey.aclose = AsyncMock()
+            mock_aioredis.Redis.from_url.return_value = mock_valkey
+
+            result = await copilot_metrics_service._read_metrics_from_store(
+                db,
+            )
+        assert isinstance(result, list)
+        assert result == []
+
+
+class TestReadSeatsFromStore:
+    """_read_seats_from_store reads from Valkey cache or DB, never GitHub."""
+
+    @pytest.mark.asyncio
+    async def test_returns_error_when_feature_disabled(self) -> None:
+        db = AsyncMock(spec=AsyncSession)
+        with patch(
+            "app.services.settings_service.get_setting",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
+            result = await copilot_metrics_service._read_seats_from_store(db)
+        assert isinstance(result, dict)
+        assert result["error"] == "feature_disabled"
+
+    @pytest.mark.asyncio
+    async def test_returns_cached_seats(self) -> None:
+        db = AsyncMock(spec=AsyncSession)
+        seats = [{"assignee": {"login": "alice"}, "plan_type": "business"}]
+        with (
+            patch(
+                "app.services.settings_service.get_setting",
+                new_callable=AsyncMock,
+                return_value="true",
+            ),
+            patch.object(
+                copilot_metrics_service.settings.github_app,
+                "GITHUB_ENTERPRISE_SLUG",
+                "test-ent",
+            ),
+            patch("app.services.copilot_metrics_service.aioredis") as mock_aioredis,
+        ):
+            mock_valkey = AsyncMock()
+            mock_valkey.get = AsyncMock(return_value=json.dumps(seats))
+            mock_valkey.aclose = AsyncMock()
+            mock_aioredis.Redis.from_url.return_value = mock_valkey
+
+            result = await copilot_metrics_service._read_seats_from_store(db)
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["assignee"]["login"] == "alice"
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_on_cache_miss_and_no_db_data(self) -> None:
+        db = AsyncMock(spec=AsyncSession)
+        # scalar() returns None (no max date)
+        mock_result = MagicMock()
+        mock_result.scalar.return_value = None
+        db.execute = AsyncMock(return_value=mock_result)
+
+        with (
+            patch(
+                "app.services.settings_service.get_setting",
+                new_callable=AsyncMock,
+                return_value="true",
+            ),
+            patch.object(
+                copilot_metrics_service.settings.github_app,
+                "GITHUB_ENTERPRISE_SLUG",
+                "test-ent",
+            ),
+            patch("app.services.copilot_metrics_service.aioredis") as mock_aioredis,
+        ):
+            mock_valkey = AsyncMock()
+            mock_valkey.get = AsyncMock(return_value=None)
+            mock_valkey.aclose = AsyncMock()
+            mock_aioredis.Redis.from_url.return_value = mock_valkey
+
+            result = await copilot_metrics_service._read_seats_from_store(db)
+        assert isinstance(result, list)
+        assert result == []
+
+
+class TestReconstructMetricsFromDb:
+    """Test DB→raw-API-format reconstruction logic."""
+
+    @pytest.mark.asyncio
+    async def test_empty_db_returns_empty_list(self) -> None:
+        db = AsyncMock(spec=AsyncSession)
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        db.execute = AsyncMock(return_value=mock_result)
+
+        result = await copilot_metrics_service._reconstruct_metrics_from_db(db, "test-ent")
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_reconstructs_summary_rows(self) -> None:
+        """Summary rows produce total_active/engaged_users fields."""
+        from datetime import date
+
+        db = AsyncMock(spec=AsyncSession)
+        row = MagicMock()
+        row.date = date(2025, 1, 20)
+        row.metric_type = "summary"
+        row.active_users = 42
+        row.engaged_users = 38
+        row.language = None
+        row.editor = None
+        row.model = None
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [row]
+        db.execute = AsyncMock(return_value=mock_result)
+
+        result = await copilot_metrics_service._reconstruct_metrics_from_db(db, "test-ent")
+        assert len(result) == 1
+        assert result[0]["total_active_users"] == 42
+        assert result[0]["total_engaged_users"] == 38
+
+    @pytest.mark.asyncio
+    async def test_reconstructs_completions_nested_structure(self) -> None:
+        """Completions rows rebuild the editor→model→language tree."""
+        from datetime import date
+
+        db = AsyncMock(spec=AsyncSession)
+        row = MagicMock()
+        row.date = date(2025, 1, 20)
+        row.metric_type = "completions"
+        row.editor = "VS Code"
+        row.model = "GPT-4o"
+        row.language = "Python"
+        row.engaged_users = 25
+        row.total_suggestions = 200
+        row.total_acceptances = 60
+        row.total_lines_suggested = 400
+        row.total_lines_accepted = 120
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [row]
+        db.execute = AsyncMock(return_value=mock_result)
+
+        result = await copilot_metrics_service._reconstruct_metrics_from_db(db, "test-ent")
+        assert len(result) == 1
+        compl = result[0]["copilot_ide_code_completions"]
+        assert len(compl["editors"]) == 1
+        assert compl["editors"][0]["name"] == "VS Code"
+        models = compl["editors"][0]["models"]
+        assert len(models) == 1
+        assert models[0]["name"] == "GPT-4o"
+        langs = models[0]["languages"]
+        assert len(langs) == 1
+        assert langs[0]["name"] == "Python"
+        assert langs[0]["total_code_suggestions"] == 200
+
+    @pytest.mark.asyncio
+    async def test_reconstructs_chat_and_pr_rows(self) -> None:
+        """Chat, dotcom_chat, and PR rows set engaged_users."""
+        from datetime import date
+
+        db = AsyncMock(spec=AsyncSession)
+        rows = []
+        for mt, engaged in [
+            ("chat", 20),
+            ("dotcom_chat", 10),
+            ("pr", 5),
+        ]:
+            r = MagicMock()
+            r.date = date(2025, 1, 20)
+            r.metric_type = mt
+            r.engaged_users = engaged
+            r.active_users = 0
+            r.language = None
+            r.editor = None
+            r.model = None
+            rows.append(r)
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = rows
+        db.execute = AsyncMock(return_value=mock_result)
+
+        result = await copilot_metrics_service._reconstruct_metrics_from_db(db, "test-ent")
+        assert len(result) == 1
+        day = result[0]
+        assert day["copilot_ide_chat"]["total_engaged_users"] == 20
+        assert day["copilot_dotcom_chat"]["total_engaged_users"] == 10
+        assert day["copilot_dotcom_pull_requests"]["total_engaged_users"] == 5

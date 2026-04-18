@@ -12,7 +12,7 @@ import {
 import type { RoleAssignment, RoleAssignmentCreate, ActiveSession } from '../../types/admin';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
-import { Modal } from '../../components/primitives/Modal';
+import { Drawer } from '../../components/primitives/Drawer';
 import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
@@ -248,6 +248,8 @@ function TeamMappingsDataTable({
       {
         key: 'github_team',
         header: 'GitHub team',
+        helpText:
+          'GitHub team or individual user mapped to an OctoWatch role. From GitHub organization team membership.',
         sortable: true,
         filterable: true,
         sortValue: (a) => teamSlugFromAssignment(a).toLowerCase(),
@@ -257,6 +259,8 @@ function TeamMappingsDataTable({
       {
         key: 'role',
         header: 'OctoWatch role',
+        helpText:
+          'The OctoWatch role assigned to this team or user. Controls access to detections, rules, and admin features.',
         sortable: true,
         filterable: true,
         sortValue: (a) => {
@@ -272,6 +276,7 @@ function TeamMappingsDataTable({
       {
         key: 'mapped_by',
         header: 'Mapped by',
+        helpText: 'The administrator who created or last updated this role mapping.',
         render: (a) => (
           <span
             className={`${styles.mention} ${styles.clickableMention}`}
@@ -292,6 +297,7 @@ function TeamMappingsDataTable({
       {
         key: 'last_synced',
         header: 'Last synced',
+        helpText: 'When this role mapping was last synchronized with GitHub team membership.',
         sortable: true,
         sortValue: (a) => a.granted_at,
         render: (a) => <span className={styles.muted}>{formatRelative(a.granted_at)}</span>,
@@ -363,6 +369,7 @@ function ActiveUsersDataTable({
       {
         key: 'user',
         header: 'User',
+        helpText: 'GitHub login of the active user. Click to view their audit event history.',
         sortable: true,
         filterable: true,
         sortValue: (u) => u.login.toLowerCase(),
@@ -387,6 +394,8 @@ function ActiveUsersDataTable({
       {
         key: 'role',
         header: 'Role',
+        helpText:
+          'The OctoWatch role for this user session. Derived from team-based role mappings.',
         sortable: true,
         filterable: true,
         sortValue: (u) => sessionRoleLabel(u.role).toLowerCase(),
@@ -398,6 +407,8 @@ function ActiveUsersDataTable({
       {
         key: 'last_active',
         header: 'Last active',
+        helpText:
+          'Most recent session activity timestamp. Users inactive for 30+ days may warrant session review.',
         sortable: true,
         sortValue: (u) => u.last_active_at ?? '',
         render: (u) => <span className={styles.muted}>{formatRelative(u.last_active_at)}</span>,
@@ -405,6 +416,8 @@ function ActiveUsersDataTable({
       {
         key: 'mfa',
         header: 'MFA',
+        helpText:
+          'Whether the user has multi-factor authentication enabled. From organization audit events.',
         sortable: true,
         sortValue: (u) => (u.mfa_enabled ? 0 : 1),
         render: (u) => (
@@ -414,6 +427,7 @@ function ActiveUsersDataTable({
       {
         key: 'sessions',
         header: 'Sessions',
+        helpText: 'Number of active sessions for this user. Click to view session details.',
         render: (u) => (
           <span
             className={styles.clickableSession}
@@ -562,15 +576,15 @@ export function UsersPage() {
         )}
       </section>
 
-      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add role mapping">
+      <Drawer open={showAdd} onClose={() => setShowAdd(false)} title="Add role mapping">
         <AddMappingForm
           roles={roles}
           onSave={(v) => createMutation.mutate(v)}
           onCancel={() => setShowAdd(false)}
         />
-      </Modal>
+      </Drawer>
 
-      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title="Edit role mapping">
+      <Drawer open={!!editTarget} onClose={() => setEditTarget(null)} title="Edit role mapping">
         {editTarget && (
           <EditMappingForm
             assignment={editTarget}
@@ -579,7 +593,7 @@ export function UsersPage() {
             onCancel={() => setEditTarget(null)}
           />
         )}
-      </Modal>
+      </Drawer>
 
       <ConfirmDialog
         open={!!deleteTarget}
@@ -591,7 +605,7 @@ export function UsersPage() {
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
       />
 
-      <Modal
+      <Drawer
         open={!!sessionUser}
         onClose={() => setSessionUser(null)}
         title={sessionUser ? `Sessions — @${sessionUser.login}` : 'Sessions'}
@@ -624,7 +638,7 @@ export function UsersPage() {
             </p>
           </dl>
         )}
-      </Modal>
+      </Drawer>
     </div>
   );
 }

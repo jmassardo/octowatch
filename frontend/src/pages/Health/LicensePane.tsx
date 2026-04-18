@@ -5,7 +5,8 @@ import { MetricCard } from '../../components/primitives/MetricCard';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
-import { DrilldownModal } from '../../components/primitives/DrilldownModal';
+import { DrilldownDrawer } from '../../components/primitives/DrilldownDrawer';
+import { Drawer } from '../../components/primitives/Drawer';
 import { getSeatUtilizationReport, getCopilotSeatsReport } from '../../api/reports';
 import { getGhostMembers, getLicenseConsumption } from '../../api/healthSignals';
 import type { GhostMember } from '../../api/healthSignals';
@@ -36,6 +37,7 @@ export function LicensePane() {
     title: string;
     metricName: string;
   } | null>(null);
+  const [selectedGhostRow, setSelectedGhostRow] = useState<GhostMember | null>(null);
 
   const { data: licenseData } = useQuery({
     queryKey: ['health', 'license-consumption'],
@@ -116,6 +118,8 @@ export function LicensePane() {
       render: (m) => <span style={{ fontWeight: 500 }}>{m.actor}</span>,
       sortValue: (m) => m.actor,
       filterValue: (m) => m.actor,
+      helpText:
+        'GitHub login of the ghost member consuming a license seat. Derived from org membership with no recent audit log activity.',
     },
     {
       key: 'last_active',
@@ -127,6 +131,8 @@ export function LicensePane() {
         </span>
       ),
       sortValue: (m) => m.last_active ?? '',
+      helpText:
+        'Date of last recorded audit log activity. "Never" means no events found since baseline import. Consider removing to reclaim the license seat.',
     },
   ];
 
@@ -208,17 +214,37 @@ export function LicensePane() {
             data={ghostMembers}
             rowKey={(m) => m.actor}
             emptyMessage="No ghost members detected"
+            onRowClick={(row) => setSelectedGhostRow(row)}
           />
         </div>
       )}
+      <Drawer
+        open={!!selectedGhostRow}
+        onClose={() => setSelectedGhostRow(null)}
+        title="Ghost Member Details"
+      >
+        {selectedGhostRow && (
+          <dl style={{ padding: '16px' }}>
+            {Object.entries(selectedGhostRow).map(([key, value]) => (
+              <div key={key} style={{ marginBottom: 8 }}>
+                <dt style={{ fontSize: '0.8em', color: 'var(--fg-muted)', marginBottom: 2 }}>
+                  {key}
+                </dt>
+                <dd style={{ margin: 0 }}>{String(value ?? '—')}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </Drawer>
 
       <div className={styles.sourceNote}>
         ℹ️ License seat data is derived from{' '}
         {hasLicenseSync ? (
           <>
             the GHEC <code className={styles.sourceCode}>consumed-licenses</code> API
-            {licenseData?.synced_at && <> (last synced: {formatDateOnly(licenseData.synced_at)})</>}
-            .
+            {licenseData?.synced_at && (
+              <> (last synced: {formatDateOnly(licenseData.synced_at)})</>
+            )}.
           </>
         ) : (
           <>
@@ -247,6 +273,7 @@ export function LicensePane() {
           label="Seat utilization"
           delta={`${totalSeats} of ${seatLimit} seats`}
           deltaDir={utilPct > 90 ? 'down' : 'neutral'}
+          helpText="Percentage of purchased GHEC seats currently consumed. Derived from license consumption API or seat utilization reports. Above 90% indicates you may need additional seats."
           onClick={() =>
             setLicenseDrilldown({
               title: 'Seat utilization detail',
@@ -260,6 +287,7 @@ export function LicensePane() {
           delta={`$${ghostCost}/mo recoverable`}
           deltaDir="down"
           accent
+          helpText="Members inactive for 90+ days still consuming a license seat. Remove these members to reclaim seats and reduce cost."
           onClick={() =>
             setLicenseDrilldown({
               title: 'Ghost members detail',
@@ -272,6 +300,7 @@ export function LicensePane() {
           label="Active seats"
           delta="with recent activity"
           deltaDir="neutral"
+          helpText="Number of license seats with recent audit log activity. Derived from per-actor event timestamps in the last 30 days."
           onClick={() =>
             setLicenseDrilldown({
               title: 'Active seats detail',
@@ -284,6 +313,7 @@ export function LicensePane() {
           label="Copilot seats"
           delta="provisioned"
           deltaDir="neutral"
+          helpText="Total Copilot seats provisioned. Cross-reference with active usage in Copilot Insights to identify unused seats for reallocation."
           onClick={() =>
             setLicenseDrilldown({
               title: 'Copilot seats detail',
@@ -295,7 +325,7 @@ export function LicensePane() {
 
       {/* License Drilldown Modal */}
       {licenseDrilldown?.metricName === 'ghost_members' ? (
-        <DrilldownModal<GhostMember>
+        <DrilldownDrawer<GhostMember>
           open={licenseDrilldown !== null}
           onClose={() => setLicenseDrilldown(null)}
           title={licenseDrilldown?.title ?? ''}
@@ -304,7 +334,7 @@ export function LicensePane() {
           rowKey={(r) => r.actor}
         />
       ) : (
-        <DrilldownModal<{ metric: string; note: string }>
+        <DrilldownDrawer<{ metric: string; note: string }>
           open={licenseDrilldown !== null}
           onClose={() => setLicenseDrilldown(null)}
           title={licenseDrilldown?.title ?? ''}

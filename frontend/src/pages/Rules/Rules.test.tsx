@@ -82,7 +82,7 @@ describe('RulesPage', () => {
     // Get only the first row of column headers (skip filter row)
     const headerRow = within(table).getAllByRole('row')[0];
     const headers = within(headerRow).getAllByRole('columnheader');
-    const headerTexts = headers.map((h) => h.textContent?.replace(/[⇅↑↓]/g, '').trim());
+    const headerTexts = headers.map((h) => h.textContent?.replace(/[⇅↑↓ⓘ]/g, '').trim());
 
     expect(headerTexts).toEqual([
       'Status',

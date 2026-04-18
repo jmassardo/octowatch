@@ -276,7 +276,7 @@ async def dev_login(
     """
     from app.config import settings as cfg
 
-    if cfg.ENVIRONMENT == "production":
+    if cfg.ENVIRONMENT not in ("development", "test"):
         raise HTTPException(status_code=404)
 
     body = await request.json()
