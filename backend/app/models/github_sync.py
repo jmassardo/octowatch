@@ -747,3 +747,281 @@ class DependabotAlert(Base):
         Index("idx_dependabot_alert_org_state", "org_slug", "state"),
         Index("idx_dependabot_alert_repo", "repo_full_name"),
     )
+
+
+# ─── Team Repository Access ───────────────────────────────────────────────────
+
+
+class OrgTeamRepo(Base):
+    """Team-to-repo access mapping with permission level.
+
+    Endpoint: ``GET /orgs/{org}/teams/{slug}/repos``
+    """
+
+    __tablename__ = "org_team_repos"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    org: Mapped[str] = mapped_column(Text, nullable=False)
+    team_slug: Mapped[str] = mapped_column(Text, nullable=False)
+    repo_name: Mapped[str] = mapped_column(Text, nullable=False)
+    repo_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # "pull" | "push" | "admin" | "maintain" | "triage"
+    permission: Mapped[str] = mapped_column(Text, nullable=False)
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("org", "team_slug", "repo_name", name="uq_org_team_repos_org_team_repo"),
+        Index("idx_org_team_repos_org_team", "org", "team_slug"),
+        Index("idx_org_team_repos_repo", "org", "repo_name"),
+    )
+
+
+# ─── Repo Collaborators (Direct Access) ──────────────────────────────────────
+
+
+class RepoCollaborator(Base):
+    """Direct (non-team-inherited) repo collaborator.
+
+    Endpoint: ``GET /repos/{owner}/{repo}/collaborators?affiliation=direct``
+    """
+
+    __tablename__ = "repo_collaborators"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    org: Mapped[str] = mapped_column(Text, nullable=False)
+    repo_name: Mapped[str] = mapped_column(Text, nullable=False)
+    github_login: Mapped[str] = mapped_column(Text, nullable=False)
+    github_id: Mapped[int | None] = mapped_column(BigInteger)
+    # "admin" | "maintain" | "write" | "triage" | "read"
+    permission: Mapped[str] = mapped_column(Text, nullable=False)
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "org", "repo_name", "github_login", name="uq_repo_collaborators_org_repo_login"
+        ),
+        Index("idx_repo_collaborators_org_repo", "org", "repo_name"),
+        Index("idx_repo_collaborators_login", "github_login"),
+    )
+
+
+# ─── SAML/SSO Credential Authorizations ──────────────────────────────────────
+
+
+class OrgCredentialAuthorization(Base):
+    """SAML SSO credential authorizations for an org.
+
+    Endpoint: ``GET /orgs/{org}/credential-authorizations``
+    """
+
+    __tablename__ = "org_credential_authorizations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    org: Mapped[str] = mapped_column(Text, nullable=False)
+    github_login: Mapped[str] = mapped_column(Text, nullable=False)
+    credential_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # "personal access token" | "SSH key" | "OAuth app" | etc.
+    credential_type: Mapped[str] = mapped_column(Text, nullable=False)
+    # Token fingerprint or key title
+    token_last_eight: Mapped[str | None] = mapped_column(String(8))
+    credential_authorized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    credential_accessed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    scopes: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("org", "credential_id", name="uq_org_credential_auth_org_cred"),
+        Index("idx_org_credential_auth_org", "org"),
+        Index("idx_org_credential_auth_login", "github_login"),
+    )
+
+
+# ─── Webhooks ─────────────────────────────────────────────────────────────────
+
+
+class OrgWebhook(Base):
+    """Org-level webhook configuration.
+
+    Endpoint: ``GET /orgs/{org}/hooks``
+    """
+
+    __tablename__ = "org_webhooks"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    org: Mapped[str] = mapped_column(Text, nullable=False)
+    hook_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    # The delivery URL (insecure_ssl flag, content_type, etc.)
+    config_url: Mapped[str | None] = mapped_column(Text)
+    config_content_type: Mapped[str | None] = mapped_column(Text)
+    config_insecure_ssl: Mapped[str | None] = mapped_column(Text)
+    events: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("org", "hook_id", name="uq_org_webhooks_org_hook"),
+        Index("idx_org_webhooks_org", "org"),
+    )
+
+
+class RepoWebhook(Base):
+    """Repo-level webhook configuration.
+
+    Endpoint: ``GET /repos/{owner}/{repo}/hooks``
+    """
+
+    __tablename__ = "repo_webhooks"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    org: Mapped[str] = mapped_column(Text, nullable=False)
+    repo_name: Mapped[str] = mapped_column(Text, nullable=False)
+    hook_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    config_url: Mapped[str | None] = mapped_column(Text)
+    config_content_type: Mapped[str | None] = mapped_column(Text)
+    config_insecure_ssl: Mapped[str | None] = mapped_column(Text)
+    events: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("org", "repo_name", "hook_id", name="uq_repo_webhooks_org_repo_hook"),
+        Index("idx_repo_webhooks_org_repo", "org", "repo_name"),
+    )
+
+
+# ─── Actions Permissions ──────────────────────────────────────────────────────
+
+
+class OrgActionsPermissions(Base):
+    """Org-level GitHub Actions permissions settings.
+
+    Endpoint: ``GET /orgs/{org}/actions/permissions``
+    """
+
+    __tablename__ = "org_actions_permissions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    org: Mapped[str] = mapped_column(Text, nullable=False)
+    enabled_repositories: Mapped[str] = mapped_column(
+        Text, nullable=False
+    )  # "all" | "none" | "selected"
+    allowed_actions: Mapped[str | None] = mapped_column(Text)  # "all" | "local_only" | "selected"
+    github_owned_allowed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("true")
+    )
+    verified_allowed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    patterns_allowed: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("org", name="uq_org_actions_permissions_org"),
+        Index("idx_org_actions_permissions_org", "org"),
+    )
+
+
+# ─── Self-Hosted Runners ─────────────────────────────────────────────────────
+
+
+class OrgSelfHostedRunner(Base):
+    """Self-hosted runner registered at the org level.
+
+    Endpoint: ``GET /orgs/{org}/actions/runners``
+    """
+
+    __tablename__ = "org_self_hosted_runners"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    org: Mapped[str] = mapped_column(Text, nullable=False)
+    runner_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    os: Mapped[str] = mapped_column(Text, nullable=False)
+    # "online" | "offline"
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    busy: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    labels: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    runner_group_id: Mapped[int | None] = mapped_column(BigInteger)
+    runner_group_name: Mapped[str | None] = mapped_column(Text)
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("org", "runner_id", name="uq_org_self_hosted_runners_org_runner"),
+        Index("idx_org_self_hosted_runners_org", "org"),
+    )
+
+
+# ─── Deploy Keys ─────────────────────────────────────────────────────────────
+
+
+class RepoDeployKey(Base):
+    """Deploy key (SSH key) on a repository.
+
+    Endpoint: ``GET /repos/{owner}/{repo}/keys``
+    """
+
+    __tablename__ = "repo_deploy_keys"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    org: Mapped[str] = mapped_column(Text, nullable=False)
+    repo_name: Mapped[str] = mapped_column(Text, nullable=False)
+    key_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    read_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    key_added_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("org", "repo_name", "key_id", name="uq_repo_deploy_keys_org_repo_key"),
+        Index("idx_repo_deploy_keys_org_repo", "org", "repo_name"),
+    )

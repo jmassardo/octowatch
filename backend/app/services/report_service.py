@@ -562,7 +562,7 @@ async def get_metrics_that_matter(
             SELECT
                 EXTRACT(EPOCH FROM (c.created_at - o.created_at)) / 3600.0 AS lifecycle_hours
             FROM (
-                SELECT repo, payload->>'number' AS pr_num, created_at
+                SELECT repo, data->>'number' AS pr_num, created_at
                 FROM events
                 WHERE action = 'pull_request.opened'
                   AND created_at >= :start
@@ -570,10 +570,10 @@ async def get_metrics_that_matter(
                   {org_filter}
             ) o
             JOIN (
-                SELECT repo, payload->>'number' AS pr_num, created_at
+                SELECT repo, data->>'number' AS pr_num, created_at
                 FROM events
                 WHERE action = 'pull_request.closed'
-                  AND payload->>'merged' = 'true'
+                  AND data->>'merged' = 'true'
                   AND created_at >= :start
             ) c ON o.repo = c.repo AND o.pr_num = c.pr_num
             WHERE c.created_at > o.created_at
@@ -586,10 +586,104 @@ async def get_metrics_that_matter(
         else None
     )
 
+    # Enhanced lead time: idea → production with fallback chain
+    lead_time_stmt = text(f"""
+        WITH merged_prs AS (
+            SELECT
+                repo,
+                data->>'number'                          AS pr_num,
+                created_at                                AS merge_event_ts,
+                (data->>'pr_created_at')::timestamptz     AS pr_created_at,
+                data->>'merge_commit_sha'                 AS merge_commit_sha,
+                data->'linked_issues'                     AS linked_issues_json
+            FROM events
+            WHERE action = 'pull_request.merged'
+              AND created_at >= :start
+              AND actor NOT LIKE '%%[bot]'
+              {org_filter}
+        ),
+        start_times AS (
+            SELECT
+                m.repo,
+                m.pr_num,
+                m.merge_event_ts,
+                m.merge_commit_sha,
+                m.pr_created_at,
+                COALESCE(
+                    (
+                        SELECT MIN((issue_ref->>'created_at')::timestamptz)
+                        FROM jsonb_array_elements(m.linked_issues_json) AS issue_ref
+                        WHERE issue_ref->>'created_at' IS NOT NULL
+                    ),
+                    m.pr_created_at,
+                    m.merge_event_ts
+                ) AS start_time
+            FROM merged_prs m
+        ),
+        finish_times AS (
+            SELECT
+                s.repo,
+                s.pr_num,
+                s.start_time,
+                s.pr_created_at,
+                s.merge_event_ts,
+                COALESCE(
+                    (
+                        SELECT MIN(d.created_at)
+                        FROM events d
+                        WHERE d.action = 'deployment_status.success'
+                          AND d.repo = s.repo
+                          AND d.data->>'sha' = s.merge_commit_sha
+                          AND d.created_at >= s.merge_event_ts
+                          AND d.created_at < s.merge_event_ts + INTERVAL '7 days'
+                          AND s.merge_commit_sha IS NOT NULL
+                    ),
+                    (
+                        SELECT MIN(w.created_at)
+                        FROM events w
+                        WHERE w.data->>'head_sha' = s.merge_commit_sha
+                          AND w.data->>'event' = 'push'
+                          AND w.repo = s.repo
+                          AND w.action = 'workflow_run.success'
+                          AND w.created_at >= s.merge_event_ts
+                          AND w.created_at < s.merge_event_ts + INTERVAL '7 days'
+                          AND s.merge_commit_sha IS NOT NULL
+                    ),
+                    s.merge_event_ts
+                ) AS finish_time
+            FROM start_times s
+        )
+        SELECT
+            AVG(EXTRACT(EPOCH FROM (finish_time - start_time)) / 3600.0)
+                AS avg_lead_time_hours,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (
+                ORDER BY EXTRACT(EPOCH FROM (finish_time - start_time)) / 3600.0
+            ) AS median_lead_time_hours,
+            COUNT(*) AS lead_time_pr_count
+        FROM finish_times
+        WHERE finish_time >= start_time
+    """)
+    lead_time_row = (await session.execute(lead_time_stmt, params_base)).fetchone()
+    avg_lead_time_hours: float | None = (
+        float(lead_time_row.avg_lead_time_hours)
+        if lead_time_row and lead_time_row.avg_lead_time_hours is not None
+        else None
+    )
+    median_lead_time_hours: float | None = (
+        float(lead_time_row.median_lead_time_hours)
+        if lead_time_row and lead_time_row.median_lead_time_hours is not None
+        else None
+    )
+    lead_time_pr_count: int = (
+        int(lead_time_row.lead_time_pr_count)
+        if lead_time_row and lead_time_row.lead_time_pr_count is not None
+        else 0
+    )
+
     # PR merge rate: % of PRs closed that were merged
     pr_rate_stmt = text(f"""
         SELECT
-            COUNT(*) FILTER (WHERE payload->>'merged' = 'true') * 100.0 /
+            COUNT(*) FILTER (WHERE data->>'merged' = 'true') * 100.0 /
             NULLIF(COUNT(*), 0) AS merge_rate_pct
         FROM events
         WHERE action = 'pull_request.closed'
@@ -611,11 +705,11 @@ async def get_metrics_that_matter(
         FROM events
         WHERE action = 'workflow_run.completed'
           AND (
-              payload->>'name' ILIKE '%%deploy%%'
-              OR payload->>'name' ILIKE '%%release%%'
-              OR payload->>'name' ILIKE '%%publish%%'
+              data->>'name' ILIKE '%%deploy%%'
+              OR data->>'name' ILIKE '%%release%%'
+              OR data->>'name' ILIKE '%%publish%%'
           )
-          AND payload->>'conclusion' = 'success'
+          AND data->>'conclusion' = 'success'
           AND created_at >= :start
           {org_filter}
     """)
@@ -632,7 +726,7 @@ async def get_metrics_that_matter(
         SELECT AVG(round_count) AS avg_rounds
         FROM (
             SELECT
-                payload->>'number' AS pr_num,
+                data->>'number' AS pr_num,
                 repo,
                 COUNT(*) AS round_count
             FROM events
@@ -640,7 +734,7 @@ async def get_metrics_that_matter(
               AND created_at >= :start
               AND actor NOT LIKE '%%[bot]'
               {org_filter}
-            GROUP BY payload->>'number', repo
+            GROUP BY data->>'number', repo
         ) sub
     """)
     review_rounds_row = (await session.execute(review_rounds_stmt, params_base)).fetchone()
@@ -654,7 +748,7 @@ async def get_metrics_that_matter(
     faster_trend_stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at) AS bucket,
-            COUNT(*) FILTER (WHERE payload->>'merged' = 'true') AS merged_prs
+            COUNT(*) FILTER (WHERE data->>'merged' = 'true') AS merged_prs
         FROM events
         WHERE action = 'pull_request.closed'
           AND created_at >= :start
@@ -679,7 +773,7 @@ async def get_metrics_that_matter(
     # Workflow success rate
     success_rate_stmt = text(f"""
         SELECT
-            COUNT(*) FILTER (WHERE payload->>'conclusion' = 'success') * 100.0 /
+            COUNT(*) FILTER (WHERE data->>'conclusion' = 'success') * 100.0 /
             NULLIF(COUNT(*), 0) AS success_rate
         FROM events
         WHERE action = 'workflow_run.completed'
@@ -739,15 +833,15 @@ async def get_metrics_that_matter(
     cfr_stmt = text(f"""
         SELECT
             COUNT(*) FILTER (WHERE
-                payload->>'conclusion' IN ('failure', 'timed_out')
+                data->>'conclusion' IN ('failure', 'timed_out')
                 AND (
-                    payload->>'name' ILIKE '%%deploy%%'
-                    OR payload->>'name' ILIKE '%%release%%'
+                    data->>'name' ILIKE '%%deploy%%'
+                    OR data->>'name' ILIKE '%%release%%'
                 )
             ) * 100.0 /
             NULLIF(COUNT(*) FILTER (WHERE
-                payload->>'name' ILIKE '%%deploy%%'
-                OR payload->>'name' ILIKE '%%release%%'
+                data->>'name' ILIKE '%%deploy%%'
+                OR data->>'name' ILIKE '%%release%%'
             ), 0) AS cfr_pct
         FROM events
         WHERE action = 'workflow_run.completed'
@@ -763,7 +857,7 @@ async def get_metrics_that_matter(
     safer_trend_stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at) AS bucket,
-            COUNT(*) FILTER (WHERE payload->>'conclusion' = 'success') * 100.0 /
+            COUNT(*) FILTER (WHERE data->>'conclusion' = 'success') * 100.0 /
             NULLIF(COUNT(*), 0) AS success_rate,
             COUNT(*) FILTER (WHERE action = 'code_scanning_alert.appeared_in_branch') -
             COUNT(*) FILTER (WHERE action IN (
@@ -802,7 +896,7 @@ async def get_metrics_that_matter(
     # Failed run waste %
     waste_stmt = text(f"""
         SELECT
-            COUNT(*) FILTER (WHERE payload->>'conclusion' IN (
+            COUNT(*) FILTER (WHERE data->>'conclusion' IN (
                 'failure', 'timed_out', 'cancelled'
             )) * 100.0 /
             NULLIF(COUNT(*), 0) AS waste_pct
@@ -819,12 +913,12 @@ async def get_metrics_that_matter(
     # Rerun rate
     rerun_stmt = text(f"""
         SELECT
-            COUNT(*) FILTER (WHERE (payload->>'run_attempt')::int > 1) * 100.0 /
+            COUNT(*) FILTER (WHERE (data->>'run_attempt')::int > 1) * 100.0 /
             NULLIF(COUNT(*), 0) AS rerun_rate_pct
         FROM events
         WHERE action = 'workflow_run.completed'
           AND created_at >= :start
-          AND payload ? 'run_attempt'
+          AND data ? 'run_attempt'
           {org_filter}
     """)
     rerun_row = (await session.execute(rerun_stmt, params_base)).fetchone()
@@ -841,7 +935,7 @@ async def get_metrics_that_matter(
             NULLIF(COUNT(*), 0) AS automation_rate_pct
         FROM events
         WHERE action = 'pull_request.closed'
-          AND payload->>'merged' = 'true'
+          AND data->>'merged' = 'true'
           AND created_at >= :start
           {org_filter}
     """)
@@ -855,17 +949,17 @@ async def get_metrics_that_matter(
     # Top wasteful workflows
     top_wasteful_stmt = text(f"""
         SELECT
-            payload->>'name' AS workflow_name,
-            COUNT(*) FILTER (WHERE payload->>'conclusion' IN (
+            data->>'name' AS workflow_name,
+            COUNT(*) FILTER (WHERE data->>'conclusion' IN (
                 'failure', 'timed_out', 'cancelled'
             )) * 100.0 /
             NULLIF(COUNT(*), 0) AS waste_pct
         FROM events
         WHERE action = 'workflow_run.completed'
           AND created_at >= :start
-          AND payload->>'name' IS NOT NULL
+          AND data->>'name' IS NOT NULL
           {org_filter}
-        GROUP BY payload->>'name'
+        GROUP BY data->>'name'
         HAVING COUNT(*) >= 3
         ORDER BY waste_pct DESC
         LIMIT 5
@@ -883,14 +977,14 @@ async def get_metrics_that_matter(
     cheaper_trend_stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at) AS bucket,
-            COUNT(*) FILTER (WHERE payload->>'conclusion' IN (
+            COUNT(*) FILTER (WHERE data->>'conclusion' IN (
                 'failure', 'timed_out', 'cancelled'
             )) * 100.0 /
             NULLIF(COUNT(*), 0) AS failed_waste_pct,
             COUNT(*) FILTER (
-                WHERE payload ? 'run_attempt' AND (payload->>'run_attempt')::int > 1
+                WHERE data ? 'run_attempt' AND (data->>'run_attempt')::int > 1
             ) * 100.0 /
-            NULLIF(COUNT(*) FILTER (WHERE payload ? 'run_attempt'), 0) AS rerun_rate
+            NULLIF(COUNT(*) FILTER (WHERE data ? 'run_attempt'), 0) AS rerun_rate
         FROM events
         WHERE action = 'workflow_run.completed'
           AND created_at >= :start
@@ -917,6 +1011,9 @@ async def get_metrics_that_matter(
         "generated_at": datetime.now(UTC).isoformat(),
         "shipping_faster": {
             "avg_pr_lifecycle_hours": avg_pr_lifecycle_hours,
+            "avg_lead_time_hours": avg_lead_time_hours,
+            "median_lead_time_hours": median_lead_time_hours,
+            "lead_time_pr_count": lead_time_pr_count,
             "avg_pr_review_rounds": avg_pr_review_rounds,
             "deployment_frequency_per_week": deployment_frequency_per_week,
             "pr_merge_rate_pct": pr_merge_rate_pct,

@@ -845,7 +845,14 @@ async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
 
 async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
     """Data for the Adoption pane: tiers, feature adoption, per-user data."""
-    raw = await _read_metrics_from_store(db)
+    try:
+        raw = await _read_metrics_from_store(db)
+    except Exception as exc:
+        logger.error("copilot_adoption.read_metrics_failed", error=str(exc), exc_info=True)
+        return {
+            "error": "internal_error",
+            "message": f"Failed to read metrics: {type(exc).__name__}: {exc}",
+        }
     if isinstance(raw, dict) and "error" in raw:
         return raw
 
@@ -1097,7 +1104,14 @@ async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
 
 async def get_copilot_anomalies(db: AsyncSession) -> dict[str, Any]:
     """Data for the Anomalies pane: detect metric deviations from baselines."""
-    raw = await _read_metrics_from_store(db)
+    try:
+        raw = await _read_metrics_from_store(db)
+    except Exception as exc:
+        logger.error("copilot_anomalies.read_metrics_failed", error=str(exc), exc_info=True)
+        return {
+            "error": "internal_error",
+            "message": f"Failed to read metrics: {type(exc).__name__}: {exc}",
+        }
     if isinstance(raw, dict) and "error" in raw:
         return raw
 
@@ -1349,7 +1363,14 @@ async def get_copilot_blockers(db: AsyncSession) -> dict[str, Any]:
     Cross-references seat data, policy events, and content exclusions to
     categorize blockers and generate actionable recommendations.
     """
-    seats_data = await _read_seats_from_store(db)
+    try:
+        seats_data = await _read_seats_from_store(db)
+    except Exception as exc:
+        logger.error("copilot_blockers.read_seats_failed", error=str(exc), exc_info=True)
+        return {
+            "error": "internal_error",
+            "message": f"Failed to read seat data: {type(exc).__name__}: {exc}",
+        }
     if isinstance(seats_data, dict) and "error" in seats_data:
         return seats_data
 
@@ -1360,8 +1381,15 @@ async def get_copilot_blockers(db: AsyncSession) -> dict[str, Any]:
     blocker_id = 0
 
     # Get team members who don't have seats (no_seat blocker)
-    member_result = await db.execute(select(OrgTeamMember))
-    all_members = list(member_result.scalars().all())
+    try:
+        member_result = await db.execute(select(OrgTeamMember))
+        all_members = list(member_result.scalars().all())
+    except Exception as exc:
+        logger.error("copilot_blockers.query_team_members_failed", error=str(exc), exc_info=True)
+        return {
+            "error": "internal_error",
+            "message": f"Failed to query team members: {type(exc).__name__}: {exc}",
+        }
     seat_logins = {
         (s.get("assignee") or {}).get("login", "").lower()
         for s in seats
@@ -1420,14 +1448,23 @@ async def get_copilot_blockers(db: AsyncSession) -> dict[str, Any]:
         )
 
     # Check for policy restrictions from copilot_policies table
-    from app.models.copilot_policy import CopilotPolicy
+    restrictive_policies: list[Any] = []
+    try:
+        from app.models.copilot_policy import CopilotPolicy
 
-    policy_result = await db.execute(select(CopilotPolicy).where(CopilotPolicy.enabled.is_(True)))
-    active_policies = list(policy_result.scalars().all())
+        policy_result = await db.execute(
+            select(CopilotPolicy).where(CopilotPolicy.enabled.is_(True))
+        )
+        active_policies = list(policy_result.scalars().all())
 
-    restrictive_policies = [
-        p for p in active_policies if p.policy_type in ("content_exclusion", "model_restriction")
-    ]
+        restrictive_policies = [
+            p
+            for p in active_policies
+            if p.policy_type in ("content_exclusion", "model_restriction")
+        ]
+    except Exception as exc:
+        logger.warning("copilot_blockers.query_policies_failed", error=str(exc), exc_info=True)
+        active_policies = []
     if restrictive_policies:
         blocker_id += 1
         blockers.append(
