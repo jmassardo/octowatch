@@ -32,15 +32,8 @@ output "resource_group_name" {
   description = "Resource group name"
 }
 
-output "key_vault_name" {
-  value       = azurerm_key_vault.main.name
-  description = "Key Vault name"
-}
-
-output "key_vault_uri" {
-  value       = azurerm_key_vault.main.vault_uri
-  description = "Key Vault URI"
-}
+# Key Vault outputs removed — KV is no longer managed by Terraform.
+# The vault kv-oct-dev-i6iv6t exists in Azure but Terraform no longer manages it.
 
 output "managed_identity_client_id" {
   value       = azurerm_user_assigned_identity.vm.client_id
