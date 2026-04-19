@@ -143,8 +143,8 @@ async def _get_token_and_valkey(
     Returns ``(token, valkey_client, enterprise_slug)`` on success, or an
     error dict on failure.
     """
-    from app.services.settings_service import get_setting
     from app.services.config_overlay import refresh_settings
+    from app.services.settings_service import get_setting
 
     # Hydrate settings from app_settings DB — env vars may be blank when
     # credentials were configured via the UI after initial deployment.
@@ -258,8 +258,8 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
     error dict.  Results are cached in Valkey for ``_CACHE_TTL_SECONDS``.
     """
     # Check feature toggle first
-    from app.services.settings_service import get_setting
     from app.services.config_overlay import refresh_settings
+    from app.services.settings_service import get_setting
 
     # Hydrate settings from app_settings DB — env vars may be blank when
     # credentials were configured via the UI after initial deployment.
