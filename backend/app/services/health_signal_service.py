@@ -91,7 +91,13 @@ async def get_pat_health_summary(
     *,
     scoped_orgs: list[str],
 ) -> dict[str, int]:
-    """PAT health counts: no_expiry, expired, stale_90d."""
+    """PAT health counts: no_expiry, expired, stale_90d.
+
+    Queries ``events`` for audit-log PAT create events (requires enterprise
+    PAT).  Falls back to ``org_credential_authorizations`` (populated by the
+    GitHub sync worker via REST API) so the signal is available right after
+    the first sync even without an enterprise PAT configured.
+    """
     result = await session.execute(
         text("""
             SELECT
@@ -109,9 +115,30 @@ async def get_pat_health_summary(
         {"scoped_orgs": scoped_orgs},
     )
     row = result.mappings().first()
-    if not row:
+    if row and (row["no_expiry_count"] or row["expired_count"] or row["stale_90d_count"]):
+        return dict(row)
+
+    # Fallback: use synced credential authorizations snapshot.
+    fallback = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE credential_type ILIKE '%%token%%'
+                ) AS no_expiry_count,
+                0::BIGINT AS expired_count,
+                COUNT(*) FILTER (
+                    WHERE credential_type ILIKE '%%token%%'
+                      AND credential_authorized_at <= NOW() - INTERVAL '90 days'
+                ) AS stale_90d_count
+            FROM org_credential_authorizations
+            WHERE org = ANY(:scoped_orgs)
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    fb_row = fallback.mappings().first()
+    if not fb_row:
         return {"no_expiry_count": 0, "expired_count": 0, "stale_90d_count": 0}
-    return dict(row)
+    return dict(fb_row)
 
 
 async def get_pat_token_age_signals(
@@ -120,7 +147,13 @@ async def get_pat_token_age_signals(
     scoped_orgs: list[str],
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """PATs with no expiry, expired, and stale >90d (US-1C)."""
+    """PATs with no expiry, expired, and stale >90d (US-1C).
+
+    Queries ``events`` for audit-log PAT create events (requires enterprise
+    PAT).  Falls back to ``org_credential_authorizations`` (populated by the
+    GitHub sync worker via REST API) so the signal is populated right after
+    the first sync even without an enterprise PAT.
+    """
     result = await session.execute(
         text("""
             SELECT
@@ -154,7 +187,35 @@ async def get_pat_token_age_signals(
         """),
         {"scoped_orgs": scoped_orgs, "limit": limit},
     )
-    return [dict(row) for row in result.mappings().all()]
+    rows = [dict(row) for row in result.mappings().all()]
+    if rows:
+        return rows
+
+    # Fallback: use synced credential authorizations snapshot.
+    fallback = await session.execute(
+        text("""
+            SELECT
+                github_login,
+                NULL::TEXT      AS token_name,
+                credential_id::TEXT AS token_id,
+                credential_type AS token_type,
+                COALESCE(credential_authorized_at, synced_at) AS created_at,
+                EXTRACT(DAY FROM NOW() -
+                    COALESCE(credential_authorized_at, synced_at))::INT AS age_days,
+                CASE
+                    WHEN credential_authorized_at <= NOW() - INTERVAL '90 days'
+                        THEN 'stale_90d'
+                    ELSE 'no_expiry'
+                END AS signal_type
+            FROM org_credential_authorizations
+            WHERE org = ANY(:scoped_orgs)
+              AND credential_type ILIKE '%%token%%'
+            ORDER BY credential_authorized_at ASC NULLS LAST
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": limit},
+    )
+    return [dict(row) for row in fallback.mappings().all()]
 
 
 async def get_dormant_tokens(
@@ -362,7 +423,13 @@ async def get_external_collaborators(
     scoped_orgs: list[str],
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Active outside collaborators with IdP enrichment (US-5B)."""
+    """Active outside collaborators with IdP enrichment (US-5B).
+
+    Queries ``external_collaborators`` first (populated by live audit-log
+    streaming).  Falls back to ``org_outside_collaborators`` (populated by
+    the GitHub sync worker via REST API) when the streaming table is empty so
+    that users see data immediately after the first sync.
+    """
     result = await session.execute(
         text("""
             SELECT
@@ -389,7 +456,34 @@ async def get_external_collaborators(
         """),
         {"scoped_orgs": scoped_orgs, "limit": limit},
     )
-    return [dict(row) for row in result.mappings().all()]
+    rows = [dict(row) for row in result.mappings().all()]
+    if rows:
+        return rows
+
+    # Fallback: synced REST-API snapshot from org_outside_collaborators.
+    fallback = await session.execute(
+        text("""
+            SELECT
+                oc.login                        AS github_login,
+                oc.org,
+                NULL::TEXT                      AS repo,
+                NULL::TEXT                      AS role,
+                oc.synced_at                    AS granted_at,
+                NULL::TEXT                      AS granted_by,
+                NULL::TIMESTAMPTZ               AS last_event_at,
+                NULL::INT                       AS days_since_last_event,
+                ia.email                        AS idp_email,
+                ia.employment_status            AS idp_employment_status
+            FROM org_outside_collaborators oc
+            LEFT JOIN idp_actor_enrichments ia
+                ON ia.github_login = oc.login
+            WHERE oc.org = ANY(:scoped_orgs)
+            ORDER BY oc.login
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": limit},
+    )
+    return [dict(row) for row in fallback.mappings().all()]
 
 
 async def get_external_collaborator_summary(
@@ -397,7 +491,12 @@ async def get_external_collaborator_summary(
     *,
     scoped_orgs: list[str],
 ) -> dict[str, int]:
-    """Summary counts for external collaborators."""
+    """Summary counts for external collaborators.
+
+    Uses ``external_collaborators`` (streaming) when available; falls back to
+    ``org_outside_collaborators`` (REST-API sync snapshot) so the summary is
+    populated immediately after the first sync.
+    """
     result = await session.execute(
         text("""
             SELECT
@@ -414,9 +513,26 @@ async def get_external_collaborator_summary(
         {"scoped_orgs": scoped_orgs},
     )
     row = result.mappings().first()
-    if not row:
+    if row and row["total_active"]:
+        return dict(row)
+
+    # Fallback: use synced snapshot from org_outside_collaborators.
+    fallback = await session.execute(
+        text("""
+            SELECT
+                COUNT(*)    AS total_active,
+                COUNT(*)    AS org_level_count,
+                0::BIGINT   AS elevated_count,
+                0::BIGINT   AS dormant_count
+            FROM org_outside_collaborators
+            WHERE org = ANY(:scoped_orgs)
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    fb_row = fallback.mappings().first()
+    if not fb_row:
         return {"total_active": 0, "org_level_count": 0, "elevated_count": 0, "dormant_count": 0}
-    return dict(row)
+    return dict(fb_row)
 
 
 async def get_dormant_collaborators(
@@ -426,7 +542,13 @@ async def get_dormant_collaborators(
     dormancy_days: int = 60,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Collaborators inactive for X+ days (US-5C)."""
+    """Collaborators inactive for X+ days (US-5C).
+
+    Queries ``external_collaborators`` (streaming) when available; falls back
+    to ``org_outside_collaborators`` (REST-API sync snapshot).  The synced
+    snapshot has no activity timestamps so all entries are treated as dormant
+    (last_event_at = NULL → days_inactive counted from synced_at).
+    """
     result = await session.execute(
         text("""
             SELECT
@@ -449,7 +571,29 @@ async def get_dormant_collaborators(
         """),
         {"scoped_orgs": scoped_orgs, "dormancy_days": dormancy_days, "limit": limit},
     )
-    return [dict(row) for row in result.mappings().all()]
+    rows = [dict(row) for row in result.mappings().all()]
+    if rows:
+        return rows
+
+    # Fallback: synced REST-API snapshot; all have unknown activity.
+    fallback = await session.execute(
+        text("""
+            SELECT
+                login               AS github_login,
+                org,
+                NULL::TEXT          AS repo,
+                NULL::TEXT          AS role,
+                synced_at           AS granted_at,
+                NULL::TIMESTAMPTZ   AS last_event_at,
+                EXTRACT(DAY FROM NOW() - synced_at)::INT AS days_inactive
+            FROM org_outside_collaborators
+            WHERE org = ANY(:scoped_orgs)
+            ORDER BY login
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": limit},
+    )
+    return [dict(row) for row in fallback.mappings().all()]
 
 
 # ── Phase 1: Audit stream, security, secret scanning, SSO, privilege, visibility ──
@@ -1236,8 +1380,41 @@ async def get_runner_fleet_health(
     scoped_orgs: list[str],
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Self-hosted runner fleet (7 days)."""
+    """Self-hosted runner fleet current state from sync snapshot.
+
+    Queries ``org_self_hosted_runners`` (populated by the GitHub sync worker)
+    for current runner state.  Falls back to recent audit-log events when the
+    snapshot table is empty (e.g. before the first sync completes).
+    """
+    # Primary: use the synced snapshot which always reflects current state.
     result = await session.execute(
+        text("""
+            SELECT
+                org,
+                NULL::TEXT              AS repo,
+                runner_id::TEXT         AS runner_id,
+                name                    AS runner_name,
+                NULL::TEXT              AS source_version,
+                NULL::TEXT              AS target_version,
+                runner_group_name       AS runner_group,
+                os,
+                status,
+                busy,
+                labels,
+                synced_at               AS created_at
+            FROM org_self_hosted_runners
+            WHERE org = ANY(:scoped_orgs)
+            ORDER BY org, name
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": limit},
+    )
+    rows = [dict(row) for row in result.mappings().all()]
+    if rows:
+        return rows
+
+    # Fallback: audit-log events from the last 7 days (requires enterprise PAT).
+    fallback = await session.execute(
         text("""
             SELECT
                 org,
@@ -1247,7 +1424,10 @@ async def get_runner_fleet_health(
                 data->>'source_version'      AS source_version,
                 data->>'target_version'      AS target_version,
                 data->>'runner_group_name'   AS runner_group,
-                action,
+                NULL::TEXT                   AS os,
+                NULL::TEXT                   AS status,
+                NULL::BOOLEAN                AS busy,
+                NULL::TEXT[]                 AS labels,
                 created_at
             FROM events
             WHERE action IN (
@@ -1263,7 +1443,7 @@ async def get_runner_fleet_health(
         """),
         {"scoped_orgs": scoped_orgs, "limit": limit},
     )
-    return [dict(row) for row in result.mappings().all()]
+    return [dict(row) for row in fallback.mappings().all()]
 
 
 # ── Phase 4: Ingestion gaps, system health, threat intel ─────────────────────
@@ -1426,14 +1606,68 @@ async def get_unhealthy_webhooks(
     scoped_orgs: list[str],
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Find webhooks/apps with recent error signals."""
-    result = await session.execute(
+    """Find webhooks/apps with recent error signals or insecure configuration.
+
+    Merges two sources:
+    1. ``org_webhooks`` / ``repo_webhooks`` synced snapshot — surfaces hooks
+       that are inactive or using insecure SSL right now (populated by the
+       GitHub sync worker via REST API).
+    2. Audit-log ``events`` for destructive webhook actions over the last 90
+       days (requires enterprise PAT; may be empty without one).
+    """
+    # Source 1: current snapshot — inactive or insecure hooks.
+    snapshot_result = await session.execute(
         text("""
-            SELECT org, repo, action, actor,
-                   data->>'hook_id' AS hook_id,
-                   data->>'name' AS app_name,
+            SELECT
+                org,
+                NULL::TEXT      AS repo,
+                hook_id::TEXT   AS hook_id,
+                name            AS app_name,
+                config_url,
+                active,
+                config_insecure_ssl,
+                synced_at       AS created_at,
+                'snapshot'      AS source
+            FROM org_webhooks
+            WHERE org = ANY(:scoped_orgs)
+              AND (active = FALSE OR (config_insecure_ssl IS NOT NULL
+                                      AND config_insecure_ssl != '0'
+                                      AND config_insecure_ssl != ''))
+            UNION ALL
+            SELECT
+                org,
+                repo_name       AS repo,
+                hook_id::TEXT   AS hook_id,
+                name            AS app_name,
+                config_url,
+                active,
+                config_insecure_ssl,
+                synced_at       AS created_at,
+                'snapshot'      AS source
+            FROM repo_webhooks
+            WHERE org = ANY(:scoped_orgs)
+              AND (active = FALSE OR (config_insecure_ssl IS NOT NULL
+                                      AND config_insecure_ssl != '0'
+                                      AND config_insecure_ssl != ''))
+            ORDER BY created_at DESC
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": limit},
+    )
+    snapshot_rows = [dict(row) for row in snapshot_result.mappings().all()]
+
+    # Source 2: audit-log destructive events (requires enterprise PAT).
+    events_result = await session.execute(
+        text("""
+            SELECT org,
+                   repo,
+                   data->>'hook_id'   AS hook_id,
+                   data->>'name'      AS app_name,
                    data->>'config_url' AS config_url,
-                   created_at
+                   NULL::BOOLEAN      AS active,
+                   NULL::TEXT         AS config_insecure_ssl,
+                   created_at,
+                   'audit_log'        AS source
             FROM events
             WHERE action IN (
                 'hook.destroy', 'integration.destroy',
@@ -1447,7 +1681,11 @@ async def get_unhealthy_webhooks(
         """),
         {"scoped_orgs": scoped_orgs, "limit": limit},
     )
-    return [dict(row) for row in result.mappings().all()]
+    events_rows = [dict(row) for row in events_result.mappings().all()]
+
+    # Merge: snapshot first (most actionable), then audit-log events.
+    combined = snapshot_rows + events_rows
+    return combined[:limit]
 
 
 async def get_skipped_workflows(
