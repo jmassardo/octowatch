@@ -55,11 +55,7 @@ async def resolve_roles(
     """Return the list of role names active for a GitHub user.
 
     Checks both direct user assignments and returns all active, non-expired roles.
-    If the login appears in INITIAL_ADMIN_LOGINS it always receives sys_admin
-    so the first admin can bootstrap role assignments via the UI.
     """
-    from app.config import settings
-
     stmt = (
         select(RbacRole.name)
         .join(UserRoleAssignment, UserRoleAssignment.role_id == RbacRole.id)
@@ -73,10 +69,6 @@ async def resolve_roles(
     )
     result = await session.execute(stmt)
     roles = [row[0] for row in result.fetchall()]
-
-    # Bootstrap: always grant sys_admin to logins listed in INITIAL_ADMIN_LOGINS
-    if github_login.lower() in settings.initial_admin_logins:
-        roles.append("sys_admin")
 
     return list(set(roles))  # deduplicate
 

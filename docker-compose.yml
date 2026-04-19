@@ -18,7 +18,6 @@ x-app-env: &app-env
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   GEOIP_DB_PATH: ${GEOIP_DB_PATH:-/app/data/GeoLite2-City.mmdb}
   APP_BASE_URL: ${APP_BASE_URL:-https://localhost}
-  INITIAL_ADMIN_LOGINS: ${INITIAL_ADMIN_LOGINS:-}
 
 networks:
   # Segmented networks — least-privilege connectivity between services.

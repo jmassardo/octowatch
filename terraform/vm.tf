@@ -73,7 +73,6 @@ data "cloudinit_config" "main" {
         secret_github_client_secret   = var.secret_github_client_secret
         secret_github_rules_repo      = var.secret_github_rules_repo
         secret_github_rules_token     = var.secret_github_rules_token
-        secret_initial_admin_logins   = var.secret_initial_admin_logins
         secret_app_base_url           = var.secret_app_base_url
         secret_github_app_id          = var.secret_github_app_id
         secret_github_app_private_key = var.secret_github_app_private_key

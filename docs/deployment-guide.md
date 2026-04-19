@@ -134,11 +134,8 @@ GITHUB_CLIENT_SECRET=your-oauth-client-secret
 APP_BASE_URL=https://localhost
 ```
 
-If you want specific GitHub users to be granted admin access on first login, set:
-
-```dotenv
-INITIAL_ADMIN_LOGINS=octocat,hubot
-```
+Initial system administrators are configured during the setup wizard (Step 4).
+There is no need to set admin logins via environment variables.
 
 ### Step 4 — Generate self-signed TLS certificates
 
@@ -680,7 +677,6 @@ docker compose up -d
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`. |
 | `ENVIRONMENT` | No | `development` | Deployment environment label. |
 | `INGESTION_MODE` | No | `hec` | Ingestion backend: `hec`, `webhook`, `s3`, or `azure_blob`. |
-| `INITIAL_ADMIN_LOGINS` | No | `""` | Comma-separated GitHub usernames granted admin on first login. |
 | `DETECTION_CONFIDENCE_THRESHOLD` | No | `0.7` | Minimum confidence score (0.0–1.0) for a detection to be persisted. |
 | `QUERY_MAX_ROWS` | No | `100000` | Max rows returned by the self-service query engine. |
 | `QUERY_TIMEOUT_SECONDS` | No | `30` | Server-side timeout for self-service SQL queries. |

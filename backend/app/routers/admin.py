@@ -615,11 +615,6 @@ async def list_active_sessions(
     for login, role_name in role_result.fetchall():
         login_roles.setdefault(login, set()).add(role_name)
 
-    # Grant sys_admin to bootstrap admin logins
-    for login in logins:
-        if login.lower() in settings.initial_admin_logins:
-            login_roles.setdefault(login, set()).add("sys_admin")
-
     def _primary_role(login: str) -> str:
         """Return the highest-privilege role for a user."""
         roles = login_roles.get(login, set())

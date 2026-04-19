@@ -13,6 +13,14 @@ class SetupLoginRequest(BaseModel):
     token: str = Field(..., min_length=1)
 
 
+class InitialAdminsSetup(BaseModel):
+    """Payload for ``POST /setup/initial-admins``."""
+
+    admin_logins: list[str] = Field(
+        ..., min_length=1, description="GitHub logins for initial sys_admin users"
+    )
+
+
 class GitHubOAuthSetup(BaseModel):
     """Payload for ``POST /setup/github-oauth``."""
 
