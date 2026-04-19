@@ -158,7 +158,7 @@ class TestApiVersionHeader:
     """Verify the service uses the new API version."""
 
     def test_api_version_constant(self) -> None:
-        assert copilot_metrics_service._API_VERSION == "2026-03-10"
+        assert copilot_metrics_service._API_VERSION == "2022-11-28"
 
 
 # ── Per-user adoption (#84) ─────────────────────────────────────────────────
