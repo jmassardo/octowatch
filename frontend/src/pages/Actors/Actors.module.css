@@ -93,7 +93,9 @@
   cursor: pointer;
   font-family: inherit;
   border-bottom: 2px solid transparent;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .tabBtn:hover {

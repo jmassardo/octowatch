@@ -17,15 +17,9 @@ test.describe('Login page', () => {
     await page.context().clearCookies();
     await page.goto('/login');
 
-    await expect(
-      page.getByRole('heading', { name: 'OctoWatch' }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('link', { name: /sign in with github/i }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('link', { name: /sign in with saml/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'OctoWatch' })).toBeVisible();
+    await expect(page.getByRole('link', { name: /sign in with github/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /sign in with saml/i })).toBeVisible();
   });
 });
 
@@ -34,9 +28,7 @@ test.describe('Setup page', () => {
     await page.context().clearCookies();
     await page.goto('/setup');
 
-    await expect(
-      page.getByRole('heading', { name: /octowatch setup/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: /octowatch setup/i })).toBeVisible();
   });
 });
 
@@ -44,10 +36,7 @@ test.describe('Setup page', () => {
 // TLS in CI. Marking as fixme until proper TLS is configured.
 // See: https://github.com/microsoft/playwright/issues/35206
 test.describe('Protected routes (authenticated)', () => {
-  test.fixme(
-    !!process.env.CI,
-    'Auth cookies do not persist through self-signed TLS in CI',
-  );
+  test.fixme(!!process.env.CI, 'Auth cookies do not persist through self-signed TLS in CI');
   // Each route is tested by navigating directly (no sidebar interaction), so
   // feature-gated pages still render — they show a "disabled" message instead
   // of the full UI, but the title text remains visible.
@@ -71,9 +60,7 @@ test.describe('Protected routes (authenticated)', () => {
   ];
 
   for (const route of protectedRoutes) {
-    test(`${route.path} → renders ${route.expectedTitle}`, async ({
-      page,
-    }) => {
+    test(`${route.path} → renders ${route.expectedTitle}`, async ({ page }) => {
       await page.goto(route.path);
 
       // Should NOT redirect to login when authenticated
@@ -82,9 +69,7 @@ test.describe('Protected routes (authenticated)', () => {
       // Page titles may be heading elements (h1/h2) or styled divs.
       // Scope to <main> to avoid matching the sidebar navigation labels.
       const main = page.locator('main');
-      await expect(
-        main.getByText(route.expectedTitle).first(),
-      ).toBeVisible({ timeout: 10_000 });
+      await expect(main.getByText(route.expectedTitle).first()).toBeVisible({ timeout: 10_000 });
     });
   }
 
@@ -93,16 +78,12 @@ test.describe('Protected routes (authenticated)', () => {
     await expect(page).toHaveURL(/\/health\/repos/);
   });
 
-  test('/integrations → redirects to /settings/integrations', async ({
-    page,
-  }) => {
+  test('/integrations → redirects to /settings/integrations', async ({ page }) => {
     await page.goto('/integrations');
     await expect(page).toHaveURL(/\/settings\/integrations/);
   });
 
-  test('/actors/test-user → renders actor profile or 404', async ({
-    page,
-  }) => {
+  test('/actors/test-user → renders actor profile or 404', async ({ page }) => {
     await page.goto('/actors/test-user');
     await expect(page).not.toHaveURL(/\/login/);
 

@@ -107,8 +107,12 @@ vi.mock('../../api/setup', () => ({
   getSetupCurrentConfig: vi.fn().mockResolvedValue({}),
   getEnterprisePATStatus: vi.fn().mockResolvedValue({ configured: false, masked: null }),
   saveEnterprisePAT: vi.fn().mockResolvedValue({ status: 'ok', masked: 'ghp_****...wxyz' }),
-  deleteEnterprisePAT: vi.fn().mockResolvedValue({ status: 'ok', message: 'Enterprise PAT removed' }),
-  testEnterprisePAT: vi.fn().mockResolvedValue({ status: 'ok', login: 'admin-bot', scopes: 'admin:enterprise' }),
+  deleteEnterprisePAT: vi
+    .fn()
+    .mockResolvedValue({ status: 'ok', message: 'Enterprise PAT removed' }),
+  testEnterprisePAT: vi
+    .fn()
+    .mockResolvedValue({ status: 'ok', login: 'admin-bot', scopes: 'admin:enterprise' }),
 }));
 
 vi.mock('../../api/integrations', () => ({
@@ -435,9 +439,7 @@ describe('SettingsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'System' }));
 
-    expect(
-      screen.getByText(/system-level configuration including logging/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/system-level configuration including logging/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/log level/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/debug mode/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/maintenance mode/i)).toBeInTheDocument();

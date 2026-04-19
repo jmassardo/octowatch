@@ -9,7 +9,13 @@ import { Button } from '../primitives/Button';
 import { logout } from '../../api/auth';
 import styles from './TopBar.module.css';
 
-export function TopBar({ onShowTour, onToggleSidebar }: { onShowTour?: () => void; onToggleSidebar?: () => void }) {
+export function TopBar({
+  onShowTour,
+  onToggleSidebar,
+}: {
+  onShowTour?: () => void;
+  onToggleSidebar?: () => void;
+}) {
   const { selectedOrg, setSelectedOrg } = useOrg();
   const { data: user } = useCurrentUser();
   const queryClient = useQueryClient();

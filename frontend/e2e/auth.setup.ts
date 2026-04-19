@@ -25,9 +25,7 @@ setup('authenticate via dev-login', async ({ page }) => {
   const pass = process.env.E2E_PASS;
 
   if (!user || !pass) {
-    throw new Error(
-      'E2E_USER and E2E_PASS environment variables are required.',
-    );
+    throw new Error('E2E_USER and E2E_PASS environment variables are required.');
   }
 
   // Ensure the .auth directory exists
@@ -41,9 +39,7 @@ setup('authenticate via dev-login', async ({ page }) => {
 
   if (!response.ok()) {
     const body = await response.text();
-    throw new Error(
-      `dev-login failed: ${response.status()} ${response.statusText()}\n${body}`,
-    );
+    throw new Error(`dev-login failed: ${response.status()} ${response.statusText()}\n${body}`);
   }
 
   // Verify auth works by navigating to a protected route

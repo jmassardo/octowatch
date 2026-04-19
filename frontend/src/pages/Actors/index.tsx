@@ -25,8 +25,7 @@ function isSeverity(v: string): v is Severity {
 }
 
 function RiskMeter({ score }: { score: number }) {
-  const level =
-    score >= 75 ? 'critical' : score >= 50 ? 'high' : score >= 25 ? 'medium' : 'low';
+  const level = score >= 75 ? 'critical' : score >= 50 ? 'high' : score >= 25 ? 'medium' : 'low';
   const color =
     level === 'critical'
       ? 'var(--danger)'
@@ -146,13 +145,10 @@ function DetectionsTab({ login }: { login: string }) {
                 </Link>
               </td>
               <td>
-                {isSeverity(d.severity) && <SeverityDot severity={d.severity} />}
-                {' '}{d.severity}
+                {isSeverity(d.severity) && <SeverityDot severity={d.severity} />} {d.severity}
               </td>
               <td>
-                <Label variant={d.status === 'open' ? 'danger' : 'muted'}>
-                  {d.status}
-                </Label>
+                <Label variant={d.status === 'open' ? 'danger' : 'muted'}>{d.status}</Label>
               </td>
             </tr>
           ))}
@@ -232,9 +228,7 @@ function ProfileHeader({ profile }: { profile: ActorProfile }) {
         <div className={styles.profileMeta}>
           <span>{profile.event_count} events</span>
           <span>{profile.detection_count} detections</span>
-          {profile.first_seen && (
-            <span>Active since {formatCompact(profile.first_seen)}</span>
-          )}
+          {profile.first_seen && <span>Active since {formatCompact(profile.first_seen)}</span>}
         </div>
         <RiskMeter score={profile.risk_score} />
       </div>
@@ -268,7 +262,9 @@ export function ActorsPage() {
   if (isLoading) {
     return (
       <div className={styles.page}>
-        <div className={styles.center}><Spinner /></div>
+        <div className={styles.center}>
+          <Spinner />
+        </div>
       </div>
     );
   }
@@ -289,12 +285,14 @@ export function ActorsPage() {
         {(['activity', 'detections', 'geo'] as const).map((t) => (
           <button
             key={t}
-            className={[styles.tabBtn, tab === t && styles.tabActive]
-              .filter(Boolean)
-              .join(' ')}
+            className={[styles.tabBtn, tab === t && styles.tabActive].filter(Boolean).join(' ')}
             onClick={() => setTab(t)}
           >
-            {t === 'activity' ? '📋 Activity' : t === 'detections' ? '🛡️ Detections' : '🌍 Locations'}
+            {t === 'activity'
+              ? '📋 Activity'
+              : t === 'detections'
+                ? '🛡️ Detections'
+                : '🌍 Locations'}
           </button>
         ))}
       </div>

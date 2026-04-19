@@ -74,9 +74,7 @@ describe('BlockersPane', () => {
 
   it('shows recommendations for blockers', async () => {
     renderPane();
-    expect(
-      await screen.findByText(/Assign seats to these developers/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Assign seats to these developers/)).toBeInTheDocument();
   });
 
   it('shows export CSV button', async () => {

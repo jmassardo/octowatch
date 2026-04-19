@@ -22,7 +22,8 @@ function SeverityBar({
   color: string;
   onClick?: () => void;
 }) {
-  const w = count > 0 ? `${Math.max(8, Math.round((count / Math.max(maxCount, 1)) * 100))}%` : '2px';
+  const w =
+    count > 0 ? `${Math.max(8, Math.round((count / Math.max(maxCount, 1)) * 100))}%` : '2px';
   return (
     <div
       style={{
@@ -107,7 +108,14 @@ export function UnifiedSecurityWidget() {
     <Card>
       <CardHeader>Security Overview</CardHeader>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: '12px 16px' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 12,
+          padding: '12px 16px',
+        }}
+      >
         {/* Secret scanning */}
         <div
           style={{ cursor: 'pointer' }}
@@ -176,7 +184,13 @@ export function UnifiedSecurityWidget() {
             }
           }}
         >
-          <div style={{ fontSize: 24, fontWeight: 700, color: det.active > 0 ? 'var(--danger)' : undefined }}>
+          <div
+            style={{
+              fontSize: 24,
+              fontWeight: 700,
+              color: det.active > 0 ? 'var(--danger)' : undefined,
+            }}
+          >
             {det.active}
           </div>
           <div style={{ fontSize: 11, color: '#8b949e' }}>Detections</div>

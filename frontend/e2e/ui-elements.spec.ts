@@ -20,19 +20,14 @@ async function dismissTourIfPresent(page: Page) {
   if (await closeBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
     await closeBtn.click();
     // Wait for overlay to disappear
-    await expect(
-      page.getByRole('dialog', { name: 'Guided tour' }),
-    ).toBeHidden({ timeout: 3_000 });
+    await expect(page.getByRole('dialog', { name: 'Guided tour' })).toBeHidden({ timeout: 3_000 });
   }
 }
 
 // UI element tests require auth cookies — skip in CI where self-signed TLS
 // prevents cookie persistence.
 test.describe('UI elements', () => {
-  test.fixme(
-    !!process.env.CI,
-    'Auth cookies do not persist through self-signed TLS in CI',
-  );
+  test.fixme(!!process.env.CI, 'Auth cookies do not persist through self-signed TLS in CI');
 
   // -----------------------------------------------------------------------
   // Dashboard
@@ -55,9 +50,7 @@ test.describe('UI elements', () => {
       ];
 
       for (const label of expectedLabels) {
-        await expect(
-          main.getByText(label).first(),
-        ).toBeVisible({ timeout: 15_000 });
+        await expect(main.getByText(label).first()).toBeVisible({ timeout: 15_000 });
       }
     });
 
@@ -68,9 +61,7 @@ test.describe('UI elements', () => {
       const main = page.locator('main');
 
       // The heatmap card title
-      await expect(
-        main.getByText('Activity heatmap').first(),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(main.getByText('Activity heatmap').first()).toBeVisible({ timeout: 15_000 });
     });
 
     test('renders open threats by severity section', async ({ page }) => {
@@ -79,9 +70,9 @@ test.describe('UI elements', () => {
 
       const main = page.locator('main');
 
-      await expect(
-        main.getByText('Open threats by severity').first(),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(main.getByText('Open threats by severity').first()).toBeVisible({
+        timeout: 15_000,
+      });
     });
 
     test('renders activity feed section', async ({ page }) => {
@@ -90,9 +81,7 @@ test.describe('UI elements', () => {
 
       const main = page.locator('main');
 
-      await expect(
-        main.getByText('Activity feed').first(),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(main.getByText('Activity feed').first()).toBeVisible({ timeout: 15_000 });
     });
   });
 
@@ -108,9 +97,9 @@ test.describe('UI elements', () => {
 
       // Five tab buttons: Open, Investigating, Closed, Acknowledged, All
       for (const label of ['Open', 'Investigating', 'Closed', 'Acknowledged']) {
-        await expect(
-          main.getByRole('button', { name: label }).first(),
-        ).toBeVisible({ timeout: 15_000 });
+        await expect(main.getByRole('button', { name: label }).first()).toBeVisible({
+          timeout: 15_000,
+        });
       }
     });
 
@@ -136,9 +125,7 @@ test.describe('UI elements', () => {
       await dismissTourIfPresent(page);
 
       // Events page has a search input with id "events-search-input"
-      await expect(
-        page.locator('#events-search-input'),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator('#events-search-input')).toBeVisible({ timeout: 15_000 });
     });
 
     test('renders DataTable with column headers', async ({ page }) => {
@@ -163,13 +150,13 @@ test.describe('UI elements', () => {
 
       const main = page.locator('main');
 
-      await expect(
-        main.getByRole('button', { name: /export csv/i }).first(),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(main.getByRole('button', { name: /export csv/i }).first()).toBeVisible({
+        timeout: 15_000,
+      });
 
-      await expect(
-        main.getByRole('button', { name: /save query/i }).first(),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(main.getByRole('button', { name: /save query/i }).first()).toBeVisible({
+        timeout: 15_000,
+      });
     });
   });
 
@@ -198,13 +185,13 @@ test.describe('UI elements', () => {
       const main = page.locator('main');
 
       // The Rules page has "Rule Library", "Sync from GitHub", and "New rule" buttons
-      await expect(
-        main.getByRole('button', { name: /rule library/i }).first(),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(main.getByRole('button', { name: /rule library/i }).first()).toBeVisible({
+        timeout: 15_000,
+      });
 
-      await expect(
-        main.getByRole('button', { name: /new rule/i }).first(),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(main.getByRole('button', { name: /new rule/i }).first()).toBeVisible({
+        timeout: 15_000,
+      });
     });
   });
 
@@ -267,24 +254,16 @@ test.describe('UI elements', () => {
       const main = page.locator('main');
 
       // Settings page has category tabs
-      const expectedTabs = [
-        'GitHub',
-        'Security',
-        'Storage',
-        'Notifications',
-        'System',
-      ];
+      const expectedTabs = ['GitHub', 'Security', 'Storage', 'Notifications', 'System'];
 
       for (const tabName of expectedTabs) {
-        await expect(
-          main.getByRole('button', { name: tabName }).first(),
-        ).toBeVisible({ timeout: 15_000 });
+        await expect(main.getByRole('button', { name: tabName }).first()).toBeVisible({
+          timeout: 15_000,
+        });
       }
     });
 
-    test('renders enterprise PAT config section or load-error state', async ({
-      page,
-    }) => {
+    test('renders enterprise PAT config section or load-error state', async ({ page }) => {
       await page.goto('/settings/all');
       await dismissTourIfPresent(page);
 
@@ -296,9 +275,9 @@ test.describe('UI elements', () => {
       const errorBanner = main.getByText(/failed to load settings/i);
       const noSettings = main.getByText(/no settings configured/i);
 
-      await expect(
-        patSection.or(errorBanner).or(noSettings).first(),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(patSection.or(errorBanner).or(noSettings).first()).toBeVisible({
+        timeout: 15_000,
+      });
     });
   });
 
@@ -317,16 +296,10 @@ test.describe('UI elements', () => {
       await expect(tablist).toBeVisible({ timeout: 15_000 });
 
       // Verify a few key tabs are present (names match actual tab labels)
-      const expectedTabs = [
-        'Repository Health',
-        'Access & Identity',
-        'Security Posture',
-      ];
+      const expectedTabs = ['Repository Health', 'Access & Identity', 'Security Posture'];
 
       for (const tabName of expectedTabs) {
-        await expect(
-          tablist.getByRole('tab', { name: tabName }),
-        ).toBeVisible({ timeout: 15_000 });
+        await expect(tablist.getByRole('tab', { name: tabName })).toBeVisible({ timeout: 15_000 });
       }
     });
   });
@@ -350,9 +323,9 @@ test.describe('UI elements', () => {
       ];
 
       for (const tabName of expectedTabs) {
-        await expect(
-          main.getByRole('button', { name: tabName }).first(),
-        ).toBeVisible({ timeout: 15_000 });
+        await expect(main.getByRole('button', { name: tabName }).first()).toBeVisible({
+          timeout: 15_000,
+        });
       }
     });
   });
@@ -361,24 +334,22 @@ test.describe('UI elements', () => {
   // Workflows
   // -----------------------------------------------------------------------
   test.describe('Workflows page', () => {
-    test('renders tab buttons and Analyze Events button', async ({
-      page,
-    }) => {
+    test('renders tab buttons and Analyze Events button', async ({ page }) => {
       await page.goto('/workflows');
       await dismissTourIfPresent(page);
 
       const main = page.locator('main');
 
-      await expect(
-        main.getByRole('button', { name: /analyze events/i }).first(),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(main.getByRole('button', { name: /analyze events/i }).first()).toBeVisible({
+        timeout: 15_000,
+      });
 
       const expectedTabs = ['Findings', 'Repo Scores', 'Failure Metrics'];
 
       for (const tabName of expectedTabs) {
-        await expect(
-          main.getByRole('button', { name: tabName }).first(),
-        ).toBeVisible({ timeout: 15_000 });
+        await expect(main.getByRole('button', { name: tabName }).first()).toBeVisible({
+          timeout: 15_000,
+        });
       }
     });
   });
@@ -393,13 +364,13 @@ test.describe('UI elements', () => {
 
       const main = page.locator('main');
 
-      await expect(
-        main.getByRole('button', { name: 'Correlations' }).first(),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(main.getByRole('button', { name: 'Correlations' }).first()).toBeVisible({
+        timeout: 15_000,
+      });
 
-      await expect(
-        main.getByRole('button', { name: 'Timeline' }).first(),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(main.getByRole('button', { name: 'Timeline' }).first()).toBeVisible({
+        timeout: 15_000,
+      });
     });
 
     test('renders time range filter', async ({ page }) => {
@@ -409,9 +380,7 @@ test.describe('UI elements', () => {
       const main = page.locator('main');
 
       // Time range filter select should be present
-      await expect(
-        main.locator('select').first(),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(main.locator('select').first()).toBeVisible({ timeout: 15_000 });
     });
   });
 
@@ -425,9 +394,7 @@ test.describe('UI elements', () => {
 
       const main = page.locator('main');
 
-      await expect(
-        main.getByText('Security Posture').first(),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(main.getByText('Security Posture').first()).toBeVisible({ timeout: 15_000 });
     });
   });
 });

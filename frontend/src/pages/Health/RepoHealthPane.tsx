@@ -297,8 +297,8 @@ function UnhealthySummaryCards({ stale }: { stale: StaleRepo[] }) {
             .join(', ') || 'None detected'}
         </div>
         <div className={styles.cardFooter}>
-          ℹ Detected via <code className={styles.codeSnippet}>protected_branch.destroy</code>{' '}
-          events + missing corresponding create events in baseline.
+          ℹ Detected via <code className={styles.codeSnippet}>protected_branch.destroy</code> events
+          + missing corresponding create events in baseline.
           {critical.length + high.length > 0 && (
             <>
               {' '}

@@ -87,7 +87,12 @@ export function LineAreaChart({
           : undefined,
     })),
     ...(title
-      ? { title: { text: title, textStyle: { color: colors.chartText, fontSize: 12, fontWeight: 500 } } }
+      ? {
+          title: {
+            text: title,
+            textStyle: { color: colors.chartText, fontSize: 12, fontWeight: 500 },
+          },
+        }
       : {}),
   };
 
@@ -102,7 +107,9 @@ export function LineAreaChart({
         <thead>
           <tr>
             {tableData.headers.map((h) => (
-              <th key={h} scope="col">{h}</th>
+              <th key={h} scope="col">
+                {h}
+              </th>
             ))}
           </tr>
         </thead>

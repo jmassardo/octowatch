@@ -164,8 +164,6 @@ describe('AnomaliesPane clickable stats', () => {
     const user = userEvent.setup();
     renderPane();
     await user.click(await screen.findByText('ML/AI'));
-    expect(
-      screen.getByText(/ML\/AI team — anomaly context/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/ML\/AI team — anomaly context/)).toBeInTheDocument();
   });
 });

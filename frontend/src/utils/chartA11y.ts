@@ -35,13 +35,9 @@ export function describeLineAreaChart(
 }
 
 /** Describe a geo map for an aria-label. */
-export function describeGeoMap(
-  locations: readonly { city: string; country: string }[],
-): string {
+export function describeGeoMap(locations: readonly { city: string; country: string }[]): string {
   if (locations.length === 0) return 'Geo map with no locations.';
-  const names = locations
-    .map((l) => [l.city, l.country].filter(Boolean).join(', '))
-    .join('; ');
+  const names = locations.map((l) => [l.city, l.country].filter(Boolean).join(', ')).join('; ');
   return `Geo map showing ${locations.length} location${locations.length === 1 ? '' : 's'}: ${names}.`;
 }
 
@@ -55,6 +51,8 @@ export function chartToTableData(
   series: { name: string; data: number[] }[],
 ): { headers: string[]; rows: (string | number)[][] } {
   const headers = [xAxisLabel, ...series.map((s) => s.name)];
-  const rows = xAxisData.map((x, i) => [x, ...series.map((s) => s.data[i] ?? 0)] as (string | number)[]);
+  const rows = xAxisData.map(
+    (x, i) => [x, ...series.map((s) => s.data[i] ?? 0)] as (string | number)[],
+  );
   return { headers, rows };
 }

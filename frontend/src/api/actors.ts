@@ -92,10 +92,6 @@ export function getActorDetections(
   );
 }
 
-export function getActorLocations(
-  login: string,
-): Promise<ActorLocationsResponse> {
-  return api.get<ActorLocationsResponse>(
-    `/actors/${encodeURIComponent(login)}/locations`,
-  );
+export function getActorLocations(login: string): Promise<ActorLocationsResponse> {
+  return api.get<ActorLocationsResponse>(`/actors/${encodeURIComponent(login)}/locations`);
 }
