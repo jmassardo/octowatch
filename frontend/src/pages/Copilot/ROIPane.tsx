@@ -15,19 +15,15 @@ function formatPercent(value: number): string {
 }
 
 export function ROIPane() {
-  const {
-    data,
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['copilot', 'roi'],
     queryFn: getCopilotROI,
     staleTime: 30 * 60 * 1000,
   });
 
   if (isLoading) return <Spinner />;
-  if (isError) return <ErrorBanner message="Failed to load ROI data" onRetry={() => void refetch()} />;
+  if (isError)
+    return <ErrorBanner message="Failed to load ROI data" onRetry={() => void refetch()} />;
   if (data?.error) return <ErrorBanner message={data.message ?? 'ROI data unavailable'} />;
 
   const summary: CopilotROISummary | undefined = data?.summary;
@@ -45,9 +41,10 @@ export function ROIPane() {
   }
 
   const recommendations = data?.recommendations ?? [];
-  const optimizationPotential = summary.total_monthly_cost > 0
-    ? (summary.wasted_monthly / summary.total_monthly_cost) * 100
-    : 0;
+  const optimizationPotential =
+    summary.total_monthly_cost > 0
+      ? (summary.wasted_monthly / summary.total_monthly_cost) * 100
+      : 0;
 
   return (
     <>
@@ -76,7 +73,13 @@ export function ROIPane() {
       </div>
 
       {/* Cost analysis */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: 16,
+        }}
+      >
         <Card>
           <CardHeader>Cost Efficiency</CardHeader>
           <div style={{ padding: '0 16px 16px' }}>
@@ -89,9 +92,7 @@ export function ROIPane() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
               <span style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Cost per Active User</span>
               <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                {summary.active_seats > 0
-                  ? formatCurrency(summary.cost_per_active_user)
-                  : '—'}
+                {summary.active_seats > 0 ? formatCurrency(summary.cost_per_active_user) : '—'}
                 /mo
               </span>
             </div>
@@ -139,9 +140,7 @@ export function ROIPane() {
             >
               {formatCurrency(summary.annual_waste)}
             </div>
-            <div style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
-              Annual savings potential
-            </div>
+            <div style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Annual savings potential</div>
           </div>
         </Card>
       </div>

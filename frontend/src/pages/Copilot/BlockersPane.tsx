@@ -20,19 +20,15 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export function BlockersPane() {
-  const {
-    data,
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['copilot', 'blockers'],
     queryFn: getCopilotBlockers,
     staleTime: 30 * 60 * 1000,
   });
 
   if (isLoading) return <Spinner />;
-  if (isError) return <ErrorBanner message="Failed to load blocker data" onRetry={() => void refetch()} />;
+  if (isError)
+    return <ErrorBanner message="Failed to load blocker data" onRetry={() => void refetch()} />;
   if (data?.error) return <ErrorBanner message={data.message ?? 'Blocker data unavailable'} />;
 
   const blockers = data?.blockers ?? [];
@@ -194,9 +190,7 @@ export function BlockersPane() {
                 <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '4px 0' }}>
                   {blocker.description}
                 </p>
-                <p style={{ fontSize: 12, color: 'var(--accent)' }}>
-                  💡 {blocker.recommendation}
-                </p>
+                <p style={{ fontSize: 12, color: 'var(--accent)' }}>💡 {blocker.recommendation}</p>
                 {blocker.affected_users.length > 0 && (
                   <details style={{ marginTop: 4, fontSize: 12 }}>
                     <summary style={{ cursor: 'pointer', color: 'var(--fg-muted)' }}>

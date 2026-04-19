@@ -14,7 +14,12 @@ const mockGetExecutiveSummary = vi.fn().mockResolvedValue({
   severity_breakdown: { critical: 2, high: 5, medium: 8, low: 3 },
   compliance_summary: [
     { framework: 'SOC 2', controls_assessed: 14, controls_with_evidence: 12, compliance_pct: 85.7 },
-    { framework: 'ISO 27001', controls_assessed: 11, controls_with_evidence: 10, compliance_pct: 90.9 },
+    {
+      framework: 'ISO 27001',
+      controls_assessed: 11,
+      controls_with_evidence: 10,
+      compliance_pct: 90.9,
+    },
     { framework: 'NIST', controls_assessed: 11, controls_with_evidence: 8, compliance_pct: 72.7 },
   ],
   top_risks: [

@@ -131,9 +131,7 @@ describe('OverviewPane clickable stats', () => {
     expect(seatsBtn).toHaveAttribute('role', 'button');
     await user.click(seatsBtn);
     expect(screen.getByText('Correlation: Active seats with low acceptance')).toBeInTheDocument();
-    expect(
-      screen.getByText(/Use the/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Use the/)).toBeInTheDocument();
   });
 
   it('opens correlation modal when clicking "shorter cycle times"', async () => {

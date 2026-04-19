@@ -35,7 +35,7 @@ const TOUR_STEPS: readonly TourStep[] = [
     target: '[href="/health"]',
     title: 'Org Health',
     description:
-      'Monitor your organization\'s security posture. Track PAT hygiene, stale repos, and compliance scores.',
+      "Monitor your organization's security posture. Track PAT hygiene, stale repos, and compliance scores.",
   },
   {
     target: '[href="/query"]',

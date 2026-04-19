@@ -242,9 +242,8 @@ export function LicensePane() {
         {hasLicenseSync ? (
           <>
             the GHEC <code className={styles.sourceCode}>consumed-licenses</code> API
-            {licenseData?.synced_at && (
-              <> (last synced: {formatDateOnly(licenseData.synced_at)})</>
-            )}.
+            {licenseData?.synced_at && <> (last synced: {formatDateOnly(licenseData.synced_at)})</>}
+            .
           </>
         ) : (
           <>

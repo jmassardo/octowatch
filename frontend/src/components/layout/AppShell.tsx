@@ -24,16 +24,10 @@ export function AppShell() {
         <Sidebar />
       </aside>
       <aside className={styles.mobileSidebar}>
-        <Sidebar
-          mobileOpen={sidebarOpen}
-          onMobileClose={() => setSidebarOpen(false)}
-        />
+        <Sidebar mobileOpen={sidebarOpen} onMobileClose={() => setSidebarOpen(false)} />
       </aside>
       <div className={styles.main}>
-        <TopBar
-          onShowTour={handleReplayTour}
-          onToggleSidebar={() => setSidebarOpen((o) => !o)}
-        />
+        <TopBar onShowTour={handleReplayTour} onToggleSidebar={() => setSidebarOpen((o) => !o)} />
         <main id="main-content" className={styles.content}>
           <Outlet />
         </main>

@@ -144,8 +144,6 @@ describe('ModelsPane clickable stats', () => {
     renderPane();
     const gpt4oRow = (await screen.findByText('GPT-4o')).closest('[role="button"]')!;
     await user.click(gpt4oRow);
-    expect(
-      screen.getByText(/GPT-4o — usage details/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/GPT-4o — usage details/)).toBeInTheDocument();
   });
 });
