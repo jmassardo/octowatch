@@ -282,8 +282,8 @@ runcmd:
     # Data disk subdirectories (will exist after disk mount in Step 5)
     # Created here as placeholders; Step 5 recreates them on the mounted volume.
     mkdir -p \
-      /mnt/octowatch-data/pg_data \
-      /mnt/octowatch-data/valkey_data
+      /opt/octowatch-data/pg_data \
+      /opt/octowatch-data/valkey_data
     chown -R octowatch:octowatch /opt/octowatch
     chmod 750 /opt/octowatch/scripts
     echo "[cloud-init] Directory structure created."
@@ -296,7 +296,7 @@ runcmd:
     set -eu
     # Use the stable Azure disk symlink instead of hardcoded /dev/sdX
     AZURE_DISK_SYMLINK="/dev/disk/azure/scsi1/lun0"
-    MOUNT_POINT="/mnt/octowatch-data"
+    MOUNT_POINT="/opt/octowatch-data"
     echo "[cloud-init] Resolving data disk from Azure LUN 0 symlink..."
 
     # Wait up to 60 seconds for the symlink to appear (udev timing).
