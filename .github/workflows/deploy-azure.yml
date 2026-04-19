@@ -2,8 +2,9 @@
 # Deploy — Roll out new OctoWatch images to the Azure VM
 #
 # Triggers:
-#   1. Automatically after a successful Release workflow (v* tags).
-#   2. Manually via workflow_dispatch with an optional image tag.
+#   1. Automatically after a successful Publish workflow (every main push).
+#   2. Automatically after a successful Release workflow (v* tags).
+#   3. Manually via workflow_dispatch with an optional image tag.
 #
 # What it does:
 #   1. SSHes into the Azure VM at octowatch.jmassardo.azure.csa-github.com
@@ -26,7 +27,7 @@ name: Deploy to Azure
 
 on:
   workflow_run:
-    workflows: ["Release"]
+    workflows: ["Publish", "Release"]
     types: [completed]
 
   workflow_dispatch:
@@ -58,7 +59,7 @@ jobs:
             TAG="${{ inputs.image_tag }}"
             TAG="${TAG:-latest}"
           else
-            # Triggered by Release workflow — extract semver from the tag ref
+            # Triggered by Publish or Release workflow
             REF="${{ github.event.workflow_run.head_branch }}"
             if [[ "$REF" =~ ^v[0-9] ]]; then
               TAG="$REF"
