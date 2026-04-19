@@ -54,12 +54,31 @@ async def github_login(
 @limiter.limit("10/minute")
 async def github_callback(
     request: Request,
-    code: str,
-    state: str,
     db: AsyncSession = Depends(get_db),
     valkey: Redis = Depends(get_valkey),
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+    error_uri: str | None = None,
 ) -> Response:
     """Handle GitHub OAuth callback. Exchanges code for access token and issues JWT."""
+    # GitHub sends error params instead of code/state when authorization fails
+    # (e.g. redirect_uri_mismatch, access_denied). Surface these clearly.
+    if error:
+        detail = error_description or error
+        logger.warning("github_oauth.callback_error", error=error, description=error_description)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"GitHub OAuth error: {detail} (code: {error})",
+        )
+
+    if not code or not state:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Missing required OAuth parameters: code and state",
+        )
+
     # Validate state from Valkey (delete on use to prevent replay)
     key = f"oauth_state:{state}"
     valid = await valkey.delete(key)
