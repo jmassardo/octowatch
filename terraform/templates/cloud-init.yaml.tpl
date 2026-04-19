@@ -37,7 +37,6 @@ write_files:
           "max-file": "3"
         },
         "live-restore": true,
-        "userns-remap": "default",
         "no-new-privileges": true
       }
 

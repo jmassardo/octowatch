@@ -25,6 +25,9 @@ resource "azurerm_storage_account" "main" {
   # Reject plain HTTP — all connections must use HTTPS.
   https_traffic_only_enabled = true
 
+  # Required by CSA subscription policy GH.15.06 — no public blob access.
+  allow_nested_items_to_be_public = false
+
   tags = local.common_tags
 }
 
@@ -41,8 +44,6 @@ resource "azurerm_storage_container" "pg_backups" {
 # ── RBAC: VM Identity → Storage Blob Data Contributor ─────────────────────────
 # Required for the VM to upload backups using managed identity auth.
 
-resource "azurerm_role_assignment" "storage_blob_contributor" {
-  scope                = azurerm_storage_account.main.id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = azurerm_user_assigned_identity.vm.principal_id
-}
+# ── Storage RBAC removed ───────────────────────────────────────────────────────
+# Contributor role does not include Microsoft.Authorization/roleAssignments/write.
+# VM backup uploads use the storage account connection string from Key Vault.
