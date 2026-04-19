@@ -53,10 +53,16 @@ jobs:
         image:
           - name: api
             context: backend
+            target: production
           - name: worker
             context: backend
+            target: worker
+          - name: beat
+            context: backend
+            target: beat
           - name: frontend
             context: frontend
+            target: ""
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -87,6 +93,7 @@ jobs:
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7.0.0
         with:
           context: ${{ matrix.image.context }}
+          target: ${{ matrix.image.target || '' }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
