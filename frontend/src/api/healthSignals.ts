@@ -627,10 +627,7 @@ export function getCodeScanningAlerts(
   const params: Record<string, string | number> = { limit, offset };
   if (state) params.state = state;
   if (severity) params.severity = severity;
-  return api.get<CodeScanningAlertsListResponse>(
-    '/health-signals/code-scanning/alerts',
-    params,
-  );
+  return api.get<CodeScanningAlertsListResponse>('/health-signals/code-scanning/alerts', params);
 }
 
 export interface DependabotAlertItem {
@@ -668,8 +665,5 @@ export function getDependabotAlerts(
   const params: Record<string, string | number> = { limit, offset };
   if (state) params.state = state;
   if (severity) params.severity = severity;
-  return api.get<DependabotAlertsListResponse>(
-    '/health-signals/vulnerabilities/alerts',
-    params,
-  );
+  return api.get<DependabotAlertsListResponse>('/health-signals/vulnerabilities/alerts', params);
 }

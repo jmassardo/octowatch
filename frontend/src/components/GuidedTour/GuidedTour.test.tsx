@@ -2,9 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
-import {
-  GuidedTour,
-} from '../../components/GuidedTour/GuidedTour';
+import { GuidedTour } from '../../components/GuidedTour/GuidedTour';
 import { isTourCompleted, resetTour } from '../../components/GuidedTour/tourStorage';
 
 // Mock document.querySelector to return fake elements with getBoundingClientRect

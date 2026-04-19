@@ -84,7 +84,9 @@ export function listArchives(table?: string): Promise<ArchiveFileInfo[]> {
   return api.get<ArchiveFileInfo[]>(`/admin/archive/list${params}`);
 }
 
-export function restoreArchive(archivePath: string): Promise<{ archive_path: string; restored_rows: number }> {
+export function restoreArchive(
+  archivePath: string,
+): Promise<{ archive_path: string; restored_rows: number }> {
   return api.post<{ archive_path: string; restored_rows: number }>('/admin/archive/restore', {
     archive_path: archivePath,
   });

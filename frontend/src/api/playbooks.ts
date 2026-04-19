@@ -43,7 +43,10 @@ export function startPlaybookExecution(body: { template_id: number; detection_id
   return api.post<PlaybookExecution>('/playbooks/executions', body);
 }
 
-export function advancePlaybookStep(executionId: number, body: { result: Record<string, unknown> }) {
+export function advancePlaybookStep(
+  executionId: number,
+  body: { result: Record<string, unknown> },
+) {
   return api.post<PlaybookExecution>(`/playbooks/executions/${executionId}/advance`, body);
 }
 

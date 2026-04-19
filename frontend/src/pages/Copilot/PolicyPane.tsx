@@ -22,19 +22,15 @@ function formatTimestamp(ts: string): string {
 }
 
 export function PolicyPane() {
-  const {
-    data,
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['copilot', 'policy-changes'],
     queryFn: getCopilotPolicyChanges,
     staleTime: 30 * 60 * 1000,
   });
 
   if (isLoading) return <Spinner />;
-  if (isError) return <ErrorBanner message="Failed to load policy changes" onRetry={() => void refetch()} />;
+  if (isError)
+    return <ErrorBanner message="Failed to load policy changes" onRetry={() => void refetch()} />;
   if (data?.error) return <ErrorBanner message={data.message ?? 'Policy data unavailable'} />;
 
   const timeline = data?.timeline ?? [];

@@ -47,7 +47,12 @@ export function BarChart({ title, xAxisData, series, height = 160 }: BarChartPro
       barMaxWidth: 28,
     })),
     ...(title
-      ? { title: { text: title, textStyle: { color: colors.chartText, fontSize: 12, fontWeight: 500 } } }
+      ? {
+          title: {
+            text: title,
+            textStyle: { color: colors.chartText, fontSize: 12, fontWeight: 500 },
+          },
+        }
       : {}),
   };
 
@@ -62,7 +67,9 @@ export function BarChart({ title, xAxisData, series, height = 160 }: BarChartPro
         <thead>
           <tr>
             {tableData.headers.map((h) => (
-              <th key={h} scope="col">{h}</th>
+              <th key={h} scope="col">
+                {h}
+              </th>
             ))}
           </tr>
         </thead>

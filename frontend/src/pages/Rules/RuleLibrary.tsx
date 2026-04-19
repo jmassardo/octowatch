@@ -109,7 +109,8 @@ export function RuleLibrary({ onClose }: { onClose: () => void }) {
   }
 
   if (isLoading) return <Spinner />;
-  if (isError) return <ErrorBanner message="Failed to load rule library" onRetry={() => refetch()} />;
+  if (isError)
+    return <ErrorBanner message="Failed to load rule library" onRetry={() => refetch()} />;
   if (!library) return null;
 
   return (
@@ -217,9 +218,7 @@ export function RuleLibrary({ onClose }: { onClose: () => void }) {
             <p className={styles.customizeHint}>
               Copy this configuration and use &ldquo;New rule&rdquo; to create a customized version.
             </p>
-            <pre className={styles.customizeJson}>
-              {JSON.stringify(customizeData, null, 2)}
-            </pre>
+            <pre className={styles.customizeJson}>{JSON.stringify(customizeData, null, 2)}</pre>
             <div className={styles.customizeActions}>
               <Button
                 variant="primary"

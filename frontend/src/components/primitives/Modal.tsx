@@ -89,7 +89,9 @@ export function Modal({ open, onClose, title, children, width = 480 }: ModalProp
       >
         {title && (
           <div className={styles.header}>
-            <span className={styles.title} id={titleId}>{title}</span>
+            <span className={styles.title} id={titleId}>
+              {title}
+            </span>
             <button className={styles.close} onClick={onClose} aria-label="Close">
               &#215;
             </button>

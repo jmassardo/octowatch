@@ -63,9 +63,7 @@ describe('InvestigationTimeline', () => {
   const onClose = vi.fn();
 
   it('renders timeline events', async () => {
-    renderWithProviders(
-      <InvestigationTimeline detectionId={1} onClose={onClose} />,
-    );
+    renderWithProviders(<InvestigationTimeline detectionId={1} onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByText('Investigation Timeline')).toBeInTheDocument();
@@ -76,9 +74,7 @@ describe('InvestigationTimeline', () => {
   });
 
   it('shows detection title and severity', async () => {
-    renderWithProviders(
-      <InvestigationTimeline detectionId={1} onClose={onClose} />,
-    );
+    renderWithProviders(<InvestigationTimeline detectionId={1} onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByText('Suspicious token creation')).toBeInTheDocument();
@@ -87,9 +83,7 @@ describe('InvestigationTimeline', () => {
   });
 
   it('marks sequence steps', async () => {
-    renderWithProviders(
-      <InvestigationTimeline detectionId={1} onClose={onClose} />,
-    );
+    renderWithProviders(<InvestigationTimeline detectionId={1} onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByText('Step 1')).toBeInTheDocument();
@@ -97,9 +91,7 @@ describe('InvestigationTimeline', () => {
   });
 
   it('shows actor links', async () => {
-    renderWithProviders(
-      <InvestigationTimeline detectionId={1} onClose={onClose} />,
-    );
+    renderWithProviders(<InvestigationTimeline detectionId={1} onClose={onClose} />);
 
     await waitFor(() => {
       const actorLinks = screen.getAllByText('@alice');
@@ -108,9 +100,7 @@ describe('InvestigationTimeline', () => {
   });
 
   it('shows geo info', async () => {
-    renderWithProviders(
-      <InvestigationTimeline detectionId={1} onClose={onClose} />,
-    );
+    renderWithProviders(<InvestigationTimeline detectionId={1} onClose={onClose} />);
 
     await waitFor(() => {
       const geoElements = screen.getAllByText(/New York, US/);
@@ -129,9 +119,7 @@ describe('InvestigationTimeline', () => {
       context_data: {},
     });
 
-    renderWithProviders(
-      <InvestigationTimeline detectionId={2} onClose={onClose} />,
-    );
+    renderWithProviders(<InvestigationTimeline detectionId={2} onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByText('No events found for this detection')).toBeInTheDocument();
@@ -139,9 +127,7 @@ describe('InvestigationTimeline', () => {
   });
 
   it('calls onClose when close button clicked', async () => {
-    renderWithProviders(
-      <InvestigationTimeline detectionId={1} onClose={onClose} />,
-    );
+    renderWithProviders(<InvestigationTimeline detectionId={1} onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByText('Investigation Timeline')).toBeInTheDocument();

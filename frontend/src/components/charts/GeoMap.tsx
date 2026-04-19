@@ -75,20 +75,21 @@ export function GeoMap({ locations, height = 300 }: GeoMapProps) {
       top: 0,
       bottom: distanceKm > 0 ? 30 : 0,
     },
-    graphic: distanceKm > 0
-      ? [
-          {
-            type: 'text',
-            left: 'center',
-            bottom: 8,
-            style: {
-              text: `Distance: ${Math.round(distanceKm).toLocaleString()} km`,
-              fill: colors.chartText,
-              fontSize: 12,
+    graphic:
+      distanceKm > 0
+        ? [
+            {
+              type: 'text',
+              left: 'center',
+              bottom: 8,
+              style: {
+                text: `Distance: ${Math.round(distanceKm).toLocaleString()} km`,
+                fill: colors.chartText,
+                fontSize: 12,
+              },
             },
-          },
-        ]
-      : [],
+          ]
+        : [],
     series: [
       {
         type: 'scatter',
@@ -161,12 +162,7 @@ export function GeoMap({ locations, height = 300 }: GeoMapProps) {
 }
 
 /** Haversine distance between two lat/lng points in kilometers. */
-function haversineDistance(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371; // Earth radius in km
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;

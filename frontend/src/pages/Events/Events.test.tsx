@@ -515,9 +515,7 @@ describe('EventsPage', () => {
     renderWithProviders(<EventsPage />);
     expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText(
-        'Search events... e.g. action:repo.create actor:@suspicious.*',
-      ),
+      screen.getByPlaceholderText('Search events... e.g. action:repo.create actor:@suspicious.*'),
     ).toBeInTheDocument();
   });
 

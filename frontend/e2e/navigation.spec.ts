@@ -30,10 +30,7 @@ const navItems = [
 // Navigation tests require auth cookies to persist through self-signed
 // TLS in CI. Marking as fixme until proper TLS is configured.
 test.describe('Sidebar navigation', () => {
-  test.fixme(
-    !!process.env.CI,
-    'Auth cookies do not persist through self-signed TLS in CI',
-  );
+  test.fixme(!!process.env.CI, 'Auth cookies do not persist through self-signed TLS in CI');
   test.beforeEach(async ({ page }) => {
     await page.goto('/dashboard');
   });
@@ -50,9 +47,7 @@ test.describe('Sidebar navigation', () => {
       // Page titles may be heading elements (h1/h2) or styled divs.
       // Scope to <main> to avoid matching the sidebar navigation labels.
       const main = page.locator('main');
-      await expect(
-        main.getByText(heading).first(),
-      ).toBeVisible();
+      await expect(main.getByText(heading).first()).toBeVisible();
     });
   }
 });
