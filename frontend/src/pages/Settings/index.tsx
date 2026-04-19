@@ -40,7 +40,7 @@ import styles from './Settings.module.css';
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const CATEGORIES = ['All', 'GitHub', 'Security', 'Storage', 'Notifications', 'System'] as const;
+const CATEGORIES = ['All', 'GitHub', 'Security', 'Notifications', 'System'] as const;
 type Category = (typeof CATEGORIES)[number];
 
 const SLUG_TO_TAB: Record<string, Category | 'Audit' | 'Features' | 'Integrations' | 'Retention'> =
@@ -48,7 +48,6 @@ const SLUG_TO_TAB: Record<string, Category | 'Audit' | 'Features' | 'Integration
     all: 'All',
     github: 'GitHub',
     security: 'Security',
-    storage: 'Storage',
     notifications: 'Notifications',
     system: 'System',
     audit: 'Audit',
@@ -1922,34 +1921,6 @@ const SECURITY_FIELDS: SettingFieldDef[] = [
   },
 ];
 
-const STORAGE_FIELDS: SettingFieldDef[] = [
-  {
-    key: 'storage.s3_bucket_name',
-    label: 'S3/MinIO bucket name',
-    description: 'Object storage bucket for audit log archives and exports.',
-    type: 'text',
-    defaultValue: '',
-  },
-  {
-    key: 'storage.retention_period_days',
-    label: 'Retention period (days)',
-    description: 'Number of days to retain archived data before automatic cleanup.',
-    type: 'number',
-    defaultValue: '90',
-    min: 7,
-    max: 3650,
-  },
-  {
-    key: 'storage.max_upload_size_mb',
-    label: 'Max upload size (MB)',
-    description: 'Maximum file size allowed for manual data imports.',
-    type: 'number',
-    defaultValue: '500',
-    min: 1,
-    max: 5000,
-  },
-];
-
 const NOTIFICATIONS_FIELDS: SettingFieldDef[] = [
   {
     key: 'notifications.email_enabled',
@@ -2130,17 +2101,6 @@ export function SettingsPage() {
             category="Security"
             fields={SECURITY_FIELDS}
             description="Authentication, session management, and access control settings."
-            settings={settings ?? []}
-          />
-        )
-      ) : activeTab === 'Storage' ? (
-        isLoading ? (
-          <Spinner />
-        ) : (
-          <CategorySettingsForm
-            category="Storage"
-            fields={STORAGE_FIELDS}
-            description="Object storage (MinIO/S3) configuration for audit log archives and data exports."
             settings={settings ?? []}
           />
         )

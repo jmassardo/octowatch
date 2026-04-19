@@ -17,8 +17,6 @@ from app.config import settings
 from app.deps import AuthenticatedUser, get_db, get_valkey, require_role, verify_csrf
 from app.models.user import RbacRole, UserRoleAssignment
 from app.schemas.integration import (
-    ArchiveFileInfo,
-    ArchiveRestoreRequest,
     GdprEraseRequest,
     GdprEraseResponse,
     IngestionSourceCreate,
@@ -335,71 +333,6 @@ async def update_retention(
 
     # Return the updated full policy set
     return await get_retention(current_user=current_user, db=db)
-
-
-# ─── Archive management ──────────────────────────────────────────────────────
-
-
-@router.get("/archive/list", response_model=list[ArchiveFileInfo])
-async def list_archives(
-    table: str | None = None,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
-) -> list[ArchiveFileInfo]:
-    """List archive files in object storage, optionally filtered by table."""
-    from app.services.archive_service import get_archive_bucket, get_s3_client
-    from app.services.archive_service import list_archives as _list
-
-    try:
-        s3 = get_s3_client()
-        bucket = get_archive_bucket()
-        items = _list(s3_client=s3, bucket=bucket, table_name=table)
-        return [ArchiveFileInfo(**item) for item in items]
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Could not list archives: {exc}",
-        ) from exc
-
-
-@router.post("/archive/restore", dependencies=[Depends(verify_csrf)])
-async def restore_archive(
-    payload: ArchiveRestoreRequest,
-    request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """Restore data from an archive file back into the database."""
-    from app.services.archive_service import get_archive_bucket, get_s3_client
-    from app.services.archive_service import restore_archive as _restore
-
-    ip = get_client_ip(request)
-
-    try:
-        s3 = get_s3_client()
-        bucket = get_archive_bucket()
-        restored = await _restore(db, payload.archive_path, s3_client=s3, bucket=bucket)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Restore failed: {exc}",
-        ) from exc
-
-    await log_action(
-        db,
-        user_login=current_user.github_login,
-        user_github_id=current_user.github_id,
-        ip_address=ip,
-        user_agent=request.headers.get("user-agent"),
-        action_type="archive.restore",
-        resource_type="archive",
-        resource_id=payload.archive_path,
-        parameters={"restored_rows": restored},
-    )
-    await db.commit()
-
-    return {"archive_path": payload.archive_path, "restored_rows": restored}
 
 
 # ─── GDPR erasure ────────────────────────────────────────────────────────────

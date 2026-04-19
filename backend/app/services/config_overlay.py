@@ -53,14 +53,6 @@ SETTING_MAP: dict[str, tuple[str | None, str]] = {
     "github_rules_repo": ("GIT", "GITHUB_RULES_REPO"),
     "github_rules_token": ("GIT", "GITHUB_RULES_TOKEN"),
     "github_rules_branch": ("GIT", "GITHUB_RULES_BRANCH"),
-    # S3
-    "aws_access_key_id": ("S3", "AWS_ACCESS_KEY_ID"),
-    "aws_secret_access_key": ("S3", "AWS_SECRET_ACCESS_KEY"),
-    "aws_default_region": ("S3", "AWS_DEFAULT_REGION"),
-    "s3_audit_bucket": ("S3", "S3_AUDIT_BUCKET"),
-    # Azure
-    "azure_storage_connection_string": ("AZURE", "AZURE_STORAGE_CONNECTION_STRING"),
-    "azure_audit_container": ("AZURE", "AZURE_AUDIT_CONTAINER"),
     # Integrations
     "okta_org_url": ("INTEGRATIONS", "OKTA_ORG_URL"),
     "okta_api_token": ("INTEGRATIONS", "OKTA_API_TOKEN"),

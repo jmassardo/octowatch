@@ -70,7 +70,7 @@ class AbstractIngestWorker(ABC):
     write-to-DB.
     """
 
-    # Subclasses set this to 's3', 'azure_blob', or 'hec'
+    # Subclasses set this to 's3' or 'hec'
     ingestion_source: str = "unknown"
 
     def __init__(self, valkey_client: Any, db_session_factory: Any) -> None:
