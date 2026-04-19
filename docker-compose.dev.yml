@@ -17,8 +17,8 @@
 # Hardcoded dev environment shared by api + workers + beat.
 # Overrides the base x-app-env that reads from ${...} env vars.
 x-app-env: &app-env
-  DATABASE_URL: postgresql+asyncpg://appuser:devpass@db:5432/audit_logs
-  VALKEY_URL: redis://:devpass@valkey:6379/0
+  DATABASE_URL: postgresql+asyncpg://appuser:dev-only-password-change-me@db:5432/audit_logs
+  VALKEY_URL: redis://:dev-only-valkey-password-change-me@valkey:6379/0
   SECRET_KEY: dev-only-secret-key-do-not-use-in-production
   ENCRYPTION_KEY: dev-only-encryption-key-0000000000000
   GITHUB_CLIENT_ID: ""
@@ -39,7 +39,7 @@ services:
   db:
     environment:
       POSTGRES_USER: appuser
-      POSTGRES_PASSWORD: devpass
+      POSTGRES_PASSWORD: dev-only-password-change-me
       POSTGRES_DB: audit_logs
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U appuser -d audit_logs"]
@@ -51,11 +51,11 @@ services:
     command:
       - valkey-server
       - --requirepass
-      - devpass
+      - dev-only-valkey-password-change-me
       - --appendonly
       - "yes"
     healthcheck:
-      test: ["CMD", "valkey-cli", "-a", "devpass", "ping"]
+      test: ["CMD", "valkey-cli", "-a", "dev-only-valkey-password-change-me", "ping"]
     ports:
       - "127.0.0.1:6379:6379"
 
@@ -67,7 +67,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgresql+asyncpg://appuser:devpass@db:5432/audit_logs
+      DATABASE_URL: postgresql+asyncpg://appuser:dev-only-password-change-me@db:5432/audit_logs
     volumes:
       - ./backend:/app/src:cached
     command: >
