@@ -400,11 +400,11 @@ class TestUpsertCodeScanningAlerts:
         await _upsert_code_scanning_alerts(mock_session, "test-org", items)
 
         params = mock_session.execute.call_args_list[0][0][1]
-        from datetime import datetime, timezone
+        from datetime import UTC, datetime
 
         assert params["dismissed_by"] == "bob"
         assert params["dismissed_reason"] == "won't fix"
-        assert params["dismissed_at"] == datetime(2024, 3, 15, 10, 0, 0, tzinfo=timezone.utc)
+        assert params["dismissed_at"] == datetime(2024, 3, 15, 10, 0, 0, tzinfo=UTC)
 
 
 class TestUpsertDependabotAlerts:

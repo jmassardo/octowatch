@@ -11,10 +11,12 @@ import type { SyncRunsResponse, SyncRun } from '../../types/sync';
 
 const mockListSyncRuns = vi.fn<() => Promise<SyncRunsResponse>>();
 const mockGetSyncRun = vi.fn<(runId: string) => Promise<SyncRun>>();
+const mockGetSyncLogs = vi.fn();
 
 vi.mock('../../api/sync', () => ({
   listSyncRuns: (...args: unknown[]) => mockListSyncRuns(...(args as [])),
   getSyncRun: (...args: unknown[]) => mockGetSyncRun(...(args as [string])),
+  getSyncLogs: (...args: unknown[]) => mockGetSyncLogs(...args),
 }));
 
 /* ------------------------------------------------------------------ */
@@ -83,6 +85,7 @@ const runDetail: SyncRun = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockGetSyncLogs.mockResolvedValue({ entries: [], last_seq: 0 });
 });
 
 describe('SyncRunHistory', () => {
@@ -158,12 +161,12 @@ describe('SyncRunHistory', () => {
       expect(screen.getByText('admin')).toBeInTheDocument();
     });
     const adminRow = screen.getByText('admin').closest('tr')!;
-    // Expand
+    // First click — opens the drawer
     await user.click(adminRow);
     await waitFor(() => {
       expect(screen.getByText('repos')).toBeInTheDocument();
     });
-    // Collapse
+    // Second click on the same row — toggles drawer closed
     await user.click(adminRow);
     await waitFor(() => {
       expect(screen.queryByText('repos')).not.toBeInTheDocument();
