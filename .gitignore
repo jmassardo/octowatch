@@ -54,3 +54,8 @@ backend/import_copilot_usage.py
 *.pem
 *.pem
 celerybeat-schedule*
+
+# Terraform secrets
+terraform.tfvars
+*.tfstate
+*.tfstate.backup
