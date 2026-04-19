@@ -278,9 +278,10 @@ describe('EventsPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders events table with correct column headers', () => {
+  it('renders events table with correct column headers', async () => {
     renderWithProviders(<EventsPage />);
-    expect(screen.getByText('Timestamp')).toBeInTheDocument();
+    // Table headers only render after loading completes (DataTable is behind isLoading guard)
+    expect(await screen.findByText('Timestamp')).toBeInTheDocument();
     expect(screen.getByText('Action')).toBeInTheDocument();
     expect(screen.getByText('Actor')).toBeInTheDocument();
     expect(screen.getByText('Repository')).toBeInTheDocument();
