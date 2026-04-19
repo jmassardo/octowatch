@@ -584,7 +584,7 @@ class TestGetRunnerFleetHealth:
 
     @pytest.mark.asyncio
     async def test_empty_result(self) -> None:
-        session = _mock_session_with_mappings([])
+        session = _mock_session_with_mappings([], [])
         result = await health_signal_service.get_runner_fleet_health(
             session, scoped_orgs=["test-org"]
         )
