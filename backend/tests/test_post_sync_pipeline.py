@@ -474,8 +474,10 @@ class TestOrchestratorCompletion:
     @patch("app.workers.github_sync_worker._sync_installation_configs")
     @patch("app.workers.github_sync_worker._make_session_factory")
     @patch("app.workers.github_sync_worker.sync_entity")
+    @patch("app.services.config_overlay.refresh_settings", new_callable=AsyncMock)
     def test_orchestrator_marks_completed_and_dispatches_pipeline(
         self,
+        mock_refresh: AsyncMock,
         mock_sync_entity: MagicMock,
         mock_session_factory: MagicMock,
         mock_sync_configs: MagicMock,
@@ -533,8 +535,8 @@ class TestOrchestratorCompletion:
         async def mock_execute(*args: object, **kwargs: object) -> MagicMock:
             nonlocal call_count
             call_count += 1
-            if call_count == 2:
-                # Second call: load configs
+            if call_count == 3:
+                # Third call: load configs (_cleanup_stale_runs uses call 1)
                 return mock_configs_result
             return MagicMock()
 
@@ -550,8 +552,10 @@ class TestOrchestratorCompletion:
     @patch("app.workers.github_sync_worker._sync_installation_configs")
     @patch("app.workers.github_sync_worker._make_session_factory")
     @patch("app.workers.github_sync_worker.sync_entity")
+    @patch("app.services.config_overlay.refresh_settings", new_callable=AsyncMock)
     def test_orchestrator_marks_failed_no_pipeline(
         self,
+        mock_refresh: AsyncMock,
         mock_sync_entity: MagicMock,
         mock_session_factory: MagicMock,
         mock_sync_configs: MagicMock,
@@ -603,7 +607,8 @@ class TestOrchestratorCompletion:
         async def mock_execute(*args: object, **kwargs: object) -> MagicMock:
             nonlocal call_count
             call_count += 1
-            if call_count == 2:
+            if call_count == 3:
+                # Third call: load configs (_cleanup_stale_runs uses call 1)
                 return mock_configs_result
             return MagicMock()
 
@@ -619,8 +624,10 @@ class TestOrchestratorCompletion:
     @patch("app.workers.github_sync_worker._sync_installation_configs")
     @patch("app.workers.github_sync_worker._make_session_factory")
     @patch("app.workers.github_sync_worker.sync_entity")
+    @patch("app.services.config_overlay.refresh_settings", new_callable=AsyncMock)
     def test_orchestrator_aggregates_entity_counts(
         self,
+        mock_refresh: AsyncMock,
         mock_sync_entity: MagicMock,
         mock_session_factory: MagicMock,
         mock_sync_configs: MagicMock,
@@ -675,13 +682,12 @@ class TestOrchestratorCompletion:
         async def mock_execute(*args: object, **kwargs: object) -> MagicMock:
             nonlocal call_count
             call_count += 1
-            if call_count == 2:
+            if call_count == 3:
+                # Third call: load configs (_cleanup_stale_runs uses call 1)
                 return mock_configs_result
             return MagicMock()
 
         mock_session.execute = AsyncMock(side_effect=mock_execute)
-
-        # Scope "orgs" dispatches exactly 1 task — makes aggregation deterministic
         with patch("app.config.settings", mock_settings):
             result = asyncio.run(_run_enterprise_sync_async(run_id, "orgs"))
 
@@ -708,8 +714,9 @@ class TestOrchestratorCompletion:
         mock_session = AsyncMock()
         mock_session.commit = AsyncMock()
 
-        # First call: update status to running
-        # Second call: load configs - return empty
+        # First call: _cleanup_stale_runs select
+        # Second call: update status to running
+        # Third call: load configs - return empty
         mock_empty_result = MagicMock()
         mock_empty_result.scalars.return_value.all.return_value = []
         call_count = 0
@@ -717,7 +724,7 @@ class TestOrchestratorCompletion:
         async def mock_execute(*args: object, **kwargs: object) -> MagicMock:
             nonlocal call_count
             call_count += 1
-            if call_count == 2:
+            if call_count == 3:
                 return mock_empty_result
             return MagicMock()
 
