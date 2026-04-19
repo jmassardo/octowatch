@@ -201,7 +201,7 @@ function ExpandedRunContent({
 /*  Log entry line                                                     */
 /* ------------------------------------------------------------------ */
 
-function LogLine({ entry }: { entry: SyncLogEntry }) {
+function LogLine({ entry, showContext = true }: { entry: SyncLogEntry; showContext?: boolean }) {
   const levelClass =
     entry.level === 'error'
       ? styles.logError
@@ -209,16 +209,19 @@ function LogLine({ entry }: { entry: SyncLogEntry }) {
         ? styles.logWarn
         : styles.logInfo;
 
+  const context =
+    showContext && (entry.entity_type || entry.org)
+      ? [entry.entity_type, entry.org].filter(Boolean).join(' / ')
+      : null;
+
   return (
     <div className={`${styles.logLine} ${levelClass}`}>
-      <span className={styles.logTimestamp}>{formatLogTime(entry.timestamp)}</span>
-      <span className={styles.logLevel}>[{entry.level}]</span>
-      {(entry.entity_type || entry.org) && (
-        <span className={styles.logTimestamp}>
-          {[entry.entity_type, entry.org].filter(Boolean).join(' / ')}
-        </span>
-      )}
-      <span className={styles.logMessage}>{entry.message}</span>
+      <div className={styles.logMeta}>
+        <span className={styles.logTimestamp}>{formatLogTime(entry.timestamp)}</span>
+        <span className={styles.logLevel}>[{entry.level}]</span>
+        {context && <span className={styles.logContext}>{context}</span>}
+      </div>
+      <div className={styles.logMessage}>{entry.message}</div>
     </div>
   );
 }
@@ -259,7 +262,7 @@ function EntityLogDrawer({ target }: { target: DrawerTarget }) {
       ) : (
         <div className={styles.logViewerContainer}>
           {entries.map((e) => (
-            <LogLine key={e.seq} entry={e} />
+            <LogLine key={e.seq} entry={e} showContext={false} />
           ))}
         </div>
       )}
