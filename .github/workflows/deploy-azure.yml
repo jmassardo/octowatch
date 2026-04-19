@@ -108,7 +108,7 @@ jobs:
           # Pull the new images
           echo "==> Pulling new images..."
           cd /opt/octowatch/compose
-          sudo docker compose pull api worker beat frontend 2>&1
+          sudo docker compose pull api worker-ingestion worker-detection worker-notification worker-baseline worker-sync beat frontend 2>&1
 
           # Snapshot running container IDs for rollback
           OLD_API_IMAGE=\$(sudo docker inspect --format='{{.Image}}' \$(sudo docker compose ps -q api 2>/dev/null | head -1) 2>/dev/null || echo "")
@@ -117,7 +117,7 @@ jobs:
           echo "==> Restarting services..."
           sudo docker compose up -d --no-deps api beat
           sleep 10
-          sudo docker compose up -d --no-deps worker
+          sudo docker compose up -d --no-deps worker-ingestion worker-detection worker-notification worker-baseline worker-sync
           sleep 5
           sudo docker compose up -d --no-deps frontend
 
@@ -157,7 +157,7 @@ jobs:
               except:
                   pass
           bad = [s['Service'] for s in services
-                 if s.get('Service') in ['api','worker','beat','frontend']
+                 if s.get('Service') in ['api','worker-ingestion','worker-detection','worker-notification','worker-baseline','worker-sync','beat','frontend']
                  and 'running' not in s.get('State','').lower()
                  and 'healthy' not in s.get('Health','').lower()
                  and s.get('State','') != '']
