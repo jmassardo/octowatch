@@ -5,7 +5,7 @@ primary rate limit (15,000 req/hr for GitHub Apps) and secondary limits
 (≤ 100 concurrent requests, ≤ 900 points/min).
 
 When the remaining quota drops below 1,000 requests, the bucket refill rate
-is capped to 1 token/s regardless of burst capacity, providing a proactive
+is capped to 3 tokens/s regardless of burst capacity, providing a proactive
 throttle that keeps the sync from hitting hard limits.
 
 All state is in-process (asyncio). This class is instantiated once per
@@ -40,8 +40,10 @@ class GitHubRateLimiter:
         Set to 80 to stay safely under GitHub's 100-concurrent limit.
     """
 
-    #: Proactive throttle threshold — cap to 1 req/s if remaining ≤ this
+    #: Proactive throttle threshold — cap to _PROACTIVE_THROTTLE_RATE req/s if remaining ≤ this
     _PROACTIVE_THROTTLE_THRESHOLD: ClassVar[int] = 1000
+    #: Cap rate (req/s) applied when remaining quota is below the threshold
+    _PROACTIVE_THROTTLE_RATE: ClassVar[float] = 3.0
 
     def __init__(
         self,
@@ -88,7 +90,7 @@ class GitHubRateLimiter:
         await self._semaphore.acquire()
         try:
             self._refill()
-            effective_rate = 1.0 if self._proactive_throttle_active else self._rate_per_sec
+        effective_rate = self._PROACTIVE_THROTTLE_RATE if self._proactive_throttle_active else self._rate_per_sec
             while self._tokens < cost:
                 sleep_for = (cost - self._tokens) / effective_rate
                 logger.debug(
@@ -186,5 +188,5 @@ class GitHubRateLimiter:
         now = time.monotonic()
         elapsed = now - self._last_refill
         self._last_refill = now
-        rate = 1.0 if self._proactive_throttle_active else self._rate_per_sec
+        rate = self._PROACTIVE_THROTTLE_RATE if self._proactive_throttle_active else self._rate_per_sec
         self._tokens = min(self._tokens + elapsed * rate, float(self._max_burst))
