@@ -31,8 +31,8 @@ logger = structlog.get_logger(__name__)
 
 _GITHUB_API_BASE = "https://api.github.com"
 
-# New API version required for Copilot Metrics Reports NDJSON endpoint
-_API_VERSION = "2026-03-10"
+# GitHub REST API version — must be 2022-11-28 for Copilot metrics GA endpoint
+_API_VERSION = "2022-11-28"
 
 # Valkey cache key patterns
 _CACHE_KEY = "copilot:metrics:{enterprise_slug}"
@@ -118,7 +118,12 @@ def _cost_for_plan(plan_type: str, cost_override: float | None = None) -> float:
 
 async def _get_enterprise_installation(db: AsyncSession) -> GitHubAppConfig | None:
     """Find the first enabled enterprise-level GitHub App installation."""
-    enterprise_slug = settings.github_app.GITHUB_ENTERPRISE_SLUG
+    from app.services.settings_service import get_setting
+
+    enterprise_slug = (
+        await get_setting(db, "github_enterprise_slug")
+        or settings.github_app.GITHUB_ENTERPRISE_SLUG
+    )
     if not enterprise_slug:
         return None
     result = await db.execute(
@@ -139,6 +144,11 @@ async def _get_token_and_valkey(
     error dict on failure.
     """
     from app.services.settings_service import get_setting
+    from app.services.config_overlay import refresh_settings
+
+    # Hydrate settings from app_settings DB — env vars may be blank when
+    # credentials were configured via the UI after initial deployment.
+    await refresh_settings(db)
 
     copilot_enabled = await get_setting(db, "feature_copilot_insights")
     if copilot_enabled is not None and copilot_enabled.lower() not in ("true", "1", "yes", "on"):
@@ -152,7 +162,12 @@ async def _get_token_and_valkey(
             "message": "Copilot Insights is disabled. Enable it in Settings → Features.",
         }
 
-    enterprise_slug = settings.github_app.GITHUB_ENTERPRISE_SLUG
+    # Prefer app_settings over env var — env var may be blank when slug was
+    # configured through the UI after initial deployment.
+    enterprise_slug = (
+        await get_setting(db, "github_enterprise_slug")
+        or settings.github_app.GITHUB_ENTERPRISE_SLUG
+    )
     if not enterprise_slug:
         return {"error": "no_enterprise_config", "message": "GITHUB_ENTERPRISE_SLUG is not set."}
 
@@ -244,6 +259,11 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
     """
     # Check feature toggle first
     from app.services.settings_service import get_setting
+    from app.services.config_overlay import refresh_settings
+
+    # Hydrate settings from app_settings DB — env vars may be blank when
+    # credentials were configured via the UI after initial deployment.
+    await refresh_settings(db)
 
     copilot_enabled = await get_setting(db, "feature_copilot_insights")
     if copilot_enabled is not None and copilot_enabled.lower() not in (
@@ -262,7 +282,12 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
             "message": "Copilot Insights is disabled. Enable it in Settings → Features.",
         }
 
-    enterprise_slug = settings.github_app.GITHUB_ENTERPRISE_SLUG
+    # Prefer app_settings over env var — env var may be blank when slug was
+    # configured through the UI after initial deployment.
+    enterprise_slug = (
+        await get_setting(db, "github_enterprise_slug")
+        or settings.github_app.GITHUB_ENTERPRISE_SLUG
+    )
     if not enterprise_slug:
         return {"error": "no_enterprise_config", "message": "GITHUB_ENTERPRISE_SLUG is not set."}
 
@@ -333,10 +358,10 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
             "message": "Unexpected error obtaining GitHub App token. Check server logs.",
         }
 
-    # ── Call the new NDJSON metrics reports endpoint ──────────────────────────
-    url = (
-        f"{_GITHUB_API_BASE}/enterprises/{enterprise_slug}/copilot/metrics/reports/enterprise-1-day"
-    )
+    # ── Call the GA Copilot Metrics endpoint ──────────────────────────────────
+    # GET /enterprises/{slug}/copilot/metrics returns up to 28 days of daily
+    # usage data as a JSON array — no day parameter needed, no NDJSON.
+    url = f"{_GITHUB_API_BASE}/enterprises/{enterprise_slug}/copilot/metrics"
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
@@ -345,7 +370,6 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
 
     try:
         async with httpx.AsyncClient(follow_redirects=True) as client:
-            # Step 1: Get the report download links
             response = await client.get(url, headers=headers, timeout=30.0)
 
             if response.status_code in (403, 404):
@@ -384,33 +408,9 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
                 }
 
             response.raise_for_status()
-            report_data = response.json()
-
-            # Step 2: Parse NDJSON — the new API may return either:
-            # (a) A list of report objects with download_url fields, or
-            # (b) The NDJSON data directly inline
-            metrics: list[dict[str, Any]] = []
-
-            if isinstance(report_data, list):
-                # Check if items have download_url (report links)
-                if report_data and "download_url" in report_data[0]:
-                    for report_item in report_data:
-                        dl_url = report_item.get("download_url", "")
-                        if not dl_url:
-                            continue
-                        dl_resp = await client.get(dl_url, timeout=60.0)
-                        dl_resp.raise_for_status()
-                        metrics.extend(_parse_ndjson(dl_resp.text))
-                else:
-                    # Already inline data (same shape as old API)
-                    metrics = report_data
-            elif isinstance(report_data, dict):
-                # Single report object with download_url
-                dl_url = report_data.get("download_url", "")
-                if dl_url:
-                    dl_resp = await client.get(dl_url, timeout=60.0)
-                    dl_resp.raise_for_status()
-                    metrics = _parse_ndjson(dl_resp.text)
+            metrics: list[dict[str, Any]] = response.json()
+            if not isinstance(metrics, list):
+                metrics = []
 
     except httpx.HTTPStatusError as exc:
         logger.error("copilot_metrics.http_error", status=exc.response.status_code, exc_info=True)
