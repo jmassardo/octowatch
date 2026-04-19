@@ -8,7 +8,9 @@
     "default_confidence": "medium",
     "logic_type": "statistical",
     "logic_config": {
-      "action_filters": ["*"],
+      "action_filters": [
+        "*"
+      ],
       "x_config": {
         "engine": "off_hours_anomaly",
         "z_multiplier": 2.0
@@ -21,7 +23,7 @@
   {
     "name": "Account Takeover Sequence",
     "slug": "account-takeover-sequence",
-    "description": "Detects a sequence of recovery code use, password change, and SSH key addition within 30 minutes — indicative of an account takeover.",
+    "description": "Detects a sequence of recovery code use, password change, and SSH key addition within 30 minutes \u2014 indicative of an account takeover.",
     "category": "account_compromise",
     "default_severity": "critical",
     "default_confidence": "high",
@@ -37,8 +39,14 @@
           "action": "two_factor_authentication.recovery_codes_used",
           "min_count": 1
         },
-        { "action": "user.update_password", "min_count": 1 },
-        { "action": "public_key.create", "min_count": 1 }
+        {
+          "action": "user.update_password",
+          "min_count": 1
+        },
+        {
+          "action": "public_key.create",
+          "min_count": 1
+        }
       ],
       "aggregation_key": "actor",
       "time_window_minutes": 30,
@@ -47,159 +55,304 @@
     "created_by": "system"
   },
   {
-    "name": "Suspicious User Agent",
-    "slug": "suspicious-user-agent",
-    "description": "Detects events from known automation tool user agents that may indicate scripted access.",
+    "name": "Impossible Travel Login",
+    "slug": "impossible-travel-login",
+    "description": "Detects logins from geographically distant locations within an impossibly short timeframe, indicating potential credential theft.",
     "category": "account_compromise",
-    "default_severity": "low",
-    "default_confidence": "medium",
-    "logic_type": "pattern",
-    "logic_config": {
-      "action_filters": ["*"],
-      "field_conditions": [
-        {
-          "field": "user_agent",
-          "operator": "matches_glob",
-          "value": "*python-requests*"
-        }
-      ],
-      "confidence": 0.45
-    },
-    "created_by": "system"
-  },
-  {
-    "name": "Suspicious User Agent — curl",
-    "slug": "suspicious-user-agent-curl",
-    "description": "Detects events originating from curl command-line tool.",
-    "category": "account_compromise",
-    "default_severity": "low",
-    "default_confidence": "medium",
-    "logic_type": "pattern",
-    "logic_config": {
-      "action_filters": ["*"],
-      "field_conditions": [
-        {
-          "field": "user_agent",
-          "operator": "matches_glob",
-          "value": "curl/*"
-        }
-      ],
-      "confidence": 0.4
-    },
-    "created_by": "system"
-  },
-  {
-    "name": "Suspicious User Agent — Go HTTP Client",
-    "slug": "suspicious-user-agent-go",
-    "description": "Detects events from Go default HTTP client user agent.",
-    "category": "account_compromise",
-    "default_severity": "low",
-    "default_confidence": "medium",
-    "logic_type": "pattern",
-    "logic_config": {
-      "action_filters": ["*"],
-      "field_conditions": [
-        {
-          "field": "user_agent",
-          "operator": "matches_glob",
-          "value": "Go-http-client*"
-        }
-      ],
-      "confidence": 0.4
-    },
-    "created_by": "system"
-  },
-  {
-    "name": "Malicious Webhook URL",
-    "slug": "malicious-webhook-url",
-    "description": "Detects webhook creation or configuration changes where the target URL matches a known malicious domain from threat intelligence.",
-    "category": "supply_chain",
     "default_severity": "high",
     "default_confidence": "high",
-    "logic_type": "pattern",
+    "logic_type": "statistical",
     "logic_config": {
-      "action_filters": ["hook.create", "hook.config_changed"],
-      "field_conditions": [],
+      "action_filters": [
+        "auth.login",
+        "auth.sso_response"
+      ],
       "x_config": {
-        "engine": "threat_intel_webhook",
-        "check_field": "data.config.url"
+        "engine": "impossible_travel",
+        "distance_threshold_km": 500,
+        "speed_threshold_kmh": 900
       },
+      "time_window_minutes": 120,
       "confidence": 0.8
     },
     "created_by": "system"
   },
   {
-    "name": "Suspicious App Installation",
-    "slug": "suspicious-app-installation",
-    "description": "Detects new GitHub App installations, especially those requesting broad permissions. Cross-references webhook URLs against threat intelligence.",
-    "category": "supply_chain",
+    "name": "Brute Force Login Attempts",
+    "slug": "brute-force-login-attempts",
+    "description": "Detects multiple failed login attempts from the same IP address in a short time window, suggesting a brute force attack.",
+    "category": "account_compromise",
+    "default_severity": "high",
+    "default_confidence": "high",
+    "logic_type": "threshold",
+    "logic_config": {
+      "action_filters": [
+        "auth.login_failure"
+      ],
+      "aggregation_key": "actor",
+      "threshold": 10,
+      "time_window_minutes": 15,
+      "field_conditions": [],
+      "confidence": 0.75
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Login from Tor Exit Node",
+    "slug": "login-from-tor-exit-node",
+    "description": "Detects authentication events originating from known Tor exit node IP addresses, which may indicate anonymized malicious access.",
+    "category": "account_compromise",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "auth.login",
+        "auth.sso_response"
+      ],
+      "field_conditions": [],
+      "x_config": {
+        "engine": "threat_intel_ip",
+        "check_field": "source_ip",
+        "list_type": "tor_exit_nodes"
+      },
+      "confidence": 0.65
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Dormant Account Reactivation",
+    "slug": "dormant-account-reactivation",
+    "description": "Detects activity from accounts that have been inactive for 90+ days, which may indicate compromised dormant credentials.",
+    "category": "account_compromise",
     "default_severity": "medium",
     "default_confidence": "medium",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["integration_installation.create"],
+      "action_filters": [
+        "*"
+      ],
       "field_conditions": [],
       "x_config": {
-        "engine": "threat_intel_app_install"
+        "engine": "dormant_account",
+        "inactivity_days": 90
       },
       "confidence": 0.55
     },
     "created_by": "system"
   },
   {
-    "name": "Deployment Gate Bypass",
-    "slug": "deployment-gate-bypass",
-    "description": "Detects a sequence where an environment protection rule is deleted followed by an immediate deployment — indicative of a deployment gate bypass.",
-    "category": "supply_chain",
-    "default_severity": "critical",
+    "name": "Admin Role Grant",
+    "slug": "admin-role-grant",
+    "description": "Detects when a user is granted organization owner or admin role, a high-impact privilege change that should be monitored.",
+    "category": "privilege_escalation",
+    "default_severity": "high",
     "default_confidence": "high",
-    "logic_type": "sequence",
+    "logic_type": "pattern",
     "logic_config": {
       "action_filters": [
-        "environment.delete_protection_rule",
-        "deployment.create"
+        "org.update_member"
       ],
-      "sequence_steps": [
-        { "action": "environment.delete_protection_rule", "min_count": 1 },
-        { "action": "deployment.create", "min_count": 1 }
+      "field_conditions": [
+        {
+          "field": "data.permission",
+          "operator": "eq",
+          "value": "admin"
+        }
       ],
-      "aggregation_key": "actor",
-      "time_window_minutes": 10,
       "confidence": 0.8
     },
     "created_by": "system"
   },
   {
-    "name": "Aging Vulnerability Health Signal",
-    "slug": "aging-vulnerability-health-signal",
-    "description": "Health signal: checks for long-unresolved vulnerability alerts. Requires GHAS integration (Epic 5) to be fully functional. Placeholder for periodic evaluation.",
-    "category": "supply_chain",
-    "default_severity": "medium",
-    "default_confidence": "low",
+    "name": "Team Maintainer Self-Promotion",
+    "slug": "team-maintainer-self-promotion",
+    "description": "Detects when a user promotes themselves to team maintainer role, bypassing normal approval workflows.",
+    "category": "privilege_escalation",
+    "default_severity": "high",
+    "default_confidence": "high",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["dependabot_alert.*"],
-      "field_conditions": [],
+      "action_filters": [
+        "team.change_member_role"
+      ],
+      "field_conditions": [
+        {
+          "field": "data.role",
+          "operator": "eq",
+          "value": "maintainer"
+        }
+      ],
       "x_config": {
-        "engine": "health_signal",
-        "signal_type": "aging_vulnerability",
-        "requires": "ghas_integration"
+        "engine": "self_action_check",
+        "match_actor_to_target": true
       },
-      "confidence": 0.3
+      "confidence": 0.75
     },
-    "created_by": "system",
-    "enabled": false
+    "created_by": "system"
   },
   {
-    "name": "Workflow Secret Harvesting",
-    "slug": "workflow-secret-harvesting",
-    "description": "Detects prepared workflow jobs that pass an unusually high number of secrets, which may indicate secret harvesting.",
-    "category": "cicd",
+    "name": "Org Owner Addition",
+    "slug": "org-owner-addition",
+    "description": "Detects when a new organization owner is added, granting full administrative access to the organization.",
+    "category": "privilege_escalation",
+    "default_severity": "critical",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "org.add_member",
+        "org.update_member"
+      ],
+      "field_conditions": [
+        {
+          "field": "data.permission",
+          "operator": "eq",
+          "value": "admin"
+        }
+      ],
+      "confidence": 0.85
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Excessive Permission Grants",
+    "slug": "excessive-permission-grants",
+    "description": "Detects an unusually high number of permission grants by a single actor in a short window, suggesting privilege escalation or misconfiguration.",
+    "category": "privilege_escalation",
     "default_severity": "high",
     "default_confidence": "medium",
     "logic_type": "threshold",
     "logic_config": {
-      "action_filters": ["workflows.prepared_workflow_job"],
+      "action_filters": [
+        "org.update_member",
+        "team.add_member",
+        "team.change_member_role",
+        "repo.add_member"
+      ],
+      "aggregation_key": "actor",
+      "threshold": 10,
+      "time_window_minutes": 30,
+      "field_conditions": [],
+      "confidence": 0.65
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Mass Repository Cloning",
+    "slug": "mass-repo-cloning",
+    "description": "Detects a single actor cloning an unusually high number of repositories in a short time, potentially indicating data exfiltration.",
+    "category": "data_exfiltration",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "threshold",
+    "logic_config": {
+      "action_filters": [
+        "git.clone"
+      ],
+      "aggregation_key": "actor",
+      "threshold": 20,
+      "time_window_minutes": 60,
+      "field_conditions": [],
+      "confidence": 0.6
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Repository Visibility Made Public",
+    "slug": "repo-visibility-public",
+    "description": "Detects when a private repository is changed to public visibility, potentially exposing sensitive code or data.",
+    "category": "data_exfiltration",
+    "default_severity": "critical",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "repo.access"
+      ],
+      "field_conditions": [
+        {
+          "field": "data.visibility",
+          "operator": "eq",
+          "value": "public"
+        }
+      ],
+      "confidence": 0.85
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Fork of Private Repo to External Org",
+    "slug": "fork-private-repo-external",
+    "description": "Detects when a private repository is forked to an organization outside the enterprise, potentially exfiltrating proprietary code.",
+    "category": "data_exfiltration",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "repo.fork"
+      ],
+      "field_conditions": [],
+      "x_config": {
+        "engine": "external_fork_check",
+        "check_org_membership": true
+      },
+      "confidence": 0.65
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Workflow File Modification",
+    "slug": "workflow-file-modification",
+    "description": "Detects git push events that modify GitHub Actions workflow files, which could introduce malicious CI/CD steps or exfiltrate secrets.",
+    "category": "supply_chain",
+    "default_severity": "medium",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "git.push"
+      ],
+      "field_conditions": [],
+      "x_config": {
+        "engine": "workflow_file_change",
+        "path_pattern": ".github/workflows/*"
+      },
+      "confidence": 0.55
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Suspicious Runner Registration",
+    "slug": "suspicious-runner-registration",
+    "description": "Detects self-hosted runner registration token creation or runner coming online, which could indicate unauthorized runner setup.",
+    "category": "supply_chain",
+    "default_severity": "medium",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "actions.runner_registration_token_created",
+        "actions.self_hosted_runner_online"
+      ],
+      "field_conditions": [],
+      "confidence": 0.5
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Actions Secret Access Spike",
+    "slug": "actions-secret-access-spike",
+    "description": "Detects an unusually high number of Actions secret accesses in a short window, potentially indicating secret harvesting.",
+    "category": "supply_chain",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "threshold",
+    "logic_config": {
+      "action_filters": [
+        "workflows.prepared_workflow_job"
+      ],
       "aggregation_key": "actor",
       "threshold": 10,
       "time_window_minutes": 60,
@@ -215,79 +368,36 @@
     "created_by": "system"
   },
   {
-    "name": "Suspicious Runner Registration",
-    "slug": "suspicious-runner-registration",
-    "description": "Detects self-hosted runner registration token creation or runner coming online, which could indicate unauthorized runner setup.",
-    "category": "cicd",
-    "default_severity": "medium",
-    "default_confidence": "medium",
-    "logic_type": "pattern",
-    "logic_config": {
-      "action_filters": [
-        "actions.runner_registration_token_created",
-        "actions.self_hosted_runner_online"
-      ],
-      "field_conditions": [],
-      "confidence": 0.5
-    },
-    "created_by": "system"
-  },
-  {
-    "name": "Workflow Backdoor",
-    "slug": "workflow-backdoor",
-    "description": "Detects workflow file modifications that may add workflow_dispatch triggers — allowing manual triggering of potentially malicious workflows.",
-    "category": "cicd",
-    "default_severity": "high",
-    "default_confidence": "medium",
-    "logic_type": "pattern",
-    "logic_config": {
-      "action_filters": ["workflows.*"],
-      "field_conditions": [
-        {
-          "field": "data.workflow_dispatch_added",
-          "operator": "eq",
-          "value": true
-        }
-      ],
-      "x_config": {
-        "engine": "workflow_modification_check"
-      },
-      "confidence": 0.55
-    },
-    "created_by": "system"
-  },
-  {
-    "name": "Anomalous Actions Usage",
-    "slug": "anomalous-actions-usage",
-    "description": "Detects unusually high GitHub Actions workflow volume per actor, using baseline comparison to identify 10x spikes above normal.",
-    "category": "cicd",
-    "default_severity": "medium",
-    "default_confidence": "medium",
-    "logic_type": "threshold",
-    "logic_config": {
-      "action_filters": ["workflows.*"],
-      "aggregation_key": "actor",
-      "threshold": 50,
-      "time_window_minutes": 60,
-      "baseline_comparison": true,
-      "baseline_metric": "daily_events",
-      "baseline_z_threshold": 3.0,
-      "confidence": 0.55
-    },
-    "created_by": "system"
-  },
-  {
-    "name": "CI Gate Bypass",
-    "slug": "ci-gate-bypass",
+    "name": "Required Status Check Bypass",
+    "slug": "required-status-check-bypass",
     "description": "Detects modifications to required status checks on protected branches that remove existing check requirements.",
-    "category": "cicd",
+    "category": "supply_chain",
     "default_severity": "high",
     "default_confidence": "high",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["protected_branch.update_required_status_checks"],
+      "action_filters": [
+        "protected_branch.update_required_status_checks"
+      ],
       "field_conditions": [],
       "confidence": 0.7
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Branch Protection Disabled",
+    "slug": "branch-protection-disabled",
+    "description": "Detects when branch protection rules are removed from a repository, weakening code review and merge safeguards.",
+    "category": "supply_chain",
+    "default_severity": "critical",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "protected_branch.destroy"
+      ],
+      "field_conditions": [],
+      "confidence": 0.85
     },
     "created_by": "system"
   },
@@ -300,7 +410,9 @@
     "default_confidence": "high",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["repository_ruleset.destroy"],
+      "action_filters": [
+        "repository_ruleset.destroy"
+      ],
       "field_conditions": [],
       "confidence": 0.85
     },
@@ -315,30 +427,246 @@
     "default_confidence": "medium",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["repository_ruleset.edit"],
+      "action_filters": [
+        "repository_ruleset.edit"
+      ],
       "field_conditions": [],
       "confidence": 0.7
     },
     "created_by": "system"
   },
   {
-    "name": "Ruleset Status Check Override",
-    "slug": "ruleset-status-check-override",
-    "description": "Detects modifications to required status checks enforced via repository rulesets, which could bypass CI gates.",
-    "category": "cicd",
+    "name": "New Deploy Key Added",
+    "slug": "new-deploy-key-added",
+    "description": "Detects creation of new deploy keys on repositories, which could be used for unauthorized automated access.",
+    "category": "supply_chain",
+    "default_severity": "medium",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "public_key.create",
+        "deploy_key.create"
+      ],
+      "field_conditions": [],
+      "confidence": 0.5
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Package Published from Unusual Actor",
+    "slug": "package-published-unusual-actor",
+    "description": "Detects package publication events from actors who have not previously published to that package, indicating potential supply chain compromise.",
+    "category": "supply_chain",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "packages.package_version_published"
+      ],
+      "field_conditions": [],
+      "x_config": {
+        "engine": "unusual_actor_check",
+        "scope": "package"
+      },
+      "confidence": 0.6
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Audit Log Export by Non-Admin",
+    "slug": "audit-log-export-non-admin",
+    "description": "Detects audit log export events by users who do not have admin privileges, potentially attempting to access sensitive activity records.",
+    "category": "defense_evasion",
     "default_severity": "high",
     "default_confidence": "high",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["repository_ruleset.edit"],
-      "field_conditions": [
+      "action_filters": [
+        "audit_log_export.create"
+      ],
+      "field_conditions": [],
+      "x_config": {
+        "engine": "non_admin_check",
+        "required_role": "admin"
+      },
+      "confidence": 0.75
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "IP Allowlist Modification",
+    "slug": "ip-allowlist-modification",
+    "description": "Detects changes to the organization IP allowlist, which could allow attackers to bypass network access controls.",
+    "category": "defense_evasion",
+    "default_severity": "critical",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "ip_allow_list_entry.create",
+        "ip_allow_list_entry.update",
+        "ip_allow_list_entry.destroy",
+        "ip_allow_list.enable",
+        "ip_allow_list.disable"
+      ],
+      "field_conditions": [],
+      "confidence": 0.8
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "SSO Bypass Attempt",
+    "slug": "sso-bypass-attempt",
+    "description": "Detects authentication events that bypass SSO enforcement, such as PAT usage when SSO is required.",
+    "category": "defense_evasion",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "auth.oauth_access",
+        "auth.token_access"
+      ],
+      "field_conditions": [],
+      "x_config": {
+        "engine": "sso_bypass_check",
+        "check_sso_enforcement": true
+      },
+      "confidence": 0.65
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Webhook Deletion",
+    "slug": "webhook-deletion",
+    "description": "Detects deletion of organization or repository webhooks, which could disable security monitoring integrations.",
+    "category": "defense_evasion",
+    "default_severity": "medium",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "hook.destroy"
+      ],
+      "field_conditions": [],
+      "confidence": 0.7
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Cross-Org Admin Escalation",
+    "slug": "cross-org-admin-escalation",
+    "description": "Detects when the same actor is granted admin/owner role in two or more organizations within 24 hours, indicating potential coordinated privilege escalation.",
+    "category": "privilege_escalation",
+    "default_severity": "critical",
+    "default_confidence": "high",
+    "logic_type": "cross_namespace_sequence",
+    "logic_config": {
+      "aggregation_key": "actor",
+      "time_window_minutes": 1440,
+      "require_distinct_steps": true,
+      "steps": [
         {
-          "field": "data.changes",
-          "operator": "contains",
-          "value": "required_status_checks"
+          "action_filters": [
+            "org.update_member",
+            "org.add_member"
+          ],
+          "field_conditions": [
+            {
+              "field": "data.permission",
+              "operator": "eq",
+              "value": "admin"
+            }
+          ],
+          "min_count": 1
+        },
+        {
+          "action_filters": [
+            "org.update_member",
+            "org.add_member"
+          ],
+          "field_conditions": [
+            {
+              "field": "data.permission",
+              "operator": "eq",
+              "value": "admin"
+            }
+          ],
+          "min_count": 1
         }
       ],
-      "confidence": 0.7
+      "confidence": 0.8
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Cross-Org Secret Alert Trigger",
+    "slug": "cross-org-secret-alert-trigger",
+    "description": "Detects the same actor triggering secret scanning alerts across multiple organizations, suggesting widespread credential exposure.",
+    "category": "data_exfiltration",
+    "default_severity": "high",
+    "default_confidence": "high",
+    "logic_type": "cross_namespace_sequence",
+    "logic_config": {
+      "aggregation_key": "actor",
+      "time_window_minutes": 1440,
+      "require_distinct_steps": true,
+      "steps": [
+        {
+          "action_filters": [
+            "secret_scanning_alert.create"
+          ],
+          "min_count": 1
+        },
+        {
+          "action_filters": [
+            "secret_scanning_alert.create"
+          ],
+          "min_count": 1
+        }
+      ],
+      "confidence": 0.75
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Cross-Org Rapid Repo Access",
+    "slug": "cross-org-rapid-repo-access",
+    "description": "Detects an actor accessing repositories across three or more organizations within one hour, suggesting reconnaissance or data harvesting.",
+    "category": "data_exfiltration",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "cross_namespace_sequence",
+    "logic_config": {
+      "aggregation_key": "actor",
+      "time_window_minutes": 60,
+      "require_distinct_steps": false,
+      "steps": [
+        {
+          "action_filters": [
+            "git.clone",
+            "repo.access"
+          ],
+          "min_count": 1
+        },
+        {
+          "action_filters": [
+            "git.clone",
+            "repo.access"
+          ],
+          "min_count": 1
+        },
+        {
+          "action_filters": [
+            "git.clone",
+            "repo.access"
+          ],
+          "min_count": 1
+        }
+      ],
+      "confidence": 0.6
     },
     "created_by": "system"
   }

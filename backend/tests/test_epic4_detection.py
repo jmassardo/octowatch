@@ -890,7 +890,7 @@ class TestDetectionRuleFixtures:
 
     def test_valid_logic_types(self):
         rules = self._load_fixtures()
-        valid_types = {"pattern", "threshold", "sequence", "statistical", "posture"}
+        valid_types = {"pattern", "threshold", "sequence", "statistical", "posture", "cross_namespace_sequence"}
         for rule in rules:
             assert rule["logic_type"] in valid_types, (
                 f"Rule '{rule['name']}' has invalid logic_type: {rule['logic_type']}"
@@ -918,7 +918,7 @@ class TestDetectionRuleFixtures:
         # We should have rules from each detection domain
         assert "account_compromise" in categories
         assert "supply_chain" in categories
-        assert "cicd" in categories
+        assert "defense_evasion" in categories
 
     def test_sequence_rules_have_steps(self):
         rules = self._load_fixtures()
