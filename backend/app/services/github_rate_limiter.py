@@ -90,8 +90,12 @@ class GitHubRateLimiter:
         await self._semaphore.acquire()
         try:
             self._refill()
-        effective_rate = self._PROACTIVE_THROTTLE_RATE if self._proactive_throttle_active else self._rate_per_sec
             while self._tokens < cost:
+                effective_rate = (
+                    self._PROACTIVE_THROTTLE_RATE
+                    if self._proactive_throttle_active
+                    else self._rate_per_sec
+                )
                 sleep_for = (cost - self._tokens) / effective_rate
                 logger.debug(
                     "rate_limiter.waiting",
@@ -188,5 +192,9 @@ class GitHubRateLimiter:
         now = time.monotonic()
         elapsed = now - self._last_refill
         self._last_refill = now
-        rate = self._PROACTIVE_THROTTLE_RATE if self._proactive_throttle_active else self._rate_per_sec
+        rate = (
+            self._PROACTIVE_THROTTLE_RATE
+            if self._proactive_throttle_active
+            else self._rate_per_sec
+        )
         self._tokens = min(self._tokens + elapsed * rate, float(self._max_burst))
