@@ -195,6 +195,38 @@ describe('SyncRunHistory', () => {
     });
   });
 
+  it('clicking an entity row opens the log drawer', async () => {
+    const user = userEvent.setup();
+    mockListSyncRuns.mockResolvedValue(runsResponse);
+    mockGetSyncRun.mockResolvedValue(runDetail);
+    mockGetSyncLogs.mockResolvedValue({
+      entries: [
+        {
+          seq: 1,
+          timestamp: '2025-06-01T08:01:00Z',
+          level: 'info',
+          message: 'synced 500 repos',
+          entity_type: 'repos',
+          org: 'acme',
+        },
+      ],
+      last_seq: 1,
+    });
+    renderWithProviders(<SyncRunHistory />);
+    await waitFor(() => expect(screen.getByText('admin')).toBeInTheDocument());
+
+    // Expand the run row
+    await user.click(screen.getByText('admin').closest('tr')!);
+    await waitFor(() => expect(screen.getByText('repos')).toBeInTheDocument());
+
+    // Click the entity row to open the drawer
+    const entityRow = screen.getByText('repos').closest('tr')!;
+    await user.click(entityRow);
+
+    // Drawer should appear with filtered log message
+    await waitFor(() => expect(screen.getByText('synced 500 repos')).toBeInTheDocument());
+  });
+
   it('rows are keyboard accessible', async () => {
     const user = userEvent.setup();
     mockListSyncRuns.mockResolvedValue(runsResponse);

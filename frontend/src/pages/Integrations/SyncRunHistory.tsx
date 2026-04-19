@@ -53,30 +53,36 @@ function formatLogTime(iso: string): string {
   }
 }
 
+interface DrawerTarget {
+  runId: string;
+  entityType: string;
+  org: string | null;
+}
+
 /* ------------------------------------------------------------------ */
-/*  Run row — clicking opens the detail drawer                        */
+/*  Run row — clicking inline-expands the entity breakdown            */
 /* ------------------------------------------------------------------ */
 
 function RunRow({
   run,
-  isSelected,
-  onSelect,
+  isExpanded,
+  onToggle,
 }: {
   run: SyncRunSummary;
-  isSelected: boolean;
-  onSelect: (id: string | null) => void;
+  isExpanded: boolean;
+  onToggle: () => void;
 }) {
   return (
     <tr
       className={styles.clickableRow}
-      onClick={() => onSelect(isSelected ? null : run.id)}
+      onClick={onToggle}
       role="button"
       tabIndex={0}
-      aria-expanded={isSelected}
+      aria-expanded={isExpanded}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onSelect(isSelected ? null : run.id);
+          onToggle();
         }
       }}
     >
@@ -85,6 +91,107 @@ function RunRow({
       <td>{formatDuration(run.started_at, run.completed_at)}</td>
       <td>
         <Label variant={statusVariant(run.status)}>{run.status}</Label>
+      </td>
+    </tr>
+  );
+}
+
+/* Wrapper renders RunRow + optional ExpandedRunContent as a keyed fragment */
+function RunRowWithDetail({
+  run,
+  isExpanded,
+  onToggle,
+  onEntityClick,
+}: {
+  run: SyncRunSummary;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onEntityClick: (target: DrawerTarget) => void;
+}) {
+  return (
+    <>
+      <RunRow run={run} isExpanded={isExpanded} onToggle={onToggle} />
+      {isExpanded && <ExpandedRunContent runId={run.id} onEntityClick={onEntityClick} />}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Expanded row — entity breakdown; each entity row opens the drawer */
+/* ------------------------------------------------------------------ */
+
+function ExpandedRunContent({
+  runId,
+  onEntityClick,
+}: {
+  runId: string;
+  onEntityClick: (target: DrawerTarget) => void;
+}) {
+  const { data: run, isLoading } = useQuery({
+    queryKey: ['sync-run', runId],
+    queryFn: () => getSyncRun(runId),
+  });
+
+  return (
+    <tr className={styles.expandedRow}>
+      <td colSpan={4}>
+        {isLoading ? (
+          <div className={styles.expandedLoading}>
+            <Spinner size={16} />
+            <span>Loading…</span>
+          </div>
+        ) : !run ? (
+          <div className={styles.expandedLoading}>Failed to load run details</div>
+        ) : (
+          <div className={styles.expandedContent}>
+            {run.error_message && <p className={styles.syncRunError}>{run.error_message}</p>}
+            {run.cursors.length > 0 ? (
+              <table className={styles.entityTableNested}>
+                <thead>
+                  <tr>
+                    <th>Entity</th>
+                    <th>Org</th>
+                    <th>Status</th>
+                    <th>Records</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {run.cursors.map((c) => (
+                    <tr
+                      key={`${c.entity_type}-${c.org ?? 'global'}`}
+                      className={styles.clickableRow}
+                      title="Click to view logs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEntityClick({ runId, entityType: c.entity_type, org: c.org ?? null });
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onEntityClick({ runId, entityType: c.entity_type, org: c.org ?? null });
+                        }
+                      }}
+                    >
+                      <td>{c.entity_type}</td>
+                      <td>{c.org ?? '—'}</td>
+                      <td>
+                        <Label variant={statusVariant(c.status as SyncRunStatus)}>
+                          {c.status.replace('_', ' ')}
+                        </Label>
+                      </td>
+                      <td>{c.items_synced.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              !run.error_message && <p className={styles.logEmpty}>No entity data for this run</p>
+            )}
+          </div>
+        )}
       </td>
     </tr>
   );
@@ -117,99 +224,38 @@ function LogLine({ entry }: { entry: SyncLogEntry }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Drawer content: entity table + log stream                         */
+/*  Drawer content — logs filtered to a specific entity               */
 /* ------------------------------------------------------------------ */
 
-function RunDetailDrawer({ runId }: { runId: string }) {
-  const { data: run, isLoading: runLoading } = useQuery({
-    queryKey: ['sync-run', runId],
-    queryFn: () => getSyncRun(runId),
+function EntityLogDrawer({ target }: { target: DrawerTarget }) {
+  const { data: run } = useQuery({
+    queryKey: ['sync-run', target.runId],
+    queryFn: () => getSyncRun(target.runId),
   });
 
-  const { data: logsData, isLoading: logsLoading } = useQuery({
-    queryKey: ['sync-run-logs', runId],
-    queryFn: () => getSyncLogs(runId, 0),
+  const { data: logsData, isLoading } = useQuery({
+    queryKey: ['sync-run-logs', target.runId, target.entityType],
+    queryFn: () => getSyncLogs(target.runId, 0),
     refetchInterval: run?.status === 'running' ? 3000 : false,
   });
 
-  if (runLoading) {
+  const entries = (logsData?.entries ?? []).filter(
+    (e: SyncLogEntry) => e.entity_type === target.entityType,
+  );
+
+  if (isLoading) {
     return (
       <div className={styles.expandedLoading}>
-        <Spinner size={16} />
-        <span>Loading…</span>
+        <Spinner size={14} />
+        <span>Loading logs…</span>
       </div>
     );
   }
 
-  if (!run) {
-    return <div className={styles.expandedLoading}>Failed to load run details</div>;
-  }
-
-  const entries = logsData?.entries ?? [];
-
   return (
     <div className={styles.expandedContent}>
-      {/* Top-level error */}
-      {run.error_message && <p className={styles.syncRunError}>{run.error_message}</p>}
-
-      {/* Entity breakdown table */}
-      {run.cursors.length > 0 && (
-        <>
-          <h4
-            style={{
-              margin: '0 0 8px',
-              fontSize: 13,
-              fontWeight: 600,
-              color: 'var(--color-fg-muted, #666)',
-            }}
-          >
-            Entity breakdown
-          </h4>
-          <table className={styles.entityTableNested}>
-            <thead>
-              <tr>
-                <th>Entity</th>
-                <th>Org</th>
-                <th>Status</th>
-                <th>Records</th>
-              </tr>
-            </thead>
-            <tbody>
-              {run.cursors.map((c) => (
-                <tr key={`${c.entity_type}-${c.org ?? 'global'}`}>
-                  <td>{c.entity_type}</td>
-                  <td>{c.org ?? '—'}</td>
-                  <td>
-                    <Label variant={statusVariant(c.status as SyncRunStatus)}>
-                      {c.status.replace('_', ' ')}
-                    </Label>
-                  </td>
-                  <td>{c.items_synced.toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-
-      {/* Log stream */}
-      <h4
-        style={{
-          margin: '16px 0 8px',
-          fontSize: 13,
-          fontWeight: 600,
-          color: 'var(--color-fg-muted, #666)',
-        }}
-      >
-        Log
-      </h4>
-      {logsLoading ? (
-        <div className={styles.expandedLoading}>
-          <Spinner size={14} />
-          <span>Loading logs…</span>
-        </div>
-      ) : entries.length === 0 ? (
-        <p className={styles.logEmpty}>No log entries for this run</p>
+      {entries.length === 0 ? (
+        <p className={styles.logEmpty}>No log entries for this entity</p>
       ) : (
         <div className={styles.logViewerContainer}>
           {entries.map((e) => (
@@ -226,7 +272,8 @@ function RunDetailDrawer({ runId }: { runId: string }) {
 /* ------------------------------------------------------------------ */
 
 export function SyncRunHistory() {
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
+  const [drawerTarget, setDrawerTarget] = useState<DrawerTarget | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['sync-runs'],
@@ -255,7 +302,10 @@ export function SyncRunHistory() {
   }
 
   const runs = data?.items ?? [];
-  const selectedRun = runs.find((r) => r.id === selectedRunId);
+
+  const drawerTitle = drawerTarget
+    ? `${drawerTarget.entityType}${drawerTarget.org ? ` · ${drawerTarget.org}` : ''} — logs`
+    : 'Logs';
 
   return (
     <>
@@ -276,11 +326,12 @@ export function SyncRunHistory() {
               </thead>
               <tbody>
                 {runs.map((run) => (
-                  <RunRow
+                  <RunRowWithDetail
                     key={run.id}
                     run={run}
-                    isSelected={run.id === selectedRunId}
-                    onSelect={setSelectedRunId}
+                    isExpanded={run.id === expandedRunId}
+                    onToggle={() => setExpandedRunId(run.id === expandedRunId ? null : run.id)}
+                    onEntityClick={setDrawerTarget}
                   />
                 ))}
               </tbody>
@@ -289,12 +340,8 @@ export function SyncRunHistory() {
         )}
       </Card>
 
-      <Drawer
-        open={!!selectedRunId}
-        onClose={() => setSelectedRunId(null)}
-        title={selectedRun ? `Run · ${formatShortDateTime(selectedRun.started_at)}` : 'Run Details'}
-      >
-        {selectedRunId && <RunDetailDrawer runId={selectedRunId} />}
+      <Drawer open={!!drawerTarget} onClose={() => setDrawerTarget(null)} title={drawerTitle}>
+        {drawerTarget && <EntityLogDrawer target={drawerTarget} />}
       </Drawer>
     </>
   );
