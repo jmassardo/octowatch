@@ -13,11 +13,9 @@ Covers:
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 
 # ── Helpers (same patterns as test_api_activity_sync.py) ──────────────────────
 
@@ -990,10 +988,6 @@ class TestLeadTimeSQLResponseStructure:
                 setattr(row, k, v)
             return row
 
-        # Track which query is being executed to return the right mock
-        call_idx = 0
-        query_results = []
-
         # We need to return mock rows for many sequential queries.
         # The key ones: pr_lifecycle, lead_time, pr_rate, workflow, etc.
         # Rather than mock every single query, patch at the session level
@@ -1155,7 +1149,6 @@ class TestScopeAndEntityConfig:
     def test_org_entities_includes_issues_and_deployments(self) -> None:
         """Cannot directly import _ORG_ENTITIES (it's inside a function),
         so we grep-verify by reading the source."""
-        import ast
 
         path = "/workspaces/octowatch/backend/app/workers/github_sync_worker.py"
         with open(path) as f:
