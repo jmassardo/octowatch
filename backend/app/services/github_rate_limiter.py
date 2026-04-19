@@ -193,8 +193,6 @@ class GitHubRateLimiter:
         elapsed = now - self._last_refill
         self._last_refill = now
         rate = (
-            self._PROACTIVE_THROTTLE_RATE
-            if self._proactive_throttle_active
-            else self._rate_per_sec
+            self._PROACTIVE_THROTTLE_RATE if self._proactive_throttle_active else self._rate_per_sec
         )
         self._tokens = min(self._tokens + elapsed * rate, float(self._max_burst))
