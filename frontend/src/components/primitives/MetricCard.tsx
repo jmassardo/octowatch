@@ -12,7 +12,6 @@ interface MetricCardProps {
   onClick?: () => void;
   to?: string;
   helpText?: string;
-  helpText?: string;
 }
 
 /** Internal presentational card — does NOT use router hooks. */

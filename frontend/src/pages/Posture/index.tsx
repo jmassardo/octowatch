@@ -228,7 +228,6 @@ function EnterpriseView({
             placeholder="Search organizations..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            title="Search repositories by name"
             title="Search organizations by name"
             style={{
               padding: '4px 8px',
