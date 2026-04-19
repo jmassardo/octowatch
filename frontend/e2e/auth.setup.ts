@@ -49,6 +49,11 @@ setup('authenticate via dev-login', async ({ page }) => {
   // Verify auth works by navigating to a protected route
   await page.goto('/dashboard');
 
+  // Dismiss the guided tour so it doesn't block UI interactions in tests
+  await page.evaluate(() => {
+    localStorage.setItem('octowatch_tour_completed', 'true');
+  });
+
   // Persist the authenticated browser state (cookies + localStorage) so that
   // downstream test projects can reuse it via the storageState option.
   await page.context().storageState({ path: AUTH_FILE });
