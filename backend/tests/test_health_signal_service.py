@@ -144,7 +144,7 @@ class TestGetPATHealthSummary:
 
     @pytest.mark.asyncio
     async def test_empty_result(self) -> None:
-        session = _mock_session_with_mappings([])
+        session = _mock_session_with_mappings([], [])
         result = await health_signal_service.get_pat_health_summary(
             session, scoped_orgs=["test-org"]
         )
@@ -177,7 +177,7 @@ class TestGetPATTokenAgeSignals:
 
     @pytest.mark.asyncio
     async def test_empty_result(self) -> None:
-        session = _mock_session_with_mappings([])
+        session = _mock_session_with_mappings([], [])
         result = await health_signal_service.get_pat_token_age_signals(
             session, scoped_orgs=["test-org"]
         )
@@ -369,7 +369,7 @@ class TestGetExternalCollaboratorSummary:
 
     @pytest.mark.asyncio
     async def test_empty_result(self) -> None:
-        session = _mock_session_with_mappings([])
+        session = _mock_session_with_mappings([], [])
         result = await health_signal_service.get_external_collaborator_summary(
             session, scoped_orgs=["test-org"]
         )
@@ -401,12 +401,13 @@ class TestGetDormantCollaborators:
 
     @pytest.mark.asyncio
     async def test_custom_dormancy_days(self) -> None:
-        session = _mock_session_with_mappings([])
+        session = _mock_session_with_mappings([], [])
         await health_signal_service.get_dormant_collaborators(
             session, scoped_orgs=["test-org"], dormancy_days=120
         )
-        call_args = session.execute.call_args
-        assert call_args[0][1]["dormancy_days"] == 120
+        # Check the first (primary) query which carries the dormancy_days param.
+        first_call_args = session.execute.call_args_list[0][0][1]
+        assert first_call_args["dormancy_days"] == 120
 
 
 class TestScopedOrgsPassedAsParam:
@@ -414,7 +415,7 @@ class TestScopedOrgsPassedAsParam:
 
     @pytest.mark.asyncio
     async def test_pat_health_summary_binds_orgs(self) -> None:
-        session = _mock_session_with_mappings([])
+        session = _mock_session_with_mappings([], [])
         await health_signal_service.get_pat_health_summary(session, scoped_orgs=["org-a", "org-b"])
         call_args = session.execute.call_args
         assert call_args[0][1]["scoped_orgs"] == ["org-a", "org-b"]
@@ -435,14 +436,14 @@ class TestScopedOrgsPassedAsParam:
 
     @pytest.mark.asyncio
     async def test_external_collaborators_binds_orgs(self) -> None:
-        session = _mock_session_with_mappings([])
+        session = _mock_session_with_mappings([], [])
         await health_signal_service.get_external_collaborators(session, scoped_orgs=["org-1"])
         call_args = session.execute.call_args
         assert call_args[0][1]["scoped_orgs"] == ["org-1"]
 
     @pytest.mark.asyncio
     async def test_dormant_collaborators_binds_orgs(self) -> None:
-        session = _mock_session_with_mappings([])
+        session = _mock_session_with_mappings([], [])
         await health_signal_service.get_dormant_collaborators(session, scoped_orgs=["org-2"])
         call_args = session.execute.call_args
         assert call_args[0][1]["scoped_orgs"] == ["org-2"]

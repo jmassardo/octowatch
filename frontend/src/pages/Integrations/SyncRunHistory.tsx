@@ -43,7 +43,11 @@ function formatDuration(startIso: string | null, endIso: string | null): string 
 
 function formatLogTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return new Date(iso).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
   } catch {
     return iso;
   }
@@ -142,7 +146,14 @@ function RunDetailDrawer({ runId }: { runId: string }) {
       {/* Entity breakdown table */}
       {run.cursors.length > 0 && (
         <>
-          <h4 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: 'var(--color-fg-muted, #666)' }}>
+          <h4
+            style={{
+              margin: '0 0 8px',
+              fontSize: 13,
+              fontWeight: 600,
+              color: 'var(--color-fg-muted, #666)',
+            }}
+          >
             Entity breakdown
           </h4>
           <table className={styles.entityTableNested}>
@@ -173,7 +184,14 @@ function RunDetailDrawer({ runId }: { runId: string }) {
       )}
 
       {/* Log stream */}
-      <h4 style={{ margin: '16px 0 8px', fontSize: 13, fontWeight: 600, color: 'var(--color-fg-muted, #666)' }}>
+      <h4
+        style={{
+          margin: '16px 0 8px',
+          fontSize: 13,
+          fontWeight: 600,
+          color: 'var(--color-fg-muted, #666)',
+        }}
+      >
         Log
       </h4>
       {logsLoading ? (
@@ -260,11 +278,7 @@ export function SyncRunHistory() {
       <Drawer
         open={!!selectedRunId}
         onClose={() => setSelectedRunId(null)}
-        title={
-          selectedRun
-            ? `Run · ${formatShortDateTime(selectedRun.started_at)}`
-            : 'Run Details'
-        }
+        title={selectedRun ? `Run · ${formatShortDateTime(selectedRun.started_at)}` : 'Run Details'}
       >
         {selectedRunId && <RunDetailDrawer runId={selectedRunId} />}
       </Drawer>
