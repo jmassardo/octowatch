@@ -995,7 +995,7 @@
   border-radius: 6px;
   padding: 12px;
   margin-top: 8px;
-  max-height: 300px;
+  max-height: 500px;
   overflow-y: auto;
   font-family: 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
   font-size: 12px;
@@ -1010,24 +1010,48 @@
 
 .logLine {
   display: flex;
-  gap: 6px;
-  white-space: pre-wrap;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.logMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
 }
 
 .logTimestamp {
   color: #666;
   flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.logContext {
+  color: #888;
+  flex-shrink: 0;
+  font-style: italic;
+  white-space: nowrap;
 }
 
 .logLevel {
   flex-shrink: 0;
   text-transform: uppercase;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .logMessage {
-  flex: 1;
+  padding-left: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  width: 100%;
 }
 
 .logInfo {
