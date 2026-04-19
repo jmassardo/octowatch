@@ -416,13 +416,6 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"]
     )
     INGESTION_MODE: Literal["hec", "s3", "azure_blob"] = "hec"
-    # Comma-separated GitHub logins that are unconditionally granted sys_admin.
-    # Used to bootstrap the first admin before any DB role assignment exists.
-    # Example: INITIAL_ADMIN_LOGINS=alice,bob
-    INITIAL_ADMIN_LOGINS: str = Field(
-        default="",
-        description="Comma-separated GitHub logins that always have sys_admin (bootstrap).",
-    )
     QUERY_MAX_ROWS: int = Field(default=100_000, ge=1, le=1_000_000)
     QUERY_TIMEOUT_SECONDS: int = Field(default=30, ge=5, le=300)
     DETECTION_CONFIDENCE_THRESHOLD: float = Field(default=0.7, ge=0.0, le=1.0)
@@ -437,13 +430,6 @@ class Settings(BaseSettings):
     GIT: GitHubRulesSettings = Field(default_factory=GitHubRulesSettings)
     GITHUB_APP: GitHubAppSettings = Field(default_factory=GitHubAppSettings)
     INTEGRATIONS: IntegrationSettings = Field(default_factory=IntegrationSettings)
-
-    @property
-    def initial_admin_logins(self) -> set[str]:
-        """Return the set of GitHub logins that always have sys_admin."""
-        return {
-            login.strip().lower() for login in self.INITIAL_ADMIN_LOGINS.split(",") if login.strip()
-        }
 
     @property
     def DATABASE_URL(self) -> str:

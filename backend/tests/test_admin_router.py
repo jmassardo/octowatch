@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import jwt as pyjwt
 from fastapi import FastAPI
@@ -225,26 +225,22 @@ class TestListActiveSessions:
         # report_admin is higher priority than analyst
         assert data[0]["role"] == "report_admin"
 
-    @patch("app.routers.admin.settings")
-    def test_sessions_grants_sys_admin_to_initial_admin_logins(
-        self, mock_settings: MagicMock
-    ) -> None:
-        """INITIAL_ADMIN_LOGINS users get sys_admin regardless of DB roles."""
-        mock_settings.initial_admin_logins = {"bootstrap-admin"}
+    def test_sessions_grants_sys_admin_via_db_role_assignment(self) -> None:
+        """sys_admin is granted via DB role assignments, not env var."""
         session = _make_session()
 
         audit_result = MagicMock()
         audit_result.fetchall.return_value = [
             _FakeRow(
-                user_login="bootstrap-admin",
+                user_login="db-admin",
                 last_active_at=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC),
                 session_count=1,
             ),
         ]
 
-        # No roles in the DB
+        # DB returns sys_admin role assignment
         role_result = MagicMock()
-        role_result.fetchall.return_value = []
+        role_result.fetchall.return_value = [("db-admin", "sys_admin")]
 
         app, _, _ = _build_admin_app(
             valkey_get_return=session,

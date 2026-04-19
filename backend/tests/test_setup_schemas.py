@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from app.schemas.setup import (
     GitHubAppSetup,
     GitHubOAuthSetup,
+    InitialAdminsSetup,
     SettingUpdate,
     SetupLoginRequest,
     SetupStatusResponse,
@@ -119,3 +120,21 @@ class TestSetupStatusResponse:
     def test_setup_required_false(self) -> None:
         resp = SetupStatusResponse(setup_required=False, setup_token_hint="")
         assert resp.setup_required is False
+
+
+class TestInitialAdminsSetup:
+    def test_valid_single_admin(self) -> None:
+        payload = InitialAdminsSetup(admin_logins=["octocat"])
+        assert payload.admin_logins == ["octocat"]
+
+    def test_valid_multiple_admins(self) -> None:
+        payload = InitialAdminsSetup(admin_logins=["alice", "bob", "charlie"])
+        assert len(payload.admin_logins) == 3
+
+    def test_empty_list_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            InitialAdminsSetup(admin_logins=[])
+
+    def test_missing_field_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            InitialAdminsSetup()  # type: ignore[call-arg]
