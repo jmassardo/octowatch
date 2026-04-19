@@ -21,13 +21,14 @@ terraform {
     }
   }
 
-  # Remote state backend — configure via backend config file or env vars.
-  # Example:
-  #   terraform init \
-  #     -backend-config="resource_group_name=rg-tfstate" \
-  #     -backend-config="storage_account_name=stterraformstate" \
-  #     -backend-config="container_name=tfstate" \
-  #     -backend-config="key=octowatch.tfstate"
+  # Remote state backend — configured via environment variables in CI/CD.
+  # Uses the existing OctoWatch storage account (no separate tfstate RG needed).
+  # Required env vars or -backend-config flags:
+  #   resource_group_name  = "rg-octowatch-dev"
+  #   storage_account_name = "stoctowatchdevbn3idw"
+  #   container_name       = "tfstate"
+  #   key                  = "octowatch.tfstate"
+  #   access_key           = <storage_account_key>  (ARM_ACCESS_KEY env var)
   backend "azurerm" {}
 }
 
