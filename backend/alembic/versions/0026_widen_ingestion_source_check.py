@@ -56,8 +56,7 @@ def upgrade() -> None:
                 ADD CONSTRAINT chk_events_ingestion_source
                 CHECK (ingestion_source IN (
                     's3', 'azure_blob', 'minio',
-                    'github_enterprise_sync', 'github_api_sync',
-                    'hec_webhook'
+                    'github_enterprise_sync', 'github_api_sync'
                 ));
 
             IF has_compression THEN
