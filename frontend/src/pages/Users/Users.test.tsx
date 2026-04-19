@@ -173,7 +173,7 @@ describe('UsersPage', () => {
     await user.click(sessions[0]);
 
     const modalTitle = await screen.findByText(/sessions — @jmassardo/i);
-    const modal = modalTitle.closest('.dialog')!;
+    const modal = modalTitle.closest('[role="dialog"]')!;
 
     expect(within(modal as HTMLElement).getByText('Active sessions')).toBeInTheDocument();
     expect(
@@ -192,7 +192,7 @@ describe('UsersPage', () => {
     await user.click(sessions[0]);
 
     const modalTitle = await screen.findByText(/sessions — @jmassardo/i);
-    const modal = modalTitle.closest('.dialog')!;
+    const modal = modalTitle.closest('[role="dialog"]')!;
 
     // Role in modal should show "Sys Admin", not "Admin" or the raw "sys_admin"
     expect(within(modal as HTMLElement).getByText('Sys Admin')).toBeInTheDocument();

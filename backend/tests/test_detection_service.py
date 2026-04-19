@@ -440,20 +440,26 @@ class TestEvaluateThresholdRuleValidation:
         assert result == []
 
     @_pytest.mark.anyio
-    async def test_wildcard_only_action_filters_returns_empty(self):
-        """§1.4: action_filters=['*'] → treated as empty → return []."""
+    async def test_wildcard_only_action_filters_matches_all(self):
+        """§1.4: action_filters=['*'] → matches all actions (wildcard)."""
+        from unittest.mock import AsyncMock, MagicMock
+
         from app.services.detection_service import evaluate_threshold_rule
 
         rule = FakeRule(
             {
                 "action_filters": ["*"],
-                "threshold": 1,
+                "threshold": 100,
                 "time_window_minutes": 60,
                 "aggregation_key": "actor",
             }
         )
         ev = FakeEvent(action="repos.create", actor="alice")
-        result = await evaluate_threshold_rule(None, rule, [ev], ["my-org"])  # type: ignore[arg-type]
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = []
+        mock_session.execute.return_value = mock_result
+        result = await evaluate_threshold_rule(mock_session, rule, [ev], ["my-org"])  # type: ignore[arg-type]
         assert result == []
 
     @_pytest.mark.anyio

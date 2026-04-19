@@ -495,12 +495,12 @@ class TestNonAdminCheck:
         assert await _check_x_config_engine(event, rule, session) is False  # type: ignore[arg-type]
 
     @pytest.mark.anyio
-    async def test_unknown_actor_returns_true(self) -> None:
-        """Actor not in membership data → treated as non-admin."""
+    async def test_unknown_actor_returns_false(self) -> None:
+        """Actor not in membership data → skip to avoid false positives."""
         event = FakeEvent(actor="mystery", action="audit_log_export.create", org="my-org")
         rule = _make_rule("non_admin_check", required_role="admin")
         session = _mock_session_returning(scalar=None)  # not found
-        assert await _check_x_config_engine(event, rule, session) is True  # type: ignore[arg-type]
+        assert await _check_x_config_engine(event, rule, session) is False  # type: ignore[arg-type]
 
     @pytest.mark.anyio
     async def test_no_actor_returns_false(self) -> None:
@@ -677,15 +677,15 @@ class TestWorkflowFileChange:
         assert await _check_x_config_engine(event, rule, session) is True  # type: ignore[arg-type]
 
     @pytest.mark.anyio
-    async def test_workflow_action_no_files_returns_true(self) -> None:
-        """Workflow-related action with no file info → assume workflow files."""
+    async def test_workflow_action_no_files_returns_false(self) -> None:
+        """Workflow-related action with no file info → skip to avoid false positives."""
         event = FakeEvent(
             action="workflows.completed_workflow_run",
             data={},
         )
         rule = _make_rule("workflow_file_change", path_pattern=".github/workflows/*")
         session = AsyncMock()
-        assert await _check_x_config_engine(event, rule, session) is True  # type: ignore[arg-type]
+        assert await _check_x_config_engine(event, rule, session) is False  # type: ignore[arg-type]
 
     @pytest.mark.anyio
     async def test_non_workflow_action_no_files_returns_false(self) -> None:

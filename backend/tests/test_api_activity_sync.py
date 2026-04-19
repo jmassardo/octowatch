@@ -665,10 +665,11 @@ class TestFetchPagePullRequests:
                 delta_since=delta,
             )
 
-        # Only the recent PR should be included, and early stop means no more pages
+        # Only the recent PR should be included; cursor advances to the next repo
         assert len(items) == 1
         assert items[0]["document_id"] == "pr-org/repo1#100-opened"
-        assert cursor is None  # stopped early
+        # The cursor is not None because there are more repos to process
+        assert cursor is not None
 
     @pytest.mark.asyncio
     async def test_pr_bot_detection(self) -> None:

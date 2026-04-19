@@ -180,8 +180,8 @@ describe('WorkflowMetricsTab — With Data', () => {
     const row = await screen.findByText('CI Build');
     await user.click(row.closest('tr')!);
 
-    expect(await screen.findByText('run-100')).toBeInTheDocument();
-    expect(await screen.findByText('run-99')).toBeInTheDocument();
+    expect(await screen.findByText('#run-100')).toBeInTheDocument();
+    expect(await screen.findByText('#run-99')).toBeInTheDocument();
   });
 
   it('closes modal when close button is clicked', async () => {

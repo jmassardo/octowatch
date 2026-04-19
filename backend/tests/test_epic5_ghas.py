@@ -966,7 +966,7 @@ class TestFetchPageRawAlerts:
 
         call_count = 0
 
-        async def mock_get(url, headers, params, rate_limiter):
+        async def mock_get(url, headers, params, rate_limiter, **kwargs):
             nonlocal call_count
             call_count += 1
             resp = MagicMock()
@@ -1014,7 +1014,7 @@ class TestFetchPageRawAlerts:
             "security_vulnerability": {"severity": "critical", "package": {"name": "test"}},
         }
 
-        async def mock_get(url, headers, params, rate_limiter):
+        async def mock_get(url, headers, params, rate_limiter, **kwargs):
             resp = MagicMock()
             resp.status_code = 200
             resp.raise_for_status = MagicMock()
@@ -1052,7 +1052,7 @@ class TestFetchPageRawAlerts:
             "rule": {"id": "test-rule", "severity": "error"},
         }
 
-        async def mock_get(url, headers, params, rate_limiter):
+        async def mock_get(url, headers, params, rate_limiter, **kwargs):
             resp = MagicMock()
             resp.status_code = 200
             resp.raise_for_status = MagicMock()

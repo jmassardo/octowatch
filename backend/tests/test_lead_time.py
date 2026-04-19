@@ -13,9 +13,18 @@ Covers:
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+# ── Derived paths (portable across local dev, CI, Codespaces) ─────────────────
+_BACKEND_DIR = Path(__file__).resolve().parents[1]  # backend/tests -> backend
+_ALEMBIC_VERSIONS = _BACKEND_DIR / "alembic" / "versions"
+
+# A date far enough in the past that no 90-day cutoff will filter test data
+_FAR_PAST = datetime(2020, 1, 1, tzinfo=UTC)
 
 # ── Helpers (same patterns as test_api_activity_sync.py) ──────────────────────
 
@@ -140,6 +149,7 @@ class TestPRDataEnrichment:
                 token="tok",
                 cursor=None,
                 rate_limiter=_make_rate_limiter(),
+                delta_since=_FAR_PAST,
             )
 
         assert len(items) == 1
@@ -172,6 +182,7 @@ class TestPRDataEnrichment:
                 token="tok",
                 cursor=None,
                 rate_limiter=_make_rate_limiter(),
+                delta_since=_FAR_PAST,
             )
 
         data = json.loads(items[0]["data"])
@@ -197,6 +208,7 @@ class TestPRDataEnrichment:
                 token="tok",
                 cursor=None,
                 rate_limiter=_make_rate_limiter(),
+                delta_since=_FAR_PAST,
             )
 
         data = json.loads(items[0]["data"])
@@ -227,6 +239,7 @@ class TestPRDataEnrichment:
                 token="tok",
                 cursor=None,
                 rate_limiter=_make_rate_limiter(),
+                delta_since=_FAR_PAST,
             )
 
         data = json.loads(items[0]["data"])
@@ -557,6 +570,7 @@ class TestIssuesHandler:
                 token="tok",
                 cursor=None,
                 rate_limiter=_make_rate_limiter(),
+                delta_since=_FAR_PAST,
             )
 
         assert len(items) == 2
@@ -585,6 +599,7 @@ class TestIssuesHandler:
                 token="tok",
                 cursor=None,
                 rate_limiter=_make_rate_limiter(),
+                delta_since=_FAR_PAST,
             )
 
         assert len(items) == 1
@@ -629,6 +644,7 @@ class TestIssuesHandler:
                 token="tok",
                 cursor=None,
                 rate_limiter=_make_rate_limiter(),
+                delta_since=_FAR_PAST,
             )
 
         item = items[0]
@@ -670,6 +686,7 @@ class TestIssuesHandler:
                 token="tok",
                 cursor=None,
                 rate_limiter=_make_rate_limiter(),
+                delta_since=_FAR_PAST,
             )
 
         assert len(items) == 1
@@ -750,6 +767,7 @@ class TestDeploymentsHandler:
                 token="tok",
                 cursor=None,
                 rate_limiter=_make_rate_limiter(),
+                delta_since=_FAR_PAST,
             )
 
         deploy_items = [i for i in items if i["action"] == "deployment.created"]
@@ -794,6 +812,7 @@ class TestDeploymentsHandler:
                 token="tok",
                 cursor=None,
                 rate_limiter=_make_rate_limiter(),
+                delta_since=_FAR_PAST,
             )
 
         status_items = [i for i in items if i["action"].startswith("deployment_status.")]
@@ -838,6 +857,7 @@ class TestDeploymentsHandler:
                 token="tok",
                 cursor=None,
                 rate_limiter=_make_rate_limiter(),
+                delta_since=_FAR_PAST,
             )
 
         status_items = [i for i in items if i["action"].startswith("deployment_status.")]
@@ -869,6 +889,7 @@ class TestDeploymentsHandler:
                 token="tok",
                 cursor=None,
                 rate_limiter=_make_rate_limiter(),
+                delta_since=_FAR_PAST,
             )
 
         # Deployment item exists; statuses were skipped gracefully
@@ -1046,7 +1067,7 @@ class TestMigration0036:
 
         spec = importlib.util.spec_from_file_location(
             "migration_0036",
-            "/workspaces/octowatch/backend/alembic/versions/0036_add_lead_time_indexes.py",
+            str(_ALEMBIC_VERSIONS / "0036_add_lead_time_indexes.py"),
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -1058,7 +1079,7 @@ class TestMigration0036:
 
     def test_upgrade_creates_four_indexes(self) -> None:
         """Verify upgrade creates 4 indexes using CREATE INDEX IF NOT EXISTS."""
-        path = "/workspaces/octowatch/backend/alembic/versions/0036_add_lead_time_indexes.py"
+        path = _ALEMBIC_VERSIONS / "0036_add_lead_time_indexes.py"
         with open(path) as f:
             content = f.read()
 
@@ -1069,7 +1090,7 @@ class TestMigration0036:
         assert "idx_events_issue_opened" in content
 
     def test_downgrade_drops_four_indexes(self) -> None:
-        path = "/workspaces/octowatch/backend/alembic/versions/0036_add_lead_time_indexes.py"
+        path = _ALEMBIC_VERSIONS / "0036_add_lead_time_indexes.py"
         with open(path) as f:
             content = f.read()
 
@@ -1077,7 +1098,7 @@ class TestMigration0036:
 
     def test_partial_index_conditions(self) -> None:
         """Verify partial index WHERE clauses match the lead time query patterns."""
-        path = "/workspaces/octowatch/backend/alembic/versions/0036_add_lead_time_indexes.py"
+        path = _ALEMBIC_VERSIONS / "0036_add_lead_time_indexes.py"
         with open(path) as f:
             content = f.read()
 
@@ -1150,7 +1171,7 @@ class TestScopeAndEntityConfig:
         """Cannot directly import _ORG_ENTITIES (it's inside a function),
         so we grep-verify by reading the source."""
 
-        path = "/workspaces/octowatch/backend/app/workers/github_sync_worker.py"
+        path = _BACKEND_DIR / "app" / "workers" / "github_sync_worker.py"
         with open(path) as f:
             content = f.read()
         # Both should appear as string literals in the _ORG_ENTITIES set
