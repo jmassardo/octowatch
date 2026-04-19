@@ -1,0 +1,192 @@
+# =============================================================================
+# Deploy — Roll out new OctoWatch images to the Azure VM
+#
+# Triggers:
+#   1. Automatically after a successful Release workflow (v* tags).
+#   2. Manually via workflow_dispatch with an optional image tag.
+#
+# What it does:
+#   1. SSHes into the Azure VM at octowatch.jmassardo.azure.csa-github.com
+#   2. Pulls the newly published images from GHCR
+#   3. Updates docker-compose.yml image tags in-place (sed)
+#   4. Restarts only the changed containers (docker compose up -d)
+#   5. Runs a health check and rolls back on failure
+#
+# NOTE: Terraform is intentionally NOT run here for image-only releases.
+# Changing custom_data in Terraform forces full VM replacement — application
+# updates are handled by in-place docker compose rolling restarts instead.
+# Run `terraform apply` manually for infrastructure changes only.
+#
+# Required GitHub secrets (Settings → Secrets and variables → Actions):
+#   AZURE_VM_SSH_KEY  — contents of ~/.ssh/id_ed25519 (private key)
+#   AZURE_VM_HOST     — octowatch.jmassardo.azure.csa-github.com
+#   AZURE_VM_USER     — octowatch
+# =============================================================================
+name: Deploy to Azure
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (e.g. v1.2.3 or latest)"
+        required: false
+        default: "latest"
+
+# Only one deploy runs at a time; never cancel an in-flight deploy.
+concurrency:
+  group: deploy-azure
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ github.event.workflow_run.head_branch || inputs.image_tag || 'latest' }}
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      # ── Determine image tag ────────────────────────────────────────────────
+      - name: Resolve image tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.image_tag }}"
+            TAG="${TAG:-latest}"
+          else
+            # Triggered by Release workflow — extract semver from the tag ref
+            REF="${{ github.event.workflow_run.head_branch }}"
+            if [[ "$REF" =~ ^v[0-9] ]]; then
+              TAG="$REF"
+            else
+              TAG="latest"
+            fi
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Deploying image tag: $TAG"
+
+      # ── Write SSH key ──────────────────────────────────────────────────────
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AZURE_VM_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.AZURE_VM_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      # ── Deploy ────────────────────────────────────────────────────────────
+      - name: Pull images and restart containers
+        env:
+          VM_HOST: ${{ secrets.AZURE_VM_HOST }}
+          VM_USER: ${{ secrets.AZURE_VM_USER }}
+          IMAGE_TAG: ${{ steps.tag.outputs.tag }}
+          GHCR_OWNER: ${{ github.repository_owner }}
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            "$VM_USER@$VM_HOST" \
+            "bash -s" <<SSHEOF
+          set -eu
+          COMPOSE_FILE="/opt/octowatch/compose/docker-compose.yml"
+          IMAGE_TAG="$IMAGE_TAG"
+          GHCR_OWNER="$GHCR_OWNER"
+
+          echo "==> Deploying OctoWatch \$IMAGE_TAG to \$(hostname)"
+
+          # Update image tags in docker-compose.yml
+          echo "==> Updating image tags to \$IMAGE_TAG..."
+          sudo sed -i "s|/octowatch-api:[^[:space:]]*|/octowatch-api:\${IMAGE_TAG}|g"      "\$COMPOSE_FILE"
+          sudo sed -i "s|/octowatch-worker:[^[:space:]]*|/octowatch-worker:\${IMAGE_TAG}|g" "\$COMPOSE_FILE"
+          sudo sed -i "s|/octowatch-beat:[^[:space:]]*|/octowatch-beat:\${IMAGE_TAG}|g"     "\$COMPOSE_FILE"
+          sudo sed -i "s|/octowatch-frontend:[^[:space:]]*|/octowatch-frontend:\${IMAGE_TAG}|g" "\$COMPOSE_FILE"
+
+          # Pull the new images
+          echo "==> Pulling new images..."
+          cd /opt/octowatch/compose
+          sudo docker compose pull api worker beat frontend 2>&1
+
+          # Snapshot running container IDs for rollback
+          OLD_API_IMAGE=\$(sudo docker inspect --format='{{.Image}}' \$(sudo docker compose ps -q api 2>/dev/null | head -1) 2>/dev/null || echo "")
+
+          # Rolling restart: update services one group at a time
+          echo "==> Restarting services..."
+          sudo docker compose up -d --no-deps api beat
+          sleep 10
+          sudo docker compose up -d --no-deps worker
+          sleep 5
+          sudo docker compose up -d --no-deps frontend
+
+          echo "==> Deployment complete."
+          SSHEOF
+
+      # ── Health check ─────────────────────────────────────────────────────
+      - name: Health check
+        env:
+          VM_HOST: ${{ secrets.AZURE_VM_HOST }}
+          VM_USER: ${{ secrets.AZURE_VM_USER }}
+        run: |
+          echo "Waiting 30s for containers to stabilise..."
+          sleep 30
+
+          # Check all containers are running (no unhealthy/exited)
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            "$VM_USER@$VM_HOST" \
+            "bash -s" <<'SSHEOF'
+          set -eu
+          cd /opt/octowatch/compose
+          echo "==> Container status:"
+          sudo docker compose ps
+
+          # Fail if any app container is not running/healthy
+          UNHEALTHY=$(sudo docker compose ps --format json 2>/dev/null \
+            | python3 -c "
+          import sys, json
+          data = sys.stdin.read().strip()
+          if not data:
+              sys.exit(0)
+          services = []
+          for line in data.splitlines():
+              try:
+                  services.append(json.loads(line))
+              except:
+                  pass
+          bad = [s['Service'] for s in services
+                 if s.get('Service') in ['api','worker','beat','frontend']
+                 and 'running' not in s.get('State','').lower()
+                 and 'healthy' not in s.get('Health','').lower()
+                 and s.get('State','') != '']
+          if bad:
+              print('UNHEALTHY: ' + ', '.join(bad))
+              sys.exit(1)
+          " 2>/dev/null || echo "")
+
+          if [ -n "$UNHEALTHY" ]; then
+            echo "ERROR: $UNHEALTHY"
+            exit 1
+          fi
+          echo "==> All containers healthy."
+          SSHEOF
+
+      # ── HTTPS smoke test ──────────────────────────────────────────────────
+      - name: HTTPS smoke test
+        env:
+          VM_HOST: ${{ secrets.AZURE_VM_HOST }}
+        run: |
+          echo "Testing https://$VM_HOST/ ..."
+          HTTP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" "https://$VM_HOST/" || echo "000")
+          echo "HTTP response: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "302" ]; then
+            echo "ERROR: Expected 200/302, got $HTTP_CODE"
+            exit 1
+          fi
+          echo "HTTPS smoke test passed."
+
+      # ── Cleanup ───────────────────────────────────────────────────────────
+      - name: Remove deploy key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

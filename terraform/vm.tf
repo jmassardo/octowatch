@@ -33,7 +33,7 @@ data "cloudinit_config" "main" {
     filename     = "cloud-init.yaml"
     content_type = "text/cloud-config"
     content = templatefile("${path.module}/templates/cloud-init.yaml.tpl", {
-      # Identity & Key Vault
+      # Identity & Key Vault (kept for potential future use)
       managed_identity_client_id = azurerm_user_assigned_identity.vm.client_id
       key_vault_name             = local.key_vault_name
 
@@ -44,12 +44,54 @@ data "cloudinit_config" "main" {
 
       # GHCR
       ghcr_username  = var.ghcr_username
+      ghcr_token     = var.ghcr_token
       ghcr_owner     = var.ghcr_owner
       ghcr_image_tag = var.ghcr_image_tag
 
       # Misc
       environment          = var.environment
       storage_account_name = azurerm_storage_account.main.name
+      # Storage account key: used for backup uploads (avoids RBAC role assignment).
+      storage_account_key = azurerm_storage_account.main.primary_access_key
+
+      # Only secret_github_app_private_key is needed directly in cloud-init
+      # (to optionally write the key file). All other secrets go via env_file_b64.
+      secret_github_app_private_key = var.secret_github_app_private_key
+
+      # Secrets rendered into .env at provision time; base64-encoded so YAML
+      # literal blocks don't need to handle KEY=VALUE indentation.
+      env_file_b64 = base64encode(templatefile("${path.module}/templates/env.tpl", {
+        secret_database_url           = var.secret_database_url
+        secret_secret_key             = var.secret_secret_key
+        secret_encryption_key         = var.secret_encryption_key
+        secret_valkey_url             = var.secret_valkey_url
+        secret_valkey_password        = var.secret_valkey_password
+        secret_postgres_user          = var.secret_postgres_user
+        secret_postgres_password      = var.secret_postgres_password
+        secret_postgres_db            = var.secret_postgres_db
+        secret_github_client_id       = var.secret_github_client_id
+        secret_github_client_secret   = var.secret_github_client_secret
+        secret_github_rules_repo      = var.secret_github_rules_repo
+        secret_github_rules_token     = var.secret_github_rules_token
+        secret_initial_admin_logins   = var.secret_initial_admin_logins
+        secret_app_base_url           = var.secret_app_base_url
+        secret_github_app_id          = var.secret_github_app_id
+        secret_github_app_private_key = var.secret_github_app_private_key
+        secret_github_enterprise_slug = var.secret_github_enterprise_slug
+        secret_maxmind_license_key    = var.secret_maxmind_license_key
+        secret_okta_org_url           = var.secret_okta_org_url
+        secret_okta_api_token         = var.secret_okta_api_token
+        secret_azure_ad_tenant_id     = var.secret_azure_ad_tenant_id
+        secret_azure_ad_client_id     = var.secret_azure_ad_client_id
+        secret_azure_ad_client_secret = var.secret_azure_ad_client_secret
+        secret_slack_bot_token        = var.secret_slack_bot_token
+        secret_smtp_host              = var.secret_smtp_host
+        secret_smtp_username          = var.secret_smtp_username
+        secret_smtp_password          = var.secret_smtp_password
+        secret_jira_url               = var.secret_jira_url
+        secret_jira_username          = var.secret_jira_username
+        secret_jira_api_token         = var.secret_jira_api_token
+      }))
 
       # Pre-rendered, base64-encoded docker-compose.yml with GHCR image names
       # and bind-mount volumes substituted. Using b64 avoids escaping the many
@@ -118,6 +160,13 @@ resource "azurerm_linux_virtual_machine" "main" {
   }
 
   tags = local.common_tags
+
+  # Changing custom_data requires VM replacement (Azure limitation).
+  # Application updates (new image versions) are handled by the deploy pipeline
+  # via SSH + docker compose pull, NOT by re-provisioning the VM.
+  lifecycle {
+    ignore_changes = [custom_data]
+  }
 }
 
 # ── Data Disk Attachment ───────────────────────────────────────────────────────
