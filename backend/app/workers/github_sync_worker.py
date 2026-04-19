@@ -63,6 +63,25 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 
+def _parse_gh_dt(value: object) -> datetime | None:
+    """Parse a GitHub ISO-8601 timestamp string into a timezone-aware datetime.
+
+    GitHub returns strings like ``"2025-09-08T13:59:42Z"``.  asyncpg requires
+    actual ``datetime`` objects for TIMESTAMPTZ columns — passing the raw string
+    raises ``DataError: expected a datetime.date or datetime.datetime instance``.
+
+    Returns ``None`` when *value* is falsy so callers can use it directly in
+    optional timestamp columns.
+    """
+    if not value:
+        return None
+    s = str(value).replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(s)
+    except ValueError:
+        return None
+
+
 async def _write_sync_log(
     session_factory: async_sessionmaker[AsyncSession],
     run_id: str,
@@ -4285,8 +4304,8 @@ async def _upsert_secret_scanning_alerts(
                 "resolution": a.get("resolution"),
                 "push_protection_bypassed": bool(a.get("push_protection_bypassed")),
                 "push_protection_bypassed_by": bypassed_login or None,
-                "created_at": a.get("created_at"),
-                "resolved_at": a.get("resolved_at"),
+                "created_at": _parse_gh_dt(a.get("created_at")),
+                "resolved_at": _parse_gh_dt(a.get("resolved_at")),
             },
         )
     await session.commit()
@@ -4372,9 +4391,9 @@ async def _upsert_code_scanning_alerts(
                 "state": a.get("state", "open"),
                 "dismissed_by": dismissed_by_obj.get("login"),
                 "dismissed_reason": a.get("dismissed_reason"),
-                "dismissed_at": a.get("dismissed_at"),
-                "created_at": a.get("created_at"),
-                "fixed_at": a.get("fixed_at"),
+                "dismissed_at": _parse_gh_dt(a.get("dismissed_at")),
+                "created_at": _parse_gh_dt(a.get("created_at")),
+                "fixed_at": _parse_gh_dt(a.get("fixed_at")),
             },
         )
     await session.commit()
@@ -4465,9 +4484,9 @@ async def _upsert_dependabot_alerts(
                 "state": a.get("state", "open"),
                 "dismissed_by": dismissed_by_obj.get("login"),
                 "dismissed_reason": a.get("dismissed_reason"),
-                "created_at": a.get("created_at"),
-                "fixed_at": a.get("fixed_at"),
-                "auto_dismissed_at": a.get("auto_dismissed_at"),
+                "created_at": _parse_gh_dt(a.get("created_at")),
+                "fixed_at": _parse_gh_dt(a.get("fixed_at")),
+                "auto_dismissed_at": _parse_gh_dt(a.get("auto_dismissed_at")),
             },
         )
     await session.commit()
