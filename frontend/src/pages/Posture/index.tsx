@@ -385,6 +385,9 @@ function OrgView({
   const checks = filterChecks(org.checks, severity, statusFilter);
   let repos = org.repos ?? [];
   if (visibility) repos = repos.filter((r) => r.visibility === visibility);
+  if (severity) repos = repos.filter((r) => r.checks.some((c) => c.severity === severity));
+  if (statusFilter === 'pass') repos = repos.filter((r) => r.checks.every((c) => c.status === 'pass'));
+  if (statusFilter === 'fail') repos = repos.filter((r) => r.checks.some((c) => c.status !== 'pass'));
   repos = [...repos].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1;
     if (sortCol === 'score') return (a.score - b.score) * dir;
@@ -500,10 +503,10 @@ function OrgView({
             />
           </div>
           <Filters
-            severity=""
-            setSeverity={() => {}}
-            statusFilter=""
-            setStatusFilter={() => {}}
+            severity={severity}
+            setSeverity={setSeverity}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
             showVisibility
             visibility={visibility}
             setVisibility={setVisibility}
