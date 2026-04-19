@@ -10,23 +10,14 @@ interface ContributionCalendarProps {
   data?: CalendarDay[];
 }
 
-function generateDemoData(): CalendarDay[] {
+/** Generate an empty 90-day calendar (all level 0) when no real data is available. */
+function generateEmptyData(): CalendarDay[] {
   const days: CalendarDay[] = [];
   const now = new Date();
   for (let i = 90; i >= 0; i--) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
-    const level = (Math.random() > 0.3 ? Math.floor(Math.random() * 4) + 1 : 0) as
-      | 0
-      | 1
-      | 2
-      | 3
-      | 4;
-    days.push({
-      date: d.toISOString().slice(0, 10),
-      level,
-      alert: Math.random() < 0.02,
-    });
+    days.push({ date: d.toISOString().slice(0, 10), level: 0 });
   }
   return days;
 }
@@ -35,7 +26,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const DAYS = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
 
 export function ContributionCalendar({ data }: ContributionCalendarProps) {
-  const days = data ?? generateDemoData();
+  const days = data ?? generateEmptyData();
 
   // Group into weeks (columns)
   const weeks: CalendarDay[][] = [];
