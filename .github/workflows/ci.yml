@@ -11,6 +11,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+
 permissions:
   contents: read
   security-events: write   # required for Trivy SARIF upload
@@ -266,8 +269,8 @@ jobs:
           target: ${{ matrix.target }}
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/${{ steps.meta.outputs.image_suffix }}:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/${{ steps.meta.outputs.image_suffix }}:main
+            ${{ env.IMAGE_PREFIX }}/octowatch-${{ steps.meta.outputs.image_suffix }}:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}/octowatch-${{ steps.meta.outputs.image_suffix }}:main
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=${{ matrix.target }}
           sbom: true
@@ -294,8 +297,8 @@ jobs:
           context: frontend
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/frontend:main
+            ${{ env.IMAGE_PREFIX }}/octowatch-frontend:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}/octowatch-frontend:main
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
