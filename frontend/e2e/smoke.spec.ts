@@ -63,6 +63,11 @@ test.describe('Protected routes (authenticated)', () => {
     { path: '/rules', expectedTitle: 'Detection Rules' },
     { path: '/users', expectedTitle: 'Users' },
     { path: '/settings', expectedTitle: 'Settings' },
+    { path: '/posture', expectedTitle: 'Security Posture' },
+    { path: '/crossorg', expectedTitle: 'Cross-Organization' },
+    { path: '/workflows', expectedTitle: 'Workflow Security' },
+    { path: '/advanced-security', expectedTitle: 'Advanced Security' },
+    { path: '/health', expectedTitle: 'Org Health' },
   ];
 
   for (const route of protectedRoutes) {
@@ -82,4 +87,32 @@ test.describe('Protected routes (authenticated)', () => {
       ).toBeVisible({ timeout: 10_000 });
     });
   }
+
+  test('/health → redirects to /health/repos', async ({ page }) => {
+    await page.goto('/health');
+    await expect(page).toHaveURL(/\/health\/repos/);
+  });
+
+  test('/integrations → redirects to /settings/integrations', async ({
+    page,
+  }) => {
+    await page.goto('/integrations');
+    await expect(page).toHaveURL(/\/settings\/integrations/);
+  });
+
+  test('/actors/test-user → renders actor profile or 404', async ({
+    page,
+  }) => {
+    const resp = await page.goto('/actors/test-user');
+    await expect(page).not.toHaveURL(/\/login/);
+
+    // The actor may not exist — accept either a profile heading or
+    // a "not found" / error state.  Both prove the route is reachable.
+    const main = page.locator('main');
+    const profileHeading = main.getByText('@test-user');
+    const notFound = main.getByText(/not found|no actor|error/i);
+    await expect(profileHeading.or(notFound).first()).toBeVisible({
+      timeout: 10_000,
+    });
+  });
 });
