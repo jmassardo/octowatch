@@ -204,7 +204,7 @@ function useSyncLogAccumulator(runId: string) {
 
 function SyncLogViewer({ runId, isActive }: { runId: string; isActive: boolean }) {
   const [expanded, setExpanded] = useState(false);
-  const logEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const seqMeta = useSyncLogAccumulator(runId);
 
@@ -226,10 +226,10 @@ function SyncLogViewer({ runId, isActive }: { runId: string; isActive: boolean }
     staleTime: 0,
   });
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom of the log container without moving the page
   useEffect(() => {
-    if (expanded && logEndRef.current && typeof logEndRef.current.scrollIntoView === 'function') {
-      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (expanded && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [entries.length, expanded]);
 
@@ -259,7 +259,7 @@ function SyncLogViewer({ runId, isActive }: { runId: string; isActive: boolean }
         <span className={styles.logViewerChevron}>{expanded ? '▾' : '▸'}</span>
       </button>
       {expanded && (
-        <div className={styles.logViewerContainer}>
+        <div ref={containerRef} className={styles.logViewerContainer}>
           {entries.length === 0 ? (
             <div className={styles.logEmpty}>No log entries yet…</div>
           ) : (
@@ -271,7 +271,6 @@ function SyncLogViewer({ runId, isActive }: { runId: string; isActive: boolean }
               </div>
             ))
           )}
-          <div ref={logEndRef} />
         </div>
       )}
     </div>

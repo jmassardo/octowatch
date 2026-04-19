@@ -6,9 +6,24 @@ import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Drawer } from '../../components/primitives/Drawer';
-import type { SyncRunSummary, SyncRunStatus, SyncLogEntry } from '../../types/sync';
+import type { SyncRunSummary, SyncRunStatus, SyncLogEntry, EntityStatus } from '../../types/sync';
 import { formatShortDateTime } from '../../utils/dates';
 import styles from './Integrations.module.css';
+
+/* ------------------------------------------------------------------ */
+/*  Types                                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Discriminated union describing which view is currently shown in the
+ * right-hand drawer.
+ *
+ * - `org-categories`: category list for a specific org inside a run
+ * - `entity-logs`:    log entries for a specific org + entity_type
+ */
+type DrawerView =
+  | { kind: 'org-categories'; runId: string; org: string | null }
+  | { kind: 'entity-logs'; runId: string; org: string | null; entityType: string };
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -53,14 +68,38 @@ function formatLogTime(iso: string): string {
   }
 }
 
-interface DrawerTarget {
-  runId: string;
-  entityType: string;
-  org: string | null;
+/** Returns a human-readable label for an org value (null → "Enterprise"). */
+function orgDisplayName(org: string | null): string {
+  return org ?? 'Enterprise';
+}
+
+/**
+ * Extracts the ordered list of unique org values from a cursor list.
+ * Preserves first-seen insertion order.
+ */
+function extractOrgs(cursors: EntityStatus[]): (string | null)[] {
+  const seen = new Set<string>();
+  const result: (string | null)[] = [];
+  for (const c of cursors) {
+    const key = c.org ?? '__null__';
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(c.org);
+    }
+  }
+  return result;
+}
+
+/** Builds the drawer title string for the current view. */
+function buildDrawerTitle(view: DrawerView): string {
+  if (view.kind === 'org-categories') {
+    return `${orgDisplayName(view.org)} — categories`;
+  }
+  return `${view.entityType} · ${orgDisplayName(view.org)} — logs`;
 }
 
 /* ------------------------------------------------------------------ */
-/*  Run row — clicking inline-expands the entity breakdown            */
+/*  Run row — clicking inline-expands the org breakdown               */
 /* ------------------------------------------------------------------ */
 
 function RunRow({
@@ -96,36 +135,16 @@ function RunRow({
   );
 }
 
-/* Wrapper renders RunRow + optional ExpandedRunContent as a keyed fragment */
-function RunRowWithDetail({
-  run,
-  isExpanded,
-  onToggle,
-  onEntityClick,
-}: {
-  run: SyncRunSummary;
-  isExpanded: boolean;
-  onToggle: () => void;
-  onEntityClick: (target: DrawerTarget) => void;
-}) {
-  return (
-    <>
-      <RunRow run={run} isExpanded={isExpanded} onToggle={onToggle} />
-      {isExpanded && <ExpandedRunContent runId={run.id} onEntityClick={onEntityClick} />}
-    </>
-  );
-}
-
 /* ------------------------------------------------------------------ */
-/*  Expanded row — entity breakdown; each entity row opens the drawer */
+/*  Expanded row — org breakdown; each org row opens the drawer       */
 /* ------------------------------------------------------------------ */
 
-function ExpandedRunContent({
+function OrgBreakdown({
   runId,
-  onEntityClick,
+  onOrgClick,
 }: {
   runId: string;
-  onEntityClick: (target: DrawerTarget) => void;
+  onOrgClick: (view: DrawerView) => void;
 }) {
   const { data: run, isLoading } = useQuery({
     queryKey: ['sync-run', runId],
@@ -146,45 +165,43 @@ function ExpandedRunContent({
           <div className={styles.expandedContent}>
             {run.error_message && <p className={styles.syncRunError}>{run.error_message}</p>}
             {run.cursors.length > 0 ? (
-              <table className={styles.entityTableNested}>
+              <table className={styles.entityTableNested} data-testid="org-breakdown-table">
                 <thead>
                   <tr>
-                    <th>Entity</th>
-                    <th>Org</th>
-                    <th>Status</th>
+                    <th>Organisation</th>
+                    <th>Categories</th>
                     <th>Records</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {run.cursors.map((c) => (
-                    <tr
-                      key={`${c.entity_type}-${c.org ?? 'global'}`}
-                      className={styles.clickableRow}
-                      title="Click to view logs"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEntityClick({ runId, entityType: c.entity_type, org: c.org ?? null });
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
+                  {extractOrgs(run.cursors).map((org) => {
+                    const orgCursors = run.cursors.filter((c) => c.org === org);
+                    const totalRecords = orgCursors.reduce((s, c) => s + c.items_synced, 0);
+                    return (
+                      <tr
+                        key={org ?? '__enterprise__'}
+                        className={styles.clickableRow}
+                        title="Click to view categories"
+                        onClick={(e) => {
                           e.stopPropagation();
-                          onEntityClick({ runId, entityType: c.entity_type, org: c.org ?? null });
-                        }
-                      }}
-                    >
-                      <td>{c.entity_type}</td>
-                      <td>{c.org ?? '—'}</td>
-                      <td>
-                        <Label variant={statusVariant(c.status as SyncRunStatus)}>
-                          {c.status.replace('_', ' ')}
-                        </Label>
-                      </td>
-                      <td>{c.items_synced.toLocaleString()}</td>
-                    </tr>
-                  ))}
+                          onOrgClick({ kind: 'org-categories', runId, org });
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onOrgClick({ kind: 'org-categories', runId, org });
+                          }
+                        }}
+                      >
+                        <td>{orgDisplayName(org)}</td>
+                        <td>{orgCursors.length}</td>
+                        <td>{totalRecords.toLocaleString()}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             ) : (
@@ -194,6 +211,26 @@ function ExpandedRunContent({
         )}
       </td>
     </tr>
+  );
+}
+
+/* Wrapper renders RunRow + optional OrgBreakdown as a keyed fragment */
+function RunRowWithDetail({
+  run,
+  isExpanded,
+  onToggle,
+  onOrgClick,
+}: {
+  run: SyncRunSummary;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onOrgClick: (view: DrawerView) => void;
+}) {
+  return (
+    <>
+      <RunRow run={run} isExpanded={isExpanded} onToggle={onToggle} />
+      {isExpanded && <OrgBreakdown runId={run.id} onOrgClick={onOrgClick} />}
+    </>
   );
 }
 
@@ -227,38 +264,130 @@ function LogLine({ entry, showContext = true }: { entry: SyncLogEntry; showConte
 }
 
 /* ------------------------------------------------------------------ */
-/*  Drawer content — logs filtered to a specific entity               */
+/*  Drawer content — category list for a specific org                 */
 /* ------------------------------------------------------------------ */
 
-function EntityLogDrawer({ target }: { target: DrawerTarget }) {
-  const { data: run } = useQuery({
-    queryKey: ['sync-run', target.runId],
-    queryFn: () => getSyncRun(target.runId),
+function OrgCategoriesContent({
+  runId,
+  org,
+  onCategoryClick,
+}: {
+  runId: string;
+  org: string | null;
+  onCategoryClick: (entityType: string) => void;
+}) {
+  const { data: run, isLoading } = useQuery({
+    queryKey: ['sync-run', runId],
+    queryFn: () => getSyncRun(runId),
   });
-
-  const { data: logsData, isLoading } = useQuery({
-    queryKey: ['sync-run-logs', target.runId, target.entityType],
-    queryFn: () => getSyncLogs(target.runId, 0),
-    refetchInterval: run?.status === 'running' ? 3000 : false,
-  });
-
-  const entries = (logsData?.entries ?? []).filter(
-    (e: SyncLogEntry) => e.entity_type === target.entityType,
-  );
 
   if (isLoading) {
     return (
       <div className={styles.expandedLoading}>
         <Spinner size={14} />
-        <span>Loading logs…</span>
+        <span>Loading…</span>
       </div>
     );
   }
 
+  if (!run) {
+    return <div className={styles.expandedLoading}>Failed to load run details</div>;
+  }
+
+  const cursors = run.cursors.filter((c) => c.org === org);
+
   return (
     <div className={styles.expandedContent}>
-      {entries.length === 0 ? (
-        <p className={styles.logEmpty}>No log entries for this entity</p>
+      {cursors.length === 0 ? (
+        <p className={styles.logEmpty}>No categories for this organisation</p>
+      ) : (
+        <table className={styles.entityTableNested} data-testid="org-categories-table">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Records</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cursors.map((c) => (
+              <tr
+                key={c.entity_type}
+                className={styles.clickableRow}
+                title="Click to view logs"
+                onClick={() => onCategoryClick(c.entity_type)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onCategoryClick(c.entity_type);
+                  }
+                }}
+              >
+                <td>{c.entity_type}</td>
+                <td>
+                  <Label variant={statusVariant(c.status as SyncRunStatus)}>
+                    {c.status.replace('_', ' ')}
+                  </Label>
+                </td>
+                <td>{c.items_synced.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Drawer content — logs for a specific org + entity_type            */
+/* ------------------------------------------------------------------ */
+
+function EntityLogContent({
+  runId,
+  org,
+  entityType,
+  onBack,
+}: {
+  runId: string;
+  org: string | null;
+  entityType: string;
+  onBack: () => void;
+}) {
+  const { data: run } = useQuery({
+    queryKey: ['sync-run', runId],
+    queryFn: () => getSyncRun(runId),
+  });
+
+  const { data: logsData, isLoading } = useQuery({
+    queryKey: ['sync-run-logs', runId, entityType, org],
+    queryFn: () => getSyncLogs(runId, 0),
+    refetchInterval: run?.status === 'running' ? 3000 : false,
+  });
+
+  const entries = (logsData?.entries ?? []).filter(
+    (e: SyncLogEntry) => e.entity_type === entityType && e.org === org,
+  );
+
+  return (
+    <div className={styles.expandedContent}>
+      <button
+        type="button"
+        className={styles.drawerBackBtn}
+        onClick={onBack}
+        aria-label="Back to categories"
+      >
+        ← Back
+      </button>
+      {isLoading ? (
+        <div className={styles.expandedLoading}>
+          <Spinner size={14} />
+          <span>Loading logs…</span>
+        </div>
+      ) : entries.length === 0 ? (
+        <p className={styles.logEmpty}>No log entries for this category</p>
       ) : (
         <div className={styles.logViewerContainer}>
           {entries.map((e) => (
@@ -271,12 +400,45 @@ function EntityLogDrawer({ target }: { target: DrawerTarget }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Drawer view switcher                                               */
+/* ------------------------------------------------------------------ */
+
+function DrawerContent({
+  view,
+  onViewChange,
+}: {
+  view: DrawerView;
+  onViewChange: (next: DrawerView) => void;
+}) {
+  if (view.kind === 'org-categories') {
+    return (
+      <OrgCategoriesContent
+        runId={view.runId}
+        org={view.org}
+        onCategoryClick={(entityType) =>
+          onViewChange({ kind: 'entity-logs', runId: view.runId, org: view.org, entityType })
+        }
+      />
+    );
+  }
+
+  return (
+    <EntityLogContent
+      runId={view.runId}
+      org={view.org}
+      entityType={view.entityType}
+      onBack={() => onViewChange({ kind: 'org-categories', runId: view.runId, org: view.org })}
+    />
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  SyncRunHistory component                                           */
 /* ------------------------------------------------------------------ */
 
 export function SyncRunHistory() {
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
-  const [drawerTarget, setDrawerTarget] = useState<DrawerTarget | null>(null);
+  const [drawerView, setDrawerView] = useState<DrawerView | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['sync-runs'],
@@ -306,10 +468,6 @@ export function SyncRunHistory() {
 
   const runs = data?.items ?? [];
 
-  const drawerTitle = drawerTarget
-    ? `${drawerTarget.entityType}${drawerTarget.org ? ` · ${drawerTarget.org}` : ''} — logs`
-    : 'Logs';
-
   return (
     <>
       <Card data-testid="sync-run-history">
@@ -334,7 +492,7 @@ export function SyncRunHistory() {
                     run={run}
                     isExpanded={run.id === expandedRunId}
                     onToggle={() => setExpandedRunId(run.id === expandedRunId ? null : run.id)}
-                    onEntityClick={setDrawerTarget}
+                    onOrgClick={setDrawerView}
                   />
                 ))}
               </tbody>
@@ -343,8 +501,12 @@ export function SyncRunHistory() {
         )}
       </Card>
 
-      <Drawer open={!!drawerTarget} onClose={() => setDrawerTarget(null)} title={drawerTitle}>
-        {drawerTarget && <EntityLogDrawer target={drawerTarget} />}
+      <Drawer
+        open={!!drawerView}
+        onClose={() => setDrawerView(null)}
+        title={drawerView ? buildDrawerTitle(drawerView) : ''}
+      >
+        {drawerView && <DrawerContent view={drawerView} onViewChange={setDrawerView} />}
       </Drawer>
     </>
   );
