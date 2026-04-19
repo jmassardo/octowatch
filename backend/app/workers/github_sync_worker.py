@@ -3648,16 +3648,13 @@ async def _upsert_org_members(
 
 
 async def _upsert_repositories(session: AsyncSession, org: str, items: list[dict]) -> None:
-    from datetime import datetime as _dt
-
     from sqlalchemy import text
     from sqlalchemy.dialects.postgresql import insert
 
     from app.models.github_sync import Repository
 
     for item in items:
-        pushed = item.get("pushed_at")
-        pushed_dt = _dt.fromisoformat(pushed.replace("Z", "+00:00")) if pushed else None
+        pushed_dt = _parse_gh_dt(item.get("pushed_at"))
         stmt = (
             insert(Repository)
             .values(
@@ -5015,6 +5012,8 @@ async def _upsert_credential_authorizations(
         cred_id = item.get("credential_id")
         if not cred_id:
             continue
+        authorized_at = _parse_gh_dt(item.get("credential_authorized_at"))
+        accessed_at = _parse_gh_dt(item.get("credential_accessed_at"))
         stmt = (
             insert(OrgCredentialAuthorization)
             .values(
@@ -5023,8 +5022,8 @@ async def _upsert_credential_authorizations(
                 credential_id=cred_id,
                 credential_type=item.get("credential_type", "unknown"),
                 token_last_eight=item.get("token_last_eight"),
-                credential_authorized_at=item.get("credential_authorized_at"),
-                credential_accessed_at=item.get("credential_accessed_at"),
+                credential_authorized_at=authorized_at,
+                credential_accessed_at=accessed_at,
                 scopes=item.get("scopes"),
             )
             .on_conflict_do_update(
@@ -5033,8 +5032,8 @@ async def _upsert_credential_authorizations(
                     "github_login": item.get("login", ""),
                     "credential_type": item.get("credential_type", "unknown"),
                     "token_last_eight": item.get("token_last_eight"),
-                    "credential_authorized_at": item.get("credential_authorized_at"),
-                    "credential_accessed_at": item.get("credential_accessed_at"),
+                    "credential_authorized_at": authorized_at,
+                    "credential_accessed_at": accessed_at,
                     "scopes": item.get("scopes"),
                     "synced_at": text("NOW()"),
                 },
@@ -5213,6 +5212,7 @@ async def _upsert_deploy_keys(session: AsyncSession, org: str, items: list[dict]
         key_id = item.get("key_id")
         if not key_id:
             continue
+        key_added_at = _parse_gh_dt(item.get("created_at"))
         stmt = (
             insert(RepoDeployKey)
             .values(
@@ -5221,14 +5221,14 @@ async def _upsert_deploy_keys(session: AsyncSession, org: str, items: list[dict]
                 key_id=key_id,
                 title=item.get("title", ""),
                 read_only=item.get("read_only", True),
-                key_added_at=item.get("created_at"),
+                key_added_at=key_added_at,
             )
             .on_conflict_do_update(
                 constraint="uq_repo_deploy_keys_org_repo_key",
                 set_={
                     "title": item.get("title", ""),
                     "read_only": item.get("read_only", True),
-                    "key_added_at": item.get("created_at"),
+                    "key_added_at": key_added_at,
                     "synced_at": text("NOW()"),
                 },
             )
