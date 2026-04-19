@@ -32,7 +32,7 @@ networks:
     driver: bridge
 
 # ---------------------------------------------------------------------------
-# Volumes: bind-mounted to /mnt/octowatch-data on the Azure data disk.
+# Volumes: bind-mounted to /opt/octowatch-data on the Azure data disk.
 # The data disk is formatted as ext4 and mounted by cloud-init at boot.
 # ---------------------------------------------------------------------------
 volumes:
@@ -41,13 +41,13 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: /mnt/octowatch-data/pg_data
+      device: /opt/octowatch-data/pg_data
   valkey_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /mnt/octowatch-data/valkey_data
+      device: /opt/octowatch-data/valkey_data
 
 services:
 

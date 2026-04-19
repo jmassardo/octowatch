@@ -6,7 +6,9 @@
 
 # ── Managed Data Disk ──────────────────────────────────────────────────────────
 # Premium SSD attached at LUN 0; cloud-init formats it as ext4 and mounts it
-# at /mnt/octowatch-data. All persistent Docker volumes bind-mount here.
+# at /opt/octowatch-data. All persistent Docker volumes bind-mount here.
+# NOTE: /opt is on the persistent OS disk so the mount point survives VM
+# deallocation/resize (unlike /mnt which is the Azure ephemeral temp disk).
 
 resource "azurerm_managed_disk" "data" {
   name                 = "disk-${local.name_prefix}-data"
