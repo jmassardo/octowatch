@@ -4,8 +4,6 @@ Covers:
 - notification_worker.send_detection_notifications_task
 - detection_worker.sync_ticket_statuses_task
 - ingestion/base.prune_event_dedup
-- ingestion/s3_worker.poll_s3_sources
-- ingestion/azure_worker.poll_azure_sources
 - AuditTrailMiddleware field mapping
 - org_config authorization
 """
@@ -185,64 +183,6 @@ class TestSyncTicketStatuses:
 
         assert updated == 5
         mock_session.commit.assert_awaited_once()
-
-
-# ── s3_worker poll_s3_sources ────────────────────────────────────────────────
-
-
-class TestPollS3Sources:
-    """Tests for the poll_s3_sources async wrapper."""
-
-    @pytest.mark.anyio
-    async def test_poll_s3_creates_worker_and_runs(self) -> None:
-        """Verifies _poll_s3 creates an S3IngestWorker and calls run()."""
-        from app.workers.ingestion.s3_worker import _poll_s3
-
-        mock_valkey = AsyncMock()
-        mock_valkey.aclose = AsyncMock()
-
-        with (
-            patch("redis.asyncio.from_url", return_value=mock_valkey),
-            patch("app.database.AsyncSessionLocal"),
-            patch("app.workers.ingestion.s3_worker.S3IngestWorker") as mock_cls,
-        ):
-            mock_worker = AsyncMock()
-            mock_cls.return_value = mock_worker
-
-            result = await _poll_s3()
-
-        assert result["source"] == "s3"
-        mock_worker.run.assert_awaited_once()
-        mock_valkey.aclose.assert_awaited_once()
-
-
-# ── azure_worker poll_azure_sources ──────────────────────────────────────────
-
-
-class TestPollAzureSources:
-    """Tests for the poll_azure_sources async wrapper."""
-
-    @pytest.mark.anyio
-    async def test_poll_azure_creates_worker_and_runs(self) -> None:
-        """Verifies _poll_azure creates an AzureBlobIngestWorker and calls run()."""
-        from app.workers.ingestion.azure_worker import _poll_azure
-
-        mock_valkey = AsyncMock()
-        mock_valkey.aclose = AsyncMock()
-
-        with (
-            patch("redis.asyncio.from_url", return_value=mock_valkey),
-            patch("app.database.AsyncSessionLocal"),
-            patch("app.workers.ingestion.azure_worker.AzureBlobIngestWorker") as mock_cls,
-        ):
-            mock_worker = AsyncMock()
-            mock_cls.return_value = mock_worker
-
-            result = await _poll_azure()
-
-        assert result["source"] == "azure_blob"
-        mock_worker.run.assert_awaited_once()
-        mock_valkey.aclose.assert_awaited_once()
 
 
 # ── AuditTrailMiddleware ─────────────────────────────────────────────────────

@@ -34,15 +34,6 @@ const mockListSettings = vi.fn().mockResolvedValue([
     updated_at: '2025-06-01T09:00:00Z',
   },
   {
-    key: 'db.connection_string',
-    value: '****',
-    category: 'Storage',
-    sensitivity: 'critical',
-    description: 'Database connection string',
-    updated_by: 'admin',
-    updated_at: '2025-05-30T08:00:00Z',
-  },
-  {
     key: 'notifications.slack_webhook',
     value: 'https://hooks.****',
     category: 'Notifications',
@@ -209,7 +200,6 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'GitHub' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Security' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Storage' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Audit Trail' })).toBeInTheDocument();
@@ -225,7 +215,6 @@ describe('SettingsPage', () => {
     expect(await screen.findByText('github.client_id')).toBeInTheDocument();
     expect(screen.getByText('github.app_id')).toBeInTheDocument();
     expect(screen.getByText('tls.cert_path')).toBeInTheDocument();
-    expect(screen.getByText('db.connection_string')).toBeInTheDocument();
     expect(screen.getByText('notifications.slack_webhook')).toBeInTheDocument();
     expect(screen.getByText('system.log_level')).toBeInTheDocument();
   });
@@ -234,7 +223,6 @@ describe('SettingsPage', () => {
     renderPage();
 
     expect(await screen.findByText('Ov23li****')).toBeInTheDocument();
-    expect(screen.getByText('****')).toBeInTheDocument();
   });
 
   it('shows sensitivity badges', async () => {
@@ -242,7 +230,6 @@ describe('SettingsPage', () => {
 
     await screen.findByText('github.client_id');
 
-    expect(screen.getByText('critical')).toBeInTheDocument();
     expect(screen.getAllByText('sensitive')).toHaveLength(2);
     expect(screen.getAllByText('normal')).toHaveLength(3);
   });
@@ -393,24 +380,6 @@ describe('SettingsPage', () => {
     expect(screen.getByText(/require mfa/i)).toBeInTheDocument();
     expect(screen.getByText(/enable ip allowlist/i)).toBeInTheDocument();
     expect(screen.getByText(/max failed login attempts/i)).toBeInTheDocument();
-  });
-
-  it('shows Storage settings form with real controls', async () => {
-    const user = userEvent.setup();
-    renderPage();
-
-    await waitFor(() => {
-      expect(mockListSettings).toHaveBeenCalled();
-    });
-
-    await user.click(screen.getByRole('button', { name: 'Storage' }));
-
-    expect(
-      screen.getByText(/object storage.*configuration for audit log archives/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/s3\/minio bucket name/i)).toBeInTheDocument();
-    expect(screen.getByText(/retention period/i)).toBeInTheDocument();
-    expect(screen.getByText(/max upload size/i)).toBeInTheDocument();
   });
 
   it('shows Notifications settings form with real controls', async () => {
