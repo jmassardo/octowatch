@@ -8,7 +8,9 @@
     "default_confidence": "medium",
     "logic_type": "statistical",
     "logic_config": {
-      "action_filters": ["*"],
+      "action_filters": [
+        "*"
+      ],
       "x_config": {
         "engine": "off_hours_anomaly",
         "z_multiplier": 2.0
@@ -20,7 +22,7 @@
   {
     "name": "Account Takeover Sequence",
     "slug": "account-takeover-sequence",
-    "description": "Detects a sequence of recovery code use, password change, and SSH key addition within 30 minutes — indicative of an account takeover.",
+    "description": "Detects a sequence of recovery code use, password change, and SSH key addition within 30 minutes \u2014 indicative of an account takeover.",
     "category": "account_compromise",
     "default_severity": "critical",
     "default_confidence": "high",
@@ -36,8 +38,14 @@
           "action": "two_factor_authentication.recovery_codes_used",
           "min_count": 1
         },
-        { "action": "user.update_password", "min_count": 1 },
-        { "action": "public_key.create", "min_count": 1 }
+        {
+          "action": "user.update_password",
+          "min_count": 1
+        },
+        {
+          "action": "public_key.create",
+          "min_count": 1
+        }
       ],
       "aggregation_key": "actor",
       "time_window_minutes": 30,
@@ -53,7 +61,10 @@
     "default_confidence": "high",
     "logic_type": "statistical",
     "logic_config": {
-      "action_filters": ["auth.login", "auth.sso_response"],
+      "action_filters": [
+        "auth.login",
+        "auth.sso_response"
+      ],
       "x_config": {
         "engine": "impossible_travel",
         "distance_threshold_km": 500,
@@ -72,7 +83,9 @@
     "default_confidence": "high",
     "logic_type": "threshold",
     "logic_config": {
-      "action_filters": ["auth.login_failure"],
+      "action_filters": [
+        "auth.login_failure"
+      ],
       "aggregation_key": "actor",
       "threshold": 10,
       "time_window_minutes": 15,
@@ -89,7 +102,10 @@
     "default_confidence": "medium",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["auth.login", "auth.sso_response"],
+      "action_filters": [
+        "auth.login",
+        "auth.sso_response"
+      ],
       "field_conditions": [],
       "x_config": {
         "engine": "threat_intel_ip",
@@ -108,7 +124,9 @@
     "default_confidence": "medium",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["*"],
+      "action_filters": [
+        "*"
+      ],
       "field_conditions": [],
       "x_config": {
         "engine": "dormant_account",
@@ -126,7 +144,9 @@
     "default_confidence": "high",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["org.update_member"],
+      "action_filters": [
+        "org.update_member"
+      ],
       "field_conditions": [
         {
           "field": "data.permission",
@@ -146,7 +166,9 @@
     "default_confidence": "high",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["team.change_member_role"],
+      "action_filters": [
+        "team.change_member_role"
+      ],
       "field_conditions": [
         {
           "field": "data.role",
@@ -170,7 +192,10 @@
     "default_confidence": "high",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["org.add_member", "org.update_member"],
+      "action_filters": [
+        "org.add_member",
+        "org.update_member"
+      ],
       "field_conditions": [
         {
           "field": "data.permission",
@@ -212,7 +237,9 @@
     "default_confidence": "medium",
     "logic_type": "threshold",
     "logic_config": {
-      "action_filters": ["git.clone"],
+      "action_filters": [
+        "git.clone"
+      ],
       "aggregation_key": "actor",
       "threshold": 20,
       "time_window_minutes": 60,
@@ -229,7 +256,9 @@
     "default_confidence": "high",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["repo.access"],
+      "action_filters": [
+        "repo.access"
+      ],
       "field_conditions": [
         {
           "field": "data.visibility",
@@ -249,7 +278,9 @@
     "default_confidence": "medium",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["repo.fork"],
+      "action_filters": [
+        "repo.fork"
+      ],
       "field_conditions": [],
       "x_config": {
         "engine": "external_fork_check",
@@ -261,13 +292,15 @@
   {
     "name": "Workflow File Modification",
     "slug": "workflow-file-modification",
-    "description": "Detects modifications to GitHub Actions workflow files, which could introduce malicious CI/CD steps or exfiltrate secrets.",
+    "description": "Detects git push events that modify GitHub Actions workflow files, which could introduce malicious CI/CD steps or exfiltrate secrets.",
     "category": "supply_chain",
     "default_severity": "medium",
     "default_confidence": "medium",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["workflows.completed_workflow_run", "git.push"],
+      "action_filters": [
+        "git.push"
+      ],
       "field_conditions": [],
       "x_config": {
         "engine": "workflow_file_change",
@@ -302,7 +335,9 @@
     "default_confidence": "medium",
     "logic_type": "threshold",
     "logic_config": {
-      "action_filters": ["workflows.prepared_workflow_job"],
+      "action_filters": [
+        "workflows.prepared_workflow_job"
+      ],
       "aggregation_key": "actor",
       "threshold": 10,
       "time_window_minutes": 60,
@@ -325,7 +360,9 @@
     "default_confidence": "high",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["protected_branch.update_required_status_checks"],
+      "action_filters": [
+        "protected_branch.update_required_status_checks"
+      ],
       "field_conditions": [],
       "confidence": 0.7
     }
@@ -339,7 +376,9 @@
     "default_confidence": "high",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["protected_branch.destroy"],
+      "action_filters": [
+        "protected_branch.destroy"
+      ],
       "field_conditions": [],
       "confidence": 0.85
     }
@@ -353,7 +392,9 @@
     "default_confidence": "high",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["repository_ruleset.destroy"],
+      "action_filters": [
+        "repository_ruleset.destroy"
+      ],
       "field_conditions": [],
       "confidence": 0.85
     }
@@ -367,7 +408,9 @@
     "default_confidence": "medium",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["repository_ruleset.edit"],
+      "action_filters": [
+        "repository_ruleset.edit"
+      ],
       "field_conditions": [],
       "confidence": 0.7
     }
@@ -381,7 +424,10 @@
     "default_confidence": "medium",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["public_key.create", "deploy_key.create"],
+      "action_filters": [
+        "public_key.create",
+        "deploy_key.create"
+      ],
       "field_conditions": [],
       "confidence": 0.5
     }
@@ -395,7 +441,9 @@
     "default_confidence": "medium",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["packages.package_version_published"],
+      "action_filters": [
+        "packages.package_version_published"
+      ],
       "field_conditions": [],
       "x_config": {
         "engine": "unusual_actor_check",
@@ -413,7 +461,9 @@
     "default_confidence": "high",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["audit_log_export.create"],
+      "action_filters": [
+        "audit_log_export.create"
+      ],
       "field_conditions": [],
       "x_config": {
         "engine": "non_admin_check",
@@ -451,7 +501,10 @@
     "default_confidence": "medium",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["auth.oauth_access", "auth.token_access"],
+      "action_filters": [
+        "auth.oauth_access",
+        "auth.token_access"
+      ],
       "field_conditions": [],
       "x_config": {
         "engine": "sso_bypass_check",
@@ -469,7 +522,9 @@
     "default_confidence": "high",
     "logic_type": "pattern",
     "logic_config": {
-      "action_filters": ["hook.destroy"],
+      "action_filters": [
+        "hook.destroy"
+      ],
       "field_conditions": [],
       "confidence": 0.7
     }
@@ -488,16 +543,30 @@
       "require_distinct_steps": true,
       "steps": [
         {
-          "action_filters": ["org.update_member", "org.add_member"],
+          "action_filters": [
+            "org.update_member",
+            "org.add_member"
+          ],
           "field_conditions": [
-            { "field": "data.permission", "operator": "eq", "value": "admin" }
+            {
+              "field": "data.permission",
+              "operator": "eq",
+              "value": "admin"
+            }
           ],
           "min_count": 1
         },
         {
-          "action_filters": ["org.update_member", "org.add_member"],
+          "action_filters": [
+            "org.update_member",
+            "org.add_member"
+          ],
           "field_conditions": [
-            { "field": "data.permission", "operator": "eq", "value": "admin" }
+            {
+              "field": "data.permission",
+              "operator": "eq",
+              "value": "admin"
+            }
           ],
           "min_count": 1
         }
@@ -519,11 +588,15 @@
       "require_distinct_steps": true,
       "steps": [
         {
-          "action_filters": ["secret_scanning_alert.create"],
+          "action_filters": [
+            "secret_scanning_alert.create"
+          ],
           "min_count": 1
         },
         {
-          "action_filters": ["secret_scanning_alert.create"],
+          "action_filters": [
+            "secret_scanning_alert.create"
+          ],
           "min_count": 1
         }
       ],
@@ -544,15 +617,24 @@
       "require_distinct_steps": false,
       "steps": [
         {
-          "action_filters": ["git.clone", "repo.access"],
+          "action_filters": [
+            "git.clone",
+            "repo.access"
+          ],
           "min_count": 1
         },
         {
-          "action_filters": ["git.clone", "repo.access"],
+          "action_filters": [
+            "git.clone",
+            "repo.access"
+          ],
           "min_count": 1
         },
         {
-          "action_filters": ["git.clone", "repo.access"],
+          "action_filters": [
+            "git.clone",
+            "repo.access"
+          ],
           "min_count": 1
         }
       ],
