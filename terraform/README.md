@@ -200,8 +200,8 @@ mode. certbot will fail the ACME HTTP-01 challenge if DNS is not configured.
 
 ### Initial Admin Access
 
-Set `secret_initial_admin_logins` to a comma-separated list of GitHub usernames
-that should receive the admin role on first login.
+Initial system administrators are configured during the setup wizard (Step 4).
+There is no need to set admin logins via Terraform variables.
 
 ### HEC Audit Log Streaming
 

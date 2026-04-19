@@ -103,9 +103,6 @@ secret_github_client_secret = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 secret_github_rules_repo  = ""
 secret_github_rules_token = ""
 
-# Comma-separated GitHub logins to grant admin role on first login.
-secret_initial_admin_logins = "your-github-username"
-
 # Public base URL of the application.
 secret_app_base_url = "https://octowatch-prod.eastus2.cloudapp.azure.com"
 

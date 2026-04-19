@@ -293,7 +293,6 @@ jobs:
           GITHUB_CLIENT_ID=dummy
           GITHUB_CLIENT_SECRET=dummy
           APP_BASE_URL=http://localhost
-          INITIAL_ADMIN_LOGINS=admin
           GITHUB_RULES_REPO=
           GITHUB_RULES_TOKEN=
           LOG_LEVEL=WARNING

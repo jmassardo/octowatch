@@ -15,14 +15,17 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from redis.asyncio import Redis
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.deps import AuthenticatedUser, get_db, get_valkey, require_role
+from app.models.user import RbacRole, UserRoleAssignment
 from app.rate_limit import limiter
 from app.schemas.setup import (
     GitHubAppSetup,
     GitHubOAuthSetup,
+    InitialAdminsSetup,
     SetupLoginRequest,
     SetupStatusResponse,
     TLSSetup,
@@ -47,6 +50,21 @@ async def _require_setup_incomplete(db: AsyncSession) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Setup has already been completed",
         )
+
+
+async def _count_admin_assignments(db: AsyncSession) -> int:
+    """Return the number of active sys_admin role assignments created by the setup wizard."""
+    result = await db.execute(
+        select(func.count())
+        .select_from(UserRoleAssignment)
+        .join(RbacRole, UserRoleAssignment.role_id == RbacRole.id)
+        .where(
+            RbacRole.name == "sys_admin",
+            UserRoleAssignment.granted_by == "setup_wizard",
+            UserRoleAssignment.active.is_(True),
+        )
+    )
+    return result.scalar_one()
 
 
 @router.get("/status", response_model=SetupStatusResponse)
@@ -148,6 +166,7 @@ async def setup_current_config(
         ),
         "github_app_configured": bool(settings.GITHUB_APP.GITHUB_APP_ID),
         "saml_configured": bool(settings.AUTH.SAML_IDP_METADATA_URL),
+        "initial_admins_configured": bool(await _count_admin_assignments(db)),
     }
 
 
@@ -315,6 +334,49 @@ async def setup_tls(
         changed_by=current_user.github_login,
     )
     return {"status": "ok", "message": "TLS configured"}
+
+
+@router.post("/initial-admins", response_model=dict[str, Any])
+async def setup_initial_admins(
+    payload: InitialAdminsSetup,
+    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Step 4: Designate initial system administrators by GitHub login.
+
+    Creates DB-backed ``sys_admin`` role assignments for each specified login.
+    This replaces the old ``INITIAL_ADMIN_LOGINS`` environment variable so that
+    admin access is managed through the database rather than a permanent runtime
+    backdoor.
+    """
+    await _require_setup_incomplete(db)
+
+    # Look up the sys_admin role ID
+    result = await db.execute(select(RbacRole).where(RbacRole.name == "sys_admin"))
+    sys_admin_role = result.scalar_one_or_none()
+    if not sys_admin_role:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="sys_admin role not found in database",
+        )
+
+    # Create UserRoleAssignment for each login
+    for login in payload.admin_logins:
+        assignment = UserRoleAssignment(
+            github_login=login.strip().lower(),
+            role_id=sys_admin_role.id,
+            scope_type="global",
+            scope_value=None,
+            granted_by="setup_wizard",
+            active=True,
+        )
+        db.add(assignment)
+
+    await db.commit()
+    return {
+        "status": "ok",
+        "message": f"Granted sys_admin to {len(payload.admin_logins)} users",
+    }
 
 
 @router.post("/complete", response_model=dict[str, Any])

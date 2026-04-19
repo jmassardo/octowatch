@@ -209,12 +209,6 @@ async def get_current_user(
     else:
         roles = list(session_data.get("roles", []))
 
-    # Bootstrap: always grant sys_admin at request time for logins in INITIAL_ADMIN_LOGINS.
-    # This means existing sessions get the role without needing to re-login.
-    if github_login.lower() in settings.initial_admin_logins:
-        if "sys_admin" not in roles:
-            roles.append("sys_admin")
-
     scope_type = "global" if "sys_admin" in roles else session_data.get("scope_type", "scoped")
 
     return AuthenticatedUser(

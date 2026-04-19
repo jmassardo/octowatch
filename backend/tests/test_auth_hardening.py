@@ -347,8 +347,6 @@ class TestDevLoginHardening:
         # and checks `cfg.ENVIRONMENT`, so we patch app.config.settings
         with patch("app.config.settings") as mock_settings:
             mock_settings.ENVIRONMENT = "production"
-            # Also need initial_admin_logins for get_current_user path
-            mock_settings.initial_admin_logins = set()
             client = TestClient(app, raise_server_exceptions=False)
             resp = client.post(
                 "/api/v1/auth/dev-login",

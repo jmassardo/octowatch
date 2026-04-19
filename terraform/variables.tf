@@ -216,13 +216,6 @@ variable "secret_github_rules_token" {
   description = "GitHub PAT for reading the rules repository."
 }
 
-variable "secret_initial_admin_logins" {
-  type        = string
-  sensitive   = true
-  default     = ""
-  description = "Comma-separated GitHub logins that receive initial admin role on first boot."
-}
-
 variable "secret_app_base_url" {
   type        = string
   sensitive   = true
