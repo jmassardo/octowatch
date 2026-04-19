@@ -1054,6 +1054,26 @@
   width: 100%;
 }
 
+/* ===== Drawer back button ===== */
+
+.drawerBackBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--accent);
+  padding: 4px 0;
+  margin-bottom: 8px;
+  font-family: inherit;
+}
+
+.drawerBackBtn:hover {
+  text-decoration: underline;
+}
+
 .logInfo {
   color: #a0a0a0;
 }
