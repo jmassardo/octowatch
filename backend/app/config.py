@@ -100,8 +100,6 @@ class AuthSettings(BaseSettings):
         return v
 
 
-
-
 class GeoIPSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
@@ -390,6 +388,7 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return self.CORS_ORIGINS
+
 
 def _build_settings() -> Settings:
     """Build settings, reading each nested model from the environment directly."""
