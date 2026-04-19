@@ -132,7 +132,7 @@ describe('SyncRunHistory', () => {
     expect(screen.getByText('cancelled')).toBeInTheDocument();
   });
 
-  it('expands row to show entity details on click', async () => {
+  it('expands row to show org breakdown on click', async () => {
     const user = userEvent.setup();
     mockListSyncRuns.mockResolvedValue(runsResponse);
     mockGetSyncRun.mockResolvedValue(runDetail);
@@ -140,16 +140,14 @@ describe('SyncRunHistory', () => {
     await waitFor(() => {
       expect(screen.getByText('admin')).toBeInTheDocument();
     });
-    // Click the first row (admin)
+    // Click the first row (admin) to expand the org breakdown
     const adminRow = screen.getByText('admin').closest('tr')!;
     await user.click(adminRow);
-    // Wait for detail to load
+    // Should show org names: 'acme' (from repos cursor) and 'Enterprise' (null org → users)
     await waitFor(() => {
-      expect(screen.getByText('repos')).toBeInTheDocument();
+      expect(screen.getByText('acme')).toBeInTheDocument();
     });
-    expect(screen.getByText('500')).toBeInTheDocument();
-    expect(screen.getByText('users')).toBeInTheDocument();
-    expect(screen.getByText('100')).toBeInTheDocument();
+    expect(screen.getByText('Enterprise')).toBeInTheDocument();
   });
 
   it('collapses expanded row on second click', async () => {
@@ -161,15 +159,15 @@ describe('SyncRunHistory', () => {
       expect(screen.getByText('admin')).toBeInTheDocument();
     });
     const adminRow = screen.getByText('admin').closest('tr')!;
-    // First click — opens the drawer
+    // First click — opens the org breakdown
     await user.click(adminRow);
     await waitFor(() => {
-      expect(screen.getByText('repos')).toBeInTheDocument();
+      expect(screen.getByText('acme')).toBeInTheDocument();
     });
-    // Second click on the same row — toggles drawer closed
+    // Second click on the same row — toggles breakdown closed
     await user.click(adminRow);
     await waitFor(() => {
-      expect(screen.queryByText('repos')).not.toBeInTheDocument();
+      expect(screen.queryByText('acme')).not.toBeInTheDocument();
     });
   });
 
@@ -195,7 +193,27 @@ describe('SyncRunHistory', () => {
     });
   });
 
-  it('clicking an entity row opens the log drawer', async () => {
+  it('clicking an org row opens the category drawer', async () => {
+    const user = userEvent.setup();
+    mockListSyncRuns.mockResolvedValue(runsResponse);
+    mockGetSyncRun.mockResolvedValue(runDetail);
+    renderWithProviders(<SyncRunHistory />);
+    await waitFor(() => expect(screen.getByText('admin')).toBeInTheDocument());
+
+    // Expand the run row to show orgs
+    await user.click(screen.getByText('admin').closest('tr')!);
+    await waitFor(() => expect(screen.getByText('acme')).toBeInTheDocument());
+
+    // Click the org row to open the categories drawer
+    const orgRow = screen.getByText('acme').closest('tr')!;
+    await user.click(orgRow);
+
+    // Drawer should show 'repos' as a category for the 'acme' org
+    await waitFor(() => expect(screen.getByTestId('org-categories-table')).toBeInTheDocument());
+    expect(screen.getByText('repos')).toBeInTheDocument();
+  });
+
+  it('clicking a category row shows logs with a back button', async () => {
     const user = userEvent.setup();
     mockListSyncRuns.mockResolvedValue(runsResponse);
     mockGetSyncRun.mockResolvedValue(runDetail);
@@ -217,14 +235,43 @@ describe('SyncRunHistory', () => {
 
     // Expand the run row
     await user.click(screen.getByText('admin').closest('tr')!);
+    await waitFor(() => expect(screen.getByText('acme')).toBeInTheDocument());
+
+    // Open the org drawer
+    await user.click(screen.getByText('acme').closest('tr')!);
     await waitFor(() => expect(screen.getByText('repos')).toBeInTheDocument());
 
-    // Click the entity row to open the drawer
-    const entityRow = screen.getByText('repos').closest('tr')!;
-    await user.click(entityRow);
+    // Click the category row to drill into logs
+    await user.click(screen.getByText('repos').closest('tr')!);
 
-    // Drawer should appear with filtered log message
+    // Log message should appear and back button should be visible
     await waitFor(() => expect(screen.getByText('synced 500 repos')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Back to categories' })).toBeInTheDocument();
+  });
+
+  it('back button in log view returns to category list', async () => {
+    const user = userEvent.setup();
+    mockListSyncRuns.mockResolvedValue(runsResponse);
+    mockGetSyncRun.mockResolvedValue(runDetail);
+    mockGetSyncLogs.mockResolvedValue({ entries: [], last_seq: 0 });
+    renderWithProviders(<SyncRunHistory />);
+    await waitFor(() => expect(screen.getByText('admin')).toBeInTheDocument());
+
+    // Navigate into logs
+    await user.click(screen.getByText('admin').closest('tr')!);
+    await waitFor(() => expect(screen.getByText('acme')).toBeInTheDocument());
+    await user.click(screen.getByText('acme').closest('tr')!);
+    await waitFor(() => expect(screen.getByText('repos')).toBeInTheDocument());
+    await user.click(screen.getByText('repos').closest('tr')!);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Back to categories' })).toBeInTheDocument(),
+    );
+
+    // Click back
+    await user.click(screen.getByRole('button', { name: 'Back to categories' }));
+
+    // Should return to the category table
+    await waitFor(() => expect(screen.getByTestId('org-categories-table')).toBeInTheDocument());
   });
 
   it('rows are keyboard accessible', async () => {
@@ -239,7 +286,7 @@ describe('SyncRunHistory', () => {
     adminRow.focus();
     await user.keyboard('{Enter}');
     await waitFor(() => {
-      expect(screen.getByText('repos')).toBeInTheDocument();
+      expect(screen.getByText('acme')).toBeInTheDocument();
     });
   });
 });
