@@ -129,7 +129,7 @@ class GitHubETagCache:
                     pipe.expire(_etag_key(url), self._ttl)
                     pipe.expire(_body_key(url), self._ttl)
                     await pipe.execute()
-        except Exception:
-            pass  # best-effort
+        except Exception:  # noqa: S110 — best-effort TTL refresh
+            pass
         logger.debug("etag_cache.hit", url=url)
         return CachedResponse(body=body, etag=etag)

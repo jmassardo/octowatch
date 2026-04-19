@@ -890,7 +890,14 @@ class TestDetectionRuleFixtures:
 
     def test_valid_logic_types(self):
         rules = self._load_fixtures()
-        valid_types = {"pattern", "threshold", "sequence", "statistical", "posture", "cross_namespace_sequence"}
+        valid_types = {
+            "pattern",
+            "threshold",
+            "sequence",
+            "statistical",
+            "posture",
+            "cross_namespace_sequence",
+        }
         for rule in rules:
             assert rule["logic_type"] in valid_types, (
                 f"Rule '{rule['name']}' has invalid logic_type: {rule['logic_type']}"
