@@ -293,6 +293,54 @@ def run_post_sync_pipeline(self: Task, run_id: str) -> dict[str, object]:
 # ── Internal async implementations ────────────────────────────────────────────
 
 
+async def _cleanup_stale_runs(sf: async_sessionmaker[AsyncSession]) -> None:
+    """Recover from worker restarts by finalizing runs stuck in 'running' for >3 hours.
+
+    When the Celery container is SIGTERM'd, in-flight tasks are killed without
+    cleanup. Cursor rows stay ``in_progress`` and the run stays ``running``
+    forever. This helper detects those stale runs on orchestrator startup, marks
+    their stuck cursors as ``failed``, then calls ``_maybe_finalize_run`` so the
+    run transitions to ``failed`` (rather than staying ``running`` indefinitely).
+
+    The 3-hour threshold is safe because entity tasks have a 1-hour soft limit
+    and a 3 900-second hard limit, so no legitimate task should take >3 hours.
+    """
+    from sqlalchemy import select
+    from sqlalchemy import update as sa_update
+
+    from app.models.github_sync import EnterpriseSyncEntityCursor, EnterpriseSyncRun
+
+    stale_threshold = datetime.now(UTC) - timedelta(hours=3)
+    async with sf() as session:
+        stale_result = await session.execute(
+            select(EnterpriseSyncRun.id).where(
+                EnterpriseSyncRun.status == "running",
+                EnterpriseSyncRun.started_at < stale_threshold,
+            )
+        )
+        stale_ids = [row[0] for row in stale_result.fetchall()]
+
+    for run_uuid in stale_ids:
+        run_id_str = str(run_uuid)
+        async with sf() as session:
+            await session.execute(
+                sa_update(EnterpriseSyncEntityCursor)
+                .where(
+                    EnterpriseSyncEntityCursor.run_id == run_uuid,
+                    EnterpriseSyncEntityCursor.status == "in_progress",
+                )
+                .values(status="failed")
+            )
+            await session.commit()
+        await _write_sync_log(
+            sf,
+            run_id_str,
+            "Marked stale in_progress cursors as failed (worker restart recovery)",
+            level="error",
+        )
+        await _maybe_finalize_run(sf, run_id_str)
+
+
 async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
     """Async implementation of the orchestrator.  Called inside asyncio.run()."""
     from sqlalchemy import select, update
@@ -303,6 +351,10 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
     run_uuid = uuid.UUID(run_id)
 
     sf = _make_session_factory()
+
+    # Recover any runs that were left stuck by a previous worker restart before
+    # touching this run's state.
+    await _cleanup_stale_runs(sf)
 
     async with sf() as session:
         # Refresh in-memory settings from DB (setup wizard stores credentials
@@ -480,6 +532,16 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         f"Dispatched {len(dispatched)} entity sync tasks",
         details={"tasks": [f"{et}:{o}" for et, o in dispatched]},
     )
+
+    # Record the expected number of tasks so _maybe_finalize_run won't
+    # finalize early (before every task has written its first cursor row).
+    async with sf() as session:
+        await session.execute(
+            update(EnterpriseSyncRun)
+            .where(EnterpriseSyncRun.id == run_uuid)
+            .values(expected_entity_count=len(dispatched))
+        )
+        await session.commit()
 
     # NOTE: The orchestrator does NOT wait for child tasks to complete.
     # With --pool=solo, waiting would deadlock (one thread, children queued behind us).
@@ -933,7 +995,18 @@ async def _sync_entity_async(
 
 
 async def _maybe_finalize_run(sf: async_sessionmaker[AsyncSession], run_id: str) -> None:
-    """Check if all entity cursors for this run are terminal. If so, mark run completed."""
+    """Check if all entity cursors for this run are terminal. If so, mark run completed.
+
+    Finalization requires BOTH conditions to be true:
+    1. The number of existing cursor rows is >= ``expected_entity_count`` (so we
+       know every dispatched task has registered itself by writing its first page).
+    2. Every one of those cursor rows is in a terminal state (``completed`` or
+       ``failed``).
+
+    When ``expected_entity_count`` is NULL (runs created before the column was
+    added), we fall back to the original behavior: finalize as soon as all
+    *existing* cursors are terminal — preserving backward compatibility.
+    """
     from sqlalchemy import select
     from sqlalchemy import update as sa_update
 
@@ -942,6 +1015,16 @@ async def _maybe_finalize_run(sf: async_sessionmaker[AsyncSession], run_id: str)
     run_uuid = uuid.UUID(run_id)
 
     async with sf() as session:
+        # Load the run to read expected_entity_count
+        run_result = await session.execute(
+            select(EnterpriseSyncRun).where(EnterpriseSyncRun.id == run_uuid)
+        )
+        run = run_result.scalar_one_or_none()
+        if run is None or run.status != "running":
+            return
+
+        expected_count: int | None = run.expected_entity_count
+
         # Count total cursors and completed/failed cursors for this run
         all_cursors = await session.execute(
             select(EnterpriseSyncEntityCursor).where(EnterpriseSyncEntityCursor.run_id == run_uuid)
@@ -949,6 +1032,10 @@ async def _maybe_finalize_run(sf: async_sessionmaker[AsyncSession], run_id: str)
         cursors = all_cursors.scalars().all()
         if not cursors:
             return  # No cursors yet — orchestrator hasn't finished dispatching
+
+        # Guard 1 (new behavior): wait until all dispatched tasks have shown up.
+        if expected_count is not None and len(cursors) < expected_count:
+            return  # Some tasks haven't created their cursor rows yet
 
         terminal = [c for c in cursors if c.status in ("completed", "failed")]
         if len(terminal) < len(cursors):
