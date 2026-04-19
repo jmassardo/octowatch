@@ -103,7 +103,7 @@ test.describe('Protected routes (authenticated)', () => {
   test('/actors/test-user → renders actor profile or 404', async ({
     page,
   }) => {
-    const resp = await page.goto('/actors/test-user');
+    await page.goto('/actors/test-user');
     await expect(page).not.toHaveURL(/\/login/);
 
     // The actor may not exist — accept either a profile heading or

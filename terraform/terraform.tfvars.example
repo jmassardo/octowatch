@@ -63,7 +63,7 @@ certbot_email = ""
 # ── GHCR Container Registry ────────────────────────────────────────────────────
 
 ghcr_username  = "your-github-username"
-ghcr_token     = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+ghcr_token     = "CHANGEME-generate-a-github-pat-with-packages-read"
 ghcr_image_tag = "latest"
 ghcr_owner     = "your-github-org"
 
