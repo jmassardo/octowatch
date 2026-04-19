@@ -54,17 +54,6 @@ app.config_from_object(
         "task_time_limit": 2400,  # 40 minutes hard kill
         # ─── Beat schedule ───────────────────────────────────────────────────
         "beat_schedule": {
-            # Poll S3 / Azure Blob sources every 5 minutes
-            "poll-ingestion-sources": {
-                "task": "app.workers.ingestion.s3_worker.poll_s3_sources",
-                "schedule": 300.0,  # seconds
-                "options": {"queue": "ingestion"},
-            },
-            "poll-azure-sources": {
-                "task": "app.workers.ingestion.azure_worker.poll_azure_sources",
-                "schedule": 300.0,
-                "options": {"queue": "ingestion"},
-            },
             # Behavioral baseline computation — hourly
             "compute-baselines": {
                 "task": "app.workers.baseline_worker.compute_rolling_baselines",
@@ -140,8 +129,6 @@ app.conf.include = [
     "app.workers.report_worker",
     "app.workers.retention_worker",
     "app.workers.copilot_metrics_worker",
-    "app.workers.ingestion.s3_worker",
-    "app.workers.ingestion.azure_worker",
     "app.workers.ingestion.base",
     "app.workers.ingest_webhook_worker",
     "app.workers.siem_export_worker",

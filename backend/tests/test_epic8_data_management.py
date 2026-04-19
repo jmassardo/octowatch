@@ -1,11 +1,8 @@
-"""Tests for Epic 8 — Data Management: retention policies, S3 archival, GDPR erasure."""
+"""Tests for Epic 8 — Data Management: retention policies, GDPR erasure."""
 
 from __future__ import annotations
 
-import gzip
 import hashlib
-import io
-import json
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -264,195 +261,6 @@ class TestRetentionService:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Issue #63 — Data Archival to Object Storage
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-class TestArchiveService:
-    """Unit tests for app.services.archive_service."""
-
-    @pytest.mark.asyncio
-    async def test_archive_rows_creates_ndjson_gz(self) -> None:
-        """archive_rows should upload a gzipped NDJSON file to S3."""
-        from app.services.archive_service import archive_rows
-
-        db = _mock_db()
-        cutoff = datetime(2024, 6, 1, tzinfo=UTC)
-
-        # Simulate 2 rows returned from the DB
-        mock_rows = [
-            ({"id": 1, "actor": "alice", "created_at": "2024-01-01T00:00:00"},),
-            ({"id": 2, "actor": "bob", "created_at": "2024-02-01T00:00:00"},),
-        ]
-        mock_result = MagicMock()
-        mock_result.fetchall.return_value = mock_rows
-        db.execute = AsyncMock(return_value=mock_result)
-
-        s3 = MagicMock()
-        key = await archive_rows(db, "events", cutoff, s3_client=s3, bucket="test-bucket")
-
-        assert key == "archive/events/2024/06/data.ndjson.gz"
-        s3.put_object.assert_called_once()
-        call_kwargs = s3.put_object.call_args.kwargs
-        assert call_kwargs["Bucket"] == "test-bucket"
-        assert call_kwargs["Key"] == key
-
-        # Verify the uploaded body is valid gzipped NDJSON
-        body = call_kwargs["Body"]
-        decompressed = gzip.decompress(body).decode("utf-8")
-        lines = decompressed.strip().split("\n")
-        assert len(lines) == 2
-        record1 = json.loads(lines[0])
-        assert record1["actor"] == "alice"
-
-    @pytest.mark.asyncio
-    async def test_archive_rows_empty_returns_empty_key(self) -> None:
-        """If no rows match the cutoff, archive_rows returns an empty string."""
-        from app.services.archive_service import archive_rows
-
-        db = _mock_db()
-        cutoff = datetime(2024, 6, 1, tzinfo=UTC)
-        mock_result = MagicMock()
-        mock_result.fetchall.return_value = []
-        db.execute = AsyncMock(return_value=mock_result)
-
-        s3 = MagicMock()
-        key = await archive_rows(db, "events", cutoff, s3_client=s3, bucket="b")
-        assert key == ""
-        s3.put_object.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_archive_rows_unknown_table_raises(self) -> None:
-        """Archiving an unknown table should raise ValueError."""
-        from app.services.archive_service import archive_rows
-
-        db = _mock_db()
-        s3 = MagicMock()
-        with pytest.raises(ValueError, match="Unknown archive table"):
-            await archive_rows(db, "nonexistent", datetime.now(UTC), s3_client=s3, bucket="b")
-
-    @pytest.mark.asyncio
-    async def test_restore_archive_imports_rows(self) -> None:
-        """restore_archive should decompress and INSERT rows from NDJSON."""
-        from app.services.archive_service import restore_archive
-
-        db = _mock_db()
-        db.execute = AsyncMock()
-        db.commit = AsyncMock()
-
-        # Build a fake archive
-        records = [
-            {
-                "id": 1,
-                "document_id": "d1",
-                "created_at": "2024-01-01T00:00:00",
-                "action": "repos.create",
-                "actor": "alice",
-                "data": {},
-                "ingested_at": "2024-01-01",
-                "ingestion_source": "s3",
-                "source_file_path": "f.json",
-            },
-            {
-                "id": 2,
-                "document_id": "d2",
-                "created_at": "2024-02-01T00:00:00",
-                "action": "repos.delete",
-                "actor": "bob",
-                "data": {},
-                "ingested_at": "2024-02-01",
-                "ingestion_source": "s3",
-                "source_file_path": "g.json",
-            },
-        ]
-        buf = io.BytesIO()
-        with gzip.GzipFile(fileobj=buf, mode="wb") as gz:
-            for rec in records:
-                gz.write((json.dumps(rec) + "\n").encode())
-        buf.seek(0)
-
-        s3 = MagicMock()
-        body_mock = MagicMock(read=MagicMock(return_value=buf.getvalue()))
-        s3.get_object.return_value = {"Body": body_mock}
-
-        restored = await restore_archive(
-            db, "archive/events/2024/01/data.ndjson.gz", s3_client=s3, bucket="b"
-        )
-        assert restored == 2
-        # 2 INSERT calls
-        assert db.execute.call_count == 2
-
-    @pytest.mark.asyncio
-    async def test_restore_archive_invalid_path_raises(self) -> None:
-        """An archive path not starting with 'archive/' should raise."""
-        from app.services.archive_service import restore_archive
-
-        db = _mock_db()
-        s3 = MagicMock()
-        with pytest.raises(ValueError, match="Invalid archive path"):
-            await restore_archive(db, "bad/path.ndjson.gz", s3_client=s3, bucket="b")
-
-    @pytest.mark.asyncio
-    async def test_restore_archive_unknown_table_raises(self) -> None:
-        """An archive path with unknown table should raise."""
-        from app.services.archive_service import restore_archive
-
-        db = _mock_db()
-        s3 = MagicMock()
-        with pytest.raises(ValueError, match="Unknown table"):
-            await restore_archive(
-                db, "archive/nonexistent/2024/01/data.ndjson.gz", s3_client=s3, bucket="b"
-            )
-
-    def test_list_archives_paginates(self) -> None:
-        """list_archives should paginate through S3 and return file metadata."""
-        from app.services.archive_service import list_archives
-
-        s3 = MagicMock()
-        paginator = MagicMock()
-        s3.get_paginator.return_value = paginator
-        paginator.paginate.return_value = [
-            {
-                "Contents": [
-                    {
-                        "Key": "archive/events/2024/01/data.ndjson.gz",
-                        "Size": 1024,
-                        "LastModified": datetime(2024, 1, 31, tzinfo=UTC),
-                    },
-                ]
-            }
-        ]
-
-        result = list_archives(s3_client=s3, bucket="b", table_name="events")
-        assert len(result) == 1
-        assert result[0]["key"] == "archive/events/2024/01/data.ndjson.gz"
-        assert result[0]["size_bytes"] == 1024
-
-    def test_archive_key_format(self) -> None:
-        """Archive keys should follow archive/{table}/{year}/{month}/data.ndjson.gz."""
-        from app.services.archive_service import _archive_key
-
-        key = _archive_key("detections", datetime(2025, 3, 15, tzinfo=UTC))
-        assert key == "archive/detections/2025/03/data.ndjson.gz"
-
-    def test_ndjson_format_valid(self) -> None:
-        """Each line in the archive should be valid JSON (NDJSON format)."""
-        records = [{"id": i, "value": f"test_{i}"} for i in range(5)]
-        buf = io.BytesIO()
-        with gzip.GzipFile(fileobj=buf, mode="wb") as gz:
-            for rec in records:
-                gz.write((json.dumps(rec) + "\n").encode())
-        buf.seek(0)
-
-        decompressed = gzip.decompress(buf.getvalue()).decode("utf-8")
-        lines = decompressed.strip().split("\n")
-        assert len(lines) == 5
-        for line in lines:
-            parsed = json.loads(line)
-            assert "id" in parsed
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 #  Issue #66 — GDPR Right-to-Erasure
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -664,18 +472,6 @@ class TestSchemas:
             affected_tables={"events": 5, "detections": 2},
         )
         assert resp.pseudonym == "REDACTED-abc12345"
-
-    def test_archive_restore_request(self) -> None:
-        """ArchiveRestoreRequest should require a non-empty path."""
-        from pydantic import ValidationError
-
-        from app.schemas.integration import ArchiveRestoreRequest
-
-        with pytest.raises(ValidationError):
-            ArchiveRestoreRequest(archive_path="")
-
-        req = ArchiveRestoreRequest(archive_path="archive/events/2024/01/data.ndjson.gz")
-        assert req.archive_path.startswith("archive/")
 
     def test_retention_policy_item(self) -> None:
         """RetentionPolicyItem should hold all expected fields."""

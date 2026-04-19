@@ -20,26 +20,6 @@ class TestValkeySettings:
             ValkeySettings(VALKEY_URL="http://localhost:6379")
 
 
-class TestS3Settings:
-    def test_valid_config(self):
-        from app.config import S3Settings
-
-        s = S3Settings(S3_AUDIT_BUCKET="my-bucket", AWS_DEFAULT_REGION="us-east-1")
-        assert s.S3_AUDIT_BUCKET == "my-bucket"
-
-    def test_invalid_region_rejected(self):
-        from app.config import S3Settings
-
-        with pytest.raises(ValidationError):
-            S3Settings(S3_AUDIT_BUCKET="my-bucket", AWS_DEFAULT_REGION="not a real region!")
-
-    def test_invalid_bucket_rejected(self):
-        from app.config import S3Settings
-
-        with pytest.raises(ValidationError):
-            S3Settings(S3_AUDIT_BUCKET="INVALID BUCKET NAME", AWS_DEFAULT_REGION="us-east-1")
-
-
 class TestIntegrationSettings:
     def test_valid_okta_org_url(self):
         from app.config import IntegrationSettings

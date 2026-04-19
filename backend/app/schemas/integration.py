@@ -113,7 +113,7 @@ class RoleAssignmentResponse(BaseModel):
 
 
 class IngestionSourceCreate(BaseModel):
-    source_type: str = Field(..., pattern=r"^(s3|azure_blob|hec)$")
+    source_type: str = Field(..., pattern=r"^hec$")
     source_name: str = Field(..., min_length=1, max_length=255)
     source_region: str | None = Field(None, max_length=50)
     source_prefix: str = Field(default="", max_length=500)
@@ -174,20 +174,6 @@ class RetentionUpdateRequest(BaseModel):
         ...,
         description="Mapping of table_name to retention_days",
     )
-
-
-class ArchiveFileInfo(BaseModel):
-    """Metadata about an archive file in object storage."""
-
-    key: str
-    size_bytes: int
-    last_modified: str
-
-
-class ArchiveRestoreRequest(BaseModel):
-    """Request body for restoring an archive."""
-
-    archive_path: str = Field(..., min_length=1)
 
 
 class GdprEraseRequest(BaseModel):

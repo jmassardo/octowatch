@@ -11,7 +11,7 @@ import os
 from typing import Literal
 from urllib.parse import urlparse
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -100,72 +100,6 @@ class AuthSettings(BaseSettings):
         return v
 
 
-class S3Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
-
-    AWS_ACCESS_KEY_ID: str | None = None
-    AWS_SECRET_ACCESS_KEY: str | None = None
-    AWS_DEFAULT_REGION: str | None = Field(
-        None, description="AWS region (required when INGESTION_MODE=s3)"
-    )
-    S3_AUDIT_BUCKET: str | None = Field(
-        None, description="S3 bucket name (required when INGESTION_MODE=s3)"
-    )
-
-    @field_validator("AWS_DEFAULT_REGION")
-    @classmethod
-    def validate_region(cls, v: str | None) -> str | None:
-        import re
-
-        if not v:
-            return None
-        if not re.fullmatch(r"[a-z0-9-]+", v):
-            raise ValueError("AWS_DEFAULT_REGION must match [a-z0-9-]+")
-        return v
-
-    @field_validator("S3_AUDIT_BUCKET")
-    @classmethod
-    def validate_bucket(cls, v: str | None) -> str | None:
-        import re
-
-        if not v:
-            return None
-        if not re.fullmatch(r"[a-z0-9\-\.]{3,63}", v):
-            raise ValueError("S3_AUDIT_BUCKET must be a valid S3 bucket name")
-        return v
-
-
-class AzureBlobSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
-
-    AZURE_STORAGE_CONNECTION_STRING: str | None = Field(
-        None,
-        description="Azure Storage connection string (required when INGESTION_MODE=azure_blob)",
-    )
-    AZURE_AUDIT_CONTAINER: str | None = Field(None, description="Azure Blob container name")
-
-    @field_validator("AZURE_STORAGE_CONNECTION_STRING")
-    @classmethod
-    def validate_azure_conn(cls, v: str | None) -> str | None:
-        if not v:
-            return None
-        # SSRF protection: validate hostname ends in .blob.core.windows.net
-        # Connection strings may not contain AccountName explicitly; just allow it
-        # if the format looks like a standard Azure connection string.
-        if "AccountName=" not in v and "BlobEndpoint=" not in v:
-            raise ValueError("Azure connection string must contain AccountName or BlobEndpoint")
-        if "BlobEndpoint=" in v:
-            # Custom endpoint must be *.blob.core.windows.net
-            import re
-
-            match = re.search(r"BlobEndpoint=https?://([^;/]+)", v)
-            if match:
-                host = match.group(1)
-                if not host.endswith(".blob.core.windows.net"):
-                    raise ValueError(
-                        "SSRF protection: BlobEndpoint must be *.blob.core.windows.net"
-                    )
-        return v
 
 
 class GeoIPSettings(BaseSettings):
@@ -415,7 +349,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = Field(
         default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"]
     )
-    INGESTION_MODE: Literal["hec", "s3", "azure_blob"] = "hec"
+    INGESTION_MODE: Literal["hec"] = "hec"
     QUERY_MAX_ROWS: int = Field(default=100_000, ge=1, le=1_000_000)
     QUERY_TIMEOUT_SECONDS: int = Field(default=30, ge=5, le=300)
     DETECTION_CONFIDENCE_THRESHOLD: float = Field(default=0.7, ge=0.0, le=1.0)
@@ -424,8 +358,6 @@ class Settings(BaseSettings):
     DB: DatabaseSettings = Field(default_factory=DatabaseSettings)
     VALKEY: ValkeySettings = Field(default_factory=ValkeySettings)
     AUTH: AuthSettings = Field(default_factory=AuthSettings)
-    S3: S3Settings = Field(default_factory=S3Settings)
-    AZURE: AzureBlobSettings = Field(default_factory=AzureBlobSettings)
     GEOIP: GeoIPSettings = Field(default_factory=GeoIPSettings)
     GIT: GitHubRulesSettings = Field(default_factory=GitHubRulesSettings)
     GITHUB_APP: GitHubAppSettings = Field(default_factory=GitHubAppSettings)
@@ -459,31 +391,12 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         return self.CORS_ORIGINS
 
-    @model_validator(mode="after")
-    def validate_ingestion_mode_deps(self) -> Settings:
-        if self.INGESTION_MODE == "s3":
-            if not self.S3.S3_AUDIT_BUCKET:
-                raise ValueError("S3_AUDIT_BUCKET required when INGESTION_MODE=s3")
-            if not self.S3.AWS_DEFAULT_REGION:
-                raise ValueError("AWS_DEFAULT_REGION required when INGESTION_MODE=s3")
-        if self.INGESTION_MODE == "azure_blob":
-            if not self.AZURE.AZURE_STORAGE_CONNECTION_STRING:
-                raise ValueError(
-                    "AZURE_STORAGE_CONNECTION_STRING required when INGESTION_MODE=azure_blob"
-                )
-            if not self.AZURE.AZURE_AUDIT_CONTAINER:
-                raise ValueError("AZURE_AUDIT_CONTAINER required when INGESTION_MODE=azure_blob")
-        return self
-
-
 def _build_settings() -> Settings:
     """Build settings, reading each nested model from the environment directly."""
     return Settings(
         DB=DatabaseSettings(),
         VALKEY=ValkeySettings(),
         AUTH=AuthSettings(),
-        S3=S3Settings(),
-        AZURE=AzureBlobSettings(),
         GEOIP=GeoIPSettings(),
         GIT=GitHubRulesSettings(
             GITHUB_RULES_REPO=os.getenv("GITHUB_RULES_REPO", ""),
