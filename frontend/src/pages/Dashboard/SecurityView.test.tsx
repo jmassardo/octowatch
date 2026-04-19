@@ -127,7 +127,9 @@ describe('SecurityView', () => {
   it('renders GHAS enabled repos metric', async () => {
     renderWithProviders(<SecurityView />);
 
-    expect(await screen.findByText('50')).toBeInTheDocument();
+    // "50" appears in both GHAS metric card and GHAS coverage card
+    const fiftyElements = await screen.findAllByText('50');
+    expect(fiftyElements.length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('GHAS enabled repos')).toBeInTheDocument();
   });
 
@@ -138,7 +140,9 @@ describe('SecurityView', () => {
     expect(screen.getByText('Suspicious PAT usage')).toBeInTheDocument();
     expect(screen.getByText('Branch protection bypass')).toBeInTheDocument();
     expect(screen.getByText('attacker')).toBeInTheDocument();
-    expect(screen.getByText('acme-corp')).toBeInTheDocument();
+    // Both detections share 'acme-corp' org, so multiple elements exist
+    const acmeElements = screen.getAllByText('acme-corp');
+    expect(acmeElements.length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders the security feature coverage section', async () => {

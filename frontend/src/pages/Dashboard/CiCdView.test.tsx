@@ -158,9 +158,10 @@ describe('CiCdView', () => {
 
     // acme/api (40%) should appear before acme/web (6.3%)
     const rows = screen.getAllByRole('row');
-    // rows[0] is header row, rows[1] is first data row
-    const firstDataRow = rows[1];
-    const secondDataRow = rows[2];
+    // rows[0] = header row, rows[1] = filter row (DataTable renders filter inputs),
+    // rows[2] = first data row, rows[3] = second data row
+    const firstDataRow = rows[2];
+    const secondDataRow = rows[3];
     expect(firstDataRow.textContent).toContain('acme/api');
     expect(secondDataRow.textContent).toContain('acme/web');
   });

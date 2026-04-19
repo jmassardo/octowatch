@@ -153,7 +153,7 @@ describe('RulesPage', () => {
     await user.click(versionLink);
 
     const modalTitle = await screen.findByText('Version history');
-    const modal = modalTitle.closest('.dialog')!;
+    const modal = modalTitle.closest('[role="dialog"]')!;
 
     expect(within(modal as HTMLElement).getByText('Rule name')).toBeInTheDocument();
     expect(within(modal as HTMLElement).getByText('Current version')).toBeInTheDocument();

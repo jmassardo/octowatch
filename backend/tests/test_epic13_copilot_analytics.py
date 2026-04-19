@@ -235,8 +235,8 @@ class TestCopilotAdoptionWithSeats:
         seats = _make_sample_seats(10)
 
         with (
-            patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample),
-            patch.object(copilot_metrics_service, "_fetch_copilot_seats", return_value=seats),
+            patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample),
+            patch.object(copilot_metrics_service, "_read_seats_from_store", return_value=seats),
         ):
             result = await copilot_metrics_service.get_copilot_adoption(db)
 
@@ -251,8 +251,8 @@ class TestCopilotAdoptionWithSeats:
         seats = _make_sample_seats(10)
 
         with (
-            patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample),
-            patch.object(copilot_metrics_service, "_fetch_copilot_seats", return_value=seats),
+            patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample),
+            patch.object(copilot_metrics_service, "_read_seats_from_store", return_value=seats),
         ):
             result = await copilot_metrics_service.get_copilot_adoption(db)
 
@@ -266,8 +266,8 @@ class TestCopilotAdoptionWithSeats:
         seats = _make_sample_seats(10)
 
         with (
-            patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample),
-            patch.object(copilot_metrics_service, "_fetch_copilot_seats", return_value=seats),
+            patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample),
+            patch.object(copilot_metrics_service, "_read_seats_from_store", return_value=seats),
         ):
             result = await copilot_metrics_service.get_copilot_adoption(db)
 
@@ -280,10 +280,10 @@ class TestCopilotAdoptionWithSeats:
         sample = _make_sample_days(7)
 
         with (
-            patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=sample),
+            patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample),
             patch.object(
                 copilot_metrics_service,
-                "_fetch_copilot_seats",
+                "_read_seats_from_store",
                 return_value={"error": "copilot_not_available", "message": "test"},
             ),
         ):
@@ -330,7 +330,7 @@ class TestCopilotTeams:
 
         db.execute = AsyncMock(side_effect=[team_result, member_result])
 
-        with patch.object(copilot_metrics_service, "_fetch_copilot_seats", return_value=seats):
+        with patch.object(copilot_metrics_service, "_read_seats_from_store", return_value=seats):
             result = await copilot_metrics_service.get_copilot_teams(db)
 
         assert "teams" in result
@@ -346,7 +346,7 @@ class TestCopilotTeams:
 
         with patch.object(
             copilot_metrics_service,
-            "_fetch_copilot_seats",
+            "_read_seats_from_store",
             return_value={"error": "copilot_not_available", "message": "test"},
         ):
             result = await copilot_metrics_service.get_copilot_teams(db)
@@ -388,7 +388,7 @@ class TestCopilotTeams:
 
         db.execute = AsyncMock(side_effect=[team_result, member_result])
 
-        with patch.object(copilot_metrics_service, "_fetch_copilot_seats", return_value=seats):
+        with patch.object(copilot_metrics_service, "_read_seats_from_store", return_value=seats):
             result = await copilot_metrics_service.get_copilot_teams(db)
 
         assert result["at_risk_count"] >= 1
@@ -415,7 +415,7 @@ class TestCopilotBlockers:
 
         db.execute = AsyncMock(side_effect=[member_result, policy_result])
 
-        with patch.object(copilot_metrics_service, "_fetch_copilot_seats", return_value=seats):
+        with patch.object(copilot_metrics_service, "_read_seats_from_store", return_value=seats):
             result = await copilot_metrics_service.get_copilot_blockers(db)
 
         assert "blockers" in result
@@ -443,7 +443,7 @@ class TestCopilotBlockers:
 
         db.execute = AsyncMock(side_effect=[member_result, policy_result])
 
-        with patch.object(copilot_metrics_service, "_fetch_copilot_seats", return_value=seats):
+        with patch.object(copilot_metrics_service, "_read_seats_from_store", return_value=seats):
             result = await copilot_metrics_service.get_copilot_blockers(db)
 
         no_seat_blockers = [b for b in result["blockers"] if b["category"] == "no_seat"]
@@ -463,7 +463,7 @@ class TestCopilotBlockers:
 
         db.execute = AsyncMock(side_effect=[member_result, policy_result])
 
-        with patch.object(copilot_metrics_service, "_fetch_copilot_seats", return_value=seats):
+        with patch.object(copilot_metrics_service, "_read_seats_from_store", return_value=seats):
             result = await copilot_metrics_service.get_copilot_blockers(db)
 
         assert "quick_wins" in result
@@ -482,7 +482,7 @@ class TestCopilotBlockers:
 
         db.execute = AsyncMock(side_effect=[member_result, policy_result])
 
-        with patch.object(copilot_metrics_service, "_fetch_copilot_seats", return_value=seats):
+        with patch.object(copilot_metrics_service, "_read_seats_from_store", return_value=seats):
             result = await copilot_metrics_service.get_copilot_blockers(db)
 
         assert "summary" in result
@@ -507,7 +507,7 @@ class TestCopilotBlockers:
 
         db.execute = AsyncMock(side_effect=[member_result, policy_result])
 
-        with patch.object(copilot_metrics_service, "_fetch_copilot_seats", return_value=seats):
+        with patch.object(copilot_metrics_service, "_read_seats_from_store", return_value=seats):
             result = await copilot_metrics_service.get_copilot_blockers(db)
 
         policy_blockers = [b for b in result["blockers"] if b["category"] == "policy_restricted"]
@@ -620,8 +620,8 @@ class TestCopilotROI:
         db.execute = AsyncMock(side_effect=[config_result, team_result, member_result])
 
         with (
-            patch.object(copilot_metrics_service, "_fetch_copilot_seats", return_value=seats),
-            patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=days),
+            patch.object(copilot_metrics_service, "_read_seats_from_store", return_value=seats),
+            patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=days),
         ):
             result = await copilot_metrics_service.get_copilot_roi(db)
 
@@ -648,8 +648,8 @@ class TestCopilotROI:
         db.execute = AsyncMock(side_effect=[config_result, team_result, member_result])
 
         with (
-            patch.object(copilot_metrics_service, "_fetch_copilot_seats", return_value=seats),
-            patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=days),
+            patch.object(copilot_metrics_service, "_read_seats_from_store", return_value=seats),
+            patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=days),
         ):
             result = await copilot_metrics_service.get_copilot_roi(db)
 
@@ -676,8 +676,8 @@ class TestCopilotROI:
         db.execute = AsyncMock(side_effect=[config_result, team_result, member_result])
 
         with (
-            patch.object(copilot_metrics_service, "_fetch_copilot_seats", return_value=seats),
-            patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=days),
+            patch.object(copilot_metrics_service, "_read_seats_from_store", return_value=seats),
+            patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=days),
         ):
             result = await copilot_metrics_service.get_copilot_roi(db)
 
@@ -702,8 +702,8 @@ class TestCopilotROI:
         db.execute = AsyncMock(side_effect=[config_result, team_result, member_result])
 
         with (
-            patch.object(copilot_metrics_service, "_fetch_copilot_seats", return_value=seats),
-            patch.object(copilot_metrics_service, "_fetch_metrics_raw", return_value=days),
+            patch.object(copilot_metrics_service, "_read_seats_from_store", return_value=seats),
+            patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=days),
         ):
             result = await copilot_metrics_service.get_copilot_roi(db)
 
@@ -718,12 +718,12 @@ class TestCopilotROI:
         with (
             patch.object(
                 copilot_metrics_service,
-                "_fetch_copilot_seats",
+                "_read_seats_from_store",
                 return_value={"error": "copilot_not_available", "message": "no seats"},
             ),
             patch.object(
                 copilot_metrics_service,
-                "_fetch_metrics_raw",
+                "_read_metrics_from_store",
                 return_value=_make_sample_days(7),
             ),
         ):

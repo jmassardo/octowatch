@@ -101,14 +101,10 @@ describe('ThreatsPage', () => {
   /*  Filter button                                                    */
   /* ---------------------------------------------------------------- */
 
-  it('toggles filter panel visibility', async () => {
-    const user = userEvent.setup();
+  it('filter controls are always visible', () => {
     renderWithProviders(<ThreatsPage />);
 
-    const filterBtn = screen.getByText('Filter');
-    await user.click(filterBtn);
-
-    // Severity filter dropdown should now be visible
+    // Severity filter dropdown should always be visible (no toggle button)
     expect(screen.getByDisplayValue('All severities')).toBeInTheDocument();
   });
 });
@@ -300,8 +296,8 @@ describe('ThreatsPage severity URL param', () => {
   it('defaults to empty severity filter when no URL param is present', () => {
     renderWithProviders(<ThreatsPage />);
 
-    // Filter panel should not be visible by default
-    expect(screen.queryByDisplayValue('All severities')).not.toBeInTheDocument();
+    // Filter panel is always visible; severity defaults to "All severities"
+    expect(screen.getByDisplayValue('All severities')).toBeInTheDocument();
   });
 
   it('passes severity from URL to the detections API query', async () => {
