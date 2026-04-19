@@ -57,17 +57,26 @@ function formatLogTime(iso: string): string {
 /*  Run row — clicking opens the detail drawer                        */
 /* ------------------------------------------------------------------ */
 
-function RunRow({ run, onSelect }: { run: SyncRunSummary; onSelect: (id: string) => void }) {
+function RunRow({
+  run,
+  isSelected,
+  onSelect,
+}: {
+  run: SyncRunSummary;
+  isSelected: boolean;
+  onSelect: (id: string | null) => void;
+}) {
   return (
     <tr
       className={styles.clickableRow}
-      onClick={() => onSelect(run.id)}
+      onClick={() => onSelect(isSelected ? null : run.id)}
       role="button"
       tabIndex={0}
+      aria-expanded={isSelected}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onSelect(run.id);
+          onSelect(isSelected ? null : run.id);
         }
       }}
     >
@@ -267,7 +276,12 @@ export function SyncRunHistory() {
               </thead>
               <tbody>
                 {runs.map((run) => (
-                  <RunRow key={run.id} run={run} onSelect={setSelectedRunId} />
+                  <RunRow
+                    key={run.id}
+                    run={run}
+                    isSelected={run.id === selectedRunId}
+                    onSelect={setSelectedRunId}
+                  />
                 ))}
               </tbody>
             </table>
