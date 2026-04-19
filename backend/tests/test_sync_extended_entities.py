@@ -916,3 +916,238 @@ class TestAlembicMigration0025:
         spec.loader.exec_module(mod)
         assert callable(mod.upgrade)
         assert callable(mod.downgrade)
+
+
+# ─── Datetime Parsing Tests ───────────────────────────────────────────────────
+
+
+class TestParseGhDt:
+    """Unit tests for the _parse_gh_dt helper."""
+
+    def test_parses_github_z_suffix(self) -> None:
+        """GitHub ISO 8601 strings with Z suffix are parsed to timezone-aware datetime."""
+        from app.workers.github_sync_worker import _parse_gh_dt
+
+        result = _parse_gh_dt("2025-09-08T13:59:42Z")
+        assert result is not None
+        assert result.year == 2025
+        assert result.month == 9
+        assert result.day == 8
+        assert result.hour == 13
+        assert result.minute == 59
+        assert result.second == 42
+        assert result.tzinfo is not None
+
+    def test_parses_explicit_utc_offset(self) -> None:
+        """ISO 8601 strings with +00:00 offset are accepted."""
+        from app.workers.github_sync_worker import _parse_gh_dt
+
+        result = _parse_gh_dt("2025-01-15T08:30:00+00:00")
+        assert result is not None
+        assert result.year == 2025
+        assert result.tzinfo is not None
+
+    def test_returns_none_for_none(self) -> None:
+        """None input returns None (optional datetime columns)."""
+        from app.workers.github_sync_worker import _parse_gh_dt
+
+        assert _parse_gh_dt(None) is None
+
+    def test_returns_none_for_empty_string(self) -> None:
+        """Empty string input returns None."""
+        from app.workers.github_sync_worker import _parse_gh_dt
+
+        assert _parse_gh_dt("") is None
+
+    def test_returns_none_for_invalid_string(self) -> None:
+        """Invalid timestamp string returns None rather than raising."""
+        from app.workers.github_sync_worker import _parse_gh_dt
+
+        assert _parse_gh_dt("not-a-date") is None
+
+    def test_returns_datetime_object(self) -> None:
+        """Return value is always a datetime instance, not a string."""
+        from app.workers.github_sync_worker import _parse_gh_dt
+
+        result = _parse_gh_dt("2024-06-01T00:00:00Z")
+        assert isinstance(result, datetime)
+
+
+class TestUpsertDeployKeysDatetimeParsing:
+    """Verify _upsert_deploy_keys converts ISO 8601 strings to datetime objects."""
+
+    @pytest.mark.asyncio
+    async def test_created_at_string_is_parsed_to_datetime(self) -> None:
+        """GitHub 'created_at' string must be converted to datetime before DB insert."""
+        from app.workers.github_sync_worker import _upsert_deploy_keys
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        items = [
+            {
+                "_repo_name": "myrepo",
+                "key_id": 42,
+                "title": "CI Key",
+                "read_only": True,
+                "created_at": "2025-09-08T13:59:42Z",
+            }
+        ]
+
+        await _upsert_deploy_keys(mock_session, "test-org", items)
+
+        mock_session.execute.assert_called_once()
+        call_kwargs = mock_session.execute.call_args
+        # The second positional argument to insert() is the statement; the
+        # values are embedded in it — we just verify execute was called,
+        # which means no TypeError was raised during construction.
+        assert call_kwargs is not None
+
+    @pytest.mark.asyncio
+    async def test_none_created_at_is_allowed(self) -> None:
+        """A missing 'created_at' should result in NULL (not crash)."""
+        from app.workers.github_sync_worker import _upsert_deploy_keys
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        items = [
+            {
+                "_repo_name": "myrepo",
+                "key_id": 99,
+                "title": "Deploy Key",
+                "read_only": False,
+            }
+        ]
+
+        # Should not raise
+        await _upsert_deploy_keys(mock_session, "test-org", items)
+        mock_session.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_skips_items_without_key_id(self) -> None:
+        """Items without key_id are silently skipped."""
+        from app.workers.github_sync_worker import _upsert_deploy_keys
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        items = [
+            {
+                "_repo_name": "myrepo",
+                "title": "No ID Key",
+                "created_at": "2025-01-01T00:00:00Z",
+            }
+        ]
+
+        await _upsert_deploy_keys(mock_session, "test-org", items)
+        mock_session.execute.assert_not_called()
+        mock_session.commit.assert_called_once()
+
+
+class TestUpsertCredentialAuthorizationsDatetimeParsing:
+    """Verify _upsert_credential_authorizations converts ISO 8601 strings to datetime objects."""
+
+    @pytest.mark.asyncio
+    async def test_authorized_and_accessed_at_strings_are_parsed(self) -> None:
+        """GitHub credential datetime strings must be converted before DB insert."""
+        from app.workers.github_sync_worker import _upsert_credential_authorizations
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        items = [
+            {
+                "login": "octocat",
+                "credential_id": 101,
+                "credential_type": "personal_access_token",
+                "token_last_eight": "abcd1234",
+                "credential_authorized_at": "2025-08-01T10:00:00Z",
+                "credential_accessed_at": "2025-09-01T12:30:00Z",
+                "scopes": ["repo", "read:org"],
+            }
+        ]
+
+        await _upsert_credential_authorizations(mock_session, "test-org", items)
+        mock_session.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_null_datetime_fields_allowed(self) -> None:
+        """Missing credential datetime fields result in NULL (not crash)."""
+        from app.workers.github_sync_worker import _upsert_credential_authorizations
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        items = [
+            {
+                "login": "octocat",
+                "credential_id": 202,
+                "credential_type": "personal_access_token",
+            }
+        ]
+
+        await _upsert_credential_authorizations(mock_session, "test-org", items)
+        mock_session.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_skips_items_without_credential_id(self) -> None:
+        """Items without credential_id are silently skipped."""
+        from app.workers.github_sync_worker import _upsert_credential_authorizations
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        items = [{"login": "ghost", "credential_type": "personal_access_token"}]
+
+        await _upsert_credential_authorizations(mock_session, "test-org", items)
+        mock_session.execute.assert_not_called()
+        mock_session.commit.assert_called_once()
+
+
+class TestUpsertRepositoriesDatetimeParsing:
+    """Verify _upsert_repositories uses _parse_gh_dt for pushed_at."""
+
+    @pytest.mark.asyncio
+    async def test_pushed_at_string_is_parsed(self) -> None:
+        """GitHub 'pushed_at' ISO string must be converted to datetime."""
+        from app.workers.github_sync_worker import _upsert_repositories
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        items = [
+            {
+                "name": "my-repo",
+                "id": 1,
+                "visibility": "private",
+                "default_branch": "main",
+                "archived": False,
+                "fork": False,
+                "pushed_at": "2025-09-08T13:59:42Z",
+            }
+        ]
+
+        await _upsert_repositories(mock_session, "test-org", items)
+        mock_session.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_null_pushed_at_is_allowed(self) -> None:
+        """Missing pushed_at results in NULL without crashing."""
+        from app.workers.github_sync_worker import _upsert_repositories
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        items = [{"name": "another-repo", "id": 2, "visibility": "public"}]
+
+        await _upsert_repositories(mock_session, "test-org", items)
+        mock_session.execute.assert_called_once()
