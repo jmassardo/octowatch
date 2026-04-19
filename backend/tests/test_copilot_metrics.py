@@ -517,11 +517,17 @@ class TestFetchMetricsRaw:
     @pytest.mark.asyncio
     async def test_returns_error_when_no_enterprise_slug(self) -> None:
         db = AsyncMock(spec=AsyncSession)
+        # Call order: get_setting("feature_copilot_insights") → "true",
+        # then get_setting("github_enterprise_slug") → None
+        get_setting_values = ["true", None]
         with (
             patch(
                 "app.services.settings_service.get_setting",
+                side_effect=get_setting_values,
+            ),
+            patch(
+                "app.services.config_overlay.refresh_settings",
                 new_callable=AsyncMock,
-                return_value="true",
             ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
@@ -536,16 +542,17 @@ class TestFetchMetricsRaw:
     @pytest.mark.asyncio
     async def test_returns_error_when_no_app_id(self) -> None:
         db = AsyncMock(spec=AsyncSession)
+        # Call order: get_setting("feature_copilot_insights") → "true",
+        # then get_setting("github_enterprise_slug") → "test-enterprise"
+        get_setting_values = ["true", "test-enterprise"]
         with (
             patch(
                 "app.services.settings_service.get_setting",
-                new_callable=AsyncMock,
-                return_value="true",
+                side_effect=get_setting_values,
             ),
-            patch.object(
-                copilot_metrics_service.settings.github_app,
-                "GITHUB_ENTERPRISE_SLUG",
-                "test-enterprise",
+            patch(
+                "app.services.config_overlay.refresh_settings",
+                new_callable=AsyncMock,
             ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
@@ -569,6 +576,10 @@ class TestFetchMetricsRaw:
                 "app.services.settings_service.get_setting",
                 new_callable=AsyncMock,
                 return_value="true",
+            ),
+            patch(
+                "app.services.config_overlay.refresh_settings",
+                new_callable=AsyncMock,
             ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
@@ -607,6 +618,10 @@ class TestFetchMetricsRaw:
                 "app.services.settings_service.get_setting",
                 new_callable=AsyncMock,
                 return_value="true",
+            ),
+            patch(
+                "app.services.config_overlay.refresh_settings",
+                new_callable=AsyncMock,
             ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
@@ -1179,10 +1194,17 @@ class TestGetEnterpriseInstallation:
     @pytest.mark.asyncio
     async def test_returns_none_when_no_slug(self) -> None:
         db = AsyncMock(spec=AsyncSession)
-        with patch.object(
-            copilot_metrics_service.settings.github_app,
-            "GITHUB_ENTERPRISE_SLUG",
-            None,
+        with (
+            patch(
+                "app.services.settings_service.get_setting",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch.object(
+                copilot_metrics_service.settings.github_app,
+                "GITHUB_ENTERPRISE_SLUG",
+                None,
+            ),
         ):
             result = await copilot_metrics_service._get_enterprise_installation(db)
         assert result is None
@@ -1195,10 +1217,10 @@ class TestGetEnterpriseInstallation:
         mock_result.scalars.return_value.first.return_value = mock_config
         db.execute = AsyncMock(return_value=mock_result)
 
-        with patch.object(
-            copilot_metrics_service.settings.github_app,
-            "GITHUB_ENTERPRISE_SLUG",
-            "test-slug",
+        with patch(
+            "app.services.settings_service.get_setting",
+            new_callable=AsyncMock,
+            return_value="test-slug",
         ):
             result = await copilot_metrics_service._get_enterprise_installation(db)
         assert result is mock_config
