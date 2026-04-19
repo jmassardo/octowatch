@@ -84,16 +84,17 @@ async def run_async_migrations() -> None:
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # Inside an async context (shouldn't happen with alembic CLI)
-            import nest_asyncio
-
-            nest_asyncio.apply()
-            loop.run_until_complete(run_async_migrations())
-        else:
-            asyncio.run(run_async_migrations())
+        loop = asyncio.get_running_loop()
     except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        # Inside an async context (shouldn't happen with alembic CLI)
+        import nest_asyncio
+
+        nest_asyncio.apply()
+        loop.run_until_complete(run_async_migrations())
+    else:
         asyncio.run(run_async_migrations())
 
 
