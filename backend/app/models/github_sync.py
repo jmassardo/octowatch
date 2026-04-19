@@ -94,6 +94,12 @@ class EnterpriseSyncRun(Base):
     # null | "pending" | "running" | "completed" | "failed"
     post_processing_status: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Total number of (entity_type, org) tasks dispatched by the orchestrator.
+    # Set immediately after fan-out so _maybe_finalize_run can wait until every
+    # task has created its cursor row before considering the run complete.
+    # NULL on runs created before this column existed (backward-compatible).
+    expected_entity_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     __table_args__ = (
         Index("idx_enterprise_sync_runs_status", "status"),
         Index("idx_enterprise_sync_runs_created_at", "created_at"),
