@@ -1024,6 +1024,30 @@ async def _check_x_config_engine(
             return True  # Bots modifying workflows is suspicious
         return True  # Default pass — additional checks can be added
 
+    elif engine == "threat_intel_ip":
+        return await _check_threat_intel_ip(event, x_config, session)
+
+    elif engine == "dormant_account":
+        return await _check_dormant_account(event, x_config, session)
+
+    elif engine == "self_action_check":
+        return _check_self_action(event, x_config)
+
+    elif engine == "external_fork_check":
+        return await _check_external_fork(event, x_config, session)
+
+    elif engine == "unusual_actor_check":
+        return await _check_unusual_actor(event, x_config, session)
+
+    elif engine == "non_admin_check":
+        return await _check_non_admin(event, x_config, session)
+
+    elif engine == "sso_bypass_check":
+        return _check_sso_bypass(event, x_config)
+
+    elif engine == "workflow_file_change":
+        return _check_workflow_file_change(event, x_config)
+
     else:
         logger.warning(
             "detection.unknown_x_config_engine",
@@ -1070,6 +1094,398 @@ async def _check_threat_intel_field(
     except Exception:
         logger.debug("detection.threat_intel_check_failed", exc_info=True)
         return False  # On error, don't generate false detection
+
+
+async def _check_threat_intel_ip(
+    event: AuditEvent,
+    x_config: dict[str, Any],
+    session: AsyncSession,
+) -> bool:
+    """Check if the event source IP matches a known threat intel indicator.
+
+    Queries ThreatIntelIndicator for an active indicator matching the event's
+    source_ip.  The optional ``list_type`` in *x_config* is used to narrow the
+    search by ``indicator_type`` (e.g. ``tor_exit_nodes``).
+
+    Returns True when the IP is found in threat intel (detection should fire).
+    """
+    source_ip = getattr(event, "source_ip", None)
+    if not source_ip:
+        return False  # No IP on event — cannot evaluate
+
+    try:
+        from app.models.threat_intel import ThreatIntelIndicator
+
+        ip_str = str(source_ip)
+        list_type = x_config.get("list_type")
+
+        stmt = (
+            select(ThreatIntelIndicator)
+            .where(ThreatIntelIndicator.value == ip_str)
+            .where(ThreatIntelIndicator.active.is_(True))
+            .where(
+                (ThreatIntelIndicator.expires_at.is_(None))
+                | (ThreatIntelIndicator.expires_at > datetime.now(UTC))
+            )
+        )
+        if list_type:
+            stmt = stmt.where(ThreatIntelIndicator.indicator_type == list_type)
+        stmt = stmt.limit(1)
+
+        result = await session.execute(stmt)
+        indicator = result.scalar_one_or_none()
+        return indicator is not None
+    except Exception:
+        logger.warning("detection.threat_intel_ip_check_failed", exc_info=True)
+        return False
+
+
+async def _check_dormant_account(
+    event: AuditEvent,
+    x_config: dict[str, Any],
+    session: AsyncSession,
+) -> bool:
+    """Check if the actor's account has been dormant (no events for N days).
+
+    Looks for any AuditEvent by the same actor *before* the current event,
+    within the lookback window defined by ``inactivity_days`` (default 90).
+    If **no** prior event is found within that window the account is considered
+    dormant and the detection fires (returns True).
+    """
+    actor = getattr(event, "actor", None)
+    if not actor:
+        return False  # No actor — cannot evaluate
+
+    try:
+        inactivity_days = int(x_config.get("inactivity_days", 90))
+        event_time = getattr(event, "created_at", None) or datetime.now(UTC)
+        cutoff = event_time - timedelta(days=inactivity_days)
+
+        stmt = (
+            select(AuditEvent.id)
+            .where(AuditEvent.actor == actor)
+            .where(AuditEvent.created_at >= cutoff)
+            .where(AuditEvent.created_at < event_time)
+            .limit(1)
+        )
+        # Exclude the current event if it has an id
+        event_id = getattr(event, "id", None)
+        if event_id is not None:
+            stmt = stmt.where(AuditEvent.id != event_id)
+
+        result = await session.execute(stmt)
+        prior_event = result.scalar_one_or_none()
+        # Dormant = no prior activity in the window → fire detection
+        return prior_event is None
+    except Exception:
+        logger.warning("detection.dormant_account_check_failed", exc_info=True)
+        return False
+
+
+def _check_self_action(
+    event: AuditEvent,
+    x_config: dict[str, Any],
+) -> bool:
+    """Check if the actor performed an action on themselves (self-promotion).
+
+    When ``match_actor_to_target`` is true, compares ``event.actor`` to the
+    target user extracted from ``event.data``.  Looks for common target fields:
+    ``user``, ``member``, ``target_login``, and ``target_user``.
+
+    Returns True when the actor and target are the same person.
+    """
+    if not x_config.get("match_actor_to_target", False):
+        return True  # Engine not configured to check — pass through
+
+    try:
+        actor = getattr(event, "actor", None)
+        if not actor:
+            return False
+
+        data = getattr(event, "data", None) or {}
+        # Check common target user fields in GitHub audit events
+        target = (
+            data.get("user")
+            or data.get("member")
+            or data.get("target_login")
+            or data.get("target_user")
+        )
+        if not target:
+            return False  # No target found — cannot determine self-action
+
+        return str(actor).lower() == str(target).lower()
+    except Exception:
+        logger.warning("detection.self_action_check_failed", exc_info=True)
+        return False
+
+
+async def _check_external_fork(
+    event: AuditEvent,
+    x_config: dict[str, Any],
+    session: AsyncSession,
+) -> bool:
+    """Check if a repo fork goes to an org outside the enterprise.
+
+    When ``check_org_membership`` is true, extracts the fork destination org
+    from event data and verifies it is NOT one of the ``EnterpriseOrg`` records.
+    Returns True when the fork destination is external (detection should fire).
+    """
+    if not x_config.get("check_org_membership", False):
+        return True  # Engine not configured to check — pass through
+
+    try:
+        data = getattr(event, "data", None) or {}
+        # Extract fork destination org from event data
+        fork_org = (
+            data.get("forkee_owner")
+            or data.get("fork_org")
+            or data.get("target_org")
+            or data.get("destination_org")
+        )
+        if not fork_org:
+            # Try to extract from forkee full_name (e.g. "external-org/repo-name")
+            forkee = data.get("forkee")
+            if isinstance(forkee, str) and "/" in forkee:
+                fork_org = forkee.split("/")[0]
+
+        if not fork_org:
+            return False  # Cannot determine destination org
+
+        source_org = getattr(event, "org", None)
+        # If forking within the same org, it's not external
+        if source_org and fork_org.lower() == source_org.lower():
+            return False
+
+        # Check if the fork destination org belongs to the enterprise
+        stmt = select(EnterpriseOrg.id).where(EnterpriseOrg.org_login == fork_org).limit(1)
+        result = await session.execute(stmt)
+        enterprise_org = result.scalar_one_or_none()
+        # External = not in enterprise → fire detection
+        return enterprise_org is None
+    except Exception:
+        logger.warning("detection.external_fork_check_failed", exc_info=True)
+        return False
+
+
+async def _check_unusual_actor(
+    event: AuditEvent,
+    x_config: dict[str, Any],
+    session: AsyncSession,
+) -> bool:
+    """Check if this actor has previously published to the same package/scope.
+
+    Queries AuditEvent for prior events with the same action by the same actor
+    that match the same package or scope from event data.  If no prior events
+    are found, the actor is unusual for this package (returns True).
+    """
+    actor = getattr(event, "actor", None)
+    action = getattr(event, "action", None)
+    if not actor or not action:
+        return False
+
+    try:
+        data = getattr(event, "data", None) or {}
+        scope = x_config.get("scope", "package")
+
+        # Identify the package/scope from event data
+        package_name = data.get("package_name") or data.get("name") or data.get("package")
+
+        if not package_name:
+            return False  # Cannot determine package — skip
+
+        event_time = getattr(event, "created_at", None) or datetime.now(UTC)
+
+        # Look for prior events by this actor with the same action
+        stmt = (
+            select(AuditEvent.id)
+            .where(AuditEvent.actor == actor)
+            .where(AuditEvent.action == action)
+            .where(AuditEvent.created_at < event_time)
+        )
+
+        # Exclude the current event if it has an id
+        event_id = getattr(event, "id", None)
+        if event_id is not None:
+            stmt = stmt.where(AuditEvent.id != event_id)
+
+        # Filter by package name within the JSONB data column
+        if scope == "package" and package_name:
+            # Check common package name fields in JSONB data
+            stmt = stmt.where(
+                or_(
+                    AuditEvent.data["package_name"].astext == str(package_name),
+                    AuditEvent.data["name"].astext == str(package_name),
+                    AuditEvent.data["package"].astext == str(package_name),
+                )
+            )
+
+        stmt = stmt.limit(1)
+        result = await session.execute(stmt)
+        prior_publish = result.scalar_one_or_none()
+        # Unusual = no prior publish by this actor → fire detection
+        return prior_publish is None
+    except Exception:
+        logger.warning("detection.unusual_actor_check_failed", exc_info=True)
+        return False
+
+
+async def _check_non_admin(
+    event: AuditEvent,
+    x_config: dict[str, Any],
+    session: AsyncSession,
+) -> bool:
+    """Check if the actor does NOT have the required role (e.g. admin).
+
+    Looks up the actor in ``OrgMember`` for the event's org.  If the actor's
+    role does not match ``required_role``, the detection fires (returns True).
+    If the actor IS an admin (or ``owner`` which implies admin), returns False.
+    """
+    required_role = x_config.get("required_role", "admin")
+    actor = getattr(event, "actor", None)
+    org = getattr(event, "org", None)
+    if not actor:
+        return False  # No actor — cannot evaluate
+
+    try:
+        from app.models.github_sync import OrgMember
+
+        if org:
+            # Look up the actor in the org membership table
+            stmt = (
+                select(OrgMember.role)
+                .where(OrgMember.github_login == actor)
+                .where(OrgMember.org == org)
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            member_role = result.scalar_one_or_none()
+        else:
+            # No org scope — check any org membership for admin/owner role
+            stmt = select(OrgMember.role).where(OrgMember.github_login == actor).limit(1)
+            result = await session.execute(stmt)
+            member_role = result.scalar_one_or_none()
+
+        if member_role is None:
+            # Actor not found in membership data — could be stale sync data;
+            # return False to avoid false positives from incomplete org_members.
+            return False
+
+        # GitHub uses "owner" for the top role; treat it as equivalent to "admin"
+        admin_roles = {required_role, "owner"}
+        # Non-admin → detection fires
+        return member_role.lower() not in admin_roles
+    except Exception:
+        logger.warning("detection.non_admin_check_failed", exc_info=True)
+        return False
+
+
+def _check_sso_bypass(
+    event: AuditEvent,
+    x_config: dict[str, Any],
+) -> bool:
+    """Check if the event indicates non-SSO authentication when SSO is enforced.
+
+    Looks at event data for SSO-related fields.  If the event shows that SSO
+    was not used (no ``sso_login``, ``saml`` data, or explicit non-SSO markers)
+    and ``check_sso_enforcement`` is true, the detection fires.
+    """
+    if not x_config.get("check_sso_enforcement", False):
+        return True  # Engine not configured — pass through
+
+    try:
+        data = getattr(event, "data", None) or {}
+
+        # Check for indicators that SSO was properly used (use truthy checks
+        # so empty strings / empty dicts don't count as "SSO used")
+        sso_used = (
+            bool(data.get("sso_login"))
+            or bool(data.get("saml"))
+            or bool(data.get("saml_identity"))
+            or data.get("credential_type") == "sso"
+            or data.get("authentication_method") == "saml"
+        )
+
+        if sso_used:
+            return False  # SSO was used — no bypass
+
+        # Check for explicit non-SSO credential types that indicate bypass
+        credential_type = data.get("credential_type") or ""
+        auth_method = data.get("authentication_method") or ""
+        programmatic_access = data.get("programmatic_access_type") or ""
+
+        non_sso_indicators = (
+            credential_type in ("pat", "oauth_token", "personal_access_token", "deploy_key")
+            or auth_method in ("token", "oauth", "pat")
+            or (programmatic_access != "")
+            or bool(data.get("token_id"))
+        )
+
+        # Fire detection if we see non-SSO credential usage
+        return non_sso_indicators
+    except Exception:
+        logger.warning("detection.sso_bypass_check_failed", exc_info=True)
+        return False
+
+
+def _check_workflow_file_change(
+    event: AuditEvent,
+    x_config: dict[str, Any],
+) -> bool:
+    """Check if the event involves changes to files matching a path pattern.
+
+    Looks at event data for file paths (``files``, ``file``, ``path``,
+    ``head_commit.modified``, etc.) and checks them against the configured
+    ``path_pattern`` (e.g. ``.github/workflows/*``).
+
+    Returns True when at least one changed file matches the pattern.
+    """
+    path_pattern = x_config.get("path_pattern")
+    if not path_pattern:
+        return True  # No pattern configured — pass through
+
+    try:
+        data = getattr(event, "data", None) or {}
+
+        # Collect all file paths from various possible event data fields
+        file_paths: list[str] = []
+
+        # Direct file reference
+        if data.get("file"):
+            file_paths.append(str(data["file"]))
+        if data.get("path"):
+            file_paths.append(str(data["path"]))
+
+        # List of files (common in push events)
+        for key in ("files", "modified_files", "added_files"):
+            files_val = data.get(key)
+            if isinstance(files_val, list):
+                file_paths.extend(str(f) for f in files_val)
+
+        # Head commit data (push events)
+        head_commit = data.get("head_commit")
+        if isinstance(head_commit, dict):
+            for key in ("modified", "added", "removed"):
+                commit_files = head_commit.get(key)
+                if isinstance(commit_files, list):
+                    file_paths.extend(str(f) for f in commit_files)
+
+        # Workflow file reference
+        if data.get("workflow"):
+            file_paths.append(str(data["workflow"]))
+        if data.get("workflow_file"):
+            file_paths.append(str(data["workflow_file"]))
+
+        if not file_paths:
+            # No file information available — cannot confirm a workflow file
+            # was actually changed, so don't fire to avoid false positives
+            # on normal workflow run events.
+            return False
+
+        # Check if any file matches the pattern
+        return any(fnmatch.fnmatch(fp, path_pattern) for fp in file_paths)
+    except Exception:
+        logger.warning("detection.workflow_file_change_check_failed", exc_info=True)
+        return False
 
 
 async def run_detection_pipeline(
