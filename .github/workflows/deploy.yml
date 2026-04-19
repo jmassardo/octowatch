@@ -76,7 +76,7 @@ jobs:
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@70b2cdc6480c1a8b86edf1777157f8f437c17571  # v5.7.0
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804  # v5.7.0
         with:
           images: ${{ env.IMAGE_PREFIX }}/octowatch-${{ matrix.image.name }}
           tags: |
