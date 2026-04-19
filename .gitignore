@@ -53,3 +53,4 @@ backend/import_copilot_usage.py
 *.ndjson
 *.pem
 *.pem
+celerybeat-schedule*
