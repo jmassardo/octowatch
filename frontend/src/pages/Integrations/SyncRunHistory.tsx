@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { listSyncRuns, getSyncRun } from '../../api/sync';
+import { listSyncRuns, getSyncRun, getSyncLogs } from '../../api/sync';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
-import type { SyncRunSummary, SyncRunStatus } from '../../types/sync';
+import { Drawer } from '../../components/primitives/Drawer';
+import type { SyncRunSummary, SyncRunStatus, SyncLogEntry } from '../../types/sync';
 import { formatShortDateTime } from '../../utils/dates';
 import styles from './Integrations.module.css';
 
@@ -40,99 +41,154 @@ function formatDuration(startIso: string | null, endIso: string | null): string 
   return `${hours}h ${remainingMinutes}m`;
 }
 
+function formatLogTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  } catch {
+    return iso;
+  }
+}
+
 /* ------------------------------------------------------------------ */
-/*  Expandable row component                                           */
+/*  Run row — clicking opens the detail drawer                        */
 /* ------------------------------------------------------------------ */
 
-function RunRow({ run }: { run: SyncRunSummary }) {
-  const [expanded, setExpanded] = useState(false);
-
+function RunRow({ run, onSelect }: { run: SyncRunSummary; onSelect: (id: string) => void }) {
   return (
-    <>
-      <tr
-        className={styles.clickableRow}
-        onClick={() => setExpanded((v) => !v)}
-        role="button"
-        tabIndex={0}
-        aria-expanded={expanded}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setExpanded((v) => !v);
-          }
-        }}
-      >
-        <td>{run.triggered_by ?? run.trigger_type}</td>
-        <td>{formatShortDateTime(run.started_at)}</td>
-        <td>{formatDuration(run.started_at, run.completed_at)}</td>
-        <td>
-          <Label variant={statusVariant(run.status)}>{run.status}</Label>
-        </td>
-      </tr>
-      {expanded && (
-        <tr className={styles.expandedRow}>
-          <td colSpan={4}>
-            <ExpandedRunDetail runId={run.id} />
-          </td>
-        </tr>
-      )}
-    </>
+    <tr
+      className={styles.clickableRow}
+      onClick={() => onSelect(run.id)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(run.id);
+        }
+      }}
+    >
+      <td>{run.triggered_by ?? run.trigger_type}</td>
+      <td>{formatShortDateTime(run.started_at)}</td>
+      <td>{formatDuration(run.started_at, run.completed_at)}</td>
+      <td>
+        <Label variant={statusVariant(run.status)}>{run.status}</Label>
+      </td>
+    </tr>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  Expanded detail (lazy-loaded)                                      */
+/*  Log entry line                                                     */
 /* ------------------------------------------------------------------ */
 
-function ExpandedRunDetail({ runId }: { runId: string }) {
-  const { data, isLoading, isError } = useQuery({
+function LogLine({ entry }: { entry: SyncLogEntry }) {
+  const levelClass =
+    entry.level === 'error'
+      ? styles.logError
+      : entry.level === 'warn'
+        ? styles.logWarn
+        : styles.logInfo;
+
+  return (
+    <div className={`${styles.logLine} ${levelClass}`}>
+      <span className={styles.logTimestamp}>{formatLogTime(entry.timestamp)}</span>
+      <span className={styles.logLevel}>[{entry.level}]</span>
+      {(entry.entity_type || entry.org) && (
+        <span className={styles.logTimestamp}>
+          {[entry.entity_type, entry.org].filter(Boolean).join(' / ')}
+        </span>
+      )}
+      <span className={styles.logMessage}>{entry.message}</span>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Drawer content: entity table + log stream                         */
+/* ------------------------------------------------------------------ */
+
+function RunDetailDrawer({ runId }: { runId: string }) {
+  const { data: run, isLoading: runLoading } = useQuery({
     queryKey: ['sync-run', runId],
     queryFn: () => getSyncRun(runId),
   });
 
-  if (isLoading) {
+  const { data: logsData, isLoading: logsLoading } = useQuery({
+    queryKey: ['sync-run-logs', runId],
+    queryFn: () => getSyncLogs(runId, 0),
+    refetchInterval: run?.status === 'running' ? 3000 : false,
+  });
+
+  if (runLoading) {
     return (
       <div className={styles.expandedLoading}>
         <Spinner size={16} />
-        <span>Loading details…</span>
+        <span>Loading…</span>
       </div>
     );
   }
 
-  if (isError || !data) {
-    return <div className={styles.expandedLoading}>Failed to load details</div>;
+  if (!run) {
+    return <div className={styles.expandedLoading}>Failed to load run details</div>;
   }
+
+  const entries = logsData?.entries ?? [];
 
   return (
     <div className={styles.expandedContent}>
-      {data.error_message && <p className={styles.syncRunError}>{data.error_message}</p>}
-      {data.cursors.length > 0 ? (
-        <table className={styles.entityTableNested}>
-          <thead>
-            <tr>
-              <th>Entity</th>
-              <th>Org</th>
-              <th>Status</th>
-              <th>Records</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.cursors.map((c) => (
-              <tr key={`${c.entity_type}-${c.org ?? 'global'}`}>
-                <td>{c.entity_type}</td>
-                <td>{c.org ?? '—'}</td>
-                <td>
-                  <Label variant={statusVariant(c.status as SyncRunStatus)}>
-                    {c.status.replace('_', ' ')}
-                  </Label>
-                </td>
-                <td>{c.items_synced.toLocaleString()}</td>
+      {/* Top-level error */}
+      {run.error_message && <p className={styles.syncRunError}>{run.error_message}</p>}
+
+      {/* Entity breakdown table */}
+      {run.cursors.length > 0 && (
+        <>
+          <h4 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: 'var(--color-fg-muted, #666)' }}>
+            Entity breakdown
+          </h4>
+          <table className={styles.entityTableNested}>
+            <thead>
+              <tr>
+                <th>Entity</th>
+                <th>Org</th>
+                <th>Status</th>
+                <th>Records</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {run.cursors.map((c) => (
+                <tr key={`${c.entity_type}-${c.org ?? 'global'}`}>
+                  <td>{c.entity_type}</td>
+                  <td>{c.org ?? '—'}</td>
+                  <td>
+                    <Label variant={statusVariant(c.status as SyncRunStatus)}>
+                      {c.status.replace('_', ' ')}
+                    </Label>
+                  </td>
+                  <td>{c.items_synced.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/* Log stream */}
+      <h4 style={{ margin: '16px 0 8px', fontSize: 13, fontWeight: 600, color: 'var(--color-fg-muted, #666)' }}>
+        Log
+      </h4>
+      {logsLoading ? (
+        <div className={styles.expandedLoading}>
+          <Spinner size={14} />
+          <span>Loading logs…</span>
+        </div>
+      ) : entries.length === 0 ? (
+        <p className={styles.logEmpty}>No log entries for this run</p>
       ) : (
-        <p className={styles.expandedEmpty}>No entity-level details available</p>
+        <div className={styles.logViewerContainer}>
+          {entries.map((e) => (
+            <LogLine key={e.seq} entry={e} />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -143,6 +199,8 @@ function ExpandedRunDetail({ runId }: { runId: string }) {
 /* ------------------------------------------------------------------ */
 
 export function SyncRunHistory() {
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['sync-runs'],
     queryFn: () => listSyncRuns(1, 10),
@@ -170,31 +228,46 @@ export function SyncRunHistory() {
   }
 
   const runs = data?.items ?? [];
+  const selectedRun = runs.find((r) => r.id === selectedRunId);
 
   return (
-    <Card data-testid="sync-run-history">
-      <CardHeader>Sync History</CardHeader>
-      {runs.length === 0 ? (
-        <p className={styles.emptyText}>No sync runs yet</p>
-      ) : (
-        <div className={styles.tableWrap}>
-          <table className={styles.historyTable} data-testid="sync-history-table">
-            <thead>
-              <tr>
-                <th>Triggered by</th>
-                <th>Start time</th>
-                <th>Duration</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runs.map((run) => (
-                <RunRow key={run.id} run={run} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Card>
+    <>
+      <Card data-testid="sync-run-history">
+        <CardHeader>Sync History</CardHeader>
+        {runs.length === 0 ? (
+          <p className={styles.emptyText}>No sync runs yet</p>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.historyTable} data-testid="sync-history-table">
+              <thead>
+                <tr>
+                  <th>Triggered by</th>
+                  <th>Start time</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((run) => (
+                  <RunRow key={run.id} run={run} onSelect={setSelectedRunId} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      <Drawer
+        open={!!selectedRunId}
+        onClose={() => setSelectedRunId(null)}
+        title={
+          selectedRun
+            ? `Run · ${formatShortDateTime(selectedRun.started_at)}`
+            : 'Run Details'
+        }
+      >
+        {selectedRunId && <RunDetailDrawer runId={selectedRunId} />}
+      </Drawer>
+    </>
   );
 }
