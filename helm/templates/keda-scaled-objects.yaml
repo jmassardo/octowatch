@@ -27,7 +27,7 @@ spec:
   triggers:
     - type: redis
       metadata:
-        address: octowatch-valkey-master.{{ .Release.Namespace }}.svc.cluster.local:6379
+        address: octowatch-valkey-primary.{{ .Release.Namespace }}.svc.cluster.local:6379
         listName: ingestion
         listLength: "5"
         enableTLS: "false"
@@ -51,7 +51,7 @@ spec:
   triggers:
     - type: redis
       metadata:
-        address: octowatch-valkey-master.{{ .Release.Namespace }}.svc.cluster.local:6379
+        address: octowatch-valkey-primary.{{ .Release.Namespace }}.svc.cluster.local:6379
         listName: detection
         listLength: "5"
         enableTLS: "false"
@@ -75,7 +75,7 @@ spec:
   triggers:
     - type: redis
       metadata:
-        address: octowatch-valkey-master.{{ .Release.Namespace }}.svc.cluster.local:6379
+        address: octowatch-valkey-primary.{{ .Release.Namespace }}.svc.cluster.local:6379
         listName: notification
         listLength: "5"
         enableTLS: "false"
@@ -99,7 +99,7 @@ spec:
   triggers:
     - type: redis
       metadata:
-        address: octowatch-valkey-master.{{ .Release.Namespace }}.svc.cluster.local:6379
+        address: octowatch-valkey-primary.{{ .Release.Namespace }}.svc.cluster.local:6379
         listName: baseline
         listLength: "5"
         enableTLS: "false"
@@ -124,7 +124,7 @@ spec:
   triggers:
     - type: redis
       metadata:
-        address: octowatch-valkey-master.{{ .Release.Namespace }}.svc.cluster.local:6379
+        address: octowatch-valkey-primary.{{ .Release.Namespace }}.svc.cluster.local:6379
         listName: github_sync
         listLength: "1"
         enableTLS: "false"
