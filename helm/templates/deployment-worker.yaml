@@ -72,6 +72,12 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: secret-key
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: encryption-key
+                  optional: true
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -174,6 +180,12 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: secret-key
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: encryption-key
+                  optional: true
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -276,6 +288,12 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: secret-key
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: encryption-key
+                  optional: true
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -378,6 +396,12 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: secret-key
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: encryption-key
+                  optional: true
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -521,6 +545,12 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: secret-key
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: encryption-key
+                  optional: true
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
