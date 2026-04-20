@@ -54,20 +54,16 @@ backup:
   azureStorageAccount: "stoctowatchdevbn3idw"
   retentionDays: 30
 
-# PostgreSQL — TimescaleDB image, Azure Disk PVC (default AKS StorageClass = managed-csi)
+# PostgreSQL — Standalone TimescaleDB StatefulSet (bypasses bitnami/postgresql subchart)
+# The bitnami chart is incompatible with the timescale/timescaledb community image.
+# postgresql.enabled=false disables the bitnami subchart; the custom template in
+# helm/templates/timescaledb.yaml deploys TimescaleDB directly.
 postgresql:
-  # Override the bitnami/postgresql image with TimescaleDB (available on Docker Hub)
-  # Must use top-level 'image' key (not primary.image) for bitnami postgresql chart v15.x
-  image:
-    registry: docker.io
-    repository: timescale/timescaledb
-    tag: "2.25.1-pg16"
+  enabled: false
   primary:
     persistence:
       storageClass: "managed-csi"
       size: 50Gi
-  # Disable internal TLS — traffic is internal-cluster only and protected by NetworkPolicy.
-  # This avoids the bitnami/os-shell copy-certs init container which has Docker Hub tag issues.
   tls:
     enabled: false
 
