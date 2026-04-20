@@ -44,6 +44,8 @@ spec:
             - beat
             - --scheduler
             - celery.beat:PersistentScheduler
+            - --schedule
+            - /app/celery-data/celerybeat-schedule
             - --loglevel
             - INFO
           resources:
@@ -93,7 +95,7 @@ spec:
                   optional: true
           volumeMounts:
             - name: beat-schedule
-              mountPath: /app/celerybeat-schedule
+              mountPath: /app/celery-data
             - name: tmp
               mountPath: /tmp
       volumes:
