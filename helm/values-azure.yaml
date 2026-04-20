@@ -74,6 +74,7 @@ valkey:
   replica:
     replicaCount: 0
   primary:
+    resourcesPreset: "none"
     resources:
       requests:
         cpu: "100m"
