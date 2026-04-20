@@ -56,6 +56,12 @@ backup:
 
 # PostgreSQL — TimescaleDB image, Azure Disk PVC (default AKS StorageClass = managed-csi)
 postgresql:
+  # Override the bitnami/postgresql image with TimescaleDB (available on Docker Hub)
+  # Must use top-level 'image' key (not primary.image) for bitnami postgresql chart v15.x
+  image:
+    registry: docker.io
+    repository: timescale/timescaledb
+    tag: "2.25.1-pg16"
   primary:
     persistence:
       storageClass: "managed-csi"
