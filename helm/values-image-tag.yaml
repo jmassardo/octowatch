@@ -1,0 +1,5 @@
+# MANAGED BY ARGOCD IMAGE UPDATER — DO NOT EDIT MANUALLY
+# Updated automatically when new images are pushed to GHCR.
+global:
+  image:
+    tag: "latest"

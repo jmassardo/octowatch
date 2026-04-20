@@ -8,9 +8,9 @@ type: application
 version: 0.1.0
 appVersion: "0.1.0"
 
-home: https://github.com/your-org/octowatch
+home: https://github.com/jmassardo/octowatch
 sources:
-  - https://github.com/your-org/octowatch
+  - https://github.com/jmassardo/octowatch
 
 keywords:
   - audit
@@ -20,18 +20,18 @@ keywords:
 
 maintainers:
   - name: Platform Team
-    email: platform@example.com
+    email: jmassardo@github.com
 
 dependencies:
   # PostgreSQL 16 + TimescaleDB — set postgresql.enabled=false to use external DB
   - name: postgresql
-    version: "15.x.x"
+    version: "15.5.38"
     repository: https://charts.bitnami.com/bitnami
     condition: postgresql.enabled
 
   # Valkey 7.2 (BSD-3 Redis fork) — set valkey.enabled=false to use external instance
   - name: valkey
-    version: "2.x.x"
+    version: "5.4.11"
     repository: https://charts.bitnami.com/bitnami
     condition: valkey.enabled
 

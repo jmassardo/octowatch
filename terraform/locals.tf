@@ -50,3 +50,8 @@ volumes:
       device: /mnt/octowatch-data/valkey_data
 VOLUMES
 }
+
+locals {
+  aks_database_url = "postgresql+asyncpg://app_rw:${var.secret_postgres_password}@octowatch-postgresql.octowatch.svc.cluster.local:5432/auditlogs"
+  aks_valkey_url   = "redis://:${var.secret_valkey_password}@octowatch-valkey-master.octowatch.svc.cluster.local:6379/0"
+}

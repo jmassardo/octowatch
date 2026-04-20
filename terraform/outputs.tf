@@ -82,3 +82,25 @@ output "aca_premium_storage_account" {
   value       = azurerm_storage_account.premium.name
   description = "Premium FileStorage account name backing pg-data and valkey-data Azure Files shares"
 }
+
+output "aks_cluster_name" {
+  value = azurerm_kubernetes_cluster.main.name
+}
+
+output "aks_cluster_fqdn" {
+  value = azurerm_kubernetes_cluster.main.fqdn
+}
+
+output "aks_kube_config" {
+  value       = azurerm_kubernetes_cluster.main.kube_config_raw
+  sensitive   = true
+  description = "Run: terraform output -raw aks_kube_config > ~/.kube/config-aks"
+}
+
+output "argocd_url" {
+  value = "https://argocd.${local.tls_domain}"
+}
+
+output "aks_ingress_lb_ip_instruction" {
+  value = "After apply, get LB IP: kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}', then set aks_ingress_lb_ip in tfvars"
+}
