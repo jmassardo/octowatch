@@ -69,17 +69,11 @@ Worker image reference.
 {{- end }}
 
 {{/*
-Beat image — uses the separate 'beat' image published by release.yml
+Beat image — uses the separate 'beat' image published by release.yml.
+Follows the same registry/chartname/component:tag pattern as the other helpers.
 */}}
 {{- define "octowatch.beatImage" -}}
-{{- $registry := .Values.global.image.registry | default "" -}}
-{{- $tag := .Values.global.image.tag | default "latest" -}}
-{{- $repo := .Values.beat.image.repository | default "beat" -}}
-{{- if $registry -}}
-{{ $registry }}/{{ $repo }}:{{ $tag }}
-{{- else -}}
-{{ $repo }}:{{ $tag }}
-{{- end -}}
+{{- printf "%s/%s/beat:%s" .Values.global.image.registry .Chart.Name .Values.global.image.tag }}
 {{- end }}
 
 {{/*
