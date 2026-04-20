@@ -433,3 +433,35 @@ variable "celery_queue_scale_threshold" {
     error_message = "Scale threshold must be between 1 and 50."
   }
 }
+
+# ── AKS Migration ─────────────────────────────────────────────────────────────
+
+variable "aks_node_size" {
+  default     = "Standard_D4s_v3"
+  description = "AKS node pool VM SKU."
+}
+
+variable "aks_cutover_complete" {
+  default     = false
+  description = "Set to true when ready to cut DNS from VM to AKS LB. Switches the DNS A record."
+}
+
+variable "aks_ingress_lb_ip" {
+  default     = ""
+  description = "Public IP of the AKS nginx ingress LoadBalancer. Populate after first terraform apply."
+}
+
+variable "argocd_admin_password" {
+  description = "ArgoCD admin password. Set in terraform.tfvars."
+  sensitive   = true
+}
+
+variable "argocd_github_pat" {
+  default     = ""
+  description = "GitHub PAT for ArgoCD Image Updater git write-back. Requires repo write access."
+  sensitive   = true
+}
+
+variable "letsencrypt_email" {
+  description = "Email for Let's Encrypt certificate notifications."
+}

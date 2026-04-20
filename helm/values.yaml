@@ -27,6 +27,13 @@ serviceAccount:
 networkPolicy:
   enabled: false
 
+# imagePullSecrets for GHCR — populated in values-azure.yaml
+imagePullSecrets: []
+
+# KEDA autoscaling for workers
+keda:
+  enabled: false
+
 # ---------------------------------------------------------------------------
 # API service
 # ---------------------------------------------------------------------------
@@ -134,6 +141,27 @@ worker:
         cpu: "500m"
         memory: "1Gi"
 
+  notification:
+    replicaCount: 1   # Notification fanout; scales with alert volume
+    concurrency: 2    # I/O-bound (Slack, SMTP, Jira); keep concurrency low
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+
+  sync:
+    replicaCount: 1   # Single replica — pool=solo prevents duplicate org syncs
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+
 # ---------------------------------------------------------------------------
 # Celery Beat scheduler
 # CRITICAL: replicaCount is fixed at 1 and must not be changed.
@@ -141,6 +169,9 @@ worker:
 # ---------------------------------------------------------------------------
 beat:
   # replicaCount is intentionally not exposed — always 1; see worker comment above
+  image:
+    repository: beat
+    pullPolicy: IfNotPresent
   resources:
     requests:
       cpu: "50m"
@@ -190,6 +221,11 @@ postgresql:
       userPasswordKey: app-password
 
   primary:
+    image:
+      registry: docker.io
+      repository: timescale/timescaledb
+      tag: "2.25.1-pg16"
+
     persistence:
       enabled: true
       size: 50Gi  # Adjust based on event volume; TimescaleDB compression yields ~90% reduction

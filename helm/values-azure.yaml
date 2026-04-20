@@ -1,0 +1,75 @@
+# helm/values-azure.yaml
+# Azure AKS-specific overrides. Merged on top of values.yaml by ArgoCD.
+
+global:
+  image:
+    registry: ghcr.io/jmassardo/octowatch
+
+# imagePullSecrets — pre-created by Terraform as ghcr-pull-secret
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
+# API
+api:
+  image:
+    repository: api
+
+# Worker (all workers use this image)
+worker:
+  image:
+    repository: worker
+
+# Beat uses its own image
+beat:
+  image:
+    repository: beat
+
+# Frontend
+frontend:
+  image:
+    repository: frontend
+
+# Ingress — nginx class with cert-manager TLS
+ingress:
+  enabled: true
+  className: nginx
+  host: octowatch.jmassardo.azure.csa-github.com
+  tls:
+    enabled: true
+    secretName: octowatch-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+
+# KEDA enabled in AKS
+keda:
+  enabled: true
+
+# Backup — enable with Azure Blob connection string
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  bucket: "pg-backups"
+  azureStorageAccount: "stoctowatchdevbn3idw"
+  retentionDays: 30
+
+# PostgreSQL — TimescaleDB image, Azure Disk PVC (default AKS StorageClass = managed-csi)
+postgresql:
+  primary:
+    persistence:
+      storageClass: "managed-csi"
+      size: 50Gi
+
+# Valkey — Azure Disk PVC
+valkey:
+  master:
+    persistence:
+      storageClass: "managed-csi"
+      size: 2Gi
+
+# Observability — enable ServiceMonitor (if Prometheus Operator is installed)
+observability:
+  metrics:
+    serviceMonitor:
+      enabled: false

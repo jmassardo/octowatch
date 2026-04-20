@@ -35,7 +35,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: beat
-          image: {{ include "octowatch.workerImage" . }}
+          image: {{ include "octowatch.beatImage" . }}
           imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
           command:
             - celery

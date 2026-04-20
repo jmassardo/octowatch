@@ -280,3 +280,249 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+---
+# ──────────────────────────────────────────────────────────────────────────────
+# Notification worker
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "octowatch.fullname" . }}-worker-notification
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker-notification
+spec:
+  replicas: {{ .Values.worker.notification.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "octowatch.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker-notification
+  template:
+    metadata:
+      labels:
+        {{- include "octowatch.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker-notification
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "octowatch.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 300
+      securityContext:
+        runAsNonRoot: {{ .Values.worker.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.worker.securityContext.runAsUser }}
+        fsGroup: {{ .Values.worker.securityContext.runAsUser }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker-notification
+          image: {{ include "octowatch.workerImage" . }}
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - app.celery_app
+            - worker
+            - -Q
+            - notification
+            - -c
+            - {{ .Values.worker.notification.concurrency | quote }}
+            - --loglevel
+            - INFO
+            - --without-heartbeat
+          resources:
+            {{- toYaml .Values.worker.notification.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: {{ .Values.worker.securityContext.readOnlyRootFilesystem }}
+            allowPrivilegeEscalation: {{ .Values.worker.securityContext.allowPrivilegeEscalation }}
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: {{ include "octowatch.configMapName" . }}
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: secret-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: database-url
+            - name: VALKEY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: valkey-url
+            - name: SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: slack-bot-token
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: smtp-password
+                  optional: true
+            - name: JIRA_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: jira-url
+                  optional: true
+            - name: JIRA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: jira-username
+                  optional: true
+            - name: JIRA_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: jira-api-token
+                  optional: true
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: app-data
+              mountPath: /app/data
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: app-data
+          emptyDir: {}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+# ──────────────────────────────────────────────────────────────────────────────
+# Sync worker (GitHub Enterprise org sync, pool=solo, max 1 replica)
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "octowatch.fullname" . }}-worker-sync
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker-sync
+spec:
+  replicas: {{ .Values.worker.sync.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "octowatch.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker-sync
+  template:
+    metadata:
+      labels:
+        {{- include "octowatch.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker-sync
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "octowatch.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 300
+      securityContext:
+        runAsNonRoot: {{ .Values.worker.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.worker.securityContext.runAsUser }}
+        fsGroup: {{ .Values.worker.securityContext.runAsUser }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker-sync
+          image: {{ include "octowatch.workerImage" . }}
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - app.celery_app
+            - worker
+            - -Q
+            - github_sync
+            - --pool=solo
+            - --loglevel
+            - INFO
+            - --without-heartbeat
+          resources:
+            {{- toYaml .Values.worker.sync.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: {{ .Values.worker.securityContext.readOnlyRootFilesystem }}
+            allowPrivilegeEscalation: {{ .Values.worker.securityContext.allowPrivilegeEscalation }}
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: {{ include "octowatch.configMapName" . }}
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: secret-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: database-url
+            - name: VALKEY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: valkey-url
+            - name: GITHUB_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-app-id
+                  optional: true
+            - name: GITHUB_ENTERPRISE_SLUG
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-enterprise-slug
+                  optional: true
+            - name: GITHUB_APP_PRIVATE_KEY_FILE
+              value: /app/secrets/github-app-key.pem
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: app-data
+              mountPath: /app/data
+            - name: github-app-key
+              mountPath: /app/secrets
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: app-data
+          emptyDir: {}
+        - name: github-app-key
+          secret:
+            secretName: octowatch-github-app-key
+            optional: true
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

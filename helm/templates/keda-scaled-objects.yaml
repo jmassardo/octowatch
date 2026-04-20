@@ -1,0 +1,134 @@
+{{- if .Values.keda.enabled }}
+# KEDA TriggerAuthentication — uses octowatch-secrets for Valkey password
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ include "octowatch.fullname" . }}-valkey-auth
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: {{ include "octowatch.secretName" . }}
+      key: valkey-password
+---
+# ScaledObject — worker-ingestion
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "octowatch.fullname" . }}-worker-ingestion
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    name: {{ include "octowatch.fullname" . }}-worker-ingestion
+  minReplicaCount: 0
+  maxReplicaCount: {{ .Values.worker.ingestion.replicaCount | default 4 }}
+  pollingInterval: 15
+  cooldownPeriod: 120
+  triggers:
+    - type: redis
+      metadata:
+        address: octowatch-valkey-master.{{ .Release.Namespace }}.svc.cluster.local:6379
+        listName: ingestion
+        listLength: "5"
+        enableTLS: "false"
+        databaseIndex: "0"
+      authenticationRef:
+        name: {{ include "octowatch.fullname" . }}-valkey-auth
+---
+# ScaledObject — worker-detection
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "octowatch.fullname" . }}-worker-detection
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    name: {{ include "octowatch.fullname" . }}-worker-detection
+  minReplicaCount: 0
+  maxReplicaCount: {{ .Values.worker.detection.replicaCount | default 4 }}
+  pollingInterval: 15
+  cooldownPeriod: 120
+  triggers:
+    - type: redis
+      metadata:
+        address: octowatch-valkey-master.{{ .Release.Namespace }}.svc.cluster.local:6379
+        listName: detection
+        listLength: "5"
+        enableTLS: "false"
+        databaseIndex: "0"
+      authenticationRef:
+        name: {{ include "octowatch.fullname" . }}-valkey-auth
+---
+# ScaledObject — worker-notification
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "octowatch.fullname" . }}-worker-notification
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    name: {{ include "octowatch.fullname" . }}-worker-notification
+  minReplicaCount: 0
+  maxReplicaCount: {{ .Values.worker.notification.replicaCount | default 2 }}
+  pollingInterval: 15
+  cooldownPeriod: 120
+  triggers:
+    - type: redis
+      metadata:
+        address: octowatch-valkey-master.{{ .Release.Namespace }}.svc.cluster.local:6379
+        listName: notification
+        listLength: "5"
+        enableTLS: "false"
+        databaseIndex: "0"
+      authenticationRef:
+        name: {{ include "octowatch.fullname" . }}-valkey-auth
+---
+# ScaledObject — worker-baseline
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "octowatch.fullname" . }}-worker-baseline
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    name: {{ include "octowatch.fullname" . }}-worker-baseline
+  minReplicaCount: 0
+  maxReplicaCount: {{ .Values.worker.baseline.replicaCount | default 2 }}
+  pollingInterval: 30
+  cooldownPeriod: 300
+  triggers:
+    - type: redis
+      metadata:
+        address: octowatch-valkey-master.{{ .Release.Namespace }}.svc.cluster.local:6379
+        listName: baseline
+        listLength: "5"
+        enableTLS: "false"
+        databaseIndex: "0"
+      authenticationRef:
+        name: {{ include "octowatch.fullname" . }}-valkey-auth
+---
+# ScaledObject — worker-sync
+# pool=solo means single-threaded; max 1 replica prevents duplicate org syncs
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "octowatch.fullname" . }}-worker-sync
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    name: {{ include "octowatch.fullname" . }}-worker-sync
+  minReplicaCount: 0
+  maxReplicaCount: 1
+  pollingInterval: 30
+  cooldownPeriod: 300
+  triggers:
+    - type: redis
+      metadata:
+        address: octowatch-valkey-master.{{ .Release.Namespace }}.svc.cluster.local:6379
+        listName: github_sync
+        listLength: "1"
+        enableTLS: "false"
+        databaseIndex: "0"
+      authenticationRef:
+        name: {{ include "octowatch.fullname" . }}-valkey-auth
+{{- end }}
