@@ -465,3 +465,10 @@ variable "argocd_github_pat" {
 variable "letsencrypt_email" {
   description = "Email for Let's Encrypt certificate notifications."
 }
+
+variable "secret_azure_storage_connection_string" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "Azure Storage connection string for blob access. Avoids the listKeys permission requirement."
+}

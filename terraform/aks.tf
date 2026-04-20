@@ -73,6 +73,18 @@ resource "azurerm_network_security_group" "aks" {
   }
 
   security_rule {
+    name                       = "AllowLBNodePorts"
+    priority                   = 150
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "30000-32767"
+    source_address_prefix      = "AzureLoadBalancer"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
     name                       = "DenyAllInternetInbound"
     priority                   = 4000
     direction                  = "Inbound"
@@ -184,7 +196,7 @@ resource "kubernetes_secret" "octowatch_secrets" {
     "encryption-key"                  = var.secret_encryption_key
     "initial-admin-logins"            = var.secret_initial_admin_logins
     "app-base-url"                    = "https://octowatch.jmassardo.azure.csa-github.com"
-    "azure-storage-connection-string" = azurerm_storage_account.main.primary_connection_string
+    "azure-storage-connection-string" = var.secret_azure_storage_connection_string
   }
 }
 
