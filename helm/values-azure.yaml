@@ -60,6 +60,10 @@ postgresql:
     persistence:
       storageClass: "managed-csi"
       size: 50Gi
+  # Disable internal TLS — traffic is internal-cluster only and protected by NetworkPolicy.
+  # This avoids the bitnami/os-shell copy-certs init container which has Docker Hub tag issues.
+  tls:
+    enabled: false
 
 # Valkey — Azure Disk PVC
 valkey:
