@@ -53,6 +53,14 @@ spec:
                 name: {{ include "octowatch.fullname" . }}-api
                 port:
                   name: http
+          # GitHub Audit Log Streaming (Splunk HEC-compatible collector)
+          - path: /services/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "octowatch.fullname" . }}-api
+                port:
+                  name: http
           # All other traffic → frontend SPA
           - path: /
             pathType: Prefix
