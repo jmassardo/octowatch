@@ -92,6 +92,7 @@ data "cloudinit_config" "main" {
         secret_jira_url               = var.secret_jira_url
         secret_jira_username          = var.secret_jira_username
         secret_jira_api_token         = var.secret_jira_api_token
+        secret_initial_admin_logins   = var.secret_initial_admin_logins
       }))
 
       # Pre-rendered, base64-encoded docker-compose.yml with GHCR image names
