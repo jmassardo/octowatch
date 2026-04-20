@@ -43,14 +43,15 @@ metadata:
     {{- include "octowatch.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
 spec:
+  type: ClusterIP
   ports:
     - name: tcp-postgresql
       port: 5432
       targetPort: 5432
+      protocol: TCP
   selector:
     app.kubernetes.io/name: octowatch-postgresql
     app.kubernetes.io/instance: {{ .Release.Name }}
-  clusterIP: None
 ---
 apiVersion: v1
 kind: Service
@@ -61,10 +62,13 @@ metadata:
     {{- include "octowatch.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
 spec:
+  type: ClusterIP
+  clusterIP: None
   ports:
     - name: tcp-postgresql
       port: 5432
       targetPort: 5432
+      protocol: TCP
   selector:
     app.kubernetes.io/name: octowatch-postgresql
     app.kubernetes.io/instance: {{ .Release.Name }}
