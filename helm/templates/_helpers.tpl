@@ -55,32 +55,35 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/*
 API image reference.
-Format: <registry>/<chart-name>/api:<tag>
+Format: <registry>/octowatch-api:<tag>
+Matches CI workflow which publishes ghcr.io/<owner>/octowatch-api:<branch/sha>.
 */}}
 {{- define "octowatch.apiImage" -}}
-{{- printf "%s/%s/api:%s" .Values.global.image.registry .Chart.Name .Values.global.image.tag }}
+{{- printf "%s/%s-api:%s" .Values.global.image.registry .Chart.Name .Values.global.image.tag }}
 {{- end }}
 
 {{/*
 Worker image reference.
+Format: <registry>/octowatch-worker:<tag>
 */}}
 {{- define "octowatch.workerImage" -}}
-{{- printf "%s/%s/worker:%s" .Values.global.image.registry .Chart.Name .Values.global.image.tag }}
+{{- printf "%s/%s-worker:%s" .Values.global.image.registry .Chart.Name .Values.global.image.tag }}
 {{- end }}
 
 {{/*
-Beat image — uses the separate 'beat' image published by release.yml.
-Follows the same registry/chartname/component:tag pattern as the other helpers.
+Beat image reference.
+Format: <registry>/octowatch-beat:<tag>
 */}}
 {{- define "octowatch.beatImage" -}}
-{{- printf "%s/%s/beat:%s" .Values.global.image.registry .Chart.Name .Values.global.image.tag }}
+{{- printf "%s/%s-beat:%s" .Values.global.image.registry .Chart.Name .Values.global.image.tag }}
 {{- end }}
 
 {{/*
 Frontend image reference.
+Format: <registry>/octowatch-frontend:<tag>
 */}}
 {{- define "octowatch.frontendImage" -}}
-{{- printf "%s/%s/frontend:%s" .Values.global.image.registry .Chart.Name .Values.global.image.tag }}
+{{- printf "%s/%s-frontend:%s" .Values.global.image.registry .Chart.Name .Values.global.image.tag }}
 {{- end }}
 
 {{/*
