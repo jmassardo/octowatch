@@ -45,7 +45,7 @@ spec:
               protocol: TCP
             {{- if .Values.observability.metrics.enabled }}
             - name: metrics
-              containerPort: 8000
+              containerPort: {{ .Values.observability.metrics.port | default 9090 }}
               protocol: TCP
             {{- end }}
           # ── Lifecycle hooks ────────────────────────────────────────────────
