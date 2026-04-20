@@ -156,10 +156,15 @@ spec:
               mountPath: /var/lib/postgresql/data
             - name: init-scripts
               mountPath: /docker-entrypoint-initdb.d
+            - name: run
+              mountPath: /var/run/postgresql
       volumes:
         - name: init-scripts
           configMap:
             name: octowatch-postgresql-init-scripts
+            defaultMode: 0755
+        - name: run
+          emptyDir: {}
   volumeClaimTemplates:
     - metadata:
         name: data
