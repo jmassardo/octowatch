@@ -15,17 +15,18 @@ resource "azurerm_automation_account" "main" {
   sku_name            = "Basic"
 
   identity {
-    type = "SystemAssigned"
+    type         = "SystemAssigned, UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.vm.id]
   }
 
   tags = local.common_tags
 }
 
-# Give the Automation Account permission to start the VM.
+# Give the user-assigned identity permission to start the VM.
 resource "azurerm_role_assignment" "automation_vm_contributor" {
   scope                = azurerm_linux_virtual_machine.main.id
   role_definition_name = "Virtual Machine Contributor"
-  principal_id         = azurerm_automation_account.main.identity[0].principal_id
+  principal_id         = azurerm_user_assigned_identity.vm.principal_id
 }
 
 # ── Runbook ────────────────────────────────────────────────────────────────────
@@ -43,8 +44,8 @@ resource "azurerm_automation_runbook" "start_vm" {
   content = <<-POWERSHELL
     param([object]$WebhookData)
 
-    # Authenticate using the Automation Account's system-assigned managed identity.
-    Connect-AzAccount -Identity | Out-Null
+    # Authenticate using the user-assigned managed identity attached to this Automation Account.
+    Connect-AzAccount -Identity -AccountId "${azurerm_user_assigned_identity.vm.client_id}" | Out-Null
 
     $vmName   = "${azurerm_linux_virtual_machine.main.name}"
     $rgName   = "${azurerm_resource_group.main.name}"
