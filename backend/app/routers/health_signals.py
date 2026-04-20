@@ -174,12 +174,39 @@ async def secret_scanning(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Secret scanning MTTR and unresolved alert counts."""
+    """Secret scanning MTTR and unresolved alert counts — aggregated flat object."""
     scoped_orgs = await _resolve_orgs(db, current_user)
-    alerts = await health_signal_service.get_secret_scanning_alert_health(
+    rows = await health_signal_service.get_secret_scanning_alert_health(
         db, scoped_orgs=scoped_orgs, limit=limit
     )
-    return {"alerts": alerts}
+    # Aggregate per-org rows into a single flat object matching SecretScanningResponse
+    unresolved_total = sum(r.get("unresolved_total", 0) for r in rows)
+    resolved_count = sum(r.get("resolved_count", 0) for r in rows)
+    total_count = sum(r.get("total_count", 0) for r in rows)
+    push_bypassed = sum(r.get("push_protection_bypassed_count", 0) for r in rows)
+    unresolved_gt_7d = sum(r.get("unresolved_gt_7d", 0) for r in rows)
+    unresolved_gt_30d = sum(r.get("unresolved_gt_30d", 0) for r in rows)
+    # MTTR: weighted average across orgs (weight by resolved_count)
+    total_weighted_hours = sum(
+        (r.get("avg_hours_to_resolve") or 0) * r.get("resolved_count", 0) for r in rows
+    )
+    total_resolved_for_avg = sum(r.get("resolved_count", 0) for r in rows)
+    mttr_hours = (total_weighted_hours / total_resolved_for_avg) if total_resolved_for_avg else 0
+    resolution_rate_pct = round(resolved_count / total_count * 100, 1) if total_count else 0.0
+    return {
+        "unresolved_total": unresolved_total,
+        "publicly_leaked": 0,  # not tracked in schema; reserved for future
+        "push_protection_bypassed_count": push_bypassed,
+        "open_gt_7d": unresolved_gt_7d,
+        "open_gt_30d": unresolved_gt_30d,
+        "mttr_hours": mttr_hours,
+        "avg_hours_to_resolve": mttr_hours if total_resolved_for_avg else None,
+        "unresolved_gt_7d": unresolved_gt_7d,
+        "unresolved_gt_30d": unresolved_gt_30d,
+        "resolved_count": resolved_count,
+        "total_count": total_count,
+        "resolution_rate_pct": resolution_rate_pct,
+    }
 
 
 @router.get("/sso", response_model=dict[str, Any])
@@ -228,12 +255,39 @@ async def code_scanning(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Code scanning MTTR and dismissal rates."""
+    """Code scanning MTTR and dismissal rates — aggregated flat object."""
     scoped_orgs = await _resolve_orgs(db, current_user)
-    alerts = await health_signal_service.get_code_scanning_health(
+    rows = await health_signal_service.get_code_scanning_health(
         db, scoped_orgs=scoped_orgs, limit=limit
     )
-    return {"alerts": alerts}
+    # Aggregate per-repo rows into a single flat object matching CodeScanningResponse
+    total_alerts = sum(r.get("total_alerts", 0) for r in rows)
+    open_count = sum(r.get("open_count", 0) for r in rows)
+    fixed_count = sum(r.get("fixed_count", 0) for r in rows)
+    dismissed_count = sum(r.get("dismissed_count", 0) for r in rows)
+    critical_count = sum(r.get("critical_count", 0) for r in rows)
+    high_count = sum(r.get("high_count", 0) for r in rows)
+    medium_count = sum(r.get("medium_count", 0) for r in rows)
+    low_count = sum(r.get("low_count", 0) for r in rows)
+    # Weighted average hours-to-close (weight by closed alert count)
+    closed_count = fixed_count + dismissed_count
+    total_weighted_close = sum(
+        (r.get("avg_hours_to_close") or 0) * (r.get("fixed_count", 0) + r.get("dismissed_count", 0))
+        for r in rows
+    )
+    avg_hours_to_close = (total_weighted_close / closed_count) if closed_count else 0
+    return {
+        "total_alerts": total_alerts,
+        "open_count": open_count,
+        "fixed_count": fixed_count,
+        "dismissed_count": dismissed_count,
+        "critical_count": critical_count,
+        "high_count": high_count,
+        "medium_count": medium_count,
+        "low_count": low_count,
+        "avg_hours_to_close": avg_hours_to_close,
+        "reappeared_count": 0,  # not tracked in schema; reserved for future
+    }
 
 
 @router.get("/vulnerabilities", response_model=dict[str, Any])
@@ -242,12 +296,31 @@ async def vulnerabilities(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Dependabot vulnerability aging summary."""
+    """Dependabot vulnerability aging summary — aggregated flat object."""
     scoped_orgs = await _resolve_orgs(db, current_user)
-    aging = await health_signal_service.get_vulnerability_aging(
+    rows = await health_signal_service.get_vulnerability_aging(
         db, scoped_orgs=scoped_orgs, limit=limit
     )
-    return {"aging": aging}
+    # Aggregate per-org rows into a single flat object matching VulnerabilitiesResponse
+    total_open = sum(r.get("total_open", 0) for r in rows)
+    # Weighted average for avg_open_days
+    total_weighted_days = sum((r.get("avg_open_days") or 0) * r.get("total_open", 0) for r in rows)
+    avg_open_days = (total_weighted_days / total_open) if total_open else 0
+    return {
+        "total_open": total_open,
+        "critical_open": sum(r.get("open_critical", 0) for r in rows),
+        "high_open": sum(r.get("open_high", 0) for r in rows),
+        "open_gt_30d": sum(r.get("open_gt_30d", 0) for r in rows),
+        "critical_open_gt_14d": sum(r.get("critical_open_gt_14d", 0) for r in rows),
+        "avg_open_days": avg_open_days,
+        "open_medium": sum(r.get("open_medium", 0) for r in rows),
+        "open_low": sum(r.get("open_low", 0) for r in rows),
+        "age_0_30d": sum(r.get("age_0_30d", 0) for r in rows),
+        "age_30_60d": sum(r.get("age_30_60d", 0) for r in rows),
+        "age_60_90d": sum(r.get("age_60_90d", 0) for r in rows),
+        "age_gt_90d": sum(r.get("age_gt_90d", 0) for r in rows),
+        "critical_aging_gt_90d": sum(r.get("critical_aging_gt_90d", 0) for r in rows),
+    }
 
 
 @router.get("/app-governance", response_model=dict[str, Any])
