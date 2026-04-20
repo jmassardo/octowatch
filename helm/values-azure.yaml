@@ -73,6 +73,17 @@ postgresql:
 valkey:
   replica:
     replicaCount: 0
+  primary:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "384Mi"
+      limits:
+        cpu: "500m"
+        memory: "768Mi"
+    persistence:
+      storageClass: "managed-csi"
+      size: 2Gi
   master:
     persistence:
       storageClass: "managed-csi"
