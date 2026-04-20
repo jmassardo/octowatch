@@ -1,0 +1,172 @@
+# Standalone TimescaleDB StatefulSet
+# Replaces the bitnami/postgresql subchart which is incompatible with the
+# timescale/timescaledb community image. Deployed when postgresql.enabled=false.
+{{- if not .Values.postgresql.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: octowatch-postgresql-init-scripts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+data:
+  01_init.sh: |
+    #!/bin/bash
+    set -e
+    # Enable TimescaleDB extension
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+      CREATE EXTENSION IF NOT EXISTS timescaledb;
+      DO \$\$
+      BEGIN
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'app_rw') THEN
+          CREATE ROLE app_rw WITH LOGIN PASSWORD '${APP_PASSWORD}';
+        ELSE
+          ALTER ROLE app_rw WITH PASSWORD '${APP_PASSWORD}';
+        END IF;
+      END
+      \$\$;
+      GRANT ALL PRIVILEGES ON DATABASE auditlogs TO app_rw;
+      GRANT ALL ON SCHEMA public TO app_rw;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO app_rw;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO app_rw;
+    EOSQL
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: octowatch-postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  ports:
+    - name: tcp-postgresql
+      port: 5432
+      targetPort: 5432
+  selector:
+    app.kubernetes.io/name: octowatch-postgresql
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  clusterIP: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: octowatch-postgresql-hl
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  ports:
+    - name: tcp-postgresql
+      port: 5432
+      targetPort: 5432
+  selector:
+    app.kubernetes.io/name: octowatch-postgresql
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  clusterIP: None
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: octowatch-postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  serviceName: octowatch-postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: octowatch-postgresql
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: octowatch-postgresql
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: postgresql
+    spec:
+      securityContext:
+        fsGroup: 70
+        runAsUser: 70
+        runAsNonRoot: true
+      containers:
+        - name: postgresql
+          image: docker.io/timescale/timescaledb:2.25.1-pg16
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: tcp-postgresql
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: "auditlogs"
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: octowatch-db-secret
+                  key: postgres-password
+            - name: APP_USER
+              value: "app_rw"
+            - name: APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: octowatch-db-secret
+                  key: app-password
+            - name: PGDATA
+              value: "/var/lib/postgresql/data/pgdata"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U postgres -d auditlogs
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U postgres -d auditlogs
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: octowatch-postgresql-init-scripts
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: "managed-csi"
+        resources:
+          requests:
+            storage: 50Gi
+{{- end }}
