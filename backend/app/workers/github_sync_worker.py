@@ -817,7 +817,15 @@ async def _sync_entity_async(
 
             async with _make_session_factory()() as session:
                 await _upsert_items(session, entity_type, org, items, delta_since=delta_since)
-                items_synced += len(items)
+                # Aggregate entities (code_scanning, secret_scanning, dependabot) wrap all
+                # individual alerts in a single summary dict with a "_raw_alerts" key.
+                # Use the actual alert count so the cursor reflects reality, not just "1".
+                raw_alert_count = sum(
+                    len(item.get("_raw_alerts") or [])
+                    for item in items
+                    if isinstance(item, dict) and "_raw_alerts" in item
+                )
+                items_synced += raw_alert_count if raw_alert_count else len(items)
 
                 # Persist cursor after every page — crash recovery point
                 stmt = (
@@ -2844,7 +2852,7 @@ async def _fetch_page(
             "total_count": total_count,
             "_raw_alerts": raw_alerts,
         }
-        return [summary_item], "_done"
+        return [summary_item], None
 
     # ── Dependabot alerts (aggregated summary) ────────────────────────────
     if entity_type == "dependabot_alerts":
@@ -2914,7 +2922,7 @@ async def _fetch_page(
             "low_count": low_count,
             "_raw_alerts": raw_dep_alerts,
         }
-        return [summary_item], "_done"
+        return [summary_item], None
 
     # ── License consumption (enterprise-level) ────────────────────────────
     if entity_type == "license_consumption":
@@ -2943,7 +2951,7 @@ async def _fetch_page(
             "total_seats_consumed": data.get("total_seats_consumed", 0),
             "seats": data.get("users", [])[:500],
         }
-        return [license_item], "_done"
+        return [license_item], None
 
     # ── Code scanning alerts (aggregated summary) ─────────────────────────
     if entity_type == "code_scanning_alerts":
@@ -3011,9 +3019,7 @@ async def _fetch_page(
             "note_count": note_count,
             "_raw_alerts": raw_cs_alerts,
         }
-        return [summary_item], "_done"
-
-    # ── Actions workflows (aggregated summary across repos) ───────────────
+        return [summary_item], None
     if entity_type == "actions_workflows":
         if cursor == "_done":
             return [], None
@@ -3109,7 +3115,7 @@ async def _fetch_page(
             "failed_runs": failed_runs,
             "cancelled_runs": cancelled_runs,
         }
-        return [summary_item], "_done"
+        return [summary_item], None
 
     # ── MFA status (identify members without MFA) ─────────────────────────
     if entity_type == "mfa_status":
@@ -3154,7 +3160,7 @@ async def _fetch_page(
             "_org": org,
             "no_mfa_logins": sorted(no_mfa_logins),
         }
-        return [mfa_item], "_done"
+        return [mfa_item], None
 
     # ── Audit log (enterprise-level, cursor-based pagination) ─────────────
     if entity_type == "audit_log":
