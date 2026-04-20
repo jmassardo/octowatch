@@ -79,3 +79,4 @@ observability:
   metrics:
     serviceMonitor:
       enabled: false
+useExternalSecrets: true
