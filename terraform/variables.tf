@@ -368,3 +368,68 @@ variable "secret_initial_admin_logins" {
   description = "Comma-separated GitHub usernames to seed as initial admins (e.g. 'jmassardo')."
   sensitive   = true
 }
+
+# ── Azure Container Apps Migration ────────────────────────────────────────────
+
+variable "aca_cutover_complete" {
+  type        = bool
+  default     = false
+  description = "Set to true at DNS cutover. Creates CNAME to Container Apps frontend. WARNING: The VM A record in dns.tf must be count-gated (count = var.aca_cutover_complete ? 0 : 1) before enabling this."
+}
+
+variable "aca_subnet_cidr" {
+  type        = string
+  default     = "10.0.2.0/23"
+  description = "CIDR for the Container Apps Environment subnet. Must be /23 or larger, delegated exclusively to Microsoft.App/environments."
+}
+
+variable "pg_data_share_quota_gb" {
+  type        = number
+  default     = 100
+  description = "Provisioned size in GiB for the pg-data Azure Files Premium SMB share."
+
+  validation {
+    condition     = var.pg_data_share_quota_gb >= 100
+    error_message = "Azure Files Premium minimum provisioned capacity is 100 GiB."
+  }
+}
+
+variable "valkey_data_share_quota_gb" {
+  type        = number
+  default     = 100
+  description = "Provisioned size in GiB for the valkey-data Azure Files Premium SMB share."
+
+  validation {
+    condition     = var.valkey_data_share_quota_gb >= 100
+    error_message = "Azure Files Premium minimum provisioned capacity is 100 GiB."
+  }
+}
+
+variable "worker_max_replicas" {
+  type = object({
+    ingestion    = number
+    detection    = number
+    notification = number
+    baseline     = number
+    sync         = number
+  })
+  default = {
+    ingestion    = 5
+    detection    = 10
+    notification = 3
+    baseline     = 3
+    sync         = 2
+  }
+  description = "Maximum replica counts for each Celery worker app. Workers scale to zero when queues are empty."
+}
+
+variable "celery_queue_scale_threshold" {
+  type        = number
+  default     = 5
+  description = "Number of queued Celery tasks per replica before KEDA scales up."
+
+  validation {
+    condition     = var.celery_queue_scale_threshold >= 1 && var.celery_queue_scale_threshold <= 50
+    error_message = "Scale threshold must be between 1 and 50."
+  }
+}

@@ -60,3 +60,25 @@ output "vm_id" {
   value       = azurerm_linux_virtual_machine.main.id
   description = "Azure resource ID of the VM"
 }
+
+# ── Azure Container Apps Outputs ───────────────────────────────────────────────
+
+output "aca_environment_default_domain" {
+  value       = azurerm_container_app_environment.main.default_domain
+  description = "Default domain for the Container Apps environment (for smoke testing before cutover)"
+}
+
+output "aca_frontend_url" {
+  value       = "https://${azurerm_container_app.frontend.ingress[0].fqdn}"
+  description = "Auto-generated HTTPS URL of the frontend Container App (before custom domain)"
+}
+
+output "aca_migrate_job_run_command" {
+  value       = "az containerapp job start --name ${azurerm_container_app_job.migrate.name} --resource-group ${azurerm_resource_group.main.name}"
+  description = "Full CLI command to trigger a database migration run"
+}
+
+output "aca_premium_storage_account" {
+  value       = azurerm_storage_account.premium.name
+  description = "Premium FileStorage account name backing pg-data and valkey-data Azure Files shares"
+}

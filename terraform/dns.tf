@@ -14,7 +14,9 @@ data "azurerm_dns_zone" "existing" {
 }
 
 resource "azurerm_dns_a_record" "octowatch" {
-  count               = var.dns_zone_name != "" ? 1 : 0
+  # Destroyed at cutover (aca_cutover_complete = true) — the CNAME in
+  # container_apps.tf takes over traffic routing to the ACA frontend.
+  count               = var.dns_zone_name != "" && !var.aca_cutover_complete ? 1 : 0
   name                = var.dns_record_name
   zone_name           = data.azurerm_dns_zone.existing[0].name
   resource_group_name = var.dns_zone_resource_group
