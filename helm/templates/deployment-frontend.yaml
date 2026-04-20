@@ -60,7 +60,7 @@ spec:
             - name: tmp
               mountPath: /tmp
             - name: cache
-              mountPath: /var/cache
+              mountPath: /var/cache/nginx
       volumes:
         - name: tmp
           emptyDir: {}
