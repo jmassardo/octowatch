@@ -82,6 +82,16 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: valkey-url
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-client-id
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-client-secret
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -174,6 +184,16 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: valkey-url
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-client-id
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-client-secret
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -266,6 +286,16 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: valkey-url
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-client-id
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-client-secret
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -358,6 +388,16 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: valkey-url
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-client-id
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-client-secret
             - name: SLACK_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -491,6 +531,16 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: valkey-url
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-client-id
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-client-secret
             - name: GITHUB_APP_ID
               valueFrom:
                 secretKeyRef:
