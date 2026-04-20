@@ -14,10 +14,12 @@ api:
   image:
     repository: api
 
-# Worker (all workers use this image)
+# Worker (all workers use this image) — reduced replicas for single-node AKS dev
 worker:
   image:
     repository: worker
+  detection:
+    replicaCount: 1
 
 # Beat uses its own image
 beat:
@@ -67,8 +69,10 @@ postgresql:
   tls:
     enabled: false
 
-# Valkey — Azure Disk PVC
+# Valkey — Azure Disk PVC (no read replicas needed in dev — saves ~300m CPU)
 valkey:
+  replica:
+    replicaCount: 0
   master:
     persistence:
       storageClass: "managed-csi"
