@@ -361,3 +361,10 @@ variable "auto_shutdown_time" {
   default     = "2300"
   description = "Daily auto-shutdown time in HHMM UTC format (e.g. '2300' = 11 PM UTC)."
 }
+
+variable "secret_initial_admin_logins" {
+  type        = string
+  default     = ""
+  description = "Comma-separated GitHub usernames to seed as initial admins (e.g. 'jmassardo')."
+  sensitive   = true
+}
