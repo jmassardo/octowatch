@@ -64,11 +64,16 @@ spec:
   ingress:
     - from:
         - podSelector:
-            matchLabels:
-              app.kubernetes.io/component: api
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/component: worker
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - api
+                  - worker-ingestion
+                  - worker-detection
+                  - worker-baseline
+                  - worker-notification
+                  - worker-sync
       ports:
         - protocol: TCP
           port: 5432
