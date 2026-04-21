@@ -126,22 +126,18 @@ jobs:
           SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
           echo "sha=${SHA:0:7}" >> "$GITHUB_OUTPUT"
 
-      - name: Write tag into values-azure.yaml
+      - name: Write tag into values-image-tag.yaml
         run: |
           TAG="${{ steps.tag.outputs.sha }}"
-          # Upsert global.image.tag — add it if absent, replace if present
-          if grep -q "^  tag:" helm/values-azure.yaml; then
-            sed -i "s/^  tag:.*$/  tag: \"${TAG}\"/" helm/values-azure.yaml
-          else
-            sed -i "/^global:/a\\  tag: \"${TAG}\"" helm/values-azure.yaml
-          fi
+          # Replace the tag line in the dedicated image-tag values file
+          sed -i "s/^  tag:.*$/  tag: \"${TAG}\"/" helm/values-image-tag.yaml
           echo "Set global.image.tag: ${TAG}"
 
       - name: Commit and push
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add helm/values-azure.yaml
+          git add helm/values-image-tag.yaml
           git diff --staged --quiet && echo "No tag change, skipping commit" && exit 0
           git commit -m "chore: update image tag to ${{ steps.tag.outputs.sha }} [skip ci]"
           git push
