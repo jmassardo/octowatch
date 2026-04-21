@@ -194,6 +194,7 @@ async def secret_scanning(
     mttr_hours = (total_weighted_hours / total_resolved_for_avg) if total_resolved_for_avg else 0
     resolution_rate_pct = round(resolved_count / total_count * 100, 1) if total_count else 0.0
     return {
+        "alerts": rows,
         "unresolved_total": unresolved_total,
         "publicly_leaked": 0,  # not tracked in schema; reserved for future
         "push_protection_bypassed_count": push_bypassed,
@@ -277,6 +278,7 @@ async def code_scanning(
     )
     avg_hours_to_close = (total_weighted_close / closed_count) if closed_count else 0
     return {
+        "alerts": rows,
         "total_alerts": total_alerts,
         "open_count": open_count,
         "fixed_count": fixed_count,
@@ -307,6 +309,7 @@ async def vulnerabilities(
     total_weighted_days = sum((r.get("avg_open_days") or 0) * r.get("total_open", 0) for r in rows)
     avg_open_days = (total_weighted_days / total_open) if total_open else 0
     return {
+        "aging": rows,
         "total_open": total_open,
         "critical_open": sum(r.get("open_critical", 0) for r in rows),
         "high_open": sum(r.get("open_high", 0) for r in rows),
