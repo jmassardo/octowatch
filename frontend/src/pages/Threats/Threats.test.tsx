@@ -230,7 +230,7 @@ describe('ThreatsPage with data', () => {
     const row = await screen.findByText('Suspicious admin activity detected');
     await user.click(row);
 
-    expect(screen.getByText('Suspend user')).toBeInTheDocument();
+    expect(screen.getByText('Delete Detection')).toBeInTheDocument();
     expect(screen.getByText('Acknowledge')).toBeInTheDocument();
     expect(screen.getByText('Assign')).toBeInTheDocument();
   });

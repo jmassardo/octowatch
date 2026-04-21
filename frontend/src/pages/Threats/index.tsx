@@ -821,10 +821,14 @@ export function ThreatsPage() {
               <Button
                 size="sm"
                 variant="danger"
-                onClick={() => suspendMutation.mutate(selected.id)}
+                onClick={() => {
+                  if (window.confirm('Delete this detection record? This action cannot be undone.')) {
+                    suspendMutation.mutate(selected.id);
+                  }
+                }}
                 disabled={suspendMutation.isPending}
               >
-                Suspend user
+                Delete Detection
               </Button>
               <Button
                 size="sm"

@@ -145,11 +145,11 @@ describe('LicensePane', () => {
     expect(screen.getByText(`≈ $${expectedCost}/month recoverable`)).toBeInTheDocument();
   });
 
-  it('renders Active seats card', () => {
+  it('renders Available seats card when license sync data is present', () => {
     renderWithProviders();
-    const activeLabels = screen.getAllByText('Active seats');
+    const activeLabels = screen.getAllByText('Available seats');
     expect(activeLabels.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Members with recent activity')).toBeInTheDocument();
+    expect(screen.getByText('Seats remaining within your license')).toBeInTheDocument();
   });
 
   it('renders ghost member table with 2 columns (Member, Last active)', () => {

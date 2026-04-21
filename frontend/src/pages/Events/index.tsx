@@ -159,6 +159,7 @@ export function EventsPage() {
 
   function removeChip(chip: string) {
     setChips((prev) => prev.filter((c) => c !== chip));
+    setPage(1);
   }
 
   const eventColumns: ColumnDef<EventResponse>[] = [
