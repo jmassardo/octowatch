@@ -2852,7 +2852,7 @@ async def _fetch_page(
             "total_count": total_count,
             "_raw_alerts": raw_alerts,
         }
-        return [summary_item], None
+        return [summary_item], "_done"
 
     # ── Dependabot alerts (aggregated summary) ────────────────────────────
     if entity_type == "dependabot_alerts":
@@ -2922,7 +2922,7 @@ async def _fetch_page(
             "low_count": low_count,
             "_raw_alerts": raw_dep_alerts,
         }
-        return [summary_item], None
+        return [summary_item], "_done"
 
     # ── License consumption (enterprise-level) ────────────────────────────
     if entity_type == "license_consumption":
@@ -2951,7 +2951,7 @@ async def _fetch_page(
             "total_seats_consumed": data.get("total_seats_consumed", 0),
             "seats": data.get("users", [])[:500],
         }
-        return [license_item], None
+        return [license_item], "_done"
 
     # ── Code scanning alerts (aggregated summary) ─────────────────────────
     if entity_type == "code_scanning_alerts":
@@ -3019,7 +3019,7 @@ async def _fetch_page(
             "note_count": note_count,
             "_raw_alerts": raw_cs_alerts,
         }
-        return [summary_item], None
+        return [summary_item], "_done"
     if entity_type == "actions_workflows":
         if cursor == "_done":
             return [], None
@@ -3115,7 +3115,7 @@ async def _fetch_page(
             "failed_runs": failed_runs,
             "cancelled_runs": cancelled_runs,
         }
-        return [summary_item], None
+        return [summary_item], "_done"
 
     # ── MFA status (identify members without MFA) ─────────────────────────
     if entity_type == "mfa_status":
@@ -3160,7 +3160,7 @@ async def _fetch_page(
             "_org": org,
             "no_mfa_logins": sorted(no_mfa_logins),
         }
-        return [mfa_item], None
+        return [mfa_item], "_done"
 
     # ── Audit log (enterprise-level, cursor-based pagination) ─────────────
     if entity_type == "audit_log":
