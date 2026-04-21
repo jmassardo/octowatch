@@ -177,9 +177,8 @@ export function ExecutiveView() {
         </div>
       </div>
 
-      <ScoreCard summary={summary} />
-
-      <div className={styles.grid2}>
+      <div className={styles.grid3}>
+        <ScoreCard summary={summary} />
         <Card>
           <CardHeader>Detection Trend</CardHeader>
           <LineAreaChart
@@ -204,11 +203,6 @@ export function ExecutiveView() {
       <Card>
         <CardHeader>Compliance Status</CardHeader>
         <ComplianceCards summary={summary} />
-      </Card>
-
-      <Card>
-        <CardHeader>Top Risks</CardHeader>
-        <TopRisksList summary={summary} />
       </Card>
 
       <MetricsThatMatter period={period} />
