@@ -43,6 +43,16 @@ function ScoreCard({ summary }: { summary: ExecutiveSummaryType }) {
 }
 
 function ComplianceCards({ summary }: { summary: ExecutiveSummaryType }) {
+  const hasData =
+    summary.compliance_summary.length > 0 &&
+    summary.compliance_summary.some((c) => c.controls_assessed > 0);
+
+  if (!hasData) {
+    return (
+      <div className={styles.emptyText}>No compliance frameworks configured.</div>
+    );
+  }
+
   return (
     <div className={styles.complianceGrid}>
       {summary.compliance_summary.map((c) => (
@@ -127,6 +137,7 @@ export function ExecutiveView() {
   // Build trend chart data from detection_trend
   const trendLabels = Object.keys(summary.detection_trend);
   const trendValues = Object.values(summary.detection_trend);
+  const allZeroTrend = trendValues.every((v) => v === 0);
 
   return (
     <div className={styles.page}>
@@ -159,18 +170,36 @@ export function ExecutiveView() {
         <ScoreCard summary={summary} />
         <Card>
           <CardHeader>Detection Trend</CardHeader>
-          <LineAreaChart
-            xAxisData={trendLabels}
-            series={[
-              {
-                name: 'Detections',
-                data: trendValues,
-                color: '#f85149',
-                areaOpacity: 0.15,
-              },
-            ]}
-            height={200}
-          />
+          <div style={{ position: 'relative' }}>
+            <LineAreaChart
+              xAxisData={trendLabels}
+              series={[
+                {
+                  name: 'Detections',
+                  data: trendValues,
+                  color: '#f85149',
+                  areaOpacity: 0.15,
+                },
+              ]}
+              height={200}
+            />
+            {allZeroTrend && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  pointerEvents: 'none',
+                }}
+              >
+                <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                  No detections in this period
+                </span>
+              </div>
+            )}
+          </div>
         </Card>
         <Card>
           <CardHeader>Month-over-Month</CardHeader>
