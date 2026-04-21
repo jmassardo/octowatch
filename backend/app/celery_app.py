@@ -25,7 +25,7 @@ app.config_from_object(
         "accept_content": ["json"],
         # ─── Reliability ─────────────────────────────────────────────────────
         "task_acks_late": True,
-        "worker_prefetch_multiplier": 4,
+        "worker_prefetch_multiplier": 1,
         "task_reject_on_worker_lost": True,
         # ─── Result expiry ───────────────────────────────────────────────────
         "result_expires": 3600,
