@@ -1,5 +1,5 @@
-# MANAGED BY ARGOCD IMAGE UPDATER — DO NOT EDIT MANUALLY
-# Updated automatically when new images are pushed to GHCR.
+# MANAGED BY CI — DO NOT EDIT MANUALLY
+# Updated automatically by the Publish workflow after images are pushed to GHCR.
 global:
   image:
-    tag: "main"
+    tag: "4132788"
