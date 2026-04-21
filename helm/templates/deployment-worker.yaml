@@ -480,7 +480,7 @@ spec:
       {{- end }}
 ---
 # ──────────────────────────────────────────────────────────────────────────────
-# Sync worker (GitHub Enterprise org sync, pool=solo, max 1 replica)
+# Sync worker (GitHub Enterprise org sync)
 # ──────────────────────────────────────────────────────────────────────────────
 apiVersion: apps/v1
 kind: Deployment
@@ -524,7 +524,8 @@ spec:
             - worker
             - -Q
             - github_sync
-            - --pool=solo
+            - --pool=prefork
+            - --concurrency={{ .Values.worker.sync.concurrency | default 4 }}
             - --loglevel
             - INFO
             - --without-heartbeat
