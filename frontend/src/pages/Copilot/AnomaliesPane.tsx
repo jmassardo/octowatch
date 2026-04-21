@@ -55,7 +55,9 @@ export function AnomaliesPane() {
         <SampleDataBanner message={anomalyData.message ?? 'Anomaly data is unavailable.'} />
       )}
 
-      {isError && <ErrorBanner message="Failed to load anomaly data" onRetry={() => void refetch()} />}
+      {isError && (
+        <ErrorBanner message="Failed to load anomaly data" onRetry={() => void refetch()} />
+      )}
       {isLoading && <Spinner />}
 
       {!isLoading && !isError && anomalies.length === 0 && !anomalyData?.error && (
