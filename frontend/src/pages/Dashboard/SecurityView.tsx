@@ -139,19 +139,19 @@ export function SecurityView() {
           value={String(unified?.secret_scanning.open ?? '—')}
           label="Open secret alerts"
           helpText="Open secret scanning alerts across all organizations from unified security."
-          to="/health/security"
+          to="/advanced-security?tab=secrets"
         />
         <MetricCard
           value={String(unified?.code_scanning.open ?? '—')}
           label="Open code scanning alerts"
           helpText="Open code scanning (CodeQL) alerts across all organizations."
-          to="/health/security"
+          to="/advanced-security?tab=code"
         />
         <MetricCard
           value={String(unified?.dependabot.open ?? '—')}
           label="Open Dependabot alerts"
           helpText="Open Dependabot vulnerability alerts across all organizations."
-          to="/health/security"
+          to="/advanced-security?tab=dependabot"
         />
         <MetricCard
           value={String(activeThreats)}

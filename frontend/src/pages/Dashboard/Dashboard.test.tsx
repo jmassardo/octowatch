@@ -115,12 +115,12 @@ describe('DashboardPage', () => {
   it('renders all stat pill labels', () => {
     renderWithProviders(<DashboardPage />);
 
-    expect(screen.getByText(/events today/)).toBeInTheDocument();
+    expect(screen.getByText(/total events/)).toBeInTheDocument();
     expect(screen.getByText(/open threats/)).toBeInTheDocument();
     expect(screen.getByText(/pipeline success/)).toBeInTheDocument();
     expect(screen.getByText(/active devs/)).toBeInTheDocument();
     expect(screen.getByText(/API calls \(24h\)/)).toBeInTheDocument();
-    expect(screen.getByText(/total events/)).toBeInTheDocument();
+    expect(screen.getByText(/events \(recent sample\)/)).toBeInTheDocument();
     expect(screen.getByText(/unresolved secrets/)).toBeInTheDocument();
     expect(screen.getByText(/feature disables \(7d\)/)).toBeInTheDocument();
   });
