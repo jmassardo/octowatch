@@ -66,28 +66,6 @@ function ComplianceCards({ summary }: { summary: ExecutiveSummaryType }) {
   );
 }
 
-function TopRisksList({ summary }: { summary: ExecutiveSummaryType }) {
-  if (summary.top_risks.length === 0) {
-    return <div className={styles.emptyText}>No open risks in this period</div>;
-  }
-  return (
-    <div className={styles.riskList}>
-      {summary.top_risks.map((r, i) => (
-        <div key={i} className={styles.riskRow}>
-          <span className={[styles.riskDot, styles[r.severity]].filter(Boolean).join(' ')} />
-          <div className={styles.riskInfo}>
-            <div className={styles.riskTitle}>{r.title}</div>
-            <div className={styles.riskMeta}>
-              {r.severity} · {r.count} occurrence{r.count !== 1 ? 's' : ''}
-              {r.actor && <> · @{r.actor}</>}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function MomCards({ summary }: { summary: ExecutiveSummaryType }) {
   const m = summary.month_over_month;
   return (
