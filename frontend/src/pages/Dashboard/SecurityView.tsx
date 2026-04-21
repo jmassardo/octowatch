@@ -1,87 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import {
   getUnifiedSecurity,
   getSecurityPosture,
   type UnifiedSecurityResponse,
   type SecurityPostureResponse,
 } from '../../api/healthSignals';
-import { listDetections } from '../../api/detections';
-import type { DetectionResponse, DetectionListResponse } from '../../types/detections';
 import { MetricCard } from '../../components/primitives/MetricCard';
-import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
+import { BarChart } from '../../components/charts/BarChart';
+import { RadialGauge } from '../../components/charts/RadialGauge';
+import { Card, CardHeader } from '../../components/primitives/Card';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
-import { Label } from '../../components/primitives/Label';
-import { formatRelative } from '../../utils/dates';
 import styles from './Dashboard.module.css';
 
-const threatColumns: ColumnDef<DetectionResponse>[] = [
-  {
-    key: 'severity',
-    header: 'Severity',
-    sortable: true,
-    filterable: true,
-    helpText: 'Detection severity level assigned by the rule engine.',
-    render: (row) => {
-      const variantMap: Record<string, 'danger' | 'severe' | 'attention' | 'success'> = {
-        critical: 'danger',
-        high: 'severe',
-        medium: 'attention',
-        low: 'success',
-      };
-      return <Label variant={variantMap[row.severity] ?? 'muted'}>{row.severity}</Label>;
-    },
-    sortValue: (row) => {
-      const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-      return order[row.severity] ?? 4;
-    },
-    filterValue: (row) => row.severity,
-  },
-  {
-    key: 'title',
-    header: 'Title',
-    sortable: true,
-    filterable: true,
-    helpText: 'Detection rule title that fired.',
-    render: (row) => row.title,
-    sortValue: (row) => row.title,
-    filterValue: (row) => row.title,
-  },
-  {
-    key: 'actor',
-    header: 'Actor',
-    sortable: true,
-    filterable: true,
-    helpText: 'GitHub user or bot that triggered the detection.',
-    render: (row) => row.actor ?? '—',
-    sortValue: (row) => row.actor ?? '',
-    filterValue: (row) => row.actor ?? '',
-  },
-  {
-    key: 'org',
-    header: 'Org',
-    sortable: true,
-    filterable: true,
-    helpText: 'GitHub organization where the detection occurred.',
-    render: (row) => row.org ?? '—',
-    sortValue: (row) => row.org ?? '',
-    filterValue: (row) => row.org ?? '',
-  },
-  {
-    key: 'triggered_at',
-    header: 'Triggered At',
-    sortable: true,
-    filterable: false,
-    helpText: 'When the detection rule was triggered.',
-    render: (row) => formatRelative(row.triggered_at),
-    sortValue: (row) => row.triggered_at,
-  },
-];
-
 export function SecurityView() {
-  const navigate = useNavigate();
-
   const {
     data: unified,
     isLoading: loadingUnified,
@@ -104,22 +36,31 @@ export function SecurityView() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const {
-    data: threats,
-    isLoading: loadingThreats,
-    isError: errorThreats,
-    refetch: refetchThreats,
-  } = useQuery<DetectionListResponse>({
-    queryKey: ['security-view', 'threats'],
-    queryFn: () => listDetections({ status: 'open', page_size: 10 }),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const activeThreats = threats?.total ?? 0;
-
-  const isLoading = loadingUnified || loadingPosture || loadingThreats;
+  const isLoading = loadingUnified || loadingPosture;
 
   if (isLoading) return <Spinner />;
+
+  const total = posture
+    ? Math.max(
+        posture.repos_with_ghas,
+        posture.repos_with_secret_scanning,
+        posture.repos_with_codeql,
+        posture.repos_with_dependabot,
+        1,
+      )
+    : 0;
+
+  function coveragePct(count: number | undefined): number {
+    if (!count || total === 0) return 0;
+    return Math.round((count / total) * 100);
+  }
+
+  const alertXAxis = ['Secret Scanning', 'Code Scanning', 'Dependabot'];
+  const alertValues = [
+    unified?.secret_scanning.open ?? 0,
+    unified?.code_scanning.open ?? 0,
+    unified?.dependabot.open ?? 0,
+  ];
 
   return (
     <>
@@ -128,9 +69,6 @@ export function SecurityView() {
       )}
       {errorPosture && (
         <ErrorBanner message="Could not load security posture" onRetry={refetchPosture} />
-      )}
-      {errorThreats && (
-        <ErrorBanner message="Could not load threat detections" onRetry={refetchThreats} />
       )}
 
       {/* Top row: key security metrics */}
@@ -154,13 +92,6 @@ export function SecurityView() {
           to="/advanced-security?tab=dependabot"
         />
         <MetricCard
-          value={String(activeThreats)}
-          label="Active threat detections"
-          helpText="Threat detections in Open status from the detection engine."
-          accent={activeThreats > 0}
-          to="/threats"
-        />
-        <MetricCard
           value={String(posture?.repos_with_ghas ?? '—')}
           label="GHAS enabled repos"
           helpText="Repositories with GitHub Advanced Security enabled."
@@ -168,52 +99,43 @@ export function SecurityView() {
         />
       </div>
 
-      {/* Middle: recent threat activity */}
+      {/* Alert Trend */}
       <div className={styles.section}>
-        <div className={styles.sectionTitle}>Threat Activity</div>
-        <DataTable
-          columns={threatColumns}
-          data={[...(threats?.items ?? [])]}
-          rowKey={(row) => row.id}
-          onRowClick={(row) => navigate(`/threats?id=${row.id}`)}
-          emptyMessage="No open threats"
-        />
+        <div className={styles.sectionTitle}>Alert Trend</div>
+        <Card>
+          <CardHeader>Open alerts by category</CardHeader>
+          <BarChart
+            xAxisData={alertXAxis}
+            series={[
+              {
+                name: 'Open Alerts',
+                data: alertValues,
+              },
+            ]}
+            height={160}
+          />
+        </Card>
       </div>
 
-      {/* Bottom: security feature coverage */}
+      {/* Security Feature Coverage — radial gauges */}
       <div className={styles.section}>
         <div className={styles.sectionTitle}>Security Feature Coverage</div>
-        <div className={styles.cardGrid}>
-          <MetricCard
-            value={String(posture?.repos_with_secret_scanning ?? '—')}
-            label="Secret scanning enabled"
-            helpText="Repositories with secret scanning enabled."
-            to="/posture"
+        <div className={styles.gaugeGrid}>
+          <RadialGauge
+            value={coveragePct(posture?.repos_with_secret_scanning)}
+            label="Secret Scanning"
           />
-          <MetricCard
-            value={String(posture?.repos_with_codeql ?? '—')}
-            label="CodeQL enabled"
-            helpText="Repositories with CodeQL code scanning enabled."
-            to="/posture"
+          <RadialGauge
+            value={coveragePct(posture?.repos_with_codeql)}
+            label="CodeQL"
           />
-          <MetricCard
-            value={String(posture?.repos_with_dependabot ?? '—')}
-            label="Dependabot enabled"
-            helpText="Repositories with Dependabot security updates enabled."
-            to="/posture"
+          <RadialGauge
+            value={coveragePct(posture?.repos_with_dependabot)}
+            label="Dependabot"
           />
-          <MetricCard
-            value={String(posture?.repos_with_ghas ?? '—')}
-            label="GHAS enabled"
-            helpText="Repositories with GitHub Advanced Security license enabled."
-            to="/posture"
-          />
-          <MetricCard
-            value={String(posture?.features_disabled_count ?? '—')}
-            label="Features disabled"
-            helpText="Count of security features that have been disabled across repos."
-            accent={(posture?.features_disabled_count ?? 0) > 0}
-            to="/posture"
+          <RadialGauge
+            value={coveragePct(posture?.repos_with_ghas)}
+            label="GHAS"
           />
         </div>
       </div>
