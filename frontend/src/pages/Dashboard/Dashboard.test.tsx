@@ -30,21 +30,6 @@ vi.mock('../../components/charts/ContributionCalendar', () => ({
   ContributionCalendar: () => <div data-testid="contribution-calendar" />,
 }));
 
-vi.mock('../../components/widgets/UnifiedSecurityWidget', () => ({
-  UnifiedSecurityWidget: () => <div data-testid="unified-security-widget" />,
-}));
-
-const mockGetExtendedHealthSummary = vi.fn().mockResolvedValue({
-  stale_repos: 0,
-  pat_no_expiry: 0,
-  pat_stale: 0,
-  bypass_offenders: 0,
-  ext_collab_total: 0,
-  ext_collab_elevated: 0,
-  unresolved_secret_alerts: 0,
-  security_feature_disables_7d: 0,
-});
-
 const mockGetSystemHealth = vi.fn().mockResolvedValue({
   ingestion_healthy: true,
   last_event_at: '2025-03-15T00:00:00Z',
@@ -52,20 +37,22 @@ const mockGetSystemHealth = vi.fn().mockResolvedValue({
   gap_duration_minutes: null,
 });
 
+const mockGetRepoHealth = vi.fn().mockResolvedValue({
+  stale: [],
+  archived: [],
+  abandoned_forks: [],
+});
+
+const mockGetPatHealth = vi.fn().mockResolvedValue({
+  summary: { no_expiry_count: 0, expired_count: 0, stale_90d_count: 0 },
+  tokens: [],
+  dormant: [],
+});
+
 vi.mock('../../api/healthSignals', () => ({
-  getExtendedHealthSummary: (...args: unknown[]) => mockGetExtendedHealthSummary(...args),
   getSystemHealth: (...args: unknown[]) => mockGetSystemHealth(...args),
-  getUnifiedSecurity: vi.fn().mockResolvedValue({
-    total_open: 0,
-    critical: 0,
-    high: 0,
-    medium: 0,
-    low: 0,
-    active_secret_alerts: 0,
-    active_code_alerts: 0,
-    active_dependabot_alerts: 0,
-    trend_30d: [],
-  }),
+  getRepoHealth: (...args: unknown[]) => mockGetRepoHealth(...args),
+  getPatHealth: (...args: unknown[]) => mockGetPatHealth(...args),
 }));
 
 describe('DashboardPage', () => {
@@ -112,17 +99,21 @@ describe('DashboardPage', () => {
   /*  Stat pills                                                       */
   /* ---------------------------------------------------------------- */
 
-  it('renders all stat pill labels', () => {
+  it('renders retained stat pill labels', () => {
     renderWithProviders(<DashboardPage />);
 
     expect(screen.getByText(/total events/)).toBeInTheDocument();
-    expect(screen.getByText(/open threats/)).toBeInTheDocument();
     expect(screen.getByText(/pipeline success/)).toBeInTheDocument();
     expect(screen.getByText(/active devs/)).toBeInTheDocument();
     expect(screen.getByText(/API calls \(24h\)/)).toBeInTheDocument();
-    expect(screen.getByText(/events \(recent sample\)/)).toBeInTheDocument();
-    expect(screen.getByText(/unresolved secrets/)).toBeInTheDocument();
-    expect(screen.getByText(/feature disables \(7d\)/)).toBeInTheDocument();
+  });
+
+  it('does not render removed security pills', () => {
+    renderWithProviders(<DashboardPage />);
+
+    expect(screen.queryByText(/unresolved secrets/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/feature disables \(7d\)/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/open threats/)).not.toBeInTheDocument();
   });
 
   it('shows dash for pipeline success when no data', () => {
@@ -162,6 +153,31 @@ describe('DashboardPage', () => {
   });
 
   /* ---------------------------------------------------------------- */
+  /*  Operations summary MetricCards                                    */
+  /* ---------------------------------------------------------------- */
+
+  it('renders ops summary metric cards', async () => {
+    renderWithProviders(<DashboardPage />);
+
+    expect(await screen.findByText('Stale repos')).toBeInTheDocument();
+    expect(screen.getByText('Stale PATs')).toBeInTheDocument();
+    expect(screen.getByText('PATs without expiry')).toBeInTheDocument();
+    expect(screen.getByText('Active devs')).toBeInTheDocument();
+  });
+
+  it('shows stale repo count from repo health', async () => {
+    mockGetRepoHealth.mockResolvedValue({
+      stale: [{ org: 'o', repo: 'r', last_event_at: '2024-01-01', days_since_activity: 100 }],
+      archived: [],
+      abandoned_forks: [],
+    });
+    renderWithProviders(<DashboardPage />);
+
+    await screen.findByText('Stale repos');
+    expect(screen.getByText('1')).toBeInTheDocument();
+  });
+
+  /* ---------------------------------------------------------------- */
   /*  Platform alerts                                                   */
   /* ---------------------------------------------------------------- */
 
@@ -189,6 +205,12 @@ describe('DashboardPage', () => {
     expect(screen.getByText('0 investigating')).toBeInTheDocument();
   });
 
+  it('does not render "Open threats by severity" card', () => {
+    renderWithProviders(<DashboardPage />);
+
+    expect(screen.queryByText('Open threats by severity')).not.toBeInTheDocument();
+  });
+
   /* ---------------------------------------------------------------- */
   /*  Activity heatmap                                                  */
   /* ---------------------------------------------------------------- */
@@ -197,20 +219,6 @@ describe('DashboardPage', () => {
     renderWithProviders(<DashboardPage />);
 
     expect(screen.getByTestId('contribution-calendar')).toBeInTheDocument();
-  });
-
-  /* ---------------------------------------------------------------- */
-  /*  Severity card                                                     */
-  /* ---------------------------------------------------------------- */
-
-  it('renders the open threats severity card', async () => {
-    renderWithProviders(<DashboardPage />);
-
-    expect(screen.getByText('Open threats by severity')).toBeInTheDocument();
-    expect(await screen.findByText('Critical')).toBeInTheDocument();
-    expect(screen.getByText('High')).toBeInTheDocument();
-    expect(screen.getByText('Medium')).toBeInTheDocument();
-    expect(screen.getByText('Low')).toBeInTheDocument();
   });
 });
 
@@ -313,110 +321,6 @@ describe('DashboardPage with data', () => {
 
     // calendarEvents total = 1500 → "1.5K events"
     expect(await screen.findByText(/1\.5K events/)).toBeInTheDocument();
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  Severity row navigation                                            */
-/* ------------------------------------------------------------------ */
-
-describe('DashboardPage severity row clicks', () => {
-  beforeEach(() => {
-    mockNavigate.mockClear();
-    mockGetActionsVolumeReport.mockResolvedValue({ data: [] });
-    mockListDetections.mockResolvedValue({
-      items: [
-        {
-          id: 1,
-          rule_id: 1,
-          rule_name: 'R1',
-          rule_version: 1,
-          severity: 'critical',
-          confidence: 'high',
-          confidence_score: 0.9,
-          status: 'investigating',
-          title: 'T1',
-          description: '',
-          actor: null,
-          org: 'o',
-          repo: null,
-          source_ip: null,
-          window_start: null,
-          window_end: null,
-          event_ids: [],
-          context_data: {},
-          triggered_at: '2024-01-15T00:00:00Z',
-          assigned_to: null,
-          resolved_at: null,
-          resolution_note: null,
-          tickets: [],
-        },
-        {
-          id: 2,
-          rule_id: 2,
-          rule_name: 'R2',
-          rule_version: 1,
-          severity: 'high',
-          confidence: 'medium',
-          confidence_score: 0.7,
-          status: 'investigating',
-          title: 'T2',
-          description: '',
-          actor: null,
-          org: 'o',
-          repo: null,
-          source_ip: null,
-          window_start: null,
-          window_end: null,
-          event_ids: [],
-          context_data: {},
-          triggered_at: '2024-01-15T00:00:00Z',
-          assigned_to: null,
-          resolved_at: null,
-          resolution_note: null,
-          tickets: [],
-        },
-      ],
-      total: 2,
-      page: 1,
-      page_size: 100,
-      has_next: false,
-    });
-    mockListEvents.mockResolvedValue({ items: [], total: 0 });
-  });
-
-  it('severity rows have role=button and are clickable', async () => {
-    renderWithProviders(<DashboardPage />);
-
-    await screen.findByText('Critical');
-
-    const criticalRow = screen.getByLabelText(/critical threats/i);
-    expect(criticalRow).toHaveAttribute('role', 'button');
-    expect(criticalRow).toHaveAttribute('tabindex', '0');
-  });
-
-  it('clicking Critical severity navigates to /threats?severity=critical', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<DashboardPage />);
-
-    await screen.findByText('Critical');
-
-    const criticalRow = screen.getByLabelText(/critical threats/i);
-    await user.click(criticalRow);
-
-    expect(mockNavigate).toHaveBeenCalledWith('/threats?severity=critical');
-  });
-
-  it('clicking High severity navigates to /threats?severity=high', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<DashboardPage />);
-
-    await screen.findByText('High');
-
-    const highRow = screen.getByLabelText(/high threats/i);
-    await user.click(highRow);
-
-    expect(mockNavigate).toHaveBeenCalledWith('/threats?severity=high');
   });
 });
 

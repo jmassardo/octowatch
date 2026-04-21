@@ -3,19 +3,17 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listDetections } from '../../api/detections';
 import { listEvents } from '../../api/events';
 import { getActionsVolumeReport } from '../../api/reports';
-import { getExtendedHealthSummary, getSystemHealth } from '../../api/healthSignals';
+import { getSystemHealth, getRepoHealth, getPatHealth } from '../../api/healthSignals';
 import { ContributionCalendar } from '../../components/charts/ContributionCalendar';
 import { Card, CardHeader } from '../../components/primitives/Card';
+import { MetricCard } from '../../components/primitives/MetricCard';
 import { Spinner } from '../../components/primitives/Spinner';
-import { ErrorBanner } from '../../components/primitives/ErrorBanner';
-import { UnifiedSecurityWidget } from '../../components/widgets/UnifiedSecurityWidget';
 import { ExecutiveView } from './ExecutiveView';
 import { SecurityView } from './SecurityView';
 import { CiCdView } from './CiCdView';
 import { useOrg } from '../../hooks/useOrg';
 import type { EventResponse } from '../../types/events';
 import type { ActionsVolumeBucket } from '../../types/reports';
-import type { DetectionSeverity } from '../../types/detections';
 import { formatRelative } from '../../utils/dates';
 import styles from './Dashboard.module.css';
 
@@ -169,9 +167,6 @@ export function DashboardPage() {
 
   const {
     data: detections,
-    isLoading: loadingThreats,
-    refetch: refetchThreats,
-    isError: threatError,
   } = useQuery({
     queryKey: ['detections', 'open', selectedOrg],
     queryFn: () => listDetections({ status: 'open', org: orgParam, page_size: 100 }),
@@ -198,10 +193,17 @@ export function DashboardPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch extended health summary for security pills
-  const { data: healthSummary } = useQuery({
-    queryKey: ['health-signals', 'summary-dashboard'],
-    queryFn: getExtendedHealthSummary,
+  // Fetch repo health for ops summary
+  const { data: repoHealth } = useQuery({
+    queryKey: ['health-signals', 'repo-health-ops'],
+    queryFn: () => getRepoHealth(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch PAT health for ops summary
+  const { data: patHealth } = useQuery({
+    queryKey: ['health-signals', 'pat-health-ops'],
+    queryFn: () => getPatHealth(),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -252,13 +254,6 @@ export function DashboardPage() {
   })();
 
   const openThreats = detections?.total ?? 0;
-
-  const severityCounts = {
-    critical: detections?.items.filter((d) => d.severity === 'critical').length ?? 0,
-    high: detections?.items.filter((d) => d.severity === 'high').length ?? 0,
-    medium: detections?.items.filter((d) => d.severity === 'medium').length ?? 0,
-    low: detections?.items.filter((d) => d.severity === 'low').length ?? 0,
-  };
 
   const eventTotal = events?.total ?? 0;
   const eventCountLabel = formatCount(eventTotal);
@@ -356,13 +351,6 @@ export function DashboardPage() {
               onClick={() => navigate('/events')}
             />
             <StatPill
-              value={String(openThreats)}
-              label="open threats"
-              variant={openThreats > 0 ? 'danger' : undefined}
-              helpText="Active threat detections in Open status from the detection engine."
-              onClick={() => navigate('/threats')}
-            />
-            <StatPill
               value={workflowSuccessRate != null ? `${workflowSuccessRate}%` : '—'}
               label="pipeline success"
               helpText="7-day Actions workflow success rate. Calculated from workflow_run.completed events."
@@ -386,35 +374,6 @@ export function DashboardPage() {
               helpText="GitHub API usage from usage reports. Not yet available."
               onClick={() => navigate('/reports')}
             />
-            <StatPill
-              value={formatCount(calendarEvents?.items.length ?? 0)}
-              label="events (recent sample)"
-              variant="accent"
-              helpText="Count of events in the most recent 500-event sample, used to power the activity heatmap."
-              onClick={() => navigate('/events')}
-            />
-            <StatPill
-              value={String(healthSummary?.unresolved_secret_alerts ?? '—')}
-              label="unresolved secrets"
-              helpText="Open secret scanning alerts from health signals. Go to Health → Security to review."
-              variant={
-                healthSummary != null && healthSummary.unresolved_secret_alerts > 0
-                  ? 'danger'
-                  : undefined
-              }
-              onClick={() => navigate('/health/security')}
-            />
-            <StatPill
-              value={String(healthSummary?.security_feature_disables_7d ?? '—')}
-              label="feature disables (7d)"
-              helpText="Security feature disable events (e.g. branch protection removed) in the last 7 days."
-              variant={
-                healthSummary != null && healthSummary.security_feature_disables_7d > 0
-                  ? 'danger'
-                  : undefined
-              }
-              onClick={() => navigate('/health/security')}
-            />
           </div>
 
           {systemHealth != null && systemHealth.gap_detected && (
@@ -430,11 +389,34 @@ export function DashboardPage() {
             </div>
           )}
 
-          {threatError && (
-            <ErrorBanner message="Could not load threat data" onRetry={refetchThreats} />
-          )}
-
-          <UnifiedSecurityWidget />
+          {/* Operations Summary row */}
+          <div className={styles.cardGrid}>
+            <MetricCard
+              value={String(repoHealth?.stale.length ?? '—')}
+              label="Stale repos"
+              helpText="Repositories with no activity in the last 90 days."
+              to="/health"
+            />
+            <MetricCard
+              value={String(patHealth?.summary.stale_90d_count ?? '—')}
+              label="Stale PATs"
+              helpText="Personal access tokens with no use in the last 90 days."
+              to="/health"
+            />
+            <MetricCard
+              value={String(patHealth?.summary.no_expiry_count ?? '—')}
+              label="PATs without expiry"
+              helpText="Personal access tokens with no expiration date set."
+              accent={(patHealth?.summary.no_expiry_count ?? 0) > 0}
+              to="/health"
+            />
+            <MetricCard
+              value={String(uniqueActors || '—')}
+              label="Active devs"
+              helpText="Unique human actors seen in audit log events over the last 30 days."
+              to="/devactivity"
+            />
+          </div>
 
           <Card className={styles.calCard}>
             <CardHeader
@@ -485,85 +467,6 @@ export function DashboardPage() {
             </div>
 
             <div className={styles.sidebar}>
-              <Card>
-                <CardHeader>Open threats by severity</CardHeader>
-                {loadingThreats ? (
-                  <Spinner />
-                ) : (
-                  <div className={styles.sevBars}>
-                    {[
-                      {
-                        sev: 'Critical',
-                        key: 'critical' as DetectionSeverity,
-                        color: 'var(--danger)',
-                        count: severityCounts.critical,
-                      },
-                      {
-                        sev: 'High',
-                        key: 'high' as DetectionSeverity,
-                        color: 'var(--severe)',
-                        count: severityCounts.high,
-                      },
-                      {
-                        sev: 'Medium',
-                        key: 'medium' as DetectionSeverity,
-                        color: 'var(--attention)',
-                        count: severityCounts.medium,
-                      },
-                      {
-                        sev: 'Low',
-                        key: 'low' as DetectionSeverity,
-                        color: 'var(--success)',
-                        count: severityCounts.low,
-                      },
-                    ].map(({ sev, key, color, count }) => {
-                      const maxCount = Math.max(
-                        severityCounts.critical,
-                        severityCounts.high,
-                        severityCounts.medium,
-                        severityCounts.low,
-                        1,
-                      );
-                      const w =
-                        count > 0 ? `${Math.max(8, Math.round((count / maxCount) * 100))}%` : '2px';
-                      return (
-                        <div
-                          key={key}
-                          className={[styles.sevRow, styles.sevRowClickable].join(' ')}
-                          role="button"
-                          tabIndex={0}
-                          aria-label={`${count} ${sev} threats — click to filter`}
-                          onClick={() => navigate(`/threats?severity=${key}`)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              navigate(`/threats?severity=${key}`);
-                            }
-                          }}
-                        >
-                          <div className={[styles.sevDot, styles[key]].join(' ')} />
-                          <span className={styles.sevLbl}>{sev}</span>
-                          <div className={styles.sevTrack}>
-                            <div
-                              style={{
-                                height: '100%',
-                                background: color,
-                                borderRadius: 4,
-                                width: w,
-                              }}
-                            />
-                          </div>
-                          <span className={styles.sevCount}>{count}</span>
-                          <span className={styles.sevArrow} aria-hidden="true">
-                            →
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </Card>
-
               <Card>
                 <CardHeader>Platform alerts</CardHeader>
                 <div className={styles.alerts}>

@@ -1,13 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { CiCdView } from './CiCdView';
 
-const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
-  return { ...actual, useNavigate: () => mockNavigate };
+  return { ...actual, useNavigate: () => vi.fn() };
 });
 
 const MOCK_BUCKETS = [
@@ -39,27 +37,38 @@ const mockGetActionsVolumeReport = vi.fn().mockResolvedValue({
   data: MOCK_BUCKETS,
 });
 
-const mockGetWorkflowHealth = vi.fn().mockResolvedValue({
-  workflows: [
+const mockGetAlwaysFailingWorkflows = vi.fn().mockResolvedValue({
+  items: [
     {
+      org: 'acme',
       repo: 'acme/api',
       workflow_name: 'CI',
-      total_runs: 50,
-      successes: 30,
-      failures: 20,
-      failure_rate_pct: 40.0,
-      last_run: '2026-04-16T12:00:00Z',
-    },
-    {
-      repo: 'acme/web',
-      workflow_name: 'Deploy',
-      total_runs: 80,
-      successes: 75,
-      failures: 5,
-      failure_rate_pct: 6.3,
-      last_run: '2026-04-16T14:00:00Z',
+      consecutive_count: 5,
+      last_run_at: '2026-04-16T12:00:00Z',
+      last_conclusion: 'failure',
     },
   ],
+  total: 1,
+  threshold: 3,
+  lookback_days: 30,
+  cached_at: null,
+});
+
+const mockGetAlwaysTimingOutWorkflows = vi.fn().mockResolvedValue({
+  items: [
+    {
+      org: 'acme',
+      repo: 'acme/web',
+      workflow_name: 'Deploy',
+      consecutive_count: 4,
+      last_run_at: '2026-04-16T14:00:00Z',
+      last_conclusion: 'timed_out',
+    },
+  ],
+  total: 1,
+  threshold: 3,
+  lookback_days: 30,
+  cached_at: null,
 });
 
 const mockGetMetricsThatMatter = vi.fn().mockResolvedValue({
@@ -96,8 +105,9 @@ vi.mock('../../api/reports', () => ({
   getActionsVolumeReport: (...args: unknown[]) => mockGetActionsVolumeReport(...args),
 }));
 
-vi.mock('../../api/healthSignals', () => ({
-  getWorkflowHealth: (...args: unknown[]) => mockGetWorkflowHealth(...args),
+vi.mock('../../api/workflowMetrics', () => ({
+  getAlwaysFailingWorkflows: (...args: unknown[]) => mockGetAlwaysFailingWorkflows(...args),
+  getAlwaysTimingOutWorkflows: (...args: unknown[]) => mockGetAlwaysTimingOutWorkflows(...args),
 }));
 
 vi.mock('../../api/executive', () => ({
@@ -106,7 +116,7 @@ vi.mock('../../api/executive', () => ({
 
 describe('CiCdView', () => {
   beforeEach(() => {
-    mockNavigate.mockClear();
+    vi.clearAllMocks();
   });
 
   it('renders workflow run metrics', async () => {
@@ -114,7 +124,7 @@ describe('CiCdView', () => {
 
     // 100 + 120 = 220 total runs
     expect(await screen.findByText('220')).toBeInTheDocument();
-    expect(screen.getByText('Workflow runs (7d)')).toBeInTheDocument();
+    expect(screen.getByText('Total Runs (7d)')).toBeInTheDocument();
   });
 
   it('renders success rate', async () => {
@@ -122,7 +132,7 @@ describe('CiCdView', () => {
 
     // (85+110) / (100+120) = 195/220 = 88.6%
     expect(await screen.findByText('88.6%')).toBeInTheDocument();
-    expect(screen.getByText('Success rate')).toBeInTheDocument();
+    expect(screen.getByText('Success Rate')).toBeInTheDocument();
   });
 
   it('renders failed runs count', async () => {
@@ -130,53 +140,59 @@ describe('CiCdView', () => {
 
     // 15 + 10 = 25 failed
     expect(await screen.findByText('25')).toBeInTheDocument();
-    expect(screen.getByText('Failed runs')).toBeInTheDocument();
+    expect(screen.getByText('Failed')).toBeInTheDocument();
   });
 
-  it('renders unhealthy workflows count', async () => {
+  it('renders succeeded runs count', async () => {
     renderWithProviders(<CiCdView />);
 
-    // Only acme/api has failure_rate_pct > 20
-    await screen.findByText('Unhealthy workflows');
-    expect(screen.getByText('1')).toBeInTheDocument();
+    // 85 + 110 = 195
+    expect(await screen.findByText('195')).toBeInTheDocument();
+    expect(screen.getByText('Succeeded')).toBeInTheDocument();
   });
 
-  it('renders the top failing workflows table', async () => {
+  it('renders the always failing workflows table', async () => {
     renderWithProviders(<CiCdView />);
 
-    expect(await screen.findByText('Top Failing Workflows')).toBeInTheDocument();
+    expect(await screen.findByText('Always Failing (top 10)')).toBeInTheDocument();
     expect(screen.getByText('acme/api')).toBeInTheDocument();
     expect(screen.getByText('CI')).toBeInTheDocument();
+  });
+
+  it('renders the always timing out workflows table', async () => {
+    renderWithProviders(<CiCdView />);
+
+    expect(await screen.findByText('Always Timing Out (top 10)')).toBeInTheDocument();
     expect(screen.getByText('acme/web')).toBeInTheDocument();
     expect(screen.getByText('Deploy')).toBeInTheDocument();
   });
 
-  it('shows workflows sorted by failure rate descending', async () => {
+  it('shows empty message when no always-failing workflows', async () => {
+    mockGetAlwaysFailingWorkflows.mockResolvedValueOnce({
+      items: [],
+      total: 0,
+      threshold: 3,
+      lookback_days: 30,
+      cached_at: null,
+    });
+
     renderWithProviders(<CiCdView />);
 
-    await screen.findByText('acme/api');
-
-    // acme/api (40%) should appear before acme/web (6.3%)
-    const rows = screen.getAllByRole('row');
-    // rows[0] = header row, rows[1] = filter row (DataTable renders filter inputs),
-    // rows[2] = first data row, rows[3] = second data row
-    const firstDataRow = rows[2];
-    const secondDataRow = rows[3];
-    expect(firstDataRow.textContent).toContain('acme/api');
-    expect(secondDataRow.textContent).toContain('acme/web');
+    expect(await screen.findByText(/No consistently failing workflows/)).toBeInTheDocument();
   });
 
-  it('navigates to /workflows on workflow row click', async () => {
-    const user = userEvent.setup();
+  it('shows empty message when no always-timing-out workflows', async () => {
+    mockGetAlwaysTimingOutWorkflows.mockResolvedValueOnce({
+      items: [],
+      total: 0,
+      threshold: 3,
+      lookback_days: 30,
+      cached_at: null,
+    });
+
     renderWithProviders(<CiCdView />);
 
-    await screen.findByText('acme/api');
-
-    const row = screen.getByText('acme/api').closest('tr');
-    expect(row).toBeTruthy();
-    await user.click(row!);
-
-    expect(mockNavigate).toHaveBeenCalledWith('/workflows');
+    expect(await screen.findByText(/No consistently timing-out workflows/)).toBeInTheDocument();
   });
 
   it('renders DORA quick glance section', async () => {
@@ -203,10 +219,12 @@ describe('CiCdView', () => {
     expect(await screen.findByText('Could not load actions volume report')).toBeInTheDocument();
   });
 
-  it('shows empty table when no workflows', async () => {
-    mockGetWorkflowHealth.mockResolvedValueOnce({ workflows: [] });
+  it('shows error banner on always-failing query failure', async () => {
+    mockGetAlwaysFailingWorkflows.mockRejectedValueOnce(new Error('fail'));
     renderWithProviders(<CiCdView />);
 
-    expect(await screen.findByText('No workflow data available')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Could not load always-failing workflows'),
+    ).toBeInTheDocument();
   });
 });

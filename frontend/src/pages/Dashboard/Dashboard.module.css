@@ -457,3 +457,30 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+.twoColTables {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+@media (max-width: 768px) {
+  .twoColTables {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gaugeGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  justify-items: center;
+  padding: 16px 0;
+}
+
+@media (max-width: 768px) {
+  .gaugeGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

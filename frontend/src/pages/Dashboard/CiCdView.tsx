@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { getActionsVolumeReport } from '../../api/reports';
 import {
-  getWorkflowHealth,
-  type WorkflowRow,
-  type WorkflowHealthResponse,
-} from '../../api/healthSignals';
+  getAlwaysFailingWorkflows,
+  getAlwaysTimingOutWorkflows,
+  type WorkflowFailureSummary,
+  type AlwaysFailingResponse,
+} from '../../api/workflowMetrics';
 import { getMetricsThatMatter } from '../../api/executive';
 import type { MetricsThatMatter } from '../../api/executive';
 import type { ReportEnvelope, ActionsVolumeBucket } from '../../types/reports';
@@ -16,7 +16,7 @@ import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { formatRelative } from '../../utils/dates';
 import styles from './Dashboard.module.css';
 
-const workflowColumns: ColumnDef<WorkflowRow>[] = [
+const failingColumns: ColumnDef<WorkflowFailureSummary>[] = [
   {
     key: 'repo',
     header: 'Repo',
@@ -29,7 +29,7 @@ const workflowColumns: ColumnDef<WorkflowRow>[] = [
   },
   {
     key: 'workflow_name',
-    header: 'Workflow Name',
+    header: 'Workflow',
     sortable: true,
     filterable: true,
     helpText: 'Name of the GitHub Actions workflow.',
@@ -38,55 +38,67 @@ const workflowColumns: ColumnDef<WorkflowRow>[] = [
     filterValue: (row) => row.workflow_name,
   },
   {
-    key: 'total_runs',
-    header: 'Total Runs',
+    key: 'consecutive_count',
+    header: 'Consecutive Failures',
     sortable: true,
     filterable: false,
-    helpText: 'Total number of workflow runs.',
-    render: (row) => String(row.total_runs),
-    sortValue: (row) => row.total_runs,
+    helpText: 'Number of consecutive failed runs.',
+    render: (row) => String(row.consecutive_count),
+    sortValue: (row) => row.consecutive_count,
   },
   {
-    key: 'successes',
-    header: 'Successes',
-    sortable: true,
-    filterable: false,
-    helpText: 'Number of successful workflow runs.',
-    render: (row) => String(row.successes),
-    sortValue: (row) => row.successes,
-  },
-  {
-    key: 'failures',
-    header: 'Failures',
-    sortable: true,
-    filterable: false,
-    helpText: 'Number of failed workflow runs.',
-    render: (row) => String(row.failures),
-    sortValue: (row) => row.failures,
-  },
-  {
-    key: 'failure_rate_pct',
-    header: 'Failure Rate %',
-    sortable: true,
-    filterable: false,
-    helpText: 'Percentage of runs that failed.',
-    render: (row) => `${row.failure_rate_pct.toFixed(1)}%`,
-    sortValue: (row) => row.failure_rate_pct,
-  },
-  {
-    key: 'last_run',
+    key: 'last_run_at',
     header: 'Last Run',
     sortable: true,
     filterable: false,
     helpText: 'When the workflow last ran.',
-    render: (row) => formatRelative(row.last_run),
-    sortValue: (row) => row.last_run,
+    render: (row) => formatRelative(row.last_run_at),
+    sortValue: (row) => row.last_run_at,
+  },
+];
+
+const timingOutColumns: ColumnDef<WorkflowFailureSummary>[] = [
+  {
+    key: 'repo',
+    header: 'Repo',
+    sortable: true,
+    filterable: true,
+    helpText: 'Repository containing the workflow.',
+    render: (row) => row.repo,
+    sortValue: (row) => row.repo,
+    filterValue: (row) => row.repo,
+  },
+  {
+    key: 'workflow_name',
+    header: 'Workflow',
+    sortable: true,
+    filterable: true,
+    helpText: 'Name of the GitHub Actions workflow.',
+    render: (row) => row.workflow_name,
+    sortValue: (row) => row.workflow_name,
+    filterValue: (row) => row.workflow_name,
+  },
+  {
+    key: 'consecutive_count',
+    header: 'Consecutive Timeouts',
+    sortable: true,
+    filterable: false,
+    helpText: 'Number of consecutive timed-out runs.',
+    render: (row) => String(row.consecutive_count),
+    sortValue: (row) => row.consecutive_count,
+  },
+  {
+    key: 'last_run_at',
+    header: 'Last Run',
+    sortable: true,
+    filterable: false,
+    helpText: 'When the workflow last ran.',
+    render: (row) => formatRelative(row.last_run_at),
+    sortValue: (row) => row.last_run_at,
   },
 ];
 
 export function CiCdView() {
-  const navigate = useNavigate();
-
   const {
     data: actionsReport,
     isLoading: loadingActions,
@@ -99,13 +111,24 @@ export function CiCdView() {
   });
 
   const {
-    data: workflowHealth,
-    isLoading: loadingWorkflows,
-    isError: errorWorkflows,
-    refetch: refetchWorkflows,
-  } = useQuery<WorkflowHealthResponse>({
-    queryKey: ['cicd-view', 'workflow-health'],
-    queryFn: getWorkflowHealth,
+    data: alwaysFailing,
+    isLoading: loadingFailing,
+    isError: errorFailing,
+    refetch: refetchFailing,
+  } = useQuery<AlwaysFailingResponse>({
+    queryKey: ['cicd-view', 'always-failing'],
+    queryFn: () => getAlwaysFailingWorkflows({ threshold: 3 }),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const {
+    data: alwaysTimingOut,
+    isLoading: loadingTimingOut,
+    isError: errorTimingOut,
+    refetch: refetchTimingOut,
+  } = useQuery<AlwaysFailingResponse>({
+    queryKey: ['cicd-view', 'always-timing-out'],
+    queryFn: () => getAlwaysTimingOutWorkflows({ threshold: 3 }),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -121,71 +144,95 @@ export function CiCdView() {
   const failedRuns = buckets.reduce((s, b) => s + (b.workflow_runs_failed ?? 0), 0);
   const successRate = totalRuns > 0 ? ((succeededRuns / totalRuns) * 100).toFixed(1) : null;
 
-  const unhealthyCount = (workflowHealth?.workflows ?? []).filter(
-    (w) => w.failure_rate_pct > 20,
-  ).length;
+  const top10Failing = (alwaysFailing?.items ?? []).slice(0, 10);
+  const top10TimingOut = (alwaysTimingOut?.items ?? []).slice(0, 10);
 
-  // Sort workflows by failure rate descending
-  const sortedWorkflows = [...(workflowHealth?.workflows ?? [])].sort(
-    (a, b) => b.failure_rate_pct - a.failure_rate_pct,
-  );
-
-  const isLoading = loadingActions || loadingWorkflows;
-
-  if (isLoading) return <Spinner />;
+  if (loadingActions) return <Spinner />;
 
   return (
     <>
       {errorActions && (
         <ErrorBanner message="Could not load actions volume report" onRetry={refetchActions} />
       )}
-      {errorWorkflows && (
-        <ErrorBanner message="Could not load workflow health" onRetry={refetchWorkflows} />
+      {errorFailing && (
+        <ErrorBanner message="Could not load always-failing workflows" onRetry={refetchFailing} />
+      )}
+      {errorTimingOut && (
+        <ErrorBanner
+          message="Could not load always-timing-out workflows"
+          onRetry={refetchTimingOut}
+        />
       )}
 
       {/* Top row: CI/CD metrics */}
       <div className={styles.cardGrid}>
         <MetricCard
           value={String(totalRuns)}
-          label="Workflow runs (7d)"
+          label="Total Runs (7d)"
           helpText="Total GitHub Actions workflow runs in the last 7 days."
           to="/velocity"
         />
         <MetricCard
-          value={successRate != null ? `${successRate}%` : '—'}
-          label="Success rate"
-          helpText="Percentage of workflow runs that succeeded in the last 7 days."
+          value={String(succeededRuns)}
+          label="Succeeded"
+          helpText="Total successful workflow runs in the last 7 days."
           to="/velocity"
         />
         <MetricCard
           value={String(failedRuns)}
-          label="Failed runs"
+          label="Failed"
           helpText="Total failed workflow runs in the last 7 days."
           accent={failedRuns > 0}
           to="/velocity"
         />
         <MetricCard
-          value={String(unhealthyCount)}
-          label="Unhealthy workflows"
-          helpText="Workflows with failure rate above 20%."
-          accent={unhealthyCount > 0}
-          to="/workflows"
+          value={successRate != null ? `${successRate}%` : '—'}
+          label="Success Rate"
+          helpText="Percentage of workflow runs that succeeded in the last 7 days."
+          to="/velocity"
         />
       </div>
 
-      {/* Middle: top failing workflows */}
-      <div className={styles.section}>
-        <div className={styles.sectionTitle}>Top Failing Workflows</div>
-        <DataTable
-          columns={workflowColumns}
-          data={sortedWorkflows}
-          rowKey={(row) => `${row.repo}/${row.workflow_name}`}
-          onRowClick={() => navigate('/workflows')}
-          emptyMessage="No workflow data available"
-        />
+      {/* Two side-by-side tables */}
+      <div className={styles.twoColTables}>
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>Always Failing (top 10)</div>
+          {loadingFailing ? (
+            <Spinner />
+          ) : top10Failing.length === 0 ? (
+            <div style={{ color: 'var(--fg-muted)', padding: '12px 0', fontSize: 13 }}>
+              No consistently failing workflows 🎉
+            </div>
+          ) : (
+            <DataTable
+              columns={failingColumns}
+              data={top10Failing}
+              rowKey={(row) => `${row.org}/${row.repo}/${row.workflow_name}`}
+              emptyMessage="No consistently failing workflows"
+            />
+          )}
+        </div>
+
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>Always Timing Out (top 10)</div>
+          {loadingTimingOut ? (
+            <Spinner />
+          ) : top10TimingOut.length === 0 ? (
+            <div style={{ color: 'var(--fg-muted)', padding: '12px 0', fontSize: 13 }}>
+              No consistently timing-out workflows 🎉
+            </div>
+          ) : (
+            <DataTable
+              columns={timingOutColumns}
+              data={top10TimingOut}
+              rowKey={(row) => `${row.org}/${row.repo}/${row.workflow_name}`}
+              emptyMessage="No consistently timing-out workflows"
+            />
+          )}
+        </div>
       </div>
 
-      {/* Bottom: DORA quick glance */}
+      {/* DORA quick glance */}
       <div className={styles.section}>
         <div className={styles.sectionTitle}>DORA Quick Glance</div>
         {loadingMetrics ? (
