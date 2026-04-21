@@ -191,7 +191,9 @@ export function LicensePane() {
             {activeSeats}
           </div>
           <div className={styles.cardSub}>
-            {hasLicenseSync ? 'Seats remaining within your license' : 'Members with recent activity'}
+            {hasLicenseSync
+              ? 'Seats remaining within your license'
+              : 'Members with recent activity'}
           </div>
           {!hasLicenseSync && (
             <div style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 2 }}>

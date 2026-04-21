@@ -1117,7 +1117,12 @@ function ActivityLogTab() {
             onRowClick={(r) => navigate(`/threats?id=${r.id}`)}
             emptyMessage="No GHAS-related detections found"
           />
-          <Pagination page={page} pageSize={PAGE_SIZE} total={filteredItems.length} onPageChange={setPage} />
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={filteredItems.length}
+            onPageChange={setPage}
+          />
         </div>
       )}
     </>

@@ -263,9 +263,8 @@ export function DashboardPage() {
   const eventTotal = events?.total ?? 0;
   const eventCountLabel = formatCount(eventTotal);
 
-  const uniqueActors = new Set(
-    (calendarEvents?.items ?? []).map((e) => e.actor).filter(Boolean),
-  ).size;
+  const uniqueActors = new Set((calendarEvents?.items ?? []).map((e) => e.actor).filter(Boolean))
+    .size;
 
   return (
     <div className={styles.page}>

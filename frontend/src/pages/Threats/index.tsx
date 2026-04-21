@@ -822,7 +822,9 @@ export function ThreatsPage() {
                 size="sm"
                 variant="danger"
                 onClick={() => {
-                  if (window.confirm('Delete this detection record? This action cannot be undone.')) {
+                  if (
+                    window.confirm('Delete this detection record? This action cannot be undone.')
+                  ) {
                     suspendMutation.mutate(selected.id);
                   }
                 }}
