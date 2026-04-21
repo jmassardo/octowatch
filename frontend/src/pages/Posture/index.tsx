@@ -85,11 +85,11 @@ function CheckRow({
       className={styles.checkRow}
       role={check.detection_id ? 'button' : undefined}
       tabIndex={check.detection_id ? 0 : undefined}
-      onClick={() => check.detection_id && navigate(`/threats`)}
+      onClick={() => check.detection_id && navigate(`/threats?id=${check.detection_id}`)}
       onKeyDown={(e) => {
         if (check.detection_id && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
-          navigate(`/threats`);
+          navigate(`/threats?id=${check.detection_id}`);
         }
       }}
     >

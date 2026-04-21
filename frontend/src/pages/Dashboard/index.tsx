@@ -171,27 +171,27 @@ export function DashboardPage() {
     refetch: refetchThreats,
     isError: threatError,
   } = useQuery({
-    queryKey: ['detections', 'open'],
+    queryKey: ['detections', 'open', selectedOrg],
     queryFn: () => listDetections({ status: 'open', page_size: 100 }),
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: events, isLoading: loadingEvents } = useQuery({
-    queryKey: ['events', 'recent'],
+    queryKey: ['events', 'recent', selectedOrg],
     queryFn: () => listEvents({ page_size: 10, sort: 'created_at_desc' }),
     staleTime: 5 * 60 * 1000,
   });
 
   // Fetch a larger page of events for the heatmap (up to 500 most recent)
   const { data: calendarEvents } = useQuery({
-    queryKey: ['events', 'calendar'],
+    queryKey: ['events', 'calendar', selectedOrg],
     queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc' }),
     staleTime: 5 * 60 * 1000,
   });
 
   // Fetch actions volume data for workflow success metrics
   const { data: actionsReport } = useQuery({
-    queryKey: ['reports', 'actions-volume-dashboard'],
+    queryKey: ['reports', 'actions-volume-dashboard', selectedOrg],
     queryFn: () => getActionsVolumeReport({ window_days: 7, granularity: 'daily' }),
     staleTime: 5 * 60 * 1000,
   });
@@ -259,10 +259,11 @@ export function DashboardPage() {
   };
 
   const eventTotal = events?.total ?? 0;
-  const eventCountLabel =
-    eventTotal >= 1000 ? `${(eventTotal / 1000).toFixed(0)}K` : String(eventTotal);
+  const eventCountLabel = formatCount(eventTotal);
 
-  const uniqueActors = new Set((events?.items ?? []).map((e) => e.actor).filter(Boolean)).size;
+  const uniqueActors = new Set(
+    (calendarEvents?.items ?? []).map((e) => e.actor).filter(Boolean),
+  ).size;
 
   return (
     <div className={styles.page}>
@@ -349,8 +350,8 @@ export function DashboardPage() {
           <div className={styles.pills}>
             <StatPill
               value={eventCountLabel || '—'}
-              label="events today"
-              helpText="Audit log events received today via HEC ingest. Source: events table."
+              label="total events"
+              helpText="Total audit log events stored across all orgs. Source: events table."
               onClick={() => navigate('/events')}
             />
             <StatPill
@@ -385,10 +386,10 @@ export function DashboardPage() {
               onClick={() => navigate('/reports')}
             />
             <StatPill
-              value={formatCount(calendarEvents?.total ?? 0)}
-              label="total events"
+              value={formatCount(calendarEvents?.items.length ?? 0)}
+              label="events (recent sample)"
               variant="accent"
-              helpText="Total audit log events stored across all time. Source: events table count."
+              helpText="Count of events in the most recent 500-event sample, used to power the activity heatmap."
               onClick={() => navigate('/events')}
             />
             <StatPill
