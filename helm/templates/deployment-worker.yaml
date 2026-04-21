@@ -584,7 +584,7 @@ spec:
                   name: {{ include "octowatch.secretName" . }}
                   key: github-enterprise-slug
                   optional: true
-            - name: GITHUB_APP_PRIVATE_KEY_FILE
+            - name: GITHUB_APP_PRIVATE_KEY_PATH
               value: /app/secrets/github-app-key.pem
           volumeMounts:
             - name: tmp
