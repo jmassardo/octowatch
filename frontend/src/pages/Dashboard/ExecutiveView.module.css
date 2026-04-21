@@ -64,13 +64,14 @@
 
 /* Score card */
 .scoreCard {
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   background: var(--canvas-subtle);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 24px 40px;
+  padding: 20px 24px;
 }
 
 .scoreValue {
@@ -113,6 +114,14 @@
   50% {
     opacity: 0.6;
   }
+}
+
+/* 3-column grid (score + trend + mom) */
+.grid3 {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
 }
 
 /* 2-column grid */
@@ -282,6 +291,10 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+  .grid3 {
+    grid-template-columns: 1fr;
+  }
+
   .grid2 {
     grid-template-columns: 1fr;
   }

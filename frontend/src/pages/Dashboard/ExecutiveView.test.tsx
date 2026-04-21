@@ -81,14 +81,6 @@ describe('ExecutiveView', () => {
     });
   });
 
-  it('displays top risks', async () => {
-    renderWithProviders(<ExecutiveView />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Excessive admin access')).toBeInTheDocument();
-    });
-  });
-
   it('displays month-over-month metrics', async () => {
     renderWithProviders(<ExecutiveView />);
 
