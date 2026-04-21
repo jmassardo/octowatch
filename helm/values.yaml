@@ -153,14 +153,15 @@ worker:
         memory: "1Gi"
 
   sync:
-    replicaCount: 1   # Single replica — pool=solo prevents duplicate org syncs
+    replicaCount: 1
+    concurrency: 4
     resources:
       requests:
-        cpu: "100m"
-        memory: "256Mi"
-      limits:
         cpu: "500m"
-        memory: "1Gi"
+        memory: "512Mi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
 
 # ---------------------------------------------------------------------------
 # Celery Beat scheduler
