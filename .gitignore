@@ -59,3 +59,8 @@ celerybeat-schedule*
 terraform.tfvars
 *.tfstate
 *.tfstate.backup
+
+# Terraform local state / provider cache
+**/.terraform/
+*.tfplan
+tfplan
