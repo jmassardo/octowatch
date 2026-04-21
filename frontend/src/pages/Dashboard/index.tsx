@@ -165,6 +165,8 @@ export function DashboardPage() {
 
   const orgLabel = !selectedOrg || selectedOrg === 'all' ? 'All organizations' : selectedOrg;
 
+  const orgParam = selectedOrg && selectedOrg !== 'all' ? selectedOrg : undefined;
+
   const {
     data: detections,
     isLoading: loadingThreats,
@@ -172,27 +174,27 @@ export function DashboardPage() {
     isError: threatError,
   } = useQuery({
     queryKey: ['detections', 'open', selectedOrg],
-    queryFn: () => listDetections({ status: 'open', page_size: 100 }),
+    queryFn: () => listDetections({ status: 'open', org: orgParam, page_size: 100 }),
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: events, isLoading: loadingEvents } = useQuery({
     queryKey: ['events', 'recent', selectedOrg],
-    queryFn: () => listEvents({ page_size: 10, sort: 'created_at_desc' }),
+    queryFn: () => listEvents({ page_size: 10, sort: 'created_at_desc', org: orgParam }),
     staleTime: 5 * 60 * 1000,
   });
 
   // Fetch a larger page of events for the heatmap (up to 500 most recent)
   const { data: calendarEvents } = useQuery({
     queryKey: ['events', 'calendar', selectedOrg],
-    queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc' }),
+    queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc', org: orgParam }),
     staleTime: 5 * 60 * 1000,
   });
 
   // Fetch actions volume data for workflow success metrics
   const { data: actionsReport } = useQuery({
     queryKey: ['reports', 'actions-volume-dashboard', selectedOrg],
-    queryFn: () => getActionsVolumeReport({ window_days: 7, granularity: 'daily' }),
+    queryFn: () => getActionsVolumeReport({ window_days: 7, granularity: 'daily', org: orgParam }),
     staleTime: 5 * 60 * 1000,
   });
 
