@@ -331,11 +331,11 @@ export function SecurityPosturePane() {
             }
           />
           <MetricCard
-            value={String(secrets?.push_protection_bypassed_count ?? secrets?.publicly_leaked ?? 0)}
+            value={String(secrets?.push_protection_bypassed_count ?? 0)}
             label="Push protection bypassed"
             accent={
               secrets != null &&
-              (secrets.push_protection_bypassed_count ?? secrets.publicly_leaked ?? 0) > 0
+              (secrets.push_protection_bypassed_count ?? 0) > 0
             }
             helpText="Number of secrets that bypassed push protection. Derived from secret_scanning_push_protection.bypass events. Review each bypass for credential exposure."
             onClick={() =>
