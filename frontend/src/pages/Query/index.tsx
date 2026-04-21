@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { runQuery, listTemplates, createTemplate } from '../../api/query';
 import { translateNLQuery } from '../../api/nlQuery';
 import type { NLInterpretation } from '../../api/nlQuery';
@@ -840,7 +841,8 @@ function saveHistory(entries: HistoryEntry[]): void {
 }
 
 export function QueryPage() {
-  const [sql, setSql] = useState(DEFAULT_SQL);
+  const [searchParams] = useSearchParams();
+  const [sql, setSql] = useState(() => searchParams.get('sql') ?? DEFAULT_SQL);
   const [results, setResults] = useState<QueryRunResponse | null>(null);
   const [expandedTables, setExpandedTables] = useState<Set<string>>(
     new Set(['events', 'detections', 'events_hourly', 'events_daily_actor', 'detections_daily']),

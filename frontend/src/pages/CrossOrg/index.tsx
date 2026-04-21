@@ -178,7 +178,7 @@ export function CrossOrgPage() {
   });
 
   const { data: actorDetail, isLoading: loadingDetail } = useQuery({
-    queryKey: ['cross-org', 'actor-detail', selectedActor],
+    queryKey: ['cross-org', 'actor-detail', selectedActor, hours],
     queryFn: () => getActorCrossOrgDetail(selectedActor!, Math.ceil(hours / 24)),
     enabled: !!selectedActor,
   });
@@ -246,6 +246,7 @@ export function CrossOrgPage() {
               onChange={(e) => {
                 setHours(Number(e.target.value));
                 setSelectedActor(null);
+                setTimelinePage(1);
               }}
             >
               {HOURS_OPTIONS.map((o) => (

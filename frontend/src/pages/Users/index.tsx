@@ -284,10 +284,10 @@ function TeamMappingsDataTable({
             tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/events?actor=${a.granted_by}`);
+              navigate(`/events?actor=${encodeURIComponent(a.granted_by)}`);
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') navigate(`/events?actor=${a.granted_by}`);
+              if (e.key === 'Enter') navigate(`/events?actor=${encodeURIComponent(a.granted_by)}`);
             }}
           >
             @{a.granted_by}
@@ -381,10 +381,10 @@ function ActiveUsersDataTable({
             tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/events?actor=${u.login}`);
+              navigate(`/events?actor=${encodeURIComponent(u.login)}`);
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') navigate(`/events?actor=${u.login}`);
+              if (e.key === 'Enter') navigate(`/events?actor=${encodeURIComponent(u.login)}`);
             }}
           >
             @{u.login}
