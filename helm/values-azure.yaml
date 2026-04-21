@@ -4,6 +4,7 @@
 global:
   image:
     registry: ghcr.io/jmassardo
+    tag: "latest"
 
 # imagePullSecrets — pre-created by Terraform as ghcr-pull-secret
 imagePullSecrets:
