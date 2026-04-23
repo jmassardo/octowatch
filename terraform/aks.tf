@@ -27,6 +27,12 @@ resource "azurerm_subnet" "aks" {
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = ["10.0.4.0/22"]
+
+  # Microsoft.KeyVault service endpoint enables the VNet firewall rule on
+  # kv-oct-dev-i6iv6t that allows pods to pull secrets from Key Vault.
+  # Applied live on 2026-04-23 via: az network vnet subnet update
+  #   --service-endpoints Microsoft.KeyVault
+  service_endpoints = ["Microsoft.KeyVault"]
 }
 
 # NSG for AKS subnet
@@ -133,6 +139,58 @@ resource "azurerm_kubernetes_cluster" "main" {
     pod_cidr       = "10.244.0.0/16"
     service_cidr   = "10.245.0.0/16"
     dns_service_ip = "10.245.0.10"
+  }
+
+  # ── Security: Azure Policy add-on ─────────────────────────────────────────────
+  # Enforces Azure Policy for Kubernetes (Gatekeeper-based). Applied live on
+  # 2026-04-23 via: az aks enable-addons --addons azure-policy
+  azure_policy_enabled = true
+
+  # ── Security: Key Vault Secrets Store CSI Driver ───────────────────────────────
+  # Allows pods to mount Azure Key Vault secrets as volumes. Applied live on
+  # 2026-04-23 via: az aks enable-addons --addons azure-keyvault-secrets-provider
+  key_vault_secrets_provider {
+    secret_rotation_enabled  = false
+    secret_rotation_interval = "2m"
+  }
+
+  # ── Security: API Server Authorized IP Ranges ──────────────────────────────────
+  # Restricts access to the Kubernetes API server to known admin CIDRs and
+  # GitHub Actions runner IP ranges. Applied live on 2026-04-23.
+  # IMPORTANT: AKS rejects private CIDRs (e.g. 10.x.x.x) in this list — node-to-
+  # control-plane traffic is internal and not subject to this allowlist.
+  # Update var.aks_api_server_authorized_ip_ranges in terraform.tfvars when admin
+  # IPs change (e.g. new office, new CI/CD provider IPs).
+  # NOTE: azurerm v4.x uses api_server_access_profile block (top-level
+  # api_server_authorized_ip_ranges was removed in v4.0).
+  api_server_access_profile {
+    authorized_ip_ranges = var.aks_api_server_authorized_ip_ranges
+  }
+
+  # ── Security: Private Cluster (future) ────────────────────────────────────────
+  # Private clusters can ONLY be configured at cluster creation time — they cannot
+  # be retrofitted to an existing cluster.
+  # To enable private cluster: set aks_private_cluster=true in terraform.tfvars
+  # and RECREATE the cluster (terraform destroy + apply or use blue-green approach).
+  # When private_cluster_enabled=true, the API server FQDN is only resolvable from
+  # within the VNet; CI/CD runners must use a self-hosted runner or VPN.
+  private_cluster_enabled             = var.aks_private_cluster
+  private_cluster_public_fqdn_enabled = !var.aks_private_cluster
+
+  # ── Security: KMS etcd Encryption (future) ────────────────────────────────────
+  # Encrypts Kubernetes secrets at rest in etcd using a customer-managed key in
+  # Azure Key Vault. Requires:
+  #   1. A Key Vault key (RSA 2048/3072/4096 or EC P-256/P-384)
+  #   2. Key Vault access from the cluster's identity (key unwrap/wrap permissions)
+  #   3. The key_vault_key_id set in var.aks_kms_key_id
+  # Cannot be easily disabled once enabled. Set aks_kms_key_id in terraform.tfvars
+  # to activate. Leave empty (default) to skip.
+  dynamic "key_management_service" {
+    for_each = var.aks_kms_key_id != "" ? [1] : []
+    content {
+      key_vault_key_id         = var.aks_kms_key_id
+      key_vault_network_access = "Private"
+    }
   }
 }
 
