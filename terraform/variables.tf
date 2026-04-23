@@ -437,8 +437,64 @@ variable "celery_queue_scale_threshold" {
 # ── AKS Migration ─────────────────────────────────────────────────────────────
 
 variable "aks_node_size" {
-  default     = "Standard_D4s_v3"
-  description = "AKS node pool VM SKU."
+  default     = "Standard_D4s_v4"
+  description = "AKS node pool VM SKU. Live cluster was updated to Standard_D4s_v4 (from v3) manually."
+}
+
+# ── AKS Security Controls ──────────────────────────────────────────────────────
+
+variable "aks_api_server_authorized_ip_ranges" {
+  type        = list(string)
+  description = <<-EOT
+    Public CIDR ranges allowed to reach the AKS API server. Defaults cover:
+      - GitHub Actions runner IPs (first 10 prefixes from https://api.github.com/meta)
+      - 66.116.122.0/24 (platform-team admin range)
+    NOTE: AKS rejects private RFC-1918 CIDRs here (e.g. 10.x.x.x, 172.16.x.x,
+    192.168.x.x). Node-to-control-plane traffic is internal and bypasses this list.
+    Update this list when adding new CI/CD providers or rotating admin IPs.
+    Applied live on 2026-04-23.
+  EOT
+  default = [
+    "66.116.122.0/24",  # Platform-team admin range
+    "4.148.0.0/16",    # GitHub Actions
+    "4.149.0.0/18",    # GitHub Actions
+    "4.149.64.0/19",   # GitHub Actions
+    "4.149.96.0/19",   # GitHub Actions
+    "4.149.128.0/17",  # GitHub Actions
+    "4.150.0.0/18",    # GitHub Actions
+    "4.150.64.0/18",   # GitHub Actions
+    "4.150.128.0/18",  # GitHub Actions
+    "4.150.192.0/19",  # GitHub Actions
+    "4.150.224.0/19",  # GitHub Actions
+  ]
+}
+
+variable "aks_private_cluster" {
+  type        = bool
+  default     = false
+  description = <<-EOT
+    Enable private AKS cluster (API server only reachable from within the VNet).
+    IMPORTANT: Can only be set at cluster creation time — cannot be retrofitted.
+    To enable: set to true in terraform.tfvars and RECREATE the cluster.
+    When enabled, CI/CD runners must use a self-hosted runner or VPN to reach
+    the API server. private_cluster_public_fqdn_enabled is set to the inverse.
+  EOT
+}
+
+variable "aks_kms_key_id" {
+  type        = string
+  default     = ""
+  description = <<-EOT
+    Azure Key Vault key ID for AKS KMS etcd encryption (customer-managed key).
+    Format: https://<vault>.vault.azure.net/keys/<key-name>/<key-version>
+    Leave empty (default) to disable KMS encryption.
+    Requirements when enabling:
+      - RSA 2048, 3072, or 4096 key in Azure Key Vault
+      - Cluster managed identity must have key unwrap/wrap permissions on the key
+      - Must be configured before cluster creation or during a controlled update
+      - Cannot be easily disabled once enabled on a running cluster
+    Applied via the key_management_service block in azurerm_kubernetes_cluster.
+  EOT
 }
 
 variable "aks_cutover_complete" {
