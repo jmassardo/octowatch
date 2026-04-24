@@ -105,7 +105,6 @@ describe('DashboardPage', () => {
     expect(screen.getByText(/total events/)).toBeInTheDocument();
     expect(screen.getByText(/pipeline success/)).toBeInTheDocument();
     expect(screen.getByText(/active devs/)).toBeInTheDocument();
-    expect(screen.getByText(/API calls \(24h\)/)).toBeInTheDocument();
   });
 
   it('does not render removed security pills', () => {
@@ -114,6 +113,8 @@ describe('DashboardPage', () => {
     expect(screen.queryByText(/unresolved secrets/)).not.toBeInTheDocument();
     expect(screen.queryByText(/feature disables \(7d\)/)).not.toBeInTheDocument();
     expect(screen.queryByText(/open threats/)).not.toBeInTheDocument();
+    // "API calls (24h)" pill was removed — it had a hardcoded em-dash and no real data source
+    expect(screen.queryByText(/API calls \(24h\)/)).not.toBeInTheDocument();
   });
 
   it('shows dash for pipeline success when no data', () => {
