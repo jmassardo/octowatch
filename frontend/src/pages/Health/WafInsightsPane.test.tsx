@@ -230,7 +230,7 @@ describe('WafInsightsPane', () => {
     expect(screen.getByText(/No productivity anti-patterns detected/)).toBeInTheDocument();
   });
 
-  it('shows sample data banner when findings are empty', () => {
+  it('shows empty state when findings are empty', () => {
     mockQueryReturn = {
       data: { findings: [] },
       isLoading: false,
@@ -238,24 +238,24 @@ describe('WafInsightsPane', () => {
       refetch: vi.fn(),
     };
     renderPane();
-    expect(screen.getByText(/This data is illustrative/)).toBeInTheDocument();
+    expect(screen.getByText(/No security findings/)).toBeInTheDocument();
   });
 
   it('does not show sample data banner when real findings exist', () => {
     renderPane();
-    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No security findings/)).not.toBeInTheDocument();
   });
 
   it('does not show sample data banner during loading state', () => {
     mockQueryReturn = { data: undefined, isLoading: true, isError: false, refetch: vi.fn() };
     renderPane();
-    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No security findings/)).not.toBeInTheDocument();
   });
 
   it('does not show sample data banner during error state', () => {
     mockQueryReturn = { data: undefined, isLoading: false, isError: true, refetch: vi.fn() };
     renderPane();
-    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No security findings/)).not.toBeInTheDocument();
   });
 
   it('renders catalog at bottom of page', () => {

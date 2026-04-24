@@ -1,8 +1,16 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { AdoptionPane } from './AdoptionPane';
+
+const mockNavigate = vi.fn();
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return { ...actual, useNavigate: () => mockNavigate };
+});
 
 vi.mock('../../api/copilotMetrics', () => ({
   getCopilotAdoption: vi.fn().mockResolvedValue({
@@ -57,13 +65,19 @@ function renderPane() {
     defaultOptions: { queries: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={queryClient}>
-      <AdoptionPane />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <AdoptionPane />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
 describe('AdoptionPane clickable stats', () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+  });
+
   it('makes tier cards clickable with role=button and tabIndex', async () => {
     renderPane();
     const powerCard = (await screen.findByText('Power Users')).closest('[role="button"]');
@@ -91,14 +105,15 @@ describe('AdoptionPane clickable stats', () => {
     expect(within(dialog).getByText('tom.jones')).toBeInTheDocument();
   });
 
-  it('opens Regular tier modal with description and integration note', async () => {
+  it('opens Power Users tier modal showing tier description', async () => {
     const user = userEvent.setup();
     renderPane();
-    const regularCard = (await screen.findByText('Regular')).closest('[role="button"]')!;
-    await user.click(regularCard);
-    expect(screen.getByText('Regular — 68 users')).toBeInTheDocument();
+    const powerCard = (await screen.findByText('Power Users')).closest('[role="button"]')!;
+    await user.click(powerCard);
+    expect(screen.getByText('Power Users — 34 users')).toBeInTheDocument();
     const dialog = getDialog();
-    expect(within(dialog).getByText(/Copilot Metrics API integration/)).toBeInTheDocument();
+    // Modal shows the tier description for power users
+    expect(within(dialog).getByText(/Active every day/)).toBeInTheDocument();
   });
 
   it('opens tier modal from stacked bar segment', async () => {
@@ -106,8 +121,9 @@ describe('AdoptionPane clickable stats', () => {
     renderPane();
     // Wait for data to load
     await screen.findByText('Power Users');
+    // Only power and minimal tier segments are clickable
     const segments = document.querySelectorAll('.stackedSegmentClickable');
-    expect(segments.length).toBe(5);
+    expect(segments.length).toBe(2);
     await user.click(segments[0] as HTMLElement);
     expect(screen.getByText('Power Users — 34 users')).toBeInTheDocument();
   });
@@ -122,15 +138,15 @@ describe('AdoptionPane clickable stats', () => {
     expect(screen.queryByText('Power Users — 34 users')).not.toBeInTheDocument();
   });
 
-  it('shows toast when clicking days active in power users table', async () => {
+  it('navigates to actor page when clicking days active in power users table', async () => {
     const user = userEvent.setup();
     renderPane();
     const daysBtn = (await screen.findByText('45d')).closest('[role="button"]')!;
     await user.click(daysBtn);
-    expect(screen.getByText("View @sarah.chen's Copilot activity")).toBeInTheDocument();
+    expect(mockNavigate).toHaveBeenCalledWith('/actors/sarah.chen');
   });
 
-  it('shows toast when clicking features used in power users table', async () => {
+  it('navigates to actor page when clicking features used in power users table', async () => {
     const user = userEvent.setup();
     renderPane();
     // Wait for data to load
@@ -142,7 +158,7 @@ describe('AdoptionPane clickable stats', () => {
     const featBtn = clickableStats.find((el) => el.textContent === '5');
     expect(featBtn).toBeTruthy();
     await user.click(featBtn!);
-    expect(screen.getByText("View @sarah.chen's Copilot activity")).toBeInTheDocument();
+    expect(mockNavigate).toHaveBeenCalledWith('/actors/sarah.chen');
   });
 
   it('makes feature adoption bars clickable', async () => {
@@ -162,10 +178,10 @@ describe('AdoptionPane clickable stats', () => {
     expect(within(dialog).getByText(/87%/)).toBeInTheDocument();
   });
 
-  it('shows cycle time placeholder card', async () => {
+  it('shows feature adoption gaps section', async () => {
     renderPane();
     await screen.findByText('Power Users');
-    expect(screen.getByText(/Cycle time correlation requires deployment data/)).toBeInTheDocument();
+    expect(screen.getByText('Feature adoption gaps')).toBeInTheDocument();
   });
 
   it('makes minimal users Days active cells clickable', async () => {

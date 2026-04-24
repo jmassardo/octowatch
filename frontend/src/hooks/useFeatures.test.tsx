@@ -35,7 +35,7 @@ describe('useFeatures', () => {
     });
 
     expect(result.current.features).toEqual({
-      copilot_insights: false,
+      copilot_insights: true,
       velocity: true,
       dev_activity: true,
       org_health: true,
@@ -73,7 +73,7 @@ describe('useFeatures', () => {
     });
 
     // Should still have defaults
-    expect(result.current.features.copilot_insights).toBe(false);
+    expect(result.current.features.copilot_insights).toBe(true);
     expect(result.current.features.velocity).toBe(true);
   });
 

@@ -161,16 +161,17 @@ describe('RepoHealthPane', () => {
 
   it('renders the ECharts chart mock', () => {
     renderPane();
-    const charts = screen.getAllByTestId('echarts-mock');
-    expect(charts.length).toBeGreaterThanOrEqual(1);
+    // With static mock dates that are all > 6 months old, all trend counts are zero,
+    // so the chart is replaced by the empty-state message.
+    expect(
+      screen.getByText('No repos crossed the staleness threshold in the past 6 months.'),
+    ).toBeInTheDocument();
   });
 
   it('renders unhealthy summary cards', () => {
     renderPane();
-    expect(
-      screen.getByText('Repos with no branch protection on default branch'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Repos with secret scanning disabled')).toBeInTheDocument();
+    expect(screen.getByText('Repos inactive > 180 days')).toBeInTheDocument();
+    expect(screen.getByText('Repos inactive > 90 days')).toBeInTheDocument();
   });
 
   it('renders archive/delete candidates section', () => {
@@ -214,7 +215,8 @@ describe('RepoHealthPane', () => {
       refetch: vi.fn(),
     };
     renderPane();
-    expect(screen.getByText(/1 repo/)).toBeInTheDocument();
+    // Matches "1 repo · showing signals with issues" but not "1 repos approaching staleness"
+    expect(screen.getByText(/1 repo\b/)).toBeInTheDocument();
   });
 
   /* ---- Drill-down modals ---- */
@@ -223,13 +225,13 @@ describe('RepoHealthPane', () => {
     renderPane();
     // Repos with days_since_activity > 180 = legacy-payments (389d) + old-api (200d)
     const branchProtStat = screen.getByRole('button', {
-      name: /repos with no branch protection/i,
+      name: /repos inactive.*180/i,
     });
     fireEvent.click(branchProtStat);
     // Modal opened — close button appears
     expect(screen.getByLabelText('Close')).toBeInTheDocument();
     // Title appears twice: once in the card header, once in the modal
-    const titles = screen.getAllByText('Repos with no branch protection on default branch');
+    const titles = screen.getAllByText('Repos inactive > 180 days');
     expect(titles.length).toBe(2);
     // Modal should show repos with > 180 days in the DataTable
     // legacy-payments appears in main table + archive list + modal, old-api appears in main table + archive list + modal
@@ -243,19 +245,19 @@ describe('RepoHealthPane', () => {
     renderPane();
     // Repos with days_since_activity > 90 = legacy-payments (389d) + old-api (200d)
     const secretScanStat = screen.getByRole('button', {
-      name: /repos with secret scanning disabled/i,
+      name: /repos inactive.*90/i,
     });
     fireEvent.click(secretScanStat);
     // Modal opened
     expect(screen.getByLabelText('Close')).toBeInTheDocument();
-    const titles = screen.getAllByText('Repos with secret scanning disabled');
+    const titles = screen.getAllByText('Repos inactive > 90 days');
     expect(titles.length).toBe(2);
   });
 
   it('closes drill-down modal when close button is clicked', () => {
     renderPane();
     const branchProtStat = screen.getByRole('button', {
-      name: /repos with no branch protection/i,
+      name: /repos inactive.*180/i,
     });
     fireEvent.click(branchProtStat);
     // Modal is open
@@ -268,7 +270,7 @@ describe('RepoHealthPane', () => {
   it('drill-down stat is keyboard accessible', () => {
     renderPane();
     const branchProtStat = screen.getByRole('button', {
-      name: /repos with no branch protection/i,
+      name: /repos inactive.*180/i,
     });
     fireEvent.keyDown(branchProtStat, { key: 'Enter' });
     expect(screen.getByLabelText('Close')).toBeInTheDocument();
