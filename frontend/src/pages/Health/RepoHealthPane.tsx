@@ -237,9 +237,7 @@ function UnhealthySummaryCards({ stale }: { stale: StaleRepo[] }) {
         ? noSecretScanning
         : [];
   const drilldownTitle =
-    drilldown === 'branch-protection'
-      ? 'Repos inactive > 180 days'
-      : 'Repos inactive > 90 days';
+    drilldown === 'branch-protection' ? 'Repos inactive > 180 days' : 'Repos inactive > 90 days';
 
   const repoColumns: ColumnDef<StaleRepo>[] = [
     {

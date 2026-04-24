@@ -202,7 +202,9 @@ describe('HealthPage', () => {
     await user.click(screen.getByRole('tab', { name: /Security Posture/ }));
     const tab = screen.getByRole('tab', { name: /Security Posture/ });
     expect(tab).toHaveAttribute('aria-selected', 'true');
-    expect(await screen.findByText(/Repository-level security feature adoption/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Repository-level security feature adoption/i),
+    ).toBeInTheDocument();
   });
 
   it('switches to App Governance tab', async () => {

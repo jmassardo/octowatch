@@ -169,9 +169,7 @@ describe('OpsHealthPane', () => {
 
   it('renders the workflow health section subtitle', () => {
     renderPane();
-    expect(
-      screen.getByText(/Per-workflow run metrics derived from/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Per-workflow run metrics derived from/)).toBeInTheDocument();
   });
 
   /* ---- Workflow Health Table ---- */

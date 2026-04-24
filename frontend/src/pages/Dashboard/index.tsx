@@ -165,9 +165,7 @@ export function DashboardPage() {
 
   const orgParam = selectedOrg && selectedOrg !== 'all' ? selectedOrg : undefined;
 
-  const {
-    data: detections,
-  } = useQuery({
+  const { data: detections } = useQuery({
     queryKey: ['detections', 'open', selectedOrg],
     queryFn: () => listDetections({ status: 'open', org: orgParam, page_size: 100 }),
     staleTime: 5 * 60 * 1000,

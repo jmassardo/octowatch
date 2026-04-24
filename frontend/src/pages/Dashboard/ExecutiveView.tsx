@@ -48,9 +48,7 @@ function ComplianceCards({ summary }: { summary: ExecutiveSummaryType }) {
     summary.compliance_summary.some((c) => c.controls_assessed > 0);
 
   if (!hasData) {
-    return (
-      <div className={styles.emptyText}>No compliance frameworks configured.</div>
-    );
+    return <div className={styles.emptyText}>No compliance frameworks configured.</div>;
   }
 
   return (
