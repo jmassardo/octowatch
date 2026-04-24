@@ -441,6 +441,26 @@ variable "aks_node_size" {
   description = "AKS node pool VM SKU. Live cluster was updated to Standard_D4s_v4 (from v3) manually."
 }
 
+variable "aks_system_node_count" {
+  type        = number
+  default     = 2
+  description = <<-EOT
+    Minimum (and initial) node count for the system node pool.
+    Must be >= 2 for high availability — a single system node causes a full outage
+    whenever it is recycled, reimaged, or hits a capacity issue.
+  EOT
+}
+
+variable "aks_worker_node_count" {
+  type        = number
+  default     = 2
+  description = <<-EOT
+    Minimum (and initial) node count for the worker/user node pool.
+    Must be >= 2 for high availability — pods reschedule to the surviving node
+    automatically within ~30 seconds if one node fails.
+  EOT
+}
+
 # ── AKS Security Controls ──────────────────────────────────────────────────────
 
 variable "aks_api_server_authorized_ip_ranges" {
