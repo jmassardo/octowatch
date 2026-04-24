@@ -202,7 +202,7 @@ describe('HealthPage', () => {
     await user.click(screen.getByRole('tab', { name: /Security Posture/ }));
     const tab = screen.getByRole('tab', { name: /Security Posture/ });
     expect(tab).toHaveAttribute('aria-selected', 'true');
-    expect(await screen.findByText(/Security posture signals/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Repository-level security feature adoption/i)).toBeInTheDocument();
   });
 
   it('switches to App Governance tab', async () => {
@@ -222,7 +222,7 @@ describe('HealthPage', () => {
     await user.click(screen.getByRole('tab', { name: /Operations/ }));
     const tab = screen.getByRole('tab', { name: /Operations/ });
     expect(tab).toHaveAttribute('aria-selected', 'true');
-    expect(await screen.findByText(/Operations health signals/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Per-workflow run metrics derived from/i)).toBeInTheDocument();
   });
 
   it('can switch back to Repository Health after navigating to another tab', async () => {

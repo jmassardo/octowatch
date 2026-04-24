@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { HealthTabBar } from './HealthTabBar';
 
 describe('HealthTabBar', () => {
@@ -10,7 +11,7 @@ describe('HealthTabBar', () => {
   };
 
   it('renders all 8 tabs', () => {
-    render(<HealthTabBar {...defaultProps} />);
+    render(<MemoryRouter><HealthTabBar {...defaultProps} /></MemoryRouter>);
     const tablist = screen.getByRole('tablist');
     const tabs = within(tablist).getAllByRole('tab');
     expect(tabs).toHaveLength(8);
@@ -25,7 +26,7 @@ describe('HealthTabBar', () => {
   });
 
   it('marks the active tab with aria-selected', () => {
-    render(<HealthTabBar {...defaultProps} activeTab="access-identity" />);
+    render(<MemoryRouter><HealthTabBar {...defaultProps} activeTab="access-identity" /></MemoryRouter>);
     const accessTab = screen.getByRole('tab', { name: /Access & Identity/ });
     expect(accessTab).toHaveAttribute('aria-selected', 'true');
 
@@ -34,13 +35,13 @@ describe('HealthTabBar', () => {
   });
 
   it('applies active class to active tab', () => {
-    render(<HealthTabBar {...defaultProps} activeTab="repo-health" />);
+    render(<MemoryRouter><HealthTabBar {...defaultProps} activeTab="repo-health" /></MemoryRouter>);
     const repoTab = screen.getByRole('tab', { name: /Repository Health/ });
     expect(repoTab.className).toContain('healthTabActive');
   });
 
   it('does not apply active class to inactive tabs', () => {
-    render(<HealthTabBar {...defaultProps} activeTab="repo-health" />);
+    render(<MemoryRouter><HealthTabBar {...defaultProps} activeTab="repo-health" /></MemoryRouter>);
     const licenseTab = screen.getByRole('tab', { name: /License Health/ });
     expect(licenseTab.className).not.toContain('healthTabActive');
   });
@@ -48,7 +49,7 @@ describe('HealthTabBar', () => {
   it('calls onTabChange with correct tab id when clicked', async () => {
     const user = userEvent.setup();
     const onTabChange = vi.fn();
-    render(<HealthTabBar {...defaultProps} onTabChange={onTabChange} />);
+    render(<MemoryRouter><HealthTabBar {...defaultProps} onTabChange={onTabChange} /></MemoryRouter>);
 
     await user.click(screen.getByRole('tab', { name: /Access & Identity/ }));
     expect(onTabChange).toHaveBeenCalledWith('access-identity');
@@ -60,7 +61,7 @@ describe('HealthTabBar', () => {
   it('calls onTabChange for each tab', async () => {
     const user = userEvent.setup();
     const onTabChange = vi.fn();
-    render(<HealthTabBar {...defaultProps} onTabChange={onTabChange} />);
+    render(<MemoryRouter><HealthTabBar {...defaultProps} onTabChange={onTabChange} /></MemoryRouter>);
 
     await user.click(screen.getByRole('tab', { name: /License Health/ }));
     expect(onTabChange).toHaveBeenCalledWith('license');

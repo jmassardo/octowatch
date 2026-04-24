@@ -306,12 +306,12 @@ describe('LicensePane', () => {
       refetch: vi.fn(),
     });
     renderWithProviders();
-    expect(screen.getByText(/This data is illustrative/)).toBeInTheDocument();
+    expect(screen.getByText(/No license data found/)).toBeInTheDocument();
   });
 
   it('does not show sample data banner when real data is available', () => {
     renderWithProviders();
-    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No license data found/)).not.toBeInTheDocument();
   });
 
   it('does not show sample data banner during loading state', () => {
@@ -321,7 +321,7 @@ describe('LicensePane', () => {
     mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: undefined, isLoading: true, isError: false, refetch: vi.fn() });
     renderWithProviders();
-    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No license data found/)).not.toBeInTheDocument();
   });
 
   it('does not show sample data banner during error state', () => {
@@ -331,7 +331,7 @@ describe('LicensePane', () => {
     mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: undefined, isLoading: false, isError: true, refetch: vi.fn() });
     renderWithProviders();
-    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No license data found/)).not.toBeInTheDocument();
   });
 
   it('uses GHEC license data when available', () => {
@@ -386,9 +386,12 @@ describe('LicensePane', () => {
 
   it('renders clickable metric cards with role=button', () => {
     renderWithProviders();
-    const seatUtil = screen.getByText('Seat utilization').closest('[role="button"]');
-    expect(seatUtil).toBeInTheDocument();
-    const copilotSeats = screen.getByText('Copilot seats').closest('[role="button"]');
-    expect(copilotSeats).toBeInTheDocument();
+    // Only the Ghost members MetricCard has a click handler (drill-down to ghost member detail).
+    // Use getAllByText since "Ghost members" appears in both the card title and the metric label.
+    const ghostMembersElements = screen.getAllByText('Ghost members');
+    const clickableGhostCard = ghostMembersElements
+      .map((el) => el.closest('[role="button"]'))
+      .find((el) => el !== null);
+    expect(clickableGhostCard).toBeInTheDocument();
   });
 });

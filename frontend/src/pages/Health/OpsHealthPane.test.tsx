@@ -167,10 +167,10 @@ describe('OpsHealthPane', () => {
     expect(screen.getByText('Failed to load operations health data')).toBeInTheDocument();
   });
 
-  it('renders the sample data banner', () => {
+  it('renders the workflow health section subtitle', () => {
     renderPane();
     expect(
-      screen.getByText(/Operations health signals are derived from audit log events/),
+      screen.getByText(/Per-workflow run metrics derived from/),
     ).toBeInTheDocument();
   });
 
