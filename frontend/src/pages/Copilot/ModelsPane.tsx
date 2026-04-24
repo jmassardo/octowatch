@@ -68,8 +68,24 @@ export function ModelsPane() {
   }
 
   const selectedModelData = modelUsage.find((m) => m.model === selectedModel);
+  const selectedModelIndex = modelUsage.findIndex((m) => m.model === selectedModel);
   const selectedFeatureData = featureUsage.find((f) => f.feature === selectedFeature);
   const selectedEditorData = editors.find((e) => e.name === selectedEditor);
+
+  function deriveFeatureType(feature: string): string {
+    const f = feature.toLowerCase();
+    if (f.includes('completion') || f.includes('code')) return 'Code';
+    if (f.includes('chat')) return 'Chat';
+    if (f.includes('pull_request') || f.includes('pr')) return 'PR Review';
+    return 'Other';
+  }
+
+  function deriveModelCategory(model: string): string {
+    const m = model.toLowerCase();
+    if (m.includes('gpt')) return 'OpenAI';
+    if (m.includes('claude')) return 'Anthropic';
+    return 'Other';
+  }
 
   return (
     <>
@@ -88,103 +104,127 @@ export function ModelsPane() {
             {/* Model usage spread */}
             <Card>
               <CardHeader>Model usage spread</CardHeader>
-              <div className={styles.langBars}>
-                {modelUsage.map((m) => (
-                  <div
-                    key={m.model}
-                    className={`${styles.langRow} ${styles.langRowClickable}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => openModelModal(m.model)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        openModelModal(m.model);
-                      }
-                    }}
-                  >
-                    <span className={styles.langName} style={{ width: 100 }}>
-                      {m.model}
-                    </span>
-                    <div className={styles.langTrack}>
-                      <div
-                        style={{
-                          width: `${m.pct}%`,
-                          height: '100%',
-                          background: m.color,
-                          borderRadius: 4,
-                        }}
-                      />
+              {modelUsage.length === 0 ? (
+                <div
+                  style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '16px', textAlign: 'center' }}
+                >
+                  No model usage data — sync Copilot metrics to populate.
+                </div>
+              ) : (
+                <div className={styles.langBars}>
+                  {modelUsage.map((m) => (
+                    <div
+                      key={m.model}
+                      className={`${styles.langRow} ${styles.langRowClickable}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openModelModal(m.model)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openModelModal(m.model);
+                        }
+                      }}
+                    >
+                      <span className={styles.langName} style={{ width: 100 }}>
+                        {m.model}
+                      </span>
+                      <div className={styles.langTrack}>
+                        <div
+                          style={{
+                            width: `${m.pct}%`,
+                            height: '100%',
+                            background: m.color,
+                            borderRadius: 4,
+                          }}
+                        />
+                      </div>
+                      <span className={styles.langPct}>{m.pct}%</span>
                     </div>
-                    <span className={styles.langPct}>{m.pct}%</span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </Card>
 
             {/* Feature usage spread */}
             <Card>
               <CardHeader>Feature usage spread</CardHeader>
-              <div className={styles.langBars}>
-                {featureUsage.map((f) => (
-                  <div
-                    key={f.feature}
-                    className={`${styles.langRow} ${styles.langRowClickable}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => openFeatureModal(f.feature)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        openFeatureModal(f.feature);
-                      }
-                    }}
-                  >
-                    <span className={styles.langName} style={{ width: 120 }}>
-                      {f.feature}
-                    </span>
-                    <div className={styles.langTrack}>
-                      <div
-                        style={{
-                          width: `${(f.count / maxFeatureCount) * 100}%`,
-                          height: '100%',
-                          background: f.color,
-                          borderRadius: 4,
-                        }}
-                      />
+              {featureUsage.length === 0 ? (
+                <div
+                  style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '16px', textAlign: 'center' }}
+                >
+                  No feature usage data — sync Copilot metrics to populate.
+                </div>
+              ) : (
+                <div className={styles.langBars}>
+                  {featureUsage.map((f) => (
+                    <div
+                      key={f.feature}
+                      className={`${styles.langRow} ${styles.langRowClickable}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openFeatureModal(f.feature)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openFeatureModal(f.feature);
+                        }
+                      }}
+                    >
+                      <span className={styles.langName} style={{ width: 120 }}>
+                        {f.feature}
+                      </span>
+                      <div className={styles.langTrack}>
+                        <div
+                          style={{
+                            width: `${(f.count / maxFeatureCount) * 100}%`,
+                            height: '100%',
+                            background: f.color,
+                            borderRadius: 4,
+                          }}
+                        />
+                      </div>
+                      <span className={styles.langPct}>{f.count}</span>
                     </div>
-                    <span className={styles.langPct}>{f.count}</span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </Card>
           </div>
 
           {/* Editor breakdown */}
           <div className={styles.sectionTitle}>Editor breakdown</div>
-          <div className={styles.editorGrid}>
-            {editors.map((e) => (
-              <div
-                key={e.name}
-                className={styles.editorCardClickable}
-                role="button"
-                tabIndex={0}
-                onClick={() => openEditorModal(e.name)}
-                onKeyDown={(ev) => {
-                  if (ev.key === 'Enter' || ev.key === ' ') {
-                    ev.preventDefault();
-                    openEditorModal(e.name);
-                  }
-                }}
-              >
-                <Card className={styles.editorCard}>
-                  <div className={styles.editorCount}>{e.count}</div>
-                  <div className={styles.editorName}>{e.name}</div>
-                  <div className={styles.editorPct}>{e.pct}%</div>
-                </Card>
-              </div>
-            ))}
-          </div>
+          {editors.length === 0 ? (
+            <div
+              style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '16px 0', textAlign: 'center' }}
+            >
+              No editor usage data — sync Copilot metrics to populate.
+            </div>
+          ) : (
+            <div className={styles.editorGrid}>
+              {editors.map((e) => (
+                <div
+                  key={e.name}
+                  className={styles.editorCardClickable}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openEditorModal(e.name)}
+                  onKeyDown={(ev) => {
+                    if (ev.key === 'Enter' || ev.key === ' ') {
+                      ev.preventDefault();
+                      openEditorModal(e.name);
+                    }
+                  }}
+                >
+                  <Card className={styles.editorCard}>
+                    <div className={styles.editorCount}>{e.count}</div>
+                    <div className={styles.editorName}>{e.name}</div>
+                    <div className={styles.editorPct}>{e.pct}%</div>
+                  </Card>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Model detail modal */}
           <Modal
@@ -202,21 +242,18 @@ export function ModelsPane() {
                   data={[
                     { metric: 'Model', value: selectedModelData.model },
                     { metric: 'Usage share', value: `${selectedModelData.pct}%` },
+                    {
+                      metric: 'Ranking',
+                      value: `#${selectedModelIndex + 1} most used model`,
+                    },
+                    {
+                      metric: 'Category',
+                      value: deriveModelCategory(selectedModelData.model),
+                    },
                   ]}
                   rowKey={(row) => row.metric}
                   className={styles.modalTable}
                 />
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: 'var(--fg-muted)',
-                    lineHeight: 1.6,
-                    margin: '12px 0 0',
-                  }}
-                >
-                  Per-user and per-team model preference breakdowns require the Copilot Metrics API
-                  integration.
-                </p>
               </div>
             )}
           </Modal>
@@ -239,21 +276,14 @@ export function ModelsPane() {
                   data={[
                     { metric: 'Feature', value: selectedFeatureData.feature },
                     { metric: 'Active users', value: String(selectedFeatureData.count) },
+                    {
+                      metric: 'Feature type',
+                      value: deriveFeatureType(selectedFeatureData.feature),
+                    },
                   ]}
                   rowKey={(row) => row.metric}
                   className={styles.modalTable}
                 />
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: 'var(--fg-muted)',
-                    lineHeight: 1.6,
-                    margin: '12px 0 0',
-                  }}
-                >
-                  Use the <strong>Teams</strong> tab for per-team feature usage breakdowns and
-                  adoption trends.
-                </p>
               </div>
             )}
           </Modal>

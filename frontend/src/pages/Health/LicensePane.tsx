@@ -15,7 +15,6 @@ import type {
   CopilotSeatsBucket,
   ReportEnvelope,
 } from '../../types/reports';
-import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { useOrgConfig } from '../../hooks/useOrgConfig';
 import { formatDateOnly } from '../../utils/dates';
 import styles from './LicensePane.module.css';
@@ -99,9 +98,8 @@ export function LicensePane() {
   const latestCopilot = copilotBuckets[copilotBuckets.length - 1];
   const copilotTotal = latestCopilot?.seats_net ?? 0;
 
-  // Show sample-data banner when all API queries returned no real data
-  // (not during loading or error — only when fallback zeros are displayed)
-  const isSampleData =
+  // Check if all license data is empty (no real sync yet)
+  const isEmptyData =
     !isLoadingGhosts &&
     !isGhostError &&
     !hasLicenseSync &&
@@ -138,8 +136,10 @@ export function LicensePane() {
 
   return (
     <>
-      {isSampleData && (
-        <SampleDataBanner message="This data is illustrative. Connect your GitHub organization to see real license metrics." />
+      {isEmptyData && (
+        <div style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '16px 0' }}>
+          No license data found. Sync your organization to see seat usage.
+        </div>
       )}
 
       {/* GHEC License Consumption header */}
@@ -279,12 +279,6 @@ export function LicensePane() {
           delta={`${totalSeats} of ${seatLimit} seats`}
           deltaDir={utilPct > 90 ? 'down' : 'neutral'}
           helpText="Percentage of purchased GHEC seats currently consumed. Derived from license consumption API or seat utilization reports. Above 90% indicates you may need additional seats."
-          onClick={() =>
-            setLicenseDrilldown({
-              title: 'Seat utilization detail',
-              metricName: 'seat_utilization',
-            })
-          }
         />
         <MetricCard
           value={String(ghostCount)}
@@ -306,12 +300,6 @@ export function LicensePane() {
           delta="with recent activity"
           deltaDir="neutral"
           helpText="Number of license seats with recent audit log activity. Derived from per-actor event timestamps in the last 30 days."
-          onClick={() =>
-            setLicenseDrilldown({
-              title: 'Active seats detail',
-              metricName: 'active_seats',
-            })
-          }
         />
         <MetricCard
           value={String(copilotTotal)}
@@ -319,17 +307,11 @@ export function LicensePane() {
           delta="provisioned"
           deltaDir="neutral"
           helpText="Total Copilot seats provisioned. Cross-reference with active usage in Copilot Insights to identify unused seats for reallocation."
-          onClick={() =>
-            setLicenseDrilldown({
-              title: 'Copilot seats detail',
-              metricName: 'copilot_seats',
-            })
-          }
         />
       </div>
 
-      {/* License Drilldown Modal */}
-      {licenseDrilldown?.metricName === 'ghost_members' ? (
+      {/* License Drilldown Modal — only ghost_members has real data */}
+      {licenseDrilldown?.metricName === 'ghost_members' && (
         <DrilldownDrawer<GhostMember>
           open={licenseDrilldown !== null}
           onClose={() => setLicenseDrilldown(null)}
@@ -337,35 +319,6 @@ export function LicensePane() {
           data={ghostMembers}
           columns={ghostMemberColumns}
           rowKey={(r) => r.actor}
-        />
-      ) : (
-        <DrilldownDrawer<{ metric: string; note: string }>
-          open={licenseDrilldown !== null}
-          onClose={() => setLicenseDrilldown(null)}
-          title={licenseDrilldown?.title ?? ''}
-          data={
-            licenseDrilldown
-              ? [
-                  {
-                    metric: licenseDrilldown.metricName,
-                    note: 'Detailed breakdown requires GitHub API integration.',
-                  },
-                ]
-              : []
-          }
-          columns={[
-            {
-              key: 'metric',
-              header: 'Metric',
-              render: (r) => r.metric,
-            },
-            {
-              key: 'note',
-              header: 'Note',
-              render: (r) => r.note,
-            },
-          ]}
-          rowKey={(r) => r.metric}
         />
       )}
     </>

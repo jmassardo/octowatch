@@ -2,10 +2,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Label } from '../../components/primitives/Label';
-import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
-import { DrilldownDrawer } from '../../components/primitives/DrilldownDrawer';
 import { Drawer } from '../../components/primitives/Drawer';
 import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
 import {
@@ -234,11 +232,6 @@ function RunnerFleetTable({ runners }: { runners: RunnerRow[] }) {
 /* ---------- main pane ---------- */
 
 export function OpsHealthPane() {
-  const [opsDrilldown, setOpsDrilldown] = useState<{
-    title: string;
-    metricName: string;
-  } | null>(null);
-
   const workflowQuery = useQuery({
     queryKey: ['health', 'workflows'],
     queryFn: getWorkflowHealth,
@@ -310,7 +303,6 @@ export function OpsHealthPane() {
 
   return (
     <div className={styles.pane}>
-      <SampleDataBanner message="Operations health signals are derived from audit log events. Workflow and runner metrics reflect the last 30 days of activity." />
 
       {/* Workflow Health Table */}
       <WorkflowHealthTable workflows={workflows} />
@@ -328,46 +320,22 @@ export function OpsHealthPane() {
             label="Protections removed"
             accent={branch != null && branch.protections_removed > 0}
             helpText="Number of branch protection rules removed in the last 30 days. Sourced from protected_branch.destroy events. Investigate unexpected removals."
-            onClick={() =>
-              setOpsDrilldown({
-                title: 'Protections removed (30d)',
-                metricName: 'protections_removed',
-              })
-            }
           />
           <MetricCard
             value={String(branch?.policy_overrides ?? 0)}
             label="Policy overrides"
             accent={branch != null && branch.policy_overrides > 0}
             helpText="Number of branch protection policy overrides in the last 30 days. Sourced from protected_branch.policy_override events. Review for unauthorized weakening."
-            onClick={() =>
-              setOpsDrilldown({
-                title: 'Policy overrides (30d)',
-                metricName: 'policy_overrides',
-              })
-            }
           />
           <MetricCard
             value={String(branch?.modified ?? 0)}
             label="Modified"
             helpText="Number of branch protection rules modified in the last 30 days. Sourced from protected_branch.update events."
-            onClick={() =>
-              setOpsDrilldown({
-                title: 'Branch protections modified (30d)',
-                metricName: 'modified',
-              })
-            }
           />
           <MetricCard
             value={String(branch?.distinct_repos_affected ?? 0)}
             label="Repos affected"
             helpText="Number of distinct repositories with branch protection changes in the last 30 days. High counts may indicate a policy rollout or a security concern."
-            onClick={() =>
-              setOpsDrilldown({
-                title: 'Repos with branch protection changes (30d)',
-                metricName: 'repos_affected',
-              })
-            }
           />
         </div>
       </div>
@@ -384,34 +352,16 @@ export function OpsHealthPane() {
             value={String(copilot?.seats_granted_90d ?? 0)}
             label="Seats granted (90d)"
             helpText="Number of Copilot seats granted in the last 90 days. Derived from copilot.seat_assignment_created events."
-            onClick={() =>
-              setOpsDrilldown({
-                title: 'Copilot seats granted (90d)',
-                metricName: 'seats_granted',
-              })
-            }
           />
           <MetricCard
             value={String(copilot?.seats_removed ?? 0)}
             label="Seats removed"
             helpText="Number of Copilot seats removed. Derived from copilot.seat_cancelled events. Review for unexpected seat churn."
-            onClick={() =>
-              setOpsDrilldown({
-                title: 'Copilot seats removed',
-                metricName: 'seats_removed',
-              })
-            }
           />
           <MetricCard
             value={String(copilot?.unique_users ?? 0)}
             label="Unique users"
             helpText="Number of unique users with Copilot activity. Derived from copilot.* audit events."
-            onClick={() =>
-              setOpsDrilldown({
-                title: 'Copilot unique users',
-                metricName: 'unique_users',
-              })
-            }
           />
         </div>
       </div>
@@ -429,67 +379,19 @@ export function OpsHealthPane() {
             label="Active never suspended"
             accent={codespaces != null && codespaces.active_never_suspended > 0}
             helpText="Codespaces that have never been suspended. Derived from codespaces.create events with no corresponding suspend. These may incur ongoing compute costs."
-            onClick={() =>
-              setOpsDrilldown({
-                title: 'Codespaces active (never suspended)',
-                metricName: 'active_never_suspended',
-              })
-            }
           />
           <MetricCard
             value={String(codespaces?.large_machine_count ?? 0)}
             label="Large machine count"
             helpText="Number of codespaces using large machine types. Derived from codespaces.create events. Large machines have higher hourly cost."
-            onClick={() =>
-              setOpsDrilldown({
-                title: 'Large machine codespaces',
-                metricName: 'large_machine',
-              })
-            }
           />
           <MetricCard
             value={String(codespaces?.unique_users ?? 0)}
             label="Unique users"
             helpText="Number of unique users with codespace activity. Derived from codespaces.* audit events."
-            onClick={() =>
-              setOpsDrilldown({
-                title: 'Codespace unique users',
-                metricName: 'codespace_users',
-              })
-            }
           />
         </div>
       </div>
-
-      {/* Ops Drilldown Modal */}
-      <DrilldownDrawer
-        open={opsDrilldown !== null}
-        onClose={() => setOpsDrilldown(null)}
-        title={opsDrilldown?.title ?? ''}
-        data={
-          opsDrilldown
-            ? [
-                {
-                  metric: opsDrilldown.metricName,
-                  note: 'Per-event detail requires GitHub API integration.',
-                },
-              ]
-            : []
-        }
-        columns={[
-          {
-            key: 'metric',
-            header: 'Metric',
-            render: (r: { metric: string; note: string }) => r.metric,
-          },
-          {
-            key: 'note',
-            header: 'Note',
-            render: (r: { metric: string; note: string }) => r.note,
-          },
-        ]}
-        rowKey={(r: { metric: string }) => r.metric}
-      />
 
       {/* Runner Fleet Table */}
       <RunnerFleetTable runners={runners} />

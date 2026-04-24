@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getDetectionTimeline } from '../../api/executive';
 import type { TimelineEvent } from '../../api/executive';
@@ -65,13 +66,13 @@ function EventCard({ event, onClick }: { event: TimelineEvent; onClick: () => vo
       <div className={styles.eventAction}>{event.action}</div>
       <div className={styles.eventMeta}>
         {event.actor && (
-          <a
-            href={`/actors/${encodeURIComponent(event.actor)}`}
+          <Link
+            to={`/actors/${encodeURIComponent(event.actor)}`}
             className={styles.actorLink}
             onClick={(e) => e.stopPropagation()}
           >
             @{event.actor}
-          </a>
+          </Link>
         )}
         {event.repo && <span>· {event.repo}</span>}
       </div>
@@ -224,9 +225,9 @@ export function InvestigationTimeline({ detectionId, onClose }: InvestigationTim
               <div className={styles.detailLabel}>Actor</div>
               <div>
                 {selectedEvent.actor ? (
-                  <a href={`/actors/${encodeURIComponent(selectedEvent.actor)}`}>
+                  <Link to={`/actors/${encodeURIComponent(selectedEvent.actor)}`}>
                     @{selectedEvent.actor}
-                  </a>
+                  </Link>
                 ) : (
                   '—'
                 )}

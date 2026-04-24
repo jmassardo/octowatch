@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   getActorProfile,
@@ -238,6 +238,7 @@ function ProfileHeader({ profile }: { profile: ActorProfile }) {
 
 export function ActorsPage() {
   const { login } = useParams<{ login: string }>();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<TabKey>('activity');
 
   const {
@@ -279,6 +280,27 @@ export function ActorsPage() {
 
   return (
     <div className={styles.page}>
+      <div style={{ marginBottom: 12 }}>
+        <button
+          onClick={() => {
+            if (window.history.length <= 1) {
+              void navigate('/threats');
+            } else {
+              navigate(-1);
+            }
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'var(--fg-muted)',
+            fontSize: 13,
+            padding: '4px 0',
+          }}
+        >
+          ← Back
+        </button>
+      </div>
       <ProfileHeader profile={profile} />
 
       <div className={styles.tabBar}>

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { getActionsVolumeReport } from '../../api/reports';
 import { listEvents } from '../../api/events';
 import { getWorkflowHealth, getBranchProtection } from '../../api/healthSignals';
@@ -594,9 +594,9 @@ export function VelocityPage() {
         <h2>Engineering Velocity is disabled</h2>
         <p style={{ marginTop: '0.75rem' }}>
           Enable it in{' '}
-          <a href="/settings/features" style={{ color: 'var(--accent)' }}>
+          <Link to="/settings/features" style={{ color: 'var(--accent)' }}>
             Settings → Features
-          </a>
+          </Link>
           .
         </p>
       </div>

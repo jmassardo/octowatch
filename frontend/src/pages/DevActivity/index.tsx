@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { listDetections } from '../../api/detections';
 import { getTeams } from '../../api/healthSignals';
@@ -201,9 +201,9 @@ export function DevActivityPage() {
         <h2>Developer Activity is disabled</h2>
         <p style={{ marginTop: '0.75rem' }}>
           Enable it in{' '}
-          <a href="/settings/features" style={{ color: 'var(--accent)' }}>
+          <Link to="/settings/features" style={{ color: 'var(--accent)' }}>
             Settings → Features
-          </a>
+          </Link>
           .
         </p>
       </div>
