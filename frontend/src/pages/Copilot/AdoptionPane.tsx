@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Button } from '../../components/primitives/Button';
 import { DataTable } from '../../components/primitives/DataTable';
@@ -26,6 +27,7 @@ interface MinimalUser {
 }
 
 export function AdoptionPane() {
+  const navigate = useNavigate();
   const {
     data: adoption,
     isLoading,
@@ -42,12 +44,10 @@ export function AdoptionPane() {
   const featureAdoption = adoption?.feature_adoption ?? [];
   const minimalUsers = adoption?.minimal_users ?? [];
 
-  const [scheduledUsers, setScheduledUsers] = useState<Record<string, boolean>>({});
   const [adoptionModal, setAdoptionModal] = useState<AdoptionModal>(null);
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<string | null>(null);
   const [selectedMinimalUser, setSelectedMinimalUser] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   function openTierModal(tierId: string) {
     setSelectedTierId(tierId);
@@ -62,11 +62,6 @@ export function AdoptionPane() {
   function openMinimalUserModal(user: string) {
     setSelectedMinimalUser(user);
     setAdoptionModal('minimal-user');
-  }
-
-  function showToast(user: string) {
-    setToastMessage(`View @${user}'s Copilot activity`);
-    setTimeout(() => setToastMessage(null), 2500);
   }
 
   const selectedTier = tiers.find((t) => t.id === selectedTierId);
@@ -92,13 +87,14 @@ export function AdoptionPane() {
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>
           <span
             className={styles.clickableStat}
+            style={{ cursor: 'pointer', textDecoration: 'underline', color: 'var(--accent)' }}
             role="button"
             tabIndex={0}
-            onClick={() => showToast(u.user)}
+            onClick={() => navigate(`/actors/${encodeURIComponent(u.user)}`)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                showToast(u.user);
+                navigate(`/actors/${encodeURIComponent(u.user)}`);
               }
             }}
           >
@@ -118,13 +114,14 @@ export function AdoptionPane() {
         <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--success)' }}>
           <span
             className={styles.clickableStat}
+            style={{ cursor: 'pointer', textDecoration: 'underline' }}
             role="button"
             tabIndex={0}
-            onClick={() => showToast(u.user)}
+            onClick={() => navigate(`/actors/${encodeURIComponent(u.user)}`)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                showToast(u.user);
+                navigate(`/actors/${encodeURIComponent(u.user)}`);
               }
             }}
           >
@@ -187,17 +184,13 @@ export function AdoptionPane() {
         <Button
           size="sm"
           onClick={() => {
-            setScheduledUsers((prev) => ({ ...prev, [u.user]: true }));
-            setTimeout(() => {
-              setScheduledUsers((prev) => {
-                const next = { ...prev };
-                delete next[u.user];
-                return next;
-              });
-            }, 3000);
+            window.open(
+              `mailto:?subject=${encodeURIComponent(`Copilot Onboarding Request for ${u.user}`)}`,
+              '_blank',
+            );
           }}
         >
-          {scheduledUsers[u.user] ? 'Scheduled ✓' : 'Schedule onboarding'}
+          Request Onboarding
         </Button>
       ),
     },
@@ -300,53 +293,67 @@ export function AdoptionPane() {
           {/* Adoption tier cards */}
           <div className={styles.sectionTitle}>Adoption tiers</div>
           <div className={styles.tierGrid}>
-            {tiers.map((tier) => (
-              <div
-                key={tier.id}
-                className={`${styles.tierCard} ${styles.tierCardClickable}`}
-                style={{ borderTopColor: tier.color }}
-                role="button"
-                tabIndex={0}
-                onClick={() => openTierModal(tier.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    openTierModal(tier.id);
+            {tiers.map((tier) => {
+              const isClickable = tier.id === 'power' || tier.id === 'minimal';
+              return (
+                <div
+                  key={tier.id}
+                  className={`${styles.tierCard} ${isClickable ? styles.tierCardClickable : ''}`}
+                  style={{ borderTopColor: tier.color }}
+                  role={isClickable ? 'button' : undefined}
+                  tabIndex={isClickable ? 0 : undefined}
+                  onClick={isClickable ? () => openTierModal(tier.id) : undefined}
+                  onKeyDown={
+                    isClickable
+                      ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            openTierModal(tier.id);
+                          }
+                        }
+                      : undefined
                   }
-                }}
-              >
-                <div className={styles.tierCount} style={{ color: tier.color }}>
-                  {tier.count}
+                >
+                  <div className={styles.tierCount} style={{ color: tier.color }}>
+                    {tier.count}
+                  </div>
+                  <div className={styles.tierLabel}>{tier.label}</div>
+                  <div className={styles.tierDesc}>{tier.desc}</div>
                 </div>
-                <div className={styles.tierLabel}>{tier.label}</div>
-                <div className={styles.tierDesc}>{tier.desc}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Stacked progress bar */}
           <div className={styles.stackedBarContainer}>
             <div className={styles.stackedBar}>
-              {tiers.map((tier) => (
-                <div
-                  key={tier.id}
-                  className={`${styles.stackedSegment} ${styles.stackedSegmentClickable}`}
-                  style={{
-                    width: `${totalAdoption > 0 ? (tier.count / totalAdoption) * 100 : 0}%`,
-                    background: tier.color,
-                  }}
-                  title={`${tier.label}: ${tier.count} (${totalAdoption > 0 ? Math.round((tier.count / totalAdoption) * 100) : 0}%)`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => openTierModal(tier.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      openTierModal(tier.id);
+              {tiers.map((tier) => {
+                const isClickable = tier.id === 'power' || tier.id === 'minimal';
+                return (
+                  <div
+                    key={tier.id}
+                    className={`${styles.stackedSegment} ${isClickable ? styles.stackedSegmentClickable : ''}`}
+                    style={{
+                      width: `${totalAdoption > 0 ? (tier.count / totalAdoption) * 100 : 0}%`,
+                      background: tier.color,
+                    }}
+                    title={`${tier.label}: ${tier.count} (${totalAdoption > 0 ? Math.round((tier.count / totalAdoption) * 100) : 0}%)`}
+                    role={isClickable ? 'button' : undefined}
+                    tabIndex={isClickable ? 0 : undefined}
+                    onClick={isClickable ? () => openTierModal(tier.id) : undefined}
+                    onKeyDown={
+                      isClickable
+                        ? (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              openTierModal(tier.id);
+                            }
+                          }
+                        : undefined
                     }
-                  }}
-                />
-              ))}
+                  />
+                );
+              })}
             </div>
             <div className={styles.stackedLegend}>
               {tiers.map((tier) => (
@@ -406,24 +413,6 @@ export function AdoptionPane() {
                 ))}
               </div>
             </Card>
-
-            {/* CCR impact comparison — requires deployment data */}
-            <Card>
-              <CardHeader>Copilot impact on cycle time</CardHeader>
-              <div className={styles.ccrGrid} style={{ opacity: 0.6 }}>
-                <div
-                  style={{
-                    padding: '24px 16px',
-                    textAlign: 'center',
-                    color: 'var(--fg-muted)',
-                    fontSize: 13,
-                  }}
-                >
-                  Cycle time correlation requires deployment data. Connect your CI/CD pipeline to
-                  see Copilot&apos;s impact on delivery speed.
-                </div>
-              </div>
-            </Card>
           </div>
 
           {/* Minimal users — onboarding candidates */}
@@ -469,26 +458,6 @@ export function AdoptionPane() {
                   rowKey={(u) => u.user}
                   className={styles.modalTable}
                 />
-              </div>
-            )}
-            {selectedTier && selectedTierId !== 'power' && selectedTierId !== 'minimal' && (
-              <div>
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: 'var(--fg-muted)',
-                    lineHeight: 1.6,
-                    margin: '0 0 12px',
-                  }}
-                >
-                  <strong>{selectedTier.label}</strong>: {selectedTier.desc}
-                </p>
-                <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
-                  <strong>{selectedTier.count} users</strong> (
-                  {totalAdoption > 0 ? Math.round((selectedTier.count / totalAdoption) * 100) : 0}%
-                  of total). Individual user lists for this tier require the Copilot Metrics API
-                  integration.
-                </p>
               </div>
             )}
           </Modal>
@@ -551,13 +520,6 @@ export function AdoptionPane() {
               </div>
             )}
           </Modal>
-
-          {/* Toast popover for power user clicks */}
-          {toastMessage && (
-            <div className={styles.toastPopover} role="status" aria-live="polite">
-              {toastMessage}
-            </div>
-          )}
         </>
       )}
     </>

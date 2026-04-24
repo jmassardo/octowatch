@@ -6,7 +6,6 @@ import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
 import { getWafFindings } from '../../api/healthSignals';
 import type { WafFindingResponse } from '../../api/healthSignals';
-import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { PILLAR_META, type WafPillar } from './healthData';
 import styles from './WafInsightsPane.module.css';
 
@@ -422,7 +421,9 @@ export function WafInsightsPane() {
   return (
     <>
       {isSampleData && (
-        <SampleDataBanner message="This data is illustrative. Connect your GitHub organization to see real WAF insights." />
+        <div style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '16px 0' }}>
+          No security findings — all checks passed or no GitHub Advanced Security data available.
+        </div>
       )}
       {/* Header with WAF note */}
       <div className={styles.wafHeader}>

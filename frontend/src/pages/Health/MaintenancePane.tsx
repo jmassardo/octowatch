@@ -6,7 +6,6 @@ import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
 import { getStalePrs, getUnhealthyHooks, getSkippedWorkflows } from '../../api/healthSignals';
 import type { SkippedWorkflowResponse } from '../../api/healthSignals';
-import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { formatDateOnly } from '../../utils/dates';
 import styles from './MaintenancePane.module.css';
 
@@ -130,7 +129,10 @@ export function MaintenancePane() {
   return (
     <>
       {isSampleData && (
-        <SampleDataBanner message="This data is illustrative. Connect your GitHub organization to see real maintenance metrics." />
+        <div style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '16px 0' }}>
+          No maintenance items found — stale PRs, unhealthy webhooks, and skipped workflows will
+          appear here.
+        </div>
       )}
       <div className={styles.grid2}>
         {/* Stale PRs */}

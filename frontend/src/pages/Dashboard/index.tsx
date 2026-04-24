@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { listDetections } from '../../api/detections';
 import { listEvents } from '../../api/events';
 import { getActionsVolumeReport } from '../../api/reports';
@@ -119,9 +119,9 @@ function EventFeedItem({ event }: { event: EventResponse }) {
       <div className={[styles.tlNode, styles[typeClass]].join(' ')} />
       <div className={styles.tlBody}>
         {event.actor && (
-          <a href={`/actors/${encodeURIComponent(event.actor)}`} className={styles.mention}>
+          <Link to={`/actors/${encodeURIComponent(event.actor)}`} className={styles.mention}>
             @{event.actor}
-          </a>
+          </Link>
         )}
         {event.actor ? ' · ' : ''}
         <strong>{event.action}</strong>
@@ -368,12 +368,6 @@ export function DashboardPage() {
               helpText="Unique human actors (non-bot) seen in audit log events over the last 30 days."
               onClick={() => navigate('/devactivity')}
             />
-            <StatPill
-              value="—"
-              label="API calls (24h)"
-              helpText="GitHub API usage from usage reports. Not yet available."
-              onClick={() => navigate('/reports')}
-            />
           </div>
 
           {systemHealth != null && systemHealth.gap_detected && (
@@ -401,14 +395,14 @@ export function DashboardPage() {
               value={String(patHealth?.summary.stale_90d_count ?? '—')}
               label="Stale PATs"
               helpText="Personal access tokens with no use in the last 90 days."
-              to="/health"
+              to="/health/access"
             />
             <MetricCard
               value={String(patHealth?.summary.no_expiry_count ?? '—')}
               label="PATs without expiry"
               helpText="Personal access tokens with no expiration date set."
               accent={(patHealth?.summary.no_expiry_count ?? 0) > 0}
-              to="/health"
+              to="/health/access"
             />
             <MetricCard
               value={String(uniqueActors || '—')}

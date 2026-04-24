@@ -188,6 +188,7 @@ function RepoHealthTable({ repos }: { repos: RepoRow[] }) {
 
 function StaleTrendChart({ stale }: { stale: StaleRepo[] }) {
   const { labels, counts } = buildStaleTrend(stale);
+  const allZero = counts.every((c) => c === 0);
 
   return (
     <div>
@@ -197,19 +198,25 @@ function StaleTrendChart({ stale }: { stale: StaleRepo[] }) {
         Derived from <code className={styles.codeSnippet}>git.push</code> and{' '}
         <code className={styles.codeSnippet}>repo.create</code> audit events.
       </div>
-      <div className={styles.chartWrap}>
-        <BarChart
-          xAxisData={labels}
-          series={[
-            {
-              name: 'Stale repos',
-              data: counts,
-              color: '#f85149',
-            },
-          ]}
-          height={180}
-        />
-      </div>
+      {allZero ? (
+        <div style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '16px 0' }}>
+          No repos crossed the staleness threshold in the past 6 months.
+        </div>
+      ) : (
+        <div className={styles.chartWrap}>
+          <BarChart
+            xAxisData={labels}
+            series={[
+              {
+                name: 'Stale repos',
+                data: counts,
+                color: '#f85149',
+              },
+            ]}
+            height={180}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -231,8 +238,8 @@ function UnhealthySummaryCards({ stale }: { stale: StaleRepo[] }) {
         : [];
   const drilldownTitle =
     drilldown === 'branch-protection'
-      ? 'Repos with no branch protection on default branch'
-      : 'Repos with secret scanning disabled';
+      ? 'Repos inactive > 180 days'
+      : 'Repos inactive > 90 days';
 
   const repoColumns: ColumnDef<StaleRepo>[] = [
     {
@@ -279,13 +286,13 @@ function UnhealthySummaryCards({ stale }: { stale: StaleRepo[] }) {
   return (
     <div className={styles.grid2}>
       <Card>
-        <CardHeader>Repos with no branch protection on default branch</CardHeader>
+        <CardHeader>Repos inactive &gt; 180 days</CardHeader>
         <div
           className={`${styles.bigNumber} ${styles.clickableStat}`}
           onClick={() => setDrilldown('branch-protection')}
           role="button"
           tabIndex={0}
-          aria-label={`${noBranchProtection.length} repos with no branch protection – click to view details`}
+          aria-label={`${noBranchProtection.length} repos inactive more than 180 days – click to view details`}
           onKeyDown={(e) => handleKeyDown(e, 'branch-protection')}
         >
           {noBranchProtection.length}
@@ -297,8 +304,8 @@ function UnhealthySummaryCards({ stale }: { stale: StaleRepo[] }) {
             .join(', ') || 'None detected'}
         </div>
         <div className={styles.cardFooter}>
-          ℹ Detected via <code className={styles.codeSnippet}>protected_branch.destroy</code> events
-          + missing corresponding create events in baseline.
+          ℹ Repositories with no recorded audit-log activity in the last 180+ days. Consider
+          archiving or reviewing ownership.
           {critical.length + high.length > 0 && (
             <>
               {' '}
@@ -308,26 +315,26 @@ function UnhealthySummaryCards({ stale }: { stale: StaleRepo[] }) {
         </div>
       </Card>
       <Card>
-        <CardHeader>Repos with secret scanning disabled</CardHeader>
+        <CardHeader>Repos inactive &gt; 90 days</CardHeader>
         <div
           className={`${styles.bigNumber} ${styles.clickableStat}`}
           onClick={() => setDrilldown('secret-scanning')}
           role="button"
           tabIndex={0}
-          aria-label={`${noSecretScanning.length} repos with secret scanning disabled – click to view details`}
+          aria-label={`${noSecretScanning.length} repos inactive more than 90 days – click to view details`}
           onKeyDown={(e) => handleKeyDown(e, 'secret-scanning')}
         >
           {noSecretScanning.length}
         </div>
         <div className={styles.cardBody}>
           {noSecretScanning.length > 0
-            ? `${Math.min(noSecretScanning.length, 3)} opted-out, ${Math.max(0, noSecretScanning.length - 3)} not enrolled per baseline import`
+            ? `${Math.min(noSecretScanning.length, 3)} repos approaching staleness, ${Math.max(0, noSecretScanning.length - 3)} more in the 90–180 day range`
             : 'None detected'}
         </div>
         <div className={styles.cardFooter}>
-          ℹ Detected via{' '}
-          <code className={styles.codeSnippet}>repository.enable_secret_scanning</code> /{' '}
-          <code className={styles.codeSnippet}>disable_secret_scanning</code> events
+          ℹ Repositories with no recorded audit-log activity in the last 90+ days. Derived from{' '}
+          <code className={styles.codeSnippet}>git.push</code> and{' '}
+          <code className={styles.codeSnippet}>repo.create</code> events.
         </div>
       </Card>
       <DrilldownDrawer

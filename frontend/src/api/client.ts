@@ -43,7 +43,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
 
   if (response.status === 401) {
     window.location.replace('/login');
-    return new Promise(() => {});
+    return Promise.reject(new Error('Unauthorized'));
   }
 
   if (response.status === 204) {
