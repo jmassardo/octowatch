@@ -146,11 +146,8 @@ describe('apiFetch – 401 redirect', () => {
     const mockFetch401 = mockFetchResponse({ status: 401, body: { detail: 'Unauthorized' } });
     vi.stubGlobal('fetch', mockFetch401);
 
-    // apiFetch returns a never-resolving promise on 401, so don't await it directly
-    void freshApiFetch('/protected');
-
-    // Flush micro-tasks so the async function body runs past the await fetch(…)
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // apiFetch rejects with Error('Unauthorized') on 401 and also calls location.replace('/login')
+    await expect(freshApiFetch('/protected')).rejects.toThrow('Unauthorized');
 
     expect(replaceSpy).toHaveBeenCalledWith('/login');
   });

@@ -66,7 +66,7 @@ describe('ModelsPane clickable stats', () => {
     expect(screen.getByText('GPT-4o — usage details')).toBeInTheDocument();
     const dialog = getDialog();
     expect(within(dialog).getByText(/42%/)).toBeInTheDocument();
-    expect(within(dialog).getByText(/Copilot Metrics API integration/)).toBeInTheDocument();
+    expect(within(dialog).getByText('Ranking')).toBeInTheDocument();
   });
 
   it('opens Claude model detail modal', async () => {

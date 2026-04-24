@@ -130,10 +130,10 @@ describe('SecurityPosturePane', () => {
     expect(screen.getByText('Failed to load security posture data')).toBeInTheDocument();
   });
 
-  it('renders the sample data banner', () => {
+  it('renders the security coverage section subtitle', () => {
     renderPane();
     expect(
-      screen.getByText(/Security posture signals are derived from audit log events/),
+      screen.getByText(/Repository-level security feature adoption derived from audit log events/),
     ).toBeInTheDocument();
   });
 

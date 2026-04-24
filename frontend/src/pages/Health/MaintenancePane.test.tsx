@@ -302,12 +302,12 @@ describe('MaintenancePane', () => {
       refetch: vi.fn(),
     });
     renderPane();
-    expect(screen.getByText(/This data is illustrative/)).toBeInTheDocument();
+    expect(screen.getByText(/No maintenance items found/)).toBeInTheDocument();
   });
 
   it('does not show sample data banner when real data is available', () => {
     renderPane();
-    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No maintenance items found/)).not.toBeInTheDocument();
   });
 
   it('does not show sample data banner during loading state', () => {
@@ -316,7 +316,7 @@ describe('MaintenancePane', () => {
     mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
     mockQueryReturns.push({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
     renderPane();
-    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No maintenance items found/)).not.toBeInTheDocument();
   });
 
   it('does not show sample data banner when any query has an error', () => {
@@ -340,6 +340,6 @@ describe('MaintenancePane', () => {
       refetch: vi.fn(),
     });
     renderPane();
-    expect(screen.queryByText(/This data is illustrative/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No maintenance items found/)).not.toBeInTheDocument();
   });
 });

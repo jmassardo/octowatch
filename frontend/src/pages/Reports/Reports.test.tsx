@@ -146,7 +146,7 @@ describe('ReportsPage', () => {
 
   it('shows empty state when no reports in catalog', async () => {
     renderWithProviders(<ReportsPage />);
-    expect(await screen.findByText(/No reports generated yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/No reports available yet/)).toBeInTheDocument();
   });
 
   it('renders report cards from catalog API data', async () => {
