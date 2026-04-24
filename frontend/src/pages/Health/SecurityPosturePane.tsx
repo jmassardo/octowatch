@@ -188,7 +188,6 @@ export function SecurityPosturePane() {
 
   return (
     <div className={styles.pane}>
-
       {/* Security Coverage Summary */}
       <div>
         <div className={styles.sectionTitle}>Security coverage summary</div>

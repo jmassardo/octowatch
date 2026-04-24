@@ -125,18 +125,9 @@ export function SecurityView() {
             value={coveragePct(posture?.repos_with_secret_scanning)}
             label="Secret Scanning"
           />
-          <RadialGauge
-            value={coveragePct(posture?.repos_with_codeql)}
-            label="CodeQL"
-          />
-          <RadialGauge
-            value={coveragePct(posture?.repos_with_dependabot)}
-            label="Dependabot"
-          />
-          <RadialGauge
-            value={coveragePct(posture?.repos_with_ghas)}
-            label="GHAS"
-          />
+          <RadialGauge value={coveragePct(posture?.repos_with_codeql)} label="CodeQL" />
+          <RadialGauge value={coveragePct(posture?.repos_with_dependabot)} label="Dependabot" />
+          <RadialGauge value={coveragePct(posture?.repos_with_ghas)} label="GHAS" />
         </div>
       </div>
     </>

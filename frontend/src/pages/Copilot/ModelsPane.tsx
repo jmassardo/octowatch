@@ -106,7 +106,12 @@ export function ModelsPane() {
               <CardHeader>Model usage spread</CardHeader>
               {modelUsage.length === 0 ? (
                 <div
-                  style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '16px', textAlign: 'center' }}
+                  style={{
+                    color: 'var(--fg-muted)',
+                    fontSize: 13,
+                    padding: '16px',
+                    textAlign: 'center',
+                  }}
                 >
                   No model usage data — sync Copilot metrics to populate.
                 </div>
@@ -151,7 +156,12 @@ export function ModelsPane() {
               <CardHeader>Feature usage spread</CardHeader>
               {featureUsage.length === 0 ? (
                 <div
-                  style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '16px', textAlign: 'center' }}
+                  style={{
+                    color: 'var(--fg-muted)',
+                    fontSize: 13,
+                    padding: '16px',
+                    textAlign: 'center',
+                  }}
                 >
                   No feature usage data — sync Copilot metrics to populate.
                 </div>
@@ -196,7 +206,12 @@ export function ModelsPane() {
           <div className={styles.sectionTitle}>Editor breakdown</div>
           {editors.length === 0 ? (
             <div
-              style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '16px 0', textAlign: 'center' }}
+              style={{
+                color: 'var(--fg-muted)',
+                fontSize: 13,
+                padding: '16px 0',
+                textAlign: 'center',
+              }}
             >
               No editor usage data — sync Copilot metrics to populate.
             </div>

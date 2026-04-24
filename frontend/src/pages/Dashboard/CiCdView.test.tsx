@@ -223,8 +223,6 @@ describe('CiCdView', () => {
     mockGetAlwaysFailingWorkflows.mockRejectedValueOnce(new Error('fail'));
     renderWithProviders(<CiCdView />);
 
-    expect(
-      await screen.findByText('Could not load always-failing workflows'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Could not load always-failing workflows')).toBeInTheDocument();
   });
 });
