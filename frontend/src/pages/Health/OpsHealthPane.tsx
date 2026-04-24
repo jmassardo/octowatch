@@ -303,7 +303,6 @@ export function OpsHealthPane() {
 
   return (
     <div className={styles.pane}>
-
       {/* Workflow Health Table */}
       <WorkflowHealthTable workflows={workflows} />
 

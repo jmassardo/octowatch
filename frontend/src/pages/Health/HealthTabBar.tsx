@@ -30,7 +30,10 @@ const TABS: { id: HealthTab; label: string }[] = [
 
 export function HealthTabBar({ activeTab, onTabChange, findingsCount }: HealthTabBarProps) {
   return (
-    <div className={styles.healthTabsWrapper} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div
+      className={styles.healthTabsWrapper}
+      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+    >
       <div className={styles.healthTabs} role="tablist" style={{ flex: 1 }}>
         {TABS.map((tab) => (
           <button
