@@ -5,6 +5,7 @@ import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
 import { getCopilotTeams } from '../../api/copilotMetrics';
 import type { CopilotTeam } from '../../api/copilotMetrics';
+import { ApiError } from '../../api/client';
 import styles from './Copilot.module.css';
 
 const teamColumns: ColumnDef<CopilotTeam>[] = [
@@ -153,16 +154,40 @@ const teamColumns: ColumnDef<CopilotTeam>[] = [
 ];
 
 export function TeamsPane() {
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['copilot', 'teams'],
     queryFn: getCopilotTeams,
     staleTime: 30 * 60 * 1000,
   });
 
   if (isLoading) return <Spinner />;
-  if (isError)
+
+  // For 404/soft unavailability, show the empty-state card rather than an error banner
+  if (isError) {
+    const is404 = error instanceof ApiError && error.status === 404;
+    if (is404) {
+      return (
+        <Card>
+          <CardHeader>No team data available</CardHeader>
+          <p style={{ padding: '16px', color: 'var(--fg-muted)' }}>
+            Team data requires synced org teams and Copilot seat information.
+          </p>
+        </Card>
+      );
+    }
     return <ErrorBanner message="Failed to load team data" onRetry={() => void refetch()} />;
-  if (data?.error) return <ErrorBanner message={data.message ?? 'Team data unavailable'} />;
+  }
+
+  if (data?.error) {
+    return (
+      <Card>
+        <CardHeader>No team data available</CardHeader>
+        <p style={{ padding: '16px', color: 'var(--fg-muted)' }}>
+          {data.message ?? 'Team data requires synced org teams and Copilot seat information.'}
+        </p>
+      </Card>
+    );
+  }
 
   const teams = data?.teams ?? [];
   const atRiskCount = data?.at_risk_count ?? 0;

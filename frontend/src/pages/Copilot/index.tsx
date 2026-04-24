@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getSeatUtilizationReport, getCopilotSeatsReport } from '../../api/reports';
 import { getCopilotAnomalies } from '../../api/copilotMetrics';
@@ -74,9 +74,9 @@ export function CopilotPage() {
         <h2>Copilot Insights is disabled</h2>
         <p style={{ marginTop: '0.75rem' }}>
           Enable it in{' '}
-          <a href="/settings/features" style={{ color: 'var(--accent)' }}>
+          <Link to="/settings/features" style={{ color: 'var(--accent)' }}>
             Settings → Features
-          </a>{' '}
+          </Link>{' '}
           to view Copilot metrics.
         </p>
       </div>

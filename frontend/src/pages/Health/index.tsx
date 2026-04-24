@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getHealthSummary, getWafFindings } from '../../api/healthSignals';
 import { useFeatures } from '../../hooks/useFeatures';
@@ -54,9 +54,9 @@ export function HealthPage() {
         <h2>Org Health is disabled</h2>
         <p style={{ marginTop: '0.75rem' }}>
           Enable it in{' '}
-          <a href="/settings/features" style={{ color: 'var(--accent)' }}>
+          <Link to="/settings/features" style={{ color: 'var(--accent)' }}>
             Settings → Features
-          </a>
+          </Link>
           .
         </p>
       </div>

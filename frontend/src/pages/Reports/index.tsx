@@ -354,8 +354,8 @@ export function ReportsPage() {
           <Spinner />
         ) : (catalogData ?? []).length === 0 ? (
           <div className={styles.emptyReports}>
-            No reports generated yet. Use the data summary cards above to explore your data, or
-            check back after reports have been generated.
+            No reports available yet. Reports are generated automatically after sync completes.
+            Check back after your first successful organization sync.
           </div>
         ) : (
           (catalogData ?? []).map((r) => (

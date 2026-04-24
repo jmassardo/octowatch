@@ -3,7 +3,7 @@ import { getFeatures, updateFeatures } from '../api/features';
 import type { FeatureFlags } from '../api/features';
 
 const DEFAULTS: FeatureFlags = {
-  copilot_insights: false,
+  copilot_insights: true,
   velocity: true,
   dev_activity: true,
   org_health: true,

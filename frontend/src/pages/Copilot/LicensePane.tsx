@@ -150,11 +150,11 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
             role="link"
             tabIndex={0}
             style={{ color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' }}
-            onClick={() => navigate('/integrations')}
+            onClick={() => navigate('/settings/integrations')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                navigate('/integrations');
+                navigate('/settings/integrations');
               }
             }}
           >
