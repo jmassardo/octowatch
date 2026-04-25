@@ -54,6 +54,12 @@ concurrency:
   group: aks-admin
   cancel-in-progress: false
 
+# Restrict GITHUB_TOKEN to read-only for all jobs.  The workflow uses
+# azure/login with an external service principal — no GitHub API write access
+# is needed.
+permissions:
+  contents: read
+
 jobs:
   aks-admin:
     name: AKS Admin — ${{ inputs.action }} ${{ inputs.ip_cidr }}
