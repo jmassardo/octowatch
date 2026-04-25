@@ -1248,11 +1248,17 @@ class TestReadMetricsFromStore:
     @pytest.mark.asyncio
     async def test_returns_error_when_no_enterprise_slug(self) -> None:
         db = AsyncMock(spec=AsyncSession)
+
+        async def _get_setting_side_effect(db: Any, key: str) -> str | None:
+            if key == "feature_copilot_insights":
+                return "true"
+            return None
+
         with (
             patch(
                 "app.services.settings_service.get_setting",
                 new_callable=AsyncMock,
-                return_value="true",
+                side_effect=_get_setting_side_effect,
             ),
             patch.object(
                 copilot_metrics_service.settings.github_app,
