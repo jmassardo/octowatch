@@ -1818,8 +1818,7 @@ function RetentionPane() {
   return (
     <div>
       <p style={{ color: 'var(--fg-subtle)', fontSize: '0.875rem', marginBottom: '1rem' }}>
-        Configure how long each data type is retained before automatic cleanup. Expired data can be
-        archived to S3/MinIO before deletion if archival is enabled.
+        Configure how long each data type is retained before automatic cleanup.
       </p>
       <div className={styles.tableWrap}>
         <table className={styles.table}>
