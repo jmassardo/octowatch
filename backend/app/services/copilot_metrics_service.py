@@ -565,7 +565,10 @@ async def _check_feature_enabled(db: AsyncSession) -> dict[str, str] | None:
             "message": "Copilot Insights is disabled. Enable it in Settings → Features.",
         }
 
-    enterprise_slug = settings.github_app.GITHUB_ENTERPRISE_SLUG
+    enterprise_slug = (
+        await get_setting(db, "github_enterprise_slug")
+        or settings.github_app.GITHUB_ENTERPRISE_SLUG
+    )
     if not enterprise_slug:
         return {"error": "no_enterprise_config", "message": "GITHUB_ENTERPRISE_SLUG is not set."}
 
@@ -578,11 +581,17 @@ async def _read_metrics_from_store(db: AsyncSession) -> list[dict[str, Any]] | d
     Returns the same shape as ``_fetch_metrics_raw`` (list of daily metric
     dicts) so that all downstream public functions work unchanged.
     """
+    from app.services.settings_service import get_setting
+
     err = await _check_feature_enabled(db)
     if err is not None:
         return err
 
-    enterprise_slug = settings.github_app.GITHUB_ENTERPRISE_SLUG or ""
+    enterprise_slug = (
+        await get_setting(db, "github_enterprise_slug")
+        or settings.github_app.GITHUB_ENTERPRISE_SLUG
+        or ""
+    )
 
     # Try Valkey cache first
     cache_key = _CACHE_KEY.format(enterprise_slug=enterprise_slug)
@@ -696,11 +705,17 @@ async def _reconstruct_metrics_from_db(
 
 async def _read_seats_from_store(db: AsyncSession) -> list[dict[str, Any]] | dict[str, str]:
     """Read Copilot seat data from Valkey cache or DB.  Never calls GitHub API."""
+    from app.services.settings_service import get_setting
+
     err = await _check_feature_enabled(db)
     if err is not None:
         return err
 
-    enterprise_slug = settings.github_app.GITHUB_ENTERPRISE_SLUG or ""
+    enterprise_slug = (
+        await get_setting(db, "github_enterprise_slug")
+        or settings.github_app.GITHUB_ENTERPRISE_SLUG
+        or ""
+    )
 
     # Try Valkey cache first
     cache_key = _CACHE_SEATS_KEY.format(org_slug=enterprise_slug)
