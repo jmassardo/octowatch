@@ -438,7 +438,18 @@ variable "celery_queue_scale_threshold" {
 
 variable "aks_node_size" {
   default     = "Standard_D4s_v4"
-  description = "AKS node pool VM SKU. Live cluster was updated to Standard_D4s_v4 (from v3) manually."
+  description = "AKS system node pool VM SKU. Live cluster was updated to Standard_D4s_v4 (from v3) manually."
+}
+
+variable "aks_worker_node_size" {
+  type        = string
+  default     = "Standard_B4ms"
+  description = <<-EOT
+    AKS worker (application) node pool VM SKU.
+    Standard_B4ms (burstable 4 vCPU / 16 GiB) is cost-effective for Celery workers
+    with bursty CPU demand. Note: Standard_D4s_v3 was capacity-constrained in
+    eastus2 — use B-series or D4s_v4+ in that region.
+  EOT
 }
 
 variable "aks_system_node_count" {
@@ -547,4 +558,23 @@ variable "secret_azure_storage_connection_string" {
   sensitive   = true
   default     = ""
   description = "Azure Storage connection string for blob access. Avoids the listKeys permission requirement."
+}
+
+# ── Observability ──────────────────────────────────────────────────────────────
+
+variable "log_retention_days" {
+  type        = number
+  default     = 30
+  description = "Number of days to retain logs in the Log Analytics Workspace. Minimum 30 for free tier."
+
+  validation {
+    condition     = var.log_retention_days >= 30
+    error_message = "log_retention_days must be >= 30 (Log Analytics free-tier minimum)."
+  }
+}
+
+variable "alert_email_address" {
+  type        = string
+  default     = ""
+  description = "Email address for ops alert notifications. Leave empty to disable email alerts."
 }

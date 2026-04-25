@@ -29,6 +29,16 @@ spec:
     spec:
       serviceAccountName: {{ include "octowatch.serviceAccountName" . }}
       terminationGracePeriodSeconds: 60
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "octowatch.selectorLabels" . | nindent 20 }}
+                    app.kubernetes.io/component: api
+                topologyKey: kubernetes.io/hostname
       securityContext:
         runAsNonRoot: {{ .Values.api.securityContext.runAsNonRoot }}
         runAsUser: {{ .Values.api.securityContext.runAsUser }}
