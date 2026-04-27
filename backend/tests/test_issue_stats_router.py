@@ -67,22 +67,22 @@ class TestByOrgEndpoint:
             ) as client:
                 resp = await client.get("/api/v1/issue-stats/by-org?window_days=30")
 
-        if resp.status_code == 200:
-            data = resp.json()
-            assert "window_days" in data
-            assert "total_opened" in data
-            assert "total_closed" in data
-            assert "orgs" in data
-            assert data["total_opened"] == 35
-            assert data["total_closed"] == 30
-            assert len(data["orgs"]) == 2
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "window_days" in data
+        assert "total_opened" in data
+        assert "total_closed" in data
+        assert "orgs" in data
+        assert data["total_opened"] == 35
+        assert data["total_closed"] == 30
+        assert len(data["orgs"]) == 2
 
-            org = data["orgs"][0]
-            assert "org" in org
-            assert "opened" in org
-            assert "closed" in org
-            assert "net_open" in org
-            assert "avg_hours_to_close" in org
+        org = data["orgs"][0]
+        assert "org" in org
+        assert "opened" in org
+        assert "closed" in org
+        assert "net_open" in org
+        assert "avg_hours_to_close" in org
 
     @pytest.mark.asyncio
     async def test_by_org_empty_result(self, app) -> None:
@@ -99,11 +99,11 @@ class TestByOrgEndpoint:
             ) as client:
                 resp = await client.get("/api/v1/issue-stats/by-org")
 
-        if resp.status_code == 200:
-            data = resp.json()
-            assert data["total_opened"] == 0
-            assert data["total_closed"] == 0
-            assert data["orgs"] == []
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_opened"] == 0
+        assert data["total_closed"] == 0
+        assert data["orgs"] == []
 
 
 # ── /by-repo ─────────────────────────────────────────────────────────────────
@@ -146,23 +146,23 @@ class TestByRepoEndpoint:
             ) as client:
                 resp = await client.get("/api/v1/issue-stats/by-repo?window_days=90")
 
-        if resp.status_code == 200:
-            data = resp.json()
-            assert "window_days" in data
-            assert "total_opened" in data
-            assert "total_closed" in data
-            assert "repos" in data
-            assert data["total_opened"] == 25
-            assert data["total_closed"] == 18
-            assert len(data["repos"]) == 2
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "window_days" in data
+        assert "total_opened" in data
+        assert "total_closed" in data
+        assert "repos" in data
+        assert data["total_opened"] == 25
+        assert data["total_closed"] == 18
+        assert len(data["repos"]) == 2
 
-            repo = data["repos"][0]
-            assert "org" in repo
-            assert "repo" in repo
-            assert "opened" in repo
-            assert "closed" in repo
-            assert "net_open" in repo
-            assert "avg_hours_to_close" in repo
+        repo = data["repos"][0]
+        assert "org" in repo
+        assert "repo" in repo
+        assert "opened" in repo
+        assert "closed" in repo
+        assert "net_open" in repo
+        assert "avg_hours_to_close" in repo
 
     @pytest.mark.asyncio
     async def test_by_repo_with_org_filter(self, app) -> None:
@@ -190,10 +190,10 @@ class TestByRepoEndpoint:
             ) as client:
                 resp = await client.get("/api/v1/issue-stats/by-repo?window_days=30&org=acme-corp")
 
-        if resp.status_code == 200:
-            data = resp.json()
-            assert len(data["repos"]) == 1
-            assert data["repos"][0]["org"] == "acme-corp"
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["repos"]) == 1
+        assert data["repos"][0]["org"] == "acme-corp"
 
 
 # ── Service unit tests ───────────────────────────────────────────────────────
