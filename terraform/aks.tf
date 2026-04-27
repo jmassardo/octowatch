@@ -118,7 +118,7 @@ resource "azurerm_kubernetes_cluster" "main" {
   tags                = local.common_tags
 
   default_node_pool {
-    name                         = "system"
+    name                         = "system3"
     vm_size                      = var.aks_node_size
     min_count                    = var.aks_system_node_count
     max_count                    = max(var.aks_system_node_count * 3, 3)
@@ -127,6 +127,13 @@ resource "azurerm_kubernetes_cluster" "main" {
     os_disk_size_gb              = 128
     os_disk_type                 = "Managed"
     only_critical_addons_enabled = false
+
+    upgrade_settings {
+      max_surge                     = "10%"
+      drain_timeout_in_minutes      = 0
+      node_soak_duration_in_minutes = 0
+      undrainable_node_behavior     = "Schedule"
+    }
   }
 
   identity {
@@ -191,6 +198,32 @@ resource "azurerm_kubernetes_cluster" "main" {
       key_vault_key_id         = var.aks_kms_key_id
       key_vault_network_access = "Private"
     }
+  }
+}
+
+# ── Worker Node Pool ─────────────────────────────────────────────────────────
+# Runs application workloads (API, frontend, workers, databases).
+# Separated from the system pool so that workload scaling doesn't compete
+# with kube-system components for resources.
+resource "azurerm_kubernetes_cluster_node_pool" "pool2" {
+  name                  = "pool2"
+  kubernetes_cluster_id = azurerm_kubernetes_cluster.main.id
+  vm_size               = var.aks_worker_node_size
+  os_disk_size_gb       = 128
+  os_disk_type          = "Managed"
+  vnet_subnet_id        = azurerm_subnet.aks.id
+  mode                  = "User"
+
+  auto_scaling_enabled = true
+  min_count            = var.aks_worker_node_count
+  max_count            = max(var.aks_worker_node_count * 3, 3)
+  scale_down_mode      = "Delete"
+
+  upgrade_settings {
+    max_surge                     = "10%"
+    drain_timeout_in_minutes      = 0
+    node_soak_duration_in_minutes = 0
+    undrainable_node_behavior     = "Schedule"
   }
 }
 

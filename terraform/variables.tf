@@ -438,7 +438,12 @@ variable "celery_queue_scale_threshold" {
 
 variable "aks_node_size" {
   default     = "Standard_D4s_v4"
-  description = "AKS node pool VM SKU. Live cluster was updated to Standard_D4s_v4 (from v3) manually."
+  description = "AKS system node pool VM SKU."
+}
+
+variable "aks_worker_node_size" {
+  default     = "Standard_B4ms"
+  description = "AKS worker node pool VM SKU. B-series is cost-effective for bursty workloads."
 }
 
 variable "aks_system_node_count" {
