@@ -19,6 +19,7 @@ import { PosturePage } from './pages/Posture';
 import { SettingsPage } from './pages/Settings';
 import { ActorsPage } from './pages/Actors';
 import { CrossOrgPage } from './pages/CrossOrg';
+import { IssueStatsPage } from './pages/IssueStats';
 import { WorkflowsPage } from './pages/Workflows';
 import { AdvancedSecurityPage } from './pages/AdvancedSecurity';
 
@@ -59,6 +60,7 @@ export const router = createBrowserRouter([
       { path: '/health/settings', element: <HealthSettingsPage /> },
       { path: '/health/:tab', element: <HealthPage /> },
       { path: '/reports', element: <ReportsPage /> },
+      { path: '/issue-stats', element: <IssueStatsPage /> },
       { path: '/query', element: <QueryPage /> },
       { path: '/rules', element: <RulesPage /> },
       { path: '/users', element: <UsersPage /> },
