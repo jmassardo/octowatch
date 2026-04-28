@@ -220,7 +220,6 @@ describe('DashboardPage', () => {
 
     expect(screen.queryByText('Open threats by severity')).not.toBeInTheDocument();
   });
-
 });
 
 /* ------------------------------------------------------------------ */

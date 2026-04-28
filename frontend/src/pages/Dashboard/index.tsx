@@ -3,7 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listDetections } from '../../api/detections';
 import { listEvents } from '../../api/events';
 import { getActionsVolumeReport } from '../../api/reports';
-import { getSystemHealth, getRepoHealth, getPatHealth, getUnifiedSecurity } from '../../api/healthSignals';
+import {
+  getSystemHealth,
+  getRepoHealth,
+  getPatHealth,
+  getUnifiedSecurity,
+} from '../../api/healthSignals';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { MetricCard } from '../../components/primitives/MetricCard';
 
@@ -92,7 +97,6 @@ function StatPill({
     </div>
   );
 }
-
 
 function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -308,9 +312,7 @@ export function DashboardPage() {
             <StatPill
               value={String(unifiedSecurity?.secret_scanning.open ?? '—')}
               label="secret alerts"
-              variant={
-                (unifiedSecurity?.secret_scanning.open ?? 0) > 0 ? 'danger' : undefined
-              }
+              variant={(unifiedSecurity?.secret_scanning.open ?? 0) > 0 ? 'danger' : undefined}
               helpText="Open GitHub secret scanning alerts across all organizations (GHAS)."
               onClick={() => navigate('/advanced-security?tab=secrets')}
             />
