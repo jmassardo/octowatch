@@ -1,0 +1,8 @@
+helm:
+  parameters:
+  - name: global.image.registry
+    value: ghcr.io/jmassardo/octowatch-frontend
+    forcestring: true
+  - name: global.image.tag
+    value: main
+    forcestring: true
