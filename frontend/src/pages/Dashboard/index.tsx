@@ -1,18 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listDetections } from '../../api/detections';
 import { listEvents } from '../../api/events';
 import { getActionsVolumeReport } from '../../api/reports';
-import { getSystemHealth, getRepoHealth, getPatHealth } from '../../api/healthSignals';
-import { ContributionCalendar } from '../../components/charts/ContributionCalendar';
+import { getSystemHealth, getRepoHealth, getPatHealth, getUnifiedSecurity } from '../../api/healthSignals';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { MetricCard } from '../../components/primitives/MetricCard';
-import { Spinner } from '../../components/primitives/Spinner';
+
 import { ExecutiveView } from './ExecutiveView';
 import { SecurityView } from './SecurityView';
 import { CiCdView } from './CiCdView';
+import { SecurityOverviewWidget } from '../../components/widgets/SecurityOverviewWidget';
 import { useOrg } from '../../hooks/useOrg';
-import type { EventResponse } from '../../types/events';
 import type { ActionsVolumeBucket } from '../../types/reports';
 import { formatRelative } from '../../utils/dates';
 import styles from './Dashboard.module.css';
@@ -94,51 +93,6 @@ function StatPill({
   );
 }
 
-function eventTypeClass(action: string): 'security' | 'platform' | 'warning' | 'info' {
-  const a = action.toLowerCase();
-  if (
-    a.includes('delete') ||
-    a.includes('destroy') ||
-    a.includes('visibility') ||
-    a.includes('branch_protection') ||
-    a.includes('pat') ||
-    a.includes('deploy_key') ||
-    a.includes('outside_collaborator')
-  )
-    return 'security';
-  if (a.includes('workflow') || a.includes('push') || a.includes('deploy')) return 'platform';
-  if (a.includes('failed') || a.includes('error')) return 'warning';
-  return 'info';
-}
-
-function EventFeedItem({ event }: { event: EventResponse }) {
-  const typeClass = eventTypeClass(event.action);
-  const context = event.org ? ` · ${event.org}` : '';
-  return (
-    <div className={styles.tlItem}>
-      <div className={[styles.tlNode, styles[typeClass]].join(' ')} />
-      <div className={styles.tlBody}>
-        {event.actor && (
-          <Link to={`/actors/${encodeURIComponent(event.actor)}`} className={styles.mention}>
-            @{event.actor}
-          </Link>
-        )}
-        {event.actor ? ' · ' : ''}
-        <strong>{event.action}</strong>
-        {event.repo && (
-          <>
-            {' '}
-            on <strong>{event.repo}</strong>
-          </>
-        )}
-      </div>
-      <div className={styles.tlTime}>
-        {formatRelative(event.created_at)}
-        {context}
-      </div>
-    </div>
-  );
-}
 
 function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -171,13 +125,13 @@ export function DashboardPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: events, isLoading: loadingEvents } = useQuery({
+  const { data: events } = useQuery({
     queryKey: ['events', 'recent', selectedOrg],
     queryFn: () => listEvents({ page_size: 10, sort: 'created_at_desc', org: orgParam }),
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch a larger page of events for the heatmap (up to 500 most recent)
+  // Fetch events for unique actor count and events volume metric
   const { data: calendarEvents } = useQuery({
     queryKey: ['events', 'calendar', selectedOrg],
     queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc', org: orgParam }),
@@ -212,6 +166,13 @@ export function DashboardPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fetch unified security for GHAS pills
+  const { data: unifiedSecurity } = useQuery({
+    queryKey: ['health-signals', 'unified-security-dashboard'],
+    queryFn: getUnifiedSecurity,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Derive workflow metrics from actions volume data
   const actionsBuckets = (actionsReport?.data ?? []) as unknown as ActionsVolumeBucket[];
   const totalWorkflowRuns = actionsBuckets.reduce(
@@ -228,28 +189,6 @@ export function DashboardPage() {
   );
   const workflowSuccessRate =
     totalWorkflowRuns > 0 ? ((succeededWorkflowRuns / totalWorkflowRuns) * 100).toFixed(1) : null;
-
-  // Bucket calendar events by day
-  const calendarData = (() => {
-    if (!calendarEvents?.items.length) return undefined;
-    const dayMap = new Map<string, { count: number; hasAlert: boolean }>();
-    for (const e of calendarEvents.items) {
-      const day = e.created_at.slice(0, 10);
-      const existing = dayMap.get(day) ?? { count: 0, hasAlert: false };
-      dayMap.set(day, {
-        count: existing.count + 1,
-        hasAlert: existing.hasAlert || eventTypeClass(e.action) === 'security',
-      });
-    }
-    const maxCount = Math.max(...[...dayMap.values()].map((v) => v.count), 1);
-    return [...dayMap.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, { count, hasAlert }]) => ({
-        date,
-        level: Math.min(4, Math.ceil((count / maxCount) * 4)) as 0 | 1 | 2 | 3 | 4,
-        alert: hasAlert,
-      }));
-  })();
 
   const openThreats = detections?.total ?? 0;
 
@@ -366,6 +305,27 @@ export function DashboardPage() {
               helpText="Unique human actors (non-bot) seen in audit log events over the last 30 days."
               onClick={() => navigate('/devactivity')}
             />
+            <StatPill
+              value={String(unifiedSecurity?.secret_scanning.open ?? '—')}
+              label="secret alerts"
+              variant={
+                (unifiedSecurity?.secret_scanning.open ?? 0) > 0 ? 'danger' : undefined
+              }
+              helpText="Open GitHub secret scanning alerts across all organizations (GHAS)."
+              onClick={() => navigate('/advanced-security?tab=secrets')}
+            />
+            <StatPill
+              value={String(unifiedSecurity?.code_scanning.open ?? '—')}
+              label="code alerts"
+              helpText="Open GitHub code scanning (CodeQL) alerts across all organizations (GHAS)."
+              onClick={() => navigate('/advanced-security?tab=code')}
+            />
+            <StatPill
+              value={String(unifiedSecurity?.dependabot.open ?? '—')}
+              label="dependabot"
+              helpText="Open Dependabot vulnerability alerts across all organizations (GHAS)."
+              onClick={() => navigate('/advanced-security?tab=dependabot')}
+            />
           </div>
 
           {systemHealth != null && systemHealth.gap_detected && (
@@ -410,52 +370,10 @@ export function DashboardPage() {
             />
           </div>
 
-          <Card className={styles.calCard}>
-            <CardHeader
-              actions={
-                <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span
-                    style={{
-                      width: 10,
-                      height: 10,
-                      background: 'rgba(248,81,73,0.8)',
-                      borderRadius: 2,
-                      display: 'inline-block',
-                    }}
-                  />
-                  Security&nbsp;
-                  <span
-                    style={{
-                      width: 10,
-                      height: 10,
-                      background: '#39d353',
-                      borderRadius: 2,
-                      display: 'inline-block',
-                    }}
-                  />
-                  Platform
-                </span>
-              }
-            >
-              Activity heatmap — last 13 weeks
-            </CardHeader>
-            <ContributionCalendar data={calendarData} />
-          </Card>
-
+          {/* Security Overview + Platform alerts on same row */}
           <div className={styles.grid}>
             <div className={styles.flex1}>
-              <div className={styles.sectionTitle}>Activity feed</div>
-              <div className={styles.timeline}>
-                {loadingEvents && <Spinner />}
-                {(events?.items ?? []).map((event) => (
-                  <EventFeedItem key={event.id} event={event} />
-                ))}
-                {!loadingEvents && (events?.items ?? []).length === 0 && (
-                  <div style={{ color: 'var(--fg-muted)', padding: '12px 0' }}>
-                    No recent events
-                  </div>
-                )}
-              </div>
+              <SecurityOverviewWidget detections={detections?.items ?? []} />
             </div>
 
             <div className={styles.sidebar}>

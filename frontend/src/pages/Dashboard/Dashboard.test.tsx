@@ -30,6 +30,14 @@ vi.mock('../../components/charts/ContributionCalendar', () => ({
   ContributionCalendar: () => <div data-testid="contribution-calendar" />,
 }));
 
+const mockGetUnifiedSecurity = vi.fn().mockResolvedValue({
+  secret_scanning: { open: 0, fixed: 0, dismissed: 0 },
+  code_scanning: { open: 0, fixed: 0, dismissed: 0 },
+  dependabot: { open: 0, fixed: 0, dismissed: 0 },
+  detections: { total: 0, critical: 0 },
+  trend_30d: [],
+});
+
 const mockGetSystemHealth = vi.fn().mockResolvedValue({
   ingestion_healthy: true,
   last_event_at: '2025-03-15T00:00:00Z',
@@ -53,6 +61,7 @@ vi.mock('../../api/healthSignals', () => ({
   getSystemHealth: (...args: unknown[]) => mockGetSystemHealth(...args),
   getRepoHealth: (...args: unknown[]) => mockGetRepoHealth(...args),
   getPatHealth: (...args: unknown[]) => mockGetPatHealth(...args),
+  getUnifiedSecurity: (...args: unknown[]) => mockGetUnifiedSecurity(...args),
 }));
 
 describe('DashboardPage', () => {
@@ -212,15 +221,6 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('Open threats by severity')).not.toBeInTheDocument();
   });
 
-  /* ---------------------------------------------------------------- */
-  /*  Activity heatmap                                                  */
-  /* ---------------------------------------------------------------- */
-
-  it('renders the contribution calendar', () => {
-    renderWithProviders(<DashboardPage />);
-
-    expect(screen.getByTestId('contribution-calendar')).toBeInTheDocument();
-  });
 });
 
 /* ------------------------------------------------------------------ */
