@@ -10,7 +10,6 @@ import {
   getUnifiedSecurity,
 } from '../../api/healthSignals';
 import { Card, CardHeader } from '../../components/primitives/Card';
-import { MetricCard } from '../../components/primitives/MetricCard';
 
 import { ExecutiveView } from './ExecutiveView';
 import { SecurityView } from './SecurityView';
@@ -310,6 +309,25 @@ export function DashboardPage() {
               onClick={() => navigate('/devactivity')}
             />
             <StatPill
+              value={String(repoHealth?.stale.length ?? '—')}
+              label="stale repos"
+              helpText="Repositories with no activity in the last 90 days."
+              onClick={() => navigate('/health')}
+            />
+            <StatPill
+              value={String(patHealth?.summary.stale_90d_count ?? '—')}
+              label="stale PATs"
+              helpText="Personal access tokens with no use in the last 90 days."
+              onClick={() => navigate('/health/access')}
+            />
+            <StatPill
+              value={String(patHealth?.summary.no_expiry_count ?? '—')}
+              label="PATs no expiry"
+              variant={(patHealth?.summary.no_expiry_count ?? 0) > 0 ? 'danger' : undefined}
+              helpText="Personal access tokens with no expiration date set."
+              onClick={() => navigate('/health/access')}
+            />
+            <StatPill
               value={String(unifiedSecurity?.secret_scanning.open ?? '—')}
               label="secret alerts"
               variant={(unifiedSecurity?.secret_scanning.open ?? 0) > 0 ? 'danger' : undefined}
@@ -342,35 +360,6 @@ export function DashboardPage() {
               </span>
             </div>
           )}
-
-          {/* Operations Summary row */}
-          <div className={styles.cardGrid}>
-            <MetricCard
-              value={String(repoHealth?.stale.length ?? '—')}
-              label="Stale repos"
-              helpText="Repositories with no activity in the last 90 days."
-              to="/health"
-            />
-            <MetricCard
-              value={String(patHealth?.summary.stale_90d_count ?? '—')}
-              label="Stale PATs"
-              helpText="Personal access tokens with no use in the last 90 days."
-              to="/health/access"
-            />
-            <MetricCard
-              value={String(patHealth?.summary.no_expiry_count ?? '—')}
-              label="PATs without expiry"
-              helpText="Personal access tokens with no expiration date set."
-              accent={(patHealth?.summary.no_expiry_count ?? 0) > 0}
-              to="/health/access"
-            />
-            <MetricCard
-              value={String(uniqueActors || '—')}
-              label="Active devs"
-              helpText="Unique human actors seen in audit log events over the last 30 days."
-              to="/devactivity"
-            />
-          </div>
 
           {/* Security Overview + Platform alerts on same row */}
           <div className={styles.grid}>

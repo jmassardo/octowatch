@@ -1,8 +1,17 @@
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader } from '../primitives/Card';
-import type { DetectionResponse } from '../../types/detections';
+import type { DetectionResponse, DetectionSeverity } from '../../types/detections';
 
-interface DetectionRowProps {
+const SEVERITY_ORDER: DetectionSeverity[] = ['critical', 'high', 'medium', 'low'];
+
+const SEVERITY_COLORS: Record<DetectionSeverity, string> = {
+  critical: 'var(--danger, #f85149)',
+  high: 'var(--severe, #db6d28)',
+  medium: 'var(--attention, #d29922)',
+  low: 'var(--fg-muted, #8b949e)',
+};
+
+interface SeverityRowProps {
   label: string;
   count: number;
   maxCount: number;
@@ -10,7 +19,7 @@ interface DetectionRowProps {
   onClick: () => void;
 }
 
-function DetectionRow({ label, count, maxCount, color, onClick }: DetectionRowProps) {
+function SeverityRow({ label, count, maxCount, color, onClick }: SeverityRowProps) {
   const w =
     count > 0 ? `${Math.max(8, Math.round((count / Math.max(maxCount, 1)) * 100))}%` : '2px';
   return (
@@ -27,7 +36,7 @@ function DetectionRow({ label, count, maxCount, color, onClick }: DetectionRowPr
       onClick={onClick}
       role="button"
       tabIndex={0}
-      aria-label={`${count} ${label} — click to view details`}
+      aria-label={`${count} ${label} detections — click to view`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -43,15 +52,13 @@ function DetectionRow({ label, count, maxCount, color, onClick }: DetectionRowPr
     >
       <span
         style={{
-          width: 140,
+          width: 70,
           fontSize: 12,
-          color: '#8b949e',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          color,
+          fontWeight: 600,
+          textTransform: 'capitalize',
           flexShrink: 0,
         }}
-        title={label}
       >
         {label}
       </span>
@@ -73,56 +80,37 @@ interface Props {
 export function SecurityOverviewWidget({ detections }: Props) {
   const navigate = useNavigate();
 
-  // Group detections by rule_id, using rule_name as display label
-  const grouped = new Map<number, { name: string; count: number }>();
+  const bySeverity: Record<DetectionSeverity, number> = { critical: 0, high: 0, medium: 0, low: 0 };
   for (const d of detections) {
-    const existing = grouped.get(d.rule_id);
-    if (existing) {
-      existing.count += 1;
-    } else {
-      grouped.set(d.rule_id, {
-        name: d.rule_name ?? `Rule #${d.rule_id}`,
-        count: 1,
-      });
+    if (d.severity in bySeverity) {
+      bySeverity[d.severity] += 1;
     }
   }
 
-  const rows = [...grouped.entries()]
-    .map(([ruleId, { name, count }]) => ({ ruleId, name, count }))
-    .sort((a, b) => b.count - a.count);
-
-  const maxCount = rows.length > 0 ? Math.max(...rows.map((r) => r.count)) : 1;
-
-  const barColors = [
-    'var(--accent, #58a6ff)',
-    'var(--done, #a371f7)',
-    'var(--attention, #d29922)',
-    'var(--success, #3fb950)',
-    'var(--severe, #db6d28)',
-    'var(--danger, #f85149)',
-  ];
+  const maxCount = Math.max(...Object.values(bySeverity), 1);
+  const total = detections.length;
 
   return (
     <Card>
       <CardHeader>Security Overview</CardHeader>
       <div style={{ padding: '8px 8px 12px' }}>
-        {rows.length === 0 ? (
+        {total === 0 ? (
           <div style={{ color: '#8b949e', fontSize: 13, padding: '12px 8px', textAlign: 'center' }}>
             No active detections
           </div>
         ) : (
           <>
             <div style={{ fontSize: 12, color: '#8b949e', padding: '0 8px 8px', fontWeight: 600 }}>
-              Active detections by rule
+              Active detections by severity — {total} total
             </div>
-            {rows.map((row, i) => (
-              <DetectionRow
-                key={row.ruleId}
-                label={row.name}
-                count={row.count}
+            {SEVERITY_ORDER.map((sev) => (
+              <SeverityRow
+                key={sev}
+                label={sev}
+                count={bySeverity[sev]}
                 maxCount={maxCount}
-                color={barColors[i % barColors.length]}
-                onClick={() => navigate(`/threats?rule_id=${row.ruleId}`)}
+                color={SEVERITY_COLORS[sev]}
+                onClick={() => navigate(`/threats?severity=${sev}`)}
               />
             ))}
           </>

@@ -166,13 +166,13 @@ describe('DashboardPage', () => {
   /*  Operations summary MetricCards                                    */
   /* ---------------------------------------------------------------- */
 
-  it('renders ops summary metric cards', async () => {
+  it('renders ops summary pills', async () => {
     renderWithProviders(<DashboardPage />);
 
-    expect(await screen.findByText('Stale repos')).toBeInTheDocument();
-    expect(screen.getByText('Stale PATs')).toBeInTheDocument();
-    expect(screen.getByText('PATs without expiry')).toBeInTheDocument();
-    expect(screen.getByText('Active devs')).toBeInTheDocument();
+    expect(await screen.findByText('stale repos')).toBeInTheDocument();
+    expect(screen.getByText('stale PATs')).toBeInTheDocument();
+    expect(screen.getByText('PATs no expiry')).toBeInTheDocument();
+    expect(screen.getByText('active devs')).toBeInTheDocument();
   });
 
   it('shows stale repo count from repo health', async () => {
@@ -183,7 +183,7 @@ describe('DashboardPage', () => {
     });
     renderWithProviders(<DashboardPage />);
 
-    await screen.findByText('Stale repos');
+    await screen.findByText('stale repos');
     expect(screen.getByText('1')).toBeInTheDocument();
   });
 
