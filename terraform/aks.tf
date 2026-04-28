@@ -117,11 +117,15 @@ resource "azurerm_kubernetes_cluster" "main" {
   sku_tier            = "Standard"
   tags                = local.common_tags
 
+  # Legacy default pool — kept at minimum size because AKS requires a default
+  # node pool and zones cannot be added after creation. The real system workloads
+  # run on system4 (zone-redundant). This pool will be removed when the cluster
+  # is next recreated.
   default_node_pool {
     name                         = "system3"
     vm_size                      = var.aks_node_size
-    min_count                    = var.aks_system_node_count
-    max_count                    = max(var.aks_system_node_count * 3, 3)
+    min_count                    = 1
+    max_count                    = 1
     auto_scaling_enabled         = true
     vnet_subnet_id               = azurerm_subnet.aks.id
     os_disk_size_gb              = 128
@@ -201,22 +205,44 @@ resource "azurerm_kubernetes_cluster" "main" {
   }
 }
 
-# ── Worker Node Pool ─────────────────────────────────────────────────────────
-# Runs application workloads (API, frontend, workers, databases).
-# Separated from the system pool so that workload scaling doesn't compete
-# with kube-system components for resources.
-resource "azurerm_kubernetes_cluster_node_pool" "pool2" {
-  name                  = "pool2"
+# ── Zone-Redundant System Pool ────────────────────────────────────────────────
+# Primary system pool spread across availability zones 1, 2, 3 for resilience
+# against host/rack/zone failures. Replaces the non-zonal system3 default pool.
+resource "azurerm_kubernetes_cluster_node_pool" "system4" {
+  name                  = "system4"
   kubernetes_cluster_id = azurerm_kubernetes_cluster.main.id
-  vm_size               = var.aks_worker_node_size
-  os_disk_size_gb       = 128
-  os_disk_type          = "Managed"
+  vm_size               = var.aks_node_size
   vnet_subnet_id        = azurerm_subnet.aks.id
-  mode                  = "User"
+  mode                  = "System"
+  zones                 = ["1", "2", "3"]
 
   auto_scaling_enabled = true
-  min_count            = var.aks_worker_node_count
-  max_count            = max(var.aks_worker_node_count * 3, 3)
+  min_count            = 3
+  max_count            = 6
+
+  upgrade_settings {
+    max_surge                     = "10%"
+    drain_timeout_in_minutes      = 0
+    node_soak_duration_in_minutes = 0
+    undrainable_node_behavior     = "Schedule"
+  }
+}
+
+# ── Zone-Redundant Worker Pool ───────────────────────────────────────────────
+# Runs application workloads (API, frontend, workers, databases).
+# Spread across availability zones 1, 2, 3 for resilience. Uses D4s_v4
+# (non-burstable) instead of the previous B4ms to avoid CPU credit issues.
+resource "azurerm_kubernetes_cluster_node_pool" "pool3" {
+  name                  = "pool3"
+  kubernetes_cluster_id = azurerm_kubernetes_cluster.main.id
+  vm_size               = var.aks_node_size
+  vnet_subnet_id        = azurerm_subnet.aks.id
+  mode                  = "User"
+  zones                 = ["1", "2", "3"]
+
+  auto_scaling_enabled = true
+  min_count            = 3
+  max_count            = 6
   scale_down_mode      = "Delete"
 
   upgrade_settings {
