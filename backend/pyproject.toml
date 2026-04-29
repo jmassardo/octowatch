@@ -47,6 +47,10 @@ dependencies = [
     # Azure Blob ingestion
     "azure-storage-blob==12.28.0",
 
+    # Azure Key Vault (secret provider)
+    "azure-identity>=1.15.0",
+    "azure-keyvault-secrets>=4.8.0",
+
     # HTTP client
     "httpx==0.28.1",
 

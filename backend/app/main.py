@@ -55,6 +55,7 @@ from app.routers import (
     workflow_scanner,
 )
 from app.services.geoip_service import close_geoip_db, load_geoip_db
+from app.services.secret_provider import create_secret_provider
 from app.utils.client_ip import get_client_ip
 
 logger = structlog.get_logger(__name__)
@@ -208,6 +209,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         logger.error("app.db_pool_failed", error=str(exc))
 
+    # 1.5. Initialize secret provider
+    try:
+        app.state.secret_provider = create_secret_provider()
+        logger.info("app.secret_provider_initialized")
+    except Exception as exc:
+        logger.error("app.secret_provider_failed", error=str(exc))
+        # Fall back to env provider if KV provider fails to initialize
+        from app.services.env_provider import EnvVarProvider
+
+        app.state.secret_provider = EnvVarProvider()
+        logger.warning("app.secret_provider_fallback_to_env")
+
     # 2. Log auth config
     logger.info(
         "auth.config",
@@ -306,6 +319,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Shutdown
     logger.info("app.shutdown")
+    # Close secret provider
+    if hasattr(app.state, "secret_provider"):
+        await app.state.secret_provider.close()
     await close_geoip_db()
     await dispose_pool()
 

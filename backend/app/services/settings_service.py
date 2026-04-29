@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import structlog
 from sqlalchemy import delete, select
@@ -17,6 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models.app_settings import AppSetting, AppSettingAudit, SetupState
 from app.services.crypto_service import decrypt_value, derive_key, encrypt_value, mask_value
+
+if TYPE_CHECKING:
+    from app.services.secret_provider import SecretProvider
 
 logger = structlog.get_logger(__name__)
 
@@ -42,6 +46,43 @@ async def get_setting(db: AsyncSession, key: str) -> str | None:
         return None
     enc_key = _get_encryption_key()
     return decrypt_value(row.encrypted_value, enc_key)
+
+
+async def get_setting_with_provider(
+    db: AsyncSession,
+    key: str,
+    secret_provider: SecretProvider | None = None,
+) -> str | None:
+    """Get a setting value, checking Key Vault first then falling back to DB.
+
+    If a SecretProvider is available, it is checked first using the key name.
+    If the secret is not found in the provider (or no provider is given),
+    falls back to the encrypted DB value.
+
+    Args:
+        db: Async database session.
+        key: The setting key to look up.
+        secret_provider: Optional SecretProvider instance. If None, only DB is checked.
+
+    Returns:
+        The decrypted/retrieved value, or None if not found in either location.
+    """
+    # Check Key Vault first if provider is available
+    if secret_provider is not None:
+        try:
+            value = await secret_provider.get_secret(key)
+            if value is not None:
+                return value
+        except Exception as exc:
+            logger.warning(
+                "settings_service.keyvault_fallback",
+                key=key,
+                error=str(exc),
+                detail="Falling back to DB-encrypted value",
+            )
+
+    # Fall back to DB-encrypted value
+    return await get_setting(db, key)
 
 
 async def set_setting(
