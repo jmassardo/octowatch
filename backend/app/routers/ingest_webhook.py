@@ -21,6 +21,10 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 
+# NOTE: This function will be refactored in a future PR (Issue #135, Story 4+)
+# to use SecretProvider directly:
+#   secret_provider.get_secret("github-webhook-secret")
+# For now, the env var approach remains for backward compatibility.
 def _get_webhook_secret() -> str:
     """Retrieve the GitHub webhook secret from environment.
 

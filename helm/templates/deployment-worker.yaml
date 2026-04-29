@@ -25,6 +25,9 @@ spec:
       labels:
         {{- include "octowatch.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: worker-ingestion
+        {{- if .Values.workloadIdentity.enabled }}
+        azure.workload.identity/use: "true"
+        {{- end }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
@@ -98,6 +101,15 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: github-client-secret
+            {{- if .Values.workloadIdentity.enabled }}
+            - name: SECRET_PROVIDER
+              value: "azure_keyvault"
+            - name: AZURE_KEYVAULT_URI
+              value: {{ .Values.keyVault.uri | quote }}
+            {{- else }}
+            - name: SECRET_PROVIDER
+              value: "env"
+            {{- end }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -135,6 +147,9 @@ spec:
       labels:
         {{- include "octowatch.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: worker-detection
+        {{- if .Values.workloadIdentity.enabled }}
+        azure.workload.identity/use: "true"
+        {{- end }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
@@ -206,6 +221,15 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: github-client-secret
+            {{- if .Values.workloadIdentity.enabled }}
+            - name: SECRET_PROVIDER
+              value: "azure_keyvault"
+            - name: AZURE_KEYVAULT_URI
+              value: {{ .Values.keyVault.uri | quote }}
+            {{- else }}
+            - name: SECRET_PROVIDER
+              value: "env"
+            {{- end }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -243,6 +267,9 @@ spec:
       labels:
         {{- include "octowatch.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: worker-baseline
+        {{- if .Values.workloadIdentity.enabled }}
+        azure.workload.identity/use: "true"
+        {{- end }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
@@ -314,6 +341,15 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: github-client-secret
+            {{- if .Values.workloadIdentity.enabled }}
+            - name: SECRET_PROVIDER
+              value: "azure_keyvault"
+            - name: AZURE_KEYVAULT_URI
+              value: {{ .Values.keyVault.uri | quote }}
+            {{- else }}
+            - name: SECRET_PROVIDER
+              value: "env"
+            {{- end }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -351,6 +387,9 @@ spec:
       labels:
         {{- include "octowatch.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: worker-notification
+        {{- if .Values.workloadIdentity.enabled }}
+        azure.workload.identity/use: "true"
+        {{- end }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
@@ -464,6 +503,15 @@ spec:
                   name: {{ include "octowatch.secretName" . }}
                   key: jira-api-token
                   optional: true
+            {{- if .Values.workloadIdentity.enabled }}
+            - name: SECRET_PROVIDER
+              value: "azure_keyvault"
+            - name: AZURE_KEYVAULT_URI
+              value: {{ .Values.keyVault.uri | quote }}
+            {{- else }}
+            - name: SECRET_PROVIDER
+              value: "env"
+            {{- end }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -501,6 +549,9 @@ spec:
       labels:
         {{- include "octowatch.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: worker-sync
+        {{- if .Values.workloadIdentity.enabled }}
+        azure.workload.identity/use: "true"
+        {{- end }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
@@ -586,6 +637,15 @@ spec:
                   optional: true
             - name: GITHUB_APP_PRIVATE_KEY_PATH
               value: /app/secrets/github-app-key.pem
+            {{- if .Values.workloadIdentity.enabled }}
+            - name: SECRET_PROVIDER
+              value: "azure_keyvault"
+            - name: AZURE_KEYVAULT_URI
+              value: {{ .Values.keyVault.uri | quote }}
+            {{- else }}
+            - name: SECRET_PROVIDER
+              value: "env"
+            {{- end }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
