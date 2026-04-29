@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.models.integration import NotificationConfig, SiemExportConfig, TicketingConfig
 from app.schemas.integration import (
     BatchExportRequest,
@@ -29,7 +29,7 @@ router = APIRouter(prefix="/integrations", tags=["integrations"])
 
 @router.get("/ticketing", response_model=list[TicketingConfigResponse])
 async def list_ticketing_configs(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> list[TicketingConfigResponse]:
     """List all ticketing platform configurations."""
@@ -46,7 +46,7 @@ async def list_ticketing_configs(
 )
 async def create_ticketing_config(
     payload: TicketingConfigCreate,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> TicketingConfigResponse:
     """Register a new ticketing platform configuration (Jira or GitHub Issues)."""
@@ -71,7 +71,7 @@ async def create_ticketing_config(
 @router.delete("/ticketing/{config_id}", dependencies=[Depends(verify_csrf)])
 async def delete_ticketing_config(
     config_id: int,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Delete a ticketing configuration."""
@@ -89,7 +89,7 @@ async def delete_ticketing_config(
 
 @router.get("/notifications", response_model=list[NotificationConfigResponse])
 async def list_notification_configs(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> list[NotificationConfigResponse]:
     """List all notification channel configurations."""
@@ -106,7 +106,7 @@ async def list_notification_configs(
 )
 async def create_notification_config(
     payload: NotificationConfigCreate,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> NotificationConfigResponse:
     """Register a notification channel (Slack or email)."""
@@ -128,7 +128,7 @@ async def create_notification_config(
 @router.delete("/notifications/{config_id}", dependencies=[Depends(verify_csrf)])
 async def delete_notification_config(
     config_id: int,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Delete a notification configuration."""
@@ -147,7 +147,7 @@ async def delete_notification_config(
 @router.get("/idp/{github_login}", response_model=IdpEnrichmentResponse)
 async def get_actor_enrichment(
     github_login: str,
-    current_user: AuthenticatedUser = Depends(require_role(["analyst", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("detections", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> IdpEnrichmentResponse:
     """Get cached IdP enrichment data for a GitHub actor."""
@@ -165,7 +165,7 @@ async def get_actor_enrichment(
 
 @router.get("/siem", response_model=list[SiemExportConfigResponse])
 async def list_siem_configs(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> list[SiemExportConfigResponse]:
     """List all SIEM/SOAR export configurations."""
@@ -182,7 +182,7 @@ async def list_siem_configs(
 )
 async def create_siem_config(
     payload: SiemExportConfigCreate,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> SiemExportConfigResponse:
     """Register a new SIEM/SOAR export destination (syslog, Splunk HEC, or webhook)."""
@@ -213,7 +213,7 @@ async def create_siem_config(
 @router.delete("/siem/{config_id}", dependencies=[Depends(verify_csrf)])
 async def delete_siem_config(
     config_id: int,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Delete a SIEM export configuration."""
@@ -232,7 +232,7 @@ async def delete_siem_config(
 )
 async def test_siem_config(
     config_id: int,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
     """Send a test event to a SIEM export destination to verify connectivity."""
@@ -293,7 +293,7 @@ async def test_siem_config(
 )
 async def trigger_batch_export(
     payload: BatchExportRequest,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
     """Trigger a batch export of detections in a date range to a SIEM destination."""
@@ -315,7 +315,7 @@ async def trigger_batch_export(
 )
 async def refresh_actor_enrichment(
     github_login: str,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> IdpEnrichmentResponse:
     """Force a fresh enrichment fetch from the configured IdP."""

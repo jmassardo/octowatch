@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.models.audit_event import AuditEvent
 from app.models.detection import Detection
 from app.schemas.actor import DetectionTimeline, TimelineEvent
@@ -44,9 +44,7 @@ async def _get_detection_or_404(
 @router.get("", response_model=DetectionListResponse)
 async def list_detections(
     params: DetectionListParams = Depends(),
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("detections", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> DetectionListResponse:
     """List detections with filtering and pagination."""
@@ -102,9 +100,7 @@ async def list_detections(
 @router.get("/{detection_id}", response_model=DetectionResponse)
 async def get_detection(
     detection_id: int,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("detections", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> DetectionResponse:
     """Get a single detection by ID."""
@@ -120,7 +116,7 @@ async def update_detection_status(
     detection_id: int,
     payload: UpdateDetectionStatusRequest,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["analyst", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("detections", "edit")),
     db: AsyncSession = Depends(get_db),
 ) -> DetectionResponse:
     """Update the status of a detection (e.g. open → investigating → closed)."""
@@ -167,7 +163,7 @@ async def assign_detection(
     detection_id: int,
     payload: AssignDetectionRequest,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["analyst", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("detections", "edit")),
     db: AsyncSession = Depends(get_db),
 ) -> DetectionResponse:
     """Assign a detection to a user."""
@@ -194,7 +190,7 @@ async def assign_detection(
 @router.post("/{detection_id}/suppress", response_model=dict, dependencies=[Depends(verify_csrf)])
 async def suppress_from_detection(
     detection_id: int,
-    current_user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Create a suppression rule scoped to the actor/org of this detection."""
@@ -220,7 +216,7 @@ async def suppress_from_detection(
 async def delete_detection(
     detection_id: int,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("detections", "delete")),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Delete a detection record (sys_admin only)."""
@@ -245,9 +241,7 @@ async def delete_detection(
 @router.get("/{detection_id}/timeline", response_model=DetectionTimeline)
 async def get_detection_timeline(
     detection_id: int,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("detections", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> DetectionTimeline:
     """Build a chronological investigation timeline for a detection.

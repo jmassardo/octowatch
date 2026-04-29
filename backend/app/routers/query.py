@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.models.audit_trail import AuditTrail
 from app.models.query_template import QueryTemplate as QueryTemplateModel
 from app.rate_limit import limiter
@@ -34,9 +34,7 @@ def _get_client_ip(request: Request) -> str | None:
 async def run_query(
     payload: QueryRunRequest,
     request: Request,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("queries", "execute")),
     db: AsyncSession = Depends(get_db),
 ) -> QueryRunResponse:
     """Execute a user-submitted SQL query with AST validation and scope injection."""
@@ -134,9 +132,7 @@ async def run_query(
 @router.post("/validate", response_model=dict, dependencies=[Depends(verify_csrf)])
 async def validate_query(
     payload: QueryRunRequest,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("queries", "execute")),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Validate a SQL query without executing it. Returns validation result."""
@@ -206,9 +202,7 @@ async def validate_query(
 
 @router.get("/templates", response_model=list[QueryTemplate])
 async def list_templates(
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("queries", "execute")),
     db: AsyncSession = Depends(get_db),
 ) -> list[QueryTemplate]:
     """List available query templates."""
@@ -226,7 +220,7 @@ async def list_templates(
 )
 async def create_template(
     payload: QueryTemplateCreate,
-    current_user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("queries", "execute")),
     db: AsyncSession = Depends(get_db),
 ) -> QueryTemplate:
     """Create a new query template."""
@@ -246,9 +240,7 @@ async def create_template(
 @router.get("/templates/{template_id}", response_model=QueryTemplate)
 async def get_template(
     template_id: int,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("queries", "execute")),
     db: AsyncSession = Depends(get_db),
 ) -> QueryTemplate:
     """Get a query template by ID."""
@@ -264,7 +256,7 @@ async def get_template(
 @router.delete("/templates/{template_id}", dependencies=[Depends(verify_csrf)])
 async def delete_template(
     template_id: int,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("queries", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Delete a query template."""
@@ -286,9 +278,7 @@ async def delete_template(
 )
 async def run_template(
     template_id: int,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("queries", "execute")),
     db: AsyncSession = Depends(get_db),
 ) -> QueryRunResponse:
     """Execute a saved query template."""
@@ -334,9 +324,7 @@ class NLInterpretationResponse(BaseModel):
 async def translate_natural_language(
     payload: NLQueryRequest,
     request: Request,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("queries", "execute")),
     db: AsyncSession = Depends(get_db),
 ) -> list[NLInterpretationResponse]:
     """Translate a natural-language question into SQL interpretations.

@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, get_valkey, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, get_valkey, require_permission, verify_csrf
 from app.schemas.report import (
     ComplianceReportEnvelope,
     ReportEnvelope,
@@ -95,7 +95,7 @@ def _gran_dep(granularity: str = "daily") -> str:
 
 @router.get("/catalog", response_model=list[dict[str, Any]])
 async def report_catalog(
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
     """Return the catalog of available report types.
@@ -239,7 +239,7 @@ async def report_mau(
     window_days: int = Depends(_window_dep),
     granularity: str = Depends(_gran_dep),
     org: str | None = Query(None, description="Filter to a specific GitHub org"),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> ReportEnvelope:
     """Monthly Active Users report."""
@@ -260,7 +260,7 @@ async def report_seat_utilization(
     window_days: int = Depends(_window_dep),
     granularity: str = Depends(_gran_dep),
     org: str | None = Query(None),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> ReportEnvelope:
     """Seat utilization report per org."""
@@ -281,7 +281,7 @@ async def report_repo_creation(
     window_days: int = Depends(_window_dep),
     granularity: str = Depends(_gran_dep),
     org: str | None = Query(None),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> ReportEnvelope:
     """Repository creation rate report."""
@@ -302,7 +302,7 @@ async def report_actions_volume(
     window_days: int = Depends(_window_dep),
     granularity: str = Depends(_gran_dep),
     org: str | None = Query(None),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> ReportEnvelope:
     """GitHub Actions workflow volume report."""
@@ -323,7 +323,7 @@ async def report_copilot_seats(
     window_days: int = Depends(_window_dep),
     granularity: str = Depends(_gran_dep),
     org: str | None = Query(None),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> ReportEnvelope:
     """Copilot seat assignment/removal trends."""
@@ -344,7 +344,7 @@ async def report_codespace_hours(
     window_days: int = Depends(_window_dep),
     granularity: str = Depends(_gran_dep),
     org: str | None = Query(None),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> ReportEnvelope:
     """Codespace billable hours report."""
@@ -365,7 +365,7 @@ async def report_pat_counts(
     window_days: int = Depends(_window_dep),
     granularity: str = Depends(_gran_dep),
     org: str | None = Query(None),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> ReportEnvelope:
     """Personal Access Token creation/deletion trends."""
@@ -386,7 +386,7 @@ async def report_webhook_counts(
     window_days: int = Depends(_window_dep),
     granularity: str = Depends(_gran_dep),
     org: str | None = Query(None),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> ReportEnvelope:
     """Webhook creation/deletion trends."""
@@ -409,7 +409,7 @@ async def export_report(
     granularity: str = Depends(_gran_dep),
     org: str | None = Query(None),
     format: str = Query("csv", description="Export format: csv or xlsx"),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
     """Export a metric report as CSV or XLSX."""
@@ -516,7 +516,7 @@ async def compliance_soc2(
     start_date: str | None = Query(None, description="ISO 8601 start date"),
     end_date: str | None = Query(None, description="ISO 8601 end date"),
     org: str | None = Query(None),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Generate SOC 2 Type II evidence report."""
@@ -530,7 +530,7 @@ async def compliance_soc2_export(
     end_date: str | None = Query(None),
     org: str | None = Query(None),
     format: str = Query("html", description="Export format: html, pdf, csv, xlsx"),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse | HTMLResponse:
     """Export SOC 2 Type II evidence report."""
@@ -544,7 +544,7 @@ async def compliance_iso27001(
     start_date: str | None = Query(None, description="ISO 8601 start date"),
     end_date: str | None = Query(None, description="ISO 8601 end date"),
     org: str | None = Query(None),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Generate ISO 27001 Annex A compliance report."""
@@ -558,7 +558,7 @@ async def compliance_iso27001_export(
     end_date: str | None = Query(None),
     org: str | None = Query(None),
     format: str = Query("html"),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse | HTMLResponse:
     """Export ISO 27001 Annex A compliance report."""
@@ -572,7 +572,7 @@ async def compliance_nist_csf(
     start_date: str | None = Query(None, description="ISO 8601 start date"),
     end_date: str | None = Query(None, description="ISO 8601 end date"),
     org: str | None = Query(None),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Generate NIST Cybersecurity Framework report."""
@@ -586,7 +586,7 @@ async def compliance_nist_csf_export(
     end_date: str | None = Query(None),
     org: str | None = Query(None),
     format: str = Query("html"),
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse | HTMLResponse:
     """Export NIST Cybersecurity Framework report."""
@@ -690,7 +690,7 @@ def _flatten_compliance_report(report_data: dict[str, Any]) -> list[dict[str, An
 )
 async def create_schedule(
     payload: ReportScheduleCreate,
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> ReportScheduleResponse:
     """Create a new report delivery schedule."""
@@ -713,7 +713,7 @@ async def create_schedule(
 
 @router.get("/schedules", response_model=list[ReportScheduleResponse])
 async def list_schedules(
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> list[ReportScheduleResponse]:
     """List all report delivery schedules."""
@@ -732,7 +732,7 @@ async def list_schedules(
 async def update_schedule(
     schedule_id: int,
     payload: ReportScheduleUpdate,
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> ReportScheduleResponse:
     """Update an existing report schedule."""
@@ -759,7 +759,7 @@ async def update_schedule(
 @router.delete("/schedules/{schedule_id}", status_code=204, dependencies=[Depends(verify_csrf)])
 async def delete_schedule(
     schedule_id: int,
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Delete a report schedule."""
@@ -783,9 +783,7 @@ async def delete_schedule(
 @router.get("/executive-summary")
 async def get_executive_summary(
     period: int = Query(30, description="Lookback period in days (7, 30, or 90)"),
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Executive summary for CISO dashboards.
@@ -992,9 +990,7 @@ async def get_executive_summary(
 @router.get("/executive-summary/pdf")
 async def export_executive_summary_pdf(
     period: int = Query(30, description="Lookback period in days (7, 30, or 90)"),
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     """Generate a print-ready HTML page for the executive summary.
@@ -1014,9 +1010,7 @@ async def export_executive_summary_pdf(
 async def get_metrics_that_matter_endpoint(
     period: int = Query(30, description="Lookback period in days (7, 30, or 90)"),
     org: str | None = Query(None, description="Filter to a specific GitHub org"),
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "view")),
     db: AsyncSession = Depends(get_db),
     valkey: aioredis.Redis = Depends(get_valkey),
 ) -> MetricsThatMatterResponse:

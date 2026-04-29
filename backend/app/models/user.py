@@ -12,7 +12,12 @@ from app.models.audit_event import Base
 
 
 class RbacRole(Base):
-    """Application role definitions with canonical permission sets."""
+    """Application role definitions with canonical permission sets.
+
+    System roles (is_system=True) are seeded via migration and cannot be
+    deleted or renamed. Custom roles (is_custom=True) are user-created and
+    fully editable by super_admin users.
+    """
 
     __tablename__ = "rbac_roles"
 
@@ -21,9 +26,12 @@ class RbacRole(Base):
     display_name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     permissions: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    is_custom: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
     )
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     assignments: Mapped[list[UserRoleAssignment]] = relationship(
         "UserRoleAssignment", back_populates="role"

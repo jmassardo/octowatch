@@ -11,7 +11,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.models.audit_trail import AuditTrail
 from app.models.github_sync import (
     EnterpriseSyncEntityCursor,
@@ -50,7 +50,7 @@ router = APIRouter(prefix="/sync", tags=["sync"])
 async def trigger_sync(
     body: SyncTriggerRequest,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> SyncTriggerResponse:
     """Trigger a manual enterprise sync run.
@@ -129,7 +129,7 @@ async def trigger_sync(
 
 @router.get("/status", response_model=SyncRunDetail | None)
 async def get_sync_status(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> SyncRunDetail | None:
     """Return the current running sync or the most recently completed run."""
@@ -153,7 +153,7 @@ async def get_sync_status(
 async def list_sync_runs(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> SyncRunsResponse:
     """Paginated history of all sync runs."""
@@ -180,7 +180,7 @@ async def list_sync_runs(
 @router.get("/runs/{run_id}", response_model=SyncRunDetail)
 async def get_run_detail(
     run_id: uuid.UUID,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> SyncRunDetail:
     """Return full detail for a single sync run including cursor state."""
@@ -202,7 +202,7 @@ async def get_run_detail(
 async def get_sync_logs(
     run_id: uuid.UUID,
     after: int = Query(default=0, ge=0, description="Return logs after this sequence number"),
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> SyncLogsResponse:
     """Return incremental log entries for a sync run.
@@ -240,7 +240,7 @@ async def get_sync_logs(
 )
 async def cancel_run(
     run_id: uuid.UUID,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Cancel a pending or running sync run.
@@ -285,7 +285,7 @@ async def cancel_run(
 
 @router.get("/config", response_model=SyncConfigResponse)
 async def get_sync_config(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> SyncConfigResponse:
     """Return the current sync configuration.
@@ -310,7 +310,7 @@ async def get_sync_config(
 @router.put("/config", response_model=SyncConfigResponse, dependencies=[Depends(verify_csrf)])
 async def update_sync_config(
     body: SyncConfigUpdateRequest,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> SyncConfigResponse:
     """Update mutable sync configuration fields.
@@ -359,7 +359,7 @@ _SCHEDULE_DEFAULTS: dict[str, str] = {
 
 @router.get("/schedule", response_model=SyncScheduleResponse)
 async def get_sync_schedule(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> SyncScheduleResponse:
     """Get current sync schedule configuration.
@@ -402,7 +402,7 @@ async def get_sync_schedule(
 @router.put("/schedule", response_model=SyncScheduleResponse, dependencies=[Depends(verify_csrf)])
 async def update_sync_schedule(
     body: SyncScheduleUpdateRequest,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> SyncScheduleResponse:
     """Update sync schedule configuration.

@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.services.audit_service import log_action
 from app.services.config_overlay import load_settings_overlay
 from app.services.settings_service import delete_setting, get_setting, set_setting
@@ -137,7 +137,7 @@ async def _validate_token_with_github(token: str) -> dict[str, str]:
 
 @router.get("", response_model=EnterprisePATStatus)
 async def get_enterprise_pat_status(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> EnterprisePATStatus:
     """Check whether an enterprise PAT is configured. Never returns the raw token."""
@@ -155,7 +155,7 @@ async def get_enterprise_pat_status(
 async def save_enterprise_pat(
     payload: EnterprisePATPayload,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> EnterprisePATSaveResult:
     """Validate and store a GitHub classic PAT for audit log sync.
@@ -222,7 +222,7 @@ async def save_enterprise_pat(
 )
 async def remove_enterprise_pat(
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> EnterprisePATDeleteResult:
     """Remove the stored enterprise PAT."""
@@ -259,7 +259,7 @@ async def remove_enterprise_pat(
 )
 async def test_enterprise_pat(
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> EnterprisePATTestResult:
     """Test the stored PAT by calling ``GET /user`` on GitHub.

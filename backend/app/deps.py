@@ -6,8 +6,8 @@ used as FastAPI Depends() parameters throughout all routers.
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Callable
-from typing import TYPE_CHECKING, Annotated
+from collections.abc import AsyncGenerator, Callable, Coroutine
+from typing import TYPE_CHECKING, Annotated, Any
 
 import redis.asyncio as aioredis
 import structlog
@@ -92,14 +92,14 @@ class AuthenticatedUser:
         self.avatar_url = avatar_url
 
     def has_role(self, *role_names: str) -> bool:
-        """Return True if user holds any of the specified roles (or sys_admin)."""
-        if "sys_admin" in self.roles:
+        """Return True if user holds any of the specified roles (or super_admin/sys_admin)."""
+        if "sys_admin" in self.roles or "super_admin" in self.roles:
             return True
         return any(r in self.roles for r in role_names)
 
     def has_permission(self, permission: str) -> bool:
-        """Check permission string, e.g. 'events:read'. sys_admin has all."""
-        if "sys_admin" in self.roles:
+        """Check permission string, e.g. 'events:view'. super_admin/sys_admin has all."""
+        if "sys_admin" in self.roles or "super_admin" in self.roles:
             return True
         return permission in self.roles  # simplified; full check in rbac_service
 
@@ -160,7 +160,6 @@ async def get_current_user(
 
     import json
     import time
-    from typing import Any
 
     session_data: dict[str, Any] = json.loads(session_data_raw)
 
@@ -212,7 +211,11 @@ async def get_current_user(
     else:
         roles = list(session_data.get("roles", []))
 
-    scope_type = "global" if "sys_admin" in roles else session_data.get("scope_type", "scoped")
+    scope_type = (
+        "global"
+        if "sys_admin" in roles or "super_admin" in roles
+        else session_data.get("scope_type", "scoped")
+    )
 
     return AuthenticatedUser(
         github_login=github_login,
@@ -232,10 +235,14 @@ async def get_current_user(
 # ─── RBAC Role Enforcement ────────────────────────────────────────────────────
 
 
-def require_role(roles: list[str]) -> Callable[..., AuthenticatedUser]:
+def require_role(roles: list[str]) -> Callable[..., Coroutine[Any, Any, AuthenticatedUser]]:
     """
     FastAPI dependency factory. Creates a dependency that ensures the current
-    user has at least one of the specified roles (sys_admin always passes).
+    user has at least one of the specified roles (sys_admin/super_admin always passes).
+
+    .. deprecated::
+        Use ``require_permission(resource, action)`` for granular permission checks.
+        This function is kept for backward compatibility.
 
     Usage:
         @router.get("/events")
@@ -271,6 +278,68 @@ def require_role(roles: list[str]) -> Callable[..., AuthenticatedUser]:
         return user
 
     return _check_role
+
+
+def require_permission(
+    resource: str, action: str
+) -> Callable[..., Coroutine[Any, Any, AuthenticatedUser]]:
+    """FastAPI dependency factory for granular permission checks.
+
+    Verifies the current user holds the specified permission via any of their
+    assigned roles. super_admin/sys_admin always passes.
+
+    Uses the ``resource:action`` permission format. Supports wildcards:
+    - ``*:*`` grants all permissions
+    - ``resource:*`` grants all actions on a resource
+
+    Usage:
+        @router.get("/detections")
+        async def list_detections(
+            user: AuthenticatedUser = Depends(
+                require_permission("detections", "view")
+            ),
+        ):
+            ...
+    """
+
+    async def _check_permission(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+    ) -> AuthenticatedUser:
+        from app.services.rbac_service import check_permission
+
+        has_perm = await check_permission(
+            session=db,
+            github_login=user.github_login,
+            resource=resource,
+            action=action,
+            roles=user.roles,
+        )
+        if not has_perm:
+            logger.warning(
+                "rbac.permission_denied",
+                user=user.github_login,
+                resource=resource,
+                action=action,
+                user_roles=user.roles,
+            )
+            if not user.roles:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=(
+                        "Access denied. Your account has no role assignments. "
+                        "Contact your administrator to be added to an Enterprise Team "
+                        "with appropriate access."
+                    ),
+                )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission required: {resource}:{action}",
+            )
+        return user
+
+    return _check_permission
 
 
 # ─── CSRF Protection ─────────────────────────────────────────────────────────
