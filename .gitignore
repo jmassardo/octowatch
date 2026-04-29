@@ -64,3 +64,6 @@ terraform.tfvars
 **/.terraform/
 *.tfplan
 tfplan
+
+# Sensitive documents — never commit
+tales from the road.md
