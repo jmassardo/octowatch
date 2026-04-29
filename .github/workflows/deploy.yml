@@ -32,6 +32,8 @@ concurrency:
   group: publish-images
   cancel-in-progress: true
 
+# Serialized concurrency for the helm-tag update (applied at job level below)
+
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
@@ -100,7 +102,7 @@ jobs:
           cache-from: type=gha,scope=publish-${{ matrix.image.name }}
           cache-to: type=gha,mode=max,scope=publish-${{ matrix.image.name }}
 
-  # After all images are pushed, update the image tag in values-azure.yaml
+  # After all images are pushed, update the image tag in values-image-tag.yaml
   # so ArgoCD detects the change and triggers a rolling rollout automatically.
   update-helm-tag:
     name: Update Helm image tag
@@ -112,6 +114,12 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: write
+    concurrency:
+      group: update-helm-tag
+      cancel-in-progress: false
+    outputs:
+      tag-updated: ${{ steps.push.outputs.tag-updated }}
+      image-tag: ${{ steps.tag.outputs.sha }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -122,22 +130,90 @@ jobs:
       - name: Resolve image SHA tag
         id: tag
         run: |
-          # workflow_run carries the SHA of the commit that triggered CI
-          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
-          echo "sha=${SHA:0:7}" >> "$GITHUB_OUTPUT"
+          # Use manual input if provided, otherwise derive from commit SHA
+          MANUAL_TAG="${{ github.event.inputs.image_tag }}"
+          if [ -n "${MANUAL_TAG}" ]; then
+            echo "sha=${MANUAL_TAG}" >> "$GITHUB_OUTPUT"
+          else
+            # workflow_run carries the SHA of the commit that triggered CI
+            SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+            echo "sha=${SHA:0:7}" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Write tag into values-image-tag.yaml
+      - name: Fetch latest main and write tag
         run: |
           TAG="${{ steps.tag.outputs.sha }}"
+          # Fetch and reset to latest main to avoid overwriting a newer tag
+          git fetch origin main
+          git reset --hard origin/main
           # Replace the tag line in the dedicated image-tag values file
           sed -i "s/^  tag:.*$/  tag: \"${TAG}\"/" helm/values-image-tag.yaml
           echo "Set global.image.tag: ${TAG}"
 
       - name: Commit and push
+        id: push
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add helm/values-image-tag.yaml
-          git diff --staged --quiet && echo "No tag change, skipping commit" && exit 0
+          if git diff --staged --quiet; then
+            echo "No tag change, skipping commit"
+            echo "tag-updated=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           git commit -m "chore: update image tag to ${{ steps.tag.outputs.sha }} [skip ci]"
-          git push
+          if git push; then
+            echo "tag-updated=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Push rejected — newer tag already committed, skipping"
+            echo "tag-updated=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Verify the deployment was picked up by ArgoCD and pods are running the new tag.
+  verify-deploy:
+    name: Verify AKS deployment
+    runs-on: ubuntu-latest
+    needs: [update-helm-tag]
+    if: needs.update-helm-tag.outputs.tag-updated == 'true'
+
+    steps:
+      - name: Azure login
+        uses: azure/login@a65d910e8af852a8061c627c456678983e180302  # v2.2.0
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group rg-octowatch-dev \
+            --name aks-octowatch-dev \
+            --overwrite-existing
+
+      - name: Wait for rollout
+        env:
+          EXPECTED_TAG: ${{ needs.update-helm-tag.outputs.image-tag }}
+        run: |
+          echo "Waiting for AKS pods to run image tag: ${EXPECTED_TAG}"
+          for i in $(seq 1 30); do
+            CURRENT=$(kubectl get deployment octowatch-api -n octowatch \
+              -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "unknown")
+            echo "[${i}/30] Current image: ${CURRENT}"
+            if echo "$CURRENT" | grep -q "${EXPECTED_TAG}"; then
+              echo "✅ Image tag matches!"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "❌ Timed out waiting for image tag ${EXPECTED_TAG}"
+              exit 1
+            fi
+            sleep 10
+          done
+
+          # Verify all pods are ready
+          kubectl rollout status deployment/octowatch-api -n octowatch --timeout=120s
+          kubectl rollout status deployment/octowatch-frontend -n octowatch --timeout=60s
+
+          # Show final pod status
+          kubectl get pods -n octowatch -o wide
+
+          echo "✅ Deployment verified on AKS"
