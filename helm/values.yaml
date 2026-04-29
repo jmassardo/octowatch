@@ -430,3 +430,19 @@ backup:
     limits:
       cpu: "500m"
       memory: "1Gi"
+
+# ---------------------------------------------------------------------------
+# Azure Workload Identity — enables pods to authenticate to Azure Key Vault
+# without stored credentials (via OIDC federation with AKS).
+# ---------------------------------------------------------------------------
+workloadIdentity:
+  enabled: false
+  clientId: ""     # Azure managed identity client ID (from terraform output)
+  tenantId: ""     # Azure AD tenant ID (from terraform output)
+
+# ---------------------------------------------------------------------------
+# Azure Key Vault — application secret storage
+# ---------------------------------------------------------------------------
+keyVault:
+  name: ""         # Key Vault name (e.g., kv-octowatch-prod)
+  uri: ""          # Full vault URI (e.g., https://kv-octowatch-prod.vault.azure.net/)

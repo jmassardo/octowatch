@@ -202,7 +202,7 @@ class AzureKeyVaultProvider(SecretProvider):
         try:
             from azure.keyvault.secrets.aio import SecretClient
 
-            client: SecretClient = self._client  # type: ignore[assignment]
+            client: SecretClient = self._client
             content_type = kwargs.get("content_type", "text/plain")
             await client.set_secret(name, value, content_type=content_type)
             self._health.record_success()
@@ -225,7 +225,7 @@ class AzureKeyVaultProvider(SecretProvider):
         try:
             from azure.keyvault.secrets.aio import SecretClient
 
-            client: SecretClient = self._client  # type: ignore[assignment]
+            client: SecretClient = self._client
             await client.begin_delete_secret(name)
             self._health.record_success()
             self._cache.pop(name, None)
@@ -244,7 +244,7 @@ class AzureKeyVaultProvider(SecretProvider):
         try:
             from azure.keyvault.secrets.aio import SecretClient
 
-            client: SecretClient = self._client  # type: ignore[assignment]
+            client: SecretClient = self._client
             secrets: list[SecretMetadata] = []
             async for props in client.list_properties_of_secrets():
                 secrets.append(
@@ -288,7 +288,7 @@ class AzureKeyVaultProvider(SecretProvider):
         try:
             from azure.keyvault.secrets.aio import SecretClient
 
-            client: SecretClient = self._client  # type: ignore[assignment]
+            client: SecretClient = self._client
             await client.close()
         except Exception as exc:
             logger.warning("keyvault_provider.close_error", error=str(exc))
@@ -307,10 +307,11 @@ class AzureKeyVaultProvider(SecretProvider):
         from azure.core.exceptions import ResourceNotFoundError
         from azure.keyvault.secrets.aio import SecretClient
 
-        client: SecretClient = self._client  # type: ignore[assignment]
+        client: SecretClient = self._client
         try:
             secret = await client.get_secret(name)
-            return secret.value
+            value: str | None = secret.value
+            return value
         except ResourceNotFoundError:
             return None
 
