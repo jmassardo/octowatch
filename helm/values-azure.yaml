@@ -117,3 +117,16 @@ observability:
     serviceMonitor:
       enabled: false
 useExternalSecrets: true
+
+# ---------------------------------------------------------------------------
+# Azure Workload Identity + Key Vault (Issue #135)
+# Populate clientId/tenantId from terraform output after apply.
+# ---------------------------------------------------------------------------
+workloadIdentity:
+  enabled: true
+  clientId: ""   # TODO: populate from `terraform output workload_identity_client_id`
+  tenantId: ""   # TODO: populate from `terraform output workload_identity_tenant_id`
+
+keyVault:
+  name: ""       # TODO: populate from terraform locals (e.g., kv-oct-dev-XXXXXX)
+  uri: ""        # TODO: populate from `terraform output key_vault_uri`

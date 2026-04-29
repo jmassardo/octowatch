@@ -35,9 +35,26 @@ output "resource_group_name" {
 # Key Vault outputs removed — KV is no longer managed by Terraform.
 # The vault kv-oct-dev-i6iv6t exists in Azure but Terraform no longer manages it.
 
+output "key_vault_uri" {
+  value       = "https://${local.key_vault_name}.vault.azure.net/"
+  description = "URI of the Azure Key Vault (constructed from naming convention)"
+}
+
 output "managed_identity_client_id" {
   value       = azurerm_user_assigned_identity.vm.client_id
-  description = "Client ID of the user-assigned managed identity"
+  description = "Client ID of the VM user-assigned managed identity"
+}
+
+# ── AKS Workload Identity Outputs ─────────────────────────────────────────────
+
+output "workload_identity_client_id" {
+  value       = azurerm_user_assigned_identity.aks_workload.client_id
+  description = "Client ID of the AKS workload identity (for Helm values)"
+}
+
+output "workload_identity_tenant_id" {
+  value       = data.azurerm_client_config.current.tenant_id
+  description = "Azure AD tenant ID for workload identity federation"
 }
 
 output "managed_identity_principal_id" {
