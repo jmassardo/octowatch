@@ -71,7 +71,19 @@ async def receive_github_webhook(request: Request) -> JSONResponse:
     The GitHub IP allowlist middleware already protects this endpoint against
     non-GitHub sources (returns 403).
     """
-    # 1. Read raw body
+    # 1. Verify webhook secret is configured — mandatory in production.
+    secret = _get_webhook_secret()
+    if not secret:
+        logger.error(
+            "webhook.no_secret_configured",
+            detail="GITHUB_WEBHOOK_SECRET is not set. Configure it to accept webhooks.",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Webhook endpoint is not configured — contact the administrator",
+        )
+
+    # 2. Read raw body
     body = await request.body()
     if not body:
         raise HTTPException(
@@ -79,29 +91,27 @@ async def receive_github_webhook(request: Request) -> JSONResponse:
             detail="Empty request body",
         )
 
-    # 2. Validate HMAC-SHA256 signature
-    secret = _get_webhook_secret()
-    if secret:
-        signature = request.headers.get("X-Hub-Signature-256", "")
-        if not signature:
-            logger.warning("webhook.missing_signature", path=request.url.path)
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Missing X-Hub-Signature-256 header",
-            )
+    # 3. Validate HMAC-SHA256 signature
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    if not signature:
+        logger.warning("webhook.missing_signature", path=request.url.path)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing X-Hub-Signature-256 header",
+        )
 
-        if not _verify_signature(body, signature, secret):
-            logger.warning("webhook.invalid_signature", path=request.url.path)
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid webhook signature",
-            )
+    if not _verify_signature(body, signature, secret):
+        logger.warning("webhook.invalid_signature", path=request.url.path)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid webhook signature",
+        )
 
-    # 3. Parse event type
+    # 4. Parse event type
     event_type = request.headers.get("X-GitHub-Event", "unknown")
     delivery_id = request.headers.get("X-GitHub-Delivery", "")
 
-    # 4. Parse JSON payload
+    # 5. Parse JSON payload
     try:
         import json
 
@@ -113,7 +123,7 @@ async def receive_github_webhook(request: Request) -> JSONResponse:
             detail="Invalid JSON payload",
         ) from exc
 
-    # 5. Normalize into audit-log-like event format
+    # 6. Normalize into audit-log-like event format
     event = _normalize_webhook_event(payload, event_type, delivery_id)
 
     if not event:
@@ -124,7 +134,7 @@ async def receive_github_webhook(request: Request) -> JSONResponse:
             content={"status": "skipped", "event_type": event_type},
         )
 
-    # 6. Enqueue for ingestion via Celery
+    # 7. Enqueue for ingestion via Celery
     try:
         from app.workers.ingest_webhook_worker import ingest_webhook_event_task
 

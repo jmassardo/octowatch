@@ -8,6 +8,9 @@ metadata:
   labels:
     {{- include "octowatch.labels" . | nindent 4 }}
 data:
+  # Runtime environment — controls dev-only features (dev-login, debug endpoints)
+  ENVIRONMENT: {{ .Values.environment | default "production" | quote }}
+
   # Application base URL — used for OAuth callbacks, SAML ACS, and absolute link generation
   APP_BASE_URL: {{ if .Values.ingress.enabled -}}
     "https://{{ .Values.ingress.host }}"

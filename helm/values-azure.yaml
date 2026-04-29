@@ -14,12 +14,18 @@ api:
   image:
     repository: api
 
-# Worker (all workers use this image) — reduced replicas for single-node AKS dev
+# Worker (all workers use this image) — scale limits for AKS dev
 worker:
   image:
     repository: worker
+  ingestion:
+    replicaCount: 4
   detection:
-    replicaCount: 1
+    replicaCount: 4
+  notification:
+    replicaCount: 2
+  baseline:
+    replicaCount: 2
 
 # Beat uses its own image
 beat:
@@ -42,7 +48,22 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-body-size: "2m"
+  rateLimits:
+    default:
+      rps: "30"
+      connections: "30"
+      burstMultiplier: "3"
+    hec:
+      rps: "50"
+      connections: "20"
+      burstMultiplier: "5"
+      proxyBodySize: "5m"
+    webhook:
+      rps: "30"
+      connections: "10"
+      burstMultiplier: "3"
+      proxyBodySize: "2m"
 
 # KEDA enabled in AKS
 keda:

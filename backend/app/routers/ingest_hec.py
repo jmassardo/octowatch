@@ -85,23 +85,40 @@ async def receive_hec_event(request: Request) -> JSONResponse:
 
     Each HEC event wraps the actual payload in ``{"event": {...}}``.
     """
-    # 1. Verify token
+    # 1. Verify token — mandatory. Reject all traffic if no token is configured.
     token = _get_hec_token()
-    if token:
-        auth = request.headers.get("Authorization", "")
-        if not _verify_splunk_auth(auth, token):
-            logger.warning("hec.auth_failed", path=request.url.path)
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid HEC token",
-            )
+    if not token:
+        logger.error(
+            "hec.no_token_configured",
+            detail="HEC_TOKEN is not set. Configure it via the admin UI or HEC_TOKEN env var.",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="HEC endpoint is not configured — contact the administrator",
+        )
 
-    # 2. Read body
+    auth = request.headers.get("Authorization", "")
+    if not _verify_splunk_auth(auth, token):
+        logger.warning("hec.auth_failed", path=request.url.path)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid HEC token",
+        )
+
+    # 2. Read body and enforce size limit (5 MB uncompressed)
     body = await request.body()
     if not body:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Empty request body",
+        )
+
+    max_body_bytes = 5 * 1024 * 1024  # 5 MB
+    if len(body) > max_body_bytes:
+        logger.warning("hec.body_too_large", size=len(body), max=max_body_bytes)
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Request body exceeds {max_body_bytes // (1024 * 1024)} MB limit",
         )
 
     # 3. Parse HEC payload(s)
@@ -113,7 +130,13 @@ async def receive_hec_event(request: Request) -> JSONResponse:
             content={"text": "Success", "code": 0},
         )
 
-    # 4. Enqueue each event for ingestion
+    # 4. Cap events per request to prevent downstream amplification
+    max_events = 1000
+    if len(events) > max_events:
+        logger.warning("hec.too_many_events", count=len(events), max=max_events)
+        events = events[:max_events]
+
+    # 5. Batch-enqueue events for ingestion
     enqueued = 0
     try:
         from app.workers.ingest_webhook_worker import ingest_webhook_event_task

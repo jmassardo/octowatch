@@ -1,4 +1,7 @@
 {{- if .Values.ingress.enabled }}
+# ---------------------------------------------------------------------------
+# Primary ingress — API, auth, health, and frontend traffic
+# ---------------------------------------------------------------------------
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -6,10 +9,13 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "octowatch.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
   annotations:
+    {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/limit-rps: {{ .Values.ingress.rateLimits.default.rps | default "30" | quote }}
+    nginx.ingress.kubernetes.io/limit-connections: {{ .Values.ingress.rateLimits.default.connections | default "30" | quote }}
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: {{ .Values.ingress.rateLimits.default.burstMultiplier | default "3" | quote }}
 spec:
   {{- if .Values.ingress.className }}
   ingressClassName: {{ .Values.ingress.className }}
@@ -24,7 +30,6 @@ spec:
     - host: {{ .Values.ingress.host | quote }}
       http:
         paths:
-          # API traffic — route /api/ and /auth/ to the backend
           - path: /api/
             pathType: Prefix
             backend:
@@ -53,7 +58,49 @@ spec:
                 name: {{ include "octowatch.fullname" . }}-api
                 port:
                   name: http
-          # GitHub Audit Log Streaming (Splunk HEC-compatible collector)
+          # All other traffic → frontend SPA
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "octowatch.fullname" . }}-frontend
+                port:
+                  name: http
+---
+# ---------------------------------------------------------------------------
+# HEC ingress — Splunk HEC-compatible audit log streaming (high volume)
+# ---------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "octowatch.fullname" . }}-hec
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: hec
+  annotations:
+    {{- if .Values.ingress.tls.enabled }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.annotations | dig "cert-manager.io/cluster-issuer" "letsencrypt-prod" }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: {{ .Values.ingress.rateLimits.hec.proxyBodySize | default "5m" | quote }}
+    nginx.ingress.kubernetes.io/limit-rps: {{ .Values.ingress.rateLimits.hec.rps | default "50" | quote }}
+    nginx.ingress.kubernetes.io/limit-connections: {{ .Values.ingress.rateLimits.hec.connections | default "20" | quote }}
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: {{ .Values.ingress.rateLimits.hec.burstMultiplier | default "5" | quote }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
           - path: /services/
             pathType: Prefix
             backend:
@@ -61,12 +108,46 @@ spec:
                 name: {{ include "octowatch.fullname" . }}-api
                 port:
                   name: http
-          # All other traffic → frontend SPA
-          - path: /
+---
+# ---------------------------------------------------------------------------
+# Webhook ingress — GitHub webhook receiver
+# ---------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "octowatch.fullname" . }}-webhook
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook
+  annotations:
+    {{- if .Values.ingress.tls.enabled }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.annotations | dig "cert-manager.io/cluster-issuer" "letsencrypt-prod" }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: {{ .Values.ingress.rateLimits.webhook.proxyBodySize | default "2m" | quote }}
+    nginx.ingress.kubernetes.io/limit-rps: {{ .Values.ingress.rateLimits.webhook.rps | default "30" | quote }}
+    nginx.ingress.kubernetes.io/limit-connections: {{ .Values.ingress.rateLimits.webhook.connections | default "10" | quote }}
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: {{ .Values.ingress.rateLimits.webhook.burstMultiplier | default "3" | quote }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /api/v1/ingest/
             pathType: Prefix
             backend:
               service:
-                name: {{ include "octowatch.fullname" . }}-frontend
+                name: {{ include "octowatch.fullname" . }}-api
                 port:
                   name: http
 {{- end }}
