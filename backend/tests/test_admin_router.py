@@ -708,9 +708,16 @@ class TestRolePriority:
         from app.routers.admin import _ROLE_PRIORITY
 
         assert _ROLE_PRIORITY == [
+            "super_admin",
+            "security_engineer",
+            "compliance_officer",
+            "security_analyst",
+            "engineering_leader",
+            "copilot_admin",
+            "viewer",
+            # Legacy role names (kept for backward compatibility during transition)
             "sys_admin",
             "report_admin",
             "rule_author",
             "analyst",
-            "viewer",
         ]

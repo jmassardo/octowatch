@@ -63,7 +63,7 @@ class TestCorrelationsEndpoint:
 
         with (
             patch("app.routers.cross_org.get_db", return_value=fake_db),
-            patch("app.routers.cross_org.require_role", return_value=lambda: _fake_user()),
+            patch("app.routers.cross_org.require_permission", return_value=lambda: _fake_user()),
             patch("app.routers.cross_org.get_user_scope", return_value=_fake_scope()),
         ):
             async with AsyncClient(
@@ -126,7 +126,7 @@ class TestTimelineEndpoint:
 
         with (
             patch("app.routers.cross_org.get_db", return_value=fake_db),
-            patch("app.routers.cross_org.require_role", return_value=lambda: _fake_user()),
+            patch("app.routers.cross_org.require_permission", return_value=lambda: _fake_user()),
             patch("app.routers.cross_org.get_user_scope", return_value=_fake_scope()),
         ):
             async with AsyncClient(

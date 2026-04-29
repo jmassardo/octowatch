@@ -19,7 +19,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.deps import AuthenticatedUser, get_db, get_valkey, require_role
+from app.deps import AuthenticatedUser, get_db, get_valkey, require_permission
 from app.models.user import RbacRole, UserRoleAssignment
 from app.rate_limit import limiter
 from app.schemas.setup import (
@@ -154,7 +154,7 @@ async def setup_login(
 
 @router.get("/current", response_model=dict[str, Any])
 async def setup_current_config(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, object]:
     """Get current configuration state for the wizard."""
@@ -173,7 +173,7 @@ async def setup_current_config(
 @router.post("/github-oauth", response_model=dict[str, Any])
 async def setup_github_oauth(
     payload: GitHubOAuthSetup,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Step 1: Configure GitHub OAuth credentials."""
@@ -203,7 +203,7 @@ async def setup_github_oauth(
 @router.post("/github-app", response_model=dict[str, Any])
 async def setup_github_app(
     payload: GitHubAppSetup,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Step 2: Configure GitHub App credentials."""
@@ -270,7 +270,7 @@ async def setup_github_app(
 @router.post("/tls", response_model=dict[str, Any])
 async def setup_tls(
     payload: TLSSetup,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Step 3: Configure TLS certificates."""
@@ -339,7 +339,7 @@ async def setup_tls(
 @router.post("/initial-admins", response_model=dict[str, Any])
 async def setup_initial_admins(
     payload: InitialAdminsSetup,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Step 4: Designate initial system administrators by GitHub login.
@@ -383,7 +383,7 @@ async def setup_initial_admins(
 @limiter.limit("3/minute")
 async def setup_complete_endpoint(
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | int]:
     """Mark setup as complete. Applies settings overlay and invalidates setup token."""

@@ -9,7 +9,7 @@ from fastapi.responses import Response
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, get_valkey, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, get_valkey, require_permission, verify_csrf
 from app.schemas.detection import (
     RuleCreate,
     RuleListResponse,
@@ -204,9 +204,7 @@ async def list_rules(
     rule_status: str | None = None,
     limit: int = 50,
     offset: int = 0,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> RuleListResponse:
     """List detection rules with optional filtering."""
@@ -235,7 +233,7 @@ async def list_rules(
 async def create_rule(
     payload: RuleCreate,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "create")),
     db: AsyncSession = Depends(get_db),
     valkey: Redis = Depends(get_valkey),
 ) -> RuleResponse:
@@ -276,9 +274,7 @@ async def create_rule(
 )
 async def validate_config(
     payload: ValidateConfigRequest,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "view")),
 ) -> ValidateConfigResponse:
     """Validate a logic_config structure for a given logic_type.
 
@@ -291,9 +287,7 @@ async def validate_config(
 @router.get("/{rule_id}", response_model=RuleResponse)
 async def get_rule(
     rule_id: int,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> RuleResponse:
     """Get a single rule by ID."""
@@ -308,7 +302,7 @@ async def update_rule(
     rule_id: int,
     payload: RuleCreate,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "create")),
     db: AsyncSession = Depends(get_db),
     valkey: Redis = Depends(get_valkey),
 ) -> RuleResponse:
@@ -352,7 +346,7 @@ async def update_rule_status(
     rule_id: int,
     payload: RuleStatusUpdate,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "create")),
     db: AsyncSession = Depends(get_db),
     valkey: Redis = Depends(get_valkey),
 ) -> RuleResponse:
@@ -383,7 +377,7 @@ async def update_rule_status(
 async def delete_rule(
     rule_id: int,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "admin")),
     db: AsyncSession = Depends(get_db),
     valkey: Redis = Depends(get_valkey),
 ) -> Response:
@@ -411,9 +405,7 @@ async def delete_rule(
 async def get_rule_versions(
     rule_id: int,
     limit: int = 20,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> list[RuleVersionResponse]:
     """List version history for a rule."""
@@ -430,9 +422,7 @@ async def get_rule_versions(
 async def test_rule(
     rule_id: int,
     payload: RuleTestEventRequest,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> RuleTestEventResponse:
     """Dry-run a rule against a sample event payload (no database writes).
@@ -459,9 +449,7 @@ async def test_rule(
 @router.get("/{rule_id}/suppressions", response_model=list[SuppressionResponse])
 async def list_suppressions(
     rule_id: int,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> list[SuppressionResponse]:
     """List all suppressions for a rule."""
@@ -487,7 +475,7 @@ async def list_suppressions(
 async def create_suppression(
     rule_id: int,
     payload: SuppressionCreate,
-    current_user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> SuppressionResponse:
     """Create a suppression for a rule."""
@@ -516,7 +504,7 @@ async def create_suppression(
 async def delete_suppression(
     rule_id: int,
     suppression_id: int,
-    current_user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "create")),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Delete (deactivate) a suppression."""
