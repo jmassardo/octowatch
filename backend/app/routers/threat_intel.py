@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.schemas.threat_intel import (
     FeedCreate,
     FeedListResponse,
@@ -32,7 +32,7 @@ router = APIRouter(prefix="/threat-intel", tags=["threat-intel"])
 async def create_indicator(
     body: IndicatorCreate,
     db: AsyncSession = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
+    user: AuthenticatedUser = Depends(require_permission("rules", "create")),
     _csrf: None = Depends(verify_csrf),
 ) -> Any:
     """Create a new threat intelligence indicator."""
@@ -57,7 +57,7 @@ async def list_indicators(
     page: int = 1,
     page_size: int = 50,
     db: AsyncSession = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_role(["analyst", "rule_author", "sys_admin"])),
+    user: AuthenticatedUser = Depends(require_permission("rules", "view")),
 ) -> Any:
     """List threat intelligence indicators with filtering and pagination."""
     if page < 1:
@@ -86,7 +86,7 @@ async def update_indicator(
     indicator_id: int,
     body: IndicatorUpdate,
     db: AsyncSession = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
+    user: AuthenticatedUser = Depends(require_permission("rules", "create")),
     _csrf: None = Depends(verify_csrf),
 ) -> Any:
     """Update an existing threat intelligence indicator."""
@@ -104,7 +104,7 @@ async def update_indicator(
 async def delete_indicator(
     indicator_id: int,
     db: AsyncSession = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
+    user: AuthenticatedUser = Depends(require_permission("rules", "create")),
     _csrf: None = Depends(verify_csrf),
 ) -> None:
     """Soft-delete a threat intelligence indicator (sets active=false)."""
@@ -127,7 +127,7 @@ async def delete_indicator(
 async def create_feed(
     body: FeedCreate,
     db: AsyncSession = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
+    user: AuthenticatedUser = Depends(require_permission("rules", "create")),
     _csrf: None = Depends(verify_csrf),
 ) -> Any:
     """Configure a new threat intelligence feed for auto-import."""
@@ -145,7 +145,7 @@ async def create_feed(
 @router.get("/feeds", response_model=FeedListResponse)
 async def list_feeds(
     db: AsyncSession = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_role(["analyst", "rule_author", "sys_admin"])),
+    user: AuthenticatedUser = Depends(require_permission("rules", "view")),
 ) -> Any:
     """List all configured threat intelligence feeds."""
     items = await threat_intel_service.get_feeds(db)

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.models.copilot_policy import CopilotPolicy
 from app.services.copilot_governance_service import CopilotGovernanceService
 
@@ -93,9 +93,7 @@ class ViolationsListResponse(BaseModel):
 @router.get("/policies", response_model=list[PolicyResponse])
 async def list_policies(
     enabled_only: bool = Query(default=False),
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("copilot", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> list[PolicyResponse]:
     """List all Copilot governance policies."""
@@ -125,7 +123,7 @@ async def list_policies(
 )
 async def create_policy(
     payload: PolicyCreateRequest,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("copilot", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> PolicyResponse:
     """Create a new Copilot governance policy."""
@@ -160,7 +158,7 @@ async def create_policy(
 async def update_policy(
     policy_id: int,
     payload: PolicyUpdateRequest,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("copilot", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> PolicyResponse:
     """Update a Copilot governance policy."""
@@ -185,7 +183,7 @@ async def update_policy(
 @router.delete("/policies/{policy_id}", dependencies=[Depends(verify_csrf)])
 async def delete_policy(
     policy_id: int,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("copilot", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, bool]:
     """Delete a Copilot governance policy."""
@@ -200,9 +198,7 @@ async def list_violations(
     policy_id: int | None = None,
     severity: str | None = Query(default=None, pattern=r"^(critical|high|medium|low|info)$"),
     limit: int = Query(default=100, ge=1, le=500),
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("copilot", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> ViolationsListResponse:
     """List Copilot governance policy violations."""

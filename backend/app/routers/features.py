@@ -8,7 +8,7 @@ import structlog
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_current_user, get_db, require_permission, verify_csrf
 from app.services.settings_service import get_setting, set_setting
 
 logger = structlog.get_logger(__name__)
@@ -43,7 +43,7 @@ async def get_features(
 @router.put("", response_model=dict[str, Any], dependencies=[Depends(verify_csrf)])
 async def update_features(
     payload: dict[str, bool],
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, bool]:
     """Update feature toggles. Only sys_admin can change these."""

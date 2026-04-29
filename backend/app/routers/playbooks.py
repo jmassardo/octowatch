@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.models.audit_trail import AuditTrail
 from app.models.detection import Detection
 from app.models.playbook import PlaybookExecution, PlaybookTemplate
@@ -75,9 +75,7 @@ class PlaybookExecutionResponse(BaseModel):
 @router.get("/templates", response_model=list[PlaybookTemplateResponse])
 async def list_templates(
     category: str | None = None,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("playbooks", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> list[PlaybookTemplateResponse]:
     """List playbook templates, optionally filtered by detection category."""
@@ -105,9 +103,7 @@ async def list_templates(
 @router.get("/templates/{template_id}", response_model=PlaybookTemplateResponse)
 async def get_template(
     template_id: int,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("playbooks", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> PlaybookTemplateResponse:
     """Get a single playbook template by ID."""
@@ -136,7 +132,7 @@ async def get_template(
 )
 async def execute_playbook(
     payload: ExecutePlaybookRequest,
-    current_user: AuthenticatedUser = Depends(require_role(["analyst", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("playbooks", "execute")),
     db: AsyncSession = Depends(get_db),
 ) -> PlaybookExecutionResponse:
     """Start a playbook execution for a detection."""
@@ -215,9 +211,7 @@ async def execute_playbook(
 @router.get("/executions/{execution_id}", response_model=PlaybookExecutionResponse)
 async def get_execution(
     execution_id: int,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("playbooks", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> PlaybookExecutionResponse:
     """Get a playbook execution by ID."""
@@ -246,7 +240,7 @@ async def complete_step(
     execution_id: int,
     step_index: int,
     payload: StepCompleteRequest,
-    current_user: AuthenticatedUser = Depends(require_role(["analyst", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("playbooks", "execute")),
     db: AsyncSession = Depends(get_db),
 ) -> PlaybookExecutionResponse:
     """Mark a playbook step as complete with optional notes."""
@@ -300,7 +294,7 @@ async def complete_step(
 )
 async def complete_execution(
     execution_id: int,
-    current_user: AuthenticatedUser = Depends(require_role(["analyst", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("playbooks", "execute")),
     db: AsyncSession = Depends(get_db),
 ) -> PlaybookExecutionResponse:
     """Finalise a playbook execution and auto-resolve the associated detection."""

@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.schemas.setup import SettingUpdate
 from app.services.audit_service import log_action
 from app.services.config_overlay import load_settings_overlay
@@ -29,7 +29,7 @@ router = APIRouter(prefix="/admin/settings", tags=["admin-settings"])
 @router.get("", response_model=list[dict[str, Any]])
 async def list_all_settings(
     category: str | None = Query(None, description="Filter by category"),
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, str | None]]:
     """List all settings with masked values."""
@@ -41,7 +41,7 @@ async def get_audit_trail_endpoint(
     setting_key: str | None = Query(None, description="Filter by setting key"),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, str | int | None]]:
     """Get the audit trail for setting changes."""
@@ -51,7 +51,7 @@ async def get_audit_trail_endpoint(
 @router.get("/{key}", response_model=dict[str, Any])
 async def get_setting_endpoint(
     key: str,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | None]:
     """Get a single setting (masked)."""
@@ -70,7 +70,7 @@ async def update_setting_endpoint(
     key: str,
     payload: SettingUpdate,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Update a setting value. Creates audit trail entry and refreshes overlay."""
@@ -103,7 +103,7 @@ async def update_setting_endpoint(
 async def delete_setting_endpoint(
     key: str,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Delete a setting (reverts to env var default)."""

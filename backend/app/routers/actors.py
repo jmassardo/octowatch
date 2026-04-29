@@ -7,7 +7,7 @@ from sqlalchemy import case, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.deps import AuthenticatedUser, get_db, require_role
+from app.deps import AuthenticatedUser, get_db, require_permission
 from app.models.audit_event import AuditEvent
 from app.models.detection import Detection
 from app.schemas.actor import (
@@ -59,9 +59,7 @@ def _compute_risk_score(
 @router.get("/{login}", response_model=ActorProfile)
 async def get_actor_profile(
     login: str,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("events", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> ActorProfile:
     """Build a comprehensive actor profile from events and detections."""
@@ -124,9 +122,7 @@ async def get_actor_events(
     login: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("events", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> ActorEventListResponse:
     """Paginated reverse-chronological events for an actor."""
@@ -158,9 +154,7 @@ async def get_actor_detections(
     login: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("events", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> ActorDetectionListResponse:
     """Paginated detections where this actor is the subject."""
@@ -207,9 +201,7 @@ async def get_actor_detections(
 @router.get("/{login}/locations", response_model=ActorLocationsResponse)
 async def get_actor_locations(
     login: str,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("events", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> ActorLocationsResponse:
     """Aggregated geo locations for an actor."""

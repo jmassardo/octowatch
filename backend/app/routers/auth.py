@@ -196,6 +196,36 @@ async def logout(
     return LogoutResponse(status="logged_out")
 
 
+@router.get("/me/permissions")
+async def get_my_permissions(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, object]:
+    """Return the current user's resolved permissions and scopes.
+
+    This endpoint is used by the frontend to conditionally render navigation
+    items and action buttons based on the user's effective permissions.
+    """
+    from app.schemas.rbac import PermissionScopes, UserPermissionsResponse
+    from app.services.rbac_service import resolve_permissions
+
+    permissions = await resolve_permissions(db, current_user.github_login)
+    scope = await get_user_scope(db, current_user.github_login, current_user.roles)
+
+    scopes = PermissionScopes(
+        orgs=scope.scoped_orgs if scope.scoped_orgs else None,
+        repos=scope.scoped_repos if scope.scoped_repos else None,
+    )
+
+    response = UserPermissionsResponse(
+        user_id=current_user.github_login,
+        roles=current_user.roles,
+        permissions=permissions,
+        scopes=scopes,
+    )
+    return response.model_dump()
+
+
 # ─── SAML 2.0 endpoints ────────────────────────────────────────────────────────
 
 

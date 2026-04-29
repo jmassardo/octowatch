@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role
+from app.deps import AuthenticatedUser, get_db, require_permission
 from app.services.rbac_service import get_user_scope
 
 logger = structlog.get_logger(__name__)
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/cross-org", tags=["cross-org"])
 async def get_actor_cross_org_timeline(
     login: str,
     days: int = Query(default=30, ge=1, le=365),
-    current_user: AuthenticatedUser = Depends(require_role(["analyst", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("cross_org", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Return an actor's activity timeline spanning all organizations.
@@ -98,7 +98,7 @@ async def get_cross_org_timeline_flat(
     hours: int = Query(default=168, ge=1, le=8760),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=500),
-    current_user: AuthenticatedUser = Depends(require_role(["analyst", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("cross_org", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Return a flat timeline of cross-org events.
@@ -212,7 +212,7 @@ async def list_cross_org_correlations(
     hours: int = Query(default=168, ge=1, le=2160),
     min_orgs: int = Query(default=2, ge=2, le=50),
     limit: int = Query(default=50, ge=1, le=200),
-    current_user: AuthenticatedUser = Depends(require_role(["analyst", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("cross_org", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """List actors who have performed actions across multiple orgs.

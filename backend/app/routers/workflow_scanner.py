@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.models.workflow_finding import WorkflowFinding
 from app.services.workflow_scanner_service import WorkflowScannerService
 
@@ -93,9 +93,7 @@ async def list_findings(
     severity: str | None = None,
     status: str | None = None,
     page_size: int = Query(default=100, ge=1, le=500),
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("workflow_security", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> FindingsListResponse:
     """List workflow security findings, optionally filtered by org/repo/severity."""
@@ -146,9 +144,7 @@ async def list_findings(
 @router.get("/findings/{finding_id}/fix")
 async def get_finding_fix(
     finding_id: int,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("workflow_security", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Get the suggested fix for a specific finding."""
@@ -167,7 +163,7 @@ async def get_finding_fix(
 @router.post("/scan", response_model=ScanResultResponse, dependencies=[Depends(verify_csrf)])
 async def manual_scan(
     payload: ScanRequest,
-    current_user: AuthenticatedUser = Depends(require_role(["analyst", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("workflow_security", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> ScanResultResponse:
     """Manually scan a workflow YAML for security issues.
@@ -217,9 +213,7 @@ async def manual_scan(
 async def list_repo_scores(
     org: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("workflow_security", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> list[RepoScoreResponse]:
     """List repositories with their workflow security scores."""
@@ -269,7 +263,7 @@ async def list_repo_scores(
 
 @router.post("/scan-repos", dependencies=[Depends(verify_csrf)])
 async def trigger_repo_scan(
-    current_user: AuthenticatedUser = Depends(require_role(["analyst", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("workflow_security", "view")),
 ) -> dict[str, str]:
     """Queue analysis of workflow audit-log events for security issues.
 

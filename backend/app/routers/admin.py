@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
-from app.deps import AuthenticatedUser, get_db, get_valkey, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, get_valkey, require_permission, verify_csrf
 from app.models.user import RbacRole, UserRoleAssignment
 from app.schemas.integration import (
     GdprEraseRequest,
@@ -34,7 +34,20 @@ from app.utils.client_ip import get_client_ip
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 # Role priority for determining a user's primary (highest-privilege) role.
-_ROLE_PRIORITY: list[str] = ["sys_admin", "report_admin", "rule_author", "analyst", "viewer"]
+_ROLE_PRIORITY: list[str] = [
+    "super_admin",
+    "security_engineer",
+    "compliance_officer",
+    "security_analyst",
+    "engineering_leader",
+    "copilot_admin",
+    "viewer",
+    # Legacy role names (kept for backward compatibility during transition)
+    "sys_admin",
+    "report_admin",
+    "rule_author",
+    "analyst",
+]
 
 
 # ─── Role management ──────────────────────────────────────────────────────────
@@ -42,7 +55,7 @@ _ROLE_PRIORITY: list[str] = ["sys_admin", "report_admin", "rule_author", "analys
 
 @router.get("/roles", response_model=list[dict])
 async def list_roles(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """List all available RBAC roles."""
@@ -53,7 +66,7 @@ async def list_roles(
 
 @router.get("/assignments", response_model=list[RoleAssignmentResponse])
 async def list_role_assignments(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> list[RoleAssignmentResponse]:
     """List all user role assignments."""
@@ -90,7 +103,7 @@ async def list_role_assignments(
 async def create_role_assignment(
     payload: RoleAssignmentCreate,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> RoleAssignmentResponse:
     """Assign a role to a user (with optional org/repo scope)."""
@@ -163,7 +176,7 @@ async def create_role_assignment(
 async def delete_role_assignment(
     assignment_id: int,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Remove a role assignment."""
@@ -197,7 +210,7 @@ async def delete_role_assignment(
 
 @router.get("/ingestion-sources", response_model=list[dict])
 async def list_ingestion_sources(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """List configured ingestion sources (cursors)."""
@@ -225,7 +238,7 @@ async def list_ingestion_sources(
 )
 async def create_ingestion_source(
     payload: IngestionSourceCreate,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Register a new ingestion source."""
@@ -249,7 +262,7 @@ async def create_ingestion_source(
 @router.delete("/ingestion-sources/{source_id}", dependencies=[Depends(verify_csrf)])
 async def delete_ingestion_source(
     source_id: int,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Remove an ingestion source cursor."""
@@ -269,7 +282,7 @@ async def delete_ingestion_source(
 
 @router.get("/retention", response_model=RetentionPoliciesResponse)
 async def get_retention(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> RetentionPoliciesResponse:
     """Get retention policies for all managed tables with storage statistics."""
@@ -308,7 +321,7 @@ async def get_retention(
 async def update_retention(
     payload: RetentionUpdateRequest,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> RetentionPoliciesResponse:
     """Update retention policies for one or more tables."""
@@ -346,7 +359,7 @@ async def update_retention(
 async def gdpr_erase(
     payload: GdprEraseRequest,
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> GdprEraseResponse:
     """Erase/anonymise all data for a GitHub user (GDPR right-to-erasure)."""
@@ -371,7 +384,7 @@ async def get_top_actors(
     window_days: int = 30,
     limit: int = 25,
     org: str | None = None,
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Return top actors by event count in the window."""
@@ -383,7 +396,7 @@ async def get_event_trend(
     window_days: int = 30,
     granularity: str = "hourly",
     org: str | None = None,
-    current_user: AuthenticatedUser = Depends(require_role(["report_admin", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Return overall event volume trend (uses pre-computed events_hourly if granularity=hourly)."""
@@ -399,7 +412,7 @@ async def export_audit_trail(
     from_date: str,
     to_date: str,
     format: str = "csv",
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Export audit trail records as a downloadable CSV or NDJSON file.
@@ -508,7 +521,7 @@ async def export_audit_trail(
 
 @router.get("/sessions", response_model=list[dict[str, Any]])
 async def list_active_sessions(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
     """Return active OctoWatch sessions from audit trail (last 24 hours)."""
@@ -575,7 +588,7 @@ async def list_active_sessions(
 
 @router.get("/teams", response_model=list[dict[str, Any]])
 async def list_synced_teams(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
     """List GitHub teams from the latest enterprise sync.
@@ -605,7 +618,7 @@ async def list_synced_teams(
 @router.get("/ingest/jobs")
 async def list_ingest_jobs(
     page: int = 1,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """List recent file ingestion jobs from audit trail."""
@@ -643,7 +656,7 @@ async def list_ingest_jobs(
 @router.get("/ingest/jobs/{job_id}")
 async def get_ingest_job(
     job_id: str,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Get a specific ingest job by audit trail ID."""
@@ -666,7 +679,7 @@ async def get_ingest_job(
 
 @router.get("/audit-stream/config")
 async def get_audit_stream_config(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Get current audit log streaming configuration."""
@@ -694,7 +707,7 @@ async def get_audit_stream_config(
 @router.put("/audit-stream/hec-token", dependencies=[Depends(verify_csrf)])
 async def update_hec_token(
     payload: dict[str, str],
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Update or generate the HEC token for Splunk-compatible streaming."""
@@ -731,7 +744,7 @@ async def update_hec_token(
 
 @router.get("/github-ip-allowlist")
 async def github_ip_allowlist_status(
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
 ) -> dict[str, object]:
     """Return the current status of the GitHub IP allowlist."""
     from app.services.github_ip_allowlist import GitHubIPAllowlist
@@ -746,7 +759,7 @@ async def github_ip_allowlist_status(
 @router.post("/github-ip-allowlist/refresh", dependencies=[Depends(verify_csrf)])
 async def refresh_github_ip_allowlist(
     request: Request,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     valkey: aioredis.Redis = Depends(get_valkey),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, object]:
