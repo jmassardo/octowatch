@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role
+from app.deps import AuthenticatedUser, get_db, require_permission
 from app.schemas.audit_event import EventListParams, EventListResponse, EventResponse
 from app.services.event_service import get_event_by_id, get_raw_payload, list_events
 from app.services.rbac_service import get_user_scope
@@ -16,9 +16,7 @@ router = APIRouter(prefix="/events", tags=["events"])
 @router.get("", response_model=EventListResponse)
 async def list_events_endpoint(
     params: EventListParams = Depends(),
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("events", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> EventListResponse:
     """List audit events with filtering, pagination, and scope enforcement."""
@@ -36,9 +34,7 @@ async def list_events_endpoint(
 @router.get("/{event_id}", response_model=EventResponse)
 async def get_event_endpoint(
     event_id: int,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("events", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> EventResponse:
     """Get a single audit event by ID (scope-checked)."""
@@ -52,7 +48,7 @@ async def get_event_endpoint(
 @router.get("/{event_id}/raw", response_model=dict)
 async def get_raw_payload_endpoint(
     event_id: int,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Get the raw (original) payload for an event. Restricted to sys_admin."""

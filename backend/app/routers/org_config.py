@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_current_user, get_db, require_permission, verify_csrf
 from app.models.org_config import OrgConfig
 from app.schemas.org_config import OrgConfigResponse, OrgConfigUpdate
 
@@ -69,7 +69,7 @@ async def get_org_config(
 async def update_org_config(
     org_slug: str,
     payload: OrgConfigUpdate,
-    current_user: AuthenticatedUser = Depends(require_role(["sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> OrgConfigResponse:
     """Update the configuration for an organization.

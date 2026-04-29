@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, get_valkey, require_role, verify_csrf
+from app.deps import AuthenticatedUser, get_db, get_valkey, require_permission, verify_csrf
 from app.schemas.detection import RuleCreate, RuleResponse
 from app.services import rule_service
 
@@ -132,9 +132,7 @@ def _group_by_category(rules: list[dict[str, Any]]) -> list[LibraryCategory]:
     description="Returns all pre-built detection rule templates grouped by category.",
 )
 async def list_library(
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "view")),
 ) -> LibraryResponse:
     """Return all pre-built detection rule templates grouped by category."""
     rules = _load_library()
@@ -158,7 +156,7 @@ async def list_library(
 async def enable_library_rule(
     slug: str,
     body: EnableRequest | None = None,
-    current_user: AuthenticatedUser = Depends(require_role(["rule_author", "sys_admin"])),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "create")),
     db: AsyncSession = Depends(get_db),
     valkey: Any = Depends(get_valkey),
 ) -> RuleResponse:
@@ -216,9 +214,7 @@ async def enable_library_rule(
 )
 async def customize_library_rule(
     slug: str,
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "view")),
 ) -> CustomizeResponse:
     """Return a pre-filled rule create payload for customization."""
     rules = _load_library()

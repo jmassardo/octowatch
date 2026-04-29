@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_db, require_role
+from app.deps import AuthenticatedUser, get_db, require_permission
 from app.models.detection import Detection, RuleDefinition
 from app.models.github_sync import EnterpriseOrg, Repository
 from app.schemas.posture import (
@@ -222,9 +222,7 @@ async def get_posture(
     search: str | None = Query(None, description="Search by name"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(25, ge=1, le=100, description="Items per page"),
-    current_user: AuthenticatedUser = Depends(
-        require_role(["analyst", "report_admin", "rule_author", "sys_admin"])
-    ),
+    current_user: AuthenticatedUser = Depends(require_permission("posture", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> PostureResponse:
     """Security posture drill-down: enterprise → org → repo."""
