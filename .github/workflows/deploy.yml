@@ -147,7 +147,7 @@ jobs:
           git fetch origin main
           git reset --hard origin/main
           # Replace the tag line in the dedicated image-tag values file
-          sed -i "s/^  tag:.*$/  tag: \"${TAG}\"/" helm/values-image-tag.yaml
+          sed -i "s|tag:.*|tag: \"${TAG}\"|" helm/values-image-tag.yaml
           echo "Set global.image.tag: ${TAG}"
 
       - name: Commit and push
