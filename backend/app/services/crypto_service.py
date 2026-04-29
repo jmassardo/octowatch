@@ -4,6 +4,12 @@ Derives per-purpose keys from ENCRYPTION_KEY using HKDF-SHA256.
 Each encrypted value gets a unique 12-byte nonce prepended to the ciphertext.
 """
 
+# DEPRECATED: This module provides backward compatibility during the migration
+# from PostgreSQL-stored encrypted secrets to Azure Key Vault (Issue #135).
+# New code should use the SecretProvider abstraction (app.services.secret_provider)
+# instead of directly encrypting/decrypting values.
+# This module will be removed once all secrets are migrated to Key Vault.
+
 from __future__ import annotations
 
 import base64

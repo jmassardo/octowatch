@@ -22,6 +22,9 @@ spec:
       labels:
         {{- include "octowatch.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: api
+        {{- if .Values.workloadIdentity.enabled }}
+        azure.workload.identity/use: "true"
+        {{- end }}
       annotations:
         # Roll pods when config or secrets change
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
@@ -132,6 +135,15 @@ spec:
                   name: {{ include "octowatch.secretName" . }}
                   key: github-rules-token
                   optional: true
+            {{- if .Values.workloadIdentity.enabled }}
+            - name: SECRET_PROVIDER
+              value: "azure_keyvault"
+            - name: AZURE_KEYVAULT_URI
+              value: {{ .Values.keyVault.uri | quote }}
+            {{- else }}
+            - name: SECRET_PROVIDER
+              value: "env"
+            {{- end }}
           # ── Volume mounts — tmp needed for ReadOnlyRootFilesystem ────────
           volumeMounts:
             - name: tmp

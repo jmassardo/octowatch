@@ -7,7 +7,7 @@ used as FastAPI Depends() parameters throughout all routers.
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Callable
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import redis.asyncio as aioredis
 import structlog
@@ -17,6 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_session
 from app.utils.client_ip import get_client_ip
+
+if TYPE_CHECKING:
+    from app.services.secret_provider import SecretProvider
 
 logger = structlog.get_logger(__name__)
 
@@ -318,6 +321,22 @@ async def get_request_meta(request: Request) -> dict[str, str | None]:
 def _get_valkey_pool() -> aioredis.ConnectionPool:
     """Expose the module-level pool for use in app startup lifespan."""
     return get_valkey_pool()
+
+
+# ─── Secret Provider ──────────────────────────────────────────────────────────
+
+
+def get_secret_provider(request: Request) -> SecretProvider:
+    """FastAPI dependency: retrieve the SecretProvider from app state.
+
+    Usage:
+        @router.get("/example")
+        async def example(
+            provider: SecretProvider = Depends(get_secret_provider),
+        ):
+            secret = await provider.get_secret("my-secret")
+    """
+    return request.app.state.secret_provider  # type: ignore[no-any-return]
 
 
 def _extract_jwt_payload(request: Request) -> dict | None:

@@ -38,6 +38,10 @@ def set_hec_token_cache(token: str) -> None:
     _cached_hec_token = token
 
 
+# NOTE: This function will be refactored in a future PR (Issue #135, Story 4+)
+# to use SecretProvider directly:
+#   secret_provider.get_secret("hec-token")
+# For now, the in-memory cache + env var fallback remains for backward compatibility.
 def _get_hec_token() -> str:
     """Return the expected HEC token.
 
