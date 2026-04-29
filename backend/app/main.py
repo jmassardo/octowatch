@@ -12,7 +12,6 @@ from fastapi import FastAPI, Request, Response
 from fastapi import HTTPException as FastAPIHTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import _rate_limit_exceeded_handler
@@ -442,9 +441,9 @@ def create_app() -> FastAPI:
     set_app_info(version="1.0.0", environment=settings.environment)
 
     # ── Middleware stack (applied bottom-up, executes top-down) ──────────────
-    # HTTPS redirect (disable in development to allow HTTP)
-    if settings.environment == "production":
-        app.add_middleware(HTTPSRedirectMiddleware)
+    # NOTE: HTTPS redirect is handled by the ingress controller
+    # (nginx.ingress.kubernetes.io/ssl-redirect: "true"). Applying it at the
+    # app level breaks internal HTTP health probes from the kubelet.
 
     # CORS
     app.add_middleware(

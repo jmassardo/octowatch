@@ -108,9 +108,12 @@ async def receive_hec_event(request: Request) -> JSONResponse:
     # 2. Read body and enforce size limit (5 MB uncompressed)
     body = await request.body()
     if not body:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Empty request body",
+        # Empty body with valid auth = connectivity health check (GitHub sends
+        # these before resuming paused audit log streaming). Return success.
+        logger.debug("hec.empty_body_health_check")
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"text": "Success", "code": 0},
         )
 
     max_body_bytes = 5 * 1024 * 1024  # 5 MB
