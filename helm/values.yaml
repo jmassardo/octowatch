@@ -298,7 +298,24 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"  # Allow large audit log uploads
+    nginx.ingress.kubernetes.io/proxy-body-size: "2m"
+
+  # Per-path rate limits (applied via separate ingress resources)
+  rateLimits:
+    default:
+      rps: "30"
+      connections: "30"
+      burstMultiplier: "3"
+    hec:
+      rps: "50"
+      connections: "20"
+      burstMultiplier: "5"
+      proxyBodySize: "5m"
+    webhook:
+      rps: "30"
+      connections: "10"
+      burstMultiplier: "3"
+      proxyBodySize: "2m"
 
 # ---------------------------------------------------------------------------
 # GitHub-backed detection rule storage (optional)
