@@ -17,6 +17,8 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Pagination } from '../../components/primitives/Pagination';
 import { Autocomplete } from '../../components/primitives/Autocomplete';
+import { PageHeader } from '../../components/common/PageHeader';
+import { EmptyState } from '../../components/common/EmptyState';
 import { InvestigationTimeline } from './InvestigationTimeline';
 import { formatRelativeShort } from '../../utils/dates';
 import { useOrg } from '../../hooks/useOrg';
@@ -378,10 +380,10 @@ export function ThreatsPage() {
   return (
     <div className={styles.splitLayout}>
       <div className={styles.splitMain}>
-        <div className={styles.pageTitle}>Threat Detections</div>
-        <div className={styles.pageSub}>
-          Rule-based and ML-powered detections from audit log analysis
-        </div>
+        <PageHeader
+          title="Threat Detections"
+          description="Rule-based and ML-powered detections from audit log analysis"
+        />
         <div className={styles.filterBar}>
           {/* Row 1: dropdowns */}
           <div className={styles.filterRow}>
@@ -602,11 +604,27 @@ export function ThreatsPage() {
 
           {!isLoading && !isError && items.length === 0 && (
             <div className={styles.emptyRow}>
-              {tab === 'open'
-                ? 'No open threats detected — all clear ✓'
-                : tab === 'closed'
-                  ? 'No closed detections. Resolved detections will appear here.'
-                  : 'No detections found'}
+              {tab === 'open' ? (
+                <EmptyState
+                  variant="setup"
+                  icon="✅"
+                  title="No open threats detected"
+                  description="All clear — no active detections match the current filters."
+                />
+              ) : tab === 'closed' ? (
+                <EmptyState
+                  variant="default"
+                  icon="📋"
+                  title="No closed detections"
+                  description="Resolved detections will appear here."
+                />
+              ) : (
+                <EmptyState
+                  variant="filtered"
+                  title="No detections found"
+                  description="No detections match the current filters. Try resetting them."
+                />
+              )}
             </div>
           )}
 

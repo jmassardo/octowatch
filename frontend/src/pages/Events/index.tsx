@@ -13,6 +13,7 @@ import type { EventListParams, EventResponse } from '../../types/events';
 import { useDebounce } from '../../hooks/useDebounce';
 import { Label } from '../../components/primitives/Label';
 import { Button } from '../../components/primitives/Button';
+import { EmptyState } from '../../components/common/EmptyState';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
@@ -391,7 +392,7 @@ export function EventsPage() {
               data={items}
               rowKey={(e) => e.id}
               onRowClick={(e) => setDetailEvent(e)}
-              emptyMessage="No events found"
+              emptyMessage={<EmptyState variant="filtered" title="No events found" description="No events match the current filters." />}
             />
           )}
         </div>

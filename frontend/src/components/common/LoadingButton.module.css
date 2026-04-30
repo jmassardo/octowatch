@@ -1,0 +1,9 @@
+.btn {
+  position: relative;
+}
+
+.spinnerWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

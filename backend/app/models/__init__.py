@@ -61,6 +61,7 @@ __all__ = [
     "AppSetting",
     "AppSettingAudit",
     "AuditEvent",
+    "AuthMethodConfig",
     "EventDedup",
     "EventRawPayload",
     "AuditTrail",
@@ -121,4 +122,5 @@ __all__ = [
     "TeamRoleAssignment",
     "UserRoleAssignment",
     "WorkflowFinding",
+    "SessionPolicySetting",
 ]

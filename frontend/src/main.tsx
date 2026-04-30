@@ -5,6 +5,7 @@ import { RouterProvider } from 'react-router-dom';
 import { router } from './App';
 import { OrgProvider } from './context/OrgContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ToastProvider } from './components/common/ToastProvider';
 import '@/styles/global.css';
 
 const queryClient = new QueryClient({
@@ -18,7 +19,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <OrgProvider>
-          <RouterProvider router={router} />
+          <ToastProvider>
+            <RouterProvider router={router} />
+          </ToastProvider>
         </OrgProvider>
       </QueryClientProvider>
     </ErrorBoundary>

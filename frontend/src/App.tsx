@@ -21,6 +21,7 @@ import { ActorsPage } from './pages/Actors';
 import { CrossOrgPage } from './pages/CrossOrg';
 import { WorkflowsPage } from './pages/Workflows';
 import { AdvancedSecurityPage } from './pages/AdvancedSecurity';
+import AuthSettingsPage from './pages/admin/AuthSettings';
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
@@ -65,6 +66,7 @@ export const router = createBrowserRouter([
       { path: '/integrations', element: <Navigate to="/settings/integrations" replace /> },
       { path: '/settings', element: <Navigate to="/settings/all" replace /> },
       { path: '/settings/:tab', element: <SettingsPage /> },
+      { path: '/admin/auth', element: <AuthSettingsPage /> },
     ],
   },
 ]);
