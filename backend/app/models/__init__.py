@@ -49,6 +49,7 @@ from app.models.org_config import OrgConfig
 from app.models.playbook import PlaybookExecution, PlaybookTemplate
 from app.models.query_template import QueryTemplate
 from app.models.report_schedule import ReportSchedule
+from app.models.retention_policy import RetentionPolicy
 from app.models.system_health import SystemHealthEvent
 from app.models.threat_intel import ThreatIntelDomain, ThreatIntelFeed, ThreatIntelIndicator
 from app.models.user import RbacRole, UserRoleAssignment
@@ -110,6 +111,7 @@ __all__ = [
     "ThreatIntelIndicator",
     "RbacRole",
     "ReportSchedule",
+    "RetentionPolicy",
     "UserRoleAssignment",
     "WorkflowFinding",
 ]
