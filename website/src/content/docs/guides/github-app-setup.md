@@ -3,8 +3,6 @@ title: GitHub App Setup
 description: Configure the OctoWatch GitHub App for enhanced integration
 ---
 
-# GitHub App Setup
-
 While OctoWatch can operate with just HEC audit log streaming, installing a GitHub App enables enhanced features like real-time webhook events, organization metadata sync, and repository-level details.
 
 ## What the GitHub App Enables

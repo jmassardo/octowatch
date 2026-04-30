@@ -3,8 +3,6 @@ title: API Reference
 description: OctoWatch REST API documentation
 ---
 
-# API Reference
-
 OctoWatch exposes a REST API built with FastAPI. The API serves both the web frontend and programmatic integrations.
 
 ## Interactive Documentation

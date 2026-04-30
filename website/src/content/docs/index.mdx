@@ -44,10 +44,11 @@ OctoWatch transforms raw GitHub audit logs into actionable security intelligence
 
 ## How It Works
 
-```
-GitHub Enterprise  ──→  HEC Endpoint  ──→  OctoWatch Engine  ──→  Dashboards
-   (Audit Logs)         (Streaming)        (Detection &          (Alerts &
-                                            Enrichment)           Reports)
+```mermaid
+flowchart LR
+    A[GitHub Enterprise\nAudit Logs] --> B[HEC Endpoint\nStreaming]
+    B --> C[OctoWatch Engine\nDetection & Enrichment]
+    C --> D[Dashboards\nAlerts & Reports]
 ```
 
 1. **Stream** — Configure GitHub audit log streaming to OctoWatch's HEC endpoint

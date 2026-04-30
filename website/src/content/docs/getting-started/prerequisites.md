@@ -3,8 +3,6 @@ title: Prerequisites
 description: What you need before deploying OctoWatch
 ---
 
-# Prerequisites
-
 Before deploying OctoWatch, ensure you have the following requirements in place.
 
 ## GitHub Requirements
