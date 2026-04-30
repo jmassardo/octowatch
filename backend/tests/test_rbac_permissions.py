@@ -170,17 +170,21 @@ class TestPermissionCaching:
         valkey = AsyncMock()
         valkey.get.return_value = None
 
-        # Mock DB result
-        mock_result = MagicMock()
-        mock_result.fetchall.return_value = [
+        # Mock DB result — resolve_permissions now makes two queries:
+        # 1. Personal role permissions
+        # 2. Team-inherited role permissions
+        personal_result = MagicMock()
+        personal_result.fetchall.return_value = [
             (["detections:view", "events:view"],),
         ]
-        session.execute.return_value = mock_result
+        team_result = MagicMock()
+        team_result.fetchall.return_value = []
+        session.execute = AsyncMock(side_effect=[personal_result, team_result])
 
         result = await resolve_permissions(session, "test-user", valkey=valkey)
         assert "detections:view" in result
         assert "events:view" in result
-        session.execute.assert_called_once()
+        assert session.execute.call_count == 2
         # Should cache the result
         valkey.setex.assert_called_once()
 
