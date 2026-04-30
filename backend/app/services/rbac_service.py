@@ -15,6 +15,7 @@ import structlog
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.team import TeamMembership, TeamRoleAssignment
 from app.models.user import RbacRole, UserRoleAssignment
 
 if TYPE_CHECKING:
@@ -228,9 +229,12 @@ async def resolve_roles(
 ) -> list[str]:
     """Return the list of role names active for a GitHub user.
 
-    Checks both direct user assignments and returns all active, non-expired roles.
+    Includes both direct user assignments and team-inherited roles.
+    Team roles are resolved by looking up the user's team memberships and
+    then fetching the roles assigned to those teams.
     """
-    stmt = (
+    # 1. Direct personal role assignments
+    direct_stmt = (
         select(RbacRole.name)
         .join(UserRoleAssignment, UserRoleAssignment.role_id == RbacRole.id)
         .where(
@@ -241,10 +245,21 @@ async def resolve_roles(
             | (UserRoleAssignment.expires_at > text("NOW()")),
         )
     )
-    result = await session.execute(stmt)
-    roles = [row[0] for row in result.fetchall()]
+    direct_result = await session.execute(direct_stmt)
+    roles: set[str] = {row[0] for row in direct_result.fetchall()}
 
-    return list(set(roles))  # deduplicate
+    # 2. Team-inherited role assignments
+    team_stmt = (
+        select(RbacRole.name)
+        .select_from(TeamMembership)
+        .join(TeamRoleAssignment, TeamRoleAssignment.team_id == TeamMembership.team_id)
+        .join(RbacRole, RbacRole.id == TeamRoleAssignment.role_id)
+        .where(TeamMembership.user_login == github_login)
+    )
+    team_result = await session.execute(team_stmt)
+    roles.update(row[0] for row in team_result.fetchall())
+
+    return list(roles)
 
 
 async def resolve_permissions(
@@ -265,7 +280,8 @@ async def resolve_permissions(
             cached_perms: list[str] = json.loads(cached)
             return cached_perms
 
-    stmt = (
+    # 1. Personal role permissions
+    personal_stmt = (
         select(RbacRole.permissions)
         .join(UserRoleAssignment, UserRoleAssignment.role_id == RbacRole.id)
         .where(
@@ -275,9 +291,22 @@ async def resolve_permissions(
             | (UserRoleAssignment.expires_at > text("NOW()")),
         )
     )
-    db_result = await session.execute(stmt)
+    db_result = await session.execute(personal_stmt)
     all_perms: set[str] = set()
     for (perms,) in db_result.fetchall():
+        if isinstance(perms, list):
+            all_perms.update(perms)
+
+    # 2. Team-inherited permissions
+    team_stmt = (
+        select(RbacRole.permissions)
+        .select_from(TeamMembership)
+        .join(TeamRoleAssignment, TeamRoleAssignment.team_id == TeamMembership.team_id)
+        .join(RbacRole, RbacRole.id == TeamRoleAssignment.role_id)
+        .where(TeamMembership.user_login == github_login)
+    )
+    team_result = await session.execute(team_stmt)
+    for (perms,) in team_result.fetchall():
         if isinstance(perms, list):
             all_perms.update(perms)
 
@@ -387,6 +416,24 @@ async def invalidate_permission_cache(
     await valkey.delete(cache_key)
 
 
+async def invalidate_team_permission_cache(
+    valkey: aioredis.Redis,
+    session: AsyncSession,
+    team_id: int,
+) -> None:
+    """Invalidate cached permissions for all members of a team.
+
+    Call this when team role assignments change so that team members
+    pick up the updated permissions on their next request.
+    """
+    from app.models.team import TeamMembership as _TM
+
+    result = await session.execute(select(_TM.user_login).where(_TM.team_id == team_id))
+    for (login,) in result.fetchall():
+        cache_key = f"rbac:permissions:{login}"
+        await valkey.delete(cache_key)
+
+
 async def get_user_scope(
     session: AsyncSession,
     github_login: str,
@@ -421,6 +468,20 @@ async def get_user_scope(
             orgs.append(assignment.scope_value)
         elif assignment.scope_type == "repo" and assignment.scope_value:
             repos.append(assignment.scope_value)
+
+    # Include team-inherited scopes
+    team_scope_stmt = (
+        select(TeamRoleAssignment.org_slug, TeamRoleAssignment.repo_slugs)
+        .select_from(TeamMembership)
+        .join(TeamRoleAssignment, TeamRoleAssignment.team_id == TeamMembership.team_id)
+        .where(TeamMembership.user_login == github_login)
+    )
+    team_scope_result = await session.execute(team_scope_stmt)
+    for org_slug, repo_slugs in team_scope_result.fetchall():
+        if org_slug:
+            orgs.append(org_slug)
+        if repo_slugs and isinstance(repo_slugs, list):
+            repos.extend(repo_slugs)
 
     if has_global:
         return OrgRepoScope(scoped_orgs=[], scoped_repos=[], scope_type="global")

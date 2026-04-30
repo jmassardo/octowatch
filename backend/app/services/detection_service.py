@@ -1653,6 +1653,14 @@ async def _write_detection_for_event(
     score, tier = compute_confidence_score(float(base_conf))
 
     # Step 7: Write detection
+    ctx: dict[str, Any] = {"action": event.action, "event_id": event.id}
+
+    # For security-posture pattern rules, embed a stable dedup_key so that
+    # event-driven auto-resolution (via _REMEDIATION_MAP) can match by prefix.
+    if rule.category == "security_posture" and rule.slug.startswith("ghas-"):
+        repo_short = _repo_short(event.repo)
+        ctx["dedup_key"] = f"posture:{rule.slug}:{event.org or ''}:{repo_short}"
+
     detection = Detection(
         rule_id=rule.id,
         rule_version=rule.version,
@@ -1666,7 +1674,7 @@ async def _write_detection_for_event(
         repo=event.repo,
         source_ip=str(event.source_ip) if event.source_ip else None,
         event_ids=[event.id],
-        context_data={"action": event.action, "event_id": event.id},
+        context_data=ctx,
         window_start=event.created_at,
         window_end=event.created_at,
     )
@@ -2433,6 +2441,63 @@ _REMEDIATION_MAP: list[dict[str, Any]] = [
         "conditions": [],
         "dedup_prefix_fn": lambda e: (
             f"posture:posture-no-branch-protection-on-default-branch:{e.org}:{_repo_short(e.repo)}"
+        ),
+    },
+    # ── GHAS feature re-enable → resolve corresponding disable detections ─────
+    {
+        "actions": ["code_scanning.enable"],
+        "conditions": [],
+        "dedup_prefix_fn": lambda e: (
+            f"posture:ghas-code-scanning-disabled:{e.org}:{_repo_short(e.repo)}"
+        ),
+    },
+    {
+        "actions": ["dependabot_alerts.enable"],
+        "conditions": [],
+        "dedup_prefix_fn": lambda e: (
+            f"posture:ghas-dependabot-alerts-disabled:{e.org}:{_repo_short(e.repo)}"
+        ),
+    },
+    {
+        "actions": ["dependabot_security_updates.enable"],
+        "conditions": [],
+        "dedup_prefix_fn": lambda e: (
+            f"posture:ghas-dependabot-updates-disabled:{e.org}:{_repo_short(e.repo)}"
+        ),
+    },
+    {
+        "actions": ["secret_scanning.enable", "repository_secret_scanning.enable"],
+        "conditions": [],
+        "dedup_prefix_fn": lambda e: (
+            f"posture:ghas-secret-scanning-disabled:{e.org}:{_repo_short(e.repo)}"
+        ),
+    },
+    {
+        "actions": ["repository_vulnerability_alerts.enable"],
+        "conditions": [],
+        "dedup_prefix_fn": lambda e: (
+            f"posture:ghas-vulnerability-alerts-disabled:{e.org}:{_repo_short(e.repo)}"
+        ),
+    },
+    {
+        "actions": [
+            "business.advanced_security_enabled",
+            "org.advanced_security_enabled_for_new_repos",
+            "repo.advanced_security_enabled",
+        ],
+        "conditions": [],
+        "dedup_prefix_fn": lambda e: (
+            f"posture:ghas-advanced-security-disabled:{e.org}:{_repo_short(e.repo)}"
+        ),
+    },
+    {
+        "actions": [
+            "secret_scanning_push_protection.enable",
+            "repository_secret_scanning_push_protection.enable",
+        ],
+        "conditions": [],
+        "dedup_prefix_fn": lambda e: (
+            f"posture:ghas-push-protection-disabled:{e.org}:{_repo_short(e.repo)}"
         ),
     },
 ]

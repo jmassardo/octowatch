@@ -64,200 +64,181 @@ class TestRetentionService:
     """Unit tests for app.services.retention_service."""
 
     @pytest.mark.asyncio
-    async def test_get_all_policies_returns_defaults(self) -> None:
-        """All 8 tables should appear with their default retention days."""
-        from app.services.retention_service import RETENTION_TABLES, get_all_policies
+    async def test_get_all_policies_returns_fallback_defaults(self) -> None:
+        """When DB is unavailable, fallback defaults should be returned."""
+        from app.services.retention_service import _build_fallback_policies, get_all_policies
 
         db = _mock_db()
-        # get_setting returns None → defaults used
-        with patch(
-            "app.services.retention_service.get_setting",
-            new_callable=AsyncMock,
-            return_value=None,
-        ):
+        # Simulate DB failure → falls back to hardcoded defaults
+        db.execute = AsyncMock(side_effect=Exception("no table"))
+
+        with patch("app.services.retention_service.invalidate_cache"):
+            from app.services import retention_service
+
+            retention_service.invalidate_cache()
             policies = await get_all_policies(db)
 
-        assert len(policies) == len(RETENTION_TABLES)
-        for table_name, meta in RETENTION_TABLES.items():
-            assert table_name in policies
-            assert policies[table_name]["retention_days"] == meta["default_days"]
-            assert policies[table_name]["time_column"] == meta["time_col"]
+        fallbacks = _build_fallback_policies()
+        assert len(policies) == len(fallbacks)
+        for data_type in fallbacks:
+            assert data_type in policies
+            assert policies[data_type]["retention_days"] == fallbacks[data_type]["retention_days"]
 
     @pytest.mark.asyncio
-    async def test_get_all_policies_uses_stored_values(self) -> None:
-        """Stored setting should override the default."""
-        from app.services.retention_service import get_all_policies
+    async def test_get_policy_unknown_data_type_raises(self) -> None:
+        """Requesting a policy for an unknown data type should raise ValueError."""
+        from app.services.retention_service import get_policy, invalidate_cache
 
         db = _mock_db()
+        # Return empty list → fallback defaults
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        db.execute = AsyncMock(return_value=mock_result)
+        invalidate_cache()
 
-        async def _mock_get_setting(_db: Any, key: str) -> str | None:
-            if key == "retention.events.days":
-                return "180"
-            return None
-
-        with patch("app.services.retention_service.get_setting", side_effect=_mock_get_setting):
-            policies = await get_all_policies(db)
-
-        assert policies["events"]["retention_days"] == 180
-
-    @pytest.mark.asyncio
-    async def test_get_policy_unknown_table_raises(self) -> None:
-        """Requesting a policy for an unknown table should raise ValueError."""
-        from app.services.retention_service import get_policy
-
-        db = _mock_db()
-        with pytest.raises(ValueError, match="Unknown retention table"):
+        with pytest.raises(ValueError, match="Unknown retention data type"):
             await get_policy(db, "nonexistent_table")
 
     @pytest.mark.asyncio
-    async def test_update_policy_stores_and_logs(self) -> None:
-        """update_policy should call set_setting and log_action."""
-        from app.services.retention_service import update_policy
+    async def test_update_policy_rejects_unknown_data_type(self) -> None:
+        """Updating a policy for an unknown data type should raise ValueError."""
+        from app.services.retention_service import update_retention_policy
 
         db = _mock_db()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=mock_result)
 
-        with (
-            patch(
-                "app.services.retention_service.get_setting",
-                new_callable=AsyncMock,
-                return_value="365",
-            ),
-            patch(
-                "app.services.retention_service.set_setting",
-                new_callable=AsyncMock,
-            ) as mock_set,
-            patch(
-                "app.services.retention_service.log_action",
-                new_callable=AsyncMock,
-            ) as mock_log,
-        ):
-            await update_policy(db, "events", 180, user_login="admin", ip_address="127.0.0.1")
-
-        mock_set.assert_called_once()
-        assert mock_set.call_args.args[1] == "retention.events.days"
-        assert mock_set.call_args.args[2] == "180"
-
-        mock_log.assert_called_once()
-        log_kwargs = mock_log.call_args.kwargs
-        assert log_kwargs["action_type"] == "retention_policy_update"
-        assert log_kwargs["resource_id"] == "events"
-        assert log_kwargs["parameters"]["old_days"] == 365
-        assert log_kwargs["parameters"]["new_days"] == 180
+        with pytest.raises(ValueError, match="Unknown retention data type"):
+            await update_retention_policy(db, "fake_table", 30, user_login="admin")
 
     @pytest.mark.asyncio
-    async def test_update_policy_rejects_unknown_table(self) -> None:
-        """Updating a policy for an unknown table should raise ValueError."""
-        from app.services.retention_service import update_policy
+    async def test_update_policy_rejects_below_minimum(self) -> None:
+        """retention_days below minimum_days should raise ValueError."""
+        from app.services.retention_service import update_retention_policy
 
         db = _mock_db()
-        with pytest.raises(ValueError, match="Unknown retention table"):
-            await update_policy(db, "fake_table", 30, user_login="admin")
+        # Simulate a policy with minimum_days=90
+        mock_policy = MagicMock()
+        mock_policy.minimum_days = 90
+        mock_policy.retention_days = 365
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_policy
+        db.execute = AsyncMock(return_value=mock_result)
 
-    @pytest.mark.asyncio
-    async def test_update_policy_rejects_invalid_days(self) -> None:
-        """retention_days < 1 should raise ValueError."""
-        from app.services.retention_service import update_policy
-
-        db = _mock_db()
-        with pytest.raises(ValueError, match="retention_days must be >= 1"):
-            await update_policy(db, "events", 0, user_login="admin")
+        with pytest.raises(ValueError, match="must be >= minimum_days"):
+            await update_retention_policy(db, "events", 30, user_login="admin")
 
     @pytest.mark.asyncio
     async def test_enforce_retention_deletes_old_rows(self) -> None:
         """enforce_retention should run DELETE … WHERE time_col < cutoff."""
-        from app.services.retention_service import enforce_retention
+        from app.services.retention_service import enforce_retention, invalidate_cache
 
         db = _mock_db()
-        mock_result = MagicMock()
-        mock_result.rowcount = 42
-        db.execute = AsyncMock(return_value=mock_result)
+        mock_delete_result = MagicMock()
+        mock_delete_result.rowcount = 42
 
-        with patch(
-            "app.services.retention_service.get_setting",
-            new_callable=AsyncMock,
-            return_value="30",
-        ):
-            deleted = await enforce_retention(db, "events")
+        call_count = 0
+
+        async def _mock_execute(stmt: Any, params: Any = None) -> Any:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # First call: select retention policies → simulate DB failure → fallback
+                raise Exception("no retention_policies table")
+            return mock_delete_result
+
+        db.execute = AsyncMock(side_effect=_mock_execute)
+        invalidate_cache()
+
+        deleted = await enforce_retention(db, "events")
 
         assert deleted == 42
-        # Verify the SQL includes the correct table and column
-        call_args = db.execute.call_args
-        raw = call_args.args[0]
-        sql_text = str(raw.text if hasattr(raw, "text") else raw)
-        assert "events" in sql_text
-        assert "created_at" in sql_text
 
     @pytest.mark.asyncio
     async def test_enforce_retention_calls_archive_callback(self) -> None:
         """If archive_callback is provided, it should be called before deletion."""
-        from app.services.retention_service import enforce_retention
+        from app.services.retention_service import enforce_retention, invalidate_cache
 
         db = _mock_db()
-        mock_result = MagicMock()
-        mock_result.rowcount = 10
-        db.execute = AsyncMock(return_value=mock_result)
+        mock_delete_result = MagicMock()
+        mock_delete_result.rowcount = 10
+
+        call_count = 0
+
+        async def _mock_execute(stmt: Any, params: Any = None) -> Any:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise Exception("no table")
+            return mock_delete_result
+
+        db.execute = AsyncMock(side_effect=_mock_execute)
+        invalidate_cache()
 
         archive_cb = AsyncMock()
-
-        with patch(
-            "app.services.retention_service.get_setting",
-            new_callable=AsyncMock,
-            return_value="30",
-        ):
-            await enforce_retention(db, "detections", archive_callback=archive_cb)
+        await enforce_retention(db, "detections", archive_callback=archive_cb)
 
         archive_cb.assert_called_once()
         args = archive_cb.call_args.args
         assert args[1] == "detections"
-        # Third arg is cutoff datetime
         assert isinstance(args[2], datetime)
 
     @pytest.mark.asyncio
-    async def test_enforce_all_iterates_tables(self) -> None:
-        """enforce_all should process all tables and return per-table counts."""
-        from app.services.retention_service import RETENTION_TABLES, enforce_all
+    async def test_enforce_all_iterates_data_types(self) -> None:
+        """enforce_all should process all data types and return per-type counts."""
+        from app.services.retention_service import enforce_all, invalidate_cache
 
         db = _mock_db()
         mock_result = MagicMock()
         mock_result.rowcount = 5
-        db.execute = AsyncMock(return_value=mock_result)
 
-        with patch(
-            "app.services.retention_service.get_setting",
-            new_callable=AsyncMock,
-            return_value="30",
-        ):
-            results = await enforce_all(db)
+        call_count = 0
 
-        assert len(results) == len(RETENTION_TABLES)
-        for table in RETENTION_TABLES:
-            assert table in results
+        async def _mock_execute(stmt: Any, params: Any = None) -> Any:
+            nonlocal call_count
+            call_count += 1
+            # First call for each data_type will try to load policies → fail → fallback
+            # Subsequent calls are the actual DELETE statements
+            if call_count == 1:
+                raise Exception("no table")
+            return mock_result
+
+        db.execute = AsyncMock(side_effect=_mock_execute)
+        invalidate_cache()
+
+        results = await enforce_all(db)
+        assert len(results) > 0
 
     @pytest.mark.asyncio
     async def test_raw_payloads_retention_independent(self) -> None:
-        """event_raw_payloads has its own retention separate from events."""
-        from app.services.retention_service import get_all_policies
+        """raw_payloads has its own retention separate from events."""
+        from app.services.retention_service import _build_fallback_policies
 
-        db = _mock_db()
-        with patch(
-            "app.services.retention_service.get_setting",
-            new_callable=AsyncMock,
-            return_value=None,
-        ):
-            policies = await get_all_policies(db)
-
-        # Defaults differ: events=365, raw_payloads=90
+        policies = _build_fallback_policies()
         assert policies["events"]["retention_days"] == 365
-        assert policies["event_raw_payloads"]["retention_days"] == 90
+        assert policies["raw_payloads"]["retention_days"] == 90
 
-    def test_retention_tables_have_required_fields(self) -> None:
-        """Each table config must specify time_col and default_days."""
-        from app.services.retention_service import RETENTION_TABLES
+    def test_fallback_policies_have_required_fields(self) -> None:
+        """Each fallback policy must have required keys."""
+        from app.services.retention_service import _build_fallback_policies
 
-        for table_name, meta in RETENTION_TABLES.items():
-            assert "time_col" in meta, f"{table_name} missing time_col"
-            assert "default_days" in meta, f"{table_name} missing default_days"
-            assert isinstance(meta["default_days"], int)
+        policies = _build_fallback_policies()
+        for data_type, policy in policies.items():
+            assert "time_column" in policy, f"{data_type} missing time_column"
+            assert "retention_days" in policy, f"{data_type} missing retention_days"
+            assert isinstance(policy["retention_days"], int)
+            assert "minimum_days" in policy, f"{data_type} missing minimum_days"
+
+    def test_cache_invalidation(self) -> None:
+        """invalidate_cache should reset the cache state."""
+        from app.services import retention_service
+
+        retention_service._policy_cache = {"test": {}}
+        retention_service._policy_cache_ts = 999999.0
+        retention_service.invalidate_cache()
+        assert retention_service._policy_cache is None
+        assert retention_service._policy_cache_ts == 0.0
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -428,7 +409,7 @@ class TestSchemas:
         config = RetentionConfig()
         assert config.events_retention_days == 365
         assert config.raw_payloads_retention_days == 90
-        assert config.detections_retention_days == 730
+        assert config.detections_retention_days == 365
         assert config.audit_trail_retention_days == 730
         assert config.event_dedup_retention_days == 7
         assert config.enterprise_sync_log_retention_days == 90

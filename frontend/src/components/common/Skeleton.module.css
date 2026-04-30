@@ -1,0 +1,88 @@
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-surface, #161b22) 25%,
+    rgba(110, 118, 129, 0.12) 50%,
+    var(--bg-surface, #161b22) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--bg-surface, #161b22);
+    opacity: 0.6;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.cardWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.cardLine {
+  height: 14px;
+}
+
+.cardLineLong {
+  composes: cardLine;
+  width: 80%;
+}
+
+.cardLineShort {
+  composes: cardLine;
+  width: 40%;
+}
+
+.tableWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tableRow {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.tableRow:first-child {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.tableCell {
+  height: 14px;
+  flex: 1;
+}
+
+.chartWrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 120px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.chartBar {
+  flex: 1;
+  border-radius: 3px 3px 0 0;
+}
