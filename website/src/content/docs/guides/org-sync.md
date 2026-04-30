@@ -22,7 +22,6 @@ This metadata enriches audit log events, enabling queries like "show all events 
 |------|---------|----------|
 | **Scheduled** | Cron (default: every 6 hours) | Keep metadata fresh automatically |
 | **Manual** | Admin action in UI | Immediate refresh after changes |
-| **Webhook** | GitHub App events | Real-time updates (requires GitHub App) |
 
 ## Configuring Scheduled Sync
 
