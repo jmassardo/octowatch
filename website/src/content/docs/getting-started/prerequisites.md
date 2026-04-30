@@ -10,8 +10,8 @@ Before deploying OctoWatch, ensure you have the following requirements in place.
 | Requirement | Details |
 |------------|---------|
 | **GitHub Enterprise Cloud** | Required for audit log streaming |
-| **Organization Owner** access | Needed to configure audit log streaming and install GitHub Apps |
-| **GitHub App** (optional) | For enhanced org sync and webhook-based ingestion |
+| **Enterprise Admin** access | Needed to configure enterprise audit log streaming |
+| **GitHub App** (optional) | For enhanced organization metadata sync |
 
 :::note
 OctoWatch works with GitHub Enterprise Cloud. GitHub Enterprise Server (GHES) support is planned for a future release.
@@ -54,16 +54,15 @@ The HEC endpoint **must** be reachable from GitHub's IP ranges. See [GitHub's me
 
 ## Required Credentials
 
-Before starting installation, gather the following:
+The following credentials are configured through OctoWatch's built-in **Setup Wizard** on first login — you do not need to manually set environment variables:
 
 1. **HEC Token** — A strong random token for authenticating audit log streams
-2. **JWT Secret** — Secret key for signing authentication tokens
-3. **Database credentials** — PostgreSQL username and password
-4. **GitHub App credentials** (if using GitHub App integration):
+2. **GitHub OAuth App** — Client ID and secret for user authentication
+3. **GitHub App credentials** (if using GitHub App integration):
    - App ID
-   - Private key (PEM file)
-   - Client ID and secret
-   - Webhook secret
+   - Private key (PEM file) — used by the app to sign JWTs for GitHub API communication
+   - Enterprise slug
+4. **TLS certificate** — Can be provided or auto-generated via the wizard
 
 ## Supported Browsers
 

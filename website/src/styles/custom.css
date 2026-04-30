@@ -20,6 +20,21 @@
   --sl-nav-height: 4rem;
 }
 
+/* Light mode overrides */
+:root[data-theme='light'] {
+  --sl-color-accent-low: #dbeafe;
+  --sl-color-accent: #2563eb;
+  --sl-color-accent-high: #1e40af;
+  --sl-color-white: #020617;
+  --sl-color-gray-1: #1e293b;
+  --sl-color-gray-2: #334155;
+  --sl-color-gray-3: #475569;
+  --sl-color-gray-4: #94a3b8;
+  --sl-color-gray-5: #e2e8f0;
+  --sl-color-gray-6: #f8fafc;
+  --sl-color-black: #ffffff;
+}
+
 /* Hero section styling */
 .hero {
   text-align: center;

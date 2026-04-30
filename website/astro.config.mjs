@@ -40,7 +40,12 @@ export default defineConfig({
       sidebar: [
         {
           label: 'Getting Started',
-          autogenerate: { directory: 'getting-started' },
+          items: [
+            { label: 'Introduction', slug: 'getting-started/introduction' },
+            { label: 'Prerequisites', slug: 'getting-started/prerequisites' },
+            { label: 'Installation', slug: 'getting-started/installation' },
+            { label: 'First Login', slug: 'getting-started/first-login' },
+          ],
         },
         {
           label: 'Guides',
