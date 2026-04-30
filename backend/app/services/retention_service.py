@@ -57,9 +57,21 @@ _FALLBACK_DEFAULTS: dict[str, dict[str, Any]] = {
     "detections": {"retention_days": 365, "minimum_days": 30, "time_col": "triggered_at"},
     "event_dedup": {"retention_days": 7, "minimum_days": 1, "time_col": "created_at"},
     "audit_trail": {"retention_days": 730, "minimum_days": 365, "time_col": "timestamp"},
-    "enterprise_sync_log": {"retention_days": 90, "minimum_days": 7, "time_col": "timestamp"},
-    "system_health_events": {"retention_days": 90, "minimum_days": 7, "time_col": "occurred_at"},
-    "behavioral_baselines": {"retention_days": 180, "minimum_days": 30, "time_col": "computed_at"},
+    "enterprise_sync_log": {
+        "retention_days": 90,
+        "minimum_days": 7,
+        "time_col": "timestamp",
+    },
+    "system_health_events": {
+        "retention_days": 90,
+        "minimum_days": 7,
+        "time_col": "occurred_at",
+    },
+    "behavioral_baselines": {
+        "retention_days": 180,
+        "minimum_days": 30,
+        "time_col": "computed_at",
+    },
 }
 
 
@@ -86,7 +98,10 @@ async def get_retention_policies(db: AsyncSession) -> dict[str, dict[str, Any]]:
         rows = list(result.scalars().all())
     except Exception:
         # Table may not exist yet (pre-migration) — fall back gracefully
-        logger.debug("retention.db_read_fallback", reason="retention_policies table not available")
+        logger.debug(
+            "retention.db_read_fallback",
+            reason="retention_policies table not available",
+        )
         return _build_fallback_policies()
 
     if not rows:
@@ -295,7 +310,10 @@ async def enforce_all(
     *,
     archive_callback: Any | None = None,
 ) -> dict[str, int]:
-    """Enforce retention on every managed data type. Returns ``{data_type: deleted_count}``."""
+    """Enforce retention on every managed data type.
+
+    Returns ``{data_type: deleted_count}``.
+    """
     policies = await get_retention_policies(db)
     results: dict[str, int] = {}
     for data_type in policies:

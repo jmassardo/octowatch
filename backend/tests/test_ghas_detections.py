@@ -78,7 +78,10 @@ GHAS_RULES: list[dict[str, Any]] = [
     },
     {
         "slug": "ghas-secret-scanning-disabled",
-        "actions": ["secret_scanning.disable", "repository_secret_scanning.disable"],
+        "actions": [
+            "secret_scanning.disable",
+            "repository_secret_scanning.disable",
+        ],
         "severity": "critical",
     },
     {
@@ -120,7 +123,10 @@ _GHAS_REMEDIATION_ACTIONS: list[dict[str, Any]] = [
         "slug": "ghas-dependabot-updates-disabled",
     },
     {
-        "enable_actions": ["secret_scanning.enable", "repository_secret_scanning.enable"],
+        "enable_actions": [
+            "secret_scanning.enable",
+            "repository_secret_scanning.enable",
+        ],
         "slug": "ghas-secret-scanning-disabled",
     },
     {
@@ -276,14 +282,10 @@ class TestGhasDetectionDedupKey:
 
     def test_ghas_rule_generates_dedup_key(self) -> None:
         """A GHAS pattern rule should include dedup_key in context_data."""
-        # Simulate what _write_detection_for_event does:
-        # If category == "security_posture" and slug starts with "ghas-",
-        # context_data should contain a dedup_key.
         rule_slug = "ghas-code-scanning-disabled"
         event_org = "acme"
         event_repo = "acme/web-app"
 
-        # Build the expected dedup key
         repo_short = _repo_short(event_repo)
         expected_key = f"posture:{rule_slug}:{event_org}:{repo_short}"
         assert expected_key == "posture:ghas-code-scanning-disabled:acme:web-app"
@@ -301,7 +303,8 @@ class TestGhasDetectionDedupKey:
         ids=[r["slug"] for r in GHAS_RULES],
     )
     def test_dedup_key_matches_remediation_prefix(self, rule_def: dict[str, Any]) -> None:
-        """The dedup_key from a GHAS detection should be matchable by its remediation entry."""
+        """The dedup_key from a GHAS detection should be matchable by its
+        corresponding remediation entry."""
         slug = rule_def["slug"]
         org = "test-org"
         repo = "test-org/test-repo"

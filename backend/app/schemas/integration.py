@@ -140,9 +140,17 @@ class IngestionSourceResponse(BaseModel):
 
 
 class RetentionConfig(BaseModel):
+    """Schema for retention settings in integration config.
+
+    .. deprecated::
+        The ``retention_policies`` database table is now the source of truth
+        for all retention periods.  These fields are kept for API backwards
+        compatibility only; values are overridden at runtime by the DB.
+    """
+
     events_retention_days: int = Field(default=365, ge=7, le=3650)
     raw_payloads_retention_days: int = Field(default=90, ge=1, le=3650)
-    detections_retention_days: int = Field(default=730, ge=30, le=3650)
+    detections_retention_days: int = Field(default=365, ge=30, le=3650)
     audit_trail_retention_days: int = Field(default=730, ge=30, le=3650)
     event_dedup_retention_days: int = Field(default=7, ge=1, le=365)
     enterprise_sync_log_retention_days: int = Field(default=90, ge=7, le=3650)
