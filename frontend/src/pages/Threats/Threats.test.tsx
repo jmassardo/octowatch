@@ -82,7 +82,7 @@ describe('ThreatsPage', () => {
 
   it('renders contextual empty state for open tab when no detections', async () => {
     renderWithProviders(<ThreatsPage />);
-    expect(await screen.findByText('No open threats detected — all clear ✓')).toBeInTheDocument();
+    expect(await screen.findByText('No open threats detected')).toBeInTheDocument();
   });
 
   it('renders contextual empty state for closed tab', async () => {
@@ -93,7 +93,7 @@ describe('ThreatsPage', () => {
     await user.click(closedTab);
 
     expect(
-      await screen.findByText('No closed detections. Resolved detections will appear here.'),
+      await screen.findByText('No closed detections'),
     ).toBeInTheDocument();
   });
 

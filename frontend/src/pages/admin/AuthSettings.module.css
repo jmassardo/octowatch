@@ -1,0 +1,150 @@
+.page {
+  padding: 24px;
+  max-width: 960px;
+}
+
+.section {
+  margin-bottom: 32px;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0 0 12px;
+}
+
+.sectionDescription {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+.methodGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.methodCard {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface, #161b22);
+}
+
+.methodHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.methodName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.badgeEnabled {
+  composes: badge;
+  background: rgba(35, 134, 54, 0.15);
+  color: #3fb950;
+}
+
+.badgeDisabled {
+  composes: badge;
+  background: rgba(110, 118, 129, 0.15);
+  color: var(--fg-muted);
+}
+
+.methodDescription {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.methodActions {
+  display: flex;
+  gap: 8px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fieldFull {
+  composes: field;
+  grid-column: 1 / -1;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-muted);
+}
+
+.input {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg, #0d1117);
+  color: var(--fg);
+  font-size: 13px;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent, #58a6ff);
+}
+
+.formActions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.policyTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.policyTable th,
+.policyTable td {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.policyTable th {
+  font-weight: 600;
+  color: var(--fg-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.policyInput {
+  composes: input;
+  width: 100px;
+}

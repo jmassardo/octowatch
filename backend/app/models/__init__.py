@@ -3,6 +3,7 @@
 from app.models.app_settings import AppSetting, AppSettingAudit, SetupState
 from app.models.audit_event import AuditEvent, EventDedup, EventRawPayload
 from app.models.audit_trail import AuditTrail
+from app.models.auth_method import AuthMethodConfig, SessionPolicySetting
 from app.models.copilot_metrics import CopilotDailyMetric, CopilotSeatSnapshot
 from app.models.copilot_policy import CopilotPolicy, CopilotPolicyViolation
 from app.models.detection import (
@@ -58,6 +59,7 @@ __all__ = [
     "AppSetting",
     "AppSettingAudit",
     "AuditEvent",
+    "AuthMethodConfig",
     "EventDedup",
     "EventRawPayload",
     "AuditTrail",
@@ -112,4 +114,5 @@ __all__ = [
     "ReportSchedule",
     "UserRoleAssignment",
     "WorkflowFinding",
+    "SessionPolicySetting",
 ]

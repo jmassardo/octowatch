@@ -20,7 +20,7 @@ interface DataTableProps<T> {
   data: readonly T[];
   rowKey: (row: T) => string | number;
   onRowClick?: (row: T) => void;
-  emptyMessage?: string;
+  emptyMessage?: React.ReactNode;
   className?: string;
 }
 

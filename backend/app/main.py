@@ -25,6 +25,7 @@ from app.rate_limit import limiter
 from app.routers import (
     actors,
     admin,
+    admin_auth,
     admin_roles,
     admin_settings,
     auth,
@@ -571,6 +572,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router, prefix=API_PREFIX)
     app.include_router(admin_roles.router, prefix=API_PREFIX)
     app.include_router(admin_settings.router, prefix=API_PREFIX)
+    app.include_router(admin_auth.router, prefix=API_PREFIX)
     app.include_router(enterprise_pat.router, prefix=API_PREFIX)
     app.include_router(integrations.router, prefix=API_PREFIX)
     app.include_router(health_signals.router, prefix=API_PREFIX)

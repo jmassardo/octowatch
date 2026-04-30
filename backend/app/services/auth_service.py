@@ -12,6 +12,8 @@ import jwt as pyjwt
 import redis.asyncio as aioredis
 import structlog
 from fastapi import HTTPException, Request, Response, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 
@@ -244,3 +246,22 @@ def get_saml_auth(request: Request) -> Any:  # type: ignore[return]
     }
 
     return OneLogin_Saml2_Auth(request_data, saml_settings)
+
+
+async def is_auth_method_enabled(db: AsyncSession, method_name: str) -> bool:
+    """Check whether the given auth method is enabled in the database.
+
+    Returns ``True`` (enabled) if the table doesn't exist yet or the query
+    fails — this ensures existing auth flows keep working before the migration
+    has been applied.
+    """
+    try:
+        from app.models.auth_method import AuthMethodConfig
+
+        result = await db.execute(
+            select(AuthMethodConfig.enabled).where(AuthMethodConfig.method_name == method_name)
+        )
+        row = result.scalar_one_or_none()
+        return row if row is not None else True
+    except Exception:
+        return True
