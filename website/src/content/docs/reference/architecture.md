@@ -10,8 +10,7 @@ OctoWatch is a multi-tier application designed for reliability, scalability, and
 ```mermaid
 flowchart TD
     subgraph External["External Sources"]
-        GHE[GitHub Enterprise]
-        GHA[GitHub Apps]
+        GHE[GitHub Enterprise\nAudit Log]
     end
 
     subgraph Ingress["Ingress Layer"]
@@ -22,7 +21,6 @@ flowchart TD
     subgraph App["Application Layer"]
         subgraph Backend["FastAPI Backend"]
             HEC[HEC Ingest]
-            WH[Webhook Ingest]
             REST[REST API]
             DET[Detection Engine]
             AUTH[Auth Service]
@@ -39,10 +37,8 @@ flowchart TD
     end
 
     GHE -->|Audit Log Streaming| NGINX
-    GHA -->|Webhooks| NGINX
     NGINX --> RL
     RL --> HEC
-    RL --> WH
     RL --> REST
     HEC --> DET
     Backend --> PG
@@ -55,9 +51,8 @@ flowchart TD
 ### Ingress Layer
 
 - **nginx-ingress**: TLS termination, routing, and path-based rate limiting
-- Three separate ingress resources with per-path rate limits:
+- Separate ingress resources with per-path rate limits:
   - `/services/collector` (HEC) — Higher rate limit for streaming
-  - `/api/v1/ingest/webhook` — Webhook-specific limits
   - `/` (all other traffic) — Standard UI/API limits
 
 ### Backend (FastAPI)
@@ -67,7 +62,6 @@ The Python backend handles all business logic:
 | Service | Responsibility |
 |---------|---------------|
 | **HEC Ingest** | Receives and parses Splunk HEC formatted events |
-| **Webhook Ingest** | Processes GitHub App webhook payloads |
 | **REST API** | Serves the frontend (queries, reports, settings) |
 | **Detection Engine** | Evaluates rules against incoming events |
 | **Auth Service** | GitHub OAuth, JWT token management |
@@ -99,7 +93,6 @@ graph TD
         SS1["StatefulSet: postgresql\n(1 replica, persistent volume)"]
         SS2["StatefulSet: valkey\n(1 replica)"]
         I1["Ingress: octowatch-hec\n(rate limited)"]
-        I2["Ingress: octowatch-webhook\n(rate limited)"]
         I3["Ingress: octowatch-app\n(standard)"]
         S1[Service: backend - ClusterIP]
         S2[Service: frontend - ClusterIP]
@@ -110,7 +103,6 @@ graph TD
     end
 
     I1 --> S1
-    I2 --> S1
     I3 --> S2
     S1 --> D1
     S2 --> D2
@@ -144,7 +136,7 @@ graph TD
 ## Security Considerations
 
 - All external traffic is TLS-encrypted
-- HEC and webhook endpoints require authentication tokens
+- HEC endpoint requires authentication token
 - User sessions use HTTP-only, secure cookies
 - RBAC enforced on every API request
 - Rate limiting prevents abuse

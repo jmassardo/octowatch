@@ -29,7 +29,7 @@ Content-Type: application/json
 ```
 
 :::caution
-The `HEC_TOKEN` environment variable is mandatory. Requests without a valid token receive a `401 Unauthorized` response. Never expose this token publicly.
+The HEC token is mandatory. Requests without a valid token receive a `401 Unauthorized` response. Never expose this token publicly.
 :::
 
 ## Rate Limiting
@@ -57,17 +57,16 @@ ingress:
 
 ### Step 1: Navigate to Streaming Settings
 
-1. Go to your GitHub organization
+1. Go to your GitHub Enterprise
 2. **Settings** → **Audit log** → **Log streaming**
 3. Click **"Set up a stream"**
 
 ### Step 2: Configure the Stream
 
 1. Select **"Splunk"** as the provider
-2. **Domain**: Your OctoWatch domain (e.g., `octowatch.yourdomain.com`)
-3. **Port**: `443` (HTTPS)
-4. **HEC token**: Your configured `HEC_TOKEN` value
-5. **SSL verification**: Enabled (ensure valid TLS certificate)
+2. **Domain**: Your OctoWatch FQDN (e.g., `octowatch.yourdomain.com`)
+3. **HEC token**: Your configured HEC token value
+4. **SSL verification**: Enabled (ensure valid TLS certificate)
 
 ### Step 3: Verify Connection
 
@@ -81,14 +80,6 @@ You should see:
 ```
 INFO: HEC event received - sourcetype=github:audit:log events=1
 ```
-
-## Multiple Organizations
-
-To stream from multiple GitHub organizations:
-
-1. Use the **same HEC token** for all organizations
-2. Configure streaming in each organization separately
-3. OctoWatch automatically routes events by organization based on the event payload
 
 ## Monitoring HEC Health
 

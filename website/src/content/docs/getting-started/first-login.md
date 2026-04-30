@@ -26,40 +26,40 @@ The user(s) specified in the `INITIAL_ADMIN_LOGINS` environment variable are aut
 
 ## Initial Setup Wizard
 
-On first login as an admin, you'll be guided through:
+On first login as an admin, the Setup Wizard guides you through configuring OctoWatch securely:
 
-### 1. Verify HEC Endpoint
+### 1. GitHub OAuth Configuration
 
-The setup wizard confirms your HEC endpoint is accessible:
+- Enter your GitHub OAuth App Client ID and Client Secret
+- The wizard validates the credentials and configures user authentication
 
-```
-✓ HEC endpoint responding at /services/collector
-✓ Token authentication verified
-```
+### 2. GitHub App Setup (Optional)
 
-### 2. Connect Your First Organization
+- Provide your GitHub App ID, private key (PEM), and enterprise slug
+- The private key is used to sign JWTs for GitHub API communication
+- Enables enhanced organization metadata sync
 
-- Enter your GitHub organization name
-- OctoWatch will verify API access
-- Initial sync pulls organization metadata (repos, teams, members)
+### 3. HEC Token Configuration
 
-### 3. Configure Audit Log Streaming
+- Generate or provide a strong HEC token
+- The wizard stores it securely and displays the endpoint URL for configuring GitHub
+
+### 4. Configure Enterprise Audit Log Streaming
 
 Follow the guided setup to configure GitHub's audit log streaming:
 
-1. Go to your GitHub organization → **Settings** → **Audit log** → **Log streaming**
+1. Go to your GitHub Enterprise → **Settings** → **Audit log** → **Log streaming**
 2. Click **"Set up a stream"**
 3. Select **"Splunk"** as the stream type
-4. Enter your OctoWatch HEC endpoint URL: `https://octowatch.yourdomain.com/services/collector`
-5. Enter your HEC token
+4. Enter your OctoWatch FQDN (e.g., `octowatch.yourdomain.com`)
+5. Enter the HEC token from the previous step
 6. Click **"Check endpoint"** then **"Save"**
 
-### 4. Verify Data Flow
+### 5. Verify Data Flow
 
 Within a few minutes of configuring streaming, you should see:
 
 - Events appearing in the **Activity** dashboard
-- Organization metadata populated in **Settings** → **Organizations**
 - The health indicator showing "Receiving data"
 
 ## Setting Up Additional Admins
@@ -81,11 +81,11 @@ Ensure your GitHub username is listed in the `INITIAL_ADMIN_LOGINS` environment 
 
 1. Verify the endpoint is publicly accessible from GitHub's IP ranges
 2. Check that TLS certificates are valid (GitHub requires HTTPS)
-3. Confirm the HEC token matches between GitHub's streaming config and OctoWatch's `HEC_TOKEN` environment variable
+3. Confirm the HEC token matches between GitHub's streaming config and OctoWatch
 
 ### Organization sync failing
 
-1. Verify you have **Owner** access to the GitHub organization
+1. Verify you have **Enterprise Admin** access on the GitHub Enterprise
 2. Check that the GitHub App (if used) is installed on the organization
 3. Review backend logs: `kubectl logs -n octowatch deployment/octowatch-backend`
 

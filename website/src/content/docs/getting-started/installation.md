@@ -16,20 +16,12 @@ helm repo update
 
 ### Create a Values File
 
-Create a `values-custom.yaml` with your configuration:
+Create a `values-custom.yaml` with your base configuration:
 
 ```yaml
 # values-custom.yaml
 global:
   domain: octowatch.yourdomain.com
-
-backend:
-  env:
-    DATABASE_URL: "postgresql://octowatch:yourpassword@postgres:5432/octowatch"
-    VALKEY_URL: "redis://valkey:6379/0"
-    JWT_SECRET: "your-jwt-secret-here"
-    HEC_TOKEN: "your-hec-token-here"
-    INITIAL_ADMIN_LOGINS: "your-github-username"
 
 ingress:
   enabled: true
@@ -50,6 +42,10 @@ valkey:
   auth:
     enabled: false
 ```
+
+:::note
+Sensitive credentials (HEC token, GitHub App keys, OAuth secrets) are configured securely through the **Setup Wizard** after deployment — not in the values file.
+:::
 
 ### Install the Chart
 
@@ -86,19 +82,12 @@ cd octowatch
 
 ```bash
 cp .env.example .env
-# Edit .env with your settings
+# Edit .env with your basic settings (domain, database)
 ```
 
-Key environment variables to set:
-
-```bash
-# .env
-DATABASE_URL=postgresql://octowatch:localdev@postgres:5432/octowatch
-VALKEY_URL=redis://valkey:6379/0
-JWT_SECRET=change-me-in-production
-HEC_TOKEN=your-hec-token
-INITIAL_ADMIN_LOGINS=your-github-username
-```
+:::note
+Sensitive credentials are configured through the **Setup Wizard** after first login. The `.env` file only needs basic infrastructure settings (database URL, Valkey URL).
+:::
 
 ### Start Services
 
@@ -121,8 +110,8 @@ curl -s http://localhost:8000/health | jq .
 After deployment, you should:
 
 1. **Access the UI** — Navigate to your configured domain (or `http://localhost:3000` for Docker Compose)
-2. **Log in** — Use the GitHub account specified in `INITIAL_ADMIN_LOGINS`
-3. **Configure HEC streaming** — See the [HEC Configuration](/octowatch/guides/hec-configuration/) guide
+2. **Complete the Setup Wizard** — Configure credentials, GitHub App, and HEC token securely
+3. **Configure audit log streaming** — See the [HEC Configuration](/octowatch/guides/hec-configuration/) guide
 4. **Set up org sync** — See the [Organization Sync](/octowatch/guides/org-sync/) guide
 
 ## Upgrading

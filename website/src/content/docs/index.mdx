@@ -46,12 +46,12 @@ OctoWatch transforms raw GitHub audit logs into actionable security intelligence
 
 ```mermaid
 flowchart LR
-    A[GitHub Enterprise\nAudit Logs] --> B[HEC Endpoint\nStreaming]
+    A[GitHub Enterprise\nAudit Log] --> B[HEC Endpoint\nStreaming]
     B --> C[OctoWatch Engine\nDetection & Enrichment]
     C --> D[Dashboards\nAlerts & Reports]
 ```
 
-1. **Stream** — Configure GitHub audit log streaming to OctoWatch's HEC endpoint
+1. **Stream** — Configure GitHub Enterprise audit log streaming to OctoWatch's HEC endpoint
 2. **Detect** — Detection rules analyze events in real-time for threats and anomalies  
 3. **Alert** — Get notified of security events through your preferred channels
 4. **Report** — Generate compliance reports and track your security posture over time

@@ -54,9 +54,7 @@ OctoWatch solves this by providing:
 ```mermaid
 flowchart TD
     subgraph GH["GitHub Enterprise Cloud"]
-        OrgA[Org A]
-        OrgB[Org B]
-        OrgC[Org C]
+        ENT[Enterprise Audit Log]
     end
 
     subgraph OW["OctoWatch"]
@@ -68,9 +66,7 @@ flowchart TD
         API[FastAPI Backend\nREST API]
     end
 
-    OrgA -->|Audit Log Streaming| HEC
-    OrgB -->|Audit Log Streaming| HEC
-    OrgC -->|Audit Log Streaming| HEC
+    ENT -->|Audit Log Streaming| HEC
     HEC --> Detection
     Detection --> Dashboards
     API --> PG

@@ -44,7 +44,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/), and this pro
 
 ### Added
 - Organization sync via GitHub App
-- Webhook ingestion endpoint
 - Role-based access control (RBAC) with 4 roles
 - Multi-organization support
 
