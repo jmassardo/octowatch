@@ -324,6 +324,28 @@ def require_permission(
                 action=action,
                 user_roles=user.roles,
             )
+            # Log the permission-denied event to the audit trail
+            try:
+                from app.services.audit_service import log_action
+
+                await log_action(
+                    db,
+                    user_login=user.github_login,
+                    user_github_id=user.github_id,
+                    ip_address=get_client_ip(request),
+                    user_agent=request.headers.get("user-agent"),
+                    action_type="auth.permission_denied",
+                    resource_type=resource,
+                    resource_id=None,
+                    parameters={
+                        "required_permission": f"{resource}:{action}",
+                        "user_roles": user.roles,
+                        "path": request.url.path,
+                    },
+                    outcome="denied",
+                )
+            except Exception:
+                logger.debug("audit.permission_denied_log_failed")
             if not user.roles:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,

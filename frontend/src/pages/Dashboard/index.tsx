@@ -10,6 +10,7 @@ import {
   getUnifiedSecurity,
 } from '../../api/healthSignals';
 import { Card, CardHeader } from '../../components/primitives/Card';
+import { PageHeader } from '../../components/common/PageHeader';
 
 import { ExecutiveView } from './ExecutiveView';
 import { SecurityView } from './SecurityView';
@@ -203,12 +204,14 @@ export function DashboardPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.pageTitle}>Dashboard · {orgLabel}</div>
-      <div className={styles.pageSub}>
-        {systemHealth?.last_event_at
-          ? `Last synced: ${formatRelative(systemHealth.last_event_at)}`
-          : 'Activity across your organizations'}
-      </div>
+      <PageHeader
+        title={`Dashboard · ${orgLabel}`}
+        description={
+          systemHealth?.last_event_at
+            ? `Last synced: ${formatRelative(systemHealth.last_event_at)}`
+            : 'Activity across your organizations'
+        }
+      />
 
       <div className={styles.viewToggle}>
         <button

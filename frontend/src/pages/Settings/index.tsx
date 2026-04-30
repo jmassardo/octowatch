@@ -23,6 +23,7 @@ import {
 import { getRetentionPolicies, updateRetentionPolicies } from '../../api/admin';
 import type { RetentionPolicyItem } from '../../api/admin';
 import { SyncPanel } from '../Integrations/SyncPanel';
+import { PageHeader } from '../../components/common/PageHeader';
 import { SyncRunHistory } from '../Integrations/SyncRunHistory';
 import { ManualIngestPanel } from '../Integrations/ManualIngestPanel';
 import { AuditStreamPanel } from './AuditStreamPanel';
@@ -2038,12 +2039,10 @@ export function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.pageHeader}>
-        <div>
-          <h1 className={styles.pageTitle}>Settings</h1>
-          <p className={styles.pageSub}>Manage application settings and view the audit trail</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Settings"
+        description="Manage application settings and view the audit trail"
+      />
 
       {/* Tab bar */}
       <div className={styles.tabs}>

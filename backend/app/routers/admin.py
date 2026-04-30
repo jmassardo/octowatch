@@ -298,14 +298,14 @@ async def get_retention(
         stats = {}  # gracefully degrade when stats unavailable
 
     items: list[RetentionPolicyItem] = []
-    for table_name, policy in policies.items():
-        tbl_stats = stats.get(table_name, {})
+    for data_type, policy in policies.items():
+        tbl_stats = stats.get(data_type, {})
         items.append(
             RetentionPolicyItem(
-                table_name=table_name,
+                table_name=policy.get("table_name", data_type),
                 time_column=policy["time_column"],
                 retention_days=policy["retention_days"],
-                default_days=policy["default_days"],
+                default_days=policy.get("minimum_days", policy["retention_days"]),
                 row_count=tbl_stats.get("row_count", 0),
                 size_bytes=tbl_stats.get("size_bytes", 0),
             )
@@ -329,19 +329,15 @@ async def update_retention(
 
     ip = get_client_ip(request)
     for table_name, days in payload.policies.items():
-        if table_name not in retention_service.RETENTION_TABLES:
+        try:
+            await retention_service.update_policy(
+                db, table_name, days, user_login=current_user.github_login, ip_address=ip
+            )
+        except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unknown table: {table_name}",
-            )
-        if days < 1 or days > 3650:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"retention_days must be 1-3650 for {table_name}",
-            )
-        await retention_service.update_policy(
-            db, table_name, days, user_login=current_user.github_login, ip_address=ip
-        )
+                detail=str(exc),
+            ) from exc
     await db.commit()
 
     # Return the updated full policy set

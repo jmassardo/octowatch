@@ -22,6 +22,7 @@ from app.services.auth_service import (
     fetch_github_orgs_and_teams,
     fetch_github_user,
     get_saml_auth,
+    is_auth_method_enabled,
     revoke_session,
     set_auth_cookies,
     store_session,
@@ -38,8 +39,11 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def github_login(
     request: Request,
     valkey: Redis = Depends(get_valkey),
+    db: AsyncSession = Depends(get_db),
 ) -> RedirectResponse:
     """Initiate GitHub OAuth flow. Redirects user to GitHub authorization page."""
+    if not await is_auth_method_enabled(db, "github_oauth"):
+        raise HTTPException(status_code=403, detail="GitHub OAuth login is disabled")
     state = secrets.token_urlsafe(32)
     # Store state in Valkey (server-side) instead of a cookie.
     # Cookies fail in Codespaces where the login request goes through the
@@ -230,8 +234,13 @@ async def get_my_permissions(
 
 
 @router.get("/saml/login")
-async def saml_login(request: Request) -> RedirectResponse:
+async def saml_login(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> RedirectResponse:
     """Initiate SAML SSO login. Redirects browser to the IdP."""
+    if not await is_auth_method_enabled(db, "saml_sso"):
+        raise HTTPException(status_code=403, detail="SAML SSO login is disabled")
     auth = get_saml_auth(request)
     return RedirectResponse(url=auth.login())
 
@@ -327,6 +336,9 @@ async def dev_login(
 
     if cfg.ENVIRONMENT not in ("development", "test"):
         raise HTTPException(status_code=404)
+
+    if not await is_auth_method_enabled(db, "local_password"):
+        raise HTTPException(status_code=403, detail="Local password login is disabled")
 
     body = await request.json()
     username = body.get("username", "")
