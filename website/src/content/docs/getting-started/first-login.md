@@ -3,8 +3,6 @@ title: First Login
 description: Complete your initial OctoWatch setup
 ---
 
-# First Login
-
 After deploying OctoWatch, follow these steps to complete the initial setup.
 
 ## Accessing OctoWatch

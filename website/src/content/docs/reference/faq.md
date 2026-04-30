@@ -3,8 +3,6 @@ title: FAQ
 description: Frequently asked questions about OctoWatch
 ---
 
-# Frequently Asked Questions
-
 ## General
 
 ### What is OctoWatch?

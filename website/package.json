@@ -10,8 +10,9 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^5.7.0",
     "@astrojs/starlight": "^0.34.0",
-    "sharp": "^0.33.0"
+    "astro": "^5.7.0",
+    "sharp": "^0.33.0",
+    "unist-util-visit": "^5.1.0"
   }
 }

@@ -3,14 +3,17 @@ title: Detection Rules
 description: Built-in and custom detection rules reference
 ---
 
-# Detection Rules
-
 OctoWatch's detection engine evaluates incoming audit events against configurable rules. When a rule matches, an alert is created and notifications are sent.
 
 ## How Detection Works
 
-```
-Incoming Event → Rule Evaluation → Match? → Create Alert → Notify
+```mermaid
+flowchart LR
+    A[Incoming Event] --> B[Rule Evaluation]
+    B --> C{Match?}
+    C -->|Yes| D[Create Alert]
+    D --> E[Notify]
+    C -->|No| F[Discard]
 ```
 
 Rules are evaluated in real-time as events are ingested. Each rule defines:
