@@ -3,68 +3,51 @@ title: Architecture
 description: OctoWatch system architecture and data flow
 ---
 
-# Architecture
-
 OctoWatch is a multi-tier application designed for reliability, scalability, and security. This page describes the system architecture, component interactions, and deployment topology.
 
 ## System Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         External Sources                                  │
-│                                                                          │
-│   GitHub Enterprise ──── Audit Log Streaming (HEC) ──────┐              │
-│   GitHub Apps ────────── Webhooks ────────────────────────┤              │
-│                                                           ▼              │
-└───────────────────────────────────────────────────────────┼──────────────┘
-                                                            │
-┌───────────────────────────────────────────────────────────┼──────────────┐
-│                        Ingress Layer                       │              │
-│                                                           │              │
-│   ┌─────────────────┐   ┌──────────────────┐            │              │
-│   │  nginx-ingress  │   │  Rate Limiting   │◀───────────┘              │
-│   │  (TLS term.)    │   │  (per-path)      │                           │
-│   └────────┬────────┘   └────────┬─────────┘                           │
-│            └──────────────────────┘                                      │
-└───────────────────────────┬──────────────────────────────────────────────┘
-                            │
-┌───────────────────────────┼──────────────────────────────────────────────┐
-│                    Application Layer                                      │
-│                                                                          │
-│   ┌────────────────────────────────────────────────────────────────┐    │
-│   │                    FastAPI Backend                               │    │
-│   │                                                                  │    │
-│   │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │    │
-│   │  │  HEC     │  │ Webhook  │  │  REST    │  │  Detection   │  │    │
-│   │  │ Ingest   │  │ Ingest   │  │   API    │  │   Engine     │  │    │
-│   │  └──────────┘  └──────────┘  └──────────┘  └──────────────┘  │    │
-│   │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │    │
-│   │  │  Auth    │  │  RBAC    │  │  Report  │  │  Org Sync    │  │    │
-│   │  │ Service  │  │ Service  │  │ Service  │  │  Service     │  │    │
-│   │  └──────────┘  └──────────┘  └──────────┘  └──────────────┘  │    │
-│   └────────────────────────────────────────────────────────────────┘    │
-│                                                                          │
-│   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │                   React Frontend (SPA)                           │   │
-│   │   Dashboards │ Activity │ Reports │ Settings │ Detection Rules  │   │
-│   └─────────────────────────────────────────────────────────────────┘   │
-│                                                                          │
-└───────────────────────────┬──────────────────────────────────────────────┘
-                            │
-┌───────────────────────────┼──────────────────────────────────────────────┐
-│                      Data Layer                                           │
-│                                                                          │
-│   ┌──────────────────┐        ┌──────────────────┐                      │
-│   │   PostgreSQL     │        │     Valkey        │                      │
-│   │                  │        │   (Redis-compat)  │                      │
-│   │  • Audit events  │        │  • Session store  │                      │
-│   │  • Organizations │        │  • Rate limiting  │                      │
-│   │  • Users/RBAC    │        │  • Cache layer    │                      │
-│   │  • Detection     │        │                   │                      │
-│   │    rules/alerts  │        │                   │                      │
-│   └──────────────────┘        └──────────────────┘                      │
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph External["External Sources"]
+        GHE[GitHub Enterprise]
+        GHA[GitHub Apps]
+    end
+
+    subgraph Ingress["Ingress Layer"]
+        NGINX[nginx-ingress\nTLS termination]
+        RL[Rate Limiting\nper-path]
+    end
+
+    subgraph App["Application Layer"]
+        subgraph Backend["FastAPI Backend"]
+            HEC[HEC Ingest]
+            WH[Webhook Ingest]
+            REST[REST API]
+            DET[Detection Engine]
+            AUTH[Auth Service]
+            RBAC[RBAC Service]
+            RPT[Report Service]
+            SYNC[Org Sync Service]
+        end
+        FE["React Frontend (SPA)\nDashboards | Activity | Reports | Settings | Detection Rules"]
+    end
+
+    subgraph Data["Data Layer"]
+        PG["PostgreSQL\n• Audit events\n• Organizations\n• Users/RBAC\n• Detection rules/alerts"]
+        VK["Valkey (Redis-compat)\n• Session store\n• Rate limiting\n• Cache layer"]
+    end
+
+    GHE -->|Audit Log Streaming| NGINX
+    GHA -->|Webhooks| NGINX
+    NGINX --> RL
+    RL --> HEC
+    RL --> WH
+    RL --> REST
+    HEC --> DET
+    Backend --> PG
+    Backend --> VK
+    FE --> REST
 ```
 
 ## Component Details
@@ -108,21 +91,33 @@ Single-page application providing:
 
 ## Deployment Topology (Kubernetes)
 
-```
-Namespace: octowatch
-├── Deployment: octowatch-backend (2+ replicas)
-├── Deployment: octowatch-frontend (2+ replicas)
-├── StatefulSet: postgresql (1 replica, persistent volume)
-├── StatefulSet: valkey (1 replica)
-├── Ingress: octowatch-hec (rate limited)
-├── Ingress: octowatch-webhook (rate limited)
-├── Ingress: octowatch-app (standard)
-├── Service: backend (ClusterIP)
-├── Service: frontend (ClusterIP)
-├── Service: postgresql (ClusterIP)
-├── Service: valkey (ClusterIP)
-├── Secret: octowatch-secrets
-└── ConfigMap: octowatch-config
+```mermaid
+graph TD
+    subgraph NS["Namespace: octowatch"]
+        D1["Deployment: octowatch-backend\n(2+ replicas)"]
+        D2["Deployment: octowatch-frontend\n(2+ replicas)"]
+        SS1["StatefulSet: postgresql\n(1 replica, persistent volume)"]
+        SS2["StatefulSet: valkey\n(1 replica)"]
+        I1["Ingress: octowatch-hec\n(rate limited)"]
+        I2["Ingress: octowatch-webhook\n(rate limited)"]
+        I3["Ingress: octowatch-app\n(standard)"]
+        S1[Service: backend - ClusterIP]
+        S2[Service: frontend - ClusterIP]
+        S3[Service: postgresql - ClusterIP]
+        S4[Service: valkey - ClusterIP]
+        SEC[Secret: octowatch-secrets]
+        CM[ConfigMap: octowatch-config]
+    end
+
+    I1 --> S1
+    I2 --> S1
+    I3 --> S2
+    S1 --> D1
+    S2 --> D2
+    S3 --> SS1
+    S4 --> SS2
+    D1 --> S3
+    D1 --> S4
 ```
 
 ## Data Flow

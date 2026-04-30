@@ -3,8 +3,6 @@ title: RBAC & Permissions
 description: Configure role-based access control in OctoWatch
 ---
 
-# RBAC & Permissions
-
 OctoWatch implements fine-grained role-based access control (RBAC) with organization-scoped permissions. This ensures teams only see data relevant to their organizations.
 
 ## Role Hierarchy

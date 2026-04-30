@@ -3,8 +3,6 @@ title: Organization Sync
 description: Configure and manage organization synchronization
 ---
 
-# Organization Sync
-
 OctoWatch synchronizes metadata from your GitHub organizations to provide rich context for audit events. This guide covers how org sync works and how to configure it.
 
 ## How Sync Works
