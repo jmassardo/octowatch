@@ -3,8 +3,6 @@ title: Installation
 description: Deploy OctoWatch on Kubernetes or Docker Compose
 ---
 
-# Installation
-
 OctoWatch can be deployed using Helm on Kubernetes (recommended for production) or Docker Compose (for development and small-scale deployments).
 
 ## Option 1: Helm on Kubernetes (Recommended)

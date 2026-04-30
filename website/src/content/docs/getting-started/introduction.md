@@ -3,8 +3,6 @@ title: Introduction
 description: What is OctoWatch and why you need it
 ---
 
-# What is OctoWatch?
-
 OctoWatch is a **security monitoring and intelligence platform** purpose-built for GitHub Enterprise environments. It ingests GitHub audit logs in real-time, applies automated detection rules, and provides comprehensive dashboards for security teams to monitor, investigate, and report on activity across their GitHub organizations.
 
 ## The Problem
@@ -53,28 +51,30 @@ OctoWatch solves this by providing:
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    GitHub Enterprise Cloud                        │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐                      │
-│  │  Org A   │  │  Org B   │  │  Org C   │  ...                 │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘                      │
-│       │              │              │                             │
-│       └──────────────┼──────────────┘                            │
-│                      │ Audit Log Streaming                        │
-└──────────────────────┼───────────────────────────────────────────┘
-                       ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                        OctoWatch                                  │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐  │
-│  │ HEC Ingest  │→ │  Detection   │→ │  Dashboards & Reports  │  │
-│  │  Endpoint   │  │   Engine     │  │   (React Frontend)     │  │
-│  └─────────────┘  └──────────────┘  └────────────────────────┘  │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐  │
-│  │  PostgreSQL │  │    Valkey    │  │   FastAPI Backend      │  │
-│  │  (Storage)  │  │   (Cache)    │  │   (REST API)           │  │
-│  └─────────────┘  └──────────────┘  └────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph GH["GitHub Enterprise Cloud"]
+        OrgA[Org A]
+        OrgB[Org B]
+        OrgC[Org C]
+    end
+
+    subgraph OW["OctoWatch"]
+        HEC[HEC Ingest\nEndpoint]
+        Detection[Detection\nEngine]
+        Dashboards[Dashboards & Reports\nReact Frontend]
+        PG[PostgreSQL\nStorage]
+        VK[Valkey\nCache]
+        API[FastAPI Backend\nREST API]
+    end
+
+    OrgA -->|Audit Log Streaming| HEC
+    OrgB -->|Audit Log Streaming| HEC
+    OrgC -->|Audit Log Streaming| HEC
+    HEC --> Detection
+    Detection --> Dashboards
+    API --> PG
+    API --> VK
 ```
 
 ## Next Steps

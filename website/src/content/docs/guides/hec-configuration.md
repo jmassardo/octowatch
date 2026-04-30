@@ -3,8 +3,6 @@ title: HEC Configuration
 description: Configure the HTTP Event Collector endpoint for audit log ingestion
 ---
 
-# HEC Configuration
-
 OctoWatch's HEC (HTTP Event Collector) endpoint receives GitHub audit log streams in Splunk HEC format. This guide covers advanced configuration options.
 
 ## Endpoint Details
