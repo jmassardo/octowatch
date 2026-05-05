@@ -263,14 +263,8 @@ async def update_policy(
 async def enforce_retention(
     db: AsyncSession,
     data_type: str,
-    *,
-    archive_callback: Any | None = None,
 ) -> int:
     """Delete rows older than the retention window for *data_type*.
-
-    If *archive_callback* is provided it is called **before** deletion with
-    ``(db, table_name, cutoff_date)`` so that an archival service can export
-    the soon-to-be-deleted rows first.
 
     Returns the number of deleted rows.
     """
@@ -283,10 +277,6 @@ async def enforce_retention(
     cutoff = datetime.now(UTC) - timedelta(days=retention_days)
     table_name = policy["table_name"]
     time_col = policy["time_column"]
-
-    # Optional archival step
-    if archive_callback is not None:
-        await archive_callback(db, table_name, cutoff)
 
     result = await db.execute(
         text(f"DELETE FROM {table_name} WHERE {time_col} < :cutoff"),  # noqa: S608
@@ -307,8 +297,6 @@ async def enforce_retention(
 
 async def enforce_all(
     db: AsyncSession,
-    *,
-    archive_callback: Any | None = None,
 ) -> dict[str, int]:
     """Enforce retention on every managed data type.
 
@@ -321,7 +309,6 @@ async def enforce_all(
             deleted = await enforce_retention(
                 db,
                 data_type,
-                archive_callback=archive_callback,
             )
             results[data_type] = deleted
         except Exception:

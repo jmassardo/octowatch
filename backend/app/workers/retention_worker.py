@@ -40,9 +40,6 @@ async def _enforce_all() -> dict[str, int]:
     from app.services import retention_service
 
     async with AsyncSessionLocal() as db:
-        results = await retention_service.enforce_all(
-            db,
-            archive_callback=None,
-        )
+        results = await retention_service.enforce_all(db)
         await db.commit()
         return results
