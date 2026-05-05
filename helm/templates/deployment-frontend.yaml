@@ -8,6 +8,11 @@ metadata:
     app.kubernetes.io/component: frontend
 spec:
   replicas: {{ .Values.frontend.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       {{- include "octowatch.selectorLabels" . | nindent 6 }}
@@ -24,6 +29,16 @@ spec:
         fsGroup: 1001
         seccompProfile:
           type: RuntimeDefault
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "octowatch.selectorLabels" . | nindent 20 }}
+                    app.kubernetes.io/component: frontend
+                topologyKey: kubernetes.io/hostname
       containers:
         - name: frontend
           image: {{ include "octowatch.frontendImage" . }}

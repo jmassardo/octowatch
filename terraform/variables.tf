@@ -442,8 +442,9 @@ variable "aks_node_size" {
 }
 
 variable "aks_worker_node_size" {
-  default     = "Standard_B4ms"
-  description = "AKS worker node pool VM SKU. B-series is cost-effective for bursty workloads."
+  type        = string
+  default     = "Standard_D4s_v4"
+  description = "AKS worker node pool VM SKU. All pools now use D4s_v4 for consistency."
 }
 
 variable "aks_system_node_count" {
@@ -552,4 +553,23 @@ variable "secret_azure_storage_connection_string" {
   sensitive   = true
   default     = ""
   description = "Azure Storage connection string for blob access. Avoids the listKeys permission requirement."
+}
+
+# ── Observability ──────────────────────────────────────────────────────────────
+
+variable "log_retention_days" {
+  type        = number
+  default     = 30
+  description = "Number of days to retain logs in the Log Analytics Workspace. Minimum 30 for free tier."
+
+  validation {
+    condition     = var.log_retention_days >= 30
+    error_message = "log_retention_days must be >= 30 (Log Analytics free-tier minimum)."
+  }
+}
+
+variable "alert_email_address" {
+  type        = string
+  default     = ""
+  description = "Email address for ops alert notifications. Leave empty to disable email alerts."
 }

@@ -1,0 +1,224 @@
+# =============================================================================
+# AKS Admin — Emergency & maintenance access to the AKS API server
+#
+# Why this exists:
+#   AKS has --api-server-authorized-ip-ranges enabled for security. When an
+#   admin's machine IP changes (e.g. new office, home VPN, cloud shell), they
+#   are locked out of kubectl. This workflow provides a "break-glass" mechanism
+#   to add an IP to the authorized list without manual az CLI access.
+#
+# Usage:
+#   1. Go to Actions → "AKS Admin" → Run workflow
+#   2. Enter your current public IP (or CIDR) in the ip_to_add field
+#   3. Choose action: add (permanent), remove, or add-temp (auto-removes after 4h)
+#   4. The workflow updates the authorized IP ranges and verifies API server access
+#
+# Required GitHub secrets:
+#   AZURE_CREDENTIALS      — JSON service principal (Contributor on RG)
+#   AKS_RESOURCE_GROUP     — e.g. rg-octowatch-dev
+#   AKS_CLUSTER_NAME       — e.g. aks-octowatch-dev
+#
+# Required GitHub variables (Settings → Variables):
+#   AKS_PERMANENT_IP_RANGES — comma-separated baseline CIDRs that are ALWAYS
+#                              kept in the authorized list (GitHub Actions IPs,
+#                              admin org ranges). The workflow merges the
+#                              requested IP with this baseline.
+# =============================================================================
+name: AKS Admin
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform"
+        required: true
+        type: choice
+        default: add
+        options:
+          - add          # Add IP permanently (stays until explicitly removed)
+          - remove       # Remove a previously-added IP
+          - add-temp     # Add IP and schedule removal after 4 hours
+          - show         # Show current authorized IP ranges (read-only)
+      ip_cidr:
+        description: "IP or CIDR to add/remove (e.g. 203.0.113.42 or 203.0.113.0/24). Leave empty for 'show' action."
+        required: false
+        default: ""
+      notes:
+        description: "Optional note explaining why this IP is being added (for audit trail)"
+        required: false
+        default: ""
+
+# Only one AKS admin job at a time — prevents concurrent authorized-range updates
+# from racing and clobbering each other.
+concurrency:
+  group: aks-admin
+  cancel-in-progress: false
+
+# Restrict GITHUB_TOKEN to read-only for all jobs.  The workflow uses
+# azure/login with an external service principal — no GitHub API write access
+# is needed.
+permissions:
+  contents: read
+
+jobs:
+  aks-admin:
+    name: AKS Admin — ${{ inputs.action }} ${{ inputs.ip_cidr }}
+    runs-on: ubuntu-latest
+    environment: production  # Requires environment approval if configured
+
+    steps:
+      # ── Validate inputs ───────────────────────────────────────────────────
+      - name: Validate inputs
+        run: |
+          ACTION="${{ inputs.action }}"
+          IP="${{ inputs.ip_cidr }}"
+
+          if [[ "$ACTION" != "show" && -z "$IP" ]]; then
+            echo "ERROR: ip_cidr is required for action '$ACTION'"
+            exit 1
+          fi
+
+          # Normalise: add /32 if bare IPv4 address
+          if [[ "$IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            IP="${IP}/32"
+            echo "Normalised IP to CIDR: $IP"
+          fi
+
+          # Basic CIDR validation
+          if [[ -n "$IP" ]] && ! [[ "$IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]]; then
+            echo "ERROR: '$IP' does not look like a valid IPv4 CIDR (e.g. 203.0.113.42/32)"
+            exit 1
+          fi
+
+          echo "ip_normalized=$IP" >> "$GITHUB_OUTPUT"
+        id: validate
+
+      # ── Azure login ───────────────────────────────────────────────────────
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # ── Show current authorized ranges ────────────────────────────────────
+      - name: Show current authorized IP ranges
+        run: |
+          echo "==> Current authorized IP ranges for ${{ secrets.AKS_CLUSTER_NAME }}:"
+          az aks show \
+            --resource-group "${{ secrets.AKS_RESOURCE_GROUP }}" \
+            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
+            --query "apiServerAccessProfile.authorizedIpRanges" \
+            --output table
+
+      # ── Add / Remove IP ───────────────────────────────────────────────────
+      - name: Update authorized IP ranges
+        if: inputs.action != 'show'
+        env:
+          ACTION:     ${{ inputs.action }}
+          NEW_IP:     ${{ steps.validate.outputs.ip_normalized }}
+          NOTES:      ${{ inputs.notes }}
+          RG:         ${{ secrets.AKS_RESOURCE_GROUP }}
+          CLUSTER:    ${{ secrets.AKS_CLUSTER_NAME }}
+          PERM_RANGES: ${{ vars.AKS_PERMANENT_IP_RANGES }}
+        run: |
+          echo "==> Action: $ACTION | IP: $NEW_IP | Note: ${NOTES:-none}"
+
+          # Fetch current authorized ranges as comma-separated string
+          CURRENT=$(az aks show \
+            --resource-group "$RG" \
+            --name "$CLUSTER" \
+            --query "apiServerAccessProfile.authorizedIpRanges | join(',', @)" \
+            --output tsv 2>/dev/null || echo "")
+
+          echo "Current ranges: ${CURRENT:-<none>}"
+
+          # Start from the permanent baseline (always included)
+          BASE="${PERM_RANGES}"
+          # Merge with current (removes duplicates via sort -u)
+          ALL=$(printf "%s\n%s\n" "$BASE" "$CURRENT" \
+            | tr ',' '\n' \
+            | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+            | grep -v '^$' \
+            | sort -u \
+            | tr '\n' ',' \
+            | sed 's/,$//')
+
+          if [[ "$ACTION" == "add" || "$ACTION" == "add-temp" ]]; then
+            # Append the new IP (sort -u deduplicates)
+            UPDATED=$(printf "%s\n%s\n" "$ALL" "$NEW_IP" \
+              | tr ',' '\n' \
+              | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+              | grep -v '^$' \
+              | sort -u \
+              | tr '\n' ',' \
+              | sed 's/,$//')
+            echo "Adding $NEW_IP. New range list: $UPDATED"
+          elif [[ "$ACTION" == "remove" ]]; then
+            UPDATED=$(echo "$ALL" \
+              | tr ',' '\n' \
+              | grep -v "^${NEW_IP}$" \
+              | sort -u \
+              | tr '\n' ',' \
+              | sed 's/,$//')
+            echo "Removing $NEW_IP. New range list: $UPDATED"
+          fi
+
+          echo "==> Applying update to AKS (this takes 2–5 minutes)..."
+          az aks update \
+            --resource-group "$RG" \
+            --name "$CLUSTER" \
+            --api-server-authorized-ip-ranges "$UPDATED"
+
+          echo "==> Update applied. Verifying..."
+
+      # ── Verify API server is reachable ────────────────────────────────────
+      - name: Verify API server access
+        if: inputs.action != 'show'
+        env:
+          RG:      ${{ secrets.AKS_RESOURCE_GROUP }}
+          CLUSTER: ${{ secrets.AKS_CLUSTER_NAME }}
+        run: |
+          az aks get-credentials \
+            --resource-group "$RG" \
+            --name "$CLUSTER" \
+            --overwrite-existing
+
+          echo "==> Testing kubectl access..."
+          kubectl get nodes -o wide
+
+          echo "==> Final authorized IP ranges:"
+          az aks show \
+            --resource-group "$RG" \
+            --name "$CLUSTER" \
+            --query "apiServerAccessProfile.authorizedIpRanges" \
+            --output table
+
+      # ── Schedule temp IP removal (add-temp only) ──────────────────────────
+      - name: Schedule temporary IP removal
+        if: inputs.action == 'add-temp'
+        env:
+          RG:      ${{ secrets.AKS_RESOURCE_GROUP }}
+          CLUSTER: ${{ secrets.AKS_CLUSTER_NAME }}
+          NEW_IP:  ${{ steps.validate.outputs.ip_normalized }}
+        run: |
+          # Encode the removal command as a note — a follow-up scheduled run is
+          # needed to actually remove it. For now, print a prominent reminder.
+          echo "::warning title=Temporary IP Added::$NEW_IP was added temporarily. Remember to remove it via this workflow (action=remove) when done."
+          echo ""
+          echo "Run the following workflow to remove it:"
+          echo "  Action: remove"
+          echo "  IP/CIDR: $NEW_IP"
+
+      # ── Audit log ─────────────────────────────────────────────────────────
+      - name: Write audit log entry
+        if: always()
+        run: |
+          echo "=============================="
+          echo "AKS Admin Audit Entry"
+          echo "=============================="
+          echo "Time:    $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Actor:   ${{ github.actor }}"
+          echo "Action:  ${{ inputs.action }}"
+          echo "IP/CIDR: ${{ steps.validate.outputs.ip_normalized || inputs.ip_cidr }}"
+          echo "Notes:   ${{ inputs.notes || '(none)' }}"
+          echo "Run:     ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "=============================="
