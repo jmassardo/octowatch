@@ -253,6 +253,43 @@ resource "azurerm_kubernetes_cluster_node_pool" "pool3" {
   }
 }
 
+# ── NAT Gateway — static egress IP for AKS nodes ──────────────────────────────
+# Gives all AKS nodes a single, stable public egress IP. Benefits:
+#   1. AKS pods always leave via a known IP → add it permanently to API server
+#      authorized ranges so GitHub Actions / admin tools running in-cluster work.
+#   2. External services (GitHub webhooks, Slack, Jira) can allowlist one IP.
+#   3. Eliminates the "which Azure egress IP am I today?" problem.
+
+resource "azurerm_public_ip" "aks_egress" {
+  name                = "pip-aks-egress-${local.name_prefix}"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  sku                 = "Standard"
+  allocation_method   = "Static"
+  zones               = ["1", "2", "3"]
+  tags                = merge(local.common_tags, { purpose = "aks-nat-egress" })
+}
+
+resource "azurerm_nat_gateway" "aks" {
+  name                    = "nat-aks-${local.name_prefix}"
+  resource_group_name     = azurerm_resource_group.main.name
+  location                = azurerm_resource_group.main.location
+  sku_name                = "Standard"
+  idle_timeout_in_minutes = 10
+  zones                   = ["1", "2", "3"]
+  tags                    = local.common_tags
+}
+
+resource "azurerm_nat_gateway_public_ip_association" "aks" {
+  nat_gateway_id       = azurerm_nat_gateway.aks.id
+  public_ip_address_id = azurerm_public_ip.aks_egress.id
+}
+
+resource "azurerm_subnet_nat_gateway_association" "aks" {
+  subnet_id      = azurerm_subnet.aks.id
+  nat_gateway_id = azurerm_nat_gateway.aks.id
+}
+
 # Kubernetes namespace
 resource "kubernetes_namespace" "octowatch" {
   metadata {

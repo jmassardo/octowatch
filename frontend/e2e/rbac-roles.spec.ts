@@ -37,9 +37,7 @@ test.describe('RBAC Role Management API', () => {
 
   test('GET /api/v1/admin/roles returns list of roles', async ({ page }) => {
     // Intercept the roles API call
-    let apiCalled = false;
     await page.route('**/api/v1/admin/roles', (route) => {
-      apiCalled = true;
       route.fulfill({
         status: 200,
         contentType: 'application/json',

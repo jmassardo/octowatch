@@ -1,8 +1,8 @@
 """Seed GHAS disable detection rules.
 
-Revision ID: 0040
-Revises: 0039
-Create Date: 2024-01-21 00:00:00.000000+00:00
+Revision ID: 0043
+Revises: 0042
+Create Date: 2026-04-30 00:00:00.000000+00:00
 
 Adds built-in detection rules for GitHub Advanced Security (GHAS) feature
 disable events.  When someone disables code scanning, Dependabot, secret
@@ -14,8 +14,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0040"
-down_revision = "0039"
+revision = "0043"
+down_revision = "0042"
 branch_labels = None
 depends_on = None
 
