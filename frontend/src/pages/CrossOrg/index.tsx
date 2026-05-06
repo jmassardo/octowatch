@@ -9,6 +9,7 @@ import {
 import type { CrossOrgCorrelation, CrossOrgTimelineEvent } from '../../api/crossOrg';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
 import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
@@ -210,11 +211,10 @@ export function CrossOrgPage() {
   return (
     <div className={styles.splitLayout}>
       <div className={styles.splitMain}>
-        <div className={styles.pageTitle}>Cross-Organization Correlation</div>
-        <div className={styles.pageSub}>
-          Identify users active across multiple organizations. Cross-org activity can indicate
-          compromised accounts, insider threats, or misconfigured service accounts.
-        </div>
+        <PageHeader
+          title="Cross-Organization Correlation"
+          description="Correlate events across organizations for threat detection"
+        />
 
         <div className={styles.guidanceBox}>
           <div className={styles.guidanceTitle}>How to use this page</div>

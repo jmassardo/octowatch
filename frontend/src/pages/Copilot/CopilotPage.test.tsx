@@ -136,9 +136,7 @@ describe('CopilotPage', () => {
     renderPage();
     expect(screen.getByText('Copilot Insights')).toBeInTheDocument();
     expect(
-      screen.getByText(
-        'GitHub Copilot adoption, seat utilization, and correlation with delivery outcomes',
-      ),
+      screen.getByText('GitHub Copilot usage analytics and adoption metrics'),
     ).toBeInTheDocument();
   });
 

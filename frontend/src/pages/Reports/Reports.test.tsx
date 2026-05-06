@@ -141,7 +141,7 @@ describe('ReportsPage', () => {
   it('renders page title and subtitle', () => {
     renderWithProviders(<ReportsPage />);
     expect(screen.getByText('Reports')).toBeInTheDocument();
-    expect(screen.getByText('On-demand metric reports with CSV export')).toBeInTheDocument();
+    expect(screen.getByText('Organization activity and usage analytics')).toBeInTheDocument();
   });
 
   it('shows empty state when no reports in catalog', async () => {

@@ -2,6 +2,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getHealthSummary, getWafFindings } from '../../api/healthSignals';
 import { useFeatures } from '../../hooks/useFeatures';
+import { PageHeader } from '../../components/common/PageHeader';
 import { HealthTabBar } from './HealthTabBar';
 import type { HealthTab } from './HealthTabBar';
 import { RepoHealthPane } from './RepoHealthPane';
@@ -77,11 +78,10 @@ export function HealthPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.pageTitle}>Org Health</div>
-      <div className={styles.pageSub}>
-        Audit-log-derived health signals across repositories, access, licenses, and GitHub
-        Well-Architected Framework alignment
-      </div>
+      <PageHeader
+        title="Org Health"
+        description="Monitor organization health signals and configuration drift"
+      />
 
       <HealthTabBar
         activeTab={activeTab}

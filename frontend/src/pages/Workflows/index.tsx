@@ -8,6 +8,7 @@ import {
 import type { WorkflowFinding, RepoSecurityScore } from '../../api/workflowScanner';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
 import { formatRelativeShort } from '../../utils/dates';
@@ -98,10 +99,10 @@ export function WorkflowsPage() {
       <div className={styles.splitMain}>
         <div className={styles.pageHeader}>
           <div>
-            <div className={styles.pageTitle}>Workflow Security Scanner</div>
-            <div className={styles.pageSub}>
-              Scan GitHub Actions workflows for security issues and misconfigurations
-            </div>
+            <PageHeader
+              title="Workflow Security Scanner"
+              description="Scan GitHub Actions workflows for security issues"
+            />
           </div>
           <div className={styles.headerActions}>
             <Button

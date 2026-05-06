@@ -6,6 +6,9 @@ import { DataTable, type ColumnDef } from '../../components/primitives/DataTable
 import { Drawer } from '../../components/primitives/Drawer';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { PageHeader } from '../../components/common/PageHeader';
+import { SkeletonCard } from '../../components/common/SkeletonCard';
+import { SkeletonTable } from '../../components/common/SkeletonTable';
 import { Label } from '../../components/primitives/Label';
 import { Pagination } from '../../components/primitives/Pagination';
 import {
@@ -136,7 +139,9 @@ function OverviewTab() {
   if (isLoading)
     return (
       <div className={styles.center}>
-        <Spinner />
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonTable />
       </div>
     );
   if (isError || !data)
@@ -1143,10 +1148,10 @@ export function AdvancedSecurityPage() {
     <div className={styles.splitLayout}>
       <div className={styles.splitMain}>
         <div className={styles.pageHeader}>
-          <div className={styles.pageTitle}>Advanced Security</div>
-          <div className={styles.pageSub}>
-            GitHub Advanced Security alerts, trends, and GHAS-related threat detections
-          </div>
+          <PageHeader
+            title="Advanced Security"
+            description="GitHub Advanced Security coverage and alert analytics"
+          />
         </div>
 
         <div className={styles.tabs}>

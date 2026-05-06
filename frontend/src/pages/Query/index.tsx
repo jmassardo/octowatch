@@ -6,6 +6,8 @@ import { runQuery, listTemplates, createTemplate } from '../../api/query';
 import { translateNLQuery } from '../../api/nlQuery';
 import type { NLInterpretation } from '../../api/nlQuery';
 import type { QueryRunResponse } from '../../types/query';
+import { useToast } from '../../hooks/useToast';
+import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/primitives/Button';
 import { Drawer } from '../../components/primitives/Drawer';
 import { Spinner } from '../../components/primitives/Spinner';
@@ -842,6 +844,7 @@ function saveHistory(entries: HistoryEntry[]): void {
 
 export function QueryPage() {
   const [searchParams] = useSearchParams();
+  const { showToast } = useToast();
   const [sql, setSql] = useState(() => searchParams.get('sql') ?? DEFAULT_SQL);
   const [results, setResults] = useState<QueryRunResponse | null>(null);
   const [expandedTables, setExpandedTables] = useState<Set<string>>(
@@ -927,6 +930,10 @@ export function QueryPage() {
     mutationFn: (name: string) => createTemplate({ name, sql }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['query-templates'] });
+      showToast('Template saved successfully', 'success');
+    },
+    onError: () => {
+      showToast('Failed to save template', 'error');
     },
   });
 
@@ -1090,8 +1097,10 @@ export function QueryPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.pageTitle}>Query Explorer</div>
-      <div className={styles.pageSub}>Write SQL against the audit events database</div>
+      <PageHeader
+        title="Query Explorer"
+        description="Run custom SQL queries against audit log data"
+      />
 
       <div className={styles.nlBar}>
         <input

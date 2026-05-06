@@ -5,11 +5,13 @@ import { listDetections } from '../../api/detections';
 import { getTeams } from '../../api/healthSignals';
 import { getUsageStats, getDevelopers, type UsageStatsResponse } from '../../api/devActivity';
 import { useFeatures } from '../../hooks/useFeatures';
+import { PageHeader } from '../../components/common/PageHeader';
+import { SkeletonChart } from '../../components/common/SkeletonChart';
+import { SkeletonCard } from '../../components/common/SkeletonCard';
 import { Avatar } from '../../components/primitives/Avatar';
 import { Label } from '../../components/primitives/Label';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Button } from '../../components/primitives/Button';
-import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { DataTable } from '../../components/primitives/DataTable';
 import type { ColumnDef } from '../../components/primitives/DataTable';
@@ -212,8 +214,10 @@ export function DevActivityPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.pageTitle}>Developer Activity</div>
-      <div className={styles.pageSub}>Per-developer contribution metrics and security posture</div>
+      <PageHeader
+        title="Developer Activity"
+        description="Track developer engagement and contribution patterns"
+      />
 
       <div className={styles.teamFilters}>
         <Button
@@ -253,7 +257,14 @@ export function DevActivityPage() {
       {developersError && (
         <ErrorBanner message="Failed to load developer activity" onRetry={refetch} />
       )}
-      {loadingDevelopers && <Spinner />}
+      {loadingDevelopers && (
+        <>
+          <SkeletonChart />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </>
+      )}
 
       <div className={styles.sectionTitle} style={{ marginBottom: 4 }}>
         Work distribution — last 30 days
