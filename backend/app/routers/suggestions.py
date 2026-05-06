@@ -35,7 +35,11 @@ async def suggest_actions(
         return {"actions": []}
 
     result = await db.execute(
-        text("SELECT DISTINCT action FROM events WHERE org = ANY(:scoped_orgs) ORDER BY action"),
+        text(
+            "SELECT DISTINCT action FROM events"
+            " WHERE org = ANY(:scoped_orgs)"
+            " ORDER BY action LIMIT 500"
+        ),
         {"scoped_orgs": scoped_orgs},
     )
     actions = [row[0] for row in result.fetchall()]
@@ -83,7 +87,7 @@ async def suggest_actors(
             "SELECT DISTINCT actor FROM events"
             " WHERE org = ANY(:scoped_orgs)"
             " AND actor IS NOT NULL AND actor != ''"
-            " ORDER BY actor"
+            " ORDER BY actor LIMIT 500"
         ),
         {"scoped_orgs": scoped_orgs},
     )
@@ -106,7 +110,7 @@ async def suggest_repos(
             "SELECT DISTINCT repo FROM events"
             " WHERE org = ANY(:scoped_orgs)"
             " AND repo IS NOT NULL AND repo != ''"
-            " ORDER BY repo"
+            " ORDER BY repo LIMIT 500"
         ),
         {"scoped_orgs": scoped_orgs},
     )
@@ -129,7 +133,7 @@ async def suggest_orgs(
             "SELECT DISTINCT org FROM events"
             " WHERE org = ANY(:scoped_orgs)"
             " AND org IS NOT NULL AND org != ''"
-            " ORDER BY org"
+            " ORDER BY org LIMIT 500"
         ),
         {"scoped_orgs": scoped_orgs},
     )
@@ -152,7 +156,7 @@ async def suggest_namespaces(
             "SELECT DISTINCT namespace FROM events"
             " WHERE org = ANY(:scoped_orgs)"
             " AND namespace IS NOT NULL AND namespace != ''"
-            " ORDER BY namespace"
+            " ORDER BY namespace LIMIT 500"
         ),
         {"scoped_orgs": scoped_orgs},
     )
