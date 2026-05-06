@@ -74,6 +74,26 @@ logger = structlog.get_logger(__name__)
 # ─── Custom middleware ──────────────────────────────────────────────────────────
 
 
+class MetricsIPRestrictionMiddleware(BaseHTTPMiddleware):
+    """Restrict /metrics endpoint to localhost and internal pod network in production."""
+
+    async def dispatch(self, request: Request, call_next: Any) -> Response:
+        if request.url.path == "/metrics":
+            from app.config import settings
+
+            if settings.ENVIRONMENT in ("production", "staging"):
+                client_host = request.client.host if request.client else ""
+                allowed = (
+                    client_host in ("127.0.0.1", "::1")
+                    or client_host.startswith("10.")
+                    or client_host.startswith("172.16.")
+                    or client_host.startswith("192.168.")
+                )
+                if not allowed:
+                    return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+        return await call_next(request)
+
+
 class CsrfEchoMiddleware(BaseHTTPMiddleware):
     """Echo the csrf_token cookie value as the X-CSRF-Token response header.
 
@@ -581,6 +601,9 @@ def create_app() -> FastAPI:
 
     # Request ID correlation
     app.add_middleware(RequestIdMiddleware)
+
+    # Metrics endpoint IP restriction
+    app.add_middleware(MetricsIPRestrictionMiddleware)
 
     # Rate limiting
     app.state.limiter = limiter

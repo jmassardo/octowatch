@@ -1533,7 +1533,7 @@ async def get_ghost_members(
 ) -> list[dict[str, Any]]:
     """Find members with no audit log activity in the last N days."""
     result = await session.execute(
-        text(f"""
+        text("""
             WITH all_actors AS (
                 SELECT DISTINCT actor FROM events
                 WHERE org = ANY(:scoped_orgs) AND actor IS NOT NULL
@@ -1542,7 +1542,7 @@ async def get_ghost_members(
             recent_actors AS (
                 SELECT DISTINCT actor FROM events
                 WHERE org = ANY(:scoped_orgs) AND actor IS NOT NULL
-                  AND created_at >= NOW() - INTERVAL '{int(dormancy_days)} days'
+                  AND created_at >= NOW() - make_interval(days => :dormancy_days)
             )
             SELECT a.actor,
                    e.last_active
@@ -1555,7 +1555,7 @@ async def get_ghost_members(
             ORDER BY e.last_active ASC NULLS FIRST
             LIMIT :limit
         """),
-        {"scoped_orgs": scoped_orgs, "limit": limit},
+        {"scoped_orgs": scoped_orgs, "limit": limit, "dormancy_days": int(dormancy_days)},
     )
     return [dict(row) for row in result.mappings().all()]
 
@@ -1569,7 +1569,7 @@ async def get_stale_prs(
 ) -> list[dict[str, Any]]:
     """Find PRs that have been open longer than stale_days."""
     result = await session.execute(
-        text(f"""
+        text("""
             WITH opened AS (
                 SELECT org, repo, data->>'number' AS pr_number,
                        data->>'title' AS title, actor,
@@ -1591,11 +1591,11 @@ async def get_stale_prs(
             FROM opened o
             LEFT JOIN closed c USING (org, repo, pr_number)
             WHERE c.pr_number IS NULL
-              AND o.opened_at < NOW() - INTERVAL '{int(stale_days)} days'
+              AND o.opened_at < NOW() - make_interval(days => :stale_days)
             ORDER BY o.opened_at ASC
             LIMIT :limit
         """),
-        {"scoped_orgs": scoped_orgs, "limit": limit},
+        {"scoped_orgs": scoped_orgs, "limit": limit, "stale_days": int(stale_days)},
     )
     return [dict(row) for row in result.mappings().all()]
 
