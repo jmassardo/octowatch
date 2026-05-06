@@ -90,10 +90,10 @@ postgresql:
   tls:
     enabled: false
 
-# Valkey — Azure Disk PVC (no read replicas needed in dev — saves ~300m CPU)
+# Valkey — Azure Disk PVC (1 replica for HA — prevents data loss on primary pod eviction)
 valkey:
   replica:
-    replicaCount: 0
+    replicaCount: 1
   primary:
     resourcesPreset: "none"
     resources:

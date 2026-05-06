@@ -118,7 +118,7 @@ spec:
   scaleTargetRef:
     name: {{ include "octowatch.fullname" . }}-worker-sync
   minReplicaCount: 0
-  maxReplicaCount: 1
+  maxReplicaCount: {{ .Values.worker.sync.replicaCount | default 1 }}
   pollingInterval: 30
   cooldownPeriod: 300
   triggers:

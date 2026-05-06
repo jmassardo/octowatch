@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "octowatch.fullname" . }}-worker-ingestion
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker-ingestion
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "octowatch.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker-ingestion

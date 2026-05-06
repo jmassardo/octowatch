@@ -121,3 +121,8 @@ output "argocd_url" {
 output "aks_ingress_lb_ip_instruction" {
   value = "After apply, get LB IP: kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}', then set aks_ingress_lb_ip in tfvars"
 }
+
+output "aks_nat_egress_ip" {
+  value       = azurerm_public_ip.aks_egress.ip_address
+  description = "Static public IP used by all AKS node egress traffic. Add this to api_server_authorized_ip_ranges and any external service allowlists."
+}
