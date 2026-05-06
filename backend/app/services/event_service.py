@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_event import AuditEvent, EventRawPayload
@@ -41,33 +41,52 @@ async def list_events(
         AuditEvent.repo,  # type: ignore[arg-type]
     )
 
+    # Track whether user-supplied narrowing filters are active
+    has_narrowing_filters = False
+
     # Additional filters
     if params.actor:
         base_stmt = base_stmt.where(AuditEvent.actor == params.actor)
+        has_narrowing_filters = True
     if params.action:
         if params.action.endswith(".*"):
             ns = params.action[:-2]
             base_stmt = base_stmt.where(AuditEvent.namespace == ns)
         else:
             base_stmt = base_stmt.where(AuditEvent.action == params.action)
+        has_narrowing_filters = True
     if params.namespace:
         base_stmt = base_stmt.where(AuditEvent.namespace == params.namespace)
+        has_narrowing_filters = True
     if params.source_ip:
         base_stmt = base_stmt.where(
             func.host(AuditEvent.source_ip) == params.source_ip  # type: ignore[arg-type]
         )
+        has_narrowing_filters = True
     if params.since:
         base_stmt = base_stmt.where(AuditEvent.created_at >= params.since)
+        has_narrowing_filters = True
     if params.until:
         base_stmt = base_stmt.where(AuditEvent.created_at < params.until)
+        has_narrowing_filters = True
     if params.actor_is_bot is not None:
         base_stmt = base_stmt.where(AuditEvent.actor_is_bot == params.actor_is_bot)
+        has_narrowing_filters = True
     if params.geo_country_code:
         base_stmt = base_stmt.where(AuditEvent.geo_country_code == params.geo_country_code)
+        has_narrowing_filters = True
 
-    # Count total results
-    count_stmt = select(func.count()).select_from(base_stmt.subquery())
-    total: int = (await session.execute(count_stmt)).scalar_one()
+    # Count total results — use fast estimated count when no narrowing filters
+    if has_narrowing_filters:
+        count_stmt = select(func.count()).select_from(base_stmt.subquery())
+        total: int = (await session.execute(count_stmt)).scalar_one()
+    else:
+        # Use pg_class reltuples for a fast approximate count on unfiltered queries
+        est_result = await session.execute(
+            text("SELECT reltuples::bigint FROM pg_class WHERE relname = 'events'")
+        )
+        row = est_result.scalar_one_or_none()
+        total = max(int(row), 0) if row else 0
 
     # Ordering
     sort_columns = {

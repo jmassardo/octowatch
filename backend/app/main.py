@@ -198,6 +198,54 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
 # ─── Lifespan ───────────────────────────────────────────────────────────────────
 
 
+async def _retry_hec_token_load() -> None:
+    """Background task: retry loading HEC token from DB with exponential backoff.
+
+    This handles the case where PostgreSQL starts after the API pod. Retries up
+    to 10 times (total ~8.5 minutes of waiting) before giving up.
+    """
+    import asyncio
+
+    max_retries = 10
+    base_delay = 5.0  # seconds
+
+    for attempt in range(1, max_retries + 1):
+        delay = base_delay * (2 ** (attempt - 1))  # 5, 10, 20, 40, ...
+        delay = min(delay, 60.0)  # cap at 60s
+        await asyncio.sleep(delay)
+
+        try:
+            from app.database import AsyncSessionLocal
+            from app.routers.ingest_hec import set_hec_token_cache
+            from app.services.settings_service import get_setting
+
+            async with AsyncSessionLocal() as db_session:
+                db_hec_token = await get_setting(db_session, "hec_token")
+                if db_hec_token:
+                    set_hec_token_cache(db_hec_token)
+                    logger.info(
+                        "hec.token_loaded_from_db_retry",
+                        attempt=attempt,
+                    )
+                    return
+                else:
+                    logger.debug(
+                        "hec.token_retry_no_token",
+                        attempt=attempt,
+                    )
+        except Exception as exc:
+            logger.debug(
+                "hec.token_retry_failed",
+                attempt=attempt,
+                error=str(exc),
+            )
+
+    logger.error(
+        "hec.token_retry_exhausted",
+        message="Failed to load HEC token after all retries. Manual pod restart required.",
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Startup and shutdown events."""
@@ -293,6 +341,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
                     set_hec_token_cache(db_hec_token)
                     logger.info("hec.token_loaded_from_db")
+                else:
+                    logger.warning("hec.token_not_found_at_startup")
 
                 # Generate setup token on first boot if setup is not complete
                 if not await is_setup_complete(db_session):
@@ -319,6 +369,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     logger.info("setup.already_complete")
         except Exception as exc:
             logger.warning("settings_overlay.load_failed", error=str(exc))
+            # Schedule background retry for HEC token loading
+            import asyncio
+
+            asyncio.create_task(_retry_hec_token_load())
+    else:
+        # DB not ready at startup — schedule background retry
+        import asyncio
+
+        asyncio.create_task(_retry_hec_token_load())
 
     yield
 
