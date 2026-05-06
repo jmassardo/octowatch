@@ -49,8 +49,10 @@ _TABLE_MAP: dict[str, dict[str, str]] = {
     "notification_history": {"table": "notification_configs", "time_col": "updated_at"},
 }
 
-# Hardcoded fallback defaults — used only when the DB table doesn't exist yet
-# or a data_type is missing from the DB.
+# Hardcoded fallback defaults — used ONLY when the retention_policies table
+# doesn't exist yet (pre-migration-0041). The DB table is the source of truth.
+# These values must match what migration 0041 seeds.
+# TimescaleDB hypertable policies are synced from the DB table by migration 0046.
 _FALLBACK_DEFAULTS: dict[str, dict[str, Any]] = {
     "events": {"retention_days": 365, "minimum_days": 90, "time_col": "created_at"},
     "raw_payloads": {"retention_days": 90, "minimum_days": 7, "time_col": "ingested_at"},
