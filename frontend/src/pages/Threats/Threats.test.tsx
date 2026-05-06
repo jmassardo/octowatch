@@ -92,9 +92,7 @@ describe('ThreatsPage', () => {
     const closedTab = screen.getByText('Closed');
     await user.click(closedTab);
 
-    expect(
-      await screen.findByText('No closed detections'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('No closed detections')).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
