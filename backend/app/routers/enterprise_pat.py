@@ -189,6 +189,13 @@ async def save_enterprise_pat(
         changed_by=current_user.github_login,
     )
 
+    # Also write to Key Vault if provider available
+    if hasattr(request.app.state, "secret_provider"):
+        try:
+            await request.app.state.secret_provider.set_secret("octowatch--pat--enterprise", token)
+        except Exception as exc:
+            logger.warning("enterprise_pat.kv_write_failed", error=str(exc))
+
     # Refresh overlay so sync picks up the token immediately
     await load_settings_overlay(db)
 
@@ -232,6 +239,13 @@ async def remove_enterprise_pat(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No enterprise PAT is currently configured.",
         )
+
+    # Also delete from Key Vault if provider available
+    if hasattr(request.app.state, "secret_provider"):
+        try:
+            await request.app.state.secret_provider.delete_secret("octowatch--pat--enterprise")
+        except Exception as exc:
+            logger.warning("enterprise_pat.kv_delete_failed", error=str(exc))
 
     await load_settings_overlay(db)
 

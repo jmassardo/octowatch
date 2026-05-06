@@ -199,10 +199,11 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
 
 
 async def _retry_hec_token_load() -> None:
-    """Background task: retry loading HEC token from DB with exponential backoff.
+    """Background task: retry loading HEC token with exponential backoff.
 
-    This handles the case where PostgreSQL starts after the API pod. Retries up
-    to 10 times (total ~8.5 minutes of waiting) before giving up.
+    Tries Key Vault first, then falls back to DB. This handles the case where
+    PostgreSQL starts after the API pod. Retries up to 10 times (total ~8.5
+    minutes of waiting) before giving up.
     """
     import asyncio
 
@@ -215,8 +216,24 @@ async def _retry_hec_token_load() -> None:
         await asyncio.sleep(delay)
 
         try:
-            from app.database import AsyncSessionLocal
             from app.routers.ingest_hec import set_hec_token_cache
+
+            # Try Key Vault first
+            if hasattr(app, "state") and hasattr(app.state, "secret_provider"):
+                try:
+                    token = await app.state.secret_provider.get_secret("octowatch--hec--token")
+                    if token:
+                        set_hec_token_cache(token)
+                        logger.info(
+                            "hec.token_loaded_from_kv_retry",
+                            attempt=attempt,
+                        )
+                        return
+                except Exception as exc:
+                    logger.debug("hec.token_kv_retry_failed", attempt=attempt, error=str(exc))
+
+            # Fall back to DB
+            from app.database import AsyncSessionLocal
             from app.services.settings_service import get_setting
 
             async with AsyncSessionLocal() as db_session:
@@ -328,19 +345,32 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             )
 
             async with AsyncSessionLocal() as db_session:
-                # Load DB-backed settings overlay
-                count = await load_settings_overlay(db_session)
+                # Load DB-backed settings overlay (with KV-first for secrets)
+                count = await load_settings_overlay(
+                    db_session, secret_provider=app.state.secret_provider
+                )
                 logger.info("settings_overlay.loaded", count=count)
 
-                # Load HEC token from DB into the in-memory cache
+                # Load HEC token — try Key Vault first, then fall back to DB
                 from app.services.settings_service import get_setting
 
-                db_hec_token = await get_setting(db_session, "hec_token")
-                if db_hec_token:
+                hec_token: str | None = None
+                if hasattr(app.state, "secret_provider"):
+                    try:
+                        hec_token = await app.state.secret_provider.get_secret(
+                            "octowatch--hec--token"
+                        )
+                    except Exception as exc:
+                        logger.debug("hec.kv_load_failed_at_startup", error=str(exc))
+
+                if not hec_token:
+                    hec_token = await get_setting(db_session, "hec_token")
+
+                if hec_token:
                     from app.routers.ingest_hec import set_hec_token_cache
 
-                    set_hec_token_cache(db_hec_token)
-                    logger.info("hec.token_loaded_from_db")
+                    set_hec_token_cache(hec_token)
+                    logger.info("hec.token_loaded")
                 else:
                     logger.warning("hec.token_not_found_at_startup")
 

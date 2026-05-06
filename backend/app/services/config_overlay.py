@@ -12,6 +12,7 @@ the field lives directly on the root settings object.
 from __future__ import annotations
 
 import threading
+from typing import TYPE_CHECKING
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,10 +20,51 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.services.settings_service import get_all_settings_decrypted
 
+if TYPE_CHECKING:
+    from app.services.secret_provider import SecretProvider
+
 logger = structlog.get_logger(__name__)
 
 # Prevents concurrent overlay refreshes from exposing partially-updated config
 _overlay_lock = threading.Lock()
+
+# Keys that represent secrets and should be fetched from Key Vault when available
+SECRET_KEYS: set[str] = {
+    "github_client_secret",
+    "github_app_private_key",
+    "github_rules_token",
+    "maxmind_license_key",
+    "okta_api_token",
+    "azure_ad_client_secret",
+    "google_service_account_json",
+    "jira_api_token",
+    "slack_bot_token",
+    "smtp_password",
+    "saml_sp_key",
+    "saml_sp_cert",
+    "enterprise_pat",
+    "hec_token",
+    "webhook_secret",
+}
+
+# DB key → Key Vault secret name
+KV_NAME_MAP: dict[str, str] = {
+    "github_client_secret": "octowatch--oauth--github-client-secret",
+    "github_app_private_key": "octowatch--github-app--private-key",
+    "github_rules_token": "octowatch--git--rules-token",
+    "maxmind_license_key": "octowatch--geoip--maxmind-license-key",
+    "okta_api_token": "octowatch--integrations--okta-api-token",
+    "azure_ad_client_secret": "octowatch--integrations--azure-ad-client-secret",
+    "google_service_account_json": "octowatch--integrations--google-service-account",
+    "jira_api_token": "octowatch--integrations--jira-api-token",
+    "slack_bot_token": "octowatch--integrations--slack-bot-token",
+    "smtp_password": "octowatch--integrations--smtp-password",
+    "saml_sp_key": "octowatch--auth--saml-sp-key",
+    "saml_sp_cert": "octowatch--auth--saml-sp-cert",
+    "enterprise_pat": "octowatch--pat--enterprise",
+    "hec_token": "octowatch--hec--token",
+    "webhook_secret": "octowatch--webhook--secret",
+}
 
 # Mapping from DB key → (nested_attr_on_settings, field_name)
 # None as first element means the field lives on the root Settings object.
@@ -127,12 +169,38 @@ def _apply_setting(db_key: str, value: str) -> bool:
         return False
 
 
-async def load_settings_overlay(db: AsyncSession) -> int:
+async def load_settings_overlay(
+    db: AsyncSession, secret_provider: SecretProvider | None = None
+) -> int:
     """Load all DB settings and overlay them onto the settings singleton.
+
+    For keys in :data:`SECRET_KEYS`, the ``secret_provider`` is tried first
+    using the Key Vault naming convention from :data:`KV_NAME_MAP`. If the
+    provider returns ``None`` or raises, the DB-decrypted value is used as
+    fallback.
 
     Returns the number of settings successfully applied.
     """
     all_settings = await get_all_settings_decrypted(db)
+
+    # For secret keys, try Key Vault first and override DB values
+    if secret_provider is not None:
+        for db_key in SECRET_KEYS:
+            kv_name = KV_NAME_MAP.get(db_key)
+            if kv_name is None:
+                continue
+            try:
+                kv_value = await secret_provider.get_secret(kv_name)
+                if kv_value is not None:
+                    all_settings[db_key] = kv_value
+            except Exception as exc:
+                logger.debug(
+                    "config_overlay.kv_fallback_to_db",
+                    key=db_key,
+                    kv_name=kv_name,
+                    error=str(exc),
+                )
+
     applied = 0
     for db_key, value in all_settings.items():
         if _apply_setting(db_key, value):
@@ -141,10 +209,10 @@ async def load_settings_overlay(db: AsyncSession) -> int:
     return applied
 
 
-async def refresh_settings(db: AsyncSession) -> int:
+async def refresh_settings(db: AsyncSession, secret_provider: SecretProvider | None = None) -> int:
     """Refresh the settings overlay (for workers/periodic refresh).
 
     This is an alias for :func:`load_settings_overlay` that can be called
     by Celery workers at task start.
     """
-    return await load_settings_overlay(db)
+    return await load_settings_overlay(db, secret_provider=secret_provider)

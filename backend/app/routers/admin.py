@@ -702,6 +702,7 @@ async def get_audit_stream_config(
 
 @router.put("/audit-stream/hec-token", dependencies=[Depends(verify_csrf)])
 async def update_hec_token(
+    request: Request,
     payload: dict[str, str],
     current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
@@ -722,6 +723,18 @@ async def update_hec_token(
         description="Splunk HEC token for audit log streaming",
         changed_by=current_user.github_login,
     )
+
+    # Also write to Key Vault if provider available
+    if hasattr(request.app.state, "secret_provider"):
+        try:
+            await request.app.state.secret_provider.set_secret("octowatch--hec--token", token)
+            await request.app.state.secret_provider.invalidate_cache("octowatch--hec--token")
+        except Exception as exc:
+            import structlog as _structlog
+
+            _structlog.get_logger(__name__).warning(
+                "admin.hec_token_kv_write_failed", error=str(exc)
+            )
 
     # Update the in-memory cache so the HEC router picks it up immediately
     from app.routers.ingest_hec import set_hec_token_cache
