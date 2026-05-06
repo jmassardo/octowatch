@@ -1055,7 +1055,7 @@ async def _check_x_config_engine(
             rule_id=rule.id,
             rule_name=rule.name,
         )
-        return True  # Unknown engine — fall through to basic pattern match
+        return False  # Fail-closed: unknown engine names do not match
 
 
 async def _check_threat_intel_field(

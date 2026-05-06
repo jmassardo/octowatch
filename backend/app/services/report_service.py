@@ -35,6 +35,7 @@ async def get_mau_report(
     start = _window_start(window_days)
 
     org_filter = "AND org = :org" if org else ""
+    # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at)  AS bucket,
@@ -86,6 +87,7 @@ async def get_seat_utilization_report(
     # ------------------------------------------------------------------
     # 1. Proxy for provisioned_seat_count: max active actors in any bucket
     # ------------------------------------------------------------------
+    # SECURITY: static clause fragments only, not user input
     max_stmt = text(f"""
         SELECT COALESCE(MAX(active_count), 0) AS max_active
         FROM (
@@ -105,6 +107,7 @@ async def get_seat_utilization_report(
     # ------------------------------------------------------------------
     # 2. Per-bucket active seat counts
     # ------------------------------------------------------------------
+    # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at)  AS bucket,
@@ -146,6 +149,7 @@ async def get_repo_creation_rate_report(
     start = _window_start(window_days)
 
     org_filter = "AND org = :org" if org else ""
+    # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at)   AS bucket,
@@ -187,6 +191,7 @@ async def get_actions_volume_report(
     start = _window_start(window_days)
 
     org_filter = "AND org = :org" if org else ""
+    # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at)   AS bucket,
@@ -244,6 +249,7 @@ async def get_copilot_seats_report(
     start = _window_start(window_days)
 
     org_filter = "AND org = :org" if org else ""
+    # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at)   AS bucket,
@@ -331,6 +337,7 @@ async def get_codespace_hours_report(
     start = _window_start(window_days)
 
     org_filter = "AND org = :org" if org else ""
+    # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at)         AS bucket,
@@ -375,6 +382,7 @@ async def get_pat_counts_report(
     start = _window_start(window_days)
 
     org_filter = "AND org = :org" if org else ""
+    # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at)   AS bucket,
@@ -426,6 +434,7 @@ async def get_webhook_counts_report(
     start = _window_start(window_days)
 
     org_filter = "AND org = :org" if org else ""
+    # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at)   AS bucket,
@@ -467,6 +476,7 @@ async def get_top_actors_report(
     """Top actors by event count in window (admin endpoint)."""
     start = _window_start(window_days)
     org_filter = "AND org = :org" if org else ""
+    # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT actor, COUNT(*) AS event_count
         FROM events
@@ -498,6 +508,7 @@ async def get_event_trend_report(
 
     if granularity == "hourly":
         # Use pre-computed continuous aggregate
+        # SECURITY: static clause fragments only, not user input
         stmt = text(f"""
             SELECT bucket, org, event_count, unique_actors
             FROM events_hourly
@@ -507,6 +518,7 @@ async def get_event_trend_report(
         """)
     else:
         _interval = _bucket_interval(granularity)
+        # SECURITY: static clause fragments only, not user input
         stmt = text(f"""
             SELECT
                 time_bucket(:interval, created_at) AS bucket,
@@ -556,6 +568,7 @@ async def get_metrics_that_matter(
     # ── Shipping Faster ──────────────────────────────────────────────────────
 
     # PR lifecycle: avg hours from open to merge using subquery join
+    # SECURITY: static clause fragments only, not user input
     pr_lifecycle_stmt = text(f"""
         SELECT AVG(lifecycle_hours) AS avg_hours
         FROM (
@@ -587,6 +600,7 @@ async def get_metrics_that_matter(
     )
 
     # Enhanced lead time: idea → production with fallback chain
+    # SECURITY: static clause fragments only, not user input
     lead_time_stmt = text(f"""
         WITH merged_prs AS (
             SELECT
@@ -681,6 +695,7 @@ async def get_metrics_that_matter(
     )
 
     # PR merge rate: % of PRs closed that were merged
+    # SECURITY: static clause fragments only, not user input
     pr_rate_stmt = text(f"""
         SELECT
             COUNT(*) FILTER (WHERE data->>'merged' = 'true') * 100.0 /
@@ -699,6 +714,7 @@ async def get_metrics_that_matter(
     )
 
     # Deployment frequency per week
+    # SECURITY: static clause fragments only, not user input
     deploy_stmt = text(f"""
         SELECT
             COUNT(*)::float / GREATEST(1, :period_days / 7.0) AS deploys_per_week
@@ -722,6 +738,7 @@ async def get_metrics_that_matter(
     )
 
     # PR review rounds: approximated via review_requested events per PR
+    # SECURITY: static clause fragments only, not user input
     review_rounds_stmt = text(f"""
         SELECT AVG(round_count) AS avg_rounds
         FROM (
@@ -745,6 +762,7 @@ async def get_metrics_that_matter(
     )
 
     # Faster trend: weekly merged PR counts
+    # SECURITY: static clause fragments only, not user input
     faster_trend_stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at) AS bucket,
@@ -771,6 +789,7 @@ async def get_metrics_that_matter(
     # ── Shipping Safer ───────────────────────────────────────────────────────
 
     # Workflow success rate
+    # SECURITY: static clause fragments only, not user input
     success_rate_stmt = text(f"""
         SELECT
             COUNT(*) FILTER (WHERE data->>'conclusion' = 'success') * 100.0 /
@@ -788,6 +807,7 @@ async def get_metrics_that_matter(
     )
 
     # Security alerts
+    # SECURITY: static clause fragments only, not user input
     alerts_stmt = text(f"""
         SELECT
             COUNT(*) FILTER (WHERE action = 'secret_scanning_alert.create') AS secrets_opened,
@@ -813,6 +833,7 @@ async def get_metrics_that_matter(
     codeql_alerts_closed = int(alerts_row.codeql_closed) if alerts_row else 0
 
     # Branch protection compliance
+    # SECURITY: static clause fragments only, not user input
     bp_stmt = text(f"""
         SELECT
             COUNT(DISTINCT repo) FILTER (
@@ -830,6 +851,7 @@ async def get_metrics_that_matter(
     )
 
     # Change failure rate: failed deploy workflows as % of all deploy workflows
+    # SECURITY: static clause fragments only, not user input
     cfr_stmt = text(f"""
         SELECT
             COUNT(*) FILTER (WHERE
@@ -854,6 +876,7 @@ async def get_metrics_that_matter(
     )
 
     # Safer trend: weekly workflow success rate
+    # SECURITY: static clause fragments only, not user input
     safer_trend_stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at) AS bucket,
@@ -894,6 +917,7 @@ async def get_metrics_that_matter(
     # ── Shipping Cheaper ─────────────────────────────────────────────────────
 
     # Failed run waste %
+    # SECURITY: static clause fragments only, not user input
     waste_stmt = text(f"""
         SELECT
             COUNT(*) FILTER (WHERE data->>'conclusion' IN (
@@ -911,6 +935,7 @@ async def get_metrics_that_matter(
     )
 
     # Rerun rate
+    # SECURITY: static clause fragments only, not user input
     rerun_stmt = text(f"""
         SELECT
             COUNT(*) FILTER (WHERE (data->>'run_attempt')::int > 1) * 100.0 /
@@ -929,6 +954,7 @@ async def get_metrics_that_matter(
     )
 
     # Automation merge rate: bot-merged PRs / total merged PRs
+    # SECURITY: static clause fragments only, not user input
     auto_merge_stmt = text(f"""
         SELECT
             COUNT(*) FILTER (WHERE actor LIKE '%%[bot]' OR actor LIKE '%%bot%%') * 100.0 /
@@ -947,6 +973,7 @@ async def get_metrics_that_matter(
     )
 
     # Top wasteful workflows
+    # SECURITY: static clause fragments only, not user input
     top_wasteful_stmt = text(f"""
         SELECT
             data->>'name' AS workflow_name,
@@ -974,6 +1001,7 @@ async def get_metrics_that_matter(
     ]
 
     # Cheaper trend
+    # SECURITY: static clause fragments only, not user input
     cheaper_trend_stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at) AS bucket,

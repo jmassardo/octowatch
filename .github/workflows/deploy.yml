@@ -129,15 +129,16 @@ jobs:
 
       - name: Resolve image SHA tag
         id: tag
+        env:
+          MANUAL_TAG: ${{ github.event.inputs.image_tag }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           # Use manual input if provided, otherwise derive from commit SHA
-          MANUAL_TAG="${{ github.event.inputs.image_tag }}"
           if [ -n "${MANUAL_TAG}" ]; then
             echo "sha=${MANUAL_TAG}" >> "$GITHUB_OUTPUT"
           else
             # workflow_run carries the SHA of the commit that triggered CI
-            SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
-            echo "sha=${SHA:0:7}" >> "$GITHUB_OUTPUT"
+            echo "sha=${RUN_SHA:0:7}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Fetch latest main and write tag

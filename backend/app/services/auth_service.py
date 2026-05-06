@@ -81,7 +81,9 @@ def set_auth_cookies(
     csrf_token: str,
 ) -> None:
     """Set HTTP-only JWT cookie and non-HTTP-only CSRF cookie."""
-    secure = settings.AUTH.APP_BASE_URL.startswith("https://")
+    secure = settings.ENVIRONMENT == "production" or settings.AUTH.APP_BASE_URL.startswith(
+        "https://"
+    )
     response.set_cookie(
         key="access_token",
         value=token,

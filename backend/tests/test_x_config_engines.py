@@ -767,12 +767,12 @@ class TestXConfigEngineRouting:
         assert await _check_x_config_engine(event, rule, session) is True  # type: ignore[arg-type]
 
     @pytest.mark.anyio
-    async def test_unknown_engine_returns_true(self) -> None:
-        """Unknown engine → logs warning, returns True."""
+    async def test_unknown_engine_returns_false(self) -> None:
+        """Unknown engine → logs warning, returns False (fail-closed)."""
         rule = _make_rule("totally_unknown_engine")
         event = FakeEvent()
         session = AsyncMock()
-        assert await _check_x_config_engine(event, rule, session) is True  # type: ignore[arg-type]
+        assert await _check_x_config_engine(event, rule, session) is False  # type: ignore[arg-type]
 
     @pytest.mark.anyio
     async def test_health_signal_returns_true(self) -> None:
