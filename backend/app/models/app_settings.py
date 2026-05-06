@@ -38,6 +38,7 @@ class AppSetting(Base):
         server_default=text("NOW()"),
         onupdate=text("NOW()"),
     )
+    keyvault_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class AppSettingAudit(Base):
