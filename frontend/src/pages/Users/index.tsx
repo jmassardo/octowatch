@@ -17,6 +17,7 @@ import type { RoleAssignment, RoleAssignmentCreate, ActiveSession } from '../../
 import { useToast } from '../../hooks/useToast';
 import { PageHeader } from '../../components/common/PageHeader';
 import { SkeletonTable } from '../../components/common/SkeletonTable';
+import { Spinner } from '../../components/primitives/Spinner';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
 import { Drawer } from '../../components/primitives/Drawer';
