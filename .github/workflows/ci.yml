@@ -319,6 +319,9 @@ jobs:
           docker compose up -d db valkey
           sleep 15
           docker compose run --rm migrate || true
+          # Enable local_password auth method for E2E dev-login
+          docker compose exec -T db psql -U test -d auditlogs -c \
+            "UPDATE auth_method_configs SET enabled = true WHERE method_name = 'local_password';" || true
           docker compose up -d api frontend nginx
           sleep 10
       - name: Health check
