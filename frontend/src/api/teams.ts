@@ -1,0 +1,74 @@
+import { api } from './client';
+
+export interface Team {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  member_count: number;
+  role_count: number;
+  created_at: string;
+}
+
+export interface TeamDetail {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  members: TeamMember[];
+  roles: TeamRole[];
+  created_at: string;
+}
+
+export interface TeamMember {
+  user_login: string;
+  added_at: string;
+}
+
+export interface TeamRole {
+  role_id: number;
+  role_name: string;
+  org_slug: string | null;
+  repo_slugs: string[] | null;
+}
+
+export interface CreateTeamRequest {
+  name: string;
+  description?: string;
+}
+
+export function listTeams(): Promise<Team[]> {
+  return api.get<Team[]>('/admin/teams');
+}
+
+export function getTeam(id: number): Promise<TeamDetail> {
+  return api.get<TeamDetail>(`/admin/teams/${id}`);
+}
+
+export function createTeam(data: CreateTeamRequest): Promise<Team> {
+  return api.post<Team>('/admin/teams', data);
+}
+
+export function updateTeam(id: number, data: Partial<CreateTeamRequest>): Promise<Team> {
+  return api.patch<Team>(`/admin/teams/${id}`, data);
+}
+
+export function deleteTeam(id: number): Promise<void> {
+  return api.delete<void>(`/admin/teams/${id}`);
+}
+
+export function addTeamMember(teamId: number, userLogin: string): Promise<void> {
+  return api.post<void>(`/admin/teams/${teamId}/members`, { user_login: userLogin });
+}
+
+export function removeTeamMember(teamId: number, userLogin: string): Promise<void> {
+  return api.delete<void>(`/admin/teams/${teamId}/members/${userLogin}`);
+}
+
+export function assignTeamRole(teamId: number, roleId: number, orgSlug?: string): Promise<void> {
+  return api.post<void>(`/admin/teams/${teamId}/roles`, { role_id: roleId, org_slug: orgSlug });
+}
+
+export function removeTeamRole(teamId: number, roleId: number): Promise<void> {
+  return api.delete<void>(`/admin/teams/${teamId}/roles/${roleId}`);
+}
