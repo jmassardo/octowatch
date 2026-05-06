@@ -1096,7 +1096,10 @@ export function UsersPage() {
           <section>
             <h2 className={styles.sectionTitle}>Active users</h2>
             {sessionsError && (
-              <ErrorBanner message="Failed to load active sessions" onRetry={() => refetchSessions()} />
+              <ErrorBanner
+                message="Failed to load active sessions"
+                onRetry={() => refetchSessions()}
+              />
             )}
             {sessionsLoading ? (
               <SkeletonTable />
