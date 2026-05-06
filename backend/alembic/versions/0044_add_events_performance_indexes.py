@@ -20,22 +20,20 @@ depends_on = None
 
 def upgrade() -> None:
     # Main events listing: WHERE org = ANY(...) ORDER BY created_at DESC
+    # Note: Cannot use CONCURRENTLY on TimescaleDB hypertables
     op.execute(
-        "CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_events_org_created_at"
-        " ON events (org, created_at DESC)"
+        "CREATE INDEX IF NOT EXISTS ix_events_org_created_at ON events (org, created_at DESC)"
     )
     # Suggestions: SELECT DISTINCT action WHERE org = ANY(...)
-    op.execute(
-        "CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_events_org_action ON events (org, action)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS ix_events_org_action ON events (org, action)")
     # Suggestions: SELECT DISTINCT actor WHERE org = ANY(...) AND actor IS NOT NULL
     op.execute(
-        "CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_events_org_actor"
+        "CREATE INDEX IF NOT EXISTS ix_events_org_actor"
         " ON events (org, actor) WHERE actor IS NOT NULL AND actor != ''"
     )
     # Suggestions: SELECT DISTINCT repo WHERE org = ANY(...) AND repo IS NOT NULL
     op.execute(
-        "CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_events_org_repo"
+        "CREATE INDEX IF NOT EXISTS ix_events_org_repo"
         " ON events (org, repo) WHERE repo IS NOT NULL AND repo != ''"
     )
 
