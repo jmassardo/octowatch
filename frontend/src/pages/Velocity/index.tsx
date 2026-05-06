@@ -14,6 +14,7 @@ import { DataTable, type ColumnDef } from '../../components/primitives/DataTable
 import { Drawer } from '../../components/primitives/Drawer';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { PageHeader } from '../../components/common/PageHeader';
 import { useFeatures } from '../../hooks/useFeatures';
 import type { ActionsVolumeBucket } from '../../types/reports';
 import type { EventResponse } from '../../types/events';
@@ -605,8 +606,11 @@ export function VelocityPage() {
 
   return (
     <div className={styles.page}>
+      <PageHeader
+        title="Engineering Velocity"
+        description="Track CI/CD throughput and development flow metrics"
+      />
       <div className={styles.titleRow}>
-        <div className={styles.pageTitle}>Engineering Velocity</div>
         <div className={styles.doraGroup}>
           <span className={styles.doraLabel}>DORA tier</span>
           <span
@@ -635,10 +639,6 @@ export function VelocityPage() {
             {doraTier ? `${doraTier.icon} ${doraTier.name}` : '— Pending'}
           </span>
         </div>
-      </div>
-      <div className={styles.pageSub}>
-        Flow metrics, DORA indicators, and delivery throughput — use as conversation starters, not
-        scorecards
       </div>
 
       <div className={styles.contextCard}>

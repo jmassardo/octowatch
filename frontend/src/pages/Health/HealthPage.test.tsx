@@ -137,7 +137,7 @@ describe('HealthPage', () => {
     renderPage();
     expect(screen.getByText('Org Health')).toBeInTheDocument();
     expect(
-      screen.getByText(/Audit-log-derived health signals across repositories, access, licenses/),
+      screen.getByText(/Monitor organization health signals and configuration drift/),
     ).toBeInTheDocument();
   });
 

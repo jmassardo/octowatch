@@ -13,6 +13,7 @@ import type { EventListParams, EventResponse } from '../../types/events';
 import { useDebounce } from '../../hooks/useDebounce';
 import { Label } from '../../components/primitives/Label';
 import { Button } from '../../components/primitives/Button';
+import { PageHeader } from '../../components/common/PageHeader';
 import { EmptyState } from '../../components/common/EmptyState';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
@@ -314,10 +315,10 @@ export function EventsPage() {
   return (
     <div className={styles.splitLayout}>
       <div className={styles.splitMain}>
-        <div className={styles.pageTitle}>Events Explorer</div>
-        <div className={styles.pageSub}>
-          Search and explore raw audit log events across all organizations
-        </div>
+        <PageHeader
+          title="Events Explorer"
+          description="Search and explore raw audit log events across all organizations"
+        />
 
         <div className={styles.searchBar}>
           <svg width="16" height="16" fill="var(--fg-subtle)" viewBox="0 0 16 16">

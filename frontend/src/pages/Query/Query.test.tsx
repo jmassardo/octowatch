@@ -36,7 +36,7 @@ describe('QueryPage', () => {
   it('renders page title and subtitle', () => {
     renderWithProviders(<QueryPage />);
     expect(screen.getByText('Query Explorer')).toBeInTheDocument();
-    expect(screen.getByText('Write SQL against the audit events database')).toBeInTheDocument();
+    expect(screen.getByText('Run custom SQL queries against audit log data')).toBeInTheDocument();
   });
 
   it('renders editor filename in toolbar', () => {

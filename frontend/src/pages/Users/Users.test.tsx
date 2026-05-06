@@ -69,7 +69,7 @@ describe('UsersPage', () => {
     renderWithProviders(<UsersPage />);
 
     expect(screen.getByRole('heading', { level: 1, name: /users & roles/i })).toBeInTheDocument();
-    expect(screen.getByText(/manage team mappings and active user sessions/i)).toBeInTheDocument();
+    expect(screen.getByText(/manage role assignments and team memberships/i)).toBeInTheDocument();
   });
 
   it('renders team mappings section', async () => {

@@ -7,6 +7,7 @@ import { useFeatures } from '../../hooks/useFeatures';
 import { getCopilotBlockers } from '../../api/copilotMetrics';
 import { CopilotTabBar } from './CopilotTabBar';
 import type { CopilotTab } from './CopilotTabBar';
+import { PageHeader } from '../../components/common/PageHeader';
 import { OverviewPane } from './OverviewPane';
 import { AdoptionPane } from './AdoptionPane';
 import { ModelsPane } from './ModelsPane';
@@ -88,10 +89,10 @@ export function CopilotPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.pageTitle}>Copilot Insights</div>
-      <div className={styles.pageSub}>
-        GitHub Copilot adoption, seat utilization, and correlation with delivery outcomes
-      </div>
+      <PageHeader
+        title="Copilot Insights"
+        description="GitHub Copilot usage analytics and adoption metrics"
+      />
 
       <CopilotTabBar
         activeTab={activeTab}

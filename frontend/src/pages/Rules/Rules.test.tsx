@@ -72,7 +72,7 @@ describe('RulesPage', () => {
     renderWithProviders(<RulesPage />);
 
     expect(screen.getByRole('heading', { level: 1, name: /detection rules/i })).toBeInTheDocument();
-    expect(screen.getByText(/manage built-in and custom detection rules/i)).toBeInTheDocument();
+    expect(screen.getByText(/configure automated threat detection patterns/i)).toBeInTheDocument();
   });
 
   it('renders rule table with correct headers', async () => {

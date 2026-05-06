@@ -10,11 +10,13 @@ import {
   listSyncedTeams,
 } from '../../api/admin';
 import type { RoleAssignment, RoleAssignmentCreate, ActiveSession } from '../../types/admin';
+import { useToast } from '../../hooks/useToast';
+import { PageHeader } from '../../components/common/PageHeader';
+import { SkeletonTable } from '../../components/common/SkeletonTable';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
 import { Drawer } from '../../components/primitives/Drawer';
 import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
-import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { DataTable } from '../../components/primitives/DataTable';
 import type { ColumnDef } from '../../components/primitives/DataTable';
@@ -467,6 +469,7 @@ function ActiveUsersDataTable({
 export function UsersPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
   const [editTarget, setEditTarget] = useState<RoleAssignment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RoleAssignment | null>(null);
@@ -504,6 +507,10 @@ export function UsersPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['role-assignments'] });
       setShowAdd(false);
+      showToast('Role assignment created successfully', 'success');
+    },
+    onError: () => {
+      showToast('Failed to create role assignment', 'error');
     },
   });
 
@@ -512,6 +519,10 @@ export function UsersPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['role-assignments'] });
       setDeleteTarget(null);
+      showToast('Role assignment removed', 'success');
+    },
+    onError: () => {
+      showToast('Failed to remove role assignment', 'error');
     },
   });
 
@@ -529,10 +540,10 @@ export function UsersPage() {
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
-        <div>
-          <h1 className={styles.pageTitle}>Users &amp; roles</h1>
-          <p className={styles.pageSub}>Manage team mappings and active user sessions</p>
-        </div>
+        <PageHeader
+          title="Users & Roles"
+          description="Manage role assignments and team memberships"
+        />
         <Button variant="primary" onClick={() => setShowAdd(true)}>
           Add mapping
         </Button>
@@ -546,7 +557,7 @@ export function UsersPage() {
       <section>
         <h2 className={styles.sectionTitle}>Team mappings</h2>
         {isLoading ? (
-          <Spinner />
+          <SkeletonTable />
         ) : (
           <TeamMappingsDataTable
             assignments={assignments ?? []}
@@ -564,7 +575,7 @@ export function UsersPage() {
           <ErrorBanner message="Failed to load active sessions" onRetry={() => refetchSessions()} />
         )}
         {sessionsLoading ? (
-          <Spinner />
+          <SkeletonTable />
         ) : (sessions ?? []).length === 0 ? (
           <div className={styles.empty}>No active sessions in the last 24 hours</div>
         ) : (

@@ -67,7 +67,7 @@ describe('VelocityPage', () => {
     renderWithProviders(<VelocityPage />);
 
     expect(
-      screen.getByText(/flow metrics, dora indicators, and delivery throughput/i),
+      screen.getByText(/track ci\/cd throughput and development flow metrics/i),
     ).toBeInTheDocument();
   });
 
