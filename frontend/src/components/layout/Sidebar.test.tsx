@@ -29,6 +29,16 @@ vi.mock('../../hooks/useFeatures', () => ({
     loading: false,
   }),
 }));
+vi.mock('../../hooks/usePermissions', () => ({
+  usePermissions: () => ({
+    permissions: ['*:*'],
+    roles: ['super_admin'],
+    isLoading: false,
+    hasPermission: () => true,
+    hasAnyPermission: () => true,
+    hasRole: () => true,
+  }),
+}));
 
 function createQueryClient() {
   return new QueryClient({

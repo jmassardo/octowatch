@@ -9,6 +9,10 @@ import {
   getActiveSessions,
   listSyncedTeams,
 } from '../../api/admin';
+import { listRbacRoles, createRbacRole, deleteRbacRole } from '../../api/roles';
+import type { CreateRoleRequest, RoleSummary } from '../../api/roles';
+import { listTeams, createTeam, deleteTeam } from '../../api/teams';
+import type { Team, CreateTeamRequest } from '../../api/teams';
 import type { RoleAssignment, RoleAssignmentCreate, ActiveSession } from '../../types/admin';
 import { useToast } from '../../hooks/useToast';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -20,6 +24,7 @@ import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { DataTable } from '../../components/primitives/DataTable';
 import type { ColumnDef } from '../../components/primitives/DataTable';
+import { useToast } from '../../hooks/useToast';
 import { formatRelative } from '../../utils/dates';
 import styles from './Users.module.css';
 
@@ -463,6 +468,458 @@ function ActiveUsersDataTable({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Roles Tab                                                          */
+/* ------------------------------------------------------------------ */
+
+function RolesTab() {
+  const qc = useQueryClient();
+  const { showToast } = useToast();
+  const [showCreateRole, setShowCreateRole] = useState(false);
+  const [deleteRoleTarget, setDeleteRoleTarget] = useState<RoleSummary | null>(null);
+
+  const {
+    data: rbacRoles,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ['rbac-roles'],
+    queryFn: listRbacRoles,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: createRbacRole,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rbac-roles'] });
+      setShowCreateRole(false);
+      showToast('Role created successfully', 'success');
+    },
+    onError: () => {
+      showToast('Failed to create role', 'error');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteRbacRole(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rbac-roles'] });
+      setDeleteRoleTarget(null);
+      showToast('Role deleted', 'success');
+    },
+    onError: () => {
+      showToast('Failed to delete role', 'error');
+    },
+  });
+
+  const columns: ColumnDef<RoleSummary>[] = useMemo(
+    () => [
+      {
+        key: 'name',
+        header: 'Name',
+        sortable: true,
+        filterable: true,
+        sortValue: (r) => r.display_name.toLowerCase(),
+        filterValue: (r) => `${r.display_name} ${r.name}`,
+        render: (r) => (
+          <div>
+            <span style={{ fontWeight: 500 }}>{r.display_name}</span>
+            <span className={styles.muted} style={{ marginLeft: 8 }}>
+              {r.name}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'type',
+        header: 'Type',
+        sortable: true,
+        filterable: true,
+        sortValue: (r) => (r.is_system ? 'system' : 'custom'),
+        filterValue: (r) => (r.is_system ? 'System' : 'Custom'),
+        render: (r) => (
+          <Label variant={r.is_system ? 'muted' : 'accent'}>
+            {r.is_system ? 'System' : 'Custom'}
+          </Label>
+        ),
+      },
+      {
+        key: 'permissions',
+        header: 'Permissions',
+        sortable: true,
+        sortValue: (r) => r.permission_count,
+        render: (r) => <span>{r.permission_count}</span>,
+      },
+      {
+        key: 'created',
+        header: 'Created',
+        sortable: true,
+        sortValue: (r) => r.created_at,
+        render: (r) => <span className={styles.muted}>{formatRelative(r.created_at)}</span>,
+      },
+      {
+        key: 'actions',
+        header: '',
+        render: (r) =>
+          r.is_custom ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteRoleTarget(r);
+              }}
+              aria-label={`Delete role ${r.display_name}`}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--fg-muted)',
+                fontSize: 16,
+                padding: '2px 6px',
+                borderRadius: 4,
+              }}
+            >
+              ×
+            </button>
+          ) : null,
+      },
+    ],
+    [],
+  );
+
+  return (
+    <>
+      <div className={styles.pageHeader} style={{ paddingTop: 0 }}>
+        <div>
+          <p className={styles.pageSub}>System and custom roles with permission assignments</p>
+        </div>
+        <Button variant="primary" onClick={() => setShowCreateRole(true)}>
+          Create role
+        </Button>
+      </div>
+
+      {isError && <ErrorBanner message="Failed to load roles" onRetry={() => refetch()} />}
+
+      {isLoading ? (
+        <Spinner />
+      ) : (
+        <DataTable<RoleSummary>
+          columns={columns}
+          data={rbacRoles ?? []}
+          rowKey={(r) => r.id}
+          emptyMessage="No roles found"
+        />
+      )}
+
+      <Drawer open={showCreateRole} onClose={() => setShowCreateRole(false)} title="Create role">
+        <CreateRoleForm
+          onSave={(v) => createMutation.mutate(v)}
+          onCancel={() => setShowCreateRole(false)}
+        />
+      </Drawer>
+
+      <ConfirmDialog
+        open={!!deleteRoleTarget}
+        onClose={() => setDeleteRoleTarget(null)}
+        title="Delete role"
+        message={deleteRoleTarget ? `Delete custom role "${deleteRoleTarget.display_name}"?` : ''}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={() => deleteRoleTarget && deleteMutation.mutate(deleteRoleTarget.id)}
+      />
+    </>
+  );
+}
+
+function CreateRoleForm({
+  onSave,
+  onCancel,
+}: {
+  onSave: (v: CreateRoleRequest) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [description, setDescription] = useState('');
+  const [permissions, setPermissions] = useState('');
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const permList = permissions
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    onSave({
+      name,
+      display_name: displayName,
+      description: description || undefined,
+      permissions: permList,
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className={styles.addForm}>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel}>Name (slug)</label>
+        <input
+          className={styles.formInput}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          placeholder="custom_role_name"
+          autoFocus
+        />
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel}>Display name</label>
+        <input
+          className={styles.formInput}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          required
+          placeholder="Custom Role Name"
+        />
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel}>Description</label>
+        <input
+          className={styles.formInput}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Optional description"
+        />
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel}>Permissions (comma-separated)</label>
+        <input
+          className={styles.formInput}
+          value={permissions}
+          onChange={(e) => setPermissions(e.target.value)}
+          required
+          placeholder="events:view, detections:view, reports:view"
+        />
+      </div>
+      <div className={styles.formActions}>
+        <Button variant="default" onClick={onCancel} type="button">
+          Cancel
+        </Button>
+        <Button variant="primary" type="submit">
+          Create role
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Teams Tab                                                          */
+/* ------------------------------------------------------------------ */
+
+function TeamsTab() {
+  const qc = useQueryClient();
+  const { showToast } = useToast();
+  const [showCreateTeam, setShowCreateTeam] = useState(false);
+  const [deleteTeamTarget, setDeleteTeamTarget] = useState<Team | null>(null);
+
+  const {
+    data: teams,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ['rbac-teams'],
+    queryFn: listTeams,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: createTeam,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rbac-teams'] });
+      setShowCreateTeam(false);
+      showToast('Team created successfully', 'success');
+    },
+    onError: () => {
+      showToast('Failed to create team', 'error');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteTeam(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rbac-teams'] });
+      setDeleteTeamTarget(null);
+      showToast('Team deleted', 'success');
+    },
+    onError: () => {
+      showToast('Failed to delete team', 'error');
+    },
+  });
+
+  const columns: ColumnDef<Team>[] = useMemo(
+    () => [
+      {
+        key: 'name',
+        header: 'Name',
+        sortable: true,
+        filterable: true,
+        sortValue: (t) => t.name.toLowerCase(),
+        filterValue: (t) => `${t.name} ${t.slug}`,
+        render: (t) => (
+          <div>
+            <span style={{ fontWeight: 500 }}>{t.name}</span>
+            <span className={styles.muted} style={{ marginLeft: 8 }}>
+              {t.slug}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'members',
+        header: 'Members',
+        sortable: true,
+        sortValue: (t) => t.member_count,
+        render: (t) => <span>{t.member_count}</span>,
+      },
+      {
+        key: 'roles',
+        header: 'Roles',
+        sortable: true,
+        sortValue: (t) => t.role_count,
+        render: (t) => <span>{t.role_count}</span>,
+      },
+      {
+        key: 'created',
+        header: 'Created',
+        sortable: true,
+        sortValue: (t) => t.created_at,
+        render: (t) => <span className={styles.muted}>{formatRelative(t.created_at)}</span>,
+      },
+      {
+        key: 'actions',
+        header: '',
+        render: (t) => (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setDeleteTeamTarget(t);
+            }}
+            aria-label={`Delete team ${t.name}`}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--fg-muted)',
+              fontSize: 16,
+              padding: '2px 6px',
+              borderRadius: 4,
+            }}
+          >
+            ×
+          </button>
+        ),
+      },
+    ],
+    [],
+  );
+
+  return (
+    <>
+      <div className={styles.pageHeader} style={{ paddingTop: 0 }}>
+        <div>
+          <p className={styles.pageSub}>Manage teams and their role assignments</p>
+        </div>
+        <Button variant="primary" onClick={() => setShowCreateTeam(true)}>
+          Create team
+        </Button>
+      </div>
+
+      {isError && <ErrorBanner message="Failed to load teams" onRetry={() => refetch()} />}
+
+      {isLoading ? (
+        <Spinner />
+      ) : (
+        <DataTable<Team>
+          columns={columns}
+          data={teams ?? []}
+          rowKey={(t) => t.id}
+          emptyMessage="No teams found"
+        />
+      )}
+
+      <Drawer open={showCreateTeam} onClose={() => setShowCreateTeam(false)} title="Create team">
+        <CreateTeamForm
+          onSave={(v) => createMutation.mutate(v)}
+          onCancel={() => setShowCreateTeam(false)}
+        />
+      </Drawer>
+
+      <ConfirmDialog
+        open={!!deleteTeamTarget}
+        onClose={() => setDeleteTeamTarget(null)}
+        title="Delete team"
+        message={deleteTeamTarget ? `Delete team "${deleteTeamTarget.name}"?` : ''}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={() => deleteTeamTarget && deleteMutation.mutate(deleteTeamTarget.id)}
+      />
+    </>
+  );
+}
+
+function CreateTeamForm({
+  onSave,
+  onCancel,
+}: {
+  onSave: (v: CreateTeamRequest) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    onSave({ name, description: description || undefined });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className={styles.addForm}>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel}>Team name</label>
+        <input
+          className={styles.formInput}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          placeholder="Platform Engineering"
+          autoFocus
+        />
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel}>Description</label>
+        <input
+          className={styles.formInput}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Optional description"
+        />
+      </div>
+      <div className={styles.formActions}>
+        <Button variant="default" onClick={onCancel} type="button">
+          Cancel
+        </Button>
+        <Button variant="primary" type="submit">
+          Create team
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Tab type                                                           */
+/* ------------------------------------------------------------------ */
+
+type UsersTab = 'users' | 'roles' | 'teams';
+
+/* ------------------------------------------------------------------ */
 /*  Page                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -470,6 +927,7 @@ export function UsersPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const [activeTab, setActiveTab] = useState<UsersTab>('users');
   const [showAdd, setShowAdd] = useState(false);
   const [editTarget, setEditTarget] = useState<RoleAssignment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RoleAssignment | null>(null);
@@ -544,48 +1002,119 @@ export function UsersPage() {
           title="Users & Roles"
           description="Manage role assignments and team memberships"
         />
-        <Button variant="primary" onClick={() => setShowAdd(true)}>
-          Add mapping
-        </Button>
+        {activeTab === 'users' && (
+          <Button variant="primary" onClick={() => setShowAdd(true)}>
+            Add mapping
+          </Button>
+        )}
       </div>
 
-      {isError && (
-        <ErrorBanner message="Failed to load role assignments" onRetry={() => refetch()} />
+      <div className={styles.tabBar}>
+        <button
+          className={`${styles.tab} ${activeTab === 'users' ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab('users')}
+        >
+          Users
+        </button>
+        <button
+          className={`${styles.tab} ${activeTab === 'roles' ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab('roles')}
+        >
+          Roles
+        </button>
+        <button
+          className={`${styles.tab} ${activeTab === 'teams' ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab('teams')}
+        >
+          Teams
+        </button>
+      </div>
+
+      {activeTab === 'users' && (
+        <>
+          {isError && (
+            <ErrorBanner message="Failed to load role assignments" onRetry={() => refetch()} />
+          )}
+
+          {/* ---- Section 1: Team mappings ---- */}
+          <section>
+            <h2 className={styles.sectionTitle}>Team mappings</h2>
+            {isLoading ? (
+              <Spinner />
+            ) : (
+              <TeamMappingsDataTable
+                assignments={assignments ?? []}
+                navigate={navigate}
+                setEditTarget={setEditTarget}
+                setDeleteTarget={setDeleteTarget}
+              />
+            )}
+          </section>
+
+          {/* ---- Section 2: Active users ---- */}
+          <section>
+            <h2 className={styles.sectionTitle}>Active users</h2>
+            {sessionsError && (
+              <ErrorBanner
+                message="Failed to load active sessions"
+                onRetry={() => refetchSessions()}
+              />
+            )}
+            {sessionsLoading ? (
+              <Spinner />
+            ) : (sessions ?? []).length === 0 ? (
+              <div className={styles.empty}>No active sessions in the last 24 hours</div>
+            ) : (
+              <ActiveUsersDataTable
+                sessions={sessions ?? []}
+                navigate={navigate}
+                setSessionUser={setSessionUser}
+              />
+            )}
+          </section>
+        </>
       )}
 
-      {/* ---- Section 1: Team mappings ---- */}
-      <section>
-        <h2 className={styles.sectionTitle}>Team mappings</h2>
-        {isLoading ? (
-          <SkeletonTable />
-        ) : (
-          <TeamMappingsDataTable
-            assignments={assignments ?? []}
-            navigate={navigate}
-            setEditTarget={setEditTarget}
-            setDeleteTarget={setDeleteTarget}
-          />
-        )}
-      </section>
+      {activeTab === 'users' && (
+        <>
+          {/* ---- Section 1: Team mappings ---- */}
+          <section>
+            <h2 className={styles.sectionTitle}>Team mappings</h2>
+            {isLoading ? (
+              <SkeletonTable />
+            ) : (
+              <TeamMappingsDataTable
+                assignments={assignments ?? []}
+                navigate={navigate}
+                setEditTarget={setEditTarget}
+                setDeleteTarget={setDeleteTarget}
+              />
+            )}
+          </section>
 
-      {/* ---- Section 2: Active users ---- */}
-      <section>
-        <h2 className={styles.sectionTitle}>Active users</h2>
-        {sessionsError && (
-          <ErrorBanner message="Failed to load active sessions" onRetry={() => refetchSessions()} />
-        )}
-        {sessionsLoading ? (
-          <SkeletonTable />
-        ) : (sessions ?? []).length === 0 ? (
-          <div className={styles.empty}>No active sessions in the last 24 hours</div>
-        ) : (
-          <ActiveUsersDataTable
-            sessions={sessions ?? []}
-            navigate={navigate}
-            setSessionUser={setSessionUser}
-          />
-        )}
-      </section>
+          {/* ---- Section 2: Active users ---- */}
+          <section>
+            <h2 className={styles.sectionTitle}>Active users</h2>
+            {sessionsError && (
+              <ErrorBanner message="Failed to load active sessions" onRetry={() => refetchSessions()} />
+            )}
+            {sessionsLoading ? (
+              <SkeletonTable />
+            ) : (sessions ?? []).length === 0 ? (
+              <div className={styles.empty}>No active sessions in the last 24 hours</div>
+            ) : (
+              <ActiveUsersDataTable
+                sessions={sessions ?? []}
+                navigate={navigate}
+                setSessionUser={setSessionUser}
+              />
+            )}
+          </section>
+        </>
+      )}
+
+      {activeTab === 'roles' && <RolesTab />}
+      {activeTab === 'teams' && <TeamsTab />}
 
       <Drawer open={showAdd} onClose={() => setShowAdd(false)} title="Add role mapping">
         <AddMappingForm
