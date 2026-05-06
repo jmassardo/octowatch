@@ -24,7 +24,6 @@ import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { DataTable } from '../../components/primitives/DataTable';
 import type { ColumnDef } from '../../components/primitives/DataTable';
-import { useToast } from '../../hooks/useToast';
 import { formatRelative } from '../../utils/dates';
 import styles from './Users.module.css';
 
