@@ -31,6 +31,14 @@ class DatabaseSettings(BaseSettings):
     def validate_db_url(cls, v: str) -> str:
         if not v.startswith(("postgresql+asyncpg://", "postgresql://")):
             raise ValueError("DATABASE_URL must use postgresql+asyncpg:// scheme")
+        env = os.getenv("ENVIRONMENT", "development")
+        if env == "production" and "sslmode=require" not in v and "sslmode=verify" not in v:
+            import warnings
+
+            warnings.warn(
+                "DATABASE_URL should include sslmode=require in production",
+                stacklevel=2,
+            )
         return v
 
 
@@ -47,6 +55,14 @@ class ValkeySettings(BaseSettings):
     def validate_valkey_url(cls, v: str) -> str:
         if not v.startswith(("redis://", "rediss://", "unix://")):
             raise ValueError("VALKEY_URL must use redis://, rediss://, or unix:// scheme")
+        env = os.getenv("ENVIRONMENT", "development")
+        if env == "production" and v and not v.startswith("rediss://"):
+            import warnings
+
+            warnings.warn(
+                "VALKEY_URL should use rediss:// (TLS) in production",
+                stacklevel=2,
+            )
         return v
 
 
@@ -347,6 +363,19 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = Field(
         default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"]
     )
+
+    @field_validator("CORS_ORIGINS")
+    @classmethod
+    def validate_cors_origins(cls, v: list[str]) -> list[str]:
+        if v and "*" in v:
+            import warnings
+
+            warnings.warn(
+                "CORS_ORIGINS contains '*' which is incompatible with credentials",
+                stacklevel=2,
+            )
+        return v
+
     INGESTION_MODE: Literal["hec"] = "hec"
     QUERY_MAX_ROWS: int = Field(default=100_000, ge=1, le=1_000_000)
     QUERY_TIMEOUT_SECONDS: int = Field(default=30, ge=5, le=300)

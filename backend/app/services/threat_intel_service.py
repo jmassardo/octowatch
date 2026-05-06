@@ -169,6 +169,7 @@ async def get_indicators(
 
     # Count query
     count_result = await session.execute(
+        # SECURITY: static clause fragments only, not user input
         text(f"SELECT COUNT(*) AS cnt FROM threat_intel_indicators WHERE {where_clause}"),
         params,
     )
@@ -180,6 +181,7 @@ async def get_indicators(
     params["offset"] = offset
 
     result = await session.execute(
+        # SECURITY: static clause fragments only, not user input
         text(f"""
             SELECT id, indicator_type, value, source, confidence, active,
                    added_at, added_by, expires_at, notes, feed_id, metadata_json
@@ -253,6 +255,7 @@ async def update_indicator(
 
     set_sql = ", ".join(set_clauses)
     result = await session.execute(
+        # SECURITY: static clause fragments only, not user input
         text(f"""
             UPDATE threat_intel_indicators
             SET {set_sql}

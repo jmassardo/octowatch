@@ -114,6 +114,7 @@ async def get_cross_org_timeline_flat(
         # Events for a specific actor
         scope_clause = "" if scope.is_global else "AND org = ANY(:scoped_orgs)"
         result = await db.execute(
+            # SECURITY: static clause fragments only, not user input
             text(f"""
                 SELECT id, created_at, action, actor, org, repo,
                        source_ip, geo_country_code
@@ -133,6 +134,7 @@ async def get_cross_org_timeline_flat(
             },
         )
         count_result = await db.execute(
+            # SECURITY: static clause fragments only, not user input
             text(f"""
                 SELECT COUNT(*) FROM events
                 WHERE actor = :actor
@@ -145,6 +147,7 @@ async def get_cross_org_timeline_flat(
         # Events from actors active in 2+ orgs
         scope_clause = "" if scope.is_global else "AND e.org = ANY(:scoped_orgs)"
         result = await db.execute(
+            # SECURITY: static clause fragments only, not user input
             text(f"""
                 SELECT e.id, e.created_at, e.action, e.actor, e.org, e.repo,
                        e.source_ip, e.geo_country_code
@@ -169,6 +172,7 @@ async def get_cross_org_timeline_flat(
             },
         )
         count_result = await db.execute(
+            # SECURITY: static clause fragments only, not user input
             text(f"""
                 SELECT COUNT(*) FROM events e
                 INNER JOIN (

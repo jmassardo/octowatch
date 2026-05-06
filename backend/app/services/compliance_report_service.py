@@ -31,6 +31,7 @@ async def _count_events(
 ) -> int:
     """Count events matching a SQL LIKE pattern within a date range."""
     org_clause = "AND org = :org" if org else ""
+    # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT COUNT(*) AS cnt
         FROM events
@@ -63,6 +64,7 @@ async def _count_events_in(
         return 0
     org_clause = "AND org = :org" if org else ""
     placeholders = ", ".join(f":action_{i}" for i in range(len(actions)))
+    # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT COUNT(*) AS cnt
         FROM events
@@ -90,6 +92,7 @@ async def _distinct_actors(
 ) -> int:
     """Count distinct actors for events matching a LIKE pattern."""
     org_clause = "AND org = :org" if org else ""
+    # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT COUNT(DISTINCT actor) AS cnt
         FROM events
@@ -121,6 +124,7 @@ async def _top_actions(
 ) -> list[dict[str, Any]]:
     """Return top actions by count matching a LIKE pattern."""
     org_clause = "AND org = :org" if org else ""
+    # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT action, COUNT(*) AS event_count
         FROM events
@@ -154,6 +158,7 @@ async def _total_unique_values(
     """Count distinct non-null values for a given column in the events table."""
     org_clause = "AND org = :org" if org else ""
     # Column name is controlled by our code, not user input
+    # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT COUNT(DISTINCT {column}) AS cnt
         FROM events
