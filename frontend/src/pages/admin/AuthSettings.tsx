@@ -13,10 +13,7 @@ import {
   listSessionPolicies,
   updateSessionPolicy,
 } from '../../api/adminAuth';
-import type {
-  AuthMethodConfig,
-  SessionPolicySetting,
-} from '../../api/adminAuth';
+import type { AuthMethodConfig, SessionPolicySetting } from '../../api/adminAuth';
 import styles from './AuthSettings.module.css';
 
 /* ──────────────── Method descriptions ──────────────── */
@@ -62,13 +59,7 @@ function MethodCard({
 }
 
 /* ──────────────── SAML Config Form ──────────────── */
-function SAMLConfigForm({
-  method,
-  onSaved,
-}: {
-  method: AuthMethodConfig;
-  onSaved: () => void;
-}) {
+function SAMLConfigForm({ method, onSaved }: { method: AuthMethodConfig; onSaved: () => void }) {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
 
@@ -106,7 +97,9 @@ function SAMLConfigForm({
       </p>
       <div className={styles.formGrid}>
         <div className={styles.field}>
-          <label className={styles.label} htmlFor="idp-entity-id">IdP Entity ID</label>
+          <label className={styles.label} htmlFor="idp-entity-id">
+            IdP Entity ID
+          </label>
           <input
             id="idp-entity-id"
             className={styles.input}
@@ -116,7 +109,9 @@ function SAMLConfigForm({
           />
         </div>
         <div className={styles.field}>
-          <label className={styles.label} htmlFor="idp-sso-url">IdP SSO URL</label>
+          <label className={styles.label} htmlFor="idp-sso-url">
+            IdP SSO URL
+          </label>
           <input
             id="idp-sso-url"
             className={styles.input}
@@ -126,7 +121,9 @@ function SAMLConfigForm({
           />
         </div>
         <div className={styles.fieldFull}>
-          <label className={styles.label} htmlFor="idp-cert">IdP X.509 Certificate</label>
+          <label className={styles.label} htmlFor="idp-cert">
+            IdP X.509 Certificate
+          </label>
           <textarea
             id="idp-cert"
             className={styles.input}
@@ -165,7 +162,12 @@ function SessionPolicyPanel() {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: policies, isLoading, isError, refetch } = useQuery({
+  const {
+    data: policies,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['admin', 'session-policies'],
     queryFn: listSessionPolicies,
   });
@@ -266,8 +268,7 @@ export default function AuthSettingsPage() {
   });
 
   const toggleMutation = useMutation({
-    mutationFn: (m: AuthMethodConfig) =>
-      updateAuthMethod(m.method_name, { enabled: !m.enabled }),
+    mutationFn: (m: AuthMethodConfig) => updateAuthMethod(m.method_name, { enabled: !m.enabled }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'auth-methods'] });
       showToast('Auth method updated', 'success');
@@ -284,10 +285,7 @@ export default function AuthSettingsPage() {
       <PageHeader
         title="Authentication Settings"
         description="Manage sign-in methods, SAML SSO, and session policies."
-        breadcrumbs={[
-          { label: 'Admin', href: '/admin' },
-          { label: 'Authentication' },
-        ]}
+        breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Authentication' }]}
       />
 
       {/* Auth Methods */}
@@ -323,10 +321,7 @@ export default function AuthSettingsPage() {
 
       {/* SAML Configuration */}
       {configuringMethod?.method_name === 'saml_sso' && (
-        <SAMLConfigForm
-          method={configuringMethod}
-          onSaved={() => setConfiguringMethod(null)}
-        />
+        <SAMLConfigForm method={configuringMethod} onSaved={() => setConfiguringMethod(null)} />
       )}
 
       {/* Session Policies */}

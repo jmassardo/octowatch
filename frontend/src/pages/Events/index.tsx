@@ -392,7 +392,13 @@ export function EventsPage() {
               data={items}
               rowKey={(e) => e.id}
               onRowClick={(e) => setDetailEvent(e)}
-              emptyMessage={<EmptyState variant="filtered" title="No events found" description="No events match the current filters." />}
+              emptyMessage={
+                <EmptyState
+                  variant="filtered"
+                  title="No events found"
+                  description="No events match the current filters."
+                />
+              }
             />
           )}
         </div>

@@ -35,10 +35,7 @@ describe('PageHeader', () => {
     render(
       <PageHeader
         title="Test"
-        breadcrumbs={[
-          { label: 'Home', href: '/' },
-          { label: 'Current' },
-        ]}
+        breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'Current' }]}
       />,
     );
     expect(screen.getByText('Home')).toBeInTheDocument();
@@ -46,12 +43,7 @@ describe('PageHeader', () => {
   });
 
   it('renders breadcrumb links as anchors', () => {
-    render(
-      <PageHeader
-        title="T"
-        breadcrumbs={[{ label: 'Home', href: '/' }]}
-      />,
-    );
+    render(<PageHeader title="T" breadcrumbs={[{ label: 'Home', href: '/' }]} />);
     const link = screen.getByText('Home');
     expect(link.tagName).toBe('A');
     expect(link).toHaveAttribute('href', '/');
@@ -59,10 +51,7 @@ describe('PageHeader', () => {
 
   it('renders disabled action button', () => {
     render(
-      <PageHeader
-        title="T"
-        actions={[{ label: 'Save', onClick: vi.fn(), disabled: true }]}
-      />,
+      <PageHeader title="T" actions={[{ label: 'Save', onClick: vi.fn(), disabled: true }]} />,
     );
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
