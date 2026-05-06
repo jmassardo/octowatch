@@ -76,11 +76,7 @@ describe('ToastProvider', () => {
     vi.useFakeTimers();
     function QuickToast() {
       const { showToast } = useToast();
-      return (
-        <button onClick={() => showToast('Quick', 'info', { duration: 100 })}>
-          Quick
-        </button>
-      );
+      return <button onClick={() => showToast('Quick', 'info', { duration: 100 })}>Quick</button>;
     }
     render(
       <ToastProvider>

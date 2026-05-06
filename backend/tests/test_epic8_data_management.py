@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -156,33 +155,19 @@ class TestRetentionService:
         assert deleted == 42
 
     @pytest.mark.asyncio
-    async def test_enforce_retention_calls_archive_callback(self) -> None:
-        """If archive_callback is provided, it should be called before deletion."""
+    async def test_enforce_retention_unknown_data_type_raises(self) -> None:
+        """enforce_retention raises ValueError for unknown data types."""
         from app.services.retention_service import enforce_retention, invalidate_cache
 
         db = _mock_db()
-        mock_delete_result = MagicMock()
-        mock_delete_result.rowcount = 10
-
-        call_count = 0
-
-        async def _mock_execute(stmt: Any, params: Any = None) -> Any:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise Exception("no table")
-            return mock_delete_result
-
-        db.execute = AsyncMock(side_effect=_mock_execute)
+        # Return empty policies
+        mock_result = MagicMock()
+        mock_result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
+        db.execute = AsyncMock(return_value=mock_result)
         invalidate_cache()
 
-        archive_cb = AsyncMock()
-        await enforce_retention(db, "detections", archive_callback=archive_cb)
-
-        archive_cb.assert_called_once()
-        args = archive_cb.call_args.args
-        assert args[1] == "detections"
-        assert isinstance(args[2], datetime)
+        with pytest.raises(ValueError, match="Unknown retention data type"):
+            await enforce_retention(db, "nonexistent_type")
 
     @pytest.mark.asyncio
     async def test_enforce_all_iterates_data_types(self) -> None:
