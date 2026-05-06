@@ -55,9 +55,10 @@ async def get_setting_with_provider(
 ) -> str | None:
     """Get a setting value, checking Key Vault first then falling back to DB.
 
-    If a SecretProvider is available, it is checked first using the key name.
-    If the secret is not found in the provider (or no provider is given),
-    falls back to the encrypted DB value.
+    If a SecretProvider is available, it is checked first using the
+    :data:`~app.services.config_overlay.KV_NAME_MAP` to translate the DB key
+    to the Key Vault secret name. If the secret is not found in the provider
+    (or no provider is given), falls back to the encrypted DB value.
 
     Args:
         db: Async database session.
@@ -69,14 +70,18 @@ async def get_setting_with_provider(
     """
     # Check Key Vault first if provider is available
     if secret_provider is not None:
+        from app.services.config_overlay import KV_NAME_MAP
+
+        kv_name = KV_NAME_MAP.get(key, key)
         try:
-            value = await secret_provider.get_secret(key)
+            value = await secret_provider.get_secret(kv_name)
             if value is not None:
                 return value
         except Exception as exc:
             logger.warning(
                 "settings_service.keyvault_fallback",
                 key=key,
+                kv_name=kv_name,
                 error=str(exc),
                 detail="Falling back to DB-encrypted value",
             )
