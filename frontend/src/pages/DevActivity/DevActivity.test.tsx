@@ -139,7 +139,7 @@ describe('DevActivityPage', () => {
 
     expect(await screen.findByText('Developer Activity')).toBeInTheDocument();
     expect(
-      screen.getByText('Per-developer contribution metrics and security posture'),
+      screen.getByText('Track developer engagement and contribution patterns'),
     ).toBeInTheDocument();
   });
 

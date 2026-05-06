@@ -24,6 +24,7 @@ import { getRetentionPolicies, updateRetentionPolicies } from '../../api/admin';
 import type { RetentionPolicyItem } from '../../api/admin';
 import { SyncPanel } from '../Integrations/SyncPanel';
 import { PageHeader } from '../../components/common/PageHeader';
+import { useToast } from '../../hooks/useToast';
 import { SyncRunHistory } from '../Integrations/SyncRunHistory';
 import { ManualIngestPanel } from '../Integrations/ManualIngestPanel';
 import { AuditStreamPanel } from './AuditStreamPanel';
@@ -278,11 +279,13 @@ function FeaturesPane() {
 
 function EnterprisePATSection() {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [tokenInput, setTokenInput] = useState('');
   const [testMessage, setTestMessage] = useState<string | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
 
   const { data: patStatus, isLoading: patLoading } = useQuery({
     queryKey: ['enterprise-pat-status'],
@@ -298,12 +301,14 @@ function EnterprisePATSection() {
       setSaveSuccess(`PAT saved successfully (${result.masked}).`);
       setTestMessage(null);
       setTestError(null);
+      showToast('Enterprise PAT saved successfully', 'success');
       setTimeout(() => setSaveSuccess(null), 5000);
     },
     onError: (err: Error & { status?: number; body?: { detail?: string } }) => {
       const detail = (err as unknown as { body?: { detail?: string } }).body?.detail ?? err.message;
       setSaveError(detail);
       setSaveSuccess(null);
+      showToast('Failed to save Enterprise PAT', 'error');
     },
   });
 
@@ -315,10 +320,12 @@ function EnterprisePATSection() {
       setTestError(null);
       setSaveError(null);
       setSaveSuccess('Enterprise PAT removed.');
+      showToast('Enterprise PAT removed', 'success');
       setTimeout(() => setSaveSuccess(null), 5000);
     },
     onError: (err: Error) => {
       setSaveError(err.message);
+      showToast('Failed to remove Enterprise PAT', 'error');
     },
   });
 
@@ -330,14 +337,17 @@ function EnterprisePATSection() {
           `Connected as ${result.login ?? 'unknown'}. Scopes: ${result.scopes || 'none detected'}.`,
         );
         setTestError(null);
+        showToast('Connection test successful', 'success');
       } else {
         setTestError(result.message ?? 'Test failed.');
         setTestMessage(null);
+        showToast('Connection test failed', 'error');
       }
     },
     onError: (err: Error) => {
       setTestError(err.message);
       setTestMessage(null);
+      showToast('Connection test failed', 'error');
     },
   });
 
@@ -422,13 +432,25 @@ function EnterprisePATSection() {
               size="sm"
               variant="danger"
               disabled={deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate()}
+              onClick={() => setShowRemoveConfirm(true)}
             >
               {deleteMutation.isPending ? 'Removing…' : 'Remove'}
             </Button>
           </>
         )}
       </div>
+      <ConfirmDialog
+        open={showRemoveConfirm}
+        onClose={() => setShowRemoveConfirm(false)}
+        title="Remove Enterprise PAT"
+        message="Are you sure you want to remove the Enterprise PAT? Audit log ingestion will stop until a new token is configured."
+        confirmLabel="Remove"
+        confirmVariant="danger"
+        onConfirm={() => {
+          setShowRemoveConfirm(false);
+          deleteMutation.mutate();
+        }}
+      />
     </div>
   );
 }

@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { listRules, createRule, updateRule, deleteRule, listRuleVersions } from '../../api/rules';
 import type { RuleVersionResponse } from '../../api/rules';
 import type { RuleResponse, RuleCreate, RuleCategory } from '../../types/detections';
+import { useToast } from '../../hooks/useToast';
+import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
 import { Drawer } from '../../components/primitives/Drawer';
@@ -407,6 +409,7 @@ function VersionHistory({ rule }: { rule: RuleResponse }) {
 
 export function RulesPage() {
   const qc = useQueryClient();
+  const { showToast } = useToast();
   const [showCreate, setShowCreate] = useState(false);
   const [editRule, setEditRule] = useState<RuleResponse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RuleResponse | null>(null);
@@ -434,6 +437,10 @@ export function RulesPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['rules'] });
       setShowCreate(false);
+      showToast('Rule created successfully', 'success');
+    },
+    onError: () => {
+      showToast('Failed to create rule', 'error');
     },
   });
 
@@ -442,6 +449,10 @@ export function RulesPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['rules'] });
       setEditRule(null);
+      showToast('Rule updated successfully', 'success');
+    },
+    onError: () => {
+      showToast('Failed to update rule', 'error');
     },
   });
 
@@ -450,6 +461,10 @@ export function RulesPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['rules'] });
       setDeleteTarget(null);
+      showToast('Rule deleted successfully', 'success');
+    },
+    onError: () => {
+      showToast('Failed to delete rule', 'error');
     },
   });
 
@@ -460,10 +475,10 @@ export function RulesPage() {
       ) : (
         <>
           <div className={styles.pageHeader}>
-            <div>
-              <h1 className={styles.pageTitle}>Detection Rules</h1>
-              <p className={styles.pageSub}>Manage built-in and custom detection rules</p>
-            </div>
+            <PageHeader
+              title="Detection Rules"
+              description="Configure automated threat detection patterns"
+            />
             <div className={styles.headerActions}>
               <Button variant="default" size="sm" onClick={() => setShowLibrary(true)}>
                 Rule Library

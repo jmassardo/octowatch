@@ -13,6 +13,9 @@ import {
   getReportCatalog,
 } from '../../api/reports';
 import { useOrg } from '../../hooks/useOrg';
+import { useToast } from '../../hooks/useToast';
+import { PageHeader } from '../../components/common/PageHeader';
+import { SkeletonCard } from '../../components/common/SkeletonCard';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
 import { Card, CardHeader } from '../../components/primitives/Card';
@@ -27,6 +30,7 @@ import styles from './Reports.module.css';
 
 export function ReportsPage() {
   const { selectedOrg } = useOrg();
+  const { showToast } = useToast();
   const [windowDays, setWindowDays] = useState<30 | 60 | 90>(30);
   const [filterBucket, setFilterBucket] = useState<string | null>(null);
   const [viewReport, setViewReport] = useState<string | null>(null);
@@ -247,8 +251,7 @@ export function ReportsPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <div>
-          <div className={styles.pageTitle}>Reports</div>
-          <div className={styles.pageSub}>On-demand metric reports with CSV export</div>
+          <PageHeader title="Reports" description="Organization activity and usage analytics" />
         </div>
         <div className={styles.windowSelector}>
           <span className={styles.windowLabel}>Window:</span>
@@ -351,7 +354,11 @@ export function ReportsPage() {
 
       <div className={styles.reportList}>
         {catalogLoading ? (
-          <Spinner />
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
         ) : (catalogData ?? []).length === 0 ? (
           <div className={styles.emptyReports}>
             No reports available yet. Reports are generated automatically after sync completes.
@@ -388,10 +395,22 @@ export function ReportsPage() {
                 </div>
               </div>
               <div className={styles.reportActions}>
-                <Button size="sm" onClick={() => exportReport(r.type, 'pdf')}>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    exportReport(r.type, 'pdf');
+                    showToast('Report exported successfully', 'success');
+                  }}
+                >
                   PDF
                 </Button>
-                <Button size="sm" onClick={() => exportReport(r.type, 'csv')}>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    exportReport(r.type, 'csv');
+                    showToast('Report exported successfully', 'success');
+                  }}
+                >
                   CSV
                 </Button>
               </div>
