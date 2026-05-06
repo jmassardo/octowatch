@@ -1040,47 +1040,6 @@ export function UsersPage() {
           <section>
             <h2 className={styles.sectionTitle}>Team mappings</h2>
             {isLoading ? (
-              <Spinner />
-            ) : (
-              <TeamMappingsDataTable
-                assignments={assignments ?? []}
-                navigate={navigate}
-                setEditTarget={setEditTarget}
-                setDeleteTarget={setDeleteTarget}
-              />
-            )}
-          </section>
-
-          {/* ---- Section 2: Active users ---- */}
-          <section>
-            <h2 className={styles.sectionTitle}>Active users</h2>
-            {sessionsError && (
-              <ErrorBanner
-                message="Failed to load active sessions"
-                onRetry={() => refetchSessions()}
-              />
-            )}
-            {sessionsLoading ? (
-              <Spinner />
-            ) : (sessions ?? []).length === 0 ? (
-              <div className={styles.empty}>No active sessions in the last 24 hours</div>
-            ) : (
-              <ActiveUsersDataTable
-                sessions={sessions ?? []}
-                navigate={navigate}
-                setSessionUser={setSessionUser}
-              />
-            )}
-          </section>
-        </>
-      )}
-
-      {activeTab === 'users' && (
-        <>
-          {/* ---- Section 1: Team mappings ---- */}
-          <section>
-            <h2 className={styles.sectionTitle}>Team mappings</h2>
-            {isLoading ? (
               <SkeletonTable />
             ) : (
               <TeamMappingsDataTable
