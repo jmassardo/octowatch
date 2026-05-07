@@ -15,6 +15,7 @@ import { Drawer } from '../../components/primitives/Drawer';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { PageHeader } from '../../components/common/PageHeader';
+import { LeadershipPane } from './LeadershipPane';
 import { useFeatures } from '../../hooks/useFeatures';
 import type { ActionsVolumeBucket } from '../../types/reports';
 import type { EventResponse } from '../../types/events';
@@ -183,6 +184,7 @@ function BranchProtectionSection({ branchProt }: BranchProtectionProps) {
 export function VelocityPage() {
   const navigate = useNavigate();
   const { features } = useFeatures();
+  const [activeTab, setActiveTab] = useState<'metrics' | 'leadership'>('metrics');
   const [doraModalOpen, setDoraModalOpen] = useState(false);
   const [failureBucket, setFailureBucket] = useState<ActionsVolumeBucket | null>(null);
   const [drillFilter, setDrillFilter] = useState<'total' | 'succeeded' | 'failed' | null>(null);
@@ -507,686 +509,728 @@ export function VelocityPage() {
         title="Engineering Velocity"
         description="Track CI/CD throughput and development flow metrics"
       />
-      <div className={styles.titleRow}>
-        <div className={styles.doraGroup}>
-          <span className={styles.doraLabel}>DORA tier</span>
-          <span
-            className={[
-              styles.doraBadge,
-              doraTier ? styles[doraTier.cssClass] : '',
-              styles.doraBadgeClickable,
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            role="button"
-            tabIndex={0}
-            aria-label={
-              doraTier
-                ? `DORA ${doraTier.name} tier — click for details`
-                : 'DORA tier pending — click for details'
-            }
-            onClick={() => setDoraModalOpen(true)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setDoraModalOpen(true);
-              }
-            }}
-          >
-            {doraTier ? `${doraTier.icon} ${doraTier.name}` : '— Pending'}
-          </span>
-        </div>
-      </div>
 
-      <div className={styles.contextCard}>
-        <svg
-          width="14"
-          height="14"
-          fill="var(--accent)"
-          viewBox="0 0 16 16"
-          style={{ flexShrink: 0, marginTop: 1 }}
+      {/* Tab bar */}
+      <div className={styles.tabBar} role="tablist" aria-label="Velocity views">
+        <button
+          role="tab"
+          aria-selected={activeTab === 'metrics'}
+          className={[styles.tab, activeTab === 'metrics' && styles.tabActive]
+            .filter(Boolean)
+            .join(' ')}
+          onClick={() => setActiveTab('metrics')}
         >
-          <path d="M0 8a8 8 0 1116 0A8 8 0 010 8zm8-6.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 7.75A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 110-2 1 1 0 010 2z" />
-        </svg>
-        <span>
-          Metrics here measure <strong>system behavior</strong>, not individual performance. A
-          metric moving in an unexpected direction is a question to investigate, not a judgment to
-          make.
-        </span>
+          Metrics
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'leadership'}
+          className={[styles.tab, activeTab === 'leadership' && styles.tabActive]
+            .filter(Boolean)
+            .join(' ')}
+          onClick={() => setActiveTab('leadership')}
+        >
+          Leadership
+        </button>
       </div>
 
-      {isError && <ErrorBanner message="Failed to load metrics" onRetry={refetch} />}
+      {activeTab === 'leadership' && <LeadershipPane />}
 
-      <div className={styles.metricStrip}>
-        {metrics.map((m, i) => (
-          <MetricCard
-            key={i}
-            value={m.value}
-            label={m.label}
-            delta={m.delta}
-            deltaDir={m.dir}
-            onClick={
-              m.scrollRef
-                ? () => {
-                    refMap[m.scrollRef].current?.scrollIntoView({ behavior: 'smooth' });
+      {activeTab === 'metrics' && (
+        <>
+          <div className={styles.titleRow}>
+            <div className={styles.doraGroup}>
+              <span className={styles.doraLabel}>DORA tier</span>
+              <span
+                className={[
+                  styles.doraBadge,
+                  doraTier ? styles[doraTier.cssClass] : '',
+                  styles.doraBadgeClickable,
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                role="button"
+                tabIndex={0}
+                aria-label={
+                  doraTier
+                    ? `DORA ${doraTier.name} tier — click for details`
+                    : 'DORA tier pending — click for details'
+                }
+                onClick={() => setDoraModalOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setDoraModalOpen(true);
                   }
-                : undefined
-            }
-          />
-        ))}
-      </div>
+                }}
+              >
+                {doraTier ? `${doraTier.icon} ${doraTier.name}` : '— Pending'}
+              </span>
+            </div>
+          </div>
 
-      <details
-        className={styles.defsPanel}
-        open={defsOpen}
-        onToggle={(e) => setDefsOpen((e.target as HTMLDetailsElement).open)}
-      >
-        <summary className={styles.defsSummary}>
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-            style={{ flexShrink: 0 }}
+          <div className={styles.contextCard}>
+            <svg
+              width="14"
+              height="14"
+              fill="var(--accent)"
+              viewBox="0 0 16 16"
+              style={{ flexShrink: 0, marginTop: 1 }}
+            >
+              <path d="M0 8a8 8 0 1116 0A8 8 0 010 8zm8-6.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 7.75A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 110-2 1 1 0 010 2z" />
+            </svg>
+            <span>
+              Metrics here measure <strong>system behavior</strong>, not individual performance. A
+              metric moving in an unexpected direction is a question to investigate, not a judgment
+              to make.
+            </span>
+          </div>
+
+          {isError && <ErrorBanner message="Failed to load metrics" onRetry={refetch} />}
+
+          <div className={styles.metricStrip}>
+            {metrics.map((m, i) => (
+              <MetricCard
+                key={i}
+                value={m.value}
+                label={m.label}
+                delta={m.delta}
+                deltaDir={m.dir}
+                onClick={
+                  m.scrollRef
+                    ? () => {
+                        refMap[m.scrollRef].current?.scrollIntoView({ behavior: 'smooth' });
+                      }
+                    : undefined
+                }
+              />
+            ))}
+          </div>
+
+          <details
+            className={styles.defsPanel}
+            open={defsOpen}
+            onToggle={(e) => setDefsOpen((e.target as HTMLDetailsElement).open)}
           >
-            <path d="M0 8a8 8 0 1116 0A8 8 0 010 8zm8-6.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 7.75A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 110-2 1 1 0 010 2z" />
-          </svg>
-          How are these metrics calculated?
-        </summary>
-        <div className={styles.defsGrid}>
-          {metrics.map((m, i) => (
-            <div key={i} className={styles.defItem}>
-              <div className={styles.defLabel}>{m.label}</div>
-              <div className={styles.defText}>{m.definition}</div>
-            </div>
-          ))}
-          <div className={styles.defItem}>
-            <div className={styles.defLabel}>DORA tier</div>
-            <div className={styles.defText}>
-              Weighted average of Deployment Frequency (successful workflows/day) and Change Failure
-              Rate scores. Elite ≥ 3.5, High ≥ 2.5, Medium ≥ 1.5, Low &lt; 1.5. Full DORA requires
-              deployment and incident tracking.
-            </div>
-          </div>
-        </div>
-      </details>
-
-      {isLoading && <Spinner />}
-
-      <div ref={calendarRef}>
-        <Card style={{ marginBottom: 20 }}>
-          <CardHeader
-            actions={<span style={{ fontWeight: 400 }}>commit + PR + deploy activity</span>}
-          >
-            Team contribution calendar — last 13 weeks
-          </CardHeader>
-          <ContributionCalendar data={calendarData} />
-        </Card>
-      </div>
-
-      <div className={styles.chartsGrid}>
-        <div className={styles.chartWrap}>
-          <div className={styles.chartTitle}>
-            Lead time for changes <span className={styles.chartSub}>— {chartDaysLabel}</span>
-          </div>
-          {isLoading ? (
-            <div className={styles.chartSkeleton} />
-          ) : chartLabels.length > 0 ? (
-            <LineAreaChart
-              xAxisData={chartLabels}
-              series={[
-                {
-                  name: 'Lead time (hours)',
-                  data: leadTimeChartData,
-                  color: '#d2a8ff',
-                  areaOpacity: 0.15,
-                },
-              ]}
-              yAxisFormatter={(v: number) => `${v}h`}
-            />
-          ) : (
-            <div
-              style={{
-                height: 160,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--fg-muted)',
-                fontSize: 13,
-              }}
-            >
-              No workflow data available
-            </div>
-          )}
-        </div>
-
-        <div ref={changeFailureRef} className={styles.chartWrap}>
-          <div className={styles.chartTitle}>
-            Change failure rate <span className={styles.chartSub}>— {chartDaysLabel}</span>
-          </div>
-          {isLoading ? (
-            <div className={styles.chartSkeleton} />
-          ) : chartLabels.length > 0 ? (
-            <LineAreaChart
-              xAxisData={chartLabels}
-              series={[
-                {
-                  name: 'CFR',
-                  data: changeFailureChartData,
-                  color: 'rgb(248, 81, 73)',
-                  areaOpacity: 0.15,
-                },
-                {
-                  name: 'Threshold (5%)',
-                  data: Array.from({ length: chartLabels.length }, () => 5),
-                  color: 'rgb(248, 81, 73)',
-                  dashed: true,
-                },
-              ]}
-              yAxisFormatter={(v: number) => `${v}%`}
-            />
-          ) : (
-            <div
-              style={{
-                height: 160,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--fg-muted)',
-                fontSize: 13,
-              }}
-            >
-              No workflow data available
-            </div>
-          )}
-        </div>
-
-        <div ref={workflowSuccessRef} className={styles.chartWrap}>
-          <div className={styles.chartTitle}>
-            Workflow success rate <span className={styles.chartSub}>— {chartDaysLabel}</span>
-          </div>
-          {isLoading ? (
-            <div className={styles.chartSkeleton} />
-          ) : chartLabels.length > 0 ? (
-            <LineAreaChart
-              xAxisData={chartLabels}
-              series={[
-                {
-                  name: 'Success rate',
-                  data: workflowSuccessChartData,
-                  color: 'rgb(63, 185, 80)',
-                  areaOpacity: 0.15,
-                },
-              ]}
-              yAxisFormatter={(v: number) => `${v}%`}
-            />
-          ) : (
-            <div
-              style={{
-                height: 160,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--fg-muted)',
-                fontSize: 13,
-              }}
-            >
-              No workflow data available
-            </div>
-          )}
-        </div>
-
-        <div ref={dailyRunsRef} className={styles.chartWrap}>
-          <div className={styles.chartTitle}>
-            Daily deployments / MTTR <span className={styles.chartSub}>— {chartDaysLabel}</span>
-          </div>
-          {isLoading ? (
-            <div className={styles.chartSkeleton} />
-          ) : chartLabels.length > 0 ? (
-            <BarChart
-              xAxisData={chartLabels}
-              series={[
-                { name: 'Deployments', data: dailyRunsChartData, color: '#58a6ff' },
-                { name: 'MTTR (hours)', data: mttrChartData, color: '#d2a8ff' },
-              ]}
-            />
-          ) : (
-            <div
-              style={{
-                height: 160,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--fg-muted)',
-                fontSize: 13,
-              }}
-            >
-              No workflow data available
-            </div>
-          )}
-        </div>
-      </div>
-
-      {recentFailingBuckets.length > 0 && (
-        <div ref={failuresRef}>
-          <div className={styles.sectionTitle}>Recent workflow failures — last 30 days</div>
-          <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
-            <DataTable<ActionsVolumeBucket>
-              columns={[
-                {
-                  key: 'bucket',
-                  header: 'Date bucket',
-                  helpText:
-                    'Time window for aggregated workflow run data. Based on workflow_run audit events.',
-                  filterable: true,
-                  render: (b) => <>{formatBucketDate(b.bucket)}</>,
-                  filterValue: (b) => formatBucketDate(b.bucket),
-                },
-                {
-                  key: 'workflow_runs_total',
-                  header: 'Total runs',
-                  helpText:
-                    'Total number of workflow runs in this bucket. From workflow_run audit events.',
-                  sortable: true,
-                  render: (b) => (
-                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {b.workflow_runs_total ?? 0}
-                    </span>
-                  ),
-                  sortValue: (b) => b.workflow_runs_total ?? 0,
-                },
-                {
-                  key: 'workflow_runs_failed',
-                  header: 'Failed',
-                  helpText:
-                    'Number of workflow runs that failed in this bucket. From workflow_run audit events.',
-                  sortable: true,
-                  render: (b) => (
-                    <Label variant={(b.workflow_runs_failed ?? 0) > 10 ? 'danger' : 'attention'}>
-                      {b.workflow_runs_failed ?? 0}
-                    </Label>
-                  ),
-                  sortValue: (b) => b.workflow_runs_failed ?? 0,
-                },
-                {
-                  key: 'success_rate_pct',
-                  header: 'Success rate',
-                  helpText:
-                    'Percentage of workflow runs that succeeded. Based on workflow_run audit events. DORA elite teams target 95%+.',
-                  sortable: true,
-                  render: (b) => (
-                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {b.success_rate_pct != null ? `${Math.round(b.success_rate_pct)}%` : '—'}
-                    </span>
-                  ),
-                  sortValue: (b) => b.success_rate_pct ?? 0,
-                },
-              ]}
-              data={recentFailingBuckets}
-              rowKey={(b) => b.bucket}
-              onRowClick={(b) => handleOpenBucket(b)}
-            />
-          </div>
-        </div>
-      )}
-
-      <div className={styles.workflowCallout}>
-        <div className={styles.calloutIcon}>⚡</div>
-        <div className={styles.calloutContent}>
-          <div className={styles.calloutTitle}>Workflow Health</div>
-          <div className={styles.calloutDesc}>
-            Persistent CI/CD failures and timeouts are tracked on the dedicated{' '}
-            <Link to="/workflows/health">Workflow Health</Link> page.
-          </div>
-        </div>
-      </div>
-
-      <div ref={reposRef} className={styles.sectionTitle}>
-        Most active repositories — last 30 days
-      </div>
-      <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
-        <DataTable<RepoActivityStats>
-          columns={[
-            {
-              key: 'name',
-              header: 'Repository',
-              helpText:
-                'Repository name. Activity is aggregated from all audit log events associated with this repo.',
-              filterable: true,
-              render: (r) => (
-                <span style={{ fontWeight: 500, color: 'var(--accent)', cursor: 'pointer' }}>
-                  {r.name}
-                </span>
-              ),
-              filterValue: (r) => r.name,
-            },
-            {
-              key: 'totalEvents',
-              header: 'Events',
-              helpText: 'Total audit log events for this repository in the last 30 days.',
-              sortable: true,
-              render: (r) => (
-                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  {r.totalEvents.toLocaleString()}
-                </span>
-              ),
-              sortValue: (r) => r.totalEvents,
-            },
-            {
-              key: 'prEvents',
-              header: 'PR events',
-              helpText:
-                'Pull request related audit events (open, close, merge, review). From pull_request audit events.',
-              sortable: true,
-              render: (r) => (
-                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  {r.prEvents.toLocaleString()}
-                </span>
-              ),
-              sortValue: (r) => r.prEvents,
-            },
-            {
-              key: 'pushEvents',
-              header: 'Push events',
-              helpText: 'Code push events to this repository. From push and git.push audit events.',
-              sortable: true,
-              render: (r) => (
-                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  {r.pushEvents.toLocaleString()}
-                </span>
-              ),
-              sortValue: (r) => r.pushEvents,
-            },
-            {
-              key: 'contributors',
-              header: 'Contributors',
-              helpText:
-                'Unique developers who triggered events in this repo. From push and PR audit events.',
-              sortable: true,
-              render: (r) => (
-                <span style={{ fontVariantNumeric: 'tabular-nums' }}>{r.contributors}</span>
-              ),
-              sortValue: (r) => r.contributors,
-            },
-          ]}
-          data={repoStats}
-          rowKey={(r) => r.name}
-          onRowClick={(r) => navigate(`/events?repo=${encodeURIComponent(r.name)}`)}
-          emptyMessage="No repository activity data available"
-        />
-      </div>
-
-      {buckets.length === 0 && !isLoading && (
-        <div style={{ color: 'var(--fg-muted)', padding: '16px 0' }}>
-          No workflow run data for the selected period.
-        </div>
-      )}
-
-      {/* Branch Protection Changes */}
-      <BranchProtectionSection branchProt={branchProtData} />
-
-      <Drawer
-        open={doraModalOpen}
-        onClose={() => setDoraModalOpen(false)}
-        title={`DORA Metrics — ${doraTier ? doraTier.name : 'Pending'} Tier`}
-      >
-        <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16, lineHeight: 1.5 }}>
-          DORA (DevOps Research and Assessment) metrics measure software delivery performance. Teams
-          are classified into four tiers based on their performance across four key metrics.
-        </p>
-        {(() => {
-          interface DoraMetricRow {
-            metric: string;
-            threshold: string;
-            current: React.ReactNode;
-          }
-          const doraRows: DoraMetricRow[] = [
-            {
-              metric: 'Deployment Frequency',
-              threshold: 'On-demand (multiple deploys/day)',
-              current:
-                deploymentProxy != null ? `${deploymentProxy.toLocaleString()} workflows` : '—',
-            },
-            {
-              metric: 'Lead Time for Changes',
-              threshold: '< 1 hour',
-              current: (
-                <>
-                  {avgLeadTime != null && avgLeadTime > 0 ? `~${avgLeadTime.toFixed(1)}h` : '—'}{' '}
-                  <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>(estimated)</span>
-                </>
-              ),
-            },
-            {
-              metric: 'Change Failure Rate',
-              threshold: '< 5%',
-              current: changeFailureRate != null ? `${changeFailureRate}%` : '—',
-            },
-            {
-              metric: 'Time to Restore Service',
-              threshold: '< 1 hour',
-              current: (
-                <>
-                  {mttrChartData.some((v) => v > 0)
-                    ? `~${(mttrChartData.filter((v) => v > 0).reduce((a, b) => a + b, 0) / mttrChartData.filter((v) => v > 0).length).toFixed(1)}h`
-                    : '—'}{' '}
-                  <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
-                    (estimated from failure rate)
-                  </span>
-                </>
-              ),
-            },
-          ];
-          return (
-            <DataTable<DoraMetricRow>
-              columns={[
-                {
-                  key: 'metric',
-                  header: 'Metric',
-                  helpText: 'DORA metric name. Measures software delivery performance.',
-                  filterable: true,
-                  render: (row) => <span style={{ fontWeight: 500 }}>{row.metric}</span>,
-                  filterValue: (row) => row.metric,
-                },
-                {
-                  key: 'threshold',
-                  header: 'Elite threshold',
-                  helpText: 'The benchmark value for DORA elite-performing teams.',
-                  render: (row) => <>{row.threshold}</>,
-                },
-                {
-                  key: 'current',
-                  header: 'Current',
-                  helpText: 'Your current value for this metric, computed from audit log data.',
-                  render: (row) => <>{row.current}</>,
-                },
-              ]}
-              data={doraRows}
-              rowKey={(row) => row.metric}
-              className={styles.doraTable}
-            />
-          );
-        })()}
-        <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 12, lineHeight: 1.5 }}>
-          Tier is computed from deployment frequency and change failure rate. Full DORA calculation
-          requires deployment and incident tracking integrations.
-        </p>
-      </Drawer>
-
-      <Drawer
-        open={failureBucket !== null}
-        onClose={handleCloseBucket}
-        title={`Workflow runs — ${failureBucket ? formatBucketDate(failureBucket.bucket) : ''}`}
-      >
-        {failureBucket && (
-          <div>
-            <div className={styles.modalMetrics}>
-              {[
-                {
-                  key: 'total' as const,
-                  val: failureBucket.workflow_runs_total,
-                  label: 'Total runs',
-                  color: undefined,
-                },
-                {
-                  key: 'succeeded' as const,
-                  val: failureBucket.workflow_runs_succeeded,
-                  label: 'Succeeded',
-                  color: 'var(--success)',
-                },
-                {
-                  key: 'failed' as const,
-                  val: failureBucket.workflow_runs_failed,
-                  label: 'Failed',
-                  color: 'var(--danger)',
-                },
-              ].map((chip) => (
-                <div
-                  key={chip.key}
-                  className={[
-                    styles.modalMetric,
-                    styles.modalMetricClickable,
-                    drillFilter === chip.key && styles.modalMetricActive,
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`View ${chip.label.toLowerCase()}`}
-                  onClick={() => setDrillFilter(drillFilter === chip.key ? null : chip.key)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setDrillFilter(drillFilter === chip.key ? null : chip.key);
-                    }
-                  }}
-                >
-                  <div
-                    className={styles.modalMetricVal}
-                    style={chip.color ? { color: chip.color } : undefined}
-                  >
-                    {chip.val}
-                  </div>
-                  <div className={styles.modalMetricLbl}>{chip.label}</div>
+            <summary className={styles.defsSummary}>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                style={{ flexShrink: 0 }}
+              >
+                <path d="M0 8a8 8 0 1116 0A8 8 0 010 8zm8-6.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 7.75A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 110-2 1 1 0 010 2z" />
+              </svg>
+              How are these metrics calculated?
+            </summary>
+            <div className={styles.defsGrid}>
+              {metrics.map((m, i) => (
+                <div key={i} className={styles.defItem}>
+                  <div className={styles.defLabel}>{m.label}</div>
+                  <div className={styles.defText}>{m.definition}</div>
                 </div>
               ))}
-              <div className={styles.modalMetric}>
-                <div className={styles.modalMetricVal}>
-                  {failureBucket.success_rate_pct != null
-                    ? `${Math.round(failureBucket.success_rate_pct)}%`
-                    : '—'}
+              <div className={styles.defItem}>
+                <div className={styles.defLabel}>DORA tier</div>
+                <div className={styles.defText}>
+                  Weighted average of Deployment Frequency (successful workflows/day) and Change
+                  Failure Rate scores. Elite ≥ 3.5, High ≥ 2.5, Medium ≥ 1.5, Low &lt; 1.5. Full
+                  DORA requires deployment and incident tracking.
                 </div>
-                <div className={styles.modalMetricLbl}>Success rate</div>
               </div>
             </div>
+          </details>
 
-            {!drillFilter && (
-              <p
-                style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 16, lineHeight: 1.5 }}
+          {isLoading && <Spinner />}
+
+          <div ref={calendarRef}>
+            <Card style={{ marginBottom: 20 }}>
+              <CardHeader
+                actions={<span style={{ fontWeight: 400 }}>commit + PR + deploy activity</span>}
               >
-                Click a metric above to see individual workflow runs.
-              </p>
-            )}
+                Team contribution calendar — last 13 weeks
+              </CardHeader>
+              <ContributionCalendar data={calendarData} />
+            </Card>
+          </div>
 
-            {drillFilter && (
-              <div style={{ marginTop: 16 }}>
+          <div className={styles.chartsGrid}>
+            <div className={styles.chartWrap}>
+              <div className={styles.chartTitle}>
+                Lead time for changes <span className={styles.chartSub}>— {chartDaysLabel}</span>
+              </div>
+              {isLoading ? (
+                <div className={styles.chartSkeleton} />
+              ) : chartLabels.length > 0 ? (
+                <LineAreaChart
+                  xAxisData={chartLabels}
+                  series={[
+                    {
+                      name: 'Lead time (hours)',
+                      data: leadTimeChartData,
+                      color: '#d2a8ff',
+                      areaOpacity: 0.15,
+                    },
+                  ]}
+                  yAxisFormatter={(v: number) => `${v}h`}
+                />
+              ) : (
                 <div
                   style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    marginBottom: 8,
+                    height: 160,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 8,
+                    justifyContent: 'center',
+                    color: 'var(--fg-muted)',
+                    fontSize: 13,
                   }}
                 >
-                  {drillFilter === 'total'
-                    ? 'All'
-                    : drillFilter === 'succeeded'
-                      ? 'Succeeded'
-                      : 'Failed'}{' '}
-                  workflow runs
-                  {drillLoading && <Spinner />}
+                  No workflow data available
                 </div>
-                {drillEvents && drillEvents.items.length > 0 ? (
-                  <div className={styles.drillTable}>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Repository</th>
-                          <th>Workflow</th>
-                          <th>Status</th>
-                          <th>Time</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {drillEvents.items.map((ev) => (
-                          <tr key={ev.id}>
-                            <td>{ev.repo?.split('/').pop() ?? ev.repo ?? '—'}</td>
-                            <td className={styles.workflowName}>
-                              {(ev.data?.workflow_name as string) ??
-                                (ev.data?.name as string) ??
-                                '—'}
-                            </td>
-                            <td>
-                              <Label
-                                variant={
-                                  ev.action.includes('success')
-                                    ? 'success'
-                                    : ev.action.includes('failure')
-                                      ? 'danger'
-                                      : 'attention'
-                                }
-                              >
-                                {ev.action.split('.').pop()}
-                              </Label>
-                            </td>
-                            <td style={{ color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>
-                              {new Date(ev.created_at).toLocaleTimeString()}
-                            </td>
-                            <td>
-                              {ev.data?.html_url ? (
-                                <a
-                                  href={ev.data.html_url as string}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{ fontSize: 11, color: 'var(--accent)' }}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  View
-                                </a>
-                              ) : null}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {drillEvents.total > drillEvents.items.length && (
+              )}
+            </div>
+
+            <div ref={changeFailureRef} className={styles.chartWrap}>
+              <div className={styles.chartTitle}>
+                Change failure rate <span className={styles.chartSub}>— {chartDaysLabel}</span>
+              </div>
+              {isLoading ? (
+                <div className={styles.chartSkeleton} />
+              ) : chartLabels.length > 0 ? (
+                <LineAreaChart
+                  xAxisData={chartLabels}
+                  series={[
+                    {
+                      name: 'CFR',
+                      data: changeFailureChartData,
+                      color: 'rgb(248, 81, 73)',
+                      areaOpacity: 0.15,
+                    },
+                    {
+                      name: 'Threshold (5%)',
+                      data: Array.from({ length: chartLabels.length }, () => 5),
+                      color: 'rgb(248, 81, 73)',
+                      dashed: true,
+                    },
+                  ]}
+                  yAxisFormatter={(v: number) => `${v}%`}
+                />
+              ) : (
+                <div
+                  style={{
+                    height: 160,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--fg-muted)',
+                    fontSize: 13,
+                  }}
+                >
+                  No workflow data available
+                </div>
+              )}
+            </div>
+
+            <div ref={workflowSuccessRef} className={styles.chartWrap}>
+              <div className={styles.chartTitle}>
+                Workflow success rate <span className={styles.chartSub}>— {chartDaysLabel}</span>
+              </div>
+              {isLoading ? (
+                <div className={styles.chartSkeleton} />
+              ) : chartLabels.length > 0 ? (
+                <LineAreaChart
+                  xAxisData={chartLabels}
+                  series={[
+                    {
+                      name: 'Success rate',
+                      data: workflowSuccessChartData,
+                      color: 'rgb(63, 185, 80)',
+                      areaOpacity: 0.15,
+                    },
+                  ]}
+                  yAxisFormatter={(v: number) => `${v}%`}
+                />
+              ) : (
+                <div
+                  style={{
+                    height: 160,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--fg-muted)',
+                    fontSize: 13,
+                  }}
+                >
+                  No workflow data available
+                </div>
+              )}
+            </div>
+
+            <div ref={dailyRunsRef} className={styles.chartWrap}>
+              <div className={styles.chartTitle}>
+                Daily deployments / MTTR <span className={styles.chartSub}>— {chartDaysLabel}</span>
+              </div>
+              {isLoading ? (
+                <div className={styles.chartSkeleton} />
+              ) : chartLabels.length > 0 ? (
+                <BarChart
+                  xAxisData={chartLabels}
+                  series={[
+                    { name: 'Deployments', data: dailyRunsChartData, color: '#58a6ff' },
+                    { name: 'MTTR (hours)', data: mttrChartData, color: '#d2a8ff' },
+                  ]}
+                />
+              ) : (
+                <div
+                  style={{
+                    height: 160,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--fg-muted)',
+                    fontSize: 13,
+                  }}
+                >
+                  No workflow data available
+                </div>
+              )}
+            </div>
+          </div>
+
+          {recentFailingBuckets.length > 0 && (
+            <div ref={failuresRef}>
+              <div className={styles.sectionTitle}>Recent workflow failures — last 30 days</div>
+              <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
+                <DataTable<ActionsVolumeBucket>
+                  columns={[
+                    {
+                      key: 'bucket',
+                      header: 'Date bucket',
+                      helpText:
+                        'Time window for aggregated workflow run data. Based on workflow_run audit events.',
+                      filterable: true,
+                      render: (b) => <>{formatBucketDate(b.bucket)}</>,
+                      filterValue: (b) => formatBucketDate(b.bucket),
+                    },
+                    {
+                      key: 'workflow_runs_total',
+                      header: 'Total runs',
+                      helpText:
+                        'Total number of workflow runs in this bucket. From workflow_run audit events.',
+                      sortable: true,
+                      render: (b) => (
+                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {b.workflow_runs_total ?? 0}
+                        </span>
+                      ),
+                      sortValue: (b) => b.workflow_runs_total ?? 0,
+                    },
+                    {
+                      key: 'workflow_runs_failed',
+                      header: 'Failed',
+                      helpText:
+                        'Number of workflow runs that failed in this bucket. From workflow_run audit events.',
+                      sortable: true,
+                      render: (b) => (
+                        <Label
+                          variant={(b.workflow_runs_failed ?? 0) > 10 ? 'danger' : 'attention'}
+                        >
+                          {b.workflow_runs_failed ?? 0}
+                        </Label>
+                      ),
+                      sortValue: (b) => b.workflow_runs_failed ?? 0,
+                    },
+                    {
+                      key: 'success_rate_pct',
+                      header: 'Success rate',
+                      helpText:
+                        'Percentage of workflow runs that succeeded. Based on workflow_run audit events. DORA elite teams target 95%+.',
+                      sortable: true,
+                      render: (b) => (
+                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {b.success_rate_pct != null ? `${Math.round(b.success_rate_pct)}%` : '—'}
+                        </span>
+                      ),
+                      sortValue: (b) => b.success_rate_pct ?? 0,
+                    },
+                  ]}
+                  data={recentFailingBuckets}
+                  rowKey={(b) => b.bucket}
+                  onRowClick={(b) => handleOpenBucket(b)}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className={styles.workflowCallout}>
+            <div className={styles.calloutIcon}>⚡</div>
+            <div className={styles.calloutContent}>
+              <div className={styles.calloutTitle}>Workflow Health</div>
+              <div className={styles.calloutDesc}>
+                Persistent CI/CD failures and timeouts are tracked on the dedicated{' '}
+                <Link to="/workflows/health">Workflow Health</Link> page.
+              </div>
+            </div>
+          </div>
+
+          <div ref={reposRef} className={styles.sectionTitle}>
+            Most active repositories — last 30 days
+          </div>
+          <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
+            <DataTable<RepoActivityStats>
+              columns={[
+                {
+                  key: 'name',
+                  header: 'Repository',
+                  helpText:
+                    'Repository name. Activity is aggregated from all audit log events associated with this repo.',
+                  filterable: true,
+                  render: (r) => (
+                    <span style={{ fontWeight: 500, color: 'var(--accent)', cursor: 'pointer' }}>
+                      {r.name}
+                    </span>
+                  ),
+                  filterValue: (r) => r.name,
+                },
+                {
+                  key: 'totalEvents',
+                  header: 'Events',
+                  helpText: 'Total audit log events for this repository in the last 30 days.',
+                  sortable: true,
+                  render: (r) => (
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {r.totalEvents.toLocaleString()}
+                    </span>
+                  ),
+                  sortValue: (r) => r.totalEvents,
+                },
+                {
+                  key: 'prEvents',
+                  header: 'PR events',
+                  helpText:
+                    'Pull request related audit events (open, close, merge, review). From pull_request audit events.',
+                  sortable: true,
+                  render: (r) => (
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {r.prEvents.toLocaleString()}
+                    </span>
+                  ),
+                  sortValue: (r) => r.prEvents,
+                },
+                {
+                  key: 'pushEvents',
+                  header: 'Push events',
+                  helpText:
+                    'Code push events to this repository. From push and git.push audit events.',
+                  sortable: true,
+                  render: (r) => (
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {r.pushEvents.toLocaleString()}
+                    </span>
+                  ),
+                  sortValue: (r) => r.pushEvents,
+                },
+                {
+                  key: 'contributors',
+                  header: 'Contributors',
+                  helpText:
+                    'Unique developers who triggered events in this repo. From push and PR audit events.',
+                  sortable: true,
+                  render: (r) => (
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{r.contributors}</span>
+                  ),
+                  sortValue: (r) => r.contributors,
+                },
+              ]}
+              data={repoStats}
+              rowKey={(r) => r.name}
+              onRowClick={(r) => navigate(`/events?repo=${encodeURIComponent(r.name)}`)}
+              emptyMessage="No repository activity data available"
+            />
+          </div>
+
+          {buckets.length === 0 && !isLoading && (
+            <div style={{ color: 'var(--fg-muted)', padding: '16px 0' }}>
+              No workflow run data for the selected period.
+            </div>
+          )}
+
+          {/* Branch Protection Changes */}
+          <BranchProtectionSection branchProt={branchProtData} />
+
+          <Drawer
+            open={doraModalOpen}
+            onClose={() => setDoraModalOpen(false)}
+            title={`DORA Metrics — ${doraTier ? doraTier.name : 'Pending'} Tier`}
+          >
+            <p
+              style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16, lineHeight: 1.5 }}
+            >
+              DORA (DevOps Research and Assessment) metrics measure software delivery performance.
+              Teams are classified into four tiers based on their performance across four key
+              metrics.
+            </p>
+            {(() => {
+              interface DoraMetricRow {
+                metric: string;
+                threshold: string;
+                current: React.ReactNode;
+              }
+              const doraRows: DoraMetricRow[] = [
+                {
+                  metric: 'Deployment Frequency',
+                  threshold: 'On-demand (multiple deploys/day)',
+                  current:
+                    deploymentProxy != null ? `${deploymentProxy.toLocaleString()} workflows` : '—',
+                },
+                {
+                  metric: 'Lead Time for Changes',
+                  threshold: '< 1 hour',
+                  current: (
+                    <>
+                      {avgLeadTime != null && avgLeadTime > 0 ? `~${avgLeadTime.toFixed(1)}h` : '—'}{' '}
+                      <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>(estimated)</span>
+                    </>
+                  ),
+                },
+                {
+                  metric: 'Change Failure Rate',
+                  threshold: '< 5%',
+                  current: changeFailureRate != null ? `${changeFailureRate}%` : '—',
+                },
+                {
+                  metric: 'Time to Restore Service',
+                  threshold: '< 1 hour',
+                  current: (
+                    <>
+                      {mttrChartData.some((v) => v > 0)
+                        ? `~${(mttrChartData.filter((v) => v > 0).reduce((a, b) => a + b, 0) / mttrChartData.filter((v) => v > 0).length).toFixed(1)}h`
+                        : '—'}{' '}
+                      <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
+                        (estimated from failure rate)
+                      </span>
+                    </>
+                  ),
+                },
+              ];
+              return (
+                <DataTable<DoraMetricRow>
+                  columns={[
+                    {
+                      key: 'metric',
+                      header: 'Metric',
+                      helpText: 'DORA metric name. Measures software delivery performance.',
+                      filterable: true,
+                      render: (row) => <span style={{ fontWeight: 500 }}>{row.metric}</span>,
+                      filterValue: (row) => row.metric,
+                    },
+                    {
+                      key: 'threshold',
+                      header: 'Elite threshold',
+                      helpText: 'The benchmark value for DORA elite-performing teams.',
+                      render: (row) => <>{row.threshold}</>,
+                    },
+                    {
+                      key: 'current',
+                      header: 'Current',
+                      helpText: 'Your current value for this metric, computed from audit log data.',
+                      render: (row) => <>{row.current}</>,
+                    },
+                  ]}
+                  data={doraRows}
+                  rowKey={(row) => row.metric}
+                  className={styles.doraTable}
+                />
+              );
+            })()}
+            <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 12, lineHeight: 1.5 }}>
+              Tier is computed from deployment frequency and change failure rate. Full DORA
+              calculation requires deployment and incident tracking integrations.
+            </p>
+          </Drawer>
+
+          <Drawer
+            open={failureBucket !== null}
+            onClose={handleCloseBucket}
+            title={`Workflow runs — ${failureBucket ? formatBucketDate(failureBucket.bucket) : ''}`}
+          >
+            {failureBucket && (
+              <div>
+                <div className={styles.modalMetrics}>
+                  {[
+                    {
+                      key: 'total' as const,
+                      val: failureBucket.workflow_runs_total,
+                      label: 'Total runs',
+                      color: undefined,
+                    },
+                    {
+                      key: 'succeeded' as const,
+                      val: failureBucket.workflow_runs_succeeded,
+                      label: 'Succeeded',
+                      color: 'var(--success)',
+                    },
+                    {
+                      key: 'failed' as const,
+                      val: failureBucket.workflow_runs_failed,
+                      label: 'Failed',
+                      color: 'var(--danger)',
+                    },
+                  ].map((chip) => (
+                    <div
+                      key={chip.key}
+                      className={[
+                        styles.modalMetric,
+                        styles.modalMetricClickable,
+                        drillFilter === chip.key && styles.modalMetricActive,
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`View ${chip.label.toLowerCase()}`}
+                      onClick={() => setDrillFilter(drillFilter === chip.key ? null : chip.key)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setDrillFilter(drillFilter === chip.key ? null : chip.key);
+                        }
+                      }}
+                    >
                       <div
-                        style={{
-                          fontSize: 11,
-                          color: 'var(--fg-subtle)',
-                          marginTop: 8,
-                          textAlign: 'center',
-                        }}
+                        className={styles.modalMetricVal}
+                        style={chip.color ? { color: chip.color } : undefined}
                       >
-                        Showing {drillEvents.items.length} of {drillEvents.total} runs
+                        {chip.val}
                       </div>
+                      <div className={styles.modalMetricLbl}>{chip.label}</div>
+                    </div>
+                  ))}
+                  <div className={styles.modalMetric}>
+                    <div className={styles.modalMetricVal}>
+                      {failureBucket.success_rate_pct != null
+                        ? `${Math.round(failureBucket.success_rate_pct)}%`
+                        : '—'}
+                    </div>
+                    <div className={styles.modalMetricLbl}>Success rate</div>
+                  </div>
+                </div>
+
+                {!drillFilter && (
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--fg-subtle)',
+                      marginTop: 16,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Click a metric above to see individual workflow runs.
+                  </p>
+                )}
+
+                {drillFilter && (
+                  <div style={{ marginTop: 16 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        marginBottom: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      {drillFilter === 'total'
+                        ? 'All'
+                        : drillFilter === 'succeeded'
+                          ? 'Succeeded'
+                          : 'Failed'}{' '}
+                      workflow runs
+                      {drillLoading && <Spinner />}
+                    </div>
+                    {drillEvents && drillEvents.items.length > 0 ? (
+                      <div className={styles.drillTable}>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Repository</th>
+                              <th>Workflow</th>
+                              <th>Status</th>
+                              <th>Time</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {drillEvents.items.map((ev) => (
+                              <tr key={ev.id}>
+                                <td>{ev.repo?.split('/').pop() ?? ev.repo ?? '—'}</td>
+                                <td className={styles.workflowName}>
+                                  {(ev.data?.workflow_name as string) ??
+                                    (ev.data?.name as string) ??
+                                    '—'}
+                                </td>
+                                <td>
+                                  <Label
+                                    variant={
+                                      ev.action.includes('success')
+                                        ? 'success'
+                                        : ev.action.includes('failure')
+                                          ? 'danger'
+                                          : 'attention'
+                                    }
+                                  >
+                                    {ev.action.split('.').pop()}
+                                  </Label>
+                                </td>
+                                <td style={{ color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>
+                                  {new Date(ev.created_at).toLocaleTimeString()}
+                                </td>
+                                <td>
+                                  {ev.data?.html_url ? (
+                                    <a
+                                      href={ev.data.html_url as string}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{ fontSize: 11, color: 'var(--accent)' }}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      View
+                                    </a>
+                                  ) : null}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {drillEvents.total > drillEvents.items.length && (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: 'var(--fg-subtle)',
+                              marginTop: 8,
+                              textAlign: 'center',
+                            }}
+                          >
+                            Showing {drillEvents.items.length} of {drillEvents.total} runs
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      !drillLoading && (
+                        <div style={{ fontSize: 12, color: 'var(--fg-subtle)', padding: '12px 0' }}>
+                          No events found for this filter.
+                        </div>
+                      )
                     )}
                   </div>
-                ) : (
-                  !drillLoading && (
-                    <div style={{ fontSize: 12, color: 'var(--fg-subtle)', padding: '12px 0' }}>
-                      No events found for this filter.
-                    </div>
-                  )
                 )}
               </div>
             )}
-          </div>
-        )}
-      </Drawer>
+          </Drawer>
+        </>
+      )}
     </div>
   );
 }
