@@ -19,10 +19,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.deps import AuthenticatedUser, get_db, get_valkey, require_permission, verify_csrf
 from app.schemas.report import (
     ComplianceReportEnvelope,
+    CustomReportCreate,
+    CustomReportResponse,
+    CustomReportUpdate,
     ReportEnvelope,
+    ReportRunParams,
+    ReportRunResult,
     ReportScheduleCreate,
     ReportScheduleResponse,
     ReportScheduleUpdate,
+    ShareReportRequest,
 )
 from app.services import report_service
 from app.services.compliance_report_service import (
@@ -1192,3 +1198,392 @@ def _render_executive_html(summary: dict[str, Any]) -> str:
         "</html>",
     ]
     return "\n".join(parts)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Custom report CRUD endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@router.post(
+    "/custom",
+    response_model=CustomReportResponse,
+    status_code=201,
+    dependencies=[Depends(verify_csrf)],
+)
+async def create_custom_report(
+    payload: CustomReportCreate,
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
+    db: AsyncSession = Depends(get_db),
+) -> CustomReportResponse:
+    """Create a new custom report definition."""
+    from app.models.custom_report import CustomReport
+
+    report = CustomReport(
+        name=payload.name,
+        description=payload.description,
+        owner_login=current_user.github_login,
+        data_sources=payload.data_sources,
+        columns=[c.model_dump() for c in payload.columns],
+        filters=[f.model_dump() for f in payload.filters],
+        grouping=payload.grouping.model_dump(),
+        visualization=payload.visualization,
+    )
+    db.add(report)
+    await db.flush()
+    await db.refresh(report)
+    logger.info(
+        "custom_report.created",
+        report_id=report.id,
+        owner=current_user.github_login,
+    )
+    return CustomReportResponse.model_validate(report)
+
+
+@router.get("/custom", response_model=list[CustomReportResponse])
+async def list_custom_reports(
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
+    db: AsyncSession = Depends(get_db),
+) -> list[CustomReportResponse]:
+    """List the current user's custom reports."""
+    from app.models.custom_report import CustomReport
+
+    result = await db.execute(
+        select(CustomReport)
+        .where(CustomReport.owner_login == current_user.github_login)
+        .order_by(CustomReport.updated_at.desc())
+    )
+    reports = list(result.scalars().all())
+    return [CustomReportResponse.model_validate(r) for r in reports]
+
+
+@router.get("/custom/shared", response_model=list[CustomReportResponse])
+async def list_shared_reports(
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "view")),
+    db: AsyncSession = Depends(get_db),
+) -> list[CustomReportResponse]:
+    """List reports shared with the current user."""
+    from sqlalchemy import cast
+    from sqlalchemy.dialects.postgresql import JSONB as JSONB_TYPE
+
+    from app.models.custom_report import CustomReport
+
+    # Query reports where shared_with JSONB array contains the user's login
+    login_json = _json_mod.dumps(current_user.github_login)
+    result = await db.execute(
+        select(CustomReport)
+        .where(CustomReport.is_shared.is_(True))
+        .where(
+            cast(CustomReport.shared_with, JSONB_TYPE).contains(cast(f"[{login_json}]", JSONB_TYPE))
+        )
+        .order_by(CustomReport.updated_at.desc())
+    )
+    reports = list(result.scalars().all())
+    return [CustomReportResponse.model_validate(r) for r in reports]
+
+
+@router.get("/custom/{report_id}", response_model=CustomReportResponse)
+async def get_custom_report(
+    report_id: int,
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "view")),
+    db: AsyncSession = Depends(get_db),
+) -> CustomReportResponse:
+    """Get a single custom report definition."""
+    from app.models.custom_report import CustomReport
+
+    result = await db.execute(select(CustomReport).where(CustomReport.id == report_id))
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Custom report {report_id} not found",
+        )
+
+    # Check access: owner or shared
+    login = current_user.github_login
+    shared_list: list[str] = report.shared_with if isinstance(report.shared_with, list) else []
+    if report.owner_login != login and login not in shared_list:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this report",
+        )
+
+    return CustomReportResponse.model_validate(report)
+
+
+@router.patch(
+    "/custom/{report_id}",
+    response_model=CustomReportResponse,
+    dependencies=[Depends(verify_csrf)],
+)
+async def update_custom_report(
+    report_id: int,
+    payload: CustomReportUpdate,
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
+    db: AsyncSession = Depends(get_db),
+) -> CustomReportResponse:
+    """Update an existing custom report definition. Only the owner can update."""
+    from app.models.custom_report import CustomReport
+
+    result = await db.execute(select(CustomReport).where(CustomReport.id == report_id))
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Custom report {report_id} not found",
+        )
+
+    if report.owner_login != current_user.github_login:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the report owner can update this report",
+        )
+
+    update_data = payload.model_dump(exclude_unset=True)
+    # Serialize nested Pydantic models to dicts for JSONB storage
+    if "columns" in update_data and update_data["columns"] is not None:
+        update_data["columns"] = [
+            c.model_dump() if hasattr(c, "model_dump") else c for c in update_data["columns"]
+        ]
+    if "filters" in update_data and update_data["filters"] is not None:
+        update_data["filters"] = [
+            f.model_dump() if hasattr(f, "model_dump") else f for f in update_data["filters"]
+        ]
+    if "grouping" in update_data and update_data["grouping"] is not None:
+        g = update_data["grouping"]
+        update_data["grouping"] = g.model_dump() if hasattr(g, "model_dump") else g
+
+    for field, value in update_data.items():
+        setattr(report, field, value)
+    report.updated_at = datetime.now(UTC)
+
+    await db.flush()
+    await db.refresh(report)
+    return CustomReportResponse.model_validate(report)
+
+
+@router.delete("/custom/{report_id}", status_code=204, dependencies=[Depends(verify_csrf)])
+async def delete_custom_report(
+    report_id: int,
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete a custom report. Only the owner can delete."""
+    from app.models.custom_report import CustomReport
+
+    result = await db.execute(select(CustomReport).where(CustomReport.id == report_id))
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Custom report {report_id} not found",
+        )
+
+    if report.owner_login != current_user.github_login:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the report owner can delete this report",
+        )
+
+    await db.delete(report)
+    await db.flush()
+    logger.info(
+        "custom_report.deleted",
+        report_id=report_id,
+        owner=current_user.github_login,
+    )
+
+
+@router.post(
+    "/custom/{report_id}/run",
+    response_model=ReportRunResult,
+    dependencies=[Depends(verify_csrf)],
+)
+async def run_custom_report(
+    report_id: int,
+    params: ReportRunParams,
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
+    db: AsyncSession = Depends(get_db),
+) -> ReportRunResult:
+    """Execute a custom report and return results."""
+    from app.models.custom_report import CustomReport
+    from app.services.custom_report_service import run_custom_report as execute_report
+
+    result = await db.execute(select(CustomReport).where(CustomReport.id == report_id))
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Custom report {report_id} not found",
+        )
+
+    # Check access: owner or shared
+    login = current_user.github_login
+    shared_list: list[str] = report.shared_with if isinstance(report.shared_with, list) else []
+    if report.owner_login != login and login not in shared_list:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this report",
+        )
+
+    columns_list: list[dict[str, Any]] = report.columns if isinstance(report.columns, list) else []
+    filters_list: list[dict[str, Any]] = report.filters if isinstance(report.filters, list) else []
+    grouping_dict: dict[str, Any] = report.grouping if isinstance(report.grouping, dict) else {}
+
+    data = await execute_report(
+        db,
+        data_sources=report.data_sources,
+        columns=columns_list,
+        filters=filters_list,
+        grouping=grouping_dict,
+        window_days=params.window_days,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        org=params.org,
+        granularity=params.granularity,
+    )
+
+    # Update last_run_at
+    report.last_run_at = datetime.now(UTC)
+    await db.flush()
+
+    return ReportRunResult(
+        report_id=report.id,
+        report_name=report.name,
+        data_sources=report.data_sources,
+        generated_at=datetime.now(UTC),
+        window_days=params.window_days,
+        org=params.org,
+        data=data,
+        row_count=len(data),
+    )
+
+
+@router.post(
+    "/custom/{report_id}/share",
+    response_model=CustomReportResponse,
+    dependencies=[Depends(verify_csrf)],
+)
+async def share_custom_report(
+    report_id: int,
+    payload: ShareReportRequest,
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
+    db: AsyncSession = Depends(get_db),
+) -> CustomReportResponse:
+    """Share a custom report with other users. Only the owner can share."""
+    from app.models.custom_report import CustomReport
+
+    result = await db.execute(select(CustomReport).where(CustomReport.id == report_id))
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Custom report {report_id} not found",
+        )
+
+    if report.owner_login != current_user.github_login:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the report owner can share this report",
+        )
+
+    # Merge new logins with existing shared_with list (deduplicated)
+    existing: set[str] = set(report.shared_with if isinstance(report.shared_with, list) else [])
+    existing.update(payload.logins)
+    report.shared_with = sorted(existing)
+    report.is_shared = len(report.shared_with) > 0
+    report.updated_at = datetime.now(UTC)
+
+    await db.flush()
+    await db.refresh(report)
+    logger.info(
+        "custom_report.shared",
+        report_id=report_id,
+        shared_with=report.shared_with,
+    )
+    return CustomReportResponse.model_validate(report)
+
+
+@router.post(
+    "/custom/{report_id}/export/{export_format}",
+)
+async def export_custom_report(
+    report_id: int,
+    export_format: str,
+    params: ReportRunParams,
+    current_user: AuthenticatedUser = Depends(require_permission("reports", "create")),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Export a custom report's results as CSV or XLSX."""
+    from app.models.custom_report import CustomReport
+    from app.services.custom_report_service import run_custom_report as execute_report
+
+    fmt = export_format.lower()
+    if fmt not in {"csv", "xlsx"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported export format: {export_format}. Use csv or xlsx.",
+        )
+
+    result = await db.execute(select(CustomReport).where(CustomReport.id == report_id))
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Custom report {report_id} not found",
+        )
+
+    login = current_user.github_login
+    shared_list: list[str] = report.shared_with if isinstance(report.shared_with, list) else []
+    if report.owner_login != login and login not in shared_list:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this report",
+        )
+
+    columns_list: list[dict[str, Any]] = report.columns if isinstance(report.columns, list) else []
+    filters_list: list[dict[str, Any]] = report.filters if isinstance(report.filters, list) else []
+    grouping_dict: dict[str, Any] = report.grouping if isinstance(report.grouping, dict) else {}
+
+    data = await execute_report(
+        db,
+        data_sources=report.data_sources,
+        columns=columns_list,
+        filters=filters_list,
+        grouping=grouping_dict,
+        window_days=params.window_days,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        org=params.org,
+        granularity=params.granularity,
+    )
+
+    safe_name = report.name.replace(" ", "_")[:50]
+
+    if fmt == "xlsx":
+        from app.services.xlsx_service import generate_xlsx
+
+        xlsx_bytes = generate_xlsx(data, sheet_name=safe_name)
+        return StreamingResponse(
+            iter([xlsx_bytes]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{safe_name}.xlsx"'},
+        )
+
+    # CSV
+    if not data:
+        output = io.StringIO()
+        output.write("No data available\n")
+        output.seek(0)
+    else:
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=list(data[0].keys()))
+        writer.writeheader()
+        writer.writerows(data)
+        output.seek(0)
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}.csv"'},
+    )

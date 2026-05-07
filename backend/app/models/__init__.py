@@ -6,6 +6,7 @@ from app.models.audit_trail import AuditTrail
 from app.models.auth_method import AuthMethodConfig, SessionPolicySetting
 from app.models.copilot_metrics import CopilotDailyMetric, CopilotSeatSnapshot
 from app.models.copilot_policy import CopilotPolicy, CopilotPolicyViolation
+from app.models.custom_report import CustomReport
 from app.models.detection import (
     BehavioralBaseline,
     Detection,
@@ -74,6 +75,7 @@ __all__ = [
     "CopilotPolicy",
     "CopilotPolicyViolation",
     "CopilotSeatSnapshot",
+    "CustomReport",
     "DependabotAlert",
     "Detection",
     "DetectionSuppression",

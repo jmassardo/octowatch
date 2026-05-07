@@ -158,6 +158,7 @@ ignore = [
 # not raw string interpolation of user data. S608 is a false positive here.
 "app/services/report_service.py" = ["S608"]
 "app/services/compliance_report_service.py" = ["S608"]
+"app/services/custom_report_service.py" = ["S608"]
 "app/services/health_signal_service.py" = ["S608"]
 # threat_intel_service uses SQLAlchemy text() with bound parameters and dynamically
 # assembled WHERE clauses from validated internal field names, not user input.

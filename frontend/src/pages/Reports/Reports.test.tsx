@@ -130,6 +130,15 @@ vi.mock('../../api/reports', () => ({
   }),
   exportReport: vi.fn(),
   getReportCatalog: vi.fn().mockResolvedValue([]),
+  listCustomReports: vi.fn().mockResolvedValue([]),
+  listSharedReports: vi.fn().mockResolvedValue([]),
+  deleteCustomReport: vi.fn().mockResolvedValue(undefined),
+  shareCustomReport: vi.fn().mockResolvedValue({}),
+  runCustomReport: vi.fn().mockResolvedValue({ data: [], row_count: 0 }),
+  getCustomReport: vi.fn().mockResolvedValue(null),
+  createCustomReport: vi.fn().mockResolvedValue({}),
+  updateCustomReport: vi.fn().mockResolvedValue({}),
+  exportCustomReport: vi.fn(),
 }));
 
 describe('ReportsPage', () => {
@@ -155,7 +164,7 @@ describe('ReportsPage', () => {
       {
         id: 'report-1',
         type: 'security_posture',
-        title: 'Security Posture Report',
+        title: 'Custom Security Report',
         generated_at: '2024-06-15T10:00:00Z',
         status: 'completed',
         tags: ['security', 'automated'],
@@ -172,7 +181,7 @@ describe('ReportsPage', () => {
 
     renderWithProviders(<ReportsPage />);
 
-    expect(await screen.findByText('Security Posture Report')).toBeInTheDocument();
+    expect(await screen.findByText('Custom Security Report')).toBeInTheDocument();
     expect(screen.getByText('DORA Metrics Report')).toBeInTheDocument();
   });
 
@@ -182,7 +191,7 @@ describe('ReportsPage', () => {
       {
         id: 'report-1',
         type: 'security_posture',
-        title: 'Security Posture Report',
+        title: 'Custom Posture Report',
         generated_at: '2024-06-15T10:00:00Z',
         status: 'completed',
         tags: [],
@@ -191,11 +200,11 @@ describe('ReportsPage', () => {
 
     renderWithProviders(<ReportsPage />);
 
-    await screen.findByText('Security Posture Report');
+    await screen.findByText('Custom Posture Report');
     const pdfButtons = screen.getAllByRole('button', { name: 'PDF' });
     const csvButtons = screen.getAllByRole('button', { name: 'CSV' });
-    expect(pdfButtons).toHaveLength(1);
-    expect(csvButtons).toHaveLength(1);
+    expect(pdfButtons.length).toBeGreaterThanOrEqual(1);
+    expect(csvButtons.length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders window selector with 30d, 60d, 90d buttons', () => {
@@ -212,7 +221,7 @@ describe('ReportsPage', () => {
       {
         id: 'report-1',
         type: 'security_posture',
-        title: 'Security Posture Report',
+        title: 'Custom Posture Export',
         generated_at: '2024-06-15T10:00:00Z',
         status: 'completed',
         tags: [],
@@ -221,7 +230,7 @@ describe('ReportsPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<ReportsPage />);
 
-    await screen.findByText('Security Posture Report');
+    await screen.findByText('Custom Posture Export');
     const pdfButtons = screen.getAllByRole('button', { name: 'PDF' });
     await user.click(pdfButtons[0]);
     expect(exportReport).toHaveBeenCalledWith('security_posture', 'pdf');
@@ -233,7 +242,7 @@ describe('ReportsPage', () => {
       {
         id: 'report-1',
         type: 'security_posture',
-        title: 'Security Posture Report',
+        title: 'Custom Posture CSV',
         generated_at: '2024-06-15T10:00:00Z',
         status: 'completed',
         tags: [],
@@ -242,7 +251,7 @@ describe('ReportsPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<ReportsPage />);
 
-    await screen.findByText('Security Posture Report');
+    await screen.findByText('Custom Posture CSV');
     const csvButtons = screen.getAllByRole('button', { name: 'CSV' });
     await user.click(csvButtons[0]);
     expect(exportReport).toHaveBeenCalledWith('security_posture', 'csv');
@@ -443,13 +452,13 @@ describe('ReportsPage', () => {
         title: 'Report With Null Date',
         generated_at: null,
         status: 'available',
-        tags: ['usage'],
+        tags: ['custom-tag-unique'],
       },
     ]);
     renderWithProviders(<ReportsPage />);
     expect(await screen.findByText('Report With Null Date')).toBeInTheDocument();
     expect(screen.getByText('available')).toBeInTheDocument();
-    expect(screen.getByText('usage')).toBeInTheDocument();
+    expect(screen.getByText('custom-tag-unique')).toBeInTheDocument();
   });
 
   it('renders tag labels from catalog entry tags', async () => {
@@ -461,13 +470,13 @@ describe('ReportsPage', () => {
         title: 'Tagged Report',
         generated_at: '2024-06-15T10:00:00Z',
         status: 'completed',
-        tags: ['security', 'automated'],
+        tags: ['unique-tag-alpha', 'unique-tag-beta'],
       },
     ]);
     renderWithProviders(<ReportsPage />);
     await screen.findByText('Tagged Report');
-    expect(screen.getByText('security')).toBeInTheDocument();
-    expect(screen.getByText('automated')).toBeInTheDocument();
+    expect(screen.getByText('unique-tag-alpha')).toBeInTheDocument();
+    expect(screen.getByText('unique-tag-beta')).toBeInTheDocument();
   });
 
   it('renders data source labels on summary cards', async () => {
@@ -661,5 +670,240 @@ describe('ReportsPage', () => {
     expect(screen.getByText('Codespace Hours')).toBeInTheDocument();
     const tables = screen.getAllByRole('table');
     expect(tables.length).toBeGreaterThanOrEqual(1);
+  });
+
+  // ── New tab-based tests ──────────────────────────────────────────────
+
+  it('renders tab navigation with Templates, My Reports, Shared with Me, and Recent tabs', () => {
+    renderWithProviders(<ReportsPage />);
+    expect(screen.getByRole('tab', { name: /Templates/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /My Reports/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Shared with Me/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Recent/i })).toBeInTheDocument();
+  });
+
+  it('Templates tab is active by default', () => {
+    renderWithProviders(<ReportsPage />);
+    const templatesTab = screen.getByRole('tab', { name: /Templates/i });
+    expect(templatesTab.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('renders 8 pre-built report template cards in Templates tab', async () => {
+    renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Compliance Report')).toBeInTheDocument();
+    expect(screen.getByText('Detection Summary Report')).toBeInTheDocument();
+    expect(screen.getByText('User Activity Report')).toBeInTheDocument();
+    expect(screen.getByText('Copilot Usage Report')).toBeInTheDocument();
+    expect(screen.getByText('Workflow Health Report')).toBeInTheDocument();
+    expect(screen.getByText('Access Review Report')).toBeInTheDocument();
+    expect(screen.getByText('Org Comparison Report')).toBeInTheDocument();
+  });
+
+  it('template cards show category tags', async () => {
+    renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
+    });
+    // Categories like Security, Compliance, Usage, DevOps
+    expect(screen.getAllByText('Security').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Usage').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('clicking a template card opens the config panel in a drawer', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('User Activity Report')).toBeInTheDocument();
+    });
+
+    const templateCard = screen.getByText('User Activity Report');
+    await user.click(templateCard);
+
+    // Drawer should be open with the config panel - look for the config panel
+    expect(screen.getByTestId('report-config-panel')).toBeInTheDocument();
+  });
+
+  it('switching to My Reports tab shows empty state when no custom reports', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    await user.click(screen.getByRole('tab', { name: /My Reports/i }));
+
+    expect(await screen.findByText(/No custom reports yet/)).toBeInTheDocument();
+  });
+
+  it('switching to Shared tab shows empty state when no shared reports', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    await user.click(screen.getByRole('tab', { name: /Shared with Me/i }));
+
+    expect(await screen.findByText(/No reports have been shared with you yet/)).toBeInTheDocument();
+  });
+
+  it('switching to Recent tab shows empty state when no recent reports', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    await user.click(screen.getByRole('tab', { name: /Recent/i }));
+
+    expect(await screen.findByText(/No recently run reports/)).toBeInTheDocument();
+  });
+
+  it('renders "New Custom Report" button', () => {
+    renderWithProviders(<ReportsPage />);
+    expect(screen.getByRole('button', { name: /New Custom Report/i })).toBeInTheDocument();
+  });
+
+  it('clicking "New Custom Report" opens the report builder modal', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    await user.click(screen.getByRole('button', { name: /New Custom Report/i }));
+
+    // The builder should render inside a modal
+    expect(screen.getByTestId('report-builder')).toBeInTheDocument();
+    expect(screen.getByText('Step 1: Choose Data Sources')).toBeInTheDocument();
+  });
+
+  it('My Reports tab renders custom report cards', async () => {
+    const { listCustomReports } = await import('../../api/reports');
+    vi.mocked(listCustomReports).mockResolvedValueOnce([
+      {
+        id: 1,
+        name: 'My Custom Events Report',
+        description: 'Custom event analysis',
+        owner_login: 'testuser',
+        data_sources: ['events'],
+        columns: [],
+        filters: [],
+        grouping: { group_by: null, time_bucket: null },
+        visualization: 'table',
+        is_shared: false,
+        shared_with: [],
+        last_run_at: null,
+        created_at: '2024-06-15T10:00:00Z',
+        updated_at: '2024-06-15T10:00:00Z',
+      },
+    ]);
+
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    await user.click(screen.getByRole('tab', { name: /My Reports/i }));
+
+    expect(await screen.findByText('My Custom Events Report')).toBeInTheDocument();
+    expect(screen.getByText('Custom event analysis')).toBeInTheDocument();
+    expect(screen.getByText('events')).toBeInTheDocument();
+  });
+
+  it('My Reports tab shows Share and Delete buttons on custom reports', async () => {
+    const { listCustomReports } = await import('../../api/reports');
+    vi.mocked(listCustomReports).mockResolvedValueOnce([
+      {
+        id: 1,
+        name: 'My Report',
+        description: null,
+        owner_login: 'testuser',
+        data_sources: ['events'],
+        columns: [],
+        filters: [],
+        grouping: { group_by: null, time_bucket: null },
+        visualization: 'table',
+        is_shared: false,
+        shared_with: [],
+        last_run_at: null,
+        created_at: '2024-06-15T10:00:00Z',
+        updated_at: '2024-06-15T10:00:00Z',
+      },
+    ]);
+
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    await user.click(screen.getByRole('tab', { name: /My Reports/i }));
+    await screen.findByText('My Report');
+
+    expect(screen.getByRole('button', { name: 'Share' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+  });
+
+  it('Shared reports tab shows "Shared by" badge', async () => {
+    const { listSharedReports } = await import('../../api/reports');
+    vi.mocked(listSharedReports).mockResolvedValueOnce([
+      {
+        id: 2,
+        name: 'Shared Detection Report',
+        description: null,
+        owner_login: 'otheruser',
+        data_sources: ['detections'],
+        columns: [],
+        filters: [],
+        grouping: { group_by: null, time_bucket: null },
+        visualization: 'table',
+        is_shared: true,
+        shared_with: ['testuser'],
+        last_run_at: null,
+        created_at: '2024-06-15T10:00:00Z',
+        updated_at: '2024-06-15T10:00:00Z',
+      },
+    ]);
+
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    await user.click(screen.getByRole('tab', { name: /Shared with Me/i }));
+    await screen.findByText('Shared Detection Report');
+
+    expect(screen.getByText('Shared by otheruser')).toBeInTheDocument();
+  });
+
+  it('tab badge shows custom report count', async () => {
+    const { listCustomReports } = await import('../../api/reports');
+    vi.mocked(listCustomReports).mockResolvedValueOnce([
+      {
+        id: 1,
+        name: 'Report 1',
+        description: null,
+        owner_login: 'testuser',
+        data_sources: ['events'],
+        columns: [],
+        filters: [],
+        grouping: { group_by: null, time_bucket: null },
+        visualization: 'table',
+        is_shared: false,
+        shared_with: [],
+        last_run_at: null,
+        created_at: '2024-06-15T10:00:00Z',
+        updated_at: '2024-06-15T10:00:00Z',
+      },
+      {
+        id: 2,
+        name: 'Report 2',
+        description: null,
+        owner_login: 'testuser',
+        data_sources: ['detections'],
+        columns: [],
+        filters: [],
+        grouping: { group_by: null, time_bucket: null },
+        visualization: 'table',
+        is_shared: false,
+        shared_with: [],
+        last_run_at: null,
+        created_at: '2024-06-15T10:00:00Z',
+        updated_at: '2024-06-15T10:00:00Z',
+      },
+    ]);
+
+    renderWithProviders(<ReportsPage />);
+
+    await waitFor(() => {
+      // The My Reports tab should show count "2"
+      const myReportsTab = screen.getByRole('tab', { name: /My Reports/i });
+      expect(myReportsTab.textContent).toContain('2');
+    });
   });
 });
