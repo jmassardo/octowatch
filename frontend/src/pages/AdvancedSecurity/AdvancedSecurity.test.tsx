@@ -158,28 +158,8 @@ vi.mock('../../api/detections', () => ({
   listDetections: vi.fn().mockImplementation(() => Promise.resolve(mockDetections)),
 }));
 
-vi.mock('../../api/secretScanning', () => ({
-  listSecretAlerts: vi.fn().mockImplementation(() => Promise.resolve({ items: [], total: 0 })),
-  getSecretAlertSummary: vi.fn().mockImplementation(() =>
-    Promise.resolve({
-      open_alerts: 5,
-      closed_alerts: 3,
-      publicly_leaked: 1,
-      push_protection_bypassed: 2,
-      resolution_rate: 37.5,
-      by_secret_type: [],
-      by_repository: [],
-    }),
-  ),
-  getSecretAlertTrends: vi
-    .fn()
-    .mockImplementation(() => Promise.resolve({ daily: [], weekly: [] })),
-  getSecretAlertAuditTrail: vi.fn().mockImplementation(() => Promise.resolve([])),
-  getPushProtectionStats: vi
-    .fn()
-    .mockImplementation(() =>
-      Promise.resolve({ total_blocks: 0, total_bypasses: 0, bypass_rate: 0, by_reason: [] }),
-    ),
+vi.mock('./SecretsPane', () => ({
+  SecretsPane: () => <div data-testid="secrets-pane">SecretsPane Mock</div>,
 }));
 
 describe('AdvancedSecurityPage', () => {
@@ -295,8 +275,7 @@ describe('AdvancedSecurityPage', () => {
     renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=secrets' });
 
     await waitFor(() => {
-      // SecretsPane renders summary metrics including Open Alerts
-      expect(screen.getByText('Open Alerts')).toBeInTheDocument();
+      expect(screen.getByTestId('secrets-pane')).toBeInTheDocument();
     });
   });
 
@@ -377,7 +356,7 @@ describe('AdvancedSecurityPage', () => {
     renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=secrets' });
 
     await waitFor(() => {
-      expect(screen.getByText('Open Alerts')).toBeInTheDocument();
+      expect(screen.getByTestId('secrets-pane')).toBeInTheDocument();
     });
   });
 });
