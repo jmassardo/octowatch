@@ -288,3 +288,118 @@
   color: var(--fg-muted);
   font-size: 14px;
 }
+
+/* ── Metrics Summary Bar ───────────────────────────────────────────── */
+.metricsSummary {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.metricCard {
+  flex: 1;
+  min-width: 120px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--canvas-default);
+  padding: 14px 16px;
+  text-align: center;
+}
+.metricValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--fg);
+  line-height: 1.2;
+}
+.metricLabel {
+  font-size: 11px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-top: 4px;
+}
+.metricCritical {
+  color: var(--danger);
+}
+.metricHigh {
+  color: var(--severe, #db6d28);
+}
+
+/* ── Charts Row ────────────────────────────────────────────────────── */
+.chartsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+@media (max-width: 768px) {
+  .chartsRow {
+    grid-template-columns: 1fr;
+  }
+}
+.chartPanel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--canvas-default);
+  padding: 16px;
+}
+.chartPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 180px;
+}
+.chartPlaceholderText {
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+
+/* ── Coverage Gauges ───────────────────────────────────────────────── */
+.coverageList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+.coverageItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.coverageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.coverageLabel {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.coverageValue {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.coverageTrack {
+  height: 6px;
+  background: var(--canvas-subtle);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.coverageFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+/* ── Org Multi-Select ──────────────────────────────────────────────── */
+.orgMultiSelect {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--canvas-subtle);
+  color: var(--fg);
+  font-size: 13px;
+  min-width: 180px;
+  max-height: 80px;
+}
