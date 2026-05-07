@@ -100,12 +100,7 @@ export function ScannerActivityTab() {
   const [page, setPage] = useState(1);
   const [selectedActivity, setSelectedActivity] = useState<ScanActivity | null>(null);
 
-  const {
-    data,
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['workflow-scanner', 'activity', page],
     queryFn: () => listScanActivity({ page, page_size: 20 }),
   });
@@ -121,8 +116,8 @@ export function ScannerActivityTab() {
         <div className={styles.emptyIcon}>📋</div>
         <div className={styles.emptyTitle}>No scanner activity yet</div>
         <div className={styles.emptyDesc}>
-          Scanner activity will appear here when workflows are automatically analyzed
-          from ingested events or when you trigger a manual scan.
+          Scanner activity will appear here when workflows are automatically analyzed from ingested
+          events or when you trigger a manual scan.
         </div>
       </div>
     );
@@ -165,9 +160,7 @@ export function ScannerActivityTab() {
                 </Label>
               </td>
               <td>
-                <Label variant={findingsVariant(a.findings_count)}>
-                  {a.findings_count}
-                </Label>
+                <Label variant={findingsVariant(a.findings_count)}>{a.findings_count}</Label>
               </td>
               <td>
                 {a.data_sources.map((ds) => (
@@ -185,19 +178,13 @@ export function ScannerActivityTab() {
 
       {totalPages > 1 && (
         <div className={styles.filters}>
-          <button
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
+          <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
             Previous
           </button>
           <span>
             Page {page} of {totalPages}
           </span>
-          <button
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
-          >
+          <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
             Next
           </button>
         </div>
