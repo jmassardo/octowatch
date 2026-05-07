@@ -172,9 +172,7 @@ describe('CrossOrgPage — Correlations Tab', () => {
 
   it('renders collapsible guidance box', async () => {
     renderWithProviders(<CrossOrgPage />);
-    expect(
-      await screen.findByText('What is cross-org monitoring?'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('What is cross-org monitoring?')).toBeInTheDocument();
   });
 
   it('toggles guidance box content on click', async () => {

@@ -542,8 +542,8 @@ export function CrossOrgPage() {
                 </span>
                 <p className={styles.emptyTitle}>All clear</p>
                 <p className={styles.emptyMessage}>
-                  No suspicious cross-org activity detected in the selected time window.
-                  Cross-org monitoring is working normally.
+                  No suspicious cross-org activity detected in the selected time window. Cross-org
+                  monitoring is working normally.
                 </p>
               </div>
             )}
