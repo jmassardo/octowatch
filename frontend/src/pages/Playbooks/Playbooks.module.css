@@ -1,0 +1,360 @@
+.page {
+  padding: 24px;
+}
+
+/* ── Tabs ───────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: 20px;
+}
+
+.tab {
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--fg-muted);
+  font-weight: 500;
+  transition: color 0.15s;
+}
+
+.tab:hover {
+  color: var(--fg-default);
+}
+
+.tabActive {
+  color: var(--fg-default);
+  border-bottom-color: var(--accent-fg);
+}
+
+/* ── Template grid ──────────────────────────── */
+.templateGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.templateCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  cursor: default;
+}
+
+.templateName {
+  font-weight: 600;
+  font-size: 15px;
+  margin: 0;
+}
+
+.templateDesc {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.templateMeta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.templateActions {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-muted);
+}
+
+/* ── Progress ───────────────────────────────── */
+.progressBar {
+  width: 100%;
+  height: 6px;
+  background: var(--border-muted);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--accent-fg);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.progressText {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 4px;
+}
+
+/* ── Runner ─────────────────────────────────── */
+.runner {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 24px;
+  min-height: 400px;
+}
+
+@media (max-width: 900px) {
+  .runner {
+    grid-template-columns: 1fr;
+  }
+}
+
+.runnerMain {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.runnerSide {
+  border-left: 1px solid var(--border-default);
+  padding-left: 24px;
+}
+
+.stepCard {
+  padding: 16px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--canvas-subtle);
+}
+
+.stepCardActive {
+  border-color: var(--accent-fg);
+  background: var(--canvas-default);
+}
+
+.stepCardCompleted {
+  opacity: 0.7;
+}
+
+.stepTitle {
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0 0 4px;
+}
+
+.stepDesc {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0 0 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.stepActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.stepCheck {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.skipInput {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 13px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--canvas-default);
+  color: var(--fg-default);
+}
+
+.stepBadge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+  background: var(--border-muted);
+  color: var(--fg-muted);
+}
+
+.stepBadgeActive {
+  background: var(--accent-subtle);
+  color: var(--accent-fg);
+}
+
+.stepBadgeCompleted {
+  background: var(--success-subtle);
+  color: var(--success-fg);
+}
+
+.stepBadgeSkipped {
+  background: var(--attention-subtle);
+  color: var(--attention-fg);
+}
+
+/* ── Side panel ─────────────────────────────── */
+.sideSection {
+  margin-bottom: 16px;
+}
+
+.sideLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.sideValue {
+  font-size: 13px;
+  color: var(--fg-default);
+}
+
+/* ── Editor ─────────────────────────────────── */
+.editorForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 720px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.formLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.formInput {
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  font-size: 14px;
+  background: var(--canvas-default);
+  color: var(--fg-default);
+}
+
+.formTextarea {
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  font-size: 14px;
+  background: var(--canvas-default);
+  color: var(--fg-default);
+  font-family: inherit;
+  resize: vertical;
+  min-height: 60px;
+}
+
+.formSelect {
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  font-size: 14px;
+  background: var(--canvas-default);
+  color: var(--fg-default);
+}
+
+.stepList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stepItem {
+  padding: 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--canvas-subtle);
+}
+
+.stepItemHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.stepNumber {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  min-width: 24px;
+}
+
+.stepItemActions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.moveBtn {
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.moveBtn:hover {
+  color: var(--fg-default);
+  border-color: var(--border-default);
+}
+
+.removeBtn {
+  background: none;
+  border: 1px solid var(--danger-emphasis);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--danger-fg);
+}
+
+.removeBtn:hover {
+  background: var(--danger-subtle);
+}
+
+.statusDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.statusOpen {
+  background: var(--success-fg);
+}
+
+.statusCompleted {
+  background: var(--fg-muted);
+}
+
+.notesInput {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--canvas-default);
+  color: var(--fg-default);
+  margin-top: 8px;
+  font-family: inherit;
+}

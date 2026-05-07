@@ -160,6 +160,19 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Threat Detections
           </NavItem>
         )}
+        {hasPermission('rules', 'view') && (
+          <NavItem
+            to="/threat-intel"
+            onClick={handleNavClick}
+            icon={
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM0 8a8 8 0 1116 0A8 8 0 010 8zm6.5-.25A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 100-2 1 1 0 000 2z" />
+              </svg>
+            }
+          >
+            Threat Intel
+          </NavItem>
+        )}
         {hasPermission('detections', 'view') && (
           <NavItem
             to="/posture"
@@ -246,6 +259,32 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Advanced Security
           </NavItem>
         )}
+        {hasPermission('playbooks', 'view') && (
+          <NavItem
+            to="/playbooks"
+            onClick={handleNavClick}
+            icon={
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v12.5A1.75 1.75 0 0114.25 16H1.75A1.75 1.75 0 010 14.25zm1.75-.25a.25.25 0 00-.25.25v12.5c0 .138.112.25.25.25h12.5a.25.25 0 00.25-.25V1.75a.25.25 0 00-.25-.25zM3 4.75A.75.75 0 013.75 4h4.5a.75.75 0 010 1.5h-4.5A.75.75 0 013 4.75zM3.75 7h8.5a.75.75 0 010 1.5h-8.5a.75.75 0 010-1.5zm0 3h5.5a.75.75 0 010 1.5h-5.5a.75.75 0 010-1.5z" />
+              </svg>
+            }
+          >
+            Playbooks
+          </NavItem>
+        )}
+        {hasPermission('detections', 'view') && (
+          <NavItem
+            to="/supply-chain"
+            onClick={handleNavClick}
+            icon={
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8.878.392a1.75 1.75 0 00-1.756 0l-5.25 3.045A1.75 1.75 0 001 4.951v6.098c0 .624.332 1.2.872 1.514l5.25 3.045a1.75 1.75 0 001.756 0l5.25-3.045A1.75 1.75 0 0015 11.049V4.951a1.75 1.75 0 00-.872-1.514zM8 9a1 1 0 100-2 1 1 0 000 2z" />
+              </svg>
+            }
+          >
+            Supply Chain
+          </NavItem>
+        )}
       </div>
 
       <div className={styles.navSection}>
@@ -321,6 +360,19 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Reports
           </NavItem>
         )}
+        {hasPermission('reports', 'view') && (
+          <NavItem
+            to="/compliance"
+            onClick={handleNavClick}
+            icon={
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 16A8 8 0 108 0a8 8 0 000 16zm3.78-9.72a.75.75 0 00-1.06-1.06L7 8.94 5.28 7.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.06 0l4.25-4.25z" />
+              </svg>
+            }
+          >
+            Compliance
+          </NavItem>
+        )}
         {hasPermission('events', 'view') && (
           <NavItem
             to="/query"
@@ -362,6 +414,27 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             }
           >
             Users & Roles
+          </NavItem>
+        )}
+        {hasPermission('admin_settings', 'view') && (
+          <NavItem
+            to="/telemetry"
+            onClick={handleNavClick}
+            icon={
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 16A8 8 0 108 0a8 8 0 000 16zm0-1.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13z" />
+                <path
+                  d="M2.5 8h2.3l1.2-3 2 6 1.2-3h4.3"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            }
+          >
+            Telemetry
           </NavItem>
         )}
         {hasPermission('admin_settings', 'view') && (
