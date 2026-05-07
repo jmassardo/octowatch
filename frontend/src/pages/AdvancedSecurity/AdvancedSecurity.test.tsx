@@ -159,9 +159,7 @@ vi.mock('../../api/detections', () => ({
 }));
 
 vi.mock('../../api/secretScanning', () => ({
-  listSecretAlerts: vi.fn().mockImplementation(() =>
-    Promise.resolve({ items: [], total: 0 }),
-  ),
+  listSecretAlerts: vi.fn().mockImplementation(() => Promise.resolve({ items: [], total: 0 })),
   getSecretAlertSummary: vi.fn().mockImplementation(() =>
     Promise.resolve({
       open_alerts: 5,
@@ -173,15 +171,15 @@ vi.mock('../../api/secretScanning', () => ({
       by_repository: [],
     }),
   ),
-  getSecretAlertTrends: vi.fn().mockImplementation(() =>
-    Promise.resolve({ daily: [], weekly: [] }),
-  ),
-  getSecretAlertAuditTrail: vi.fn().mockImplementation(() =>
-    Promise.resolve([]),
-  ),
-  getPushProtectionStats: vi.fn().mockImplementation(() =>
-    Promise.resolve({ total_blocks: 0, total_bypasses: 0, bypass_rate: 0, by_reason: [] }),
-  ),
+  getSecretAlertTrends: vi
+    .fn()
+    .mockImplementation(() => Promise.resolve({ daily: [], weekly: [] })),
+  getSecretAlertAuditTrail: vi.fn().mockImplementation(() => Promise.resolve([])),
+  getPushProtectionStats: vi
+    .fn()
+    .mockImplementation(() =>
+      Promise.resolve({ total_blocks: 0, total_bypasses: 0, bypass_rate: 0, by_reason: [] }),
+    ),
 }));
 
 describe('AdvancedSecurityPage', () => {
