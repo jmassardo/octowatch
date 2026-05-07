@@ -34,6 +34,7 @@ from app.routers import (
     auth,
     copilot,
     copilot_governance,
+    correlations,
     cross_org,
     detections,
     dev_activity,
@@ -679,6 +680,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix=API_PREFIX)
     app.include_router(events.router, prefix=API_PREFIX)
     app.include_router(detections.router, prefix=API_PREFIX)
+    app.include_router(correlations.router, prefix=API_PREFIX)
     app.include_router(posture.router, prefix=API_PREFIX)
     app.include_router(reports.router, prefix=API_PREFIX)
     app.include_router(query.router, prefix=API_PREFIX)
