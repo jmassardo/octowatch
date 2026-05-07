@@ -13,9 +13,10 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
 import { formatRelativeShort } from '../../utils/dates';
+import { ScannerActivityTab } from './ScannerActivityTab';
 import styles from './Workflows.module.css';
 
-type Tab = 'findings' | 'scores';
+type Tab = 'findings' | 'scores' | 'activity';
 
 function sevVariant(sev: string) {
   if (sev === 'critical') return 'danger' as const;
@@ -159,6 +160,12 @@ export function WorkflowsPage() {
           >
             Repo Scores
           </button>
+          <button
+            className={`${styles.tab} ${tab === 'activity' ? styles.tabActive : ''}`}
+            onClick={() => setTab('activity')}
+          >
+            Scanner Activity
+          </button>
         </div>
 
         {tab === 'findings' && (
@@ -270,6 +277,8 @@ export function WorkflowsPage() {
             )}
           </>
         )}
+
+        {tab === 'activity' && <ScannerActivityTab />}
       </div>
 
       {/* Detail slide-out panel */}

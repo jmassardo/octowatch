@@ -1,11 +1,12 @@
 """Workflow security scanner router.
 
 Provides endpoints for scanning GitHub Actions workflow files, listing
-findings, and retrieving suggested remediations.
+findings, retrieving suggested remediations, and viewing scanner activity.
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 import structlog
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.models.workflow_finding import WorkflowFinding
+from app.models.workflow_scan_activity import WorkflowScanActivity
 from app.services.workflow_scanner_service import WorkflowScannerService
 
 logger = structlog.get_logger(__name__)
@@ -276,3 +278,74 @@ async def trigger_repo_scan(
         queue="baseline",
     )
     return {"task_id": result.id, "status": "queued"}
+
+
+# ── Scanner Activity schemas and endpoint ────────────────────────────────────
+
+
+class ScanActivityResponse(BaseModel):
+    """Single scan activity record."""
+
+    id: int
+    trigger_event_ids: list[int]
+    org: str
+    repo: str
+    workflow_path: str
+    started_at: datetime
+    completed_at: datetime | None = None
+    status: str
+    checks_performed: list[str]
+    findings_count: int
+    data_sources: list[str]
+    duration_ms: int | None = None
+
+
+class ScanActivityListResponse(BaseModel):
+    """Paginated list of scan activity records."""
+
+    items: list[ScanActivityResponse]
+    total: int
+
+
+@router.get("/activity", response_model=ScanActivityListResponse)
+async def list_scan_activity(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(require_permission("workflow_scanner", "view")),
+) -> ScanActivityListResponse:
+    """List recent scanner activity with provenance."""
+    offset = (page - 1) * page_size
+
+    count_stmt = select(func.count()).select_from(WorkflowScanActivity)
+    total = (await db.execute(count_stmt)).scalar() or 0
+
+    stmt = (
+        select(WorkflowScanActivity)
+        .order_by(WorkflowScanActivity.started_at.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+    result = await db.execute(stmt)
+    activities = result.scalars().all()
+
+    return ScanActivityListResponse(
+        items=[
+            ScanActivityResponse(
+                id=a.id,
+                trigger_event_ids=a.trigger_event_ids or [],
+                org=a.org,
+                repo=a.repo,
+                workflow_path=a.workflow_path,
+                started_at=a.started_at,
+                completed_at=a.completed_at,
+                status=a.status,
+                checks_performed=a.checks_performed or [],
+                findings_count=a.findings_count,
+                data_sources=a.data_sources or [],
+                duration_ms=a.duration_ms,
+            )
+            for a in activities
+        ],
+        total=total,
+    )

@@ -554,3 +554,261 @@ def scan_all_workflows(self: Task) -> dict:
     """
     logger.info("workflow_scan.task_started")
     return asyncio.run(_analyze_events())
+
+
+# ── Event-driven scan ────────────────────────────────────────────────────────
+
+# Workflow-related actions that trigger scanning
+WORKFLOW_ACTIONS = frozenset(
+    [
+        "workflows.prepared_workflow_job",
+        "workflows.completed_workflow_run",
+        "workflows.created_workflow_run",
+    ]
+)
+
+# Debounce TTL in seconds
+_DEBOUNCE_TTL_SECONDS = 30
+
+
+@celery_app.task(
+    name="app.workers.workflow_scan_worker.scan_workflow_events",
+    bind=True,
+    max_retries=2,
+)
+def scan_workflow_events_task(self: Task, event_ids: list[int]) -> dict[str, int]:
+    """Event-driven scan: analyze specific events for workflow security issues."""
+    try:
+        return asyncio.run(_scan_specific_events(event_ids))
+    except Exception as exc:
+        logger.error(
+            "workflow_scan.event_driven_failed",
+            event_ids=event_ids[:5],
+            error=str(exc),
+        )
+        raise self.retry(exc=exc, countdown=30) from exc
+
+
+async def _scan_specific_events(event_ids: list[int]) -> dict[str, int]:
+    """Scan specific events for workflow security issues with debouncing.
+
+    Steps:
+    1. Load events by ID from DB
+    2. Filter to workflow-relevant actions
+    3. Debounce: skip if same org/repo/workflow_path was scanned in last 30s
+    4. Create WorkflowScanActivity record
+    5. Run analysis functions on each event
+    6. Store findings (upsert)
+    7. Update activity record with results
+    """
+    import redis.asyncio as aioredis
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    from app.config import settings
+    from app.models.workflow_scan_activity import WorkflowScanActivity
+
+    stats: dict[str, int] = {
+        "events_received": len(event_ids),
+        "workflow_events": 0,
+        "findings_created": 0,
+        "scans_debounced": 0,
+        "activities_created": 0,
+    }
+
+    tmp_engine = create_async_engine(
+        settings.DATABASE_URL,
+        poolclass=NullPool,
+        echo=settings.LOG_LEVEL == "DEBUG",
+    )
+    tmp_session_factory = async_sessionmaker(
+        bind=tmp_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+        autocommit=False,
+    )
+
+    valkey = aioredis.from_url(settings.VALKEY_URL, decode_responses=True)
+
+    try:
+        # 1. Load events by ID
+        async with tmp_session_factory() as session:
+            result = await session.execute(
+                select(
+                    text("id"),
+                    text("repo"),
+                    text("org"),
+                    text("data"),
+                    text("action"),
+                )
+                .select_from(text("events"))
+                .where(text(f"id IN ({','.join(str(eid) for eid in event_ids)})"))
+            )
+            rows = result.fetchall()
+
+        # 2. Filter to workflow-relevant actions
+        workflow_rows = [r for r in rows if r[4] in WORKFLOW_ACTIONS]
+        stats["workflow_events"] = len(workflow_rows)
+
+        if not workflow_rows:
+            logger.info("workflow_scan.no_workflow_events", event_count=len(event_ids))
+            return stats
+
+        # Group events by (org, repo, workflow_path) for debouncing
+        grouped: dict[tuple[str, str, str], list[Any]] = {}
+        for row in workflow_rows:
+            event_id, repo, org, data, action = row
+            if not repo or not org or not data:
+                continue
+
+            # Extract workflow path from event data
+            if action == "workflows.prepared_workflow_job":
+                wf_path = _extract_workflow_path(data.get("job_workflow_ref", ""))
+            else:
+                wf_name = data.get("name", "unknown")
+                wf_path = f".github/workflows/{wf_name.lower().replace(' ', '-')}.yml"
+
+            key = (org, repo, wf_path)
+            if key not in grouped:
+                grouped[key] = []
+            grouped[key].append(row)
+
+        # 3. Debounce and process each group
+        for (org, repo, wf_path), group_rows in grouped.items():
+            debounce_key = f"wf_scan:{org}/{repo}/{wf_path}"
+            group_event_ids = [r[0] for r in group_rows]
+
+            # Check debounce
+            existing = await valkey.get(debounce_key)
+            if existing:
+                stats["scans_debounced"] = stats["scans_debounced"] + 1
+                logger.debug(
+                    "workflow_scan.debounced",
+                    org=org,
+                    repo=repo,
+                    workflow_path=wf_path,
+                )
+                continue
+
+            # Set debounce key
+            await valkey.setex(debounce_key, _DEBOUNCE_TTL_SECONDS, "1")
+
+            # 4. Create activity record
+            start_time = datetime.now(UTC)
+            async with tmp_session_factory() as session:
+                activity = WorkflowScanActivity(
+                    trigger_event_ids=group_event_ids,
+                    org=org,
+                    repo=repo,
+                    workflow_path=wf_path,
+                    started_at=start_time,
+                    status="running",
+                    data_sources=["audit_log"],
+                    checks_performed=[],
+                    findings_count=0,
+                )
+                session.add(activity)
+                await session.flush()
+                activity_id = activity.id
+                await session.commit()
+
+            # 5. Run analysis on each event in the group
+            all_findings: list[dict[str, Any]] = []
+            checks_performed: set[str] = set()
+
+            for row in group_rows:
+                _event_id, row_repo, row_org, data, action = row
+                if action == "workflows.prepared_workflow_job":
+                    findings = _analyze_prepared_job(data, row_repo, row_org)
+                    checks_performed.update(
+                        [
+                            "self-hosted-runner",
+                            "excessive-secrets",
+                            "pr-triggered-workflow",
+                            "reusable-workflow-chain",
+                            "slim-runner-image",
+                        ]
+                    )
+                elif action == "workflows.completed_workflow_run":
+                    findings = _analyze_completed_run(data, row_repo, row_org)
+                    checks_performed.add("public-repo-workflow")
+                elif action == "workflows.created_workflow_run":
+                    findings = _analyze_created_run(data, row_repo, row_org)
+                    checks_performed.update(
+                        [
+                            "pat-triggered-workflow",
+                            "schedule-triggered",
+                            "bot-triggered-workflow",
+                            "dependabot-updates",
+                            "chained-workflow",
+                        ]
+                    )
+                else:
+                    findings = []
+
+                all_findings.extend(findings)
+
+            # 6. Deduplicate and persist findings via upsert
+            deduped: dict[tuple[str, str, str], dict[str, Any]] = {}
+            for f in all_findings:
+                fkey = (f["repo"], f["workflow_path"], f["rule_id"])
+                if fkey not in deduped:
+                    deduped[fkey] = f
+
+            findings_count = 0
+            if deduped:
+                async with tmp_session_factory() as session:
+                    for finding in deduped.values():
+                        values = {
+                            "repo": finding["repo"],
+                            "org": finding["org"],
+                            "workflow_path": finding["workflow_path"],
+                            "rule_id": finding["rule_id"],
+                            "severity": finding["severity"],
+                            "title": finding["title"],
+                            "description": finding["description"],
+                            "details": finding.get("details", {}),
+                            "suggested_fix": finding.get("suggested_fix"),
+                            "scanned_at": datetime.now(UTC),
+                        }
+                        insert_stmt = pg_insert(WorkflowFinding).values(**values)
+                        upsert_stmt = insert_stmt.on_conflict_do_update(
+                            index_elements=["repo", "workflow_path", "rule_id"],
+                            set_={
+                                "severity": values["severity"],
+                                "title": values["title"],
+                                "description": values["description"],
+                                "details": values["details"],
+                                "suggested_fix": values["suggested_fix"],
+                                "scanned_at": values["scanned_at"],
+                            },
+                        )
+                        await session.execute(upsert_stmt)
+                        findings_count += 1
+                    await session.commit()
+
+            stats["findings_created"] = stats["findings_created"] + findings_count
+
+            # 7. Update activity record
+            end_time = datetime.now(UTC)
+            duration_ms = int((end_time - start_time).total_seconds() * 1000)
+            async with tmp_session_factory() as session:
+                result = await session.execute(
+                    select(WorkflowScanActivity).where(WorkflowScanActivity.id == activity_id)
+                )
+                act = result.scalar_one()
+                act.status = "completed"
+                act.completed_at = end_time
+                act.duration_ms = duration_ms
+                act.findings_count = findings_count
+                act.checks_performed = sorted(checks_performed)
+                await session.commit()
+
+            stats["activities_created"] = stats["activities_created"] + 1
+
+        logger.info("workflow_scan.event_driven_complete", **stats)
+        return stats
+    finally:
+        await valkey.aclose()
+        await tmp_engine.dispose()

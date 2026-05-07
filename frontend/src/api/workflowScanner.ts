@@ -30,6 +30,26 @@ export interface WorkflowFindingsResponse {
   total: number;
 }
 
+export interface ScanActivity {
+  id: number;
+  trigger_event_ids: number[];
+  org: string;
+  repo: string;
+  workflow_path: string;
+  started_at: string;
+  completed_at: string | null;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  checks_performed: string[];
+  findings_count: number;
+  data_sources: string[];
+  duration_ms: number | null;
+}
+
+export interface ScanActivityListResponse {
+  items: ScanActivity[];
+  total: number;
+}
+
 export function listWorkflowFindings(params?: {
   org?: string;
   repo?: string;
@@ -55,4 +75,8 @@ export function scanWorkflow(body: { content: string; path?: string }) {
 
 export function triggerRepoScan() {
   return api.post<{ task_id: string; status: string }>('/workflows/scan-repos', {});
+}
+
+export function listScanActivity(params?: { page?: number; page_size?: number }) {
+  return api.get<ScanActivityListResponse>('/workflows/activity', params);
 }
