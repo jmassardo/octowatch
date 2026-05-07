@@ -23,6 +23,27 @@ vi.mock('../../api/query', () => ({
     created_by: 'user',
     created_at: '2024-01-01T00:00:00Z',
   }),
+  listSavedQueries: vi.fn().mockResolvedValue([]),
+  createSavedQuery: vi.fn().mockResolvedValue({
+    id: 1,
+    name: 'Saved Q',
+    description: null,
+    sql_text: 'SELECT 1',
+    owner_login: 'user',
+    is_shared: false,
+    shared_with: null,
+    tags: null,
+    schedule_cron: null,
+    schedule_enabled: false,
+    last_run_at: null,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+  }),
+  updateSavedQuery: vi.fn().mockResolvedValue({}),
+  deleteSavedQuery: vi.fn().mockResolvedValue(undefined),
+  shareQuery: vi.fn().mockResolvedValue({}),
+  listSharedQueries: vi.fn().mockResolvedValue([]),
+  scheduleQuery: vi.fn().mockResolvedValue({}),
 }));
 
 describe('QueryPage', () => {
@@ -47,7 +68,7 @@ describe('QueryPage', () => {
   it('renders Run, Save, and History toolbar buttons', () => {
     renderWithProviders(<QueryPage />);
     expect(screen.getByRole('button', { name: /Run/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Save/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'History' })).toBeInTheDocument();
   });
 
@@ -226,31 +247,25 @@ describe('QueryPage', () => {
 
   // --- Save Button ---
 
-  it('prompts for name and calls createTemplate when Save is clicked', async () => {
-    const { createTemplate } = await import('../../api/query');
+  it('opens save modal when Save button is clicked in toolbar', async () => {
     const user = userEvent.setup();
-    vi.spyOn(window, 'prompt').mockReturnValue('My saved query');
     renderWithProviders(<QueryPage />);
 
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: /Save/ }));
 
-    expect(window.prompt).toHaveBeenCalledWith('Query name:', 'Untitled query');
-    expect(createTemplate).toHaveBeenCalledWith({
-      name: 'My saved query',
-      sql: expect.stringContaining('SELECT'),
-    });
+    expect(screen.getByText('Save Query')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('My query')).toBeInTheDocument();
   });
 
-  it('does not call createTemplate when prompt is cancelled', async () => {
-    const { createTemplate } = await import('../../api/query');
+  it('closes save modal when Cancel is clicked', async () => {
     const user = userEvent.setup();
-    vi.spyOn(window, 'prompt').mockReturnValue(null);
     renderWithProviders(<QueryPage />);
 
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: /Save/ }));
+    expect(screen.getByText('Save Query')).toBeInTheDocument();
 
-    expect(window.prompt).toHaveBeenCalled();
-    expect(createTemplate).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('Save Query')).not.toBeInTheDocument();
   });
 
   // --- History ---
@@ -1010,6 +1025,49 @@ describe('QueryPage', () => {
       });
 
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+  });
+
+  // --- Save Modal ---
+
+  describe('Save Modal', () => {
+    it('opens save modal when Save button is clicked', async () => {
+      renderWithProviders(<QueryPage />);
+      const user = userEvent.setup();
+
+      const saveBtn = screen.getByRole('button', { name: /Save/ });
+      await user.click(saveBtn);
+
+      expect(screen.getByText('Save Query')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('My query')).toBeInTheDocument();
+    });
+
+    it('closes save modal on Cancel', async () => {
+      renderWithProviders(<QueryPage />);
+      const user = userEvent.setup();
+
+      await user.click(screen.getByRole('button', { name: /Save/ }));
+      expect(screen.getByText('Save Query')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(screen.queryByText('Save Query')).not.toBeInTheDocument();
+    });
+  });
+
+  // --- Export ---
+
+  describe('Export', () => {
+    it('renders export buttons after query runs', async () => {
+      renderWithProviders(<QueryPage />);
+      const user = userEvent.setup();
+
+      await user.click(screen.getByRole('button', { name: /Run/ }));
+      await waitFor(() => {
+        expect(screen.getByText('1 row')).toBeInTheDocument();
+      });
+
+      expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Export JSON' })).toBeInTheDocument();
     });
   });
 });
