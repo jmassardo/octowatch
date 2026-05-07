@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import {
   listWorkflowFindings,
   getRepoSecurityScores,
@@ -12,10 +13,9 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
 import { formatRelativeShort } from '../../utils/dates';
-import { WorkflowMetricsTab } from './WorkflowMetricsTab';
 import styles from './Workflows.module.css';
 
-type Tab = 'findings' | 'scores' | 'metrics';
+type Tab = 'findings' | 'scores';
 
 function sevVariant(sev: string) {
   if (sev === 'critical') return 'danger' as const;
@@ -120,6 +120,13 @@ export function WorkflowsPage() {
           </div>
         </div>
 
+        <div className={styles.crossLink}>
+          Looking for CI/CD failure metrics?{' '}
+          <Link to="/workflows/health" className={styles.crossLinkAnchor}>
+            Workflow Health →
+          </Link>
+        </div>
+
         <div className={styles.guidanceBox}>
           <div className={styles.guidanceTitle}>What this page shows</div>
           <ul className={styles.guidanceList}>
@@ -151,12 +158,6 @@ export function WorkflowsPage() {
             onClick={() => setTab('scores')}
           >
             Repo Scores
-          </button>
-          <button
-            className={`${styles.tab} ${tab === 'metrics' ? styles.tabActive : ''}`}
-            onClick={() => setTab('metrics')}
-          >
-            Failure Metrics
           </button>
         </div>
 
@@ -269,8 +270,6 @@ export function WorkflowsPage() {
             )}
           </>
         )}
-
-        {tab === 'metrics' && <WorkflowMetricsTab />}
       </div>
 
       {/* Detail slide-out panel */}

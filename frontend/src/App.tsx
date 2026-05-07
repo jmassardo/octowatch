@@ -20,6 +20,7 @@ import { SettingsPage } from './pages/Settings';
 import { ActorsPage } from './pages/Actors';
 import { CrossOrgPage } from './pages/CrossOrg';
 import { WorkflowsPage } from './pages/Workflows';
+import { WorkflowHealthPage } from './pages/WorkflowHealth';
 import { AdvancedSecurityPage } from './pages/AdvancedSecurity';
 import AuthSettingsPage from './pages/admin/AuthSettings';
 
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([
       { path: '/events', element: <EventsPage /> },
       { path: '/crossorg', element: <CrossOrgPage /> },
       { path: '/workflows', element: <WorkflowsPage /> },
+      { path: '/workflows/health', element: <WorkflowHealthPage /> },
       { path: '/advanced-security', element: <AdvancedSecurityPage /> },
       { path: '/velocity', element: <VelocityPage /> },
       { path: '/devactivity', element: <DevActivityPage /> },
