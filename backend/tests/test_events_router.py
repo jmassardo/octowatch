@@ -64,9 +64,12 @@ def _make_mock_db() -> AsyncMock:
     return db
 
 
-def _empty_events_result() -> tuple[list[object], int]:
-    """Return the (events, total) tuple that list_events() now produces."""
-    return ([], 0)
+def _empty_events_result() -> tuple[list[object], int, bool, None]:
+    """Return the (events, total, count_is_estimated, next_cursor) tuple.
+
+    Matches the updated list_events() return signature.
+    """
+    return ([], 0, False, None)
 
 
 def _build_app(
@@ -261,3 +264,121 @@ class TestEventFilterValidation:
 
         with pytest.raises(ValidationError):
             EventListParams(geo_country_code="USA")  # 3 chars, must be exactly 2
+
+    def test_cursor_param_accepted(self):
+        from app.schemas.audit_event import EventListParams
+
+        params = EventListParams(cursor="eyJ0cyI6ICIyMDI0LTAxLTAxIiwgImlkIjogMX0=")
+        assert params.cursor is not None
+
+    def test_cursor_param_too_long_rejected(self):
+        from pydantic import ValidationError
+
+        from app.schemas.audit_event import EventListParams
+
+        with pytest.raises(ValidationError):
+            EventListParams(cursor="x" * 101)
+
+
+# ─── Cursor encoding/decoding ────────────────────────────────────────────────
+
+
+class TestCursorEncoding:
+    def test_encode_decode_roundtrip(self):
+        from app.services.event_service import _decode_cursor, _encode_cursor
+
+        ts = datetime(2024, 6, 15, 10, 30, 0, tzinfo=UTC)
+        cursor = _encode_cursor(ts, 42)
+        decoded_ts, decoded_id = _decode_cursor(cursor)
+        assert decoded_ts == ts
+        assert decoded_id == 42
+
+    def test_decode_invalid_cursor_raises_value_error(self):
+        from app.services.event_service import _decode_cursor
+
+        with pytest.raises(ValueError, match="Invalid cursor"):
+            _decode_cursor("not-valid-base64!!!")
+
+    def test_decode_invalid_json_raises_value_error(self):
+        import base64
+
+        from app.services.event_service import _decode_cursor
+
+        # Valid base64 but not valid JSON for cursor
+        bad = base64.urlsafe_b64encode(b"not json").decode()
+        with pytest.raises(ValueError, match="Invalid cursor"):
+            _decode_cursor(bad)
+
+
+# ─── Response schema includes new fields ─────────────────────────────────────
+
+
+class TestEventListResponseSchema:
+    def test_list_events_response_includes_estimated_and_cursor(self):
+        token = _make_jwt()
+        app, _, _ = _build_app(valkey_session=_make_session())
+        with patch(
+            "app.routers.events.list_events",
+            AsyncMock(return_value=([], 5000, True, "abc123")),
+        ):
+            with patch(
+                "app.routers.events.get_user_scope",
+                AsyncMock(
+                    return_value=OrgRepoScope(
+                        scoped_orgs=["my-org"],
+                        scoped_repos=[],
+                        scope_type="org",
+                    )
+                ),
+            ):
+                client = TestClient(app, raise_server_exceptions=True)
+                resp = client.get("/api/v1/events", cookies={"access_token": token})
+        data = resp.json()
+        assert data["count_is_estimated"] is True
+        assert data["next_cursor"] == "abc123"
+
+    def test_list_events_response_has_query_time_header(self):
+        token = _make_jwt()
+        app, _, _ = _build_app(valkey_session=_make_session())
+        with patch(
+            "app.routers.events.list_events",
+            AsyncMock(return_value=([], 0, False, None)),
+        ):
+            with patch(
+                "app.routers.events.get_user_scope",
+                AsyncMock(
+                    return_value=OrgRepoScope(
+                        scoped_orgs=["my-org"],
+                        scoped_repos=[],
+                        scope_type="org",
+                    )
+                ),
+            ):
+                client = TestClient(app, raise_server_exceptions=True)
+                resp = client.get("/api/v1/events", cookies={"access_token": token})
+        assert "x-query-time-ms" in resp.headers
+        assert int(resp.headers["x-query-time-ms"]) >= 0
+
+    def test_invalid_cursor_returns_400(self):
+        token = _make_jwt()
+        app, _, _ = _build_app(valkey_session=_make_session())
+        with patch(
+            "app.routers.events.list_events",
+            AsyncMock(side_effect=ValueError("Invalid cursor: bad")),
+        ):
+            with patch(
+                "app.routers.events.get_user_scope",
+                AsyncMock(
+                    return_value=OrgRepoScope(
+                        scoped_orgs=["my-org"],
+                        scoped_repos=[],
+                        scope_type="org",
+                    )
+                ),
+            ):
+                client = TestClient(app, raise_server_exceptions=False)
+                resp = client.get(
+                    "/api/v1/events?cursor=bad",
+                    cookies={"access_token": token},
+                )
+        assert resp.status_code == 400
