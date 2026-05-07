@@ -56,6 +56,7 @@ from app.models.team import Team, TeamMembership, TeamRoleAssignment
 from app.models.threat_intel import ThreatIntelDomain, ThreatIntelFeed, ThreatIntelIndicator
 from app.models.user import RbacRole, UserRoleAssignment
 from app.models.workflow_finding import WorkflowFinding
+from app.models.workflow_scan_activity import WorkflowScanActivity
 
 __all__ = [
     "AppSetting",
@@ -122,5 +123,6 @@ __all__ = [
     "TeamRoleAssignment",
     "UserRoleAssignment",
     "WorkflowFinding",
+    "WorkflowScanActivity",
     "SessionPolicySetting",
 ]
