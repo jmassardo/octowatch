@@ -216,6 +216,7 @@ class FakeRuleModel:
     )
     enabled: bool = True
     status: str = "draft"
+    mode: str = "active"
     version: int = 1
     git_commit_sha: str | None = None
     created_by: str = "testuser"
@@ -240,6 +241,7 @@ VALID_RULE_PAYLOAD: dict[str, Any] = {
     },
     "enabled": True,
     "status": "draft",
+    "mode": "active",
 }
 
 

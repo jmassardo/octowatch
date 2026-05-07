@@ -85,6 +85,7 @@ class FakeRuleModel:
     )
     enabled: bool = True
     status: str = "active"
+    mode: str = "active"
     version: int = 1
     git_commit_sha: str | None = None
     created_by: str = "testuser"
