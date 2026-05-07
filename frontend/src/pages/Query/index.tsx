@@ -1,11 +1,21 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { runQuery, listTemplates, createTemplate } from '../../api/query';
+import {
+  runQuery,
+  listTemplates,
+  listSavedQueries,
+  createSavedQuery,
+  updateSavedQuery,
+  deleteSavedQuery,
+  shareQuery,
+  listSharedQueries,
+  scheduleQuery,
+} from '../../api/query';
 import { translateNLQuery } from '../../api/nlQuery';
 import type { NLInterpretation } from '../../api/nlQuery';
-import type { QueryRunResponse } from '../../types/query';
+import type { QueryRunResponse, SavedQuery } from '../../types/query';
 import { useToast } from '../../hooks/useToast';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/primitives/Button';
@@ -842,6 +852,54 @@ function saveHistory(entries: HistoryEntry[]): void {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, MAX_HISTORY)));
 }
 
+// ── Export Helpers ─────────────────────────────────────────────────────────────
+
+function exportCsv(columns: readonly string[], rows: readonly (readonly unknown[])[]): void {
+  const escape = (val: unknown): string => {
+    const s = val == null ? '' : String(val);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+  const header = columns.map(escape).join(',');
+  const body = rows.map((row) => row.map(escape).join(',')).join('\n');
+  const csv = `${header}\n${body}`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `query-results-${new Date().toISOString().slice(0, 19)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportJson(columns: readonly string[], rows: readonly (readonly unknown[])[]): void {
+  const data = rows.map((row) => {
+    const obj: Record<string, unknown> = {};
+    columns.forEach((col, i) => {
+      obj[col] = row[i];
+    });
+    return obj;
+  });
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `query-results-${new Date().toISOString().slice(0, 19)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Schedule helpers ──────────────────────────────────────────────────────────
+
+const SCHEDULE_PRESETS: { label: string; cron: string }[] = [
+  { label: 'Daily at 9 AM', cron: '0 9 * * *' },
+  { label: 'Weekly (Monday 9 AM)', cron: '0 9 * * 1' },
+  { label: 'Monthly (1st at 9 AM)', cron: '0 9 1 * *' },
+];
+
 export function QueryPage() {
   const [searchParams] = useSearchParams();
   const { showToast } = useToast();
@@ -859,6 +917,24 @@ export function QueryPage() {
   const queryClient = useQueryClient();
   const [nlInput, setNlInput] = useState('');
   const [nlResults, setNlResults] = useState<NLInterpretation[]>([]);
+
+  // ── Save modal state ────────────────────────────────────────────────────
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [saveDescription, setSaveDescription] = useState('');
+  const [saveTags, setSaveTags] = useState('');
+  const [editingQuery, setEditingQuery] = useState<SavedQuery | null>(null);
+
+  // ── Share modal state ──────────────────────────────────────────────────
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareTargetId, setShareTargetId] = useState<number | null>(null);
+  const [shareLogins, setShareLogins] = useState('');
+
+  // ── Schedule modal state ──────────────────────────────────────────────
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleTargetId, setScheduleTargetId] = useState<number | null>(null);
+  const [scheduleCron, setScheduleCron] = useState('0 9 * * 1');
+  const [scheduleEnabled, setScheduleEnabled] = useState(true);
 
   type QueryResultRow = Record<string, unknown>;
 
@@ -926,15 +1002,70 @@ export function QueryPage() {
     },
   });
 
-  const saveMutation = useMutation({
-    mutationFn: (name: string) => createTemplate({ name, sql }),
+  // ── Saved query queries/mutations ────────────────────────────────────
+  const { data: savedQueries } = useQuery({
+    queryKey: ['saved-queries'],
+    queryFn: listSavedQueries,
+  });
+
+  const { data: sharedQueries } = useQuery({
+    queryKey: ['shared-queries'],
+    queryFn: listSharedQueries,
+  });
+
+  const createSavedMutation = useMutation({
+    mutationFn: (payload: { name: string; description?: string; tags?: string[] }) =>
+      createSavedQuery({ ...payload, sql_text: sql }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['query-templates'] });
-      showToast('Template saved successfully', 'success');
+      void queryClient.invalidateQueries({ queryKey: ['saved-queries'] });
+      showToast('Query saved', 'success');
+      setShowSaveModal(false);
     },
-    onError: () => {
-      showToast('Failed to save template', 'error');
+    onError: () => showToast('Failed to save query', 'error'),
+  });
+
+  const updateSavedMutation = useMutation({
+    mutationFn: (params: {
+      id: number;
+      payload: { name?: string; description?: string; sql_text?: string; tags?: string[] };
+    }) => updateSavedQuery(params.id, params.payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['saved-queries'] });
+      showToast('Query updated', 'success');
+      setShowSaveModal(false);
+      setEditingQuery(null);
     },
+    onError: () => showToast('Failed to update query', 'error'),
+  });
+
+  const deleteSavedMutation = useMutation({
+    mutationFn: deleteSavedQuery,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['saved-queries'] });
+      showToast('Query deleted', 'success');
+    },
+    onError: () => showToast('Failed to delete query', 'error'),
+  });
+
+  const shareMutation = useMutation({
+    mutationFn: (params: { id: number; logins: string[] }) => shareQuery(params.id, params.logins),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['saved-queries'] });
+      showToast('Query shared', 'success');
+      setShowShareModal(false);
+    },
+    onError: () => showToast('Failed to share query', 'error'),
+  });
+
+  const scheduleMutation = useMutation({
+    mutationFn: (params: { id: number; cron: string; enabled: boolean }) =>
+      scheduleQuery(params.id, { cron: params.cron, enabled: params.enabled }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['saved-queries'] });
+      showToast('Schedule updated', 'success');
+      setShowScheduleModal(false);
+    },
+    onError: () => showToast('Failed to update schedule', 'error'),
   });
 
   const nlMutation = useMutation({
@@ -1063,11 +1194,103 @@ export function QueryPage() {
   }
 
   function handleSave() {
-    const name = window.prompt('Query name:', 'Untitled query');
-    if (name) {
-      saveMutation.mutate(name);
-    }
+    setSaveName('');
+    setSaveDescription('');
+    setSaveTags('');
+    setEditingQuery(null);
+    setShowSaveModal(true);
   }
+
+  const handleSaveSubmit = useCallback(() => {
+    const tags = saveTags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (editingQuery) {
+      updateSavedMutation.mutate({
+        id: editingQuery.id,
+        payload: {
+          name: saveName,
+          description: saveDescription || undefined,
+          sql_text: sql,
+          tags: tags.length > 0 ? tags : undefined,
+        },
+      });
+    } else {
+      createSavedMutation.mutate({
+        name: saveName,
+        description: saveDescription || undefined,
+        tags: tags.length > 0 ? tags : undefined,
+      });
+    }
+  }, [
+    saveName,
+    saveDescription,
+    saveTags,
+    sql,
+    editingQuery,
+    createSavedMutation,
+    updateSavedMutation,
+  ]);
+
+  function handleEditSavedQuery(q: SavedQuery) {
+    setSaveName(q.name);
+    setSaveDescription(q.description ?? '');
+    setSaveTags(q.tags?.join(', ') ?? '');
+    setEditingQuery(q);
+    setSql(q.sql_text);
+    setShowSaveModal(true);
+  }
+
+  function handleLoadSavedQuery(q: SavedQuery) {
+    setSql(q.sql_text);
+    setAcItems([]);
+    setAcPartial('');
+  }
+
+  function handleOpenShare(id: number) {
+    setShareTargetId(id);
+    setShareLogins('');
+    setShowShareModal(true);
+  }
+
+  function handleShareSubmit() {
+    if (shareTargetId == null) return;
+    const logins = shareLogins
+      .split(',')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (logins.length === 0) return;
+    shareMutation.mutate({ id: shareTargetId, logins });
+  }
+
+  function handleOpenSchedule(q: SavedQuery) {
+    setScheduleTargetId(q.id);
+    setScheduleCron(q.schedule_cron ?? '0 9 * * 1');
+    setScheduleEnabled(q.schedule_enabled);
+    setShowScheduleModal(true);
+  }
+
+  function handleScheduleSubmit() {
+    if (scheduleTargetId == null) return;
+    scheduleMutation.mutate({
+      id: scheduleTargetId,
+      cron: scheduleCron,
+      enabled: scheduleEnabled,
+    });
+  }
+
+  // Ctrl+S to save shortcut
+  useEffect(() => {
+    function handleGlobalKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+    }
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   function handleHistorySelect(entry: HistoryEntry) {
     setSql(entry.sql);
@@ -1196,6 +1419,89 @@ export function QueryPage() {
               ))}
             </>
           )}
+
+          {/* Saved Queries */}
+          {savedQueries && savedQueries.length > 0 && (
+            <>
+              <div className={styles.schemaTitle} style={{ marginTop: 16 }}>
+                Saved Queries
+              </div>
+              {savedQueries.map((q) => (
+                <div key={q.id} className={styles.savedQueryItem}>
+                  <span
+                    onClick={() => handleLoadSavedQuery(q)}
+                    title={q.description ?? q.name}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleLoadSavedQuery(q);
+                    }}
+                  >
+                    {q.name}
+                  </span>
+                  <span className={styles.savedQueryActions}>
+                    <button
+                      className={styles.savedQueryActionBtn}
+                      onClick={() => handleEditSavedQuery(q)}
+                      title="Edit query"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      className={styles.savedQueryActionBtn}
+                      onClick={() => handleOpenShare(q.id)}
+                      title="Share query"
+                    >
+                      🔗
+                    </button>
+                    <button
+                      className={styles.savedQueryActionBtn}
+                      onClick={() => handleOpenSchedule(q)}
+                      title="Schedule query"
+                    >
+                      ⏰
+                    </button>
+                    <button
+                      className={styles.savedQueryActionBtn}
+                      onClick={() => {
+                        if (window.confirm(`Delete "${q.name}"?`)) {
+                          deleteSavedMutation.mutate(q.id);
+                        }
+                      }}
+                      title="Delete query"
+                    >
+                      🗑️
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Shared With Me */}
+          {sharedQueries && sharedQueries.length > 0 && (
+            <>
+              <div className={styles.schemaTitle} style={{ marginTop: 16 }}>
+                Shared with Me
+              </div>
+              {sharedQueries.map((q) => (
+                <div key={q.id} className={styles.savedQueryItem}>
+                  <span
+                    onClick={() => handleLoadSavedQuery(q)}
+                    title={q.description ?? q.name}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleLoadSavedQuery(q);
+                    }}
+                  >
+                    {q.name}
+                  </span>
+                  <span className={styles.sharedBadge}>by {q.owner_login}</span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
 
         {/* Editor */}
@@ -1223,10 +1529,10 @@ export function QueryPage() {
                 <Button
                   size="sm"
                   onClick={handleSave}
-                  disabled={saveMutation.isPending}
-                  title="Save this query as a reusable template"
+                  disabled={createSavedMutation.isPending}
+                  title={`Save this query (${IS_MAC ? '⌘' : 'Ctrl'}+S)`}
                 >
-                  {saveMutation.isPending ? '…' : 'Save'}
+                  {createSavedMutation.isPending ? '…' : '💾 Save'}
                 </Button>
                 <div className={styles.historyWrap}>
                   <Button
@@ -1346,6 +1652,22 @@ export function QueryPage() {
                 {results.truncated && (
                   <span style={{ color: 'var(--attention)' }}> (truncated)</span>
                 )}
+                <span className={styles.exportBar}>
+                  <Button
+                    size="sm"
+                    onClick={() => exportCsv(results.columns, results.rows)}
+                    title="Download results as CSV"
+                  >
+                    Export CSV
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => exportJson(results.columns, results.rows)}
+                    title="Download results as JSON"
+                  >
+                    Export JSON
+                  </Button>
+                </span>
               </div>
               <div className={styles.resultsTable} ref={resultsTableRef}>
                 <DataTable<QueryResultRow>
@@ -1382,6 +1704,159 @@ export function QueryPage() {
           </p>
         </Drawer>
       )}
+
+      {/* Save Query Modal */}
+      {showSaveModal &&
+        createPortal(
+          <div
+            className={styles.modalOverlay}
+            onClick={() => setShowSaveModal(false)}
+            role="dialog"
+            aria-label="Save query"
+          >
+            <div className={styles.modalBox} onClick={(e) => e.stopPropagation()}>
+              <h3 className={styles.modalTitle}>
+                {editingQuery ? 'Edit Saved Query' : 'Save Query'}
+              </h3>
+              <label className={styles.modalLabel}>
+                Name
+                <input
+                  className={styles.modalInput}
+                  value={saveName}
+                  onChange={(e) => setSaveName(e.target.value)}
+                  placeholder="My query"
+                  autoFocus
+                />
+              </label>
+              <label className={styles.modalLabel}>
+                Description
+                <textarea
+                  className={styles.modalTextarea}
+                  value={saveDescription}
+                  onChange={(e) => setSaveDescription(e.target.value)}
+                  placeholder="What does this query do?"
+                />
+              </label>
+              <label className={styles.modalLabel}>
+                Tags (comma-separated)
+                <input
+                  className={styles.modalInput}
+                  value={saveTags}
+                  onChange={(e) => setSaveTags(e.target.value)}
+                  placeholder="security, audit, weekly"
+                />
+              </label>
+              <div className={styles.modalActions}>
+                <Button size="sm" onClick={() => setShowSaveModal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={handleSaveSubmit}
+                  disabled={
+                    !saveName.trim() ||
+                    createSavedMutation.isPending ||
+                    updateSavedMutation.isPending
+                  }
+                >
+                  {editingQuery ? 'Update' : 'Save'}
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Share Query Modal */}
+      {showShareModal &&
+        createPortal(
+          <div
+            className={styles.modalOverlay}
+            onClick={() => setShowShareModal(false)}
+            role="dialog"
+            aria-label="Share query"
+          >
+            <div className={styles.modalBox} onClick={(e) => e.stopPropagation()}>
+              <h3 className={styles.modalTitle}>Share Query</h3>
+              <label className={styles.modalLabel}>
+                GitHub logins (comma-separated)
+                <input
+                  className={styles.modalInput}
+                  value={shareLogins}
+                  onChange={(e) => setShareLogins(e.target.value)}
+                  placeholder="alice, bob"
+                  autoFocus
+                />
+              </label>
+              <div className={styles.modalActions}>
+                <Button size="sm" onClick={() => setShowShareModal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={handleShareSubmit}
+                  disabled={!shareLogins.trim() || shareMutation.isPending}
+                >
+                  {shareMutation.isPending ? '…' : 'Share'}
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Schedule Query Modal */}
+      {showScheduleModal &&
+        createPortal(
+          <div
+            className={styles.modalOverlay}
+            onClick={() => setShowScheduleModal(false)}
+            role="dialog"
+            aria-label="Schedule query"
+          >
+            <div className={styles.modalBox} onClick={(e) => e.stopPropagation()}>
+              <h3 className={styles.modalTitle}>Schedule Query</h3>
+              <label className={styles.modalLabel}>
+                Frequency
+                <select
+                  className={styles.scheduleSelect}
+                  value={scheduleCron}
+                  onChange={(e) => setScheduleCron(e.target.value)}
+                >
+                  {SCHEDULE_PRESETS.map((p) => (
+                    <option key={p.cron} value={p.cron}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.scheduleToggle}>
+                <input
+                  type="checkbox"
+                  checked={scheduleEnabled}
+                  onChange={(e) => setScheduleEnabled(e.target.checked)}
+                />
+                Enabled
+              </label>
+              <div className={styles.modalActions}>
+                <Button size="sm" onClick={() => setShowScheduleModal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={handleScheduleSubmit}
+                  disabled={scheduleMutation.isPending}
+                >
+                  {scheduleMutation.isPending ? '…' : 'Save Schedule'}
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

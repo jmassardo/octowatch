@@ -562,3 +562,143 @@
   max-height: 60px;
   overflow: hidden;
 }
+
+/* ── Save Modal ──────────────────────────────────────────────────────────── */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modalBox {
+  background: var(--canvas-default);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  width: 420px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modalTitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.modalLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-muted);
+}
+
+.modalInput {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
+  background: var(--canvas-subtle);
+  color: var(--fg);
+}
+
+.modalTextarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
+  background: var(--canvas-subtle);
+  color: var(--fg);
+  resize: vertical;
+  min-height: 60px;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ── Saved Queries sidebar section ───────────────────────────────────────── */
+
+.savedQueryItem {
+  font-size: 13px;
+  padding: 4px 0;
+  cursor: pointer;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.savedQueryItem:hover {
+  color: var(--accent);
+}
+
+.savedQueryActions {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.savedQueryItem:hover .savedQueryActions {
+  opacity: 1;
+}
+
+.savedQueryActionBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  color: var(--fg-muted);
+  border-radius: 4px;
+}
+
+.savedQueryActionBtn:hover {
+  color: var(--fg);
+  background: var(--canvas-default);
+}
+
+.sharedBadge {
+  font-size: 10px;
+  color: var(--fg-subtle);
+  font-style: italic;
+}
+
+/* ── Export buttons ──────────────────────────────────────────────────────── */
+
+.exportBar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ── Schedule form ───────────────────────────────────────────────────────── */
+
+.scheduleSelect {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
+  background: var(--canvas-subtle);
+  color: var(--fg);
+}
+
+.scheduleToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
