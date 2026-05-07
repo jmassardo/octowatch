@@ -219,7 +219,14 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             icon={
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                 <path d="M8 16A8 8 0 108 0a8 8 0 000 16zm0-1.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13z" />
-                <path d="M2.5 8h2.3l1.2-3 2 6 1.2-3h4.3" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d="M2.5 8h2.3l1.2-3 2 6 1.2-3h4.3"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             }
           >
