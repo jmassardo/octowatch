@@ -667,3 +667,273 @@ export function getDependabotAlerts(
   if (severity) params.severity = severity;
   return api.get<DependabotAlertsListResponse>('/health-signals/vulnerabilities/alerts', params);
 }
+
+/* ------------------------------------------------------------------ */
+/*  Strategic Security Dashboard (Issue #124)                          */
+/* ------------------------------------------------------------------ */
+
+// --- MTTR Trends ---
+
+export interface MttrBySeverity {
+  severity: string;
+  mttr_hours: number;
+  sample_size: number;
+}
+
+export interface MttrByTool {
+  tool: string;
+  mttr_hours: number;
+}
+
+export interface MttrTimePoint {
+  date: string;
+  mttr_hours: number;
+}
+
+export interface MttrTrendsResponse {
+  current_mttr_hours: number;
+  previous_mttr_hours: number;
+  trend_pct: number;
+  by_severity: MttrBySeverity[];
+  time_series: MttrTimePoint[];
+  by_tool: MttrByTool[];
+}
+
+export function getMttrTrends(period = '30d', severity?: string): Promise<MttrTrendsResponse> {
+  const params: Record<string, string> = { period };
+  if (severity) params.severity = severity;
+  return api.get<MttrTrendsResponse>('/health-signals/strategic/mttr-trends', params);
+}
+
+// --- Coverage Growth ---
+
+export interface FeatureCoverage {
+  repos: number;
+  pct: number;
+}
+
+export interface CoverageTimePoint {
+  date: string;
+  ghas_pct: number;
+  code_scanning_pct: number;
+  secret_scanning_pct: number;
+  dependabot_pct: number;
+  push_protection_pct: number;
+  ghas_repos: number;
+  code_scanning_repos: number;
+  secret_scanning_repos: number;
+  dependabot_repos: number;
+  push_protection_repos: number;
+}
+
+export interface UncoveredRepo {
+  repo_full_name: string;
+  missing_features: string[];
+}
+
+export interface CoverageGrowthResponse {
+  total_repos: number;
+  feature_coverage: Record<string, FeatureCoverage>;
+  time_series: CoverageTimePoint[];
+  uncovered_repos: UncoveredRepo[];
+}
+
+export function getCoverageGrowth(period = '90d'): Promise<CoverageGrowthResponse> {
+  return api.get<CoverageGrowthResponse>('/health-signals/strategic/coverage-growth', { period });
+}
+
+// --- Alert Aging ---
+
+export interface AgeBucket {
+  bucket: string;
+  total_count: number;
+  critical_count: number;
+  high_count: number;
+}
+
+export interface OldestAlert {
+  tool: string;
+  alert_number: number;
+  repo_full_name: string;
+  created_at: string;
+  severity: string;
+  age_days: number;
+  rule_info: string;
+  rule_description: string | null;
+}
+
+export interface BurndownProjection {
+  current_open: number;
+  avg_close_rate_per_week: number;
+  weeks_to_zero: number | null;
+  time_series: { week: number; projected_open: number }[];
+}
+
+export interface AlertAgingResponse {
+  age_buckets: AgeBucket[];
+  oldest_critical: OldestAlert[];
+  burndown_projection: BurndownProjection;
+}
+
+export function getAlertAging(): Promise<AlertAgingResponse> {
+  return api.get<AlertAgingResponse>('/health-signals/strategic/alert-aging');
+}
+
+// --- Security Score ---
+
+export interface ScoreComponent {
+  name: string;
+  score: number;
+  weight: number;
+  description: string;
+}
+
+export interface ScoreSuggestion {
+  name: string;
+  impact: number;
+  suggestion: string;
+}
+
+export interface SecurityScoreResponse {
+  score: number;
+  components: ScoreComponent[];
+  suggestions: ScoreSuggestion[];
+}
+
+export function getSecurityScore(): Promise<SecurityScoreResponse> {
+  return api.get<SecurityScoreResponse>('/health-signals/strategic/security-score');
+}
+
+/* ------------------------------------------------------------------ */
+/*  Org Health Dashboard (#129)                                        */
+/* ------------------------------------------------------------------ */
+
+// --- Health Score ---
+
+export interface HealthScoreResponse {
+  score: number;
+  grade: string;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  low_count: number;
+  total_signals: number;
+  orgs_monitored: number;
+}
+
+export function getHealthScore(): Promise<HealthScoreResponse> {
+  return api.get<HealthScoreResponse>('/health-signals/score');
+}
+
+// --- API Abuse ---
+
+export interface AbuseSignal {
+  signal_type: string;
+  severity: string;
+  actor: string;
+  event_count: number;
+  time_window_start: string | null;
+  time_window_end: string | null;
+  details: string;
+  recommended_action: string;
+}
+
+export interface AbuseSignalsResponse {
+  signals: AbuseSignal[];
+}
+
+export function getApiAbuseSignals(hours = 24, limit = 50): Promise<AbuseSignalsResponse> {
+  return api.get<AbuseSignalsResponse>('/health-signals/api-abuse', { hours, limit });
+}
+
+// --- Dormant Users ---
+
+export interface DormantUser {
+  login: string;
+  last_activity_date: string | null;
+  days_inactive: number;
+  seat_type: string;
+  estimated_monthly_cost: number;
+  recommended_action: string;
+}
+
+export interface DormantUsersResponse {
+  users: DormantUser[];
+  summary: {
+    total_dormant: number;
+    estimated_monthly_waste: number;
+  };
+}
+
+export function getDormantUsers(daysInactive = 90, limit = 50): Promise<DormantUsersResponse> {
+  return api.get<DormantUsersResponse>('/health-signals/dormant-users', {
+    days_inactive: daysInactive,
+    limit,
+  });
+}
+
+// --- Platform Security ---
+
+export interface PlatformSecurityOrg {
+  org: string;
+  sso_configured: boolean;
+  two_fa_required: boolean;
+  audit_log_streaming: boolean;
+  ip_allowlist_configured: boolean;
+  branch_protection_default: boolean;
+  compliance_score: number;
+  recommendations: string[];
+}
+
+export interface PlatformSecurityResponse {
+  orgs: PlatformSecurityOrg[];
+  overall_compliance_score: number;
+}
+
+export function getPlatformSecurity(): Promise<PlatformSecurityResponse> {
+  return api.get<PlatformSecurityResponse>('/health-signals/platform-security');
+}
+
+// --- Maintenance Signals ---
+
+export interface MaintenanceStaleRepo {
+  org: string;
+  repo: string;
+  last_event_at: string;
+  days_since_activity: number;
+}
+
+export interface MaintenanceEmptyRepo {
+  org: string;
+  repo: string;
+  created_at: string;
+}
+
+export interface MaintenanceArchivedCandidate {
+  org: string;
+  repo: string;
+  event_count: number;
+  last_event_at: string;
+  days_since_activity: number;
+}
+
+export interface MaintenanceSignalsResponse {
+  stale_repos: MaintenanceStaleRepo[];
+  empty_repos: MaintenanceEmptyRepo[];
+  archived_candidates: MaintenanceArchivedCandidate[];
+  summary: {
+    stale_count: number;
+    empty_count: number;
+    archived_candidate_count: number;
+  };
+}
+
+export function getMaintenanceSignals(
+  staleThresholdDays = 180,
+  limit = 50,
+): Promise<MaintenanceSignalsResponse> {
+  return api.get<MaintenanceSignalsResponse>('/health-signals/maintenance-signals', {
+    stale_threshold_days: staleThresholdDays,
+    limit,
+  });
+}
