@@ -52,7 +52,38 @@ vi.mock('../../components/charts/ContributionCalendar', () => ({
   ),
 }));
 
+vi.mock('./LeadershipPane', () => ({
+  LeadershipPane: () => <div data-testid="leadership-pane">Leadership Pane</div>,
+}));
+
 describe('VelocityPage', () => {
+  /* ---------------------------------------------------------------- */
+  /*  Tab bar                                                            */
+  /* ---------------------------------------------------------------- */
+
+  it('renders the tab bar with Metrics and Leadership tabs', () => {
+    renderWithProviders(<VelocityPage />);
+
+    expect(screen.getByRole('tab', { name: 'Metrics' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Leadership' })).toBeInTheDocument();
+  });
+
+  it('shows Metrics tab as active by default', () => {
+    renderWithProviders(<VelocityPage />);
+
+    const metricsTab = screen.getByRole('tab', { name: 'Metrics' });
+    expect(metricsTab).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('switches to Leadership pane when Leadership tab is clicked', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<VelocityPage />);
+
+    const leadershipTab = screen.getByRole('tab', { name: 'Leadership' });
+    await user.click(leadershipTab);
+
+    expect(screen.getByTestId('leadership-pane')).toBeInTheDocument();
+  });
   /* ---------------------------------------------------------------- */
   /*  Page header & DORA badge                                         */
   /* ---------------------------------------------------------------- */
