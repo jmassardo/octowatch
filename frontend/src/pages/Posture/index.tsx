@@ -341,7 +341,8 @@ function CoverageGauges({ metrics }: { metrics: AggregateMetrics }) {
 }
 
 function CoverageBar({ label, value }: { label: string; value: number }) {
-  const barColor = value >= 80 ? 'var(--success)' : value >= 50 ? 'var(--attention)' : 'var(--danger)';
+  const barColor =
+    value >= 80 ? 'var(--success)' : value >= 50 ? 'var(--attention)' : 'var(--danger)';
   return (
     <div className={styles.coverageItem}>
       <div className={styles.coverageHeader}>
@@ -349,10 +350,7 @@ function CoverageBar({ label, value }: { label: string; value: number }) {
         <span className={styles.coverageValue}>{value}%</span>
       </div>
       <div className={styles.coverageTrack}>
-        <div
-          className={styles.coverageFill}
-          style={{ width: `${value}%`, background: barColor }}
-        />
+        <div className={styles.coverageFill} style={{ width: `${value}%`, background: barColor }} />
       </div>
     </div>
   );
