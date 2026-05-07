@@ -1,0 +1,52 @@
+.page {
+  padding: 24px;
+  max-width: 1200px;
+}
+
+.crossLink {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-bottom: 16px;
+}
+
+.crossLinkAnchor {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.crossLinkAnchor:hover {
+  text-decoration: underline;
+}
+
+.guidanceBox {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  background: var(--bg-card);
+}
+
+.guidanceTitle {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+  color: var(--fg);
+}
+
+.guidanceList {
+  list-style: disc;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--fg-muted);
+  margin: 0;
+}
+
+.guidanceList li {
+  margin-bottom: 4px;
+}
+
+.guidanceList strong {
+  color: var(--fg);
+}

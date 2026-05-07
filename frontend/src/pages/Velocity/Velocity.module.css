@@ -402,3 +402,50 @@
   border-color: rgba(248, 81, 73, 0.4);
   color: var(--danger);
 }
+
+/* ── Workflow Health Callout ── */
+.workflowCallout {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  margin-bottom: 24px;
+}
+
+.calloutIcon {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.calloutContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.calloutTitle {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--fg);
+}
+
+.calloutDesc {
+  font-size: 13px;
+  color: var(--fg-muted);
+  line-height: 1.5;
+}
+
+.calloutDesc a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.calloutDesc a:hover {
+  text-decoration: underline;
+}

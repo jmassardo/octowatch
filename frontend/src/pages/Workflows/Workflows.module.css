@@ -62,6 +62,23 @@
   color: var(--danger, #e53e3e);
 }
 
+/* ── Cross-link ── */
+.crossLink {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-bottom: 16px;
+}
+
+.crossLinkAnchor {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.crossLinkAnchor:hover {
+  text-decoration: underline;
+}
+
 /* ── Guidance ── */
 .guidanceBox {
   background: var(--bg-card);
