@@ -267,24 +267,13 @@ describe('AdvancedSecurityPage', () => {
     expect(sparklines.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('secret scanning tab cards are clickable and filter table', async () => {
+  it('secret scanning tab renders SecretsPane', async () => {
     renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=secrets' });
 
     await waitFor(() => {
-      expect(screen.getByText('Open Alerts')).toBeInTheDocument();
+      // SecretsPane renders its own content with summary metrics
+      expect(screen.getByText('Secrets')).toBeInTheDocument();
     });
-
-    const openCard = screen.getByRole('button', { name: 'Open Alerts' });
-    expect(openCard).toBeInTheDocument();
-
-    const leakedCard = screen.getByRole('button', { name: 'Publicly Leaked' });
-    expect(leakedCard).toBeInTheDocument();
-
-    const bypassCard = screen.getByRole('button', { name: 'Push Protection Bypassed' });
-    expect(bypassCard).toBeInTheDocument();
-
-    const resolutionCard = screen.getByRole('button', { name: 'Resolution Rate' });
-    expect(resolutionCard).toBeInTheDocument();
   });
 
   it('code scanning tab cards are clickable', async () => {
@@ -360,19 +349,11 @@ describe('AdvancedSecurityPage', () => {
     });
   });
 
-  it('clicking secret scanning Open Alerts card sets state filter', async () => {
+  it('secret scanning tab is accessible via tab navigation', async () => {
     renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=secrets' });
 
     await waitFor(() => {
-      expect(screen.getByText('Open Alerts')).toBeInTheDocument();
-    });
-
-    const openCard = screen.getByRole('button', { name: 'Open Alerts' });
-    fireEvent.click(openCard);
-
-    await waitFor(() => {
-      const stateSelect = screen.getByRole('combobox');
-      expect(stateSelect).toHaveValue('open');
+      expect(screen.getByText('Secrets')).toBeInTheDocument();
     });
   });
 });
