@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getDetectionTimeline } from '../../api/executive';
 import type { TimelineEvent } from '../../api/executive';
+import { getChain } from '../../api/correlations';
+import type { ChainMember } from '../../api/correlations';
 import { getRawEvent } from '../../api/events';
 import { Drawer } from '../../components/primitives/Drawer';
 import { CodeBlock } from '../../components/primitives/CodeBlock';
@@ -88,12 +90,18 @@ function EventCard({ event, onClick }: { event: TimelineEvent; onClick: () => vo
 
 interface InvestigationTimelineProps {
   detectionId: number;
+  chainId?: string | null;
   onClose: () => void;
 }
 
-export function InvestigationTimeline({ detectionId, onClose }: InvestigationTimelineProps) {
+export function InvestigationTimeline({
+  detectionId,
+  chainId,
+  onClose,
+}: InvestigationTimelineProps) {
   const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(null);
   const [showRawData, setShowRawData] = useState(false);
+  const [chainExpanded, setChainExpanded] = useState(true);
 
   const {
     data: timeline,
@@ -109,6 +117,12 @@ export function InvestigationTimeline({ detectionId, onClose }: InvestigationTim
     queryKey: ['event-raw', selectedEvent?.id],
     queryFn: () => getRawEvent(selectedEvent!.id),
     enabled: selectedEvent !== null,
+  });
+
+  const { data: chainData } = useQuery({
+    queryKey: ['chain-detail', chainId],
+    queryFn: () => getChain(chainId!),
+    enabled: chainId != null,
   });
 
   // Detect impossible-travel by checking for multiple distinct geo locations
@@ -177,6 +191,62 @@ export function InvestigationTimeline({ detectionId, onClose }: InvestigationTim
       {isImpossibleTravel && (
         <div className={styles.mapContainer}>
           <GeoMap locations={uniqueLocations} />
+        </div>
+      )}
+
+      {chainData && chainData.members.length > 0 && (
+        <div className={styles.chainSection}>
+          <button
+            className={styles.chainToggle}
+            onClick={() => setChainExpanded((v) => !v)}
+            aria-expanded={chainExpanded}
+            aria-label="Toggle correlated detections"
+          >
+            <span className={styles.chainToggleIcon}>{chainExpanded ? '▾' : '▸'}</span>
+            <span className={styles.chainToggleLabel}>
+              Correlated Detections ({chainData.members.length})
+            </span>
+            <Label variant="attention">{chainData.severity}</Label>
+          </button>
+          {chainExpanded && (
+            <div className={styles.chainMembers}>
+              {chainData.members.map((member: ChainMember) => (
+                <div
+                  key={member.detection_id}
+                  className={[
+                    styles.chainMember,
+                    member.detection_id === detectionId && styles.chainMemberCurrent,
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  <div className={styles.chainMemberConnector}>
+                    <div className={styles.chainMemberDot} />
+                    <div className={styles.chainMemberLine} />
+                  </div>
+                  <div className={styles.chainMemberContent}>
+                    <div className={styles.chainMemberHeader}>
+                      {isSeverity(member.detection_severity) && (
+                        <SeverityDot severity={member.detection_severity} />
+                      )}
+                      <span>{member.detection_title}</span>
+                      {member.detection_id === detectionId && (
+                        <Label variant="muted">current</Label>
+                      )}
+                    </div>
+                    <div className={styles.chainMemberMeta}>
+                      <span>{formatCompact(member.detection_triggered_at)}</span>
+                      {member.detection_actor && <span>· @{member.detection_actor}</span>}
+                      <Label variant="muted">{member.correlation_type}</Label>
+                      <span className={styles.chainMemberConfidence}>
+                        {Math.round(member.confidence * 100)}% confidence
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

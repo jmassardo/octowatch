@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from app.models.correlation import ChainMembership, CorrelationChain
     from app.models.integration import Ticket
 
 from sqlalchemy import (
@@ -171,9 +172,23 @@ class Detection(Base):
     )
 
     rule: Mapped[RuleDefinition] = relationship("RuleDefinition", back_populates="detections")
-    tickets: Mapped[list[Ticket]] = relationship(  # type: ignore[name-defined]
+    chain_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("correlation_chains.id", ondelete="SET NULL"), nullable=True
+    )
+
+    tickets: Mapped[list[Ticket]] = relationship(
         "Ticket",
         back_populates="detection",
+        lazy="selectin",
+    )
+    chain: Mapped[CorrelationChain | None] = relationship(
+        "CorrelationChain",
+        foreign_keys=[chain_id],
+        lazy="selectin",
+    )
+    chain_memberships: Mapped[list[ChainMembership]] = relationship(
+        "ChainMembership",
+        foreign_keys="ChainMembership.detection_id",
         lazy="selectin",
     )
 
@@ -182,6 +197,7 @@ class Detection(Base):
         Index("idx_detections_severity", "severity", "status", "triggered_at"),
         Index("idx_detections_rule", "rule_id", "triggered_at"),
         Index("idx_detections_is_dry_run", "is_dry_run"),
+        Index("idx_detections_chain_id", "chain_id"),
     )
 
 

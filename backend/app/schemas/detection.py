@@ -63,6 +63,7 @@ class DetectionResponse(BaseModel):
     resolved_at: datetime | None
     resolution_note: str | None
     tickets: list[TicketSummary] = []
+    chain_id: str | None = None
 
 
 class DetectionListResponse(BaseModel):

@@ -34,6 +34,7 @@ export interface DetectionResponse {
   readonly resolved_at: string | null;
   readonly resolution_note: string | null;
   readonly tickets: readonly TicketSummary[];
+  readonly chain_id: string | null;
 }
 
 export interface DetectionListResponse {
