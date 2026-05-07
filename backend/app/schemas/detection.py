@@ -160,7 +160,7 @@ class RuleResponse(BaseModel):
     logic_config: dict[str, Any]
     enabled: bool
     status: str
-    mode: str
+    mode: str = "active"
     version: int
     git_commit_sha: str | None
     created_by: str
