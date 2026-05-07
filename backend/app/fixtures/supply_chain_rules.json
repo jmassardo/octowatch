@@ -1,0 +1,266 @@
+[
+  {
+    "name": "Dependency Confusion",
+    "slug": "dependency-confusion",
+    "description": "Detects when a private package name appears in a public registry install action, indicating a potential dependency confusion attack where an attacker publishes a malicious package with the same name as an internal package to a public registry.",
+    "category": "supply_chain",
+    "default_severity": "critical",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "git.push",
+        "workflows.completed_workflow_run"
+      ],
+      "field_conditions": [
+        {
+          "field": "action",
+          "operator": "in",
+          "value": ["git.push", "workflows.completed_workflow_run"]
+        }
+      ],
+      "x_config": {
+        "engine": "dependency_confusion",
+        "check_public_registry": true,
+        "registries": ["npmjs.com", "pypi.org", "rubygems.org"],
+        "scope_patterns": ["@internal/*", "@private/*"]
+      },
+      "confidence": 0.80
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Typosquatting Attempt",
+    "slug": "typosquatting-attempt",
+    "description": "Detects new dependency additions with names similar to popular packages using Levenshtein distance analysis, which may indicate a typosquatting attack designed to trick developers into installing malicious packages.",
+    "category": "supply_chain",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "git.push"
+      ],
+      "field_conditions": [
+        {
+          "field": "action",
+          "operator": "eq",
+          "value": "git.push"
+        }
+      ],
+      "x_config": {
+        "engine": "typosquatting",
+        "max_levenshtein_distance": 2,
+        "popular_packages": [
+          "lodash", "express", "react", "axios", "moment",
+          "requests", "flask", "django", "numpy", "pandas",
+          "rails", "sinatra", "devise", "nokogiri", "puma"
+        ],
+        "file_patterns": ["package.json", "requirements.txt", "Gemfile", "go.mod"]
+      },
+      "confidence": 0.60
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Malicious GitHub Action",
+    "slug": "malicious-github-action",
+    "description": "Detects workflow files referencing GitHub Actions from unverified or unusual organizations that are not in the known-safe list, which could indicate use of a compromised or malicious action.",
+    "category": "supply_chain",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "git.push",
+        "workflows.prepared_workflow_job"
+      ],
+      "field_conditions": [
+        {
+          "field": "action",
+          "operator": "in",
+          "value": ["git.push", "workflows.prepared_workflow_job"]
+        }
+      ],
+      "x_config": {
+        "engine": "malicious_action",
+        "verified_orgs": [
+          "actions", "github", "azure", "aws-actions",
+          "google-github-actions", "docker", "hashicorp",
+          "codecov", "softprops", "peter-evans"
+        ],
+        "path_pattern": ".github/workflows/*"
+      },
+      "confidence": 0.55
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Compromised Maintainer",
+    "slug": "compromised-maintainer",
+    "description": "Detects when a dependency's maintainer account shows suspicious audit events such as password changes, 2FA resets, or new SSH keys added shortly before a package release, which may indicate account compromise.",
+    "category": "supply_chain",
+    "default_severity": "critical",
+    "default_confidence": "medium",
+    "logic_type": "sequence",
+    "logic_config": {
+      "action_filters": [
+        "user.update_password",
+        "two_factor_authentication.disabled",
+        "two_factor_authentication.recovery_codes_used",
+        "public_key.create",
+        "packages.package_version_published"
+      ],
+      "sequence_steps": [
+        {
+          "action": "user.update_password",
+          "min_count": 1,
+          "alternatives": [
+            "two_factor_authentication.disabled",
+            "two_factor_authentication.recovery_codes_used",
+            "public_key.create"
+          ]
+        },
+        {
+          "action": "packages.package_version_published",
+          "min_count": 1
+        }
+      ],
+      "aggregation_key": "actor",
+      "time_window_minutes": 1440,
+      "confidence": 0.65
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Workflow Injection",
+    "slug": "workflow-injection",
+    "description": "Detects pull_request_target workflows that check out the PR head and run untrusted code, which could allow an attacker to execute arbitrary code with write permissions and access to repository secrets.",
+    "category": "supply_chain",
+    "default_severity": "critical",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "git.push",
+        "workflows.prepared_workflow_job"
+      ],
+      "field_conditions": [
+        {
+          "field": "action",
+          "operator": "in",
+          "value": ["git.push", "workflows.prepared_workflow_job"]
+        }
+      ],
+      "x_config": {
+        "engine": "workflow_injection",
+        "dangerous_triggers": ["pull_request_target"],
+        "dangerous_patterns": [
+          "actions/checkout.*ref.*github.event.pull_request.head",
+          "run:.*\\$\\{\\{.*github\\.event"
+        ],
+        "path_pattern": ".github/workflows/*"
+      },
+      "confidence": 0.85
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Unusual Package Source",
+    "slug": "unusual-package-source",
+    "description": "Detects package installations from non-standard registries, such as custom registry URLs in npm, pip, or other package managers, which could be used to serve malicious packages.",
+    "category": "supply_chain",
+    "default_severity": "medium",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "git.push"
+      ],
+      "field_conditions": [
+        {
+          "field": "action",
+          "operator": "eq",
+          "value": "git.push"
+        }
+      ],
+      "x_config": {
+        "engine": "unusual_package_source",
+        "standard_registries": [
+          "registry.npmjs.org",
+          "pypi.org",
+          "rubygems.org",
+          "repo1.maven.org",
+          "proxy.golang.org",
+          "ghcr.io",
+          "docker.io"
+        ],
+        "config_files": [".npmrc", ".yarnrc", "pip.conf", ".gemrc", ".npmrc.yml"]
+      },
+      "confidence": 0.55
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Mass Dependency Update",
+    "slug": "mass-dependency-update",
+    "description": "Alerts when more than 20 dependencies change in a single commit or pull request, which could indicate lockfile injection or an automated attack modifying dependency resolution.",
+    "category": "supply_chain",
+    "default_severity": "high",
+    "default_confidence": "medium",
+    "logic_type": "threshold",
+    "logic_config": {
+      "action_filters": [
+        "git.push"
+      ],
+      "field_conditions": [
+        {
+          "field": "action",
+          "operator": "eq",
+          "value": "git.push"
+        }
+      ],
+      "x_config": {
+        "engine": "mass_dependency_update",
+        "threshold": 20,
+        "dependency_files": [
+          "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+          "Pipfile.lock", "poetry.lock", "Gemfile.lock",
+          "go.sum", "Cargo.lock", "composer.lock"
+        ]
+      },
+      "confidence": 0.60
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Action Version Pinning Violation",
+    "slug": "action-version-pinning-violation",
+    "description": "Detects GitHub Actions referenced by branch or tag instead of a full commit SHA, which makes workflows vulnerable to tag-rewriting attacks where a compromised action can inject malicious code.",
+    "category": "supply_chain",
+    "default_severity": "medium",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "git.push",
+        "workflows.prepared_workflow_job"
+      ],
+      "field_conditions": [
+        {
+          "field": "action",
+          "operator": "in",
+          "value": ["git.push", "workflows.prepared_workflow_job"]
+        }
+      ],
+      "x_config": {
+        "engine": "action_pinning_violation",
+        "sha_pattern": "^[a-f0-9]{40}$",
+        "exempt_owners": ["actions", "github"],
+        "path_pattern": ".github/workflows/*"
+      },
+      "confidence": 0.80
+    },
+    "created_by": "system"
+  }
+]
