@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { listEvents } from '../../api/events';
@@ -30,6 +30,23 @@ function actionVariant(action: string) {
     return 'danger' as const;
   if (action.includes('access') || action.includes('rename')) return 'attention' as const;
   return 'muted' as const;
+}
+
+/** Maximum page depth for offset pagination. Beyond this, users must narrow filters. */
+const MAX_NAVIGABLE_PAGE = 100;
+
+/** Threshold at which we show a "narrow your filters" message. */
+const LARGE_RESULT_THRESHOLD = 5_000;
+
+/** Threshold for showing "500,000+" text. */
+const VERY_LARGE_RESULT_THRESHOLD = 500_000;
+
+function formatResultCount(total: number, isEstimated: boolean): string {
+  if (isEstimated && total >= VERY_LARGE_RESULT_THRESHOLD) {
+    return '500,000+';
+  }
+  const formatted = total.toLocaleString();
+  return isEstimated ? `≈ ${formatted}` : formatted;
 }
 
 export function EventsPage() {
@@ -158,129 +175,49 @@ export function EventsPage() {
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
+  const countIsEstimated = data?.count_is_estimated ?? false;
 
   function removeChip(chip: string) {
     setChips((prev) => prev.filter((c) => c !== chip));
     setPage(1);
   }
 
-  const eventColumns: ColumnDef<EventResponse>[] = [
-    {
-      key: 'created_at',
-      header: 'Timestamp',
-      sortable: true,
-      filterable: true,
-      helpText: 'When the event occurred',
-      render: (e) => <span className={styles.ts}>{formatCompact(e.created_at)}</span>,
-      sortValue: (e) => new Date(e.created_at),
-      filterValue: (e) => formatCompact(e.created_at),
-    },
-    {
-      key: 'action',
-      header: 'Action',
-      sortable: true,
-      filterable: true,
-      helpText: 'The audit log action that was performed',
-      render: (e) => (
-        <span
-          role="button"
-          tabIndex={0}
-          style={{ cursor: 'pointer' }}
-          title={`Filter by action: ${e.action}`}
-          onClick={(ev) => {
-            ev.stopPropagation();
-            const chip = `action:${e.action}`;
-            if (!chips.includes(chip)) {
-              setChips((prev) => [...prev, chip]);
-              setPage(1);
-            }
-          }}
-          onKeyDown={(ev) => {
-            if (ev.key === 'Enter' || ev.key === ' ') {
+  const eventColumns: ColumnDef<EventResponse>[] = useMemo(
+    () => [
+      {
+        key: 'created_at',
+        header: 'Timestamp',
+        sortable: true,
+        filterable: true,
+        helpText: 'When the event occurred',
+        render: (e) => <span className={styles.ts}>{formatCompact(e.created_at)}</span>,
+        sortValue: (e) => new Date(e.created_at),
+        filterValue: (e) => formatCompact(e.created_at),
+      },
+      {
+        key: 'action',
+        header: 'Action',
+        sortable: true,
+        filterable: true,
+        helpText: 'The audit log action that was performed',
+        render: (e) => (
+          <span
+            role="button"
+            tabIndex={0}
+            style={{ cursor: 'pointer' }}
+            title={`Filter by action: ${e.action}`}
+            onClick={(ev) => {
               ev.stopPropagation();
               const chip = `action:${e.action}`;
               if (!chips.includes(chip)) {
                 setChips((prev) => [...prev, chip]);
                 setPage(1);
               }
-            }
-          }}
-        >
-          <Label variant={actionVariant(e.action)}>{e.action}</Label>
-        </span>
-      ),
-      sortValue: (e) => e.action,
-      filterValue: (e) => e.action,
-    },
-    {
-      key: 'actor',
-      header: 'Actor',
-      sortable: true,
-      filterable: true,
-      helpText: 'The user or bot that performed the action',
-      render: (e) => (
-        <span
-          className={styles.mention}
-          role="button"
-          tabIndex={0}
-          style={{ cursor: e.actor ? 'pointer' : undefined }}
-          title={e.actor ? `Filter by actor: ${e.actor}` : undefined}
-          onClick={(ev) => {
-            if (!e.actor) return;
-            ev.stopPropagation();
-            const chip = `actor:${e.actor}`;
-            if (!chips.includes(chip)) {
-              setChips((prev) => [...prev, chip]);
-              setPage(1);
-            }
-          }}
-          onKeyDown={(ev) => {
-            if (!e.actor) return;
-            if (ev.key === 'Enter' || ev.key === ' ') {
-              ev.stopPropagation();
-              const chip = `actor:${e.actor}`;
-              if (!chips.includes(chip)) {
-                setChips((prev) => [...prev, chip]);
-                setPage(1);
-              }
-            }
-          }}
-        >
-          @{e.actor ?? '—'}
-        </span>
-      ),
-      sortValue: (e) => e.actor ?? '',
-      filterValue: (e) => e.actor ?? '',
-    },
-    {
-      key: 'repo',
-      header: 'Repository',
-      sortable: true,
-      filterable: true,
-      helpText: 'The repository or organization associated with the event',
-      render: (e) => {
-        const val = e.repo ?? e.org;
-        const chipKey = e.repo ? 'repo' : 'org';
-        return (
-          <span
-            role="button"
-            tabIndex={0}
-            style={{ cursor: val ? 'pointer' : undefined }}
-            title={val ? `Filter by ${chipKey}: ${val}` : undefined}
-            onClick={(ev) => {
-              if (!val) return;
-              ev.stopPropagation();
-              const chip = `${chipKey}:${val}`;
-              if (!chips.includes(chip)) {
-                setChips((prev) => [...prev, chip]);
-                setPage(1);
-              }
             }}
             onKeyDown={(ev) => {
-              if (!val) return;
               if (ev.key === 'Enter' || ev.key === ' ') {
                 ev.stopPropagation();
-                const chip = `${chipKey}:${val}`;
+                const chip = `action:${e.action}`;
                 if (!chips.includes(chip)) {
                   setChips((prev) => [...prev, chip]);
                   setPage(1);
@@ -288,29 +225,113 @@ export function EventsPage() {
               }
             }}
           >
-            {val ?? '—'}
+            <Label variant={actionVariant(e.action)}>{e.action}</Label>
           </span>
-        );
+        ),
+        sortValue: (e) => e.action,
+        filterValue: (e) => e.action,
       },
-      sortValue: (e) => e.repo ?? e.org ?? '',
-      filterValue: (e) => e.repo ?? e.org ?? '',
-    },
-    {
-      key: 'ip_location',
-      header: 'IP / Location',
-      sortable: true,
-      filterable: true,
-      helpText: 'Source IP address and geographic location of the event',
-      render: (e) => (
-        <>
-          {e.source_ip && <code style={{ fontSize: 11 }}>{e.source_ip}</code>}
-          {e.geo_country_code && <span className={styles.country}>{e.geo_country_code}</span>}
-        </>
-      ),
-      sortValue: (e) => e.source_ip ?? '',
-      filterValue: (e) => [e.source_ip ?? '', e.geo_country_code ?? ''].join(' ').trim(),
-    },
-  ];
+      {
+        key: 'actor',
+        header: 'Actor',
+        sortable: true,
+        filterable: true,
+        helpText: 'The user or bot that performed the action',
+        render: (e) => (
+          <span
+            className={styles.mention}
+            role="button"
+            tabIndex={0}
+            style={{ cursor: e.actor ? 'pointer' : undefined }}
+            title={e.actor ? `Filter by actor: ${e.actor}` : undefined}
+            onClick={(ev) => {
+              if (!e.actor) return;
+              ev.stopPropagation();
+              const chip = `actor:${e.actor}`;
+              if (!chips.includes(chip)) {
+                setChips((prev) => [...prev, chip]);
+                setPage(1);
+              }
+            }}
+            onKeyDown={(ev) => {
+              if (!e.actor) return;
+              if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.stopPropagation();
+                const chip = `actor:${e.actor}`;
+                if (!chips.includes(chip)) {
+                  setChips((prev) => [...prev, chip]);
+                  setPage(1);
+                }
+              }
+            }}
+          >
+            @{e.actor ?? '—'}
+          </span>
+        ),
+        sortValue: (e) => e.actor ?? '',
+        filterValue: (e) => e.actor ?? '',
+      },
+      {
+        key: 'repo',
+        header: 'Repository',
+        sortable: true,
+        filterable: true,
+        helpText: 'The repository or organization associated with the event',
+        render: (e) => {
+          const val = e.repo ?? e.org;
+          const chipKey = e.repo ? 'repo' : 'org';
+          return (
+            <span
+              role="button"
+              tabIndex={0}
+              style={{ cursor: val ? 'pointer' : undefined }}
+              title={val ? `Filter by ${chipKey}: ${val}` : undefined}
+              onClick={(ev) => {
+                if (!val) return;
+                ev.stopPropagation();
+                const chip = `${chipKey}:${val}`;
+                if (!chips.includes(chip)) {
+                  setChips((prev) => [...prev, chip]);
+                  setPage(1);
+                }
+              }}
+              onKeyDown={(ev) => {
+                if (!val) return;
+                if (ev.key === 'Enter' || ev.key === ' ') {
+                  ev.stopPropagation();
+                  const chip = `${chipKey}:${val}`;
+                  if (!chips.includes(chip)) {
+                    setChips((prev) => [...prev, chip]);
+                    setPage(1);
+                  }
+                }
+              }}
+            >
+              {val ?? '—'}
+            </span>
+          );
+        },
+        sortValue: (e) => e.repo ?? e.org ?? '',
+        filterValue: (e) => e.repo ?? e.org ?? '',
+      },
+      {
+        key: 'ip_location',
+        header: 'IP / Location',
+        sortable: true,
+        filterable: true,
+        helpText: 'Source IP address and geographic location of the event',
+        render: (e) => (
+          <>
+            {e.source_ip && <code style={{ fontSize: 11 }}>{e.source_ip}</code>}
+            {e.geo_country_code && <span className={styles.country}>{e.geo_country_code}</span>}
+          </>
+        ),
+        sortValue: (e) => e.source_ip ?? '',
+        filterValue: (e) => [e.source_ip ?? '', e.geo_country_code ?? ''].join(' ').trim(),
+      },
+    ],
+    [chips],
+  );
 
   return (
     <div className={styles.splitLayout}>
@@ -356,7 +377,7 @@ export function EventsPage() {
 
         <div className={styles.tableHeader}>
           <span className={styles.resultCount}>
-            {total.toLocaleString()} events matching filters
+            {formatResultCount(total, countIsEstimated)} events matching filters
           </span>
           <div className={styles.tableActions}>
             <Button size="sm" onClick={() => downloadCsv(items)} disabled={items.length === 0}>
@@ -404,15 +425,26 @@ export function EventsPage() {
           )}
         </div>
 
+        {total > LARGE_RESULT_THRESHOLD && (
+          <p className={styles.resultCount} style={{ marginTop: 8, fontStyle: 'italic' }}>
+            Showing first {LARGE_RESULT_THRESHOLD.toLocaleString()} results. Narrow your filters to
+            find specific events.
+          </p>
+        )}
+
         {data && data.total > 20 && (
           <div className={styles.pagination}>
             <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
               ← Prev
             </Button>
             <span className={styles.pageInfo}>
-              Page {page} of {Math.ceil(total / 20)}
+              Page {page} of {Math.min(Math.ceil(total / 20), MAX_NAVIGABLE_PAGE)}
             </span>
-            <Button size="sm" disabled={!data.has_next} onClick={() => setPage((p) => p + 1)}>
+            <Button
+              size="sm"
+              disabled={!data.has_next || page >= MAX_NAVIGABLE_PAGE}
+              onClick={() => setPage((p) => p + 1)}
+            >
               Next →
             </Button>
           </div>

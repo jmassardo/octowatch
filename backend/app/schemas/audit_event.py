@@ -40,6 +40,9 @@ class EventListParams(BaseModel):
     )
     page: int = Field(default=1, ge=1, le=10_000)
     page_size: int = Field(default=50, ge=1, le=500)
+    cursor: str | None = Field(
+        None, max_length=100, description="Opaque cursor for keyset pagination"
+    )
 
 
 class EventResponse(BaseModel):
@@ -77,3 +80,5 @@ class EventListResponse(BaseModel):
     page: int
     page_size: int
     has_next: bool
+    count_is_estimated: bool = False
+    next_cursor: str | None = None

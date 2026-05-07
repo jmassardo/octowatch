@@ -656,4 +656,64 @@ describe('EventsPage', () => {
       }),
     );
   });
+
+  it('shows approximate count when count_is_estimated is true', async () => {
+    listEventsMock.mockResolvedValue({
+      items: MOCK_EVENTS,
+      total: 15000,
+      page: 1,
+      page_size: 20,
+      has_next: true,
+      count_is_estimated: true,
+      next_cursor: null,
+    });
+
+    renderWithProviders(<EventsPage />);
+    expect(await screen.findByText(/≈ 15,000 events matching filters/)).toBeInTheDocument();
+  });
+
+  it('shows 500,000+ for very large estimated counts', async () => {
+    listEventsMock.mockResolvedValue({
+      items: MOCK_EVENTS,
+      total: 750000,
+      page: 1,
+      page_size: 20,
+      has_next: true,
+      count_is_estimated: true,
+      next_cursor: null,
+    });
+
+    renderWithProviders(<EventsPage />);
+    expect(await screen.findByText(/500,000\+ events matching filters/)).toBeInTheDocument();
+  });
+
+  it('shows large result guidance when total exceeds 5000', async () => {
+    listEventsMock.mockResolvedValue({
+      items: MOCK_EVENTS,
+      total: 10000,
+      page: 1,
+      page_size: 20,
+      has_next: true,
+      count_is_estimated: false,
+      next_cursor: null,
+    });
+
+    renderWithProviders(<EventsPage />);
+    expect(await screen.findByText(/Showing first 5,000 results/)).toBeInTheDocument();
+  });
+
+  it('caps page count at 100 for large result sets', async () => {
+    listEventsMock.mockResolvedValue({
+      items: MOCK_EVENTS,
+      total: 100000,
+      page: 1,
+      page_size: 20,
+      has_next: true,
+      count_is_estimated: false,
+      next_cursor: null,
+    });
+
+    renderWithProviders(<EventsPage />);
+    expect(await screen.findByText('Page 1 of 100')).toBeInTheDocument();
+  });
 });
