@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { MetricCard } from '../../components/primitives/MetricCard';
@@ -54,13 +54,61 @@ function stateVariant(state: string) {
   return 'muted' as const;
 }
 
+/* ── Mini Sparkline (60×20 inline SVG) ── */
+function MiniSparkline({ data, color }: { data: number[]; color: string }) {
+  if (data.length < 2) return null;
+  const w = 60;
+  const h = 20;
+  const maxVal = Math.max(1, ...data);
+  const points = data
+    .map((v, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - (v / maxVal) * h;
+      return `${x},${y}`;
+    })
+    .join(' ');
+
+  return (
+    <svg
+      className={styles.miniSparkline}
+      width={w}
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      aria-hidden="true"
+    >
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+/* ── Compute week-over-week delta ── */
+function computeWoWDelta(values: number[]): { delta: string; deltaDir: 'up' | 'down' | 'neutral' } {
+  if (values.length < 14) return { delta: '', deltaDir: 'neutral' };
+  const recent7 = values.slice(-7).reduce((a, b) => a + b, 0);
+  const prev7 = values.slice(-14, -7).reduce((a, b) => a + b, 0);
+  const diff = recent7 - prev7;
+  if (diff === 0) return { delta: '0', deltaDir: 'neutral' };
+  const sign = diff > 0 ? '+' : '';
+  // For security alerts: up = bad (more alerts), down = good (fewer alerts)
+  const dir: 'up' | 'down' = diff > 0 ? 'up' : 'down';
+  return { delta: `${sign}${diff}`, deltaDir: dir };
+}
+
+/* ── Period selector type ── */
+type TrendPeriod = '7d' | '14d' | '30d';
+
 /* ── Trend SVG polyline chart ── */
 function TrendChart({
   data,
 }: {
   data: { day: string; secret_scanning: number; code_scanning: number; dependabot: number }[];
 }) {
+  const [period, setPeriod] = useState<TrendPeriod>('30d');
+
   if (data.length === 0) return null;
+
+  const periodDays = period === '7d' ? 7 : period === '14d' ? 14 : 30;
+  const slicedData = data.slice(-periodDays);
 
   const width = 800;
   const height = 120;
@@ -70,13 +118,13 @@ function TrendChart({
 
   const maxVal = Math.max(
     1,
-    ...data.map((d) => Math.max(d.secret_scanning, d.code_scanning, d.dependabot)),
+    ...slicedData.map((d) => Math.max(d.secret_scanning, d.code_scanning, d.dependabot)),
   );
 
-  function toPoints(accessor: (d: (typeof data)[0]) => number): string {
-    return data
+  function toPoints(accessor: (d: (typeof slicedData)[0]) => number): string {
+    return slicedData
       .map((d, i) => {
-        const x = pad.left + (i / Math.max(1, data.length - 1)) * chartW;
+        const x = pad.left + (i / Math.max(1, slicedData.length - 1)) * chartW;
         const y = pad.top + chartH - (accessor(d) / maxVal) * chartH;
         return `${x},${y}`;
       })
@@ -85,7 +133,21 @@ function TrendChart({
 
   return (
     <div className={styles.trendSection}>
-      <div className={styles.trendTitle}>30-Day Alert Trend</div>
+      <div className={styles.trendHeader}>
+        <div className={styles.trendTitle}>Alert Trend</div>
+        <div className={styles.periodToggle} role="group" aria-label="Trend period">
+          {(['7d', '14d', '30d'] as const).map((p) => (
+            <button
+              key={p}
+              className={`${styles.periodBtn} ${period === p ? styles.periodBtnActive : ''}`}
+              onClick={() => setPeriod(p)}
+              aria-pressed={period === p}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
       <svg
         className={styles.trendChart}
         viewBox={`0 0 ${width} ${height}`}
@@ -129,7 +191,8 @@ function TrendChart({
 }
 
 /* ── Overview Tab ── */
-function OverviewTab() {
+function OverviewTab({ onSwitchTab }: { onSwitchTab: (tab: TabKey) => void }) {
+  const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['unified-security'],
     queryFn: getUnifiedSecurity,
@@ -155,29 +218,62 @@ function OverviewTab() {
   const totalMedium = data.code_scanning.medium + data.dependabot.medium + data.detections.medium;
   const totalLow = data.code_scanning.low + data.dependabot.low + data.detections.low;
 
+  // Compute week-over-week deltas from trend_30d
+  const secretTrend = data.trend_30d.map((d) => d.secret_scanning);
+  const codeTrend = data.trend_30d.map((d) => d.code_scanning);
+  const dependabotTrend = data.trend_30d.map((d) => d.dependabot);
+
+  const secretDelta = computeWoWDelta(secretTrend);
+  const codeDelta = computeWoWDelta(codeTrend);
+  const dependabotDelta = computeWoWDelta(dependabotTrend);
+
+  // Last 7 data points for sparklines
+  const secretSparkData = secretTrend.slice(-7);
+  const codeSparkData = codeTrend.slice(-7);
+  const dependabotSparkData = dependabotTrend.slice(-7);
+
   return (
     <>
       <div className={styles.cardGrid}>
-        <MetricCard
-          value={String(data.secret_scanning.open)}
-          label="Secret Scanning"
-          helpText="Open secret scanning alerts across all repos"
-        />
-        <MetricCard
-          value={String(data.code_scanning.open)}
-          label="Code Scanning"
-          helpText="Open code scanning alerts across all repos"
-        />
-        <MetricCard
-          value={String(data.dependabot.open)}
-          label="Dependabot"
-          helpText="Open Dependabot vulnerability alerts"
-        />
+        <div className={styles.cardWithSparkline}>
+          <MetricCard
+            value={String(data.secret_scanning.open)}
+            label="Secret Scanning"
+            helpText="Open secret scanning alerts across all repos"
+            onClick={() => onSwitchTab('secrets')}
+            delta={secretDelta.delta || undefined}
+            deltaDir={secretDelta.deltaDir}
+          />
+          <MiniSparkline data={secretSparkData} color="#f59e0b" />
+        </div>
+        <div className={styles.cardWithSparkline}>
+          <MetricCard
+            value={String(data.code_scanning.open)}
+            label="Code Scanning"
+            helpText="Open code scanning alerts across all repos"
+            onClick={() => onSwitchTab('code')}
+            delta={codeDelta.delta || undefined}
+            deltaDir={codeDelta.deltaDir}
+          />
+          <MiniSparkline data={codeSparkData} color="#8b5cf6" />
+        </div>
+        <div className={styles.cardWithSparkline}>
+          <MetricCard
+            value={String(data.dependabot.open)}
+            label="Dependabot"
+            helpText="Open Dependabot vulnerability alerts"
+            onClick={() => onSwitchTab('dependabot')}
+            delta={dependabotDelta.delta || undefined}
+            deltaDir={dependabotDelta.deltaDir}
+          />
+          <MiniSparkline data={dependabotSparkData} color="#ef4444" />
+        </div>
         <MetricCard
           value={String(data.detections.active)}
           label="Threat Detections"
           helpText="Active GHAS-related threat detections"
           accent
+          onClick={() => navigate('/threats')}
         />
       </div>
 
@@ -213,6 +309,11 @@ function SecretScanningTab() {
   const [page, setPage] = useState(1);
   const [stateFilter, setStateFilter] = useState('');
   const [selected, setSelected] = useState<SecretScanningAlertItem | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  const scrollToTable = useCallback(() => {
+    setTimeout(() => tableRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+  }, []);
 
   const offset = (page - 1) * PAGE_SIZE;
 
@@ -315,17 +416,32 @@ function SecretScanningTab() {
               value={String(summary.unresolved_total)}
               label="Open Alerts"
               helpText="Total unresolved secret scanning alerts"
+              onClick={() => {
+                setStateFilter('open');
+                setPage(1);
+                scrollToTable();
+              }}
             />
             <MetricCard
               value={String(summary.publicly_leaked)}
               label="Publicly Leaked"
               helpText="Secrets detected in publicly accessible locations"
               accent
+              onClick={() => {
+                setStateFilter('open');
+                setPage(1);
+                scrollToTable();
+              }}
             />
             <MetricCard
               value={String(summary.push_protection_bypassed_count)}
               label="Push Protection Bypassed"
               helpText="Alerts where push protection was explicitly bypassed"
+              onClick={() => {
+                setStateFilter('open');
+                setPage(1);
+                scrollToTable();
+              }}
             />
             <MetricCard
               value={String(Math.round(summary.mttr_hours))}
@@ -336,6 +452,11 @@ function SecretScanningTab() {
               value={`${summary.resolution_rate_pct.toFixed(1)}%`}
               label="Resolution Rate"
               helpText="Percentage of total alerts that have been resolved"
+              onClick={() => {
+                setStateFilter('resolved');
+                setPage(1);
+                scrollToTable();
+              }}
             />
           </>
         ) : null}
@@ -368,7 +489,7 @@ function SecretScanningTab() {
         />
       )}
       {alertsData && (
-        <div className={styles.tableSection}>
+        <div className={styles.tableSection} ref={tableRef}>
           <DataTable
             columns={columns}
             data={alertsData.alerts}
@@ -459,6 +580,11 @@ function CodeScanningTab() {
   const [stateFilter, setStateFilter] = useState('');
   const [sevFilter, setSevFilter] = useState('');
   const [selected, setSelected] = useState<CodeScanningAlertItem | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  const scrollToTable = useCallback(() => {
+    setTimeout(() => tableRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+  }, []);
 
   const offset = (page - 1) * PAGE_SIZE;
 
@@ -572,17 +698,35 @@ function CodeScanningTab() {
               value={String(summary.open_count)}
               label="Open Alerts"
               helpText="Total open code scanning alerts"
+              onClick={() => {
+                setStateFilter('open');
+                setSevFilter('');
+                setPage(1);
+                scrollToTable();
+              }}
             />
             <MetricCard
               value={String(summary.critical_count)}
               label="Critical"
               helpText="Critical severity open alerts"
               accent
+              onClick={() => {
+                setSevFilter('critical');
+                setStateFilter('');
+                setPage(1);
+                scrollToTable();
+              }}
             />
             <MetricCard
               value={String(summary.high_count)}
               label="High"
               helpText="High severity open alerts"
+              onClick={() => {
+                setSevFilter('high');
+                setStateFilter('');
+                setPage(1);
+                scrollToTable();
+              }}
             />
             <MetricCard
               value={String(Math.round(summary.avg_hours_to_close))}
@@ -593,6 +737,12 @@ function CodeScanningTab() {
               value={String(summary.fixed_count)}
               label="Fixed"
               helpText="Total code scanning alerts that have been fixed"
+              onClick={() => {
+                setStateFilter('fixed');
+                setSevFilter('');
+                setPage(1);
+                scrollToTable();
+              }}
             />
           </>
         ) : null}
@@ -637,7 +787,7 @@ function CodeScanningTab() {
         <ErrorBanner message="Failed to load code scanning alerts" onRetry={() => void refetch()} />
       )}
       {alertsData && (
-        <div className={styles.tableSection}>
+        <div className={styles.tableSection} ref={tableRef}>
           <DataTable
             columns={columns}
             data={alertsData.alerts}
@@ -735,6 +885,11 @@ function DependabotTab() {
   const [stateFilter, setStateFilter] = useState('');
   const [sevFilter, setSevFilter] = useState('');
   const [selected, setSelected] = useState<DependabotAlertItem | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  const scrollToTable = useCallback(() => {
+    setTimeout(() => tableRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+  }, []);
 
   const offset = (page - 1) * PAGE_SIZE;
 
@@ -854,17 +1009,35 @@ function DependabotTab() {
               value={String(summary.total_open)}
               label="Total Open"
               helpText="Total open Dependabot alerts"
+              onClick={() => {
+                setStateFilter('open');
+                setSevFilter('');
+                setPage(1);
+                scrollToTable();
+              }}
             />
             <MetricCard
               value={String(summary.critical_open)}
               label="Critical Open"
               helpText="Critical severity open vulnerability alerts"
               accent
+              onClick={() => {
+                setSevFilter('critical');
+                setStateFilter('');
+                setPage(1);
+                scrollToTable();
+              }}
             />
             <MetricCard
               value={String(summary.high_open)}
               label="High Open"
               helpText="High severity open vulnerability alerts"
+              onClick={() => {
+                setSevFilter('high');
+                setStateFilter('');
+                setPage(1);
+                scrollToTable();
+              }}
             />
             <MetricCard
               value={String(Math.round(summary.avg_open_days))}
@@ -876,6 +1049,12 @@ function DependabotTab() {
               label="Critical >90d"
               helpText="Critical alerts that have been open for more than 90 days"
               accent
+              onClick={() => {
+                setSevFilter('critical');
+                setStateFilter('open');
+                setPage(1);
+                scrollToTable();
+              }}
             />
           </>
         ) : null}
@@ -920,7 +1099,7 @@ function DependabotTab() {
         <ErrorBanner message="Failed to load Dependabot alerts" onRetry={() => void refetch()} />
       )}
       {alertsData && (
-        <div className={styles.tableSection}>
+        <div className={styles.tableSection} ref={tableRef}>
           <DataTable
             columns={columns}
             data={alertsData.alerts}
@@ -1166,7 +1345,7 @@ export function AdvancedSecurityPage() {
           ))}
         </div>
 
-        {activeTab === 'overview' && <OverviewTab />}
+        {activeTab === 'overview' && <OverviewTab onSwitchTab={setTab} />}
         {activeTab === 'secrets' && <SecretScanningTab />}
         {activeTab === 'code' && <CodeScanningTab />}
         {activeTab === 'dependabot' && <DependabotTab />}
