@@ -30,7 +30,9 @@ import styles from './AdvancedSecurity.module.css';
 
 const PAGE_SIZE = 50;
 
-type TabKey = 'overview' | 'secrets' | 'code' | 'dependabot' | 'activity';
+import { StrategicPane } from './StrategicPane';
+
+type TabKey = 'overview' | 'secrets' | 'code' | 'dependabot' | 'activity' | 'strategic';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -38,6 +40,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'code', label: 'Code Scanning' },
   { key: 'dependabot', label: 'Dependabot' },
   { key: 'activity', label: 'Activity Log' },
+  { key: 'strategic', label: 'Strategic' },
 ];
 
 function sevVariant(sev: string) {
@@ -1350,6 +1353,7 @@ export function AdvancedSecurityPage() {
         {activeTab === 'code' && <CodeScanningTab />}
         {activeTab === 'dependabot' && <DependabotTab />}
         {activeTab === 'activity' && <ActivityLogTab />}
+        {activeTab === 'strategic' && <StrategicPane />}
       </div>
     </div>
   );
