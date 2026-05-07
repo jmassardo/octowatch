@@ -818,3 +818,278 @@ class TestRbacServiceIntegration:
                             assert resp.status_code == 200
                             call_kwargs = mock_service.call_args
                             assert call_kwargs[1]["scoped_orgs"] == ["org-a", "org-b"]
+
+
+class TestGetApiAbuseSignals:
+    @pytest.mark.asyncio
+    async def test_returns_abuse_signals(self) -> None:
+        rows = [
+            {
+                "signal_type": "rate_limit_violation",
+                "severity": "critical",
+                "actor": "bot-user",
+                "event_count": 15,
+                "time_window_start": "2024-01-01T00:00:00",
+                "time_window_end": "2024-01-01T01:00:00",
+                "details": "15 rate limit events in 1 hour",
+                "recommended_action": "Review API usage and consider rate limiting",
+            }
+        ]
+        session = _mock_session_with_mappings(rows)
+        result = await health_signal_service.get_api_abuse_signals(
+            session, scoped_orgs=["test-org"], hours=24
+        )
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["signal_type"] == "rate_limit_violation"
+
+    @pytest.mark.asyncio
+    async def test_empty_result(self) -> None:
+        session = _mock_session_with_mappings([])
+        result = await health_signal_service.get_api_abuse_signals(
+            session, scoped_orgs=["test-org"]
+        )
+        assert result == []
+
+
+class TestGetDormantUsers:
+    @pytest.mark.asyncio
+    async def test_returns_dormant_users(self) -> None:
+        rows = [
+            {
+                "login": "inactive-user",
+                "last_activity_date": "2024-01-01T00:00:00",
+                "days_inactive": 120,
+                "seat_type": "github+copilot",
+                "estimated_monthly_cost": 40.0,
+                "recommended_action": "Review and consider removing",
+            }
+        ]
+        session = _mock_session_with_mappings(rows)
+        result = await health_signal_service.get_dormant_users(
+            session, scoped_orgs=["test-org"], days_inactive=90
+        )
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["login"] == "inactive-user"
+        assert result[0]["estimated_monthly_cost"] == 40.0
+
+    @pytest.mark.asyncio
+    async def test_empty_result(self) -> None:
+        session = _mock_session_with_mappings([])
+        result = await health_signal_service.get_dormant_users(session, scoped_orgs=["test-org"])
+        assert result == []
+
+
+class TestGetPlatformSecurity:
+    @pytest.mark.asyncio
+    async def test_returns_security_inventory(self) -> None:
+        rows = [
+            {
+                "org": "test-org",
+                "sso_configured": True,
+                "two_fa_required": True,
+                "audit_log_streaming": False,
+                "ip_allowlist_configured": False,
+                "branch_protection_default": True,
+                "compliance_score": 60.0,
+            }
+        ]
+        session = _mock_session_with_mappings(rows)
+        result = await health_signal_service.get_platform_security(
+            session, scoped_orgs=["test-org"]
+        )
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["org"] == "test-org"
+        assert result[0]["compliance_score"] == 60.0
+        assert result[0]["recommendations"] == [
+            "Enable audit log streaming",
+            "Configure IP allowlist",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_empty_result(self) -> None:
+        session = _mock_session_with_mappings([])
+        result = await health_signal_service.get_platform_security(
+            session, scoped_orgs=["test-org"]
+        )
+        assert result == []
+
+
+class TestGetMaintenanceSignals:
+    @pytest.mark.asyncio
+    async def test_returns_maintenance_data(self) -> None:
+        stale_rows = [
+            {
+                "org": "test-org",
+                "repo": "old-repo",
+                "last_event_at": "2024-01-01",
+                "days_since_activity": 200,
+            }
+        ]
+        empty_rows = [{"org": "test-org", "repo": "empty-repo", "created_at": "2024-06-01"}]
+        archive_rows = [
+            {
+                "org": "test-org",
+                "repo": "quiet-repo",
+                "event_count": 3,
+                "last_event_at": "2024-03-01",
+                "days_since_activity": 150,
+            }
+        ]
+        session = _mock_session_with_mappings(stale_rows, empty_rows, archive_rows)
+        result = await health_signal_service.get_maintenance_signals(
+            session, scoped_orgs=["test-org"]
+        )
+        assert isinstance(result, dict)
+        assert "stale_repos" in result
+        assert "empty_repos" in result
+        assert "archived_candidates" in result
+        assert "summary" in result
+
+    @pytest.mark.asyncio
+    async def test_empty_result(self) -> None:
+        session = _mock_session_with_mappings([], [], [])
+        result = await health_signal_service.get_maintenance_signals(
+            session, scoped_orgs=["test-org"]
+        )
+        assert result["summary"]["stale_count"] == 0
+        assert result["summary"]["empty_count"] == 0
+
+
+class TestGetHealthScore:
+    @pytest.mark.asyncio
+    async def test_returns_score(self) -> None:
+        row = {
+            "critical_count": 2,
+            "high_count": 3,
+            "medium_count": 5,
+            "low_count": 10,
+            "orgs_monitored": 3,
+        }
+        session = _mock_session_with_mappings([row])
+        result = await health_signal_service.get_health_score(session, scoped_orgs=["test-org"])
+        assert isinstance(result, dict)
+        assert "score" in result
+        assert "grade" in result
+        assert 0 <= result["score"] <= 100
+
+    @pytest.mark.asyncio
+    async def test_empty_org_returns_perfect_score(self) -> None:
+        session = _mock_session_with_mappings([])
+        result = await health_signal_service.get_health_score(session, scoped_orgs=["test-org"])
+        assert result["score"] == 100
+        assert result["grade"] == "A"
+
+
+class TestApiAbuseEndpoint:
+    def test_returns_200(self) -> None:
+        app = _build_app_with_access()
+        with patch.object(
+            health_signal_service, "get_api_abuse_signals", new_callable=AsyncMock
+        ) as mock_fn:
+            mock_fn.return_value = []
+            with patch(
+                "app.routers.health_signals.rbac_service.get_scoped_orgs",
+                new_callable=AsyncMock,
+            ) as mock_rbac:
+                mock_rbac.return_value = ["test-org"]
+                client = TestClient(app)
+                resp = client.get("/api/v1/health-signals/api-abuse")
+                assert resp.status_code == 200
+                assert "signals" in resp.json()
+
+
+class TestDormantUsersEndpoint:
+    def test_returns_200(self) -> None:
+        app = _build_app_with_access()
+        with patch.object(
+            health_signal_service, "get_dormant_users", new_callable=AsyncMock
+        ) as mock_fn:
+            mock_fn.return_value = []
+            with patch(
+                "app.routers.health_signals.rbac_service.get_scoped_orgs",
+                new_callable=AsyncMock,
+            ) as mock_rbac:
+                mock_rbac.return_value = ["test-org"]
+                client = TestClient(app)
+                resp = client.get("/api/v1/health-signals/dormant-users")
+                assert resp.status_code == 200
+                data = resp.json()
+                assert "users" in data
+                assert "summary" in data
+
+
+class TestPlatformSecurityEndpoint:
+    def test_returns_200(self) -> None:
+        app = _build_app_with_access()
+        with patch.object(
+            health_signal_service, "get_platform_security", new_callable=AsyncMock
+        ) as mock_fn:
+            mock_fn.return_value = []
+            with patch(
+                "app.routers.health_signals.rbac_service.get_scoped_orgs",
+                new_callable=AsyncMock,
+            ) as mock_rbac:
+                mock_rbac.return_value = ["test-org"]
+                client = TestClient(app)
+                resp = client.get("/api/v1/health-signals/platform-security")
+                assert resp.status_code == 200
+                assert "orgs" in resp.json()
+
+
+class TestMaintenanceSignalsEndpoint:
+    def test_returns_200(self) -> None:
+        app = _build_app_with_access()
+        with patch.object(
+            health_signal_service, "get_maintenance_signals", new_callable=AsyncMock
+        ) as mock_fn:
+            mock_fn.return_value = {
+                "stale_repos": [],
+                "empty_repos": [],
+                "archived_candidates": [],
+                "summary": {
+                    "stale_count": 0,
+                    "empty_count": 0,
+                    "archived_candidate_count": 0,
+                },
+            }
+            with patch(
+                "app.routers.health_signals.rbac_service.get_scoped_orgs",
+                new_callable=AsyncMock,
+            ) as mock_rbac:
+                mock_rbac.return_value = ["test-org"]
+                client = TestClient(app)
+                resp = client.get("/api/v1/health-signals/maintenance-signals")
+                assert resp.status_code == 200
+                assert "stale_repos" in resp.json()
+
+
+class TestHealthScoreEndpoint:
+    def test_returns_200(self) -> None:
+        app = _build_app_with_access()
+        with patch.object(
+            health_signal_service, "get_health_score", new_callable=AsyncMock
+        ) as mock_fn:
+            mock_fn.return_value = {
+                "score": 85,
+                "grade": "B",
+                "critical_count": 0,
+                "high_count": 3,
+                "medium_count": 5,
+                "low_count": 10,
+                "total_signals": 18,
+                "orgs_monitored": 2,
+            }
+            with patch(
+                "app.routers.health_signals.rbac_service.get_scoped_orgs",
+                new_callable=AsyncMock,
+            ) as mock_rbac:
+                mock_rbac.return_value = ["test-org"]
+                client = TestClient(app)
+                resp = client.get("/api/v1/health-signals/score")
+                assert resp.status_code == 200
+                data = resp.json()
+                assert data["score"] == 85
+                assert data["grade"] == "B"

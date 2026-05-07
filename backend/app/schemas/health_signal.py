@@ -330,3 +330,82 @@ class UnifiedSecurityResponse(BaseModel):
     dependabot: DependabotSummary = Field(default_factory=DependabotSummary)
     detections: DetectionsSummary = Field(default_factory=DetectionsSummary)
     trend_30d: list[TrendDay] = Field(default_factory=list)
+
+
+class AbuseSignal(BaseModel):
+    """API abuse detection signal."""
+
+    signal_type: str
+    severity: str
+    actor: str
+    event_count: int = 0
+    time_window_start: str | None = None
+    time_window_end: str | None = None
+    details: str = ""
+    recommended_action: str = ""
+
+
+class AbuseSignalsResponse(BaseModel):
+    """API abuse signals response."""
+
+    signals: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class DormantUser(BaseModel):
+    """Dormant user with cost estimate."""
+
+    login: str
+    last_activity_date: str | None = None
+    days_inactive: int = 0
+    seat_type: str = "github"
+    estimated_monthly_cost: float = 21.0
+    recommended_action: str = ""
+
+
+class DormantUsersResponse(BaseModel):
+    """Dormant users response."""
+
+    users: list[dict[str, Any]] = Field(default_factory=list)
+    summary: dict[str, Any] = Field(default_factory=dict)
+
+
+class PlatformSecurityOrg(BaseModel):
+    """Per-org platform security status."""
+
+    org: str
+    sso_configured: bool = False
+    two_fa_required: bool = False
+    audit_log_streaming: bool = False
+    ip_allowlist_configured: bool = False
+    branch_protection_default: bool = False
+    compliance_score: float = 0.0
+    recommendations: list[str] = Field(default_factory=list)
+
+
+class PlatformSecurityResponse(BaseModel):
+    """Platform security response."""
+
+    orgs: list[dict[str, Any]] = Field(default_factory=list)
+    overall_compliance_score: float = 0.0
+
+
+class MaintenanceSignalsResponse(BaseModel):
+    """Comprehensive maintenance signals."""
+
+    stale_repos: list[dict[str, Any]] = Field(default_factory=list)
+    empty_repos: list[dict[str, Any]] = Field(default_factory=list)
+    archived_candidates: list[dict[str, Any]] = Field(default_factory=list)
+    summary: dict[str, int] = Field(default_factory=dict)
+
+
+class HealthScoreResponse(BaseModel):
+    """Overall health score."""
+
+    score: int = 100
+    grade: str = "A"
+    critical_count: int = 0
+    high_count: int = 0
+    medium_count: int = 0
+    low_count: int = 0
+    total_signals: int = 0
+    orgs_monitored: int = 0

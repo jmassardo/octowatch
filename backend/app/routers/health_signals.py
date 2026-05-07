@@ -914,3 +914,127 @@ async def dependabot_alerts(
     ]
 
     return {"alerts": alerts, "total": total}
+
+
+@router.get("/api-abuse", response_model=dict[str, Any])
+async def api_abuse_signals(
+    hours: int = Query(default=24, ge=1, le=168),
+    limit: int = Query(default=50, ge=1, le=100),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """API abuse detection signals."""
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    signals = await health_signal_service.get_api_abuse_signals(
+        db, scoped_orgs=scoped_orgs, hours=hours, limit=limit
+    )
+    return {"signals": signals}
+
+
+@router.get("/dormant-users", response_model=dict[str, Any])
+async def dormant_users(
+    days_inactive: int = Query(default=90, ge=30, le=365),
+    limit: int = Query(default=50, ge=1, le=100),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Dormant users with cost estimates."""
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    users = await health_signal_service.get_dormant_users(
+        db, scoped_orgs=scoped_orgs, days_inactive=days_inactive, limit=limit
+    )
+    summary = {
+        "total_dormant": len(users),
+        "estimated_monthly_waste": sum(u.get("estimated_monthly_cost", 0) for u in users),
+    }
+    return {"users": users, "summary": summary}
+
+
+@router.get("/platform-security", response_model=dict[str, Any])
+async def platform_security(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Platform security configuration inventory."""
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    orgs = await health_signal_service.get_platform_security(db, scoped_orgs=scoped_orgs)
+    avg_score = sum(o.get("compliance_score", 0) for o in orgs) / max(len(orgs), 1)
+    return {"orgs": orgs, "overall_compliance_score": round(avg_score, 1)}
+
+
+@router.get("/maintenance-signals", response_model=dict[str, Any])
+async def maintenance_signals(
+    stale_threshold_days: int = Query(default=180, ge=30, le=730),
+    limit: int = Query(default=50, ge=1, le=100),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Comprehensive maintenance signals."""
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    return await health_signal_service.get_maintenance_signals(
+        db, scoped_orgs=scoped_orgs, stale_threshold_days=stale_threshold_days, limit=limit
+    )
+
+
+@router.get("/score", response_model=dict[str, Any])
+async def health_score(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Overall org health score."""
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    return await health_signal_service.get_health_score(db, scoped_orgs=scoped_orgs)
+
+
+@router.get("/strategic/mttr-trends", response_model=dict[str, Any])
+async def mttr_trends(
+    period: str = Query(default="30d", pattern="^(7d|30d|90d)$"),
+    severity: str | None = Query(default=None),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    return await health_signal_service.get_mttr_trends(
+        db,
+        scoped_orgs=scoped_orgs,
+        period=period,
+        severity=severity,
+    )
+
+
+@router.get("/strategic/coverage-growth", response_model=dict[str, Any])
+async def coverage_growth(
+    period: str = Query(default="90d", pattern="^(30d|90d|180d)$"),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    return await health_signal_service.get_coverage_growth(
+        db,
+        scoped_orgs=scoped_orgs,
+        period=period,
+    )
+
+
+@router.get("/strategic/alert-aging", response_model=dict[str, Any])
+async def alert_aging(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    return await health_signal_service.get_alert_aging(
+        db,
+        scoped_orgs=scoped_orgs,
+    )
+
+
+@router.get("/strategic/security-score", response_model=dict[str, Any])
+async def security_score(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    return await health_signal_service.get_security_score(
+        db,
+        scoped_orgs=scoped_orgs,
+    )
