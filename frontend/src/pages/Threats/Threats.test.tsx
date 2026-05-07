@@ -22,6 +22,20 @@ vi.mock('../../api/detections', () => ({
   assignDetection: (...args: unknown[]) => mockAssignDetection(...args),
 }));
 
+const mockGetDetectionTimeline = vi.fn().mockResolvedValue({
+  detection_id: 1,
+  detection_title: 'Test',
+  detection_severity: 'critical',
+  detection_category: null,
+  events: [],
+  sequence_steps: [],
+  context_data: {},
+});
+
+vi.mock('../../api/executive', () => ({
+  getDetectionTimeline: (...args: unknown[]) => mockGetDetectionTimeline(...args),
+}));
+
 describe('ThreatsPage', () => {
   beforeEach(() => {
     mockNavigate.mockClear();
@@ -166,31 +180,30 @@ describe('ThreatsPage with data', () => {
     expect(screen.getByText('Admin action from unusual IP')).toBeInTheDocument();
   });
 
-  it('shows related events count as a clickable link in detail panel', async () => {
+  it('shows related events as clickable links in detail panel', async () => {
     const user = userEvent.setup();
     renderWithProviders(<ThreatsPage />);
 
     const row = await screen.findByText('Suspicious admin activity detected');
     await user.click(row);
 
-    const link = screen.getByText('3 events →');
-    expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute('role', 'button');
+    // Each event_id is rendered as a link
+    const link101 = screen.getByText('#101');
+    expect(link101).toBeInTheDocument();
+    expect(link101.closest('a')).toHaveAttribute('href', '/events?id=101');
   });
 
-  it('navigates to events page when related events count is clicked', async () => {
+  it('shows all related events when 5 or fewer', async () => {
     const user = userEvent.setup();
     renderWithProviders(<ThreatsPage />);
 
     const row = await screen.findByText('Suspicious admin activity detected');
     await user.click(row);
 
-    const link = screen.getByText('3 events →');
-    await user.click(link);
-
-    expect(mockNavigate).toHaveBeenCalledWith(expect.stringContaining('/events?'));
-    // Should include actor param
-    expect(mockNavigate).toHaveBeenCalledWith(expect.stringContaining('actor=mallory'));
+    // 3 events in MOCK_DETECTION
+    expect(screen.getByText('#101')).toBeInTheDocument();
+    expect(screen.getByText('#102')).toBeInTheDocument();
+    expect(screen.getByText('#103')).toBeInTheDocument();
   });
 
   it('renders evidence section for detection with context data', async () => {
@@ -229,8 +242,9 @@ describe('ThreatsPage with data', () => {
     await user.click(row);
 
     expect(screen.getByText('Delete Detection')).toBeInTheDocument();
-    expect(screen.getByText('Acknowledge')).toBeInTheDocument();
-    expect(screen.getByText('Assign')).toBeInTheDocument();
+    expect(screen.getByText('👤 Assign')).toBeInTheDocument();
+    expect(screen.getByText('✕ Dismiss')).toBeInTheDocument();
+    expect(screen.getByText('✓ Resolve')).toBeInTheDocument();
   });
 
   it('shows actor mention in detection row', async () => {
@@ -340,5 +354,253 @@ describe('ThreatsPage tab count badges', () => {
     const openTab = screen.getByText('Open').closest('button');
     expect(openTab).toBeInTheDocument();
     expect(within(openTab!).getByText('5')).toBeInTheDocument();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Detection Detail Pane - Assign, Dismiss, Timeline, Events          */
+/* ------------------------------------------------------------------ */
+
+describe('DetectionDetailPane interactions', () => {
+  const MOCK_DETECTION = {
+    id: 1,
+    rule_id: 10,
+    rule_name: 'suspicious_admin_action',
+    rule_version: 1,
+    severity: 'critical' as const,
+    confidence: 'high',
+    confidence_score: 0.95,
+    status: 'investigating' as const,
+    title: 'Suspicious admin activity detected',
+    description: 'Admin action from unusual IP',
+    actor: 'mallory',
+    org: 'myorg',
+    repo: null,
+    source_ip: '1.2.3.4',
+    window_start: '2024-01-15T11:00:00Z',
+    window_end: '2024-01-15T12:00:00Z',
+    event_ids: [101, 102, 103],
+    context_data: { ip: '1.2.3.4', action: 'org.update_member', category: 'privilege_escalation' },
+    triggered_at: '2024-01-15T12:00:00Z',
+    assigned_to: null,
+    resolved_at: null,
+    resolution_note: null,
+    tickets: [],
+  };
+
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockListDetections.mockClear();
+    mockUpdateDetectionStatus.mockClear();
+    mockAssignDetection.mockClear();
+    mockGetDetectionTimeline.mockClear();
+    mockListDetections.mockResolvedValue({
+      items: [MOCK_DETECTION],
+      total: 1,
+      page: 1,
+      page_size: 50,
+      has_next: false,
+    });
+    mockGetDetectionTimeline.mockResolvedValue({
+      detection_id: 1,
+      detection_title: 'Test',
+      detection_severity: 'critical',
+      detection_category: null,
+      events: [
+        {
+          id: 101,
+          created_at: '2024-01-15T11:30:00Z',
+          action: 'org.update_member',
+          actor: 'mallory',
+          org: 'myorg',
+          repo: null,
+          source_ip: '1.2.3.4',
+          geo_country_code: null,
+          geo_city: null,
+          geo_latitude: null,
+          geo_longitude: null,
+          data: {},
+          is_sequence_step: false,
+          sequence_index: null,
+        },
+      ],
+      sequence_steps: [],
+      context_data: {},
+    });
+  });
+
+  it('opens assign dropdown and submits assignment', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ThreatsPage />);
+
+    const row = await screen.findByText('Suspicious admin activity detected');
+    await user.click(row);
+
+    // Click Assign button
+    const assignBtn = screen.getByText('👤 Assign');
+    await user.click(assignBtn);
+
+    // Dropdown should appear
+    const dropdown = screen.getByTestId('assign-dropdown');
+    expect(dropdown).toBeInTheDocument();
+
+    // Type a username and confirm
+    const input = screen.getByLabelText('Assign to username');
+    await user.type(input, 'alice');
+    const confirmBtn = screen.getByText('Confirm Assign');
+    await user.click(confirmBtn);
+
+    expect(mockAssignDetection).toHaveBeenCalledWith(1, { assigned_to: 'alice' });
+  });
+
+  it('opens dismiss form with reason selection', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ThreatsPage />);
+
+    const row = await screen.findByText('Suspicious admin activity detected');
+    await user.click(row);
+
+    // Click Dismiss button
+    const dismissBtn = screen.getByText('✕ Dismiss');
+    await user.click(dismissBtn);
+
+    // Form should appear with radio buttons
+    const form = screen.getByTestId('dismiss-form');
+    expect(form).toBeInTheDocument();
+    expect(screen.getByLabelText('False positive')).toBeChecked();
+    expect(screen.getByLabelText('Expected behavior')).toBeInTheDocument();
+    expect(screen.getByLabelText('Duplicate')).toBeInTheDocument();
+    expect(screen.getByLabelText("Won't fix")).toBeInTheDocument();
+
+    // Select a different reason
+    await user.click(screen.getByLabelText('Duplicate'));
+
+    // Confirm dismiss
+    const confirmBtn = screen.getByText('Confirm Dismiss');
+    await user.click(confirmBtn);
+
+    expect(mockUpdateDetectionStatus).toHaveBeenCalledWith(1, {
+      status: 'false_positive',
+      resolution_note: 'Duplicate',
+    });
+  });
+
+  it('shows timeline section that expands with events', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ThreatsPage />);
+
+    const row = await screen.findByText('Suspicious admin activity detected');
+    await user.click(row);
+
+    // Timeline section toggle should exist
+    const toggle = screen.getByText(/Investigation Timeline/);
+    expect(toggle).toBeInTheDocument();
+
+    // Click to expand
+    await user.click(toggle);
+
+    // Should show timeline event after loading — check for the timeline event link
+    const timelineLinks = await screen.findAllByText('org.update_member');
+    // At least 2: one in evidence context_data, one in timeline
+    expect(timelineLinks.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows detection window timestamps', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ThreatsPage />);
+
+    const row = await screen.findByText('Suspicious admin activity detected');
+    await user.click(row);
+
+    // Detection Window section should show
+    expect(screen.getByText('Detection Window')).toBeInTheDocument();
+  });
+
+  it('shows status and assignment section', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ThreatsPage />);
+
+    const row = await screen.findByText('Suspicious admin activity detected');
+    await user.click(row);
+
+    expect(screen.getByText('Status & Assignment')).toBeInTheDocument();
+    expect(screen.getByText('investigating')).toBeInTheDocument();
+    expect(screen.getByText('Unassigned')).toBeInTheDocument();
+  });
+
+  it('shows confidence score badge', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ThreatsPage />);
+
+    const row = await screen.findByText('Suspicious admin activity detected');
+    await user.click(row);
+
+    expect(screen.getByText('95% confidence')).toBeInTheDocument();
+  });
+
+  it('shows rule info section with link', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ThreatsPage />);
+
+    const row = await screen.findByText('Suspicious admin activity detected');
+    await user.click(row);
+
+    expect(screen.getByText('Rule Info')).toBeInTheDocument();
+    // Rule name should be a link to rules page
+    const ruleLink = screen.getAllByText('suspicious_admin_action').find(
+      (el) => el.closest('a')?.getAttribute('href') === '/rules?id=10',
+    );
+    expect(ruleLink).toBeInTheDocument();
+  });
+
+  it('shows resolve button when investigating and submits', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ThreatsPage />);
+
+    const row = await screen.findByText('Suspicious admin activity detected');
+    await user.click(row);
+
+    const resolveBtn = screen.getByText('✓ Resolve');
+    await user.click(resolveBtn);
+
+    // Resolve form appears
+    const form = screen.getByTestId('resolve-form');
+    expect(form).toBeInTheDocument();
+
+    const confirmBtn = screen.getByText('Confirm Resolve');
+    await user.click(confirmBtn);
+
+    expect(mockUpdateDetectionStatus).toHaveBeenCalledWith(1, {
+      status: 'resolved',
+      resolution_note: undefined,
+    });
+  });
+
+  it('shows reopen button when detection is resolved', async () => {
+    const resolvedDetection = {
+      ...MOCK_DETECTION,
+      status: 'resolved' as const,
+      resolved_at: '2024-01-16T12:00:00Z',
+      resolution_note: 'Investigated and resolved',
+    };
+    mockListDetections.mockResolvedValue({
+      items: [resolvedDetection],
+      total: 1,
+      page: 1,
+      page_size: 50,
+      has_next: false,
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<ThreatsPage />);
+
+    const row = await screen.findByText('Suspicious admin activity detected');
+    await user.click(row);
+
+    const reopenBtn = screen.getByText('↺ Reopen');
+    expect(reopenBtn).toBeInTheDocument();
+
+    await user.click(reopenBtn);
+    expect(mockUpdateDetectionStatus).toHaveBeenCalledWith(1, { status: 'open' });
   });
 });

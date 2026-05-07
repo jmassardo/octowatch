@@ -473,3 +473,261 @@
 .expandToggle:hover {
   text-decoration: underline;
 }
+
+/* Assign dropdown */
+.assignDropdown {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--canvas-default);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* Dismiss form */
+.dismissForm {
+  margin-top: 10px;
+  padding: 12px;
+  background: var(--canvas-default);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dismissReasons {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dismissLegend {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  margin-bottom: 4px;
+}
+
+.dismissRadio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.dismissRadio input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.dismissTextarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--canvas-subtle);
+  color: var(--fg);
+  font-size: 12px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 40px;
+}
+
+.dismissTextarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* Inline timeline */
+.timelineInline {
+  margin-bottom: 14px;
+  padding-left: 8px;
+  border-left: 2px solid var(--border-muted);
+}
+
+.timelineEvent {
+  display: flex;
+  gap: 8px;
+  padding: 8px 6px;
+  border-radius: 4px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.1s;
+}
+
+.timelineEvent:hover {
+  background: rgba(177, 186, 196, 0.08);
+}
+
+.timelineEventDot {
+  flex-shrink: 0;
+  padding-top: 3px;
+}
+
+.timelineEventContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.timelineEventAction {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.timelineEventMeta {
+  font-size: 12px;
+  color: var(--fg-muted);
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.timelineEventTime {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-top: 2px;
+}
+
+/* Related events section */
+.relatedEventsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 14px;
+}
+
+.relatedEventRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  text-decoration: none;
+  color: inherit;
+  font-size: 12px;
+  transition: background 0.1s;
+}
+
+.relatedEventRow:hover {
+  background: rgba(177, 186, 196, 0.08);
+}
+
+.relatedEventId {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.relatedEventAction {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.relatedEventActor {
+  color: var(--done);
+}
+
+.relatedEventTime {
+  color: var(--fg-subtle);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Confidence badge */
+.confidenceBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(88, 166, 255, 0.12);
+  color: var(--accent);
+}
+
+/* Status badge */
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Ticket links */
+.ticketList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.ticketLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.ticketLink:hover {
+  background: rgba(177, 186, 196, 0.08);
+  text-decoration: underline;
+}
+
+.ticketProvider {
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--fg-muted);
+  background: var(--canvas-subtle);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* Delete link */
+.panelDeleteSection {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-muted);
+  text-align: center;
+}
+
+.deleteLink {
+  background: none;
+  border: none;
+  color: var(--fg-subtle);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: underline;
+  opacity: 0.7;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.deleteLink:hover {
+  color: var(--danger);
+  opacity: 1;
+}
+
+.deleteLink:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
