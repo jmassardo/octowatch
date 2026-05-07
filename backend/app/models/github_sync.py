@@ -654,7 +654,11 @@ class SecretScanningAlert(Base):
         Boolean, nullable=False, server_default=text("FALSE")
     )
     push_protection_bypassed_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    validity: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    locations_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    resolved_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
@@ -666,6 +670,7 @@ class SecretScanningAlert(Base):
         ),
         Index("idx_secret_scanning_alert_org_state", "org_slug", "state"),
         Index("idx_secret_scanning_alert_repo", "repo_full_name"),
+        Index("idx_secret_scanning_alert_validity", "validity"),
     )
 
 

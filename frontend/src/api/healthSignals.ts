@@ -570,7 +570,11 @@ export interface SecretScanningAlertItem {
   resolution: string | null;
   push_protection_bypassed: boolean;
   push_protection_bypassed_by: string | null;
+  validity: string | null;
+  locations_count: number;
+  resolved_by: string | null;
   created_at: string;
+  updated_at: string | null;
   resolved_at: string | null;
 }
 
