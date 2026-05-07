@@ -1,25 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  listDetections,
-  updateDetectionStatus,
-  deleteDetection,
-  assignDetection,
-} from '../../api/detections';
+import { useSearchParams, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { listDetections } from '../../api/detections';
 import { listRules } from '../../api/rules';
 import { getSuggestedRepos, getSuggestedActors } from '../../api/suggestions';
 import type { DetectionResponse } from '../../types/detections';
 import { SeverityDot } from '../../components/primitives/SeverityDot';
 import { Label } from '../../components/primitives/Label';
-import { Button } from '../../components/primitives/Button';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Pagination } from '../../components/primitives/Pagination';
 import { Autocomplete } from '../../components/primitives/Autocomplete';
 import { PageHeader } from '../../components/common/PageHeader';
 import { EmptyState } from '../../components/common/EmptyState';
-import { InvestigationTimeline } from './InvestigationTimeline';
+import { DetectionDetailPane } from './DetectionDetailPane';
 import { formatRelativeShort } from '../../utils/dates';
 import { useOrg } from '../../hooks/useOrg';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
@@ -27,9 +21,6 @@ import styles from './Threats.module.css';
 
 /**
  * Safely convert any value to a display string.
- * Prevents `[object Object]` from appearing when the API returns an
- * object where a string was expected, or when a field typed as
- * `Record<string, unknown>` is accidentally rendered as JSX text.
  */
 function safeText(value: unknown): string {
   if (value === null || value === undefined) return '';
@@ -38,125 +29,12 @@ function safeText(value: unknown): string {
   return JSON.stringify(value);
 }
 
-/**
- * Safely retrieve the length of an array-like value.
- * Returns 0 when the value is not actually an array, preventing
- * runtime errors if the API sends null/undefined for `event_ids`.
- */
-function safeArrayLength(value: unknown): number {
-  return Array.isArray(value) ? value.length : 0;
-}
-
-/**
- * Safely check whether an object has entries.
- * Returns false when the value is not a plain object, preventing
- * `Object.keys(null)` crashes if the API sends null for `context_data`.
- */
-function hasEntries(value: unknown): value is Record<string, unknown> {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    !Array.isArray(value) &&
-    Object.keys(value).length > 0
-  );
-}
-
-function EvidenceValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
-  const [expanded, setExpanded] = useState(false);
-
-  if (value === null || value === undefined) {
-    return <span className={styles.evidenceMuted}>—</span>;
-  }
-  if (typeof value === 'string') {
-    return <span className={styles.evidenceVal}>{value}</span>;
-  }
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return <span className={styles.evidenceVal}>{String(value)}</span>;
-  }
-  if (Array.isArray(value)) {
-    if (value.length === 0) {
-      return <span className={styles.evidenceMuted}>[]</span>;
-    }
-    const allPrimitive = value.every(
-      (v) => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean',
-    );
-    if (allPrimitive && value.length <= 5) {
-      return <span className={styles.evidenceVal}>{value.join(', ')}</span>;
-    }
-    return (
-      <div>
-        <button
-          type="button"
-          className={styles.expandToggle}
-          onClick={() => setExpanded((v) => !v)}
-        >
-          {expanded ? '▾' : '▸'} {value.length} item{value.length !== 1 ? 's' : ''}
-        </button>
-        {expanded && (
-          <div className={styles.evidenceNested}>
-            {value.map((item, i) => (
-              <div key={i} className={styles.evidenceRow}>
-                <span className={styles.evidenceKey}>[{i}]</span>
-                <EvidenceValue value={item} depth={depth + 1} />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-  if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length === 0) {
-      return <span className={styles.evidenceMuted}>{'{}'}</span>;
-    }
-    return (
-      <div>
-        <button
-          type="button"
-          className={styles.expandToggle}
-          onClick={() => setExpanded((v) => !v)}
-        >
-          {expanded ? '▾' : '▸'} {entries.length} field{entries.length !== 1 ? 's' : ''}
-        </button>
-        {expanded && (
-          <div className={styles.evidenceNested}>
-            {entries.map(([k, v]) => (
-              <div key={k} className={styles.evidenceRow}>
-                <span className={styles.evidenceKey}>{k}</span>
-                <EvidenceValue value={v} depth={depth + 1} />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-  return <span className={styles.evidenceVal}>{String(value)}</span>;
-}
-
-function EvidenceDisplay({ data }: { data: Record<string, unknown> }) {
-  return (
-    <div className={styles.evidenceTable}>
-      {Object.entries(data).map(([key, value]) => (
-        <div key={key} className={styles.evidenceRow}>
-          <span className={styles.evidenceKey}>{key}</span>
-          <div className={styles.evidenceValWrap}>
-            <EvidenceValue value={value} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 type TabFilter = 'open' | 'investigating' | 'closed' | 'acknowledged' | 'all';
 
 export function ThreatsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<TabFilter>('open');
   const [selectedOverride, setSelectedOverride] = useState<DetectionResponse | null>(null);
-  const [investigatingId, setInvestigatingId] = useState<number | null>(null);
   const initialSeverity = searchParams.get('severity') ?? '';
   const initialRepo = searchParams.get('repo') ?? '';
   const initialActor = searchParams.get('actor') ?? '';
@@ -214,9 +92,6 @@ export function ThreatsPage() {
 
   // Effective org: explicit orgFilter takes priority, then global selectedOrg
   const effectiveOrg = orgFilter || selectedOrg || undefined;
-
-  const qc = useQueryClient();
-  const navigate = useNavigate();
 
   const statusMap: Record<TabFilter, string | undefined> = {
     open: 'open',
@@ -344,29 +219,6 @@ export function ThreatsPage() {
     acknowledged: ackData?.total ?? null,
     all: allData?.total ?? null,
   };
-
-  const acknowledgeMutation = useMutation({
-    mutationFn: (id: number) => updateDetectionStatus(id, { status: 'false_positive' }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['detections'] });
-    },
-  });
-
-  const assignMutation = useMutation({
-    mutationFn: ({ id, assignee }: { id: number; assignee: string }) =>
-      assignDetection(id, { assigned_to: assignee }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['detections'] });
-    },
-  });
-
-  const suspendMutation = useMutation({
-    mutationFn: (id: number) => deleteDetection(id),
-    onSuccess: () => {
-      selectDetection(null);
-      void qc.invalidateQueries({ queryKey: ['detections'] });
-    },
-  });
 
   const items = data?.items ?? [];
 
@@ -686,201 +538,14 @@ export function ThreatsPage() {
           .join(' ')}
       >
         {selected && (
-          <>
-            <div className={styles.panelHeader}>
-              <div style={{ fontWeight: 600 }}>{safeText(selected.title)}</div>
-              <button className={styles.panelClose} onClick={() => selectDetection(null)}>
-                &#215;
-              </button>
-            </div>
-
-            <div className={styles.panelLabels}>
-              <Label variant={sevLabelVariant(selected.severity)}>{selected.severity}</Label>
-              {selected.rule_name && <Label variant="muted">{safeText(selected.rule_name)}</Label>}
-              {selected.confidence && <Label variant="done">{safeText(selected.confidence)}</Label>}
-            </div>
-
-            <div className={styles.sectionHeader}>Summary</div>
-            <p className={styles.panelDesc}>{safeText(selected.description)}</p>
-
-            <div className={styles.sectionHeader}>Key Details</div>
-            <div className={styles.keyDetails}>
-              {selected.actor && (
-                <>
-                  <span className={styles.keyDetailsLabel}>Actor</span>
-                  <span className={styles.keyDetailsValue}>
-                    <Link
-                      to={`/actors/${encodeURIComponent(selected.actor)}`}
-                      className={styles.mention}
-                    >
-                      @{safeText(selected.actor)}
-                    </Link>
-                  </span>
-                </>
-              )}
-              {safeText(
-                selected.repo || selected.context_data?.repo || selected.context_data?.repository,
-              ) && (
-                <>
-                  <span className={styles.keyDetailsLabel}>Repository</span>
-                  <span className={styles.keyDetailsValue}>
-                    {safeText(
-                      selected.repo ||
-                        selected.context_data?.repo ||
-                        selected.context_data?.repository,
-                    )}
-                  </span>
-                </>
-              )}
-              {safeText(
-                selected.org || selected.context_data?.org || selected.context_data?.organization,
-              ) && (
-                <>
-                  <span className={styles.keyDetailsLabel}>Organization</span>
-                  <span className={styles.keyDetailsValue}>
-                    {safeText(
-                      selected.org ||
-                        selected.context_data?.org ||
-                        selected.context_data?.organization,
-                    )}
-                  </span>
-                </>
-              )}
-              {safeText(selected.context_data?.action) && (
-                <>
-                  <span className={styles.keyDetailsLabel}>Action</span>
-                  <span className={styles.keyDetailsValue}>
-                    {safeText(selected.context_data.action)}
-                  </span>
-                </>
-              )}
-              {safeText(selected.context_data?.what_changed) && (
-                <>
-                  <span className={styles.keyDetailsLabel}>What Changed</span>
-                  <span className={styles.keyDetailsValue}>
-                    {safeText(selected.context_data.what_changed)}
-                  </span>
-                </>
-              )}
-              {selected.source_ip && (
-                <>
-                  <span className={styles.keyDetailsLabel}>Source IP</span>
-                  <span className={styles.keyDetailsValue}>{safeText(selected.source_ip)}</span>
-                </>
-              )}
-              {selected.triggered_at && (
-                <>
-                  <span className={styles.keyDetailsLabel}>Triggered</span>
-                  <span className={styles.keyDetailsValue}>
-                    {formatRelativeShort(selected.triggered_at)}
-                  </span>
-                </>
-              )}
-              {selected.assigned_to && (
-                <>
-                  <span className={styles.keyDetailsLabel}>Assigned To</span>
-                  <span className={styles.keyDetailsValue}>{safeText(selected.assigned_to)}</span>
-                </>
-              )}
-            </div>
-
-            {safeArrayLength(selected.event_ids) > 0 && (
-              <div className={styles.relatedEvents}>
-                <span className={styles.evidenceLabel}>Related events</span>
-                <span
-                  role="button"
-                  tabIndex={0}
-                  className={styles.eventCountLink}
-                  aria-label={`${safeArrayLength(selected.event_ids)} related events — view in events page`}
-                  onClick={() => {
-                    const params = new URLSearchParams();
-                    if (selected.actor) params.set('actor', selected.actor);
-                    if (selected.rule_name) params.set('action', selected.rule_name);
-                    navigate(`/events?${params.toString()}`);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      const params = new URLSearchParams();
-                      if (selected.actor) params.set('actor', selected.actor);
-                      if (selected.rule_name) params.set('action', selected.rule_name);
-                      navigate(`/events?${params.toString()}`);
-                    }
-                  }}
-                >
-                  {safeArrayLength(selected.event_ids)} event
-                  {safeArrayLength(selected.event_ids) === 1 ? '' : 's'} →
-                </span>
-              </div>
-            )}
-
-            {hasEntries(selected.context_data) && (
-              <>
-                <div className={styles.sectionHeader}>Evidence</div>
-                <EvidenceDisplay data={selected.context_data} />
-              </>
-            )}
-
-            <div className={styles.panelActions}>
-              <Button size="sm" variant="primary" onClick={() => setInvestigatingId(selected.id)}>
-                🔍 Investigate
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  window.open(
-                    `/query?sql=${encodeURIComponent(`SELECT * FROM events WHERE id IN (SELECT unnest(event_ids) FROM detections WHERE id = ${selected.id})`)}`,
-                    '_self',
-                  );
-                }}
-              >
-                📋 Run Playbook
-              </Button>
-              <Button
-                size="sm"
-                variant="danger"
-                onClick={() => {
-                  if (
-                    window.confirm('Delete this detection record? This action cannot be undone.')
-                  ) {
-                    suspendMutation.mutate(selected.id);
-                  }
-                }}
-                disabled={suspendMutation.isPending}
-              >
-                Delete Detection
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => acknowledgeMutation.mutate(selected.id)}
-                disabled={acknowledgeMutation.isPending}
-              >
-                Acknowledge
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  const user = window.prompt('Assign to username:');
-                  if (user?.trim()) {
-                    assignMutation.mutate({ id: selected.id, assignee: user.trim() });
-                  }
-                }}
-                disabled={assignMutation.isPending}
-              >
-                {assignMutation.isPending ? 'Assigning…' : 'Assign'}
-              </Button>
-            </div>
-          </>
+          <DetectionDetailPane
+            selected={selected}
+            actorSuggestions={actorSuggestions}
+            onClose={() => selectDetection(null)}
+            onDeleted={() => selectDetection(null)}
+          />
         )}
       </div>
-      {investigatingId !== null && (
-        <div className={styles.timelineOverlay}>
-          <InvestigationTimeline
-            detectionId={investigatingId}
-            onClose={() => setInvestigatingId(null)}
-          />
-        </div>
-      )}
     </div>
   );
 }
