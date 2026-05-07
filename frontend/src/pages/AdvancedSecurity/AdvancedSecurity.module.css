@@ -114,7 +114,9 @@
   border-right: 1px solid var(--border);
   color: var(--fg-muted);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .periodBtn:last-child {

@@ -144,7 +144,9 @@ const mockDetections = {
 
 vi.mock('../../api/healthSignals', () => ({
   getUnifiedSecurity: vi.fn().mockImplementation(() => Promise.resolve(mockUnifiedSecurity)),
-  getSecretScanningAlerts: vi.fn().mockImplementation(() => Promise.resolve(mockSecretScanningAlerts)),
+  getSecretScanningAlerts: vi
+    .fn()
+    .mockImplementation(() => Promise.resolve(mockSecretScanningAlerts)),
   getSecretScanning: vi.fn().mockImplementation(() => Promise.resolve(mockSecretScanning)),
   getCodeScanningAlerts: vi.fn().mockImplementation(() => Promise.resolve(mockCodeScanningAlerts)),
   getCodeScanning: vi.fn().mockImplementation(() => Promise.resolve(mockCodeScanning)),
@@ -186,15 +188,15 @@ describe('AdvancedSecurityPage', () => {
     // Cards are within the cardGrid and have role="button"
     // The tab buttons don't have aria-label so we can distinguish them
     const allButtons = screen.getAllByRole('button');
-    const cardButtons = allButtons.filter(
-      (btn) => btn.getAttribute('aria-label') !== null,
-    );
+    const cardButtons = allButtons.filter((btn) => btn.getAttribute('aria-label') !== null);
 
     // Overview tab should have 4 clickable metric cards
     const secretCard = cardButtons.find((b) => b.getAttribute('aria-label') === 'Secret Scanning');
     const codeCard = cardButtons.find((b) => b.getAttribute('aria-label') === 'Code Scanning');
     const depCard = cardButtons.find((b) => b.getAttribute('aria-label') === 'Dependabot');
-    const threatCard = cardButtons.find((b) => b.getAttribute('aria-label') === 'Threat Detections');
+    const threatCard = cardButtons.find(
+      (b) => b.getAttribute('aria-label') === 'Threat Detections',
+    );
 
     expect(secretCard).toBeInTheDocument();
     expect(codeCard).toBeInTheDocument();
