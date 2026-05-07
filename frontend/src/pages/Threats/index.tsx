@@ -14,6 +14,7 @@ import { Autocomplete } from '../../components/primitives/Autocomplete';
 import { PageHeader } from '../../components/common/PageHeader';
 import { EmptyState } from '../../components/common/EmptyState';
 import { DetectionDetailPane } from './DetectionDetailPane';
+import { ChainsPane } from './ChainsPane';
 import { formatRelativeShort } from '../../utils/dates';
 import { useOrg } from '../../hooks/useOrg';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
@@ -29,7 +30,7 @@ function safeText(value: unknown): string {
   return JSON.stringify(value);
 }
 
-type TabFilter = 'open' | 'investigating' | 'closed' | 'acknowledged' | 'all';
+type TabFilter = 'open' | 'investigating' | 'closed' | 'acknowledged' | 'all' | 'chains';
 
 export function ThreatsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -99,6 +100,7 @@ export function ThreatsPage() {
     closed: 'resolved',
     acknowledged: 'false_positive',
     all: undefined,
+    chains: undefined,
   };
 
   const PAGE_SIZE = 25;
@@ -218,6 +220,7 @@ export function ThreatsPage() {
     closed: closedData?.total ?? null,
     acknowledged: ackData?.total ?? null,
     all: allData?.total ?? null,
+    chains: null,
   };
 
   const items = data?.items ?? [];
@@ -411,116 +414,124 @@ export function ThreatsPage() {
 
         <div className={styles.issueList}>
           <div className={styles.ilFilters}>
-            {(['open', 'investigating', 'closed', 'acknowledged', 'all'] as TabFilter[]).map(
-              (t) => {
-                const count = tabCounts[t];
-                const countStr = count != null ? ` (${count})` : '';
-                const tabLabel =
-                  t === 'open'
-                    ? 'Open'
-                    : t === 'investigating'
-                      ? 'Investigating'
-                      : t === 'closed'
-                        ? 'Closed'
-                        : t === 'acknowledged'
-                          ? 'Acknowledged'
+            {(
+              ['open', 'investigating', 'closed', 'acknowledged', 'all', 'chains'] as TabFilter[]
+            ).map((t) => {
+              const count = tabCounts[t];
+              const countStr = count != null ? ` (${count})` : '';
+              const tabLabel =
+                t === 'open'
+                  ? 'Open'
+                  : t === 'investigating'
+                    ? 'Investigating'
+                    : t === 'closed'
+                      ? 'Closed'
+                      : t === 'acknowledged'
+                        ? 'Acknowledged'
+                        : t === 'chains'
+                          ? 'Chains'
                           : 'All';
-                return (
-                  <button
-                    key={t}
-                    className={[styles.ilTab, tab === t && styles.active].filter(Boolean).join(' ')}
-                    onClick={() => {
-                      setTab(t);
-                      setPage(1);
-                    }}
-                  >
-                    {tabLabel}
-                    {count != null && <span className={styles.tabBadge}>{count}</span>}
-                    {count == null && countStr}
-                  </button>
-                );
-              },
-            )}
+              return (
+                <button
+                  key={t}
+                  className={[styles.ilTab, tab === t && styles.active].filter(Boolean).join(' ')}
+                  onClick={() => {
+                    setTab(t);
+                    setPage(1);
+                  }}
+                >
+                  {tabLabel}
+                  {count != null && <span className={styles.tabBadge}>{count}</span>}
+                  {count == null && countStr}
+                </button>
+              );
+            })}
           </div>
 
-          {isLoading && (
-            <div className={styles.loadingRow}>
-              <Spinner />
-            </div>
-          )}
-          {isError && (
-            <div className={styles.loadingRow}>
-              <ErrorBanner message="Failed to load detections" onRetry={refetch} />
-            </div>
-          )}
+          {tab === 'chains' ? (
+            <ChainsPane className={styles.chainsTab} />
+          ) : (
+            <>
+              {isLoading && (
+                <div className={styles.loadingRow}>
+                  <Spinner />
+                </div>
+              )}
+              {isError && (
+                <div className={styles.loadingRow}>
+                  <ErrorBanner message="Failed to load detections" onRetry={refetch} />
+                </div>
+              )}
 
-          {!isLoading && !isError && items.length === 0 && (
-            <div className={styles.emptyRow}>
-              {tab === 'open' ? (
-                <EmptyState
-                  variant="setup"
-                  icon="✅"
-                  title="No open threats detected"
-                  description="All clear — no active detections match the current filters."
-                />
-              ) : tab === 'closed' ? (
-                <EmptyState
-                  variant="default"
-                  icon="📋"
-                  title="No closed detections"
-                  description="Resolved detections will appear here."
-                />
-              ) : (
-                <EmptyState
-                  variant="filtered"
-                  title="No detections found"
-                  description="No detections match the current filters. Try resetting them."
+              {!isLoading && !isError && items.length === 0 && (
+                <div className={styles.emptyRow}>
+                  {tab === 'open' ? (
+                    <EmptyState
+                      variant="setup"
+                      icon="✅"
+                      title="No open threats detected"
+                      description="All clear — no active detections match the current filters."
+                    />
+                  ) : tab === 'closed' ? (
+                    <EmptyState
+                      variant="default"
+                      icon="📋"
+                      title="No closed detections"
+                      description="Resolved detections will appear here."
+                    />
+                  ) : (
+                    <EmptyState
+                      variant="filtered"
+                      title="No detections found"
+                      description="No detections match the current filters. Try resetting them."
+                    />
+                  )}
+                </div>
+              )}
+
+              {items.map((d) => (
+                <div
+                  key={d.id}
+                  className={[styles.ilRow, selected?.id === d.id && styles.selected]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onClick={() => selectDetection(d)}
+                >
+                  <SeverityDot severity={d.severity} style={{ marginTop: 4 }} />
+                  <div className={styles.ilMeta}>
+                    <div className={styles.ilTitle}>{safeText(d.title)}</div>
+                    <div className={styles.ilSub}>
+                      <Label variant={sevLabelVariant(d.severity)}>{d.severity}</Label>
+                      {d.rule_name && <Label variant="muted">{safeText(d.rule_name)}</Label>}
+                      {d.actor && (
+                        <span>
+                          actor:{' '}
+                          <Link
+                            to={`/actors/${encodeURIComponent(d.actor)}`}
+                            className={styles.mention}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            @{safeText(d.actor)}
+                          </Link>
+                        </span>
+                      )}
+                      {d.org && <span>· {safeText(d.org)}</span>}
+                    </div>
+                  </div>
+                  <div className={styles.ilTime}>{formatRelativeShort(d.triggered_at)}</div>
+                </div>
+              ))}
+
+              {data && (
+                <Pagination
+                  page={page}
+                  pageSize={PAGE_SIZE}
+                  total={data.total}
+                  hasNext={data.has_next}
+                  onPageChange={setPage}
                 />
               )}
-            </div>
-          )}
-
-          {items.map((d) => (
-            <div
-              key={d.id}
-              className={[styles.ilRow, selected?.id === d.id && styles.selected]
-                .filter(Boolean)
-                .join(' ')}
-              onClick={() => selectDetection(d)}
-            >
-              <SeverityDot severity={d.severity} style={{ marginTop: 4 }} />
-              <div className={styles.ilMeta}>
-                <div className={styles.ilTitle}>{safeText(d.title)}</div>
-                <div className={styles.ilSub}>
-                  <Label variant={sevLabelVariant(d.severity)}>{d.severity}</Label>
-                  {d.rule_name && <Label variant="muted">{safeText(d.rule_name)}</Label>}
-                  {d.actor && (
-                    <span>
-                      actor:{' '}
-                      <Link
-                        to={`/actors/${encodeURIComponent(d.actor)}`}
-                        className={styles.mention}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        @{safeText(d.actor)}
-                      </Link>
-                    </span>
-                  )}
-                  {d.org && <span>· {safeText(d.org)}</span>}
-                </div>
-              </div>
-              <div className={styles.ilTime}>{formatRelativeShort(d.triggered_at)}</div>
-            </div>
-          ))}
-
-          {data && (
-            <Pagination
-              page={page}
-              pageSize={PAGE_SIZE}
-              total={data.total}
-              hasNext={data.has_next}
-              onPageChange={setPage}
-            />
+            </>
           )}
         </div>
       </div>

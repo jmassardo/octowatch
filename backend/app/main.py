@@ -32,8 +32,10 @@ from app.routers import (
     admin_settings,
     admin_teams,
     auth,
+    compliance,
     copilot,
     copilot_governance,
+    correlations,
     cross_org,
     detections,
     dev_activity,
@@ -52,10 +54,15 @@ from app.routers import (
     reports,
     rule_library,
     rules,
+    secret_scanning,
     setup,
     suggestions,
+    supply_chain,
     sync,
+    team_health,
+    telemetry,
     threat_intel,
+    velocity,
     workflow_metrics,
     workflow_scanner,
 )
@@ -679,8 +686,10 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix=API_PREFIX)
     app.include_router(events.router, prefix=API_PREFIX)
     app.include_router(detections.router, prefix=API_PREFIX)
+    app.include_router(correlations.router, prefix=API_PREFIX)
     app.include_router(posture.router, prefix=API_PREFIX)
     app.include_router(reports.router, prefix=API_PREFIX)
+    app.include_router(compliance.router, prefix=API_PREFIX)
     app.include_router(query.router, prefix=API_PREFIX)
     app.include_router(rules.router, prefix=API_PREFIX)
     app.include_router(rule_library.router, prefix=API_PREFIX)
@@ -701,15 +710,20 @@ def create_app() -> FastAPI:
     app.include_router(setup.router, prefix=API_PREFIX)
     app.include_router(suggestions.router, prefix=API_PREFIX)
     app.include_router(dev_activity.router, prefix=API_PREFIX)
+    app.include_router(team_health.router, prefix=API_PREFIX)
     app.include_router(threat_intel.router, prefix=API_PREFIX)
     app.include_router(actors.router, prefix=API_PREFIX)
     app.include_router(ingest_webhook.router, prefix=API_PREFIX)
     app.include_router(ingest_hec.router)  # No prefix — GitHub expects /services/collector
     app.include_router(cross_org.router, prefix=API_PREFIX)
     app.include_router(playbooks.router, prefix=API_PREFIX)
+    app.include_router(velocity.router, prefix=API_PREFIX)
     app.include_router(workflow_scanner.router, prefix=API_PREFIX)
     app.include_router(workflow_metrics.router, prefix=API_PREFIX)
+    app.include_router(telemetry.router, prefix=API_PREFIX)
     app.include_router(copilot_governance.router, prefix=API_PREFIX)
+    app.include_router(secret_scanning.router, prefix=API_PREFIX)
+    app.include_router(supply_chain.router, prefix=API_PREFIX)
 
     return app
 

@@ -733,3 +733,148 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* ── Chains Pane ──────────────────────────────────────────────────────── */
+
+.chainsMetrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.chainsFilter {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.chainsPagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  justify-content: center;
+}
+
+.pageIndicator {
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.chainTitle {
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  padding: 48px;
+}
+
+/* Chain detail drawer */
+
+.chainDrawer {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.chainMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chainMetaRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.chainMetaLabel {
+  font-weight: 600;
+  color: var(--fg-muted);
+  min-width: 80px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.chainActions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Chain timeline in drawer */
+
+.chainTimeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.chainTimelineTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 12px;
+}
+
+.chainTimelineItem {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-left: 2px solid var(--border-muted);
+  padding-left: 16px;
+  position: relative;
+}
+
+.chainTimelineDot {
+  position: absolute;
+  left: -5px;
+  top: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.chainTimelineContent {
+  flex: 1;
+}
+
+.chainTimelineHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.chainTimelineDetTitle {
+  color: var(--fg);
+}
+
+.chainTimelineMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 4px;
+}
+
+.chainConfidence {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tab for chains */
+
+.chainsTab {
+  padding: 20px 0;
+}

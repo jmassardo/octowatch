@@ -6,6 +6,7 @@ from app.models.audit_trail import AuditTrail
 from app.models.auth_method import AuthMethodConfig, SessionPolicySetting
 from app.models.copilot_metrics import CopilotDailyMetric, CopilotSeatSnapshot
 from app.models.copilot_policy import CopilotPolicy, CopilotPolicyViolation
+from app.models.correlation import ChainMembership, CorrelationChain
 from app.models.custom_report import CustomReport
 from app.models.detection import (
     BehavioralBaseline,
@@ -52,6 +53,7 @@ from app.models.playbook import PlaybookExecution, PlaybookTemplate
 from app.models.query_template import QueryTemplate
 from app.models.report_schedule import ReportSchedule
 from app.models.retention_policy import RetentionPolicy
+from app.models.saved_query import SavedQuery
 from app.models.system_health import SystemHealthEvent
 from app.models.team import Team, TeamMembership, TeamRoleAssignment
 from app.models.threat_intel import ThreatIntelDomain, ThreatIntelFeed, ThreatIntelIndicator
@@ -70,11 +72,13 @@ __all__ = [
     "AuthMethodConfig",
     "SessionPolicySetting",
     "BehavioralBaseline",
+    "ChainMembership",
     "CodeScanningAlert",
     "CopilotDailyMetric",
     "CopilotPolicy",
     "CopilotPolicyViolation",
     "CopilotSeatSnapshot",
+    "CorrelationChain",
     "CustomReport",
     "DependabotAlert",
     "Detection",
@@ -102,6 +106,7 @@ __all__ = [
     "PlaybookExecution",
     "PlaybookTemplate",
     "QueryTemplate",
+    "SavedQuery",
     "RepoBranchProtection",
     "Repository",
     "RuleDefinition",
