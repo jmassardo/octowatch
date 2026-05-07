@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import ReactECharts from 'echarts-for-react';
+import type { EChartsOption } from 'echarts';
 import { getPosture } from '../../api/posture';
-import type { PostureResponse, PostureCheckResult } from '../../api/posture';
+import type { PostureResponse, PostureCheckResult, OrgPosture } from '../../api/posture';
 import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Pagination } from '../../components/primitives/Pagination';
+import { EmptyState } from '../../components/common/EmptyState';
+import { useChartColors } from '../../hooks/useChartColors';
 import { formatDateOnly } from '../../utils/dates';
 import styles from './Posture.module.css';
 
@@ -183,6 +187,208 @@ function filterChecks(checks: PostureCheckResult[], severity: string, statusFilt
   return filtered;
 }
 
+/* ── Aggregate Metrics Helpers ──────────────────────────────────────── */
+
+interface AggregateMetrics {
+  totalOpen: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  secretScanningCoverage: number;
+  codeScanningCoverage: number;
+  dependabotCoverage: number;
+}
+
+function computeMetrics(orgs: OrgPosture[]): AggregateMetrics {
+  const allChecks = orgs.flatMap((o) => o.checks);
+  const failing = allChecks.filter((c) => c.status !== 'pass');
+
+  const totalOpen = failing.length;
+  const critical = failing.filter((c) => c.severity === 'critical').length;
+  const high = failing.filter((c) => c.severity === 'high').length;
+  const medium = failing.filter((c) => c.severity === 'medium').length;
+  const low = failing.filter((c) => c.severity === 'low').length;
+
+  // Coverage: check for feature-specific checks across all orgs
+  const totalRepos = orgs.reduce((sum, o) => sum + (o.repo_summary?.total ?? 0), 0);
+
+  function computeCoverage(keyword: string): number {
+    if (totalRepos === 0) return 0;
+    const relevantChecks = allChecks.filter(
+      (c) =>
+        c.title.toLowerCase().includes(keyword) ||
+        c.category.toLowerCase().includes(keyword) ||
+        c.rule_name.toLowerCase().includes(keyword),
+    );
+    if (relevantChecks.length === 0) return 0;
+    const passing = relevantChecks.filter((c) => c.status === 'pass').length;
+    return Math.round((passing / relevantChecks.length) * 100);
+  }
+
+  return {
+    totalOpen,
+    critical,
+    high,
+    medium,
+    low,
+    secretScanningCoverage: computeCoverage('secret scanning'),
+    codeScanningCoverage: computeCoverage('code scanning'),
+    dependabotCoverage: computeCoverage('dependabot'),
+  };
+}
+
+/* ── Metrics Summary Bar ───────────────────────────────────────────── */
+
+function MetricsSummary({ metrics }: { metrics: AggregateMetrics }) {
+  return (
+    <div className={styles.metricsSummary} data-testid="metrics-summary">
+      <div className={styles.metricCard}>
+        <div className={styles.metricValue}>{metrics.totalOpen}</div>
+        <div className={styles.metricLabel}>Open Alerts</div>
+      </div>
+      <div className={styles.metricCard}>
+        <div className={`${styles.metricValue} ${styles.metricCritical}`}>{metrics.critical}</div>
+        <div className={styles.metricLabel}>Critical</div>
+      </div>
+      <div className={styles.metricCard}>
+        <div className={`${styles.metricValue} ${styles.metricHigh}`}>{metrics.high}</div>
+        <div className={styles.metricLabel}>High</div>
+      </div>
+      <div className={styles.metricCard}>
+        <div className={styles.metricValue}>{metrics.secretScanningCoverage}%</div>
+        <div className={styles.metricLabel}>Secret Scanning</div>
+      </div>
+      <div className={styles.metricCard}>
+        <div className={styles.metricValue}>{metrics.codeScanningCoverage}%</div>
+        <div className={styles.metricLabel}>Code Scanning</div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Severity Distribution Chart ───────────────────────────────────── */
+
+function SeverityDistributionChart({ metrics }: { metrics: AggregateMetrics }) {
+  const colors = useChartColors();
+
+  const chartData = [
+    { value: metrics.critical, name: 'Critical' },
+    { value: metrics.high, name: 'High' },
+    { value: metrics.medium, name: 'Medium' },
+    { value: metrics.low, name: 'Low' },
+  ].filter((d) => d.value > 0);
+
+  if (chartData.length === 0) {
+    return (
+      <div className={styles.chartPlaceholder} data-testid="severity-chart">
+        <span className={styles.chartPlaceholderText}>No failing checks</span>
+      </div>
+    );
+  }
+
+  const option: EChartsOption = {
+    backgroundColor: 'transparent',
+    textStyle: { color: colors.chartText, fontFamily: 'inherit' },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: colors.chartTooltipBg,
+      borderColor: colors.chartTooltipBorder,
+      textStyle: { color: colors.chartTooltipFg, fontSize: 12 },
+      formatter: '{b}: {c} ({d}%)',
+    },
+    legend: {
+      orient: 'vertical',
+      right: 10,
+      top: 'center',
+      textStyle: { color: colors.chartText, fontSize: 11 },
+    },
+    series: [
+      {
+        type: 'pie',
+        radius: ['50%', '75%'],
+        center: ['35%', '50%'],
+        avoidLabelOverlap: false,
+        label: { show: false },
+        data: chartData,
+        itemStyle: { borderRadius: 4, borderWidth: 2, borderColor: 'transparent' },
+        color: ['var(--danger)', 'var(--severe, #db6d28)', 'var(--attention)', 'var(--success)'],
+      },
+    ],
+  };
+
+  return (
+    <div data-testid="severity-chart">
+      <div className={styles.sectionTitle}>Severity Distribution</div>
+      <ReactECharts option={option} style={{ height: 180 }} opts={{ renderer: 'svg' }} />
+    </div>
+  );
+}
+
+/* ── Coverage Gauges ───────────────────────────────────────────────── */
+
+function CoverageGauges({ metrics }: { metrics: AggregateMetrics }) {
+  return (
+    <div data-testid="coverage-gauges">
+      <div className={styles.sectionTitle}>Feature Coverage</div>
+      <div className={styles.coverageList}>
+        <CoverageBar label="Secret Scanning" value={metrics.secretScanningCoverage} />
+        <CoverageBar label="Code Scanning" value={metrics.codeScanningCoverage} />
+        <CoverageBar label="Dependabot" value={metrics.dependabotCoverage} />
+      </div>
+    </div>
+  );
+}
+
+function CoverageBar({ label, value }: { label: string; value: number }) {
+  const barColor =
+    value >= 80 ? 'var(--success)' : value >= 50 ? 'var(--attention)' : 'var(--danger)';
+  return (
+    <div className={styles.coverageItem}>
+      <div className={styles.coverageHeader}>
+        <span className={styles.coverageLabel}>{label}</span>
+        <span className={styles.coverageValue}>{value}%</span>
+      </div>
+      <div className={styles.coverageTrack}>
+        <div className={styles.coverageFill} style={{ width: `${value}%`, background: barColor }} />
+      </div>
+    </div>
+  );
+}
+
+/* ── Organization Multi-Select Filter ──────────────────────────────── */
+
+function OrgMultiSelect({
+  orgs,
+  selected,
+  setSelected,
+}: {
+  orgs: OrgPosture[];
+  selected: string[];
+  setSelected: (v: string[]) => void;
+}) {
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const options = Array.from(e.target.selectedOptions).map((opt) => opt.value);
+    setSelected(options);
+  };
+
+  return (
+    <select
+      multiple
+      value={selected}
+      onChange={handleChange}
+      title="Filter by organization (hold Ctrl/Cmd to select multiple)"
+      className={styles.orgMultiSelect}
+    >
+      {orgs.map((o) => (
+        <option key={o.org_login} value={o.org_login}>
+          {o.org_login}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 /* ── Enterprise View ───────────────────────────────────────────────── */
 
 function EnterpriseView({
@@ -201,11 +407,40 @@ function EnterpriseView({
   const navigate = useNavigate();
   const [severity, setSeverity] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const orgs = data.orgs ?? [];
+  const [selectedOrgs, setSelectedOrgs] = useState<string[]>([]);
+  const orgs = useMemo(() => data.orgs ?? [], [data.orgs]);
+
+  const metrics = useMemo(() => computeMetrics(orgs), [orgs]);
+
+  // Empty state
+  if (orgs.length === 0) {
+    return (
+      <>
+        <div className={styles.header}>
+          <ScoreGauge score={data.score} label="Score" />
+          <div className={styles.headerInfo}>
+            <div className={styles.headerTitle}>Enterprise Security Posture</div>
+            <div className={styles.headerSub}>
+              {data.total} org{data.total !== 1 ? 's' : ''} · Last synced{' '}
+              {formatDateOnly(data.last_sync_at)}
+            </div>
+          </div>
+        </div>
+        <div className={styles.content}>
+          <EmptyState
+            icon="🛡️"
+            title="No posture data available yet"
+            description="Security posture data will appear here once your organizations have been synced."
+          />
+        </div>
+      </>
+    );
+  }
 
   const filteredOrgs = orgs.filter((o) => {
     if (statusFilter === 'fail' && o.score >= 80) return false;
     if (statusFilter === 'pass' && o.score < 80) return false;
+    if (selectedOrgs.length > 0 && !selectedOrgs.includes(o.org_login)) return false;
     return true;
   });
 
@@ -222,6 +457,20 @@ function EnterpriseView({
         </div>
       </div>
       <div className={styles.content}>
+        {/* Metrics Summary Bar */}
+        <MetricsSummary metrics={metrics} />
+
+        {/* Severity Distribution + Coverage Gauges */}
+        <div className={styles.chartsRow}>
+          <div className={styles.chartPanel}>
+            <SeverityDistributionChart metrics={metrics} />
+          </div>
+          <div className={styles.chartPanel}>
+            <CoverageGauges metrics={metrics} />
+          </div>
+        </div>
+
+        {/* Filters */}
         <div className={styles.filters}>
           <input
             type="text"
@@ -239,6 +488,7 @@ function EnterpriseView({
               width: 220,
             }}
           />
+          <OrgMultiSelect orgs={orgs} selected={selectedOrgs} setSelected={setSelectedOrgs} />
         </div>
         <Filters
           severity={severity}
@@ -246,6 +496,8 @@ function EnterpriseView({
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
         />
+
+        {/* Org grid */}
         <div className={styles.orgGrid}>
           {filteredOrgs.map((org) => (
             <div

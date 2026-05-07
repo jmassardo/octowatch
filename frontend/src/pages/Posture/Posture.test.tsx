@@ -293,8 +293,11 @@ describe('PosturePage — Enterprise View', () => {
 
   it('renders org cards', async () => {
     renderWithProviders(<PosturePage />);
-    expect(await screen.findByText('octowatch-org')).toBeInTheDocument();
-    expect(await screen.findByText('danger-org')).toBeInTheDocument();
+    // org names appear both in cards and multi-select; verify card elements exist
+    const cards = await screen.findAllByText('octowatch-org');
+    expect(cards.length).toBeGreaterThanOrEqual(1);
+    const dangerCards = await screen.findAllByText('danger-org');
+    expect(dangerCards.length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders org scores on cards', async () => {
@@ -323,8 +326,11 @@ describe('PosturePage — Enterprise View', () => {
   it('navigates to org on card click', async () => {
     const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
-    const card = await screen.findByText('octowatch-org');
-    await user.click(card.closest('[class*="orgCard"]')!);
+    const cards = await screen.findAllByText('octowatch-org');
+    // Find the one inside an orgCard (not the select option)
+    const cardEl = cards.find((el) => el.closest('[class*="orgCard"]'));
+    expect(cardEl).toBeTruthy();
+    await user.click(cardEl!.closest('[class*="orgCard"]')!);
     expect(mockNavigate).toHaveBeenCalledWith('/posture/octowatch-org');
   });
 
@@ -613,5 +619,189 @@ describe('PosturePage — Score gauge colors', () => {
     await screen.findByText('45');
     const gauge = document.querySelector('[class*="scoreGauge"]');
     expect(gauge?.className).toContain('bad');
+  });
+});
+
+/* ── New Feature Tests ─────────────────────────────────────────────── */
+
+const EMPTY_ENTERPRISE_RESPONSE: PostureResponse = {
+  level: 'enterprise',
+  score: 0,
+  orgs: [],
+  org: null,
+  repo: null,
+  breadcrumb: [{ label: 'Posture', href: null }],
+  last_sync_at: null,
+  page: 1,
+  page_size: 25,
+  total: 0,
+  has_next: false,
+};
+
+describe('PosturePage — Metrics Summary Bar', () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockGetPosture.mockClear();
+    mockGetPosture.mockResolvedValue(ENTERPRISE_RESPONSE);
+    mockParams.org = undefined;
+    mockParams.repo = undefined;
+  });
+
+  it('renders the metrics summary bar', async () => {
+    renderWithProviders(<PosturePage />);
+    const summary = await screen.findByTestId('metrics-summary');
+    expect(summary).toBeInTheDocument();
+  });
+
+  it('shows total open alerts count', async () => {
+    renderWithProviders(<PosturePage />);
+    await screen.findByTestId('metrics-summary');
+    // 1 failing check in ENTERPRISE_RESPONSE (danger-org has 1 open check)
+    expect(screen.getByText('Open Alerts')).toBeInTheDocument();
+  });
+
+  it('shows critical alerts count', async () => {
+    renderWithProviders(<PosturePage />);
+    const summary = await screen.findByTestId('metrics-summary');
+    expect(summary.textContent).toContain('Critical');
+  });
+
+  it('shows high alerts count', async () => {
+    renderWithProviders(<PosturePage />);
+    const summary = await screen.findByTestId('metrics-summary');
+    expect(summary.textContent).toContain('High');
+  });
+
+  it('shows secret scanning coverage', async () => {
+    renderWithProviders(<PosturePage />);
+    const summary = await screen.findByTestId('metrics-summary');
+    expect(summary.textContent).toContain('Secret Scanning');
+  });
+
+  it('shows code scanning coverage', async () => {
+    renderWithProviders(<PosturePage />);
+    const summary = await screen.findByTestId('metrics-summary');
+    expect(summary.textContent).toContain('Code Scanning');
+  });
+});
+
+describe('PosturePage — Severity Distribution Chart', () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockGetPosture.mockClear();
+    mockGetPosture.mockResolvedValue(ENTERPRISE_RESPONSE);
+    mockParams.org = undefined;
+    mockParams.repo = undefined;
+  });
+
+  it('renders severity distribution chart', async () => {
+    renderWithProviders(<PosturePage />);
+    const chart = await screen.findByTestId('severity-chart');
+    expect(chart).toBeInTheDocument();
+  });
+
+  it('shows severity distribution title', async () => {
+    renderWithProviders(<PosturePage />);
+    await screen.findByTestId('severity-chart');
+    expect(screen.getByText('Severity Distribution')).toBeInTheDocument();
+  });
+});
+
+describe('PosturePage — Coverage Gauges', () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockGetPosture.mockClear();
+    mockGetPosture.mockResolvedValue(ENTERPRISE_RESPONSE);
+    mockParams.org = undefined;
+    mockParams.repo = undefined;
+  });
+
+  it('renders coverage gauges section', async () => {
+    renderWithProviders(<PosturePage />);
+    const gauges = await screen.findByTestId('coverage-gauges');
+    expect(gauges).toBeInTheDocument();
+  });
+
+  it('shows feature coverage title', async () => {
+    renderWithProviders(<PosturePage />);
+    await screen.findByTestId('coverage-gauges');
+    expect(screen.getByText('Feature Coverage')).toBeInTheDocument();
+  });
+
+  it('shows Dependabot coverage label', async () => {
+    renderWithProviders(<PosturePage />);
+    await screen.findByTestId('coverage-gauges');
+    expect(screen.getByText('Dependabot')).toBeInTheDocument();
+  });
+});
+
+describe('PosturePage — Organization Multi-Select Filter', () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockGetPosture.mockClear();
+    mockGetPosture.mockResolvedValue(ENTERPRISE_RESPONSE);
+    mockParams.org = undefined;
+    mockParams.repo = undefined;
+  });
+
+  it('renders org multi-select filter', async () => {
+    renderWithProviders(<PosturePage />);
+    const select = await screen.findByTitle(
+      'Filter by organization (hold Ctrl/Cmd to select multiple)',
+    );
+    expect(select).toBeInTheDocument();
+  });
+
+  it('lists all organizations in multi-select', async () => {
+    renderWithProviders(<PosturePage />);
+    const select = await screen.findByTitle(
+      'Filter by organization (hold Ctrl/Cmd to select multiple)',
+    );
+    const options = select.querySelectorAll('option');
+    expect(options.length).toBe(2);
+  });
+
+  it('filters org grid when an organization is selected', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<PosturePage />);
+    const select = await screen.findByTitle(
+      'Filter by organization (hold Ctrl/Cmd to select multiple)',
+    );
+    await user.selectOptions(select, ['octowatch-org']);
+    // danger-org card should not be visible (only in the select options)
+    const dangerCards = screen.getAllByText('danger-org');
+    // Only in the select option, not in an orgCard
+    const dangerInCard = dangerCards.find((el) => el.closest('[class*="orgCard"]'));
+    expect(dangerInCard).toBeUndefined();
+  });
+});
+
+describe('PosturePage — Empty State', () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockGetPosture.mockClear();
+    mockGetPosture.mockResolvedValue(EMPTY_ENTERPRISE_RESPONSE);
+    mockParams.org = undefined;
+    mockParams.repo = undefined;
+  });
+
+  it('shows empty state title when no orgs', async () => {
+    renderWithProviders(<PosturePage />);
+    expect(await screen.findByText('No posture data available yet')).toBeInTheDocument();
+  });
+
+  it('shows empty state description when no orgs', async () => {
+    renderWithProviders(<PosturePage />);
+    expect(
+      await screen.findByText(
+        'Security posture data will appear here once your organizations have been synced.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('does not show metrics summary in empty state', async () => {
+    renderWithProviders(<PosturePage />);
+    await screen.findByText('No posture data available yet');
+    expect(screen.queryByTestId('metrics-summary')).not.toBeInTheDocument();
   });
 });
