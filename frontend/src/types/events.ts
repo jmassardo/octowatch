@@ -29,6 +29,8 @@ export interface EventListResponse {
   readonly page: number;
   readonly page_size: number;
   readonly has_next: boolean;
+  readonly count_is_estimated: boolean;
+  readonly next_cursor: string | null;
 }
 
 export interface EventListParams {
@@ -53,4 +55,5 @@ export interface EventListParams {
     | 'repo_asc';
   page?: number;
   page_size?: number;
+  cursor?: string;
 }

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import base64
+import json
+from datetime import datetime
 from typing import Any
 
 import structlog
@@ -14,13 +17,72 @@ from app.services.rbac_service import OrgRepoScope, apply_client_filters, inject
 
 logger = structlog.get_logger(__name__)
 
+# Maximum rows we'll count exactly before switching to an estimate
+_COUNT_THRESHOLD = 10_001
+
+
+def _encode_cursor(created_at: datetime, event_id: int) -> str:
+    """Encode a (created_at, id) pair as an opaque base64 cursor."""
+    payload = json.dumps({"ts": created_at.isoformat(), "id": event_id})
+    return base64.urlsafe_b64encode(payload.encode()).decode()
+
+
+def _decode_cursor(cursor: str) -> tuple[datetime, int]:
+    """Decode a cursor into (created_at, id). Raises ValueError on invalid cursor."""
+    try:
+        raw = base64.urlsafe_b64decode(cursor.encode()).decode()
+        data = json.loads(raw)
+        ts = datetime.fromisoformat(data["ts"])
+        event_id = int(data["id"])
+        return ts, event_id
+    except (json.JSONDecodeError, KeyError, ValueError, TypeError) as exc:
+        raise ValueError(f"Invalid cursor: {cursor}") from exc
+
+
+async def _get_count(
+    session: AsyncSession,
+    base_stmt: Any,
+    has_narrowing_filters: bool,
+) -> tuple[int, bool]:
+    """Return (total_count, is_estimated).
+
+    For unfiltered queries, uses pg_class reltuples (fast estimate).
+    For filtered queries, counts up to _COUNT_THRESHOLD rows exactly.
+    If the filtered count hits the threshold, returns the threshold as an estimate.
+    """
+    if not has_narrowing_filters:
+        # Use pg_class reltuples for a fast approximate count on unfiltered queries
+        est_result = await session.execute(
+            text("SELECT reltuples::bigint FROM pg_class WHERE relname = 'events'")
+        )
+        row = est_result.scalar_one_or_none()
+        total = max(int(row), 0) if row else 0
+        return total, True  # reltuples is always an estimate
+
+    # For filtered queries: count up to threshold
+    limited_subquery = base_stmt.with_only_columns(AuditEvent.id).limit(_COUNT_THRESHOLD).subquery()
+    count_stmt = select(func.count()).select_from(limited_subquery)
+    raw_count: int = (await session.execute(count_stmt)).scalar_one()
+
+    if raw_count >= _COUNT_THRESHOLD:
+        # Count hit the cap — it's an estimate
+        return raw_count, True
+    return raw_count, False
+
 
 async def list_events(
     session: AsyncSession,
     params: EventListParams,
     scope: OrgRepoScope,
-) -> tuple[list[AuditEvent], int]:
-    """Return (events, total_count) filtered by params and scoped to user's RBAC scope."""
+) -> tuple[list[AuditEvent], int, bool, str | None]:
+    """Return (events, total_count, count_is_estimated, next_cursor).
+
+    Filtered by params and scoped to user's RBAC scope.
+    Supports cursor-based keyset pagination when params.cursor is provided.
+    """
+    # Set a statement timeout to protect against runaway queries
+    await session.execute(text("SET LOCAL statement_timeout = '10s'"))
+
     base_stmt = select(AuditEvent)
 
     # Mandatory RBAC scope injection — this cannot be bypassed by client params
@@ -76,17 +138,8 @@ async def list_events(
         base_stmt = base_stmt.where(AuditEvent.geo_country_code == params.geo_country_code)
         has_narrowing_filters = True
 
-    # Count total results — use fast estimated count when no narrowing filters
-    if has_narrowing_filters:
-        count_stmt = select(func.count()).select_from(base_stmt.subquery())
-        total: int = (await session.execute(count_stmt)).scalar_one()
-    else:
-        # Use pg_class reltuples for a fast approximate count on unfiltered queries
-        est_result = await session.execute(
-            text("SELECT reltuples::bigint FROM pg_class WHERE relname = 'events'")
-        )
-        row = est_result.scalar_one_or_none()
-        total = max(int(row), 0) if row else 0
+    # Count total results
+    total, count_is_estimated = await _get_count(session, base_stmt, has_narrowing_filters)
 
     # Ordering
     sort_columns = {
@@ -108,13 +161,35 @@ async def list_events(
     else:
         base_stmt = base_stmt.order_by(order_clause)
 
-    # Pagination
-    offset = (params.page - 1) * params.page_size
-    base_stmt = base_stmt.offset(offset).limit(params.page_size)
+    # Pagination — cursor-based (keyset) or offset-based
+    if params.cursor:
+        cursor_ts, cursor_id = _decode_cursor(params.cursor)
+        if ascending:
+            base_stmt = base_stmt.where(
+                (AuditEvent.created_at > cursor_ts)
+                | ((AuditEvent.created_at == cursor_ts) & (AuditEvent.id > cursor_id))
+            )
+        else:
+            base_stmt = base_stmt.where(
+                (AuditEvent.created_at < cursor_ts)
+                | ((AuditEvent.created_at == cursor_ts) & (AuditEvent.id < cursor_id))
+            )
+        base_stmt = base_stmt.limit(params.page_size)
+    else:
+        # Traditional offset pagination
+        offset = (params.page - 1) * params.page_size
+        base_stmt = base_stmt.offset(offset).limit(params.page_size)
 
     result = await session.execute(base_stmt)
     events = list(result.scalars().all())
-    return events, total
+
+    # Build next_cursor from last row if we have a full page of results
+    next_cursor: str | None = None
+    if events and len(events) == params.page_size:
+        last = events[-1]
+        next_cursor = _encode_cursor(last.created_at, last.id)
+
+    return events, total, count_is_estimated, next_cursor
 
 
 async def get_event_by_id(
