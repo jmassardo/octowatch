@@ -1,11 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  updateDetectionStatus,
-  deleteDetection,
-  assignDetection,
-} from '../../api/detections';
+import { updateDetectionStatus, deleteDetection, assignDetection } from '../../api/detections';
 import { getDetectionTimeline } from '../../api/executive';
 import type { TimelineEvent } from '../../api/executive';
 import type { DetectionResponse } from '../../types/detections';
@@ -291,10 +287,7 @@ export function DetectionDetailPane({
           <>
             <span className={styles.keyDetailsLabel}>Actor</span>
             <span className={styles.keyDetailsValue}>
-              <Link
-                to={`/actors/${encodeURIComponent(selected.actor)}`}
-                className={styles.mention}
-              >
+              <Link to={`/actors/${encodeURIComponent(selected.actor)}`} className={styles.mention}>
                 @{safeText(selected.actor)}
               </Link>
             </span>
@@ -307,9 +300,7 @@ export function DetectionDetailPane({
             <span className={styles.keyDetailsLabel}>Repository</span>
             <span className={styles.keyDetailsValue}>
               {safeText(
-                selected.repo ||
-                  selected.context_data?.repo ||
-                  selected.context_data?.repository,
+                selected.repo || selected.context_data?.repo || selected.context_data?.repository,
               )}
             </span>
           </>
@@ -321,9 +312,7 @@ export function DetectionDetailPane({
             <span className={styles.keyDetailsLabel}>Organization</span>
             <span className={styles.keyDetailsValue}>
               {safeText(
-                selected.org ||
-                  selected.context_data?.org ||
-                  selected.context_data?.organization,
+                selected.org || selected.context_data?.org || selected.context_data?.organization,
               )}
             </span>
           </>
@@ -331,9 +320,7 @@ export function DetectionDetailPane({
         {safeText(selected.context_data?.action) && (
           <>
             <span className={styles.keyDetailsLabel}>Action</span>
-            <span className={styles.keyDetailsValue}>
-              {safeText(selected.context_data.action)}
-            </span>
+            <span className={styles.keyDetailsValue}>{safeText(selected.context_data.action)}</span>
           </>
         )}
         {safeText(selected.context_data?.what_changed) && (
@@ -399,9 +386,7 @@ export function DetectionDetailPane({
             {selected.window_end && (
               <>
                 <span className={styles.keyDetailsLabel}>End</span>
-                <span className={styles.keyDetailsValue}>
-                  {formatCompact(selected.window_end)}
-                </span>
+                <span className={styles.keyDetailsValue}>{formatCompact(selected.window_end)}</span>
               </>
             )}
           </div>
@@ -413,9 +398,7 @@ export function DetectionDetailPane({
       <div className={styles.keyDetails}>
         <span className={styles.keyDetailsLabel}>Status</span>
         <span className={styles.keyDetailsValue}>
-          <Label variant={statusColor(selected.status)}>
-            {selected.status.replace('_', ' ')}
-          </Label>
+          <Label variant={statusColor(selected.status)}>{selected.status.replace('_', ' ')}</Label>
         </span>
         <span className={styles.keyDetailsLabel}>Assigned To</span>
         <span className={styles.keyDetailsValue}>
@@ -433,17 +416,13 @@ export function DetectionDetailPane({
         {selected.resolved_at && (
           <>
             <span className={styles.keyDetailsLabel}>Resolved At</span>
-            <span className={styles.keyDetailsValue}>
-              {formatCompact(selected.resolved_at)}
-            </span>
+            <span className={styles.keyDetailsValue}>{formatCompact(selected.resolved_at)}</span>
           </>
         )}
         {selected.resolution_note && (
           <>
             <span className={styles.keyDetailsLabel}>Resolution</span>
-            <span className={styles.keyDetailsValue}>
-              {safeText(selected.resolution_note)}
-            </span>
+            <span className={styles.keyDetailsValue}>{safeText(selected.resolution_note)}</span>
           </>
         )}
       </div>
@@ -486,13 +465,9 @@ export function DetectionDetailPane({
                     <span className={styles.relatedEventId}>#{eventId}</span>
                     {timelineEvent && (
                       <>
-                        <span className={styles.relatedEventAction}>
-                          {timelineEvent.action}
-                        </span>
+                        <span className={styles.relatedEventAction}>{timelineEvent.action}</span>
                         {timelineEvent.actor && (
-                          <span className={styles.relatedEventActor}>
-                            @{timelineEvent.actor}
-                          </span>
+                          <span className={styles.relatedEventActor}>@{timelineEvent.actor}</span>
                         )}
                         <span className={styles.relatedEventTime}>
                           {formatRelativeShort(timelineEvent.created_at)}
@@ -515,13 +490,9 @@ export function DetectionDetailPane({
                       <span className={styles.relatedEventId}>#{eventId}</span>
                       {timelineEvent && (
                         <>
-                          <span className={styles.relatedEventAction}>
-                            {timelineEvent.action}
-                          </span>
+                          <span className={styles.relatedEventAction}>{timelineEvent.action}</span>
                           {timelineEvent.actor && (
-                            <span className={styles.relatedEventActor}>
-                              @{timelineEvent.actor}
-                            </span>
+                            <span className={styles.relatedEventActor}>@{timelineEvent.actor}</span>
                           )}
                           <span className={styles.relatedEventTime}>
                             {formatRelativeShort(timelineEvent.created_at)}
@@ -531,10 +502,7 @@ export function DetectionDetailPane({
                     </Link>
                   );
                 })}
-                <Link
-                  to={`/events?detection_id=${selected.id}`}
-                  className={styles.eventCountLink}
-                >
+                <Link to={`/events?detection_id=${selected.id}`} className={styles.eventCountLink}>
                   View all {eventIds.length} events →
                 </Link>
               </>
@@ -573,11 +541,7 @@ export function DetectionDetailPane({
             <p className={styles.evidenceMuted}>No timeline events yet.</p>
           )}
           {timelineEvents.map((event) => (
-            <Link
-              key={event.id}
-              to={`/events?id=${event.id}`}
-              className={styles.timelineEvent}
-            >
+            <Link key={event.id} to={`/events?id=${event.id}`} className={styles.timelineEvent}>
               <div className={styles.timelineEventDot}>
                 <SeverityDot severity="low" />
               </div>
@@ -589,9 +553,7 @@ export function DetectionDetailPane({
                   {event.repo && <span>· {event.repo}</span>}
                   {event.source_ip && <span>· {event.source_ip}</span>}
                 </div>
-                <div className={styles.timelineEventTime}>
-                  {formatCompact(event.created_at)}
-                </div>
+                <div className={styles.timelineEventTime}>{formatCompact(event.created_at)}</div>
               </div>
             </Link>
           ))}

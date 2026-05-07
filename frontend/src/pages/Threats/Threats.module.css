@@ -523,7 +523,7 @@
   cursor: pointer;
 }
 
-.dismissRadio input[type="radio"] {
+.dismissRadio input[type='radio'] {
   margin: 0;
   cursor: pointer;
 }
@@ -719,7 +719,9 @@
   font-family: inherit;
   text-decoration: underline;
   opacity: 0.7;
-  transition: opacity 0.15s, color 0.15s;
+  transition:
+    opacity 0.15s,
+    color 0.15s;
 }
 
 .deleteLink:hover {

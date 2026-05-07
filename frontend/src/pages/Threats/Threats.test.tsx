@@ -547,9 +547,9 @@ describe('DetectionDetailPane interactions', () => {
 
     expect(screen.getByText('Rule Info')).toBeInTheDocument();
     // Rule name should be a link to rules page
-    const ruleLink = screen.getAllByText('suspicious_admin_action').find(
-      (el) => el.closest('a')?.getAttribute('href') === '/rules?id=10',
-    );
+    const ruleLink = screen
+      .getAllByText('suspicious_admin_action')
+      .find((el) => el.closest('a')?.getAttribute('href') === '/rules?id=10');
     expect(ruleLink).toBeInTheDocument();
   });
 
