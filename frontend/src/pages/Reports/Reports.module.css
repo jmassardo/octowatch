@@ -197,3 +197,405 @@
   border-radius: 4px;
   display: inline-block;
 }
+
+/* Header actions */
+.headerActions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+/* Tab bar */
+.tabBar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.tab {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--fg-muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tab:hover {
+  color: var(--fg-default);
+}
+
+.tabActive {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.tabCount {
+  background: var(--canvas-subtle);
+  color: var(--fg-muted);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+}
+
+/* Template grid */
+.templateGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.templateCard {
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.templateCard:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.templateCategory {
+  margin-bottom: 8px;
+}
+
+.templateTitle {
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.templateDescription {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+/* Config panel */
+.configPanel {
+  padding: 16px;
+}
+
+.configHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.configTitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.configBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.configSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+}
+
+.configLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-muted);
+}
+
+.presetButtons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dateInputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dateInput {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--canvas-default);
+  color: var(--fg-default);
+  font-size: 13px;
+}
+
+.dateSeparator {
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+
+.textInput {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--canvas-default);
+  color: var(--fg-default);
+  font-size: 13px;
+  width: 100%;
+}
+
+.textareaInput {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--canvas-default);
+  color: var(--fg-default);
+  font-size: 13px;
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.selectInput {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--canvas-default);
+  color: var(--fg-default);
+  font-size: 13px;
+}
+
+.configActions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding-top: 8px;
+}
+
+.exportButtons {
+  display: flex;
+  gap: 6px;
+}
+
+.configResults {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.resultsMeta {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-bottom: 8px;
+}
+
+/* Report builder */
+.builderContainer {
+  padding: 8px;
+}
+
+.stepIndicator {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.stepDot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--canvas-subtle);
+  color: var(--fg-muted);
+  border: 2px solid var(--border);
+}
+
+.stepDotActive {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.stepDotCompleted {
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.builderGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.sourceCard {
+  background: var(--canvas-default);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.sourceCard:hover {
+  border-color: var(--accent);
+}
+
+.sourceCardSelected {
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.08);
+}
+
+.sourceLabel {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.sourceDescription {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.columnList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+}
+
+.columnCheckbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.fieldName {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.filterSection {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filterRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--canvas-subtle);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.filterLabel {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.filterInputRow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.vizOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.vizOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.vizOption:hover {
+  background: var(--canvas-subtle);
+}
+
+.builderNav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.builderNavRight {
+  display: flex;
+  gap: 8px;
+}
+
+.summarySectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.summaryList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Share modal */
+.shareModal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px;
+}
+
+.currentShares {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+}
