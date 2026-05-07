@@ -2,4 +2,4 @@
 # Updated automatically by the Publish workflow after images are pushed to GHCR.
 global:
   image:
-    tag: "ef68ceb"
+    tag: "f961a69"
