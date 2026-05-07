@@ -20,6 +20,7 @@ export interface CrossOrgCorrelation {
   first_seen: string;
   last_seen: string;
   risk_score: number;
+  top_actions?: string[];
 }
 
 export interface CrossOrgTimelineResponse {

@@ -26,20 +26,28 @@
   overflow-y: auto;
 }
 
-/* ── Page header ── */
-.pageTitle {
-  font-size: 20px;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.pageSub {
-  font-size: 13px;
-  color: var(--fg-muted);
+/* ── Risk Summary Header ── */
+.riskSummary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
   margin-bottom: 16px;
 }
 
-/* ── Guidance box ── */
+/* ── Filter Indicator ── */
+.filterIndicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+/* ── Guidance box (collapsible) ── */
 .guidanceBox {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -48,14 +56,35 @@
   margin-bottom: 20px;
 }
 
-.guidanceTitle {
+.guidanceToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 0;
   font-size: 13px;
   font-weight: 600;
-  margin-bottom: 8px;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.guidanceToggle:hover {
+  color: var(--accent);
+}
+
+.guidanceChevron {
+  display: inline-block;
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+
+.guidanceChevron[data-collapsed='false'] {
+  transform: rotate(90deg);
 }
 
 .guidanceList {
-  margin: 0;
+  margin: 10px 0 0;
   padding-left: 18px;
   font-size: 12px;
   color: var(--fg-muted);
@@ -151,83 +180,24 @@
   border-radius: 10px;
 }
 
-/* ── Correlation grid ── */
+/* ── Section ── */
 .section {
   margin-bottom: 24px;
 }
 
-.correlationGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 12px;
-}
-
-.correlationCard {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 14px;
-  cursor: pointer;
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
-}
-
-.correlationCard:hover {
-  border-color: var(--accent);
-}
-
-.cardSelected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-
-.cardHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
+/* ── Actor name in table ── */
 .actorName {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--fg);
 }
 
-.riskBadge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 12px;
-  color: #fff;
-}
-
-.riskHigh {
-  background: var(--severity-high, #e53e3e);
-}
-
-.riskMedium {
-  background: var(--severity-medium, #dd6b20);
-}
-
-.riskLow {
-  background: var(--severity-low, #38a169);
-}
-
-.cardMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--fg-muted);
-  margin-bottom: 8px;
-}
-
+/* ── Org tags (in table cells) ── */
 .orgTags {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  align-items: center;
 }
 
 .orgTag {
@@ -239,80 +209,10 @@
 }
 
 /* ── Timeline ── */
-.timelineHeader {
-  display: grid;
-  grid-template-columns: 120px 1fr 120px 100px 140px;
-  gap: 12px;
-  padding: 6px 0;
-  border-bottom: 2px solid var(--border);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--fg-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.timelineHeaderCell {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.timelineList {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.timelineItem {
-  display: grid;
-  grid-template-columns: 120px 1fr 120px 100px 140px;
-  gap: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  align-items: center;
-}
-
-.timelineItem:last-child {
-  border-bottom: none;
-}
-
-.timelineAction {
-  font-family: var(--font-mono, monospace);
-  font-size: 11px;
-  color: var(--accent);
-}
-
-.timelineActor {
-  font-weight: 500;
-}
-
-.timelineOrg {
-  color: var(--fg-muted);
-}
-
-.timelineTime {
-  color: var(--fg-muted);
-}
-
-.timelineIp {
-  font-size: 11px;
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.timelineIp code {
-  font-size: 10px;
-  background: var(--bg-hover);
-  padding: 1px 4px;
-  border-radius: 3px;
-}
-
 .country {
   font-size: 10px;
   color: var(--fg-muted);
+  margin-left: 6px;
 }
 
 /* ── Pagination ── */
@@ -335,6 +235,32 @@
   padding: 48px 16px;
   color: var(--fg-muted);
   font-size: 13px;
+}
+
+.emptyStateSuccess {
+  text-align: center;
+  padding: 48px 16px;
+}
+
+.emptyIcon {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.emptyTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0 0 8px;
+}
+
+.emptyMessage {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0;
+  max-width: 480px;
+  margin-inline: auto;
 }
 
 /* ── Detail panel ── */
@@ -365,6 +291,10 @@
   color: var(--fg);
 }
 
+.panelRiskScore {
+  padding: 12px 16px;
+}
+
 .panelSummary {
   display: flex;
   gap: 8px;
@@ -392,12 +322,21 @@
   gap: 8px;
 }
 
-.panelGuidance {
+/* ── Risk factors list ── */
+.riskFactorList {
   margin: 0;
   padding-left: 16px;
   font-size: 12px;
-  color: var(--fg-muted);
   line-height: 1.8;
+}
+
+.riskFactorItem {
+  color: var(--fg);
+}
+
+/* ── External link ── */
+.externalLink {
+  text-decoration: none;
 }
 
 /* ── Org detail sections in panel ── */
