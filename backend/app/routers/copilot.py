@@ -87,3 +87,15 @@ async def copilot_roi(
 ) -> dict[str, Any]:
     """Copilot ROI and cost optimization report."""
     return await copilot_metrics_service.get_copilot_roi(db)
+
+
+@router.get("/adoption-thresholds", response_model=dict[str, Any])
+async def copilot_adoption_thresholds(
+    current_user: AuthenticatedUser = Depends(require_permission("copilot", "view")),
+) -> dict[str, Any]:
+    """Return current adoption tier threshold defaults."""
+    return {
+        "power": 20,
+        "regular": 10,
+        "minimal": 1,
+    }

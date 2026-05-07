@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { BarChart } from '../../components/charts/BarChart';
 import { getCopilotROI } from '../../api/copilotMetrics';
 import type { CopilotROISummary } from '../../api/copilotMetrics';
 import styles from './Copilot.module.css';
@@ -41,10 +42,21 @@ export function ROIPane() {
   }
 
   const recommendations = data?.recommendations ?? [];
+  const valueStreams = data?.value_streams;
+  const roiMetrics = data?.roi;
   const optimizationPotential =
     summary.total_monthly_cost > 0
       ? (summary.wasted_monthly / summary.total_monthly_cost) * 100
       : 0;
+
+  // Build chart data for cost vs value streams
+  const costVsValueLabels: string[] = ['Total Cost', 'Completions', 'Chat', 'PR Summaries'];
+  const costVsValueData: number[] = [
+    summary.total_monthly_cost,
+    valueStreams?.completion_value ?? 0,
+    valueStreams?.chat_savings ?? 0,
+    valueStreams?.pr_summary_savings ?? 0,
+  ];
 
   return (
     <>
@@ -71,6 +83,89 @@ export function ROIPane() {
           <div className={styles.statLabel}>Inactive Seats</div>
         </div>
       </div>
+
+      {/* Value streams */}
+      {valueStreams && (
+        <div className={styles.metricStrip}>
+          <div className={styles.statCard}>
+            <div className={styles.statValue} style={{ color: 'var(--success)' }}>
+              {formatCurrency(valueStreams.completion_value)}
+            </div>
+            <div className={styles.statLabel}>Completion Value</div>
+          </div>
+          <div className={styles.statCard}>
+            <div className={styles.statValue} style={{ color: 'var(--success)' }}>
+              {formatCurrency(valueStreams.chat_savings)}
+            </div>
+            <div className={styles.statLabel}>Chat Savings</div>
+          </div>
+          <div className={styles.statCard}>
+            <div className={styles.statValue} style={{ color: 'var(--success)' }}>
+              {formatCurrency(valueStreams.pr_summary_savings)}
+            </div>
+            <div className={styles.statLabel}>PR Summary Savings</div>
+          </div>
+          <div className={styles.statCard}>
+            <div className={styles.statValue} style={{ color: 'var(--success)' }}>
+              {formatCurrency(valueStreams.total_value)}
+            </div>
+            <div className={styles.statLabel}>Total Value</div>
+          </div>
+        </div>
+      )}
+
+      {/* ROI metrics */}
+      {roiMetrics && (
+        <div className={styles.metricStrip}>
+          <div className={styles.statCard}>
+            <div
+              className={styles.statValue}
+              style={{ color: roiMetrics.total_roi >= 0 ? 'var(--success)' : 'var(--danger)' }}
+            >
+              {formatCurrency(roiMetrics.total_roi)}
+            </div>
+            <div className={styles.statLabel}>Net ROI (monthly)</div>
+          </div>
+          <div className={styles.statCard}>
+            <div
+              className={styles.statValue}
+              style={{ color: roiMetrics.roi_ratio >= 1 ? 'var(--success)' : 'var(--warning)' }}
+            >
+              {roiMetrics.roi_ratio.toFixed(2)}x
+            </div>
+            <div className={styles.statLabel}>ROI Ratio</div>
+          </div>
+          {roiMetrics.breakeven_additional_users !== null && (
+            <div className={styles.statCard}>
+              <div className={styles.statValue} style={{ color: 'var(--warning)' }}>
+                +{roiMetrics.breakeven_additional_users}
+              </div>
+              <div className={styles.statLabel}>Users to Breakeven</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Cost vs Value bar chart */}
+      {valueStreams && (
+        <Card style={{ marginBottom: 16 }}>
+          <CardHeader>Cost vs Value Streams (monthly)</CardHeader>
+          <div style={{ padding: '0 16px 16px' }}>
+            <BarChart
+              title=""
+              xAxisData={costVsValueLabels}
+              series={[
+                {
+                  name: 'Amount',
+                  data: costVsValueData,
+                  color: '#58a6ff',
+                },
+              ]}
+              height={200}
+            />
+          </div>
+        </Card>
+      )}
 
       {/* Cost analysis */}
       <div

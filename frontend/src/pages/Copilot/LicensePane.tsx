@@ -1,11 +1,14 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { DataTable } from '../../components/primitives/DataTable';
 import type { ColumnDef } from '../../components/primitives/DataTable';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Modal } from '../../components/primitives/Modal';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
+import { getCopilotROI } from '../../api/copilotMetrics';
+import type { CopilotGhostMember } from '../../api/copilotMetrics';
 import type { SeatUtilizationBucket } from '../../types/reports';
 import { useOrgConfig } from '../../hooks/useOrgConfig';
 import { formatBucketDate } from '../../utils/dates';
@@ -25,6 +28,70 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
   const costSectionRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { costPerSeat } = useOrgConfig();
+
+  const { data: roiData } = useQuery({
+    queryKey: ['copilot', 'roi'],
+    queryFn: getCopilotROI,
+    staleTime: 30 * 60 * 1000,
+  });
+
+  const ghostMembers = roiData?.ghost_members ?? [];
+  const licenseOpt = roiData?.license_optimization;
+  const growthForecast =
+    roiData?.growth_forecast && 'current_active' in roiData.growth_forecast
+      ? roiData.growth_forecast
+      : null;
+
+  const ghostMemberColumns: ColumnDef<CopilotGhostMember>[] = useMemo(
+    () => [
+      {
+        key: 'user',
+        header: 'User',
+        filterable: true,
+        helpText: 'GitHub username of the ghost member with no recent Copilot activity.',
+        render: (g) => <span style={{ fontWeight: 500 }}>{g.user}</span>,
+        filterValue: (g) => g.user,
+      },
+      {
+        key: 'last_activity',
+        header: 'Last Activity',
+        sortable: true,
+        helpText: 'When this user last used Copilot. "Never" means no recorded activity.',
+        render: (g) => (
+          <span style={{ ...mutedText, ...tabNums }}>
+            {g.last_activity === 'Never' ? 'Never' : g.last_activity.split('T')[0]}
+          </span>
+        ),
+        sortValue: (g) => g.days_inactive,
+      },
+      {
+        key: 'days_inactive',
+        header: 'Days Inactive',
+        sortable: true,
+        helpText: 'Number of days since last Copilot activity.',
+        render: (g) => (
+          <span
+            style={{
+              ...tabNums,
+              color: g.days_inactive >= 90 ? 'var(--danger)' : 'var(--warning)',
+            }}
+          >
+            {g.days_inactive >= 999 ? '—' : `${g.days_inactive}d`}
+          </span>
+        ),
+        sortValue: (g) => g.days_inactive,
+      },
+      {
+        key: 'action',
+        header: 'Suggested Action',
+        helpText: 'Recommended action for this ghost member seat.',
+        render: () => (
+          <span style={{ fontSize: 12, color: 'var(--danger)', fontWeight: 500 }}>Revoke</span>
+        ),
+      },
+    ],
+    [],
+  );
 
   const dateColumn: ColumnDef<SeatUtilizationBucket> = useMemo(
     () => ({
@@ -339,6 +406,86 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
           </div>
         ))}
       </div>
+
+      {/* Savings Opportunity */}
+      {licenseOpt && licenseOpt.ghost_member_count > 0 && (
+        <div className={styles.metricStrip} style={{ marginTop: 20 }}>
+          <MetricCard
+            value={`$${licenseOpt.inactive_savings_monthly.toLocaleString()}`}
+            label="Monthly Savings"
+            delta={`Reclaim ${licenseOpt.ghost_member_count} ghost seats`}
+            deltaDir="down"
+            accent
+            helpText="Estimated monthly savings if all ghost member seats (60+ days inactive) are reclaimed."
+          />
+          <MetricCard
+            value={`$${licenseOpt.inactive_savings_annual.toLocaleString()}`}
+            label="Annual Savings"
+            delta="projected yearly impact"
+            deltaDir="down"
+            helpText="Estimated annual savings from reclaiming ghost member seats."
+          />
+        </div>
+      )}
+
+      {/* Growth Forecast */}
+      {growthForecast && (
+        <Card style={{ marginBottom: 20 }}>
+          <CardHeader>Growth Forecast</CardHeader>
+          <div style={{ padding: '0 16px 16px' }}>
+            <div className={styles.metricStrip}>
+              <div className={styles.statCard}>
+                <div className={styles.statValue}>{growthForecast.current_active}</div>
+                <div className={styles.statLabel}>Current Active</div>
+              </div>
+              <div className={styles.statCard}>
+                <div className={styles.statValue}>{growthForecast.projected_30d}</div>
+                <div className={styles.statLabel}>30-Day Projection</div>
+              </div>
+              <div className={styles.statCard}>
+                <div className={styles.statValue}>{growthForecast.projected_90d}</div>
+                <div className={styles.statLabel}>90-Day Projection</div>
+              </div>
+              <div className={styles.statCard}>
+                <div
+                  className={styles.statValue}
+                  style={{
+                    color:
+                      growthForecast.monthly_growth_pct >= 0 ? 'var(--success)' : 'var(--danger)',
+                  }}
+                >
+                  {growthForecast.monthly_growth_pct > 0 ? '+' : ''}
+                  {growthForecast.monthly_growth_pct}%
+                </div>
+                <div className={styles.statLabel}>Monthly Growth</div>
+              </div>
+            </div>
+            {growthForecast.weeks_to_capacity !== null && (
+              <div style={{ marginTop: 12, fontSize: 13, color: 'var(--fg-muted)' }}>
+                ⚠️ At current growth rate, you will reach seat capacity in approximately{' '}
+                <strong>{growthForecast.weeks_to_capacity} weeks</strong>.
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Ghost Members */}
+      {ghostMembers.length > 0 && (
+        <Card style={{ marginBottom: 20 }}>
+          <CardHeader>
+            Ghost Members{' '}
+            <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--fg-muted)' }}>
+              ({ghostMembers.length} users with 60+ days of inactivity)
+            </span>
+          </CardHeader>
+          <DataTable<CopilotGhostMember>
+            columns={ghostMemberColumns}
+            data={ghostMembers}
+            rowKey={(g) => g.user}
+          />
+        </Card>
+      )}
     </>
   );
 }
