@@ -53,6 +53,7 @@ from app.models.playbook import PlaybookExecution, PlaybookTemplate
 from app.models.query_template import QueryTemplate
 from app.models.report_schedule import ReportSchedule
 from app.models.retention_policy import RetentionPolicy
+from app.models.saved_query import SavedQuery
 from app.models.system_health import SystemHealthEvent
 from app.models.team import Team, TeamMembership, TeamRoleAssignment
 from app.models.threat_intel import ThreatIntelDomain, ThreatIntelFeed, ThreatIntelIndicator
@@ -105,6 +106,7 @@ __all__ = [
     "PlaybookExecution",
     "PlaybookTemplate",
     "QueryTemplate",
+    "SavedQuery",
     "RepoBranchProtection",
     "Repository",
     "RuleDefinition",
