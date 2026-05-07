@@ -18,7 +18,9 @@ import type { ColumnDef } from '../../components/primitives/DataTable';
 import { Drawer } from '../../components/primitives/Drawer';
 import { MiniBarChart } from '../../components/charts/MiniBarChart';
 import { formatRelativeShort } from '../../utils/dates';
+import { TeamHealthPane } from './TeamHealthPane';
 import styles from './DevActivity.module.css';
+import thStyles from './TeamHealth.module.css';
 
 interface ActorStats {
   handle: string;
@@ -38,6 +40,7 @@ export function DevActivityPage() {
   const [othersModalOpen, setOthersModalOpen] = useState(false);
   const [concentrationModalOpen, setConcentrationModalOpen] = useState(false);
   const [selectedDev, setSelectedDev] = useState<ActorStats | null>(null);
+  const [activeTab, setActiveTab] = useState<'activity' | 'team-health'>('activity');
 
   const handleCardClick = useCallback((dev: ActorStats) => {
     setSelectedDev(dev);
@@ -219,426 +222,455 @@ export function DevActivityPage() {
         description="Track developer engagement and contribution patterns"
       />
 
-      <div className={styles.teamFilters}>
-        <Button
-          size="sm"
-          style={
-            !selectedTeam ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined
-          }
-          onClick={() => setSelectedTeam(null)}
+      <div className={thStyles.tabBar}>
+        <button
+          className={[thStyles.tab, activeTab === 'activity' && thStyles.tabActive]
+            .filter(Boolean)
+            .join(' ')}
+          onClick={() => setActiveTab('activity')}
         >
-          All teams
-        </Button>
-        {teamNames.length > 0 ? (
-          teamNames.map((team) => (
+          Activity
+        </button>
+        <button
+          className={[thStyles.tab, activeTab === 'team-health' && thStyles.tabActive]
+            .filter(Boolean)
+            .join(' ')}
+          onClick={() => setActiveTab('team-health')}
+        >
+          Team Health
+        </button>
+      </div>
+
+      {activeTab === 'team-health' ? (
+        <TeamHealthPane />
+      ) : (
+        <>
+          <div className={styles.teamFilters}>
             <Button
-              key={team}
               size="sm"
               style={
-                selectedTeam === team
-                  ? { borderColor: 'var(--accent)', color: 'var(--accent)' }
-                  : undefined
+                !selectedTeam ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined
               }
-              onClick={() => setSelectedTeam(team)}
+              onClick={() => setSelectedTeam(null)}
             >
-              {team}
+              All teams
             </Button>
-          ))
-        ) : (
-          <span
-            className={styles.teamNote}
-            title="Team data requires Enterprise Sync or team audit events"
-          >
-            No team data available
-          </span>
-        )}
-      </div>
-
-      {developersError && (
-        <ErrorBanner message="Failed to load developer activity" onRetry={refetch} />
-      )}
-      {loadingDevelopers && (
-        <>
-          <SkeletonChart />
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </>
-      )}
-
-      <div className={styles.sectionTitle} style={{ marginBottom: 4 }}>
-        Work distribution — last 30 days
-      </div>
-      <div className={styles.workNote}>
-        Uneven distribution can indicate bus factor risk, burnout, or knowledge silos. Use to start
-        conversations, not assign blame.
-      </div>
-
-      <div className={styles.workGrid}>
-        <Card>
-          <CardHeader>PR authorship share</CardHeader>
-          <div className={styles.barList}>
-            {prAuthorshipData.map((d) => (
-              <div
-                key={d.handle}
-                className={`${styles.barRow} ${styles.clickableBar}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => navigate(`/events?actor=${d.handle}`)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    navigate(`/events?actor=${d.handle}`);
+            {teamNames.length > 0 ? (
+              teamNames.map((team) => (
+                <Button
+                  key={team}
+                  size="sm"
+                  style={
+                    selectedTeam === team
+                      ? { borderColor: 'var(--accent)', color: 'var(--accent)' }
+                      : undefined
                   }
-                }}
-              >
-                <span className={styles.barHandle}>@{d.handle}</span>
-                <div className={styles.barTrack}>
-                  <div
-                    style={{
-                      width: `${d.pct}%`,
-                      height: '100%',
-                      background: d.color,
-                      borderRadius: 4,
-                    }}
-                  />
-                </div>
-                <span className={styles.barPct}>{d.pct}%</span>
-              </div>
-            ))}
-            {othersInfo && (
-              <div
-                className={`${styles.barRow} ${styles.clickableBar}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => setOthersModalOpen(true)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setOthersModalOpen(true);
-                  }
-                }}
-              >
-                <span
-                  className={styles.barHandle}
-                  style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}
+                  onClick={() => setSelectedTeam(team)}
                 >
-                  others ({othersInfo.count})
-                </span>
-                <div className={styles.barTrack}>
-                  <div
-                    style={{
-                      width: `${Math.max(1, othersInfo.pct)}%`,
-                      height: '100%',
-                      background: 'var(--border)',
-                      borderRadius: 4,
-                    }}
-                  />
-                </div>
-                <span className={styles.barPct} style={{ color: 'var(--fg-subtle)' }}>
-                  {othersInfo.pct}%
-                </span>
-              </div>
+                  {team}
+                </Button>
+              ))
+            ) : (
+              <span
+                className={styles.teamNote}
+                title="Team data requires Enterprise Sync or team audit events"
+              >
+                No team data available
+              </span>
             )}
           </div>
-        </Card>
 
-        <Card>
-          <CardHeader>{isReviewData ? 'Review concentration' : 'Event activity share'}</CardHeader>
-          <div className={styles.barList}>
-            {activityConcentrationData.map((d) => (
-              <div
-                key={d.handle}
-                className={`${styles.barRow} ${styles.clickableBar}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => navigate(`/events?actor=${d.handle}`)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    navigate(`/events?actor=${d.handle}`);
-                  }
-                }}
-              >
-                <span className={styles.barHandle}>@{d.handle}</span>
-                <div className={styles.barTrack}>
-                  <div
-                    style={{
-                      width: `${d.pct}%`,
-                      height: '100%',
-                      background: d.color,
-                      borderRadius: 4,
-                    }}
-                  />
-                </div>
-                <span
-                  className={styles.barPct}
-                  style={d.textColor ? { color: d.textColor } : undefined}
-                >
-                  {d.pct}%
-                </span>
-              </div>
-            ))}
-          </div>
-          {topActorWarning ? (
-            <div className={styles.busWarning}>
-              ⚠{' '}
-              <strong
-                className={styles.clickableText}
-                role="button"
-                tabIndex={0}
-                onClick={() => navigate(`/events?actor=${topActorWarning.actor}`)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    navigate(`/events?actor=${topActorWarning.actor}`);
-                  }
-                }}
-              >
-                @{topActorWarning.actor}
-              </strong>{' '}
-              accounts for{' '}
-              <span
-                className={styles.clickableText}
-                role="button"
-                tabIndex={0}
-                onClick={() => setConcentrationModalOpen(true)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setConcentrationModalOpen(true);
-                  }
-                }}
-              >
-                {topActorWarning.pct}%
-              </span>{' '}
-              of activity — consider distributing work to reduce bus factor risk
-            </div>
-          ) : (
-            <div className={styles.busWarning} style={{ color: 'var(--success)' }}>
-              ✅ Activity is well distributed — no single contributor exceeds 40%
-            </div>
+          {developersError && (
+            <ErrorBanner message="Failed to load developer activity" onRetry={refetch} />
           )}
-        </Card>
-      </div>
+          {loadingDevelopers && (
+            <>
+              <SkeletonChart />
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </>
+          )}
 
-      <div className={styles.sectionTitle} style={{ marginBottom: 16 }}>
-        Developer cards
-      </div>
-      {topActors.length === 0 && !loadingDevelopers && (
-        <div style={{ color: 'var(--fg-muted)', padding: '16px 0' }}>
-          No developer activity data found.
-        </div>
-      )}
-      <div className={styles.devGrid}>
-        {topActors.map((dev) => {
-          const detections = actorDetections.get(dev.handle) ?? 0;
-          const flagged = detections > 0;
-          return (
-            <div
-              key={dev.handle}
-              className={[styles.devCard, flagged && styles.flagged].filter(Boolean).join(' ')}
-              role="button"
-              tabIndex={0}
-              onClick={() => handleCardClick(dev)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleCardClick(dev);
-                }
-              }}
-              aria-label={`View details for ${dev.handle}`}
-            >
-              <div className={styles.devTop}>
-                <Avatar username={dev.handle} size={36} />
-                <div>
-                  <div className={styles.devName}>
-                    {dev.handle}
-                    {flagged && (
-                      <Label variant="danger" className={styles.flagLabel}>
-                        flagged
-                      </Label>
-                    )}
+          <div className={styles.sectionTitle} style={{ marginBottom: 4 }}>
+            Work distribution — last 30 days
+          </div>
+          <div className={styles.workNote}>
+            Uneven distribution can indicate bus factor risk, burnout, or knowledge silos. Use to
+            start conversations, not assign blame.
+          </div>
+
+          <div className={styles.workGrid}>
+            <Card>
+              <CardHeader>PR authorship share</CardHeader>
+              <div className={styles.barList}>
+                {prAuthorshipData.map((d) => (
+                  <div
+                    key={d.handle}
+                    className={`${styles.barRow} ${styles.clickableBar}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/events?actor=${d.handle}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigate(`/events?actor=${d.handle}`);
+                      }
+                    }}
+                  >
+                    <span className={styles.barHandle}>@{d.handle}</span>
+                    <div className={styles.barTrack}>
+                      <div
+                        style={{
+                          width: `${d.pct}%`,
+                          height: '100%',
+                          background: d.color,
+                          borderRadius: 4,
+                        }}
+                      />
+                    </div>
+                    <span className={styles.barPct}>{d.pct}%</span>
                   </div>
-                  <div className={styles.devHandle}>
-                    <span className={styles.mention}>@{dev.handle}</span>
+                ))}
+                {othersInfo && (
+                  <div
+                    className={`${styles.barRow} ${styles.clickableBar}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setOthersModalOpen(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setOthersModalOpen(true);
+                      }
+                    }}
+                  >
+                    <span
+                      className={styles.barHandle}
+                      style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}
+                    >
+                      others ({othersInfo.count})
+                    </span>
+                    <div className={styles.barTrack}>
+                      <div
+                        style={{
+                          width: `${Math.max(1, othersInfo.pct)}%`,
+                          height: '100%',
+                          background: 'var(--border)',
+                          borderRadius: 4,
+                        }}
+                      />
+                    </div>
+                    <span className={styles.barPct} style={{ color: 'var(--fg-subtle)' }}>
+                      {othersInfo.pct}%
+                    </span>
                   </div>
+                )}
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                {isReviewData ? 'Review concentration' : 'Event activity share'}
+              </CardHeader>
+              <div className={styles.barList}>
+                {activityConcentrationData.map((d) => (
+                  <div
+                    key={d.handle}
+                    className={`${styles.barRow} ${styles.clickableBar}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/events?actor=${d.handle}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigate(`/events?actor=${d.handle}`);
+                      }
+                    }}
+                  >
+                    <span className={styles.barHandle}>@{d.handle}</span>
+                    <div className={styles.barTrack}>
+                      <div
+                        style={{
+                          width: `${d.pct}%`,
+                          height: '100%',
+                          background: d.color,
+                          borderRadius: 4,
+                        }}
+                      />
+                    </div>
+                    <span
+                      className={styles.barPct}
+                      style={d.textColor ? { color: d.textColor } : undefined}
+                    >
+                      {d.pct}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {topActorWarning ? (
+                <div className={styles.busWarning}>
+                  ⚠{' '}
+                  <strong
+                    className={styles.clickableText}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/events?actor=${topActorWarning.actor}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigate(`/events?actor=${topActorWarning.actor}`);
+                      }
+                    }}
+                  >
+                    @{topActorWarning.actor}
+                  </strong>{' '}
+                  accounts for{' '}
+                  <span
+                    className={styles.clickableText}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setConcentrationModalOpen(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setConcentrationModalOpen(true);
+                      }
+                    }}
+                  >
+                    {topActorWarning.pct}%
+                  </span>{' '}
+                  of activity — consider distributing work to reduce bus factor risk
                 </div>
-              </div>
-              <MiniBarChart
-                data={dev.weeklyCounts}
-                color={flagged ? 'var(--danger)' : 'var(--success)'}
-              />
-              <div className={styles.devStats}>
-                <span
-                  className={styles.clickableStat}
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/events?actor=${dev.handle}`);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      navigate(`/events?actor=${dev.handle}`);
-                    }
-                  }}
-                >
-                  <strong>{dev.repoCount}</strong> repos
-                </span>
-                <span
-                  className={styles.clickableStat}
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/events?actor=${dev.handle}`);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      navigate(`/events?actor=${dev.handle}`);
-                    }
-                  }}
-                >
-                  <strong>{dev.prCount}</strong> PRs
-                </span>
-                <span
-                  className={styles.clickableStat}
-                  role="button"
-                  tabIndex={0}
-                  style={{ color: flagged ? 'var(--danger)' : undefined }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/threats?actor=${dev.handle}`);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      navigate(`/threats?actor=${dev.handle}`);
-                    }
-                  }}
-                >
-                  <strong>{detections}</strong> {flagged ? 'detections' : 'flags'}
-                </span>
-              </div>
-              {dev.lastActive && (
-                <div className={styles.devLastActive}>
-                  Last active {formatRelativeShort(dev.lastActive)}
+              ) : (
+                <div className={styles.busWarning} style={{ color: 'var(--success)' }}>
+                  ✅ Activity is well distributed — no single contributor exceeds 40%
                 </div>
               )}
+            </Card>
+          </div>
+
+          <div className={styles.sectionTitle} style={{ marginBottom: 16 }}>
+            Developer cards
+          </div>
+          {topActors.length === 0 && !loadingDevelopers && (
+            <div style={{ color: 'var(--fg-muted)', padding: '16px 0' }}>
+              No developer activity data found.
             </div>
-          );
-        })}
-      </div>
+          )}
+          <div className={styles.devGrid}>
+            {topActors.map((dev) => {
+              const detections = actorDetections.get(dev.handle) ?? 0;
+              const flagged = detections > 0;
+              return (
+                <div
+                  key={dev.handle}
+                  className={[styles.devCard, flagged && styles.flagged].filter(Boolean).join(' ')}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleCardClick(dev)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleCardClick(dev);
+                    }
+                  }}
+                  aria-label={`View details for ${dev.handle}`}
+                >
+                  <div className={styles.devTop}>
+                    <Avatar username={dev.handle} size={36} />
+                    <div>
+                      <div className={styles.devName}>
+                        {dev.handle}
+                        {flagged && (
+                          <Label variant="danger" className={styles.flagLabel}>
+                            flagged
+                          </Label>
+                        )}
+                      </div>
+                      <div className={styles.devHandle}>
+                        <span className={styles.mention}>@{dev.handle}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <MiniBarChart
+                    data={dev.weeklyCounts}
+                    color={flagged ? 'var(--danger)' : 'var(--success)'}
+                  />
+                  <div className={styles.devStats}>
+                    <span
+                      className={styles.clickableStat}
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/events?actor=${dev.handle}`);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(`/events?actor=${dev.handle}`);
+                        }
+                      }}
+                    >
+                      <strong>{dev.repoCount}</strong> repos
+                    </span>
+                    <span
+                      className={styles.clickableStat}
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/events?actor=${dev.handle}`);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(`/events?actor=${dev.handle}`);
+                        }
+                      }}
+                    >
+                      <strong>{dev.prCount}</strong> PRs
+                    </span>
+                    <span
+                      className={styles.clickableStat}
+                      role="button"
+                      tabIndex={0}
+                      style={{ color: flagged ? 'var(--danger)' : undefined }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/threats?actor=${dev.handle}`);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(`/threats?actor=${dev.handle}`);
+                        }
+                      }}
+                    >
+                      <strong>{detections}</strong> {flagged ? 'detections' : 'flags'}
+                    </span>
+                  </div>
+                  {dev.lastActive && (
+                    <div className={styles.devLastActive}>
+                      Last active {formatRelativeShort(dev.lastActive)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
-      {/* ── Platform usage section ─────────────────────────────── */}
-      <div className={styles.sectionTitle} style={{ marginBottom: 4, marginTop: 24 }}>
-        Platform usage — last 30 days
-      </div>
-      <div className={styles.workNote}>
-        Git operations and API request patterns across your organization.
-      </div>
+          {/* ── Platform usage section ─────────────────────────────── */}
+          <div className={styles.sectionTitle} style={{ marginBottom: 4, marginTop: 24 }}>
+            Platform usage — last 30 days
+          </div>
+          <div className={styles.workNote}>
+            Git operations and API request patterns across your organization.
+          </div>
 
-      <div className={styles.usageGrid}>
-        <GitOperationsWidget stats={usageStats} navigate={navigate} />
-        <ApiUsageWidget stats={usageStats} navigate={navigate} />
-      </div>
+          <div className={styles.usageGrid}>
+            <GitOperationsWidget stats={usageStats} navigate={navigate} />
+            <ApiUsageWidget stats={usageStats} navigate={navigate} />
+          </div>
 
-      <Drawer
-        open={othersModalOpen}
-        onClose={() => setOthersModalOpen(false)}
-        title="Other contributors"
-      >
-        <DataTable<{ handle: string; eventCount: number }>
-          columns={
-            [
-              {
-                key: 'handle',
-                header: 'Developer',
-                helpText: 'GitHub login handle of the contributor. From audit log actor fields.',
-                filterable: true,
-                filterValue: (row) => row.handle,
-                render: (row) => <>@{row.handle}</>,
-              },
-              {
-                key: 'eventCount',
-                header: 'Events',
-                helpText:
-                  'Total audit log events attributed to this developer in the last 30 days.',
-                sortable: true,
-                sortValue: (row) => row.eventCount,
-                render: (row) => <>{row.eventCount}</>,
-              },
-            ] satisfies ColumnDef<{ handle: string; eventCount: number }>[]
-          }
-          data={othersActors}
-          rowKey={(a) => a.handle}
-          className={styles.othersTable}
-        />
-      </Drawer>
+          <Drawer
+            open={othersModalOpen}
+            onClose={() => setOthersModalOpen(false)}
+            title="Other contributors"
+          >
+            <DataTable<{ handle: string; eventCount: number }>
+              columns={
+                [
+                  {
+                    key: 'handle',
+                    header: 'Developer',
+                    helpText:
+                      'GitHub login handle of the contributor. From audit log actor fields.',
+                    filterable: true,
+                    filterValue: (row) => row.handle,
+                    render: (row) => <>@{row.handle}</>,
+                  },
+                  {
+                    key: 'eventCount',
+                    header: 'Events',
+                    helpText:
+                      'Total audit log events attributed to this developer in the last 30 days.',
+                    sortable: true,
+                    sortValue: (row) => row.eventCount,
+                    render: (row) => <>{row.eventCount}</>,
+                  },
+                ] satisfies ColumnDef<{ handle: string; eventCount: number }>[]
+              }
+              data={othersActors}
+              rowKey={(a) => a.handle}
+              className={styles.othersTable}
+            />
+          </Drawer>
 
-      <Drawer
-        open={concentrationModalOpen}
-        onClose={() => setConcentrationModalOpen(false)}
-        title="Activity concentration"
-      >
-        <DataTable<{ handle: string; pct: number; color: string; textColor?: string }>
-          columns={
-            [
-              {
-                key: 'handle',
-                header: 'Developer',
-                helpText: 'GitHub login handle of the contributor. From audit log actor fields.',
-                filterable: true,
-                filterValue: (row) => row.handle,
-                render: (row) => <>@{row.handle}</>,
-              },
-              {
-                key: 'pct',
-                header: 'Share',
-                helpText:
-                  "This developer's share of total activity. High concentration (>40%) in one person may indicate bus factor risk.",
-                sortable: true,
-                sortValue: (row) => row.pct,
-                render: (row) => (
-                  <span style={row.textColor ? { color: row.textColor } : undefined}>
-                    {row.pct}%
-                  </span>
-                ),
-              },
-            ] satisfies ColumnDef<{
-              handle: string;
-              pct: number;
-              color: string;
-              textColor?: string;
-            }>[]
-          }
-          data={activityConcentrationData}
-          rowKey={(d) => d.handle}
-          className={styles.othersTable}
-        />
-      </Drawer>
+          <Drawer
+            open={concentrationModalOpen}
+            onClose={() => setConcentrationModalOpen(false)}
+            title="Activity concentration"
+          >
+            <DataTable<{ handle: string; pct: number; color: string; textColor?: string }>
+              columns={
+                [
+                  {
+                    key: 'handle',
+                    header: 'Developer',
+                    helpText:
+                      'GitHub login handle of the contributor. From audit log actor fields.',
+                    filterable: true,
+                    filterValue: (row) => row.handle,
+                    render: (row) => <>@{row.handle}</>,
+                  },
+                  {
+                    key: 'pct',
+                    header: 'Share',
+                    helpText:
+                      "This developer's share of total activity. High concentration (>40%) in one person may indicate bus factor risk.",
+                    sortable: true,
+                    sortValue: (row) => row.pct,
+                    render: (row) => (
+                      <span style={row.textColor ? { color: row.textColor } : undefined}>
+                        {row.pct}%
+                      </span>
+                    ),
+                  },
+                ] satisfies ColumnDef<{
+                  handle: string;
+                  pct: number;
+                  color: string;
+                  textColor?: string;
+                }>[]
+              }
+              data={activityConcentrationData}
+              rowKey={(d) => d.handle}
+              className={styles.othersTable}
+            />
+          </Drawer>
 
-      {/* Developer detail slide-out panel */}
-      <Drawer
-        open={selectedDev !== null}
-        onClose={handleDrawerClose}
-        title="Developer details"
-        titleId="dev-detail-title"
-      >
-        {selectedDev && (
-          <DevDetailPanel
-            dev={selectedDev}
-            detections={actorDetections.get(selectedDev.handle) ?? 0}
-            team={findTeamForDev(selectedDev.handle, teamMembers)}
-          />
-        )}
-      </Drawer>
+          {/* Developer detail slide-out panel */}
+          <Drawer
+            open={selectedDev !== null}
+            onClose={handleDrawerClose}
+            title="Developer details"
+            titleId="dev-detail-title"
+          >
+            {selectedDev && (
+              <DevDetailPanel
+                dev={selectedDev}
+                detections={actorDetections.get(selectedDev.handle) ?? 0}
+                team={findTeamForDev(selectedDev.handle, teamMembers)}
+              />
+            )}
+          </Drawer>
+        </>
+      )}
     </div>
   );
 }
