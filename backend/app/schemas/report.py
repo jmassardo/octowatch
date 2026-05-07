@@ -198,3 +198,108 @@ class ReportScheduleResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Custom report schemas
+# ---------------------------------------------------------------------------
+
+_VALID_DATA_SOURCES = {"events", "detections", "posture", "copilot", "workflows", "users"}
+_VALID_VISUALIZATIONS = {"table", "table_chart", "chart"}
+
+
+class CustomReportColumnDef(BaseModel):
+    """Column definition for a custom report."""
+
+    field: str = Field(..., max_length=255)
+    label: str = Field(..., max_length=255)
+    visible: bool = True
+
+
+class CustomReportFilterDef(BaseModel):
+    """Filter definition for a custom report."""
+
+    field: str = Field(..., max_length=255)
+    operator: str = Field(..., pattern=r"^(eq|neq|gt|gte|lt|lte|contains|in)$")
+    value: str | int | float | bool | list[str]
+
+
+class CustomReportGrouping(BaseModel):
+    """Grouping configuration for a custom report."""
+
+    group_by: str | None = Field(None, max_length=255)
+    time_bucket: str | None = Field(None, pattern=r"^(hourly|daily|weekly|monthly)$")
+
+
+class CustomReportCreate(BaseModel):
+    """Create a new custom report definition."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str | None = Field(None, max_length=2000)
+    data_sources: list[str] = Field(..., min_length=1)
+    columns: list[CustomReportColumnDef] = Field(default_factory=list)
+    filters: list[CustomReportFilterDef] = Field(default_factory=list)
+    grouping: CustomReportGrouping = Field(default_factory=CustomReportGrouping)
+    visualization: str = Field(default="table", pattern=r"^(table|table_chart|chart)$")
+
+
+class CustomReportUpdate(BaseModel):
+    """Update an existing custom report definition (all fields optional)."""
+
+    name: str | None = Field(None, min_length=1, max_length=255)
+    description: str | None = Field(None, max_length=2000)
+    data_sources: list[str] | None = None
+    columns: list[CustomReportColumnDef] | None = None
+    filters: list[CustomReportFilterDef] | None = None
+    grouping: CustomReportGrouping | None = None
+    visualization: str | None = Field(None, pattern=r"^(table|table_chart|chart)$")
+
+
+class CustomReportResponse(BaseModel):
+    """Response schema for custom report CRUD."""
+
+    id: int
+    name: str
+    description: str | None = None
+    owner_login: str
+    data_sources: list[str]
+    columns: list[CustomReportColumnDef]
+    filters: list[CustomReportFilterDef]
+    grouping: CustomReportGrouping
+    visualization: str
+    is_shared: bool
+    shared_with: list[str]
+    last_run_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ReportRunParams(BaseModel):
+    """Parameters for running a custom report."""
+
+    window_days: int = Field(default=30, ge=1, le=365)
+    start_date: str | None = None
+    end_date: str | None = None
+    org: str | None = Field(None, max_length=255)
+    granularity: str = Field(default="daily", pattern=r"^(hourly|daily|weekly|monthly)$")
+
+
+class ReportRunResult(BaseModel):
+    """Result of running a custom report."""
+
+    report_id: int
+    report_name: str
+    data_sources: list[str]
+    generated_at: datetime
+    window_days: int
+    org: str | None = None
+    data: list[dict[str, Any]]
+    row_count: int
+
+
+class ShareReportRequest(BaseModel):
+    """Request body for sharing a custom report."""
+
+    logins: list[str] = Field(..., min_length=1, max_length=50)
