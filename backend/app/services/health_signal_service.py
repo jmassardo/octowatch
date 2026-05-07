@@ -3052,3 +3052,1893 @@ async def get_unified_security_summary(
         },
         "trend_30d": trend,
     }
+
+
+async def get_api_abuse_signals(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    hours: int = 24,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Detect API abuse patterns from audit log events.
+
+    Identifies:
+    1. Rate limit violations: actors with rate_limit.* events
+    2. Failed auth: actors with >5 auth failures in 1 hour windows
+    3. Bulk operations: >15 repo clones, >50 deletions, or >100 permission changes in 1 hour
+    """
+    result = await session.execute(
+        text("""
+            WITH recent_events AS (
+                SELECT actor, action, created_at
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND actor IS NOT NULL
+                  AND created_at >= NOW() - make_interval(hours => :hours)
+            ),
+            rate_limit_signals AS (
+                SELECT
+                    'rate_limit_violation' AS signal_type,
+                    'critical' AS severity,
+                    actor,
+                    COUNT(*)::INT AS event_count,
+                    DATE_TRUNC('hour', created_at) AS time_window_start,
+                    DATE_TRUNC('hour', created_at) + INTERVAL '1 hour' AS time_window_end,
+                    COUNT(*)::TEXT || ' rate limit events in 1 hour' AS details,
+                    'Review API usage and consider rate limiting' AS recommended_action
+                FROM recent_events
+                WHERE action LIKE 'rate_limit.%'
+                GROUP BY actor, DATE_TRUNC('hour', created_at)
+            ),
+            failed_auth_signals AS (
+                SELECT
+                    'failed_auth' AS signal_type,
+                    'high' AS severity,
+                    actor,
+                    COUNT(*)::INT AS event_count,
+                    DATE_TRUNC('hour', created_at) AS time_window_start,
+                    DATE_TRUNC('hour', created_at) + INTERVAL '1 hour' AS time_window_end,
+                    COUNT(*)::TEXT || ' authentication failures in 1 hour' AS details,
+                    'Investigate possible credential stuffing or brute force activity'
+                        AS recommended_action
+                FROM recent_events
+                WHERE action = 'authentication.failure'
+                GROUP BY actor, DATE_TRUNC('hour', created_at)
+                HAVING COUNT(*) > 5
+            ),
+            bulk_operation_counts AS (
+                SELECT
+                    actor,
+                    DATE_TRUNC('hour', created_at) AS time_window_start,
+                    DATE_TRUNC('hour', created_at) + INTERVAL '1 hour' AS time_window_end,
+                    CASE
+                        WHEN action = 'repo.clone' THEN 'repo_clone'
+                        WHEN action IN ('repo.destroy', 'repo.delete') THEN 'repo_delete'
+                        WHEN action LIKE 'member.%' OR action LIKE 'org_member.%'
+                            THEN 'permission_change'
+                    END AS bulk_category,
+                    COUNT(*)::INT AS event_count
+                FROM recent_events
+                WHERE action = 'repo.clone'
+                   OR action IN ('repo.destroy', 'repo.delete')
+                   OR action LIKE 'member.%'
+                   OR action LIKE 'org_member.%'
+                GROUP BY actor, DATE_TRUNC('hour', created_at), bulk_category
+                HAVING (
+                    bulk_category = 'repo_clone' AND COUNT(*) > 15
+                ) OR (
+                    bulk_category = 'repo_delete' AND COUNT(*) > 50
+                ) OR (
+                    bulk_category = 'permission_change' AND COUNT(*) > 100
+                )
+            ),
+            bulk_operation_signals AS (
+                SELECT
+                    'bulk_operation' AS signal_type,
+                    'high' AS severity,
+                    actor,
+                    event_count,
+                    time_window_start,
+                    time_window_end,
+                    CASE bulk_category
+                        WHEN 'repo_clone' THEN event_count::TEXT || ' repo clone events in 1 hour'
+                        WHEN 'repo_delete'
+                            THEN event_count::TEXT
+                            || ' repository deletion events in 1 hour'
+                        ELSE event_count::TEXT
+                            || ' membership or permission changes in 1 hour'
+                    END AS details,
+                    CASE bulk_category
+                        WHEN 'repo_clone' THEN 'Review cloning activity for exfiltration risk'
+                        WHEN 'repo_delete'
+                            THEN 'Immediately review destructive actions and actor intent'
+                        ELSE 'Validate admin changes and check for compromised credentials'
+                    END AS recommended_action
+                FROM bulk_operation_counts
+            )
+            SELECT *
+            FROM (
+                SELECT * FROM rate_limit_signals
+                UNION ALL
+                SELECT * FROM failed_auth_signals
+                UNION ALL
+                SELECT * FROM bulk_operation_signals
+            ) signals
+            ORDER BY
+                CASE severity
+                    WHEN 'critical' THEN 1
+                    WHEN 'high' THEN 2
+                    ELSE 3
+                END,
+                event_count DESC,
+                time_window_start DESC
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "hours": int(hours), "limit": int(limit)},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_dormant_users(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    days_inactive: int = 90,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Find org members with no audit log activity in the last N days.
+
+    Returns user info with estimated monthly cost based on seat type.
+    Builds on get_ghost_members but adds Copilot seat and license info.
+    """
+    result = await session.execute(
+        text("""
+            WITH all_actors AS (
+                SELECT DISTINCT actor AS login
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND actor IS NOT NULL
+                  AND created_at >= NOW() - INTERVAL '365 days'
+            ),
+            recent_actors AS (
+                SELECT DISTINCT actor AS login
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND actor IS NOT NULL
+                  AND created_at >= NOW() - make_interval(days => :days_inactive)
+            ),
+            last_activity AS (
+                SELECT actor AS login, MAX(created_at) AS last_activity_date
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND actor IS NOT NULL
+                  AND created_at >= NOW() - INTERVAL '365 days'
+                GROUP BY actor
+            ),
+            copilot_seats AS (
+                SELECT DISTINCT actor AS login
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND actor IS NOT NULL
+                  AND action IN (
+                      'copilot.cfb_seat_added',
+                      'copilot.cfb_seat_assignment_created'
+                  )
+                  AND created_at >= NOW() - INTERVAL '365 days'
+            )
+            SELECT
+                a.login,
+                la.last_activity_date,
+                EXTRACT(DAY FROM NOW() - la.last_activity_date)::INT AS days_inactive,
+                CASE
+                    WHEN cs.login IS NOT NULL THEN 'github+copilot'
+                    ELSE 'github'
+                END AS seat_type,
+                CASE
+                    WHEN cs.login IS NOT NULL THEN 40.0
+                    ELSE 21.0
+                END AS estimated_monthly_cost,
+                CASE
+                    WHEN EXTRACT(DAY FROM NOW() - la.last_activity_date) >= 180
+                        THEN 'Review and consider removing'
+                    WHEN EXTRACT(DAY FROM NOW() - la.last_activity_date) >= 120
+                        THEN 'Review access and confirm continued need'
+                    ELSE 'Monitor for reactivation or downgrade access'
+                END AS recommended_action
+            FROM all_actors a
+            JOIN last_activity la ON la.login = a.login
+            LEFT JOIN copilot_seats cs ON cs.login = a.login
+            WHERE a.login NOT IN (SELECT login FROM recent_actors)
+            ORDER BY la.last_activity_date ASC NULLS FIRST, a.login
+            LIMIT :limit
+        """),
+        {
+            "scoped_orgs": scoped_orgs,
+            "days_inactive": int(days_inactive),
+            "limit": int(limit),
+        },
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+async def get_platform_security(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Security configuration inventory per organization.
+
+    Checks SSO, 2FA, audit log streaming, and branch protection defaults.
+    """
+    result = await session.execute(
+        text("""
+            WITH orgs AS (
+                SELECT UNNEST(CAST(:scoped_orgs AS TEXT[])) AS org
+            ),
+            sso_events AS (
+                SELECT DISTINCT ON (org) org, action
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND action IN ('org.enable_saml', 'org.disable_saml')
+                ORDER BY org, created_at DESC
+            ),
+            two_fa_events AS (
+                SELECT DISTINCT ON (org) org, action
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND action IN (
+                      'org.require_two_factor_authentication',
+                      'org.disable_two_factor_requirement'
+                  )
+                ORDER BY org, created_at DESC
+            ),
+            streaming_events AS (
+                SELECT DISTINCT ON (org) org, action
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND action LIKE 'audit_log_streaming.%'
+                ORDER BY org, created_at DESC
+            ),
+            ip_allowlist_events AS (
+                SELECT org, TRUE AS ip_allowlist_configured
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND action LIKE 'ip_allow_list%'
+                GROUP BY org
+            ),
+            branch_protection_events AS (
+                SELECT org, TRUE AS branch_protection_default
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND action IN ('protected_branch.create', 'repository_ruleset.create')
+                GROUP BY org
+            )
+            SELECT
+                o.org,
+                COALESCE(s.action = 'org.enable_saml', FALSE) AS sso_configured,
+                COALESCE(
+                    tf.action = 'org.require_two_factor_authentication',
+                    FALSE
+                ) AS two_fa_required,
+                COALESCE(
+                    NOT (
+                        se.action LIKE 'audit_log_streaming.%destroy%'
+                        OR se.action LIKE 'audit_log_streaming.%delete%'
+                    ),
+                    FALSE
+                ) AS audit_log_streaming,
+                COALESCE(ip.ip_allowlist_configured, FALSE) AS ip_allowlist_configured,
+                COALESCE(bp.branch_protection_default, FALSE) AS branch_protection_default,
+                ROUND((
+                    (
+                        COALESCE((s.action = 'org.enable_saml')::INT, 0)
+                        + COALESCE((tf.action = 'org.require_two_factor_authentication')::INT, 0)
+                        + COALESCE((NOT (
+                            se.action LIKE 'audit_log_streaming.%destroy%'
+                            OR se.action LIKE 'audit_log_streaming.%delete%'
+                        ))::INT, 0)
+                        + COALESCE(ip.ip_allowlist_configured::INT, 0)
+                        + COALESCE(bp.branch_protection_default::INT, 0)
+                    )::NUMERIC / 5
+                ) * 100, 1) AS compliance_score
+            FROM orgs o
+            LEFT JOIN sso_events s ON s.org = o.org
+            LEFT JOIN two_fa_events tf ON tf.org = o.org
+            LEFT JOIN streaming_events se ON se.org = o.org
+            LEFT JOIN ip_allowlist_events ip ON ip.org = o.org
+            LEFT JOIN branch_protection_events bp ON bp.org = o.org
+            ORDER BY compliance_score DESC, o.org
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": int(limit)},
+    )
+    rows = [dict(row) for row in result.mappings().all()]
+    for row in rows:
+        recommendations: list[str] = []
+        if not row.get("sso_configured"):
+            recommendations.append("Enable SSO")
+        if not row.get("two_fa_required"):
+            recommendations.append("Require 2FA for all members")
+        if not row.get("audit_log_streaming"):
+            recommendations.append("Enable audit log streaming")
+        if not row.get("ip_allowlist_configured"):
+            recommendations.append("Configure IP allowlist")
+        if not row.get("branch_protection_default"):
+            recommendations.append("Set branch protection defaults")
+        row["compliance_score"] = float(row.get("compliance_score", 0) or 0)
+        row["recommendations"] = recommendations
+    return rows
+
+
+async def get_maintenance_signals(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    stale_threshold_days: int = 180,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Comprehensive maintenance signals for repository hygiene.
+
+    Combines stale repos, large repos (from events), empty repos, and repos without README.
+    """
+    stale_result = await session.execute(
+        text("""
+            WITH repo_last_activity AS (
+                SELECT org, repo, MAX(created_at) AS last_event_at
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND repo IS NOT NULL
+                  AND created_at >= NOW() - INTERVAL '2 years'
+                GROUP BY org, repo
+            )
+            SELECT
+                org,
+                repo,
+                last_event_at,
+                EXTRACT(DAY FROM NOW() - last_event_at)::INT AS days_since_activity
+            FROM repo_last_activity
+            WHERE last_event_at <= NOW() - make_interval(days => :threshold_days)
+            ORDER BY last_event_at ASC
+            LIMIT :limit
+        """),
+        {
+            "scoped_orgs": scoped_orgs,
+            "threshold_days": int(stale_threshold_days),
+            "limit": int(limit),
+        },
+    )
+    stale_repos = [dict(row) for row in stale_result.mappings().all()]
+
+    empty_result = await session.execute(
+        text("""
+            WITH repo_creates AS (
+                SELECT org, repo, MIN(created_at) AS created_at
+                FROM events
+                WHERE action = 'repo.create'
+                  AND org = ANY(:scoped_orgs)
+                  AND repo IS NOT NULL
+                GROUP BY org, repo
+            ),
+            repo_followup_activity AS (
+                SELECT
+                    rc.org,
+                    rc.repo,
+                    COUNT(*) FILTER (
+                        WHERE e.action IN (
+                            'git.push',
+                            'push',
+                            'git.commit',
+                            'commit.create',
+                            'pull_request.merge'
+                        )
+                    ) AS followup_activity
+                FROM repo_creates rc
+                LEFT JOIN events e
+                    ON e.org = rc.org
+                   AND e.repo = rc.repo
+                   AND e.created_at > rc.created_at
+                   AND e.created_at <= rc.created_at + INTERVAL '30 days'
+                GROUP BY rc.org, rc.repo
+            )
+            SELECT rc.org, rc.repo, rc.created_at
+            FROM repo_creates rc
+            JOIN repo_followup_activity rfa
+              ON rfa.org = rc.org AND rfa.repo = rc.repo
+            WHERE rfa.followup_activity = 0
+            ORDER BY rc.created_at ASC
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": int(limit)},
+    )
+    empty_repos = [dict(row) for row in empty_result.mappings().all()]
+
+    archived_candidate_result = await session.execute(
+        text("""
+            WITH recent_repo_activity AS (
+                SELECT
+                    org,
+                    repo,
+                    COUNT(*)::INT AS event_count,
+                    MAX(created_at) AS last_event_at
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND repo IS NOT NULL
+                  AND created_at >= NOW() - INTERVAL '180 days'
+                GROUP BY org, repo
+            ),
+            archived_repos AS (
+                SELECT DISTINCT org, repo
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND repo IS NOT NULL
+                  AND action = 'repo.archived'
+            )
+            SELECT
+                rra.org,
+                rra.repo,
+                rra.event_count,
+                rra.last_event_at,
+                EXTRACT(DAY FROM NOW() - rra.last_event_at)::INT AS days_since_activity
+            FROM recent_repo_activity rra
+            LEFT JOIN archived_repos ar
+              ON ar.org = rra.org AND ar.repo = rra.repo
+            WHERE ar.repo IS NULL
+              AND rra.event_count < 5
+            ORDER BY rra.event_count ASC, rra.last_event_at ASC
+            LIMIT :limit
+        """),
+        {"scoped_orgs": scoped_orgs, "limit": int(limit)},
+    )
+    archived_candidates = [dict(row) for row in archived_candidate_result.mappings().all()]
+
+    return {
+        "stale_repos": stale_repos,
+        "empty_repos": empty_repos,
+        "archived_candidates": archived_candidates,
+        "summary": {
+            "stale_count": len(stale_repos),
+            "empty_count": len(empty_repos),
+            "archived_candidate_count": len(archived_candidates),
+        },
+    }
+
+
+async def get_health_score(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+) -> dict[str, Any]:
+    """Compute overall org health score (0-100).
+
+    Score = 100 - weighted sum of signal severities:
+    - Critical: -10 points each
+    - High: -5 points each
+    - Medium: -2 points each
+    - Low: -1 point each
+    Floor at 0, cap at 100.
+    """
+    result = await session.execute(
+        text("""
+            WITH orgs AS (
+                SELECT UNNEST(CAST(:scoped_orgs AS TEXT[])) AS org
+            ),
+            repo_last_activity AS (
+                SELECT org, repo, MAX(created_at) AS last_event_at
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND repo IS NOT NULL
+                  AND created_at >= NOW() - INTERVAL '2 years'
+                GROUP BY org, repo
+            ),
+            actor_last_activity AS (
+                SELECT actor AS login, MAX(created_at) AS last_activity_date
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND actor IS NOT NULL
+                  AND created_at >= NOW() - INTERVAL '365 days'
+                GROUP BY actor
+            ),
+            sso_status AS (
+                SELECT DISTINCT ON (org) org, action
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND action IN ('org.enable_saml', 'org.disable_saml')
+                ORDER BY org, created_at DESC
+            ),
+            two_fa_status AS (
+                SELECT DISTINCT ON (org) org, action
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND action IN (
+                      'org.require_two_factor_authentication',
+                      'org.disable_two_factor_requirement'
+                  )
+                ORDER BY org, created_at DESC
+            ),
+            audit_stream_status AS (
+                SELECT DISTINCT ON (org) org, action
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND action LIKE 'audit_log_streaming.%'
+                ORDER BY org, created_at DESC
+            ),
+            ip_allowlist_status AS (
+                SELECT org, TRUE AS configured
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND action LIKE 'ip_allow_list%'
+                GROUP BY org
+            ),
+            branch_protection_status AS (
+                SELECT org, TRUE AS configured
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND action IN ('protected_branch.create', 'repository_ruleset.create')
+                GROUP BY org
+            ),
+            critical_signals AS (
+                SELECT COALESCE((
+                    SELECT COUNT(*)
+                    FROM secret_scanning_alerts
+                    WHERE org_slug = ANY(:scoped_orgs)
+                      AND state = 'open'
+                      AND created_at <= NOW() - INTERVAL '30 days'
+                ), 0)
+                + COALESCE((
+                    SELECT COUNT(*)
+                    FROM orgs o
+                    LEFT JOIN sso_status s ON s.org = o.org
+                    WHERE COALESCE(s.action = 'org.enable_saml', FALSE) = FALSE
+                ), 0)
+                + COALESCE((
+                    SELECT COUNT(*)
+                    FROM (
+                        SELECT actor, DATE_TRUNC('hour', created_at) AS hour_bucket
+                        FROM events
+                        WHERE org = ANY(:scoped_orgs)
+                          AND action LIKE 'rate_limit.%'
+                          AND actor IS NOT NULL
+                          AND created_at >= NOW() - INTERVAL '24 hours'
+                        GROUP BY actor, DATE_TRUNC('hour', created_at)
+                    ) rl
+                ), 0) AS critical_count
+            ),
+            high_signals AS (
+                SELECT COALESCE((
+                    SELECT COUNT(*)
+                    FROM repo_last_activity
+                    WHERE last_event_at <= NOW() - INTERVAL '180 days'
+                ), 0)
+                + COALESCE((
+                    SELECT COUNT(*)
+                    FROM (
+                        SELECT actor
+                        FROM events
+                        WHERE action IN (
+                            'secret_scanning.push_protection.bypass',
+                            'protected_branch.policy_override',
+                            'branch_protection_rule.policy_override'
+                        )
+                          AND org = ANY(:scoped_orgs)
+                          AND actor IS NOT NULL
+                          AND created_at >= NOW() - INTERVAL '90 days'
+                        GROUP BY actor
+                        HAVING COUNT(*) >= 1
+                    ) bo
+                ), 0)
+                + COALESCE((
+                    SELECT COUNT(*)
+                    FROM actor_last_activity
+                    WHERE last_activity_date <= NOW() - INTERVAL '180 days'
+                ), 0)
+                + COALESCE((
+                    SELECT COUNT(*)
+                    FROM events
+                    WHERE org = ANY(:scoped_orgs)
+                      AND action = 'personal_access_token.create'
+                      AND (
+                          data->>'token_expiry_date' IS NULL
+                          OR data->>'token_expiry_date' = ''
+                      )
+                ), 0) AS high_count
+            ),
+            medium_signals AS (
+                SELECT COALESCE((
+                    SELECT COUNT(*)
+                    FROM repo_last_activity
+                    WHERE last_event_at > NOW() - INTERVAL '180 days'
+                      AND last_event_at <= NOW() - INTERVAL '90 days'
+                ), 0)
+                + COALESCE((
+                    SELECT COUNT(*)
+                    FROM actor_last_activity
+                    WHERE last_activity_date > NOW() - INTERVAL '180 days'
+                      AND last_activity_date <= NOW() - INTERVAL '90 days'
+                ), 0)
+                + COALESCE((
+                    SELECT COUNT(*)
+                    FROM orgs o
+                    LEFT JOIN two_fa_status tf ON tf.org = o.org
+                    LEFT JOIN audit_stream_status ass ON ass.org = o.org
+                    LEFT JOIN ip_allowlist_status ip ON ip.org = o.org
+                    LEFT JOIN branch_protection_status bp ON bp.org = o.org
+                    CROSS JOIN LATERAL (
+                        VALUES
+                            (COALESCE(tf.action = 'org.require_two_factor_authentication', FALSE)),
+                            (COALESCE(NOT (
+                                ass.action LIKE 'audit_log_streaming.%destroy%'
+                                OR ass.action LIKE 'audit_log_streaming.%delete%'
+                            ), FALSE)),
+                            (COALESCE(ip.configured, FALSE)),
+                            (COALESCE(bp.configured, FALSE))
+                    ) AS feature(is_enabled)
+                    WHERE feature.is_enabled = FALSE
+                ), 0) AS medium_count
+            ),
+            low_signals AS (
+                SELECT COALESCE((
+                    SELECT COUNT(*)
+                    FROM (
+                        WITH opened AS (
+                            SELECT org, repo, data->>'number' AS pr_number, created_at AS opened_at
+                            FROM events
+                            WHERE action IN ('pull_request.opened', 'pull_request.reopened')
+                              AND org = ANY(:scoped_orgs)
+                              AND created_at >= NOW() - INTERVAL '365 days'
+                        ),
+                        closed AS (
+                            SELECT org, repo, data->>'number' AS pr_number
+                            FROM events
+                            WHERE action IN ('pull_request.closed', 'pull_request.merged')
+                              AND org = ANY(:scoped_orgs)
+                              AND created_at >= NOW() - INTERVAL '365 days'
+                        )
+                        SELECT o.org, o.repo, o.pr_number
+                        FROM opened o
+                        LEFT JOIN closed c USING (org, repo, pr_number)
+                        WHERE c.pr_number IS NULL
+                          AND o.opened_at <= NOW() - INTERVAL '30 days'
+                    ) stale_prs
+                ), 0)
+                + COALESCE((
+                    SELECT COUNT(*)
+                    FROM (
+                        WITH recent_repo_activity AS (
+                            SELECT org, repo, COUNT(*) AS event_count
+                            FROM events
+                            WHERE org = ANY(:scoped_orgs)
+                              AND repo IS NOT NULL
+                              AND created_at >= NOW() - INTERVAL '180 days'
+                            GROUP BY org, repo
+                        ),
+                        archived_repos AS (
+                            SELECT DISTINCT org, repo
+                            FROM events
+                            WHERE org = ANY(:scoped_orgs)
+                              AND repo IS NOT NULL
+                              AND action = 'repo.archived'
+                        )
+                        SELECT rra.org, rra.repo
+                        FROM recent_repo_activity rra
+                        LEFT JOIN archived_repos ar
+                          ON ar.org = rra.org AND ar.repo = rra.repo
+                        WHERE ar.repo IS NULL
+                          AND rra.event_count < 5
+                    ) archived_candidates
+                ), 0)
+                + COALESCE((
+                    SELECT COUNT(*)
+                    FROM (
+                        WITH forks AS (
+                            SELECT actor, org, repo, created_at AS forked_at
+                            FROM events
+                            WHERE action = 'repo.fork'
+                              AND org = ANY(:scoped_orgs)
+                              AND repo IS NOT NULL
+                              AND created_at BETWEEN NOW() - INTERVAL '180 days'
+                                                  AND NOW() - INTERVAL '30 days'
+                        ),
+                        fork_pushes AS (
+                            SELECT DISTINCT org, repo
+                            FROM events
+                            WHERE action IN ('git.push', 'push')
+                              AND org = ANY(:scoped_orgs)
+                              AND repo IS NOT NULL
+                              AND created_at >= NOW() - INTERVAL '180 days'
+                        )
+                        SELECT f.org, f.repo
+                        FROM forks f
+                        LEFT JOIN fork_pushes p ON p.org = f.org AND p.repo = f.repo
+                        WHERE p.repo IS NULL
+                    ) abandoned_forks
+                ), 0) AS low_count
+            )
+            SELECT
+                critical_signals.critical_count,
+                high_signals.high_count,
+                medium_signals.medium_count,
+                low_signals.low_count,
+                (SELECT COUNT(*) FROM orgs) AS orgs_monitored
+            FROM critical_signals
+            CROSS JOIN high_signals
+            CROSS JOIN medium_signals
+            CROSS JOIN low_signals
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    row = dict(result.mappings().first() or {})
+
+    critical_count = int(row.get("critical_count", 0) or 0)
+    high_count = int(row.get("high_count", 0) or 0)
+    medium_count = int(row.get("medium_count", 0) or 0)
+    low_count = int(row.get("low_count", 0) or 0)
+    orgs_monitored = int(row.get("orgs_monitored", len(scoped_orgs)) or 0)
+    total_signals = critical_count + high_count + medium_count + low_count
+    score = max(
+        0,
+        min(
+            100,
+            100 - (critical_count * 10) - (high_count * 5) - (medium_count * 2) - low_count,
+        ),
+    )
+
+    if score >= 90:
+        grade = "A"
+    elif score >= 80:
+        grade = "B"
+    elif score >= 70:
+        grade = "C"
+    elif score >= 60:
+        grade = "D"
+    else:
+        grade = "F"
+
+    return {
+        "score": score,
+        "grade": grade,
+        "critical_count": critical_count,
+        "high_count": high_count,
+        "medium_count": medium_count,
+        "low_count": low_count,
+        "total_signals": total_signals,
+        "orgs_monitored": orgs_monitored,
+    }
+
+
+async def get_mttr_trends(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    period: str = "30d",
+    severity: str | None = None,
+) -> dict[str, Any]:
+    """Calculate MTTR trends across secret scanning, code scanning, and Dependabot."""
+    if not scoped_orgs:
+        return {
+            "current_mttr_hours": 0.0,
+            "previous_mttr_hours": 0.0,
+            "trend_pct": 0.0,
+            "by_severity": [],
+            "time_series": [],
+            "by_tool": [
+                {"tool": "code_scanning", "mttr_hours": 0.0},
+                {"tool": "secret_scanning", "mttr_hours": 0.0},
+                {"tool": "dependabot", "mttr_hours": 0.0},
+            ],
+        }
+
+    period_map = {"7d": 7, "30d": 30, "90d": 90, "180d": 180}
+    days = period_map.get(period, 30)
+    window_days = days * 2
+
+    summary_result = await session.execute(
+        text("""
+            WITH normalized_alerts AS (
+                SELECT
+                    'secret_scanning' AS tool,
+                    NULL::TEXT AS severity,
+                    resolved_at AS closed_at,
+                    EXTRACT(EPOCH FROM resolved_at - created_at) / 3600.0
+                        AS mttr_hours
+                FROM secret_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'resolved'
+                  AND resolved_at IS NOT NULL
+                  AND resolved_at >= NOW() - (:window_days * INTERVAL '1 day')
+                  AND :severity IS NULL
+
+                UNION ALL
+
+                SELECT
+                    'code_scanning' AS tool,
+                    COALESCE(security_severity, severity) AS severity,
+                    COALESCE(fixed_at, dismissed_at) AS closed_at,
+                    EXTRACT(EPOCH FROM COALESCE(fixed_at, dismissed_at) - created_at)
+                        / 3600.0 AS mttr_hours
+                FROM code_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state IN ('fixed', 'dismissed')
+                  AND COALESCE(fixed_at, dismissed_at) IS NOT NULL
+                  AND COALESCE(fixed_at, dismissed_at)
+                      >= NOW() - (:window_days * INTERVAL '1 day')
+                  AND (
+                      :severity IS NULL
+                      OR COALESCE(security_severity, severity) = :severity
+                  )
+
+                UNION ALL
+
+                SELECT
+                    'dependabot' AS tool,
+                    severity,
+                    COALESCE(fixed_at, auto_dismissed_at) AS closed_at,
+                    EXTRACT(
+                        EPOCH FROM COALESCE(fixed_at, auto_dismissed_at) - created_at
+                    ) / 3600.0 AS mttr_hours
+                FROM dependabot_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND COALESCE(fixed_at, auto_dismissed_at) IS NOT NULL
+                  AND COALESCE(fixed_at, auto_dismissed_at)
+                      >= NOW() - (:window_days * INTERVAL '1 day')
+                  AND (:severity IS NULL OR severity = :severity)
+            )
+            SELECT
+                ROUND(
+                    COALESCE(
+                        AVG(mttr_hours) FILTER (
+                            WHERE closed_at >= NOW() - (:days * INTERVAL '1 day')
+                        ),
+                        0
+                    )::numeric,
+                    2
+                ) AS current_mttr_hours,
+                ROUND(
+                    COALESCE(
+                        AVG(mttr_hours) FILTER (
+                            WHERE closed_at >= NOW() - (:window_days * INTERVAL '1 day')
+                              AND closed_at < NOW() - (:days * INTERVAL '1 day')
+                        ),
+                        0
+                    )::numeric,
+                    2
+                ) AS previous_mttr_hours
+            FROM normalized_alerts
+        """),
+        {
+            "scoped_orgs": scoped_orgs,
+            "days": days,
+            "window_days": window_days,
+            "severity": severity,
+        },
+    )
+    summary_row = dict(summary_result.mappings().first() or {})
+
+    severity_result = await session.execute(
+        text("""
+            WITH normalized_alerts AS (
+                SELECT
+                    COALESCE(security_severity, severity) AS severity,
+                    COALESCE(fixed_at, dismissed_at) AS closed_at,
+                    EXTRACT(EPOCH FROM COALESCE(fixed_at, dismissed_at) - created_at)
+                        / 3600.0 AS mttr_hours
+                FROM code_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state IN ('fixed', 'dismissed')
+                  AND COALESCE(fixed_at, dismissed_at) IS NOT NULL
+                  AND COALESCE(fixed_at, dismissed_at)
+                      >= NOW() - (:days * INTERVAL '1 day')
+                  AND (
+                      :severity IS NULL
+                      OR COALESCE(security_severity, severity) = :severity
+                  )
+
+                UNION ALL
+
+                SELECT
+                    severity,
+                    COALESCE(fixed_at, auto_dismissed_at) AS closed_at,
+                    EXTRACT(
+                        EPOCH FROM COALESCE(fixed_at, auto_dismissed_at) - created_at
+                    ) / 3600.0 AS mttr_hours
+                FROM dependabot_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND COALESCE(fixed_at, auto_dismissed_at) IS NOT NULL
+                  AND COALESCE(fixed_at, auto_dismissed_at)
+                      >= NOW() - (:days * INTERVAL '1 day')
+                  AND (:severity IS NULL OR severity = :severity)
+            )
+            SELECT
+                severity,
+                ROUND(COALESCE(AVG(mttr_hours), 0)::numeric, 2) AS mttr_hours,
+                COUNT(*) AS sample_size
+            FROM normalized_alerts
+            WHERE severity IS NOT NULL
+            GROUP BY severity
+            ORDER BY sample_size DESC, severity
+        """),
+        {"scoped_orgs": scoped_orgs, "days": days, "severity": severity},
+    )
+    by_severity = [dict(row) for row in severity_result.mappings().all()]
+
+    tool_result = await session.execute(
+        text("""
+            WITH normalized_alerts AS (
+                SELECT
+                    'secret_scanning' AS tool,
+                    resolved_at AS closed_at,
+                    EXTRACT(EPOCH FROM resolved_at - created_at) / 3600.0
+                        AS mttr_hours
+                FROM secret_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'resolved'
+                  AND resolved_at IS NOT NULL
+                  AND resolved_at >= NOW() - (:days * INTERVAL '1 day')
+                  AND :severity IS NULL
+
+                UNION ALL
+
+                SELECT
+                    'code_scanning' AS tool,
+                    COALESCE(fixed_at, dismissed_at) AS closed_at,
+                    EXTRACT(EPOCH FROM COALESCE(fixed_at, dismissed_at) - created_at)
+                        / 3600.0 AS mttr_hours
+                FROM code_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state IN ('fixed', 'dismissed')
+                  AND COALESCE(fixed_at, dismissed_at) IS NOT NULL
+                  AND COALESCE(fixed_at, dismissed_at)
+                      >= NOW() - (:days * INTERVAL '1 day')
+                  AND (
+                      :severity IS NULL
+                      OR COALESCE(security_severity, severity) = :severity
+                  )
+
+                UNION ALL
+
+                SELECT
+                    'dependabot' AS tool,
+                    COALESCE(fixed_at, auto_dismissed_at) AS closed_at,
+                    EXTRACT(
+                        EPOCH FROM COALESCE(fixed_at, auto_dismissed_at) - created_at
+                    ) / 3600.0 AS mttr_hours
+                FROM dependabot_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND COALESCE(fixed_at, auto_dismissed_at) IS NOT NULL
+                  AND COALESCE(fixed_at, auto_dismissed_at)
+                      >= NOW() - (:days * INTERVAL '1 day')
+                  AND (:severity IS NULL OR severity = :severity)
+            )
+            SELECT
+                tool,
+                ROUND(COALESCE(AVG(mttr_hours), 0)::numeric, 2) AS mttr_hours
+            FROM normalized_alerts
+            GROUP BY tool
+        """),
+        {"scoped_orgs": scoped_orgs, "days": days, "severity": severity},
+    )
+    tool_map = {
+        row["tool"]: float(row["mttr_hours"] or 0.0) for row in tool_result.mappings().all()
+    }
+    by_tool = [
+        {"tool": "code_scanning", "mttr_hours": tool_map.get("code_scanning", 0.0)},
+        {
+            "tool": "secret_scanning",
+            "mttr_hours": tool_map.get("secret_scanning", 0.0),
+        },
+        {"tool": "dependabot", "mttr_hours": tool_map.get("dependabot", 0.0)},
+    ]
+
+    series_result = await session.execute(
+        text("""
+            WITH dates AS (
+                SELECT generate_series(
+                    (CURRENT_DATE - ((:days - 1) * INTERVAL '1 day'))::date,
+                    CURRENT_DATE::date,
+                    '1 day'::INTERVAL
+                )::date AS day
+            ),
+            normalized_alerts AS (
+                SELECT
+                    resolved_at::date AS day,
+                    EXTRACT(EPOCH FROM resolved_at - created_at) / 3600.0
+                        AS mttr_hours
+                FROM secret_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'resolved'
+                  AND resolved_at IS NOT NULL
+                  AND resolved_at >= NOW() - (:days * INTERVAL '1 day')
+                  AND :severity IS NULL
+
+                UNION ALL
+
+                SELECT
+                    COALESCE(fixed_at, dismissed_at)::date AS day,
+                    EXTRACT(EPOCH FROM COALESCE(fixed_at, dismissed_at) - created_at)
+                        / 3600.0 AS mttr_hours
+                FROM code_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state IN ('fixed', 'dismissed')
+                  AND COALESCE(fixed_at, dismissed_at) IS NOT NULL
+                  AND COALESCE(fixed_at, dismissed_at)
+                      >= NOW() - (:days * INTERVAL '1 day')
+                  AND (
+                      :severity IS NULL
+                      OR COALESCE(security_severity, severity) = :severity
+                  )
+
+                UNION ALL
+
+                SELECT
+                    COALESCE(fixed_at, auto_dismissed_at)::date AS day,
+                    EXTRACT(
+                        EPOCH FROM COALESCE(fixed_at, auto_dismissed_at) - created_at
+                    ) / 3600.0 AS mttr_hours
+                FROM dependabot_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND COALESCE(fixed_at, auto_dismissed_at) IS NOT NULL
+                  AND COALESCE(fixed_at, auto_dismissed_at)
+                      >= NOW() - (:days * INTERVAL '1 day')
+                  AND (:severity IS NULL OR severity = :severity)
+            ),
+            daily AS (
+                SELECT
+                    day,
+                    ROUND(COALESCE(AVG(mttr_hours), 0)::numeric, 2) AS mttr_hours
+                FROM normalized_alerts
+                GROUP BY day
+            )
+            SELECT
+                dates.day::TEXT AS date,
+                COALESCE(daily.mttr_hours, 0) AS mttr_hours
+            FROM dates
+            LEFT JOIN daily ON daily.day = dates.day
+            ORDER BY dates.day
+        """),
+        {"scoped_orgs": scoped_orgs, "days": days, "severity": severity},
+    )
+    time_series = [dict(row) for row in series_result.mappings().all()]
+
+    current_mttr = float(summary_row.get("current_mttr_hours") or 0.0)
+    previous_mttr = float(summary_row.get("previous_mttr_hours") or 0.0)
+    trend_pct = (
+        round(((current_mttr - previous_mttr) / previous_mttr) * 100, 2)
+        if previous_mttr > 0
+        else 0.0
+    )
+
+    return {
+        "current_mttr_hours": current_mttr,
+        "previous_mttr_hours": previous_mttr,
+        "trend_pct": trend_pct,
+        "by_severity": by_severity,
+        "time_series": time_series,
+        "by_tool": by_tool,
+    }
+
+
+async def get_coverage_growth(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+    period: str = "90d",
+) -> dict[str, Any]:
+    """Measure strategic security feature coverage and growth."""
+    if not scoped_orgs:
+        return {
+            "total_repos": 0,
+            "feature_coverage": {
+                "ghas": {"repos": 0, "pct": 0.0},
+                "code_scanning": {"repos": 0, "pct": 0.0},
+                "secret_scanning": {"repos": 0, "pct": 0.0},
+                "dependabot": {"repos": 0, "pct": 0.0},
+                "push_protection": {"repos": 0, "pct": 0.0},
+            },
+            "time_series": [],
+            "uncovered_repos": [],
+        }
+
+    period_map = {"7d": 7, "30d": 30, "90d": 90, "180d": 180}
+    days = period_map.get(period, 90)
+
+    total_result = await session.execute(
+        text("""
+            SELECT COUNT(DISTINCT repo) AS total_repos
+            FROM events
+            WHERE org = ANY(:scoped_orgs)
+              AND repo IS NOT NULL
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    total_row = total_result.mappings().first()
+    total_repos = int(total_row["total_repos"] or 0) if total_row else 0
+
+    coverage_result = await session.execute(
+        text("""
+            WITH event_feature_states AS (
+                SELECT DISTINCT ON (repo, feature)
+                    repo,
+                    feature,
+                    CASE
+                        WHEN action LIKE '%%.disable%%'
+                            OR action LIKE '%%_disabled%%'
+                            OR action LIKE '%%.disable'
+                            OR action LIKE '%%disabled%%'
+                            THEN 'disabled'
+                        ELSE 'enabled'
+                    END AS state
+                FROM (
+                    SELECT
+                        repo,
+                        CASE
+                            WHEN action LIKE 'secret_scanning%%'
+                                OR action LIKE 'repository_secret_scanning%%'
+                                THEN 'secret_scanning'
+                            WHEN action LIKE '%%codeql%%' THEN 'code_scanning'
+                            WHEN action LIKE 'dependabot%%' THEN 'dependabot'
+                            WHEN action LIKE '%%advanced_security%%' THEN 'ghas'
+                            WHEN action LIKE '%%push_protection%%'
+                                THEN 'push_protection'
+                            ELSE NULL
+                        END AS feature,
+                        action,
+                        created_at
+                    FROM events
+                    WHERE org = ANY(:scoped_orgs)
+                      AND repo IS NOT NULL
+                      AND (
+                          action LIKE 'secret_scanning%%'
+                          OR action LIKE 'repository_secret_scanning%%'
+                          OR action LIKE '%%codeql%%'
+                          OR action LIKE 'dependabot%%'
+                          OR action LIKE '%%advanced_security%%'
+                          OR action LIKE '%%push_protection%%'
+                      )
+                ) feature_events
+                WHERE feature IS NOT NULL
+                ORDER BY repo, feature, created_at DESC
+            ),
+            alert_features AS (
+                SELECT DISTINCT repo_full_name AS repo, 'code_scanning' AS feature
+                FROM code_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+
+                UNION ALL
+
+                SELECT DISTINCT repo_full_name AS repo, 'secret_scanning' AS feature
+                FROM secret_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+
+                UNION ALL
+
+                SELECT DISTINCT repo_full_name AS repo, 'dependabot' AS feature
+                FROM dependabot_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+            ),
+            current_enabled AS (
+                SELECT repo, feature
+                FROM event_feature_states
+                WHERE state = 'enabled'
+
+                UNION
+
+                SELECT repo, feature
+                FROM alert_features
+            )
+            SELECT feature, COUNT(DISTINCT repo) AS repo_count
+            FROM current_enabled
+            GROUP BY feature
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    feature_counts = {
+        row["feature"]: int(row["repo_count"] or 0) for row in coverage_result.mappings().all()
+    }
+
+    time_series_result = await session.execute(
+        text("""
+            WITH weeks AS (
+                SELECT generate_series(
+                    DATE_TRUNC('week', NOW() - (:days * INTERVAL '1 day'))::date,
+                    DATE_TRUNC('week', NOW())::date,
+                    '1 week'::INTERVAL
+                )::date AS week_start
+            ),
+            feature_first_seen AS (
+                SELECT repo, feature, MIN(first_seen) AS first_seen
+                FROM (
+                    SELECT
+                        repo,
+                        CASE
+                            WHEN action LIKE 'secret_scanning%%'
+                                OR action LIKE 'repository_secret_scanning%%'
+                                THEN 'secret_scanning'
+                            WHEN action LIKE '%%codeql%%' THEN 'code_scanning'
+                            WHEN action LIKE 'dependabot%%' THEN 'dependabot'
+                            WHEN action LIKE '%%advanced_security%%' THEN 'ghas'
+                            WHEN action LIKE '%%push_protection%%'
+                                THEN 'push_protection'
+                            ELSE NULL
+                        END AS feature,
+                        created_at AS first_seen,
+                        CASE
+                            WHEN action LIKE '%%.disable%%'
+                                OR action LIKE '%%_disabled%%'
+                                OR action LIKE '%%.disable'
+                                OR action LIKE '%%disabled%%'
+                                THEN 'disabled'
+                            ELSE 'enabled'
+                        END AS state
+                    FROM events
+                    WHERE org = ANY(:scoped_orgs)
+                      AND repo IS NOT NULL
+                      AND created_at >= NOW() - (:days * INTERVAL '1 day')
+                      AND (
+                          action LIKE 'secret_scanning%%'
+                          OR action LIKE 'repository_secret_scanning%%'
+                          OR action LIKE '%%codeql%%'
+                          OR action LIKE 'dependabot%%'
+                          OR action LIKE '%%advanced_security%%'
+                          OR action LIKE '%%push_protection%%'
+                      )
+
+                    UNION ALL
+
+                    SELECT
+                        repo_full_name AS repo,
+                        'code_scanning' AS feature,
+                        created_at AS first_seen,
+                        'enabled' AS state
+                    FROM code_scanning_alerts
+                    WHERE org_slug = ANY(:scoped_orgs)
+                      AND created_at >= NOW() - (:days * INTERVAL '1 day')
+
+                    UNION ALL
+
+                    SELECT
+                        repo_full_name AS repo,
+                        'secret_scanning' AS feature,
+                        created_at AS first_seen,
+                        'enabled' AS state
+                    FROM secret_scanning_alerts
+                    WHERE org_slug = ANY(:scoped_orgs)
+                      AND created_at >= NOW() - (:days * INTERVAL '1 day')
+
+                    UNION ALL
+
+                    SELECT
+                        repo_full_name AS repo,
+                        'dependabot' AS feature,
+                        created_at AS first_seen,
+                        'enabled' AS state
+                    FROM dependabot_alerts
+                    WHERE org_slug = ANY(:scoped_orgs)
+                      AND created_at >= NOW() - (:days * INTERVAL '1 day')
+                ) feature_sources
+                WHERE feature IS NOT NULL AND state = 'enabled'
+                GROUP BY repo, feature
+            )
+            SELECT
+                weeks.week_start::TEXT AS date,
+                COUNT(DISTINCT feature_first_seen.repo) FILTER (
+                    WHERE feature_first_seen.feature = 'ghas'
+                      AND feature_first_seen.first_seen < weeks.week_start + INTERVAL '1 week'
+                ) AS ghas_repos,
+                COUNT(DISTINCT feature_first_seen.repo) FILTER (
+                    WHERE feature_first_seen.feature = 'code_scanning'
+                      AND feature_first_seen.first_seen < weeks.week_start + INTERVAL '1 week'
+                ) AS code_scanning_repos,
+                COUNT(DISTINCT feature_first_seen.repo) FILTER (
+                    WHERE feature_first_seen.feature = 'secret_scanning'
+                      AND feature_first_seen.first_seen < weeks.week_start + INTERVAL '1 week'
+                ) AS secret_scanning_repos,
+                COUNT(DISTINCT feature_first_seen.repo) FILTER (
+                    WHERE feature_first_seen.feature = 'dependabot'
+                      AND feature_first_seen.first_seen < weeks.week_start + INTERVAL '1 week'
+                ) AS dependabot_repos,
+                COUNT(DISTINCT feature_first_seen.repo) FILTER (
+                    WHERE feature_first_seen.feature = 'push_protection'
+                      AND feature_first_seen.first_seen < weeks.week_start + INTERVAL '1 week'
+                ) AS push_protection_repos
+            FROM weeks
+            LEFT JOIN feature_first_seen
+                ON feature_first_seen.first_seen < weeks.week_start + INTERVAL '1 week'
+            GROUP BY weeks.week_start
+            ORDER BY weeks.week_start
+        """),
+        {"scoped_orgs": scoped_orgs, "days": days},
+    )
+    time_series = []
+    for row in time_series_result.mappings().all():
+        ghas_repos = int(row["ghas_repos"] or 0)
+        code_scanning_repos = int(row["code_scanning_repos"] or 0)
+        secret_scanning_repos = int(row["secret_scanning_repos"] or 0)
+        dependabot_repos = int(row["dependabot_repos"] or 0)
+        push_protection_repos = int(row["push_protection_repos"] or 0)
+        time_series.append(
+            {
+                "date": row["date"],
+                "ghas_repos": ghas_repos,
+                "ghas_pct": round((ghas_repos / total_repos) * 100, 2) if total_repos else 0.0,
+                "code_scanning_repos": code_scanning_repos,
+                "code_scanning_pct": round((code_scanning_repos / total_repos) * 100, 2)
+                if total_repos
+                else 0.0,
+                "secret_scanning_repos": secret_scanning_repos,
+                "secret_scanning_pct": round((secret_scanning_repos / total_repos) * 100, 2)
+                if total_repos
+                else 0.0,
+                "dependabot_repos": dependabot_repos,
+                "dependabot_pct": round((dependabot_repos / total_repos) * 100, 2)
+                if total_repos
+                else 0.0,
+                "push_protection_repos": push_protection_repos,
+                "push_protection_pct": round((push_protection_repos / total_repos) * 100, 2)
+                if total_repos
+                else 0.0,
+            }
+        )
+
+    uncovered_result = await session.execute(
+        text("""
+            WITH repo_inventory AS (
+                SELECT DISTINCT repo
+                FROM events
+                WHERE org = ANY(:scoped_orgs)
+                  AND repo IS NOT NULL
+            ),
+            event_feature_states AS (
+                SELECT DISTINCT ON (repo, feature)
+                    repo,
+                    feature,
+                    CASE
+                        WHEN action LIKE '%%.disable%%'
+                            OR action LIKE '%%_disabled%%'
+                            OR action LIKE '%%.disable'
+                            OR action LIKE '%%disabled%%'
+                            THEN 'disabled'
+                        ELSE 'enabled'
+                    END AS state
+                FROM (
+                    SELECT
+                        repo,
+                        CASE
+                            WHEN action LIKE 'secret_scanning%%'
+                                OR action LIKE 'repository_secret_scanning%%'
+                                THEN 'secret_scanning'
+                            WHEN action LIKE '%%codeql%%' THEN 'code_scanning'
+                            WHEN action LIKE 'dependabot%%' THEN 'dependabot'
+                            WHEN action LIKE '%%advanced_security%%' THEN 'ghas'
+                            WHEN action LIKE '%%push_protection%%'
+                                THEN 'push_protection'
+                            ELSE NULL
+                        END AS feature,
+                        action,
+                        created_at
+                    FROM events
+                    WHERE org = ANY(:scoped_orgs)
+                      AND repo IS NOT NULL
+                      AND (
+                          action LIKE 'secret_scanning%%'
+                          OR action LIKE 'repository_secret_scanning%%'
+                          OR action LIKE '%%codeql%%'
+                          OR action LIKE 'dependabot%%'
+                          OR action LIKE '%%advanced_security%%'
+                          OR action LIKE '%%push_protection%%'
+                      )
+                ) feature_events
+                WHERE feature IS NOT NULL
+                ORDER BY repo, feature, created_at DESC
+            ),
+            alert_features AS (
+                SELECT DISTINCT repo_full_name AS repo, 'code_scanning' AS feature
+                FROM code_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+
+                UNION ALL
+
+                SELECT DISTINCT repo_full_name AS repo, 'secret_scanning' AS feature
+                FROM secret_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+
+                UNION ALL
+
+                SELECT DISTINCT repo_full_name AS repo, 'dependabot' AS feature
+                FROM dependabot_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+            ),
+            current_enabled AS (
+                SELECT repo, feature
+                FROM event_feature_states
+                WHERE state = 'enabled'
+
+                UNION
+
+                SELECT repo, feature
+                FROM alert_features
+            ),
+            repo_flags AS (
+                SELECT
+                    repo_inventory.repo,
+                    MAX(CASE WHEN current_enabled.feature = 'ghas' THEN 1 ELSE 0 END)
+                        AS has_ghas,
+                    MAX(
+                        CASE
+                            WHEN current_enabled.feature = 'code_scanning' THEN 1
+                            ELSE 0
+                        END
+                    ) AS has_code_scanning,
+                    MAX(
+                        CASE
+                            WHEN current_enabled.feature = 'secret_scanning' THEN 1
+                            ELSE 0
+                        END
+                    ) AS has_secret_scanning,
+                    MAX(CASE WHEN current_enabled.feature = 'dependabot' THEN 1 ELSE 0 END)
+                        AS has_dependabot,
+                    MAX(
+                        CASE
+                            WHEN current_enabled.feature = 'push_protection' THEN 1
+                            ELSE 0
+                        END
+                    ) AS has_push_protection
+                FROM repo_inventory
+                LEFT JOIN current_enabled ON current_enabled.repo = repo_inventory.repo
+                GROUP BY repo_inventory.repo
+            )
+            SELECT
+                repo AS repo_full_name,
+                ARRAY_REMOVE(
+                    ARRAY[
+                        CASE WHEN has_ghas = 0 THEN 'ghas' END,
+                        CASE WHEN has_code_scanning = 0 THEN 'code_scanning' END,
+                        CASE WHEN has_secret_scanning = 0 THEN 'secret_scanning' END,
+                        CASE WHEN has_dependabot = 0 THEN 'dependabot' END,
+                        CASE WHEN has_push_protection = 0 THEN 'push_protection' END
+                    ],
+                    NULL
+                ) AS missing_features
+            FROM repo_flags
+            WHERE has_ghas = 0
+               OR has_code_scanning = 0
+               OR has_secret_scanning = 0
+               OR has_dependabot = 0
+               OR has_push_protection = 0
+            ORDER BY CARDINALITY(
+                ARRAY_REMOVE(
+                    ARRAY[
+                        CASE WHEN has_ghas = 0 THEN 'ghas' END,
+                        CASE WHEN has_code_scanning = 0 THEN 'code_scanning' END,
+                        CASE WHEN has_secret_scanning = 0 THEN 'secret_scanning' END,
+                        CASE WHEN has_dependabot = 0 THEN 'dependabot' END,
+                        CASE WHEN has_push_protection = 0 THEN 'push_protection' END
+                    ],
+                    NULL
+                )
+            ) DESC, repo
+            LIMIT 20
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    uncovered_repos = [dict(row) for row in uncovered_result.mappings().all()]
+
+    features = [
+        "ghas",
+        "code_scanning",
+        "secret_scanning",
+        "dependabot",
+        "push_protection",
+    ]
+    feature_coverage = {
+        feature: {
+            "repos": feature_counts.get(feature, 0),
+            "pct": round((feature_counts.get(feature, 0) / total_repos) * 100, 2)
+            if total_repos
+            else 0.0,
+        }
+        for feature in features
+    }
+
+    return {
+        "total_repos": total_repos,
+        "feature_coverage": feature_coverage,
+        "time_series": time_series,
+        "uncovered_repos": uncovered_repos,
+    }
+
+
+async def get_alert_aging(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+) -> dict[str, Any]:
+    """Analyze open alert aging and project burndown."""
+    if not scoped_orgs:
+        return {
+            "age_buckets": [
+                {
+                    "bucket": "<7d",
+                    "total_count": 0,
+                    "critical_count": 0,
+                    "high_count": 0,
+                },
+                {
+                    "bucket": "7-30d",
+                    "total_count": 0,
+                    "critical_count": 0,
+                    "high_count": 0,
+                },
+                {
+                    "bucket": "30-90d",
+                    "total_count": 0,
+                    "critical_count": 0,
+                    "high_count": 0,
+                },
+                {
+                    "bucket": ">90d",
+                    "total_count": 0,
+                    "critical_count": 0,
+                    "high_count": 0,
+                },
+            ],
+            "oldest_critical": [],
+            "burndown_projection": {
+                "current_open": 0,
+                "avg_close_rate_per_week": 0.0,
+                "weeks_to_zero": None,
+                "time_series": [{"week": week, "projected_open": 0} for week in range(1, 13)],
+            },
+        }
+
+    bucket_result = await session.execute(
+        text("""
+            WITH open_alerts AS (
+                SELECT
+                    'secret_scanning' AS tool,
+                    NULL::TEXT AS severity,
+                    created_at,
+                    EXTRACT(EPOCH FROM NOW() - created_at) / 86400.0 AS age_days
+                FROM secret_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'open'
+
+                UNION ALL
+
+                SELECT
+                    'code_scanning' AS tool,
+                    COALESCE(security_severity, severity) AS severity,
+                    created_at,
+                    EXTRACT(EPOCH FROM NOW() - created_at) / 86400.0 AS age_days
+                FROM code_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'open'
+
+                UNION ALL
+
+                SELECT
+                    'dependabot' AS tool,
+                    severity,
+                    created_at,
+                    EXTRACT(EPOCH FROM NOW() - created_at) / 86400.0 AS age_days
+                FROM dependabot_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'open'
+            ),
+            aggregated AS (
+                SELECT
+                    CASE
+                        WHEN age_days < 7 THEN '<7d'
+                        WHEN age_days < 30 THEN '7-30d'
+                        WHEN age_days < 90 THEN '30-90d'
+                        ELSE '>90d'
+                    END AS bucket,
+                    COUNT(*) AS total_count,
+                    COUNT(*) FILTER (WHERE severity = 'critical') AS critical_count,
+                    COUNT(*) FILTER (WHERE severity = 'high') AS high_count
+                FROM open_alerts
+                GROUP BY 1
+            )
+            SELECT
+                bucket,
+                total_count,
+                critical_count,
+                high_count
+            FROM aggregated
+            ORDER BY CASE bucket
+                WHEN '<7d' THEN 1
+                WHEN '7-30d' THEN 2
+                WHEN '30-90d' THEN 3
+                ELSE 4
+            END
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    bucket_map = {
+        row["bucket"]: {
+            "bucket": row["bucket"],
+            "total_count": int(row["total_count"] or 0),
+            "critical_count": int(row["critical_count"] or 0),
+            "high_count": int(row["high_count"] or 0),
+        }
+        for row in bucket_result.mappings().all()
+    }
+    age_buckets = [
+        bucket_map.get(
+            bucket,
+            {
+                "bucket": bucket,
+                "total_count": 0,
+                "critical_count": 0,
+                "high_count": 0,
+            },
+        )
+        for bucket in ("<7d", "7-30d", "30-90d", ">90d")
+    ]
+
+    oldest_result = await session.execute(
+        text("""
+            WITH oldest_alerts AS (
+                SELECT
+                    'code_scanning' AS tool,
+                    alert_number,
+                    repo_full_name,
+                    created_at,
+                    COALESCE(security_severity, severity) AS severity,
+                    ROUND(
+                        (EXTRACT(EPOCH FROM NOW() - created_at) / 86400.0)::numeric,
+                        2
+                    ) AS age_days,
+                    COALESCE(rule_id, tool_name, 'code_scanning') AS rule_info,
+                    rule_description
+                FROM code_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'open'
+                  AND COALESCE(security_severity, severity) IN ('critical', 'high')
+
+                UNION ALL
+
+                SELECT
+                    'dependabot' AS tool,
+                    alert_number,
+                    repo_full_name,
+                    created_at,
+                    severity,
+                    ROUND(
+                        (EXTRACT(EPOCH FROM NOW() - created_at) / 86400.0)::numeric,
+                        2
+                    ) AS age_days,
+                    COALESCE(cve_id, package_name, 'dependabot') AS rule_info,
+                    package_name AS rule_description
+                FROM dependabot_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'open'
+                  AND severity IN ('critical', 'high')
+            )
+            SELECT
+                tool,
+                alert_number,
+                repo_full_name,
+                created_at,
+                severity,
+                age_days,
+                rule_info,
+                rule_description
+            FROM oldest_alerts
+            ORDER BY age_days DESC, created_at ASC
+            LIMIT 10
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    oldest_critical = [dict(row) for row in oldest_result.mappings().all()]
+
+    burndown_result = await session.execute(
+        text("""
+            WITH open_alerts AS (
+                SELECT created_at
+                FROM secret_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'open'
+
+                UNION ALL
+
+                SELECT created_at
+                FROM code_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'open'
+
+                UNION ALL
+
+                SELECT created_at
+                FROM dependabot_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'open'
+            ),
+            closed_alerts AS (
+                SELECT resolved_at AS closed_at
+                FROM secret_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state = 'resolved'
+                  AND resolved_at IS NOT NULL
+                  AND resolved_at >= NOW() - INTERVAL '30 days'
+
+                UNION ALL
+
+                SELECT COALESCE(fixed_at, dismissed_at) AS closed_at
+                FROM code_scanning_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND state IN ('fixed', 'dismissed')
+                  AND COALESCE(fixed_at, dismissed_at) IS NOT NULL
+                  AND COALESCE(fixed_at, dismissed_at) >= NOW() - INTERVAL '30 days'
+
+                UNION ALL
+
+                SELECT COALESCE(fixed_at, auto_dismissed_at) AS closed_at
+                FROM dependabot_alerts
+                WHERE org_slug = ANY(:scoped_orgs)
+                  AND COALESCE(fixed_at, auto_dismissed_at) IS NOT NULL
+                  AND COALESCE(fixed_at, auto_dismissed_at) >= NOW() - INTERVAL '30 days'
+            )
+            SELECT
+                (SELECT COUNT(*) FROM open_alerts) AS current_open,
+                (SELECT COUNT(*) FROM closed_alerts) AS closed_last_30_days
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    burndown_row = dict(burndown_result.mappings().first() or {})
+    current_open = int(burndown_row.get("current_open") or 0)
+    closed_last_30_days = int(burndown_row.get("closed_last_30_days") or 0)
+    avg_close_rate_per_week = round((closed_last_30_days * 7) / 30, 2)
+    weeks_to_zero = (
+        round(current_open / avg_close_rate_per_week, 2) if avg_close_rate_per_week > 0 else None
+    )
+    burndown_series = [
+        {
+            "week": week,
+            "projected_open": max(
+                0,
+                int(round(current_open - (avg_close_rate_per_week * week), 0)),
+            ),
+        }
+        for week in range(1, 13)
+    ]
+
+    return {
+        "age_buckets": age_buckets,
+        "oldest_critical": oldest_critical,
+        "burndown_projection": {
+            "current_open": current_open,
+            "avg_close_rate_per_week": avg_close_rate_per_week,
+            "weeks_to_zero": weeks_to_zero,
+            "time_series": burndown_series,
+        },
+    }
+
+
+async def get_security_score(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+) -> dict[str, Any]:
+    """Calculate a weighted strategic security score."""
+    coverage = await get_coverage_growth(session, scoped_orgs=scoped_orgs, period="90d")
+    mttr = await get_mttr_trends(session, scoped_orgs=scoped_orgs, period="30d")
+    aging = await get_alert_aging(session, scoped_orgs=scoped_orgs)
+
+    def _clamp(score: float) -> float:
+        return round(min(100.0, max(0.0, score)), 2)
+
+    coverage_values = [
+        float((coverage.get("feature_coverage") or {}).get(feature, {}).get("pct", 0.0))
+        for feature in (
+            "ghas",
+            "code_scanning",
+            "secret_scanning",
+            "dependabot",
+            "push_protection",
+        )
+    ]
+    coverage_score = (
+        round(sum(coverage_values) / len(coverage_values), 2) if coverage_values else 0.0
+    )
+
+    mttr_hours = float(mttr.get("current_mttr_hours") or 0.0)
+    mttr_score = _clamp(100 - ((mttr_hours - 72) * 0.5))
+
+    current_open = int((aging.get("burndown_projection") or {}).get("current_open") or 0)
+    total_repos = int(coverage.get("total_repos") or 0)
+    alert_ratio = ((current_open / total_repos) * 10) if total_repos else 0.0
+    alert_volume_score = _clamp(100 - (alert_ratio * 20))
+
+    age_buckets = aging.get("age_buckets") or []
+    old_alerts = sum(
+        int(bucket.get("total_count") or 0)
+        for bucket in age_buckets
+        if bucket.get("bucket") in {"30-90d", ">90d"}
+    )
+    pct_old = (old_alerts / current_open) * 100 if current_open else 0.0
+    aging_score = _clamp(100 - (pct_old * 1.5))
+
+    trend_pct = float(mttr.get("trend_pct") or 0.0)
+    trend_score = _clamp(50 + min(50.0, max(-50.0, -trend_pct)))
+
+    components: list[dict[str, Any]] = [
+        {
+            "name": "Coverage",
+            "score": round(coverage_score, 2),
+            "weight": 30,
+            "description": "Repository adoption of GHAS features.",
+        },
+        {
+            "name": "MTTR",
+            "score": mttr_score,
+            "weight": 25,
+            "description": "Average time to remediate resolved alerts.",
+        },
+        {
+            "name": "Alert Volume",
+            "score": alert_volume_score,
+            "weight": 20,
+            "description": "Open alert load relative to repository count.",
+        },
+        {
+            "name": "Aging",
+            "score": aging_score,
+            "weight": 15,
+            "description": "Share of open alerts older than 30 days.",
+        },
+        {
+            "name": "Trend",
+            "score": trend_score,
+            "weight": 10,
+            "description": "Recent MTTR direction; worsening trends reduce score.",
+        },
+    ]
+    score = round(
+        sum(float(component["score"]) * float(component["weight"]) for component in components)
+        / 100,
+        2,
+    )
+
+    suggestion_text: dict[str, str] = {
+        "Coverage": (
+            "Expand GHAS, code scanning, secret scanning, Dependabot, "
+            "and push protection across more repositories."
+        ),
+        "MTTR": (
+            "Reduce remediation time for critical and high-severity "
+            "findings by tightening triage and fix SLAs."
+        ),
+        "Alert Volume": (
+            "Lower open alert inventory by prioritizing repositories "
+            "with the highest unresolved alert density."
+        ),
+        "Aging": (
+            "Burn down findings older than 30 days, especially long-lived critical and high alerts."
+        ),
+        "Trend": (
+            "Reverse MTTR deterioration by focusing on faster closure "
+            "of new security findings this period."
+        ),
+    }
+    suggestions: list[dict[str, Any]] = sorted(
+        [
+            {
+                "name": component["name"],
+                "impact": round(
+                    float(component["weight"]) * (100 - float(component["score"])),
+                    2,
+                ),
+                "suggestion": suggestion_text[component["name"]],
+            }
+            for component in components
+        ],
+        key=lambda item: float(item["impact"]),
+        reverse=True,
+    )[:3]
+
+    return {
+        "score": score,
+        "components": components,
+        "suggestions": suggestions,
+    }

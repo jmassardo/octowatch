@@ -23,6 +23,16 @@ vi.mock('../../api/healthSignals', () => ({
     ext_collab_total: 23,
     ext_collab_elevated: 4,
   }),
+  getHealthScore: vi.fn().mockResolvedValue({
+    score: 72,
+    grade: 'C',
+    critical_count: 2,
+    high_count: 3,
+    medium_count: 5,
+    low_count: 8,
+    total_signals: 18,
+    orgs_monitored: 3,
+  }),
   getRepoHealth: vi.fn().mockResolvedValue({
     stale: [
       {
@@ -115,6 +125,21 @@ vi.mock('../../api/healthSignals', () => ({
   getWafFindings: vi.fn().mockResolvedValue({ findings: [] }),
   getHealthSettings: vi.fn().mockResolvedValue({}),
   updateHealthSettings: vi.fn().mockResolvedValue({}),
+  getApiAbuseSignals: vi.fn().mockResolvedValue({ signals: [] }),
+  getDormantUsers: vi.fn().mockResolvedValue({
+    users: [],
+    summary: { total_dormant: 0, estimated_monthly_waste: 0 },
+  }),
+  getPlatformSecurity: vi.fn().mockResolvedValue({
+    orgs: [],
+    overall_compliance_score: 0,
+  }),
+  getMaintenanceSignals: vi.fn().mockResolvedValue({
+    stale_repos: [],
+    empty_repos: [],
+    archived_candidates: [],
+    summary: { stale_count: 0, empty_count: 0, archived_candidate_count: 0 },
+  }),
 }));
 
 function renderPage(initialTab = 'repos') {
@@ -141,11 +166,11 @@ describe('HealthPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the tab bar with 8 tabs', () => {
+  it('renders the tab bar with 12 tabs', () => {
     renderPage();
     const tablist = screen.getByRole('tablist');
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs).toHaveLength(8);
+    expect(tabs).toHaveLength(12);
   });
 
   it('shows Repository Health pane by default', async () => {
@@ -238,5 +263,53 @@ describe('HealthPage', () => {
     await user.click(screen.getByRole('tab', { name: /Repository Health/ }));
     const repoTab = screen.getByRole('tab', { name: /Repository Health/ });
     expect(repoTab).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('renders health score metric cards', async () => {
+    renderPage();
+    expect(await screen.findByText('Health Score')).toBeInTheDocument();
+    expect(screen.getByText('Total Signals')).toBeInTheDocument();
+    expect(screen.getByText('Critical')).toBeInTheDocument();
+    expect(screen.getByText('Orgs Monitored')).toBeInTheDocument();
+  });
+
+  it('switches to API & Abuse tab', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('tab', { name: /API & Abuse/ }));
+    const tab = screen.getByRole('tab', { name: /API & Abuse/ });
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByText(/No API abuse signals detected/)).toBeInTheDocument();
+  });
+
+  it('switches to Users tab', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('tab', { name: /^Users$/ }));
+    const tab = screen.getByRole('tab', { name: /^Users$/ });
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByText(/Inactivity threshold/)).toBeInTheDocument();
+  });
+
+  it('switches to Security tab', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('tab', { name: /^Security$/ }));
+    const tab = screen.getByRole('tab', { name: /^Security$/ });
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByText(/No platform security data available/)).toBeInTheDocument();
+  });
+
+  it('switches to Maintenance tab', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('tab', { name: /^Maintenance$/ }));
+    const tab = screen.getByRole('tab', { name: /^Maintenance$/ });
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByText(/No maintenance issues detected/)).toBeInTheDocument();
   });
 });

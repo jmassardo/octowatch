@@ -9,7 +9,11 @@ export type HealthTab =
   | 'waf'
   | 'security-posture'
   | 'app-governance'
-  | 'operations';
+  | 'operations'
+  | 'api-abuse'
+  | 'dormant-users'
+  | 'platform-security'
+  | 'maintenance-signals';
 
 interface HealthTabBarProps {
   activeTab: HealthTab;
@@ -26,6 +30,10 @@ const TABS: { id: HealthTab; label: string }[] = [
   { id: 'license', label: 'License Health' },
   { id: 'maintenance', label: 'Maintenance Signals' },
   { id: 'waf', label: 'WAF Insights' },
+  { id: 'api-abuse', label: 'API & Abuse' },
+  { id: 'dormant-users', label: 'Users' },
+  { id: 'platform-security', label: 'Security' },
+  { id: 'maintenance-signals', label: 'Maintenance' },
 ];
 
 export function HealthTabBar({ activeTab, onTabChange, findingsCount }: HealthTabBarProps) {
