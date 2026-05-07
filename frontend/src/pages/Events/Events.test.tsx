@@ -699,9 +699,7 @@ describe('EventsPage', () => {
     });
 
     renderWithProviders(<EventsPage />);
-    expect(
-      await screen.findByText(/Showing first 5,000 results/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Showing first 5,000 results/)).toBeInTheDocument();
   });
 
   it('caps page count at 100 for large result sets', async () => {
