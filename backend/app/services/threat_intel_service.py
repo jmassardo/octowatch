@@ -394,3 +394,273 @@ async def fetch_feed_indicators(
     )
     await session.commit()
     return count
+
+
+async def update_feed(
+    session: AsyncSession,
+    feed_id: int,
+    *,
+    updates: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Update an existing feed. Returns updated row or None if not found."""
+    set_clauses = []
+    params: dict[str, Any] = {"id": feed_id}
+
+    allowed_fields = {"name", "url", "feed_type", "refresh_interval_minutes", "enabled"}
+    for field_name, field_value in updates.items():
+        if field_name in allowed_fields:
+            set_clauses.append(f"{field_name} = :{field_name}")
+            params[field_name] = field_value
+
+    if not set_clauses:
+        return None
+
+    set_clauses.append("updated_at = NOW()")
+    set_sql = ", ".join(set_clauses)
+    result = await session.execute(
+        text(f"""
+            UPDATE threat_intel_feeds
+            SET {set_sql}
+            WHERE id = :id
+            RETURNING id, name, url, feed_type, enabled, refresh_interval_minutes,
+                      last_fetched_at, last_fetch_status, last_indicator_count,
+                      created_by, created_at, updated_at
+        """),
+        params,
+    )
+    row = result.mappings().fetchone()
+    await session.commit()
+    return dict(row) if row else None
+
+
+async def delete_feed(
+    session: AsyncSession,
+    feed_id: int,
+) -> bool:
+    """Delete a feed and its associated indicators. Returns True if found."""
+    await session.execute(
+        text("DELETE FROM threat_intel_indicators WHERE feed_id = :feed_id"),
+        {"feed_id": feed_id},
+    )
+    result = await session.execute(
+        text("DELETE FROM threat_intel_feeds WHERE id = :id RETURNING id"),
+        {"id": feed_id},
+    )
+    deleted = result.fetchone() is not None
+    await session.commit()
+    return deleted
+
+
+async def bulk_create_indicators(
+    session: AsyncSession,
+    *,
+    indicators: list[dict[str, Any]],
+    added_by: str,
+) -> dict[str, int]:
+    """Bulk create indicators. Returns counts of created, duplicates, errors."""
+    created = 0
+    duplicates = 0
+    errors = 0
+
+    for ind in indicators:
+        try:
+            result = await session.execute(
+                text("""
+                    INSERT INTO threat_intel_indicators
+                        (indicator_type, value, source, confidence, added_by)
+                    VALUES
+                        (:indicator_type, :value, :source, :confidence, :added_by)
+                    ON CONFLICT (indicator_type, value) DO NOTHING
+                    RETURNING id
+                """),
+                {
+                    "indicator_type": ind["indicator_type"],
+                    "value": ind["value"],
+                    "source": ind.get("source", "manual-bulk"),
+                    "confidence": ind.get("confidence", 0.80),
+                    "added_by": added_by,
+                },
+            )
+            row = result.fetchone()
+            if row:
+                created += 1
+            else:
+                duplicates += 1
+        except Exception:
+            logger.warning("threat_intel.bulk_create_error", value=ind.get("value"))
+            errors += 1
+
+    await session.commit()
+    return {"created": created, "duplicates": duplicates, "errors": errors}
+
+
+async def get_matches(
+    session: AsyncSession,
+    *,
+    page: int = 1,
+    page_size: int = 50,
+) -> tuple[list[dict[str, Any]], int, int, int, str | None]:
+    """Get detections that matched threat intel indicators.
+
+    Returns (items, total, total_24h, unique_indicators, top_feed).
+    Matches are detections whose context_data has threat_intel_match info,
+    or whose source_ip / actor matches an indicator. For simplicity, we
+    return recent detections that have context_data containing 'threat_intel'.
+    """
+    count_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt
+            FROM detections
+            WHERE context_data::text ILIKE '%threat_intel%'
+               OR context_data::text ILIKE '%malicious%'
+        """)
+    )
+    total = int(count_result.scalar_one())
+
+    count_24h_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt
+            FROM detections
+            WHERE (context_data::text ILIKE '%threat_intel%'
+               OR context_data::text ILIKE '%malicious%')
+              AND triggered_at > NOW() - INTERVAL '24 hours'
+        """)
+    )
+    total_24h = int(count_24h_result.scalar_one())
+
+    offset = (page - 1) * page_size
+    result = await session.execute(
+        text("""
+            SELECT id AS detection_id, title, severity, status,
+                   actor, org, repo, triggered_at
+            FROM detections
+            WHERE context_data::text ILIKE '%threat_intel%'
+               OR context_data::text ILIKE '%malicious%'
+            ORDER BY triggered_at DESC
+            LIMIT :limit OFFSET :offset
+        """),
+        {"limit": page_size, "offset": offset},
+    )
+    items = [dict(row) for row in result.mappings().all()]
+
+    return items, total, total_24h, 0, None
+
+
+async def get_analytics(
+    session: AsyncSession,
+) -> dict[str, Any]:
+    """Get aggregate threat intel analytics."""
+    feeds_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) AS total_feeds,
+                COUNT(*) FILTER (WHERE enabled = TRUE) AS active_feeds
+            FROM threat_intel_feeds
+        """)
+    )
+    feeds_row = feeds_result.mappings().fetchone()
+    total_feeds = int(feeds_row["total_feeds"]) if feeds_row else 0
+    active_feeds = int(feeds_row["active_feeds"]) if feeds_row else 0
+
+    indicators_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) AS total_indicators,
+                COUNT(*) FILTER (WHERE active = TRUE) AS active_indicators
+            FROM threat_intel_indicators
+        """)
+    )
+    ind_row = indicators_result.mappings().fetchone()
+    total_indicators = int(ind_row["total_indicators"]) if ind_row else 0
+    active_indicators = int(ind_row["active_indicators"]) if ind_row else 0
+
+    matches_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt
+            FROM detections
+            WHERE (context_data::text ILIKE '%threat_intel%'
+               OR context_data::text ILIKE '%malicious%')
+              AND triggered_at > NOW() - INTERVAL '30 days'
+        """)
+    )
+    matches_30d = int(matches_result.scalar_one())
+
+    coverage_score = round(active_indicators / total_indicators, 2) if total_indicators > 0 else 0.0
+
+    mot_result = await session.execute(
+        text("""
+            SELECT DATE(triggered_at) AS date, COUNT(*) AS count
+            FROM detections
+            WHERE (context_data::text ILIKE '%threat_intel%'
+               OR context_data::text ILIKE '%malicious%')
+              AND triggered_at > NOW() - INTERVAL '30 days'
+            GROUP BY DATE(triggered_at)
+            ORDER BY date
+        """)
+    )
+    matches_over_time = [
+        {"date": str(row["date"]), "count": int(row["count"])}
+        for row in mot_result.mappings().all()
+    ]
+
+    mbf_result = await session.execute(
+        text("""
+            SELECT source, COUNT(*) AS count
+            FROM threat_intel_indicators
+            WHERE active = TRUE
+            GROUP BY source
+            ORDER BY count DESC
+            LIMIT 10
+        """)
+    )
+    matches_by_feed = [
+        {"name": row["source"], "count": int(row["count"])} for row in mbf_result.mappings().all()
+    ]
+
+    itd_result = await session.execute(
+        text("""
+            SELECT indicator_type, COUNT(*) AS count
+            FROM threat_intel_indicators
+            WHERE active = TRUE
+            GROUP BY indicator_type
+            ORDER BY count DESC
+        """)
+    )
+    indicator_type_distribution = [
+        {"type": row["indicator_type"], "count": int(row["count"])}
+        for row in itd_result.mappings().all()
+    ]
+
+    return {
+        "total_feeds": total_feeds,
+        "active_feeds": active_feeds,
+        "total_indicators": total_indicators,
+        "active_indicators": active_indicators,
+        "matches_30d": matches_30d,
+        "coverage_score": coverage_score,
+        "matches_over_time": matches_over_time,
+        "matches_by_feed": matches_by_feed,
+        "indicator_type_distribution": indicator_type_distribution,
+    }
+
+
+async def refresh_feed(
+    session: AsyncSession,
+    feed_id: int,
+) -> dict[str, Any] | None:
+    """Mark a feed as needing refresh and return its basic info."""
+    result = await session.execute(
+        text("""
+            UPDATE threat_intel_feeds
+            SET last_fetch_status = 'refreshing',
+                updated_at = NOW()
+            WHERE id = :id
+            RETURNING id, name, last_indicator_count
+        """),
+        {"id": feed_id},
+    )
+    row = result.mappings().fetchone()
+    await session.commit()
+    if row is None:
+        return None
+    return dict(row)
