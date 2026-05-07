@@ -15,6 +15,7 @@ vi.mock('../../api/copilotMetrics', () => ({
           'Acceptance rate dropped 15% in Backend team over the last 48 hours. This correlates with a new linting config deployment.',
         timestamp: '2 hours ago',
         team: 'Backend',
+        affected_count: 42,
       },
       {
         id: 2,
@@ -33,6 +34,7 @@ vi.mock('../../api/copilotMetrics', () => ({
           'Knowledge base queries increased 340% in ML/AI team. Likely related to onboarding of 5 new team members.',
         timestamp: '1 day ago',
         team: 'ML/AI',
+        affected_count: 5,
       },
     ],
   }),
@@ -165,5 +167,22 @@ describe('AnomaliesPane clickable stats', () => {
     renderPane();
     await user.click(await screen.findByText('ML/AI'));
     expect(screen.getByText(/ML\/AI team — anomaly context/)).toBeInTheDocument();
+  });
+
+  it('shows affected count when present on an anomaly', async () => {
+    renderPane();
+    await screen.findByText('Sudden drop in acceptance rate');
+    // The high severity anomaly has affected_count: 42
+    expect(screen.getByText('42')).toBeInTheDocument();
+    // The low severity anomaly has affected_count: 5
+    expect(screen.getByText('5')).toBeInTheDocument();
+  });
+
+  it('displays Affected label for anomalies with affected_count', async () => {
+    renderPane();
+    await screen.findByText('Sudden drop in acceptance rate');
+    const affectedLabels = screen.getAllByText('Affected:');
+    // Two anomalies have affected_count (id 1 and 3)
+    expect(affectedLabels.length).toBe(2);
   });
 });

@@ -12,7 +12,7 @@ import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { getCopilotAdoption } from '../../api/copilotMetrics';
 import styles from './Copilot.module.css';
 
-type AdoptionModal = 'tier' | 'feature' | 'minimal-user' | null;
+type AdoptionModal = 'tier' | 'feature' | 'minimal-user' | 'settings' | null;
 
 interface PowerUser {
   user: string;
@@ -48,6 +48,13 @@ export function AdoptionPane() {
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<string | null>(null);
   const [selectedMinimalUser, setSelectedMinimalUser] = useState<string | null>(null);
+
+  // Tier threshold settings (display-only for now, defaults from API)
+  const [thresholds, setThresholds] = useState({
+    power: 20,
+    regular: 10,
+    minimal: 1,
+  });
 
   function openTierModal(tierId: string) {
     setSelectedTierId(tierId);
@@ -291,7 +298,23 @@ export function AdoptionPane() {
       {!isLoading && !isError && (
         <>
           {/* Adoption tier cards */}
-          <div className={styles.sectionTitle}>Adoption tiers</div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div className={styles.sectionTitle}>Adoption tiers</div>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setAdoptionModal('settings')}
+              aria-label="Tier threshold settings"
+            >
+              ⚙️ Thresholds
+            </Button>
+          </div>
           <div className={styles.tierGrid}>
             {tiers.map((tier) => {
               const isClickable = tier.id === 'power' || tier.id === 'minimal';
@@ -409,9 +432,31 @@ export function AdoptionPane() {
                       />
                     </div>
                     <span className={styles.langPct}>{f.pct}%</span>
+                    {f.pct < 30 && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          color: 'var(--warning)',
+                          background: 'rgba(210, 153, 34, 0.15)',
+                          padding: '1px 5px',
+                          borderRadius: 3,
+                          marginLeft: 4,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Opportunity
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
+              {featureAdoption.some((f) => f.pct < 30) && (
+                <div style={{ padding: '8px 0 0', fontSize: 11, color: 'var(--fg-muted)' }}>
+                  💡 Features below 30% adoption represent growth opportunities. Consider targeted
+                  enablement sessions.
+                </div>
+              )}
             </Card>
           </div>
 
@@ -484,8 +529,50 @@ export function AdoptionPane() {
                   }}
                 >
                   <strong>{selectedFeatureData.feature}</strong> has{' '}
-                  <strong>{selectedFeatureData.pct}%</strong> adoption across all Copilot users.
+                  <strong>{selectedFeatureData.pct}%</strong> adoption
+                  {selectedFeatureData.active_users > 0 && (
+                    <>
+                      {' '}
+                      ({selectedFeatureData.active_users} active users
+                      {selectedFeatureData.total_seats > 0 &&
+                        ` of ${selectedFeatureData.total_seats} total seats`}
+                      )
+                    </>
+                  )}
+                  .
                 </p>
+                {selectedFeatureData.trend_7d !== 0 && (
+                  <p
+                    style={{
+                      fontSize: 13,
+                      color: selectedFeatureData.trend_7d > 0 ? 'var(--success)' : 'var(--danger)',
+                      lineHeight: 1.6,
+                      margin: '0 0 12px',
+                    }}
+                  >
+                    7-day trend:{' '}
+                    {selectedFeatureData.trend_7d > 0
+                      ? `+${selectedFeatureData.trend_7d}`
+                      : selectedFeatureData.trend_7d}
+                    %
+                  </p>
+                )}
+                {selectedFeatureData.pct < 30 && (
+                  <p
+                    style={{
+                      fontSize: 13,
+                      color: 'var(--warning)',
+                      lineHeight: 1.6,
+                      margin: '0 0 12px',
+                      padding: '8px 12px',
+                      background: 'rgba(210, 153, 34, 0.08)',
+                      borderRadius: 6,
+                    }}
+                  >
+                    ⚠️ This feature is below 30% adoption — a growth opportunity. Consider targeted
+                    enablement sessions for teams below the org-wide average.
+                  </p>
+                )}
                 <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
                   Teams with low adoption of this feature can be identified via the Copilot Metrics
                   API. Consider targeted enablement sessions for teams below the org-wide average.
@@ -519,6 +606,110 @@ export function AdoptionPane() {
                 />
               </div>
             )}
+          </Modal>
+
+          {/* Tier threshold settings modal */}
+          <Modal
+            open={adoptionModal === 'settings'}
+            onClose={() => setAdoptionModal(null)}
+            title="Adoption tier thresholds"
+            width={420}
+          >
+            <div style={{ padding: 16 }}>
+              <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16 }}>
+                Configure the minimum days-active thresholds used to classify users into adoption
+                tiers. Changes apply to future calculations.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span>Power User (days active in 30d)</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={thresholds.power}
+                    onChange={(e) =>
+                      setThresholds((prev) => ({
+                        ...prev,
+                        power: Number(e.target.value),
+                      }))
+                    }
+                    aria-label="Power user threshold"
+                    style={{
+                      width: 60,
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      border: '1px solid var(--border)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--fg)',
+                      textAlign: 'center',
+                    }}
+                  />
+                </label>
+                <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span>Regular User (days active in 30d)</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={thresholds.regular}
+                    onChange={(e) =>
+                      setThresholds((prev) => ({
+                        ...prev,
+                        regular: Number(e.target.value),
+                      }))
+                    }
+                    aria-label="Regular user threshold"
+                    style={{
+                      width: 60,
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      border: '1px solid var(--border)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--fg)',
+                      textAlign: 'center',
+                    }}
+                  />
+                </label>
+                <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span>Minimal User (days active in 30d)</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={thresholds.minimal}
+                    onChange={(e) =>
+                      setThresholds((prev) => ({
+                        ...prev,
+                        minimal: Number(e.target.value),
+                      }))
+                    }
+                    aria-label="Minimal user threshold"
+                    style={{
+                      width: 60,
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      border: '1px solid var(--border)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--fg)',
+                      textAlign: 'center',
+                    }}
+                  />
+                </label>
+              </div>
+              <div
+                style={{
+                  marginTop: 16,
+                  fontSize: 11,
+                  color: 'var(--fg-muted)',
+                  lineHeight: 1.5,
+                }}
+              >
+                Current defaults — Power: ≥{thresholds.power}d, Regular: ≥{thresholds.regular}d,
+                Minimal: ≥{thresholds.minimal}d. Users below Minimal threshold are classified as
+                Inactive.
+              </div>
+            </div>
           </Modal>
         </>
       )}
