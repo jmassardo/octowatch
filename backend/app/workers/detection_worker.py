@@ -111,6 +111,21 @@ async def _run_pipeline(event_ids: list[int]) -> dict[str, object]:
                             error=str(exc),
                         )
 
+                # Chain workflow scanner for workflow-related events
+                try:
+                    from app.workers.workflow_scan_worker import scan_workflow_events_task
+
+                    scan_workflow_events_task.delay(event_ids)
+                    logger.info(
+                        "detection_worker.workflow_scan_chained",
+                        event_count=len(event_ids),
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "detection_worker.workflow_scan_chain_failed",
+                        error=str(exc),
+                    )
+
                 return {
                     "detections_written": result.detections_written,
                     "detection_ids": detection_ids,
