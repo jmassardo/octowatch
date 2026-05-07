@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { listRules, createRule, updateRule, deleteRule, listRuleVersions } from '../../api/rules';
+import {
+  listRules,
+  createRule,
+  updateRule,
+  deleteRule,
+  listRuleVersions,
+  bulkUpdateRules,
+} from '../../api/rules';
 import type { RuleVersionResponse } from '../../api/rules';
 import type { RuleResponse, RuleCreate, RuleCategory } from '../../types/detections';
 import { useToast } from '../../hooks/useToast';
@@ -18,6 +25,9 @@ import { RuleConfigEditorContainer } from './editor/RuleConfigEditorContainer';
 import { JsonConfigEditor } from './editor/JsonConfigEditor';
 import { TestRuleModal } from './TestRuleModal';
 import { RuleLibrary } from './RuleLibrary';
+import { RuleWizard } from './RuleWizard';
+import { BacktestPanel } from './BacktestPanel';
+import { RuleAnalytics } from './RuleAnalytics';
 import { formatAbsolute } from '../../utils/dates';
 import styles from './Rules.module.css';
 
@@ -126,7 +136,6 @@ function RuleForm({
 
   function handleLogicTypeChange(newType: string) {
     setLogicType(newType);
-    // Only reset config to defaults when creating a new rule
     if (!initial) {
       setLogicConfig(getDefaultConfig(newType));
     }
@@ -411,13 +420,17 @@ export function RulesPage() {
   const qc = useQueryClient();
   const { showToast } = useToast();
   const [showCreate, setShowCreate] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [editRule, setEditRule] = useState<RuleResponse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RuleResponse | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [versionRule, setVersionRule] = useState<RuleResponse | null>(null);
   const [testRuleTarget, setTestRuleTarget] = useState<RuleResponse | null>(null);
+  const [analyticsRule, setAnalyticsRule] = useState<RuleResponse | null>(null);
+  const [backtestRuleTarget, setBacktestRuleTarget] = useState<RuleResponse | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
   const [page, setPage] = useState(1);
+  const [selectedRuleIds, setSelectedRuleIds] = useState<Set<number>>(new Set());
   const navigate = useNavigate();
 
   const PAGE_SIZE = 25;
@@ -468,6 +481,30 @@ export function RulesPage() {
     },
   });
 
+  const bulkMutation = useMutation({
+    mutationFn: bulkUpdateRules,
+    onSuccess: (result, variables) => {
+      qc.invalidateQueries({ queryKey: ['rules'] });
+      setSelectedRuleIds(new Set());
+      const actionLabel =
+        variables.action === 'set_monitoring'
+          ? 'set to monitoring'
+          : variables.action === 'enable'
+            ? 'enabled'
+            : 'disabled';
+      const failureSuffix = result.failed.length > 0 ? ` (${result.failed.length} failed)` : '';
+      showToast(`${result.updated} rules ${actionLabel}${failureSuffix}`, 'success');
+    },
+    onError: () => {
+      showToast('Bulk update failed', 'error');
+    },
+  });
+
+  function handleBulkAction(action: 'enable' | 'disable' | 'set_monitoring') {
+    if (selectedRuleIds.size === 0) return;
+    bulkMutation.mutate({ rule_ids: Array.from(selectedRuleIds), action });
+  }
+
   return (
     <div className={styles.page}>
       {showLibrary ? (
@@ -493,6 +530,9 @@ export function RulesPage() {
               >
                 Sync from GitHub
               </Button>
+              <Button variant="default" size="sm" onClick={() => setShowWizard(true)}>
+                New Rule (Wizard)
+              </Button>
               <Button variant="primary" size="sm" onClick={() => setShowCreate(true)}>
                 New rule
               </Button>
@@ -516,12 +556,48 @@ export function RulesPage() {
           )}
           {isError && <ErrorBanner message="Failed to load rules" onRetry={() => refetch()} />}
 
+          {selectedRuleIds.size > 0 && (
+            <div className={styles.bulkBar}>
+              <span className={styles.bulkCount}>{selectedRuleIds.size} selected</span>
+              <Button size="sm" type="button" onClick={() => handleBulkAction('enable')}>
+                Enable
+              </Button>
+              <Button size="sm" type="button" onClick={() => handleBulkAction('disable')}>
+                Disable
+              </Button>
+              <Button size="sm" type="button" onClick={() => handleBulkAction('set_monitoring')}>
+                Set Monitoring
+              </Button>
+            </div>
+          )}
+
           {isLoading ? (
             <Spinner />
           ) : (
             <div className={styles.tableWrap}>
               <DataTable<RuleResponse>
                 columns={[
+                  {
+                    key: 'select',
+                    header: '',
+                    render: (rule) => (
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${rule.name}`}
+                        checked={selectedRuleIds.has(rule.id)}
+                        onChange={(event) => {
+                          event.stopPropagation();
+                          setSelectedRuleIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(rule.id)) next.delete(rule.id);
+                            else next.add(rule.id);
+                            return next;
+                          });
+                        }}
+                        onClick={(event) => event.stopPropagation()}
+                      />
+                    ),
+                  },
                   {
                     key: 'status',
                     header: 'Status',
@@ -534,6 +610,26 @@ export function RulesPage() {
                         {rule.status === 'active' ? 'active' : 'draft'}
                       </Label>
                     ),
+                  },
+                  {
+                    key: 'mode',
+                    header: 'Mode',
+                    sortable: true,
+                    sortValue: (rule) => rule.mode ?? 'active',
+                    render: (rule) => {
+                      const mode = rule.mode ?? 'active';
+                      if (mode === 'monitoring') {
+                        return (
+                          <Label variant="attention" className={styles.monitoringBadge}>
+                            monitoring
+                          </Label>
+                        );
+                      }
+                      if (mode === 'disabled') {
+                        return <Label variant="muted">disabled</Label>;
+                      }
+                      return <Label variant="success">active</Label>;
+                    },
                   },
                   {
                     key: 'name',
@@ -640,6 +736,26 @@ export function RulesPage() {
                           variant="default"
                           onClick={(e: React.MouseEvent) => {
                             e.stopPropagation();
+                            setAnalyticsRule(rule);
+                          }}
+                        >
+                          Analytics
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            setBacktestRuleTarget(rule);
+                          }}
+                        >
+                          Backtest
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
                             setTestRuleTarget(rule);
                           }}
                         >
@@ -655,6 +771,16 @@ export function RulesPage() {
                         >
                           Edit
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            setDeleteTarget(rule);
+                          }}
+                        >
+                          Delete
+                        </Button>
                       </div>
                     ),
                   },
@@ -669,7 +795,10 @@ export function RulesPage() {
                   page={page}
                   pageSize={PAGE_SIZE}
                   total={rules.total}
-                  onPageChange={setPage}
+                  onPageChange={(nextPage) => {
+                    setSelectedRuleIds(new Set());
+                    setPage(nextPage);
+                  }}
                 />
               )}
             </div>
@@ -679,6 +808,17 @@ export function RulesPage() {
             <RuleForm
               onSave={(v) => createMutation.mutate(v)}
               onCancel={() => setShowCreate(false)}
+            />
+          </Drawer>
+
+          <Drawer open={showWizard} onClose={() => setShowWizard(false)} title="New Rule Wizard">
+            <RuleWizard
+              onClose={() => setShowWizard(false)}
+              onCreated={() => {
+                setShowWizard(false);
+                qc.invalidateQueries({ queryKey: ['rules'] });
+                showToast('Rule created', 'success');
+              }}
             />
           </Drawer>
 
@@ -694,6 +834,22 @@ export function RulesPage() {
 
           <Drawer open={!!versionRule} onClose={() => setVersionRule(null)} title="Version history">
             {versionRule && <VersionHistory rule={versionRule} />}
+          </Drawer>
+
+          <Drawer
+            open={!!analyticsRule}
+            onClose={() => setAnalyticsRule(null)}
+            title={`Analytics: ${analyticsRule?.name ?? ''}`}
+          >
+            {analyticsRule && <RuleAnalytics rule={analyticsRule} />}
+          </Drawer>
+
+          <Drawer
+            open={!!backtestRuleTarget}
+            onClose={() => setBacktestRuleTarget(null)}
+            title={`Backtest: ${backtestRuleTarget?.name ?? ''}`}
+          >
+            {backtestRuleTarget && <BacktestPanel rule={backtestRuleTarget} />}
           </Drawer>
 
           <ConfirmDialog

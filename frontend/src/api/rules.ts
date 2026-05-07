@@ -76,3 +76,71 @@ export function testRule(
 ): Promise<RuleTestEventResponse> {
   return api.post<RuleTestEventResponse>(`/rules/${ruleId}/test`, { event });
 }
+
+export interface BacktestParams {
+  start_date: string;
+  end_date: string;
+  max_results?: number;
+}
+
+export interface BacktestMatch {
+  event_id: number;
+  timestamp: string;
+  actor: string | null;
+  action: string;
+  org: string | null;
+  repo: string | null;
+  matched_conditions: string[];
+}
+
+export interface BacktestResult {
+  matches: BacktestMatch[];
+  total_matches: number;
+  capped: boolean;
+  duration_ms: number;
+  events_scanned: number;
+}
+
+export function backtestRule(ruleId: number, params: BacktestParams): Promise<BacktestResult> {
+  return api.post<BacktestResult>(`/rules/${ruleId}/backtest`, params);
+}
+
+export interface DayCount {
+  date: string;
+  count: number;
+}
+
+export interface TopItem {
+  name: string;
+  count: number;
+}
+
+export interface RuleAnalytics {
+  total_detections: number;
+  detections_by_day: DayCount[];
+  avg_detections_per_day: number;
+  false_positive_rate: number;
+  mean_time_to_triage_hours: number | null;
+  top_actors: TopItem[];
+  top_repos: TopItem[];
+  top_actions: TopItem[];
+}
+
+export function getRuleAnalytics(ruleId: number, days?: number): Promise<RuleAnalytics> {
+  return api.get<RuleAnalytics>(`/rules/${ruleId}/analytics`, days ? { days } : undefined);
+}
+
+export interface BulkUpdateRequest {
+  rule_ids: number[];
+  action: 'enable' | 'disable' | 'set_monitoring';
+  reason?: string;
+}
+
+export interface BulkUpdateResult {
+  updated: number;
+  failed: number[];
+}
+
+export function bulkUpdateRules(body: BulkUpdateRequest): Promise<BulkUpdateResult> {
+  return api.post<BulkUpdateResult>('/rules/bulk-update', body);
+}
