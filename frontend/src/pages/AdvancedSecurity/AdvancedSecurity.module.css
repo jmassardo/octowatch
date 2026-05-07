@@ -85,10 +85,57 @@
   margin-bottom: 20px;
 }
 
+.trendHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
 .trendTitle {
   font-size: 13px;
   font-weight: 600;
-  margin-bottom: 12px;
+}
+
+.periodToggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.periodBtn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--bg-card);
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.periodBtn:last-child {
+  border-right: none;
+}
+
+.periodBtn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.periodBtnActive {
+  background: var(--accent);
+  color: #fff;
+}
+
+.periodBtnActive:hover {
+  background: var(--accent);
+  color: #fff;
 }
 
 .trendChart {
@@ -205,4 +252,21 @@
   justify-content: center;
   align-items: center;
   padding: 48px 16px;
+}
+
+/* ── Card with sparkline wrapper ── */
+.cardWithSparkline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cardWithSparkline > :first-child {
+  flex: 1;
+}
+
+/* ── Mini sparkline ── */
+.miniSparkline {
+  display: block;
+  margin: 0 auto;
 }
