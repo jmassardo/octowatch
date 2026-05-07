@@ -180,48 +180,14 @@ describe('VelocityPage', () => {
   });
 
   /* ---------------------------------------------------------------- */
-  /*  Top failing workflows table                                       */
+  /*  Workflow Health callout (replaced workflow tables)                 */
   /* ---------------------------------------------------------------- */
 
-  it('renders the top failing workflows section title', () => {
+  it('renders the workflow health callout with link to /workflows/health', () => {
     renderWithProviders(<VelocityPage />);
 
-    expect(screen.getByText('Top failing workflows')).toBeInTheDocument();
-  });
-
-  it('renders the top failing workflows table with correct column headers', () => {
-    renderWithProviders(<VelocityPage />);
-
-    const sectionTitle = screen.getByText('Top failing workflows');
-    const tableWrap = sectionTitle.nextElementSibling;
-    const table = tableWrap?.querySelector('table');
-    expect(table).toBeTruthy();
-    // Get only the first header row (DataTable may add a filter row)
-    const headerRow = table!.querySelector('thead tr');
-    const headers = headerRow!.querySelectorAll('th');
-    const headerTexts = Array.from(headers).map((h) =>
-      h.textContent?.replace(/[⇅↑↓ⓘ]/g, '').trim(),
-    );
-
-    expect(headerTexts).toEqual([
-      'Workflow',
-      'Repository',
-      'Failure rate',
-      'Last run',
-      'Total runs',
-    ]);
-  });
-
-  it('shows empty state when no workflow health data is available', () => {
-    renderWithProviders(<VelocityPage />);
-
-    expect(screen.getByText('No workflow health data available')).toBeInTheDocument();
-  });
-
-  it('does not show sample data banner for top failing workflows', () => {
-    renderWithProviders(<VelocityPage />);
-
-    expect(screen.queryByText(/Top failing workflows display sample data/)).not.toBeInTheDocument();
+    const link = screen.getByRole('link', { name: /Workflow Health/i });
+    expect(link).toHaveAttribute('href', '/workflows/health');
   });
 
   /* ---------------------------------------------------------------- */
@@ -698,53 +664,6 @@ describe('VelocityPage failure row modal', () => {
 /* ------------------------------------------------------------------ */
 /*  Helper function tests                                              */
 /* ------------------------------------------------------------------ */
-
-describe('Workflow health failure rate variants', () => {
-  const MOCK_WORKFLOWS = [
-    {
-      repo: 'acme/api',
-      workflow_name: 'ci.yml',
-      total_runs: 100,
-      successes: 40,
-      failures: 60,
-      failure_rate_pct: 60.0,
-      last_run: '2024-01-15T00:00:00Z',
-    },
-    {
-      repo: 'acme/web',
-      workflow_name: 'deploy.yml',
-      total_runs: 50,
-      successes: 36,
-      failures: 14,
-      failure_rate_pct: 28.0,
-      last_run: '2024-01-14T00:00:00Z',
-    },
-    {
-      repo: 'acme/lib',
-      workflow_name: 'test.yml',
-      total_runs: 80,
-      successes: 68,
-      failures: 12,
-      failure_rate_pct: 15.0,
-      last_run: '2024-01-13T00:00:00Z',
-    },
-  ];
-
-  it('renders workflow health data with failure rate badges', async () => {
-    const { getWorkflowHealth } = await import('../../api/healthSignals');
-    vi.mocked(getWorkflowHealth).mockResolvedValue({ workflows: MOCK_WORKFLOWS });
-    mockGetActionsVolumeReport.mockResolvedValue({ data: [] });
-    mockListEvents.mockResolvedValue({ items: [], total: 0 });
-
-    renderWithProviders(<VelocityPage />);
-
-    // Wait for workflow health data to load — appears in both "Top failing" and "Workflow health" sections
-    const badges60 = await screen.findAllByText('60.0%');
-    expect(badges60.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('28.0%').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('15.0%').length).toBeGreaterThanOrEqual(1);
-  });
-});
 
 describe('Active repos show real event-derived stats', () => {
   const MOCK_EVENTS = [

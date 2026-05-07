@@ -3,14 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
 import { getActionsVolumeReport } from '../../api/reports';
 import { listEvents } from '../../api/events';
-import { getWorkflowHealth, getBranchProtection } from '../../api/healthSignals';
+import { getBranchProtection } from '../../api/healthSignals';
 import { ContributionCalendar } from '../../components/charts/ContributionCalendar';
 import { LineAreaChart } from '../../components/charts/LineAreaChart';
 import { BarChart } from '../../components/charts/BarChart';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
-import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
+import { DataTable } from '../../components/primitives/DataTable';
 import { Drawer } from '../../components/primitives/Drawer';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
@@ -18,8 +18,7 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { useFeatures } from '../../hooks/useFeatures';
 import type { ActionsVolumeBucket } from '../../types/reports';
 import type { EventResponse } from '../../types/events';
-import type { WorkflowRow } from '../../api/healthSignals';
-import { formatDateOnly, formatBucketDate } from '../../utils/dates';
+import { formatBucketDate } from '../../utils/dates';
 import styles from './Velocity.module.css';
 
 interface CalendarDay {
@@ -103,12 +102,6 @@ function computeRepoStats(events: readonly EventResponse[]): RepoActivityStats[]
     .slice(0, 10);
 }
 
-function getFailureRateVariant(rate: number): 'danger' | 'attention' | 'success' {
-  if (rate > 20) return 'danger';
-  if (rate > 10) return 'attention';
-  return 'success';
-}
-
 interface DoraTier {
   readonly name: 'Elite' | 'High' | 'Medium' | 'Low';
   readonly icon: string;
@@ -145,96 +138,6 @@ function computeDoraTier(deployFreqPerDay: number, cfr: number | null): DoraTier
   if (avg >= 2.5) return { name: 'High', icon: '▲', cssClass: 'doraTierHigh' };
   if (avg >= 1.5) return { name: 'Medium', icon: '◆', cssClass: 'doraTierMedium' };
   return { name: 'Low', icon: '▼', cssClass: 'doraTierLow' };
-}
-
-function WorkflowHealthSection({ workflows }: { workflows: WorkflowRow[] }) {
-  const topFailing = [...workflows]
-    .filter((wf) => wf.failure_rate_pct > 0)
-    .sort((a, b) => b.failure_rate_pct - a.failure_rate_pct)
-    .slice(0, 10);
-
-  const workflowColumns: ColumnDef<WorkflowRow>[] = [
-    {
-      key: 'repo',
-      header: 'Repository',
-      sortable: true,
-      filterable: true,
-      helpText: 'The repository the workflow belongs to',
-      render: (wf) => <>{wf.repo}</>,
-      sortValue: (wf) => wf.repo,
-      filterValue: (wf) => wf.repo,
-    },
-    {
-      key: 'workflow_name',
-      header: 'Workflow',
-      sortable: true,
-      filterable: true,
-      helpText: 'The name of the CI/CD workflow',
-      render: (wf) => <span className={styles.workflowName}>{wf.workflow_name}</span>,
-      sortValue: (wf) => wf.workflow_name,
-      filterValue: (wf) => wf.workflow_name,
-    },
-    {
-      key: 'total_runs',
-      header: 'Total runs',
-      sortable: true,
-      filterable: true,
-      helpText: 'Total number of workflow runs in the period',
-      render: (wf) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.total_runs}</span>,
-      sortValue: (wf) => wf.total_runs,
-      filterValue: (wf) => String(wf.total_runs),
-    },
-    {
-      key: 'failures',
-      header: 'Failures',
-      sortable: true,
-      filterable: true,
-      helpText: 'Number of failed runs',
-      render: (wf) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.failures}</span>,
-      sortValue: (wf) => wf.failures,
-      filterValue: (wf) => String(wf.failures),
-    },
-    {
-      key: 'failure_rate_pct',
-      header: 'Failure rate',
-      sortable: true,
-      filterable: true,
-      helpText: 'Percentage of runs that failed',
-      render: (wf) => (
-        <Label variant={getFailureRateVariant(wf.failure_rate_pct)}>
-          {wf.failure_rate_pct.toFixed(1)}%
-        </Label>
-      ),
-      sortValue: (wf) => wf.failure_rate_pct,
-      filterValue: (wf) => `${wf.failure_rate_pct.toFixed(1)}%`,
-    },
-    {
-      key: 'last_run',
-      header: 'Last run',
-      sortable: true,
-      filterable: true,
-      helpText: 'When the workflow last ran',
-      render: (wf) => (
-        <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.last_run)}</span>
-      ),
-      sortValue: (wf) => new Date(wf.last_run),
-      filterValue: (wf) => formatDateOnly(wf.last_run),
-    },
-  ];
-
-  return (
-    <div style={{ marginTop: 8 }}>
-      <div className={styles.sectionTitle}>Workflow health — audit log signals</div>
-      <div style={{ marginBottom: 20 }}>
-        <DataTable<WorkflowRow>
-          columns={workflowColumns}
-          data={topFailing}
-          rowKey={(wf) => `${wf.repo}/${wf.workflow_name}`}
-          emptyMessage="No failing workflows detected"
-        />
-      </div>
-    </div>
-  );
 }
 
 interface BranchProtectionProps {
@@ -314,12 +217,6 @@ export function VelocityPage() {
         page_size: 2000,
         sort: 'created_at_desc',
       }),
-  });
-
-  const { data: workflowHealthData } = useQuery({
-    queryKey: ['health', 'workflows-velocity'],
-    queryFn: getWorkflowHealth,
-    staleTime: 60_000,
   });
 
   const { data: branchProtData } = useQuery({
@@ -933,74 +830,15 @@ export function VelocityPage() {
         </div>
       )}
 
-      <div className={styles.sectionTitle}>Top failing workflows</div>
-      <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
-        {(() => {
-          const topFailingWorkflows = [...(workflowHealthData?.workflows ?? [])]
-            .filter((wf) => wf.failure_rate_pct > 0)
-            .sort((a, b) => b.failure_rate_pct - a.failure_rate_pct)
-            .slice(0, 10);
-          return (
-            <DataTable<WorkflowRow>
-              columns={[
-                {
-                  key: 'workflow_name',
-                  header: 'Workflow',
-                  helpText: 'Name of the GitHub Actions workflow. From workflow_run audit events.',
-                  filterable: true,
-                  render: (wf) => <span className={styles.workflowName}>{wf.workflow_name}</span>,
-                  filterValue: (wf) => wf.workflow_name,
-                },
-                {
-                  key: 'repo',
-                  header: 'Repository',
-                  helpText: 'Repository this workflow belongs to. From workflow_run audit events.',
-                  filterable: true,
-                  render: (wf) => <>{wf.repo}</>,
-                  filterValue: (wf) => wf.repo,
-                },
-                {
-                  key: 'failure_rate_pct',
-                  header: 'Failure rate',
-                  helpText:
-                    'Percentage of runs that failed for this workflow. From workflow_run audit events. Investigate consistently failing workflows.',
-                  sortable: true,
-                  render: (wf) => (
-                    <Label variant={getFailureRateVariant(wf.failure_rate_pct)}>
-                      {wf.failure_rate_pct.toFixed(1)}%
-                    </Label>
-                  ),
-                  sortValue: (wf) => wf.failure_rate_pct,
-                },
-                {
-                  key: 'last_run',
-                  header: 'Last run',
-                  helpText:
-                    'Timestamp of the most recent run of this workflow. From workflow_run audit events.',
-                  sortable: true,
-                  render: (wf) => (
-                    <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.last_run)}</span>
-                  ),
-                  sortValue: (wf) => wf.last_run,
-                },
-                {
-                  key: 'total_runs',
-                  header: 'Total runs',
-                  helpText:
-                    'Total number of runs recorded for this workflow. From workflow_run audit events.',
-                  sortable: true,
-                  render: (wf) => (
-                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{wf.total_runs}</span>
-                  ),
-                  sortValue: (wf) => wf.total_runs,
-                },
-              ]}
-              data={topFailingWorkflows}
-              rowKey={(wf) => `${wf.repo}/${wf.workflow_name}`}
-              emptyMessage="No workflow health data available"
-            />
-          );
-        })()}
+      <div className={styles.workflowCallout}>
+        <div className={styles.calloutIcon}>⚡</div>
+        <div className={styles.calloutContent}>
+          <div className={styles.calloutTitle}>Workflow Health</div>
+          <div className={styles.calloutDesc}>
+            Persistent CI/CD failures and timeouts are tracked on the dedicated{' '}
+            <Link to="/workflows/health">Workflow Health</Link> page.
+          </div>
+        </div>
       </div>
 
       <div ref={reposRef} className={styles.sectionTitle}>
@@ -1083,9 +921,6 @@ export function VelocityPage() {
           No workflow run data for the selected period.
         </div>
       )}
-
-      {/* Workflow Health from audit logs */}
-      <WorkflowHealthSection workflows={workflowHealthData?.workflows ?? []} />
 
       {/* Branch Protection Changes */}
       <BranchProtectionSection branchProt={branchProtData} />
