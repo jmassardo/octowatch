@@ -13,13 +13,10 @@ import { Label } from '../../components/primitives/Label';
 import { Pagination } from '../../components/primitives/Pagination';
 import {
   getUnifiedSecurity,
-  getSecretScanningAlerts,
-  getSecretScanning,
   getCodeScanningAlerts,
   getCodeScanning,
   getDependabotAlerts,
   getVulnerabilities,
-  type SecretScanningAlertItem,
   type CodeScanningAlertItem,
   type DependabotAlertItem,
 } from '../../api/healthSignals';
@@ -31,6 +28,7 @@ import styles from './AdvancedSecurity.module.css';
 const PAGE_SIZE = 50;
 
 import { StrategicPane } from './StrategicPane';
+import { SecretsPane } from './SecretsPane';
 
 type TabKey = 'overview' | 'secrets' | 'code' | 'dependabot' | 'activity' | 'strategic';
 
@@ -303,276 +301,6 @@ function OverviewTab({ onSwitchTab }: { onSwitchTab: (tab: TabKey) => void }) {
           </div>
         </div>
       </div>
-    </>
-  );
-}
-
-/* ── Secret Scanning Tab ── */
-function SecretScanningTab() {
-  const [page, setPage] = useState(1);
-  const [stateFilter, setStateFilter] = useState('');
-  const [selected, setSelected] = useState<SecretScanningAlertItem | null>(null);
-  const tableRef = useRef<HTMLDivElement>(null);
-
-  const scrollToTable = useCallback(() => {
-    setTimeout(() => tableRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
-  }, []);
-
-  const offset = (page - 1) * PAGE_SIZE;
-
-  const { data: summary, isLoading: loadingSummary } = useQuery({
-    queryKey: ['secret-scanning-summary'],
-    queryFn: getSecretScanning,
-    staleTime: 60_000,
-  });
-
-  const {
-    data: alertsData,
-    isLoading: loadingAlerts,
-    isError,
-    refetch,
-  } = useQuery({
-    queryKey: ['secret-scanning-alerts', page, stateFilter],
-    queryFn: () => getSecretScanningAlerts(PAGE_SIZE, offset, stateFilter || undefined),
-    staleTime: 30_000,
-  });
-
-  const columns: ColumnDef<SecretScanningAlertItem>[] = useMemo(
-    () => [
-      {
-        key: 'repo',
-        header: 'Repo',
-        sortable: true,
-        filterable: true,
-        helpText: 'Repository where the secret was detected',
-        render: (r) => r.repo_full_name,
-        sortValue: (r) => r.repo_full_name,
-        filterValue: (r) => r.repo_full_name,
-      },
-      {
-        key: 'secret_type',
-        header: 'Secret Type',
-        sortable: true,
-        filterable: true,
-        helpText: 'Type of secret detected (e.g. API key, token)',
-        render: (r) => r.secret_type_display ?? r.secret_type,
-        sortValue: (r) => r.secret_type,
-        filterValue: (r) => r.secret_type_display ?? r.secret_type,
-      },
-      {
-        key: 'state',
-        header: 'State',
-        sortable: true,
-        filterable: true,
-        helpText: 'Current state of the alert (open, resolved, etc.)',
-        render: (r) => <Label variant={stateVariant(r.state)}>{r.state}</Label>,
-        sortValue: (r) => r.state,
-        filterValue: (r) => r.state,
-      },
-      {
-        key: 'push_protection',
-        header: 'Push Protection Bypassed',
-        sortable: true,
-        filterable: true,
-        helpText: 'Whether push protection was bypassed for this secret',
-        render: (r) =>
-          r.push_protection_bypassed ? (
-            <Label variant="danger">Yes</Label>
-          ) : (
-            <Label variant="muted">No</Label>
-          ),
-        sortValue: (r) => (r.push_protection_bypassed ? 1 : 0),
-        filterValue: (r) => (r.push_protection_bypassed ? 'yes' : 'no'),
-      },
-      {
-        key: 'created',
-        header: 'Created',
-        sortable: true,
-        filterable: true,
-        helpText: 'When the alert was first created',
-        render: (r) => formatRelativeShort(r.created_at),
-        sortValue: (r) => r.created_at,
-        filterValue: (r) => r.created_at,
-      },
-      {
-        key: 'resolved',
-        header: 'Resolved',
-        sortable: true,
-        filterable: true,
-        helpText: 'When the alert was resolved (if applicable)',
-        render: (r) => (r.resolved_at ? formatRelativeShort(r.resolved_at) : '—'),
-        sortValue: (r) => r.resolved_at ?? '',
-        filterValue: (r) => r.resolved_at ?? '',
-      },
-    ],
-    [],
-  );
-
-  return (
-    <>
-      <div className={styles.cardGrid}>
-        {loadingSummary ? (
-          <Spinner />
-        ) : summary ? (
-          <>
-            <MetricCard
-              value={String(summary.unresolved_total)}
-              label="Open Alerts"
-              helpText="Total unresolved secret scanning alerts"
-              onClick={() => {
-                setStateFilter('open');
-                setPage(1);
-                scrollToTable();
-              }}
-            />
-            <MetricCard
-              value={String(summary.publicly_leaked)}
-              label="Publicly Leaked"
-              helpText="Secrets detected in publicly accessible locations"
-              accent
-              onClick={() => {
-                setStateFilter('open');
-                setPage(1);
-                scrollToTable();
-              }}
-            />
-            <MetricCard
-              value={String(summary.push_protection_bypassed_count)}
-              label="Push Protection Bypassed"
-              helpText="Alerts where push protection was explicitly bypassed"
-              onClick={() => {
-                setStateFilter('open');
-                setPage(1);
-                scrollToTable();
-              }}
-            />
-            <MetricCard
-              value={String(Math.round(summary.mttr_hours))}
-              label="MTTR (hours)"
-              helpText="Mean time to resolve secret scanning alerts"
-            />
-            <MetricCard
-              value={`${summary.resolution_rate_pct.toFixed(1)}%`}
-              label="Resolution Rate"
-              helpText="Percentage of total alerts that have been resolved"
-              onClick={() => {
-                setStateFilter('resolved');
-                setPage(1);
-                scrollToTable();
-              }}
-            />
-          </>
-        ) : null}
-      </div>
-
-      <div className={styles.filters}>
-        <select
-          className={styles.filterSelect}
-          value={stateFilter}
-          onChange={(e) => {
-            setStateFilter(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">All states</option>
-          <option value="open">Open</option>
-          <option value="resolved">Resolved</option>
-        </select>
-      </div>
-
-      {loadingAlerts && (
-        <div className={styles.center}>
-          <Spinner />
-        </div>
-      )}
-      {isError && (
-        <ErrorBanner
-          message="Failed to load secret scanning alerts"
-          onRetry={() => void refetch()}
-        />
-      )}
-      {alertsData && (
-        <div className={styles.tableSection} ref={tableRef}>
-          <DataTable
-            columns={columns}
-            data={alertsData.alerts}
-            rowKey={(r) => r.id}
-            onRowClick={(r) => setSelected(r)}
-            emptyMessage="No secret scanning alerts found"
-          />
-          <Pagination
-            page={page}
-            pageSize={PAGE_SIZE}
-            total={alertsData.total}
-            onPageChange={setPage}
-          />
-        </div>
-      )}
-
-      <Drawer open={!!selected} onClose={() => setSelected(null)} title="Secret Scanning Alert">
-        {selected && (
-          <>
-            <div className={styles.drawerField}>
-              <div className={styles.drawerLabel}>Repository</div>
-              <div className={styles.drawerValue}>{selected.repo_full_name}</div>
-            </div>
-            <div className={styles.drawerField}>
-              <div className={styles.drawerLabel}>Secret Type</div>
-              <div className={styles.drawerValue}>
-                {selected.secret_type_display ?? selected.secret_type}
-              </div>
-            </div>
-            <div className={styles.drawerField}>
-              <div className={styles.drawerLabel}>State</div>
-              <div className={styles.drawerValue}>
-                <Label variant={stateVariant(selected.state)}>{selected.state}</Label>
-              </div>
-            </div>
-            <div className={styles.drawerField}>
-              <div className={styles.drawerLabel}>Resolution</div>
-              <div className={styles.drawerValue}>{selected.resolution ?? '—'}</div>
-            </div>
-            <div className={styles.drawerField}>
-              <div className={styles.drawerLabel}>Push Protection Bypassed</div>
-              <div className={styles.drawerValue}>
-                {selected.push_protection_bypassed ? (
-                  <Label variant="danger">
-                    Yes — by {selected.push_protection_bypassed_by ?? 'unknown'}
-                  </Label>
-                ) : (
-                  'No'
-                )}
-              </div>
-            </div>
-            {selected.file_path && (
-              <div className={styles.drawerField}>
-                <div className={styles.drawerLabel}>File</div>
-                <div className={`${styles.drawerValue} ${styles.drawerMono}`}>
-                  {selected.file_path}
-                </div>
-              </div>
-            )}
-            {selected.commit_sha && (
-              <div className={styles.drawerField}>
-                <div className={styles.drawerLabel}>Commit</div>
-                <div className={`${styles.drawerValue} ${styles.drawerMono}`}>
-                  {selected.commit_sha}
-                </div>
-              </div>
-            )}
-            <div className={styles.drawerField}>
-              <div className={styles.drawerLabel}>Created</div>
-              <div className={styles.drawerValue}>{formatRelativeShort(selected.created_at)}</div>
-            </div>
-            <div className={styles.drawerField}>
-              <div className={styles.drawerLabel}>Resolved</div>
-              <div className={styles.drawerValue}>
-                {selected.resolved_at ? formatRelativeShort(selected.resolved_at) : '—'}
-              </div>
-            </div>
-          </>
-        )}
-      </Drawer>
     </>
   );
 }
@@ -1349,7 +1077,7 @@ export function AdvancedSecurityPage() {
         </div>
 
         {activeTab === 'overview' && <OverviewTab onSwitchTab={setTab} />}
-        {activeTab === 'secrets' && <SecretScanningTab />}
+        {activeTab === 'secrets' && <SecretsPane />}
         {activeTab === 'code' && <CodeScanningTab />}
         {activeTab === 'dependabot' && <DependabotTab />}
         {activeTab === 'activity' && <ActivityLogTab />}
