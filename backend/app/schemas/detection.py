@@ -47,6 +47,7 @@ class DetectionResponse(BaseModel):
     confidence: str
     confidence_score: float
     status: str
+    is_dry_run: bool
     title: str
     description: str
     actor: str | None
@@ -130,6 +131,7 @@ class RuleCreate(BaseModel):
     logic_config: dict[str, Any]
     enabled: bool = True
     status: str = Field(default="draft", pattern=r"^(draft|active|deprecated)$")
+    mode: str = Field(default="active", pattern=r"^(active|monitoring|disabled)$")
     change_summary: str | None = Field(None, max_length=500)
 
 
@@ -158,6 +160,7 @@ class RuleResponse(BaseModel):
     logic_config: dict[str, Any]
     enabled: bool
     status: str
+    mode: str = "active"
     version: int
     git_commit_sha: str | None
     created_by: str
@@ -227,6 +230,71 @@ class ValidateConfigResponse(BaseModel):
     valid: bool
     errors: list[str] = []
     warnings: list[str] = []
+
+
+# ─── Backtest schemas ──────────────────────────────────────────────────────────
+
+
+class BacktestParams(BaseModel):
+    start_date: datetime
+    end_date: datetime
+    max_results: int = Field(default=1000, ge=1, le=10000)
+
+
+class BacktestMatch(BaseModel):
+    event_id: int
+    timestamp: datetime
+    actor: str | None
+    action: str
+    org: str | None
+    repo: str | None
+    matched_conditions: list[str]
+
+
+class BacktestResult(BaseModel):
+    matches: list[BacktestMatch]
+    total_matches: int
+    capped: bool
+    duration_ms: int
+    events_scanned: int
+
+
+# ─── Analytics schemas ─────────────────────────────────────────────────────────
+
+
+class DayCount(BaseModel):
+    date: str
+    count: int
+
+
+class TopItem(BaseModel):
+    name: str
+    count: int
+
+
+class RuleAnalytics(BaseModel):
+    total_detections: int
+    detections_by_day: list[DayCount]
+    avg_detections_per_day: float
+    false_positive_rate: float
+    mean_time_to_triage_hours: float | None
+    top_actors: list[TopItem]
+    top_repos: list[TopItem]
+    top_actions: list[TopItem]
+
+
+# ─── Bulk update schemas ───────────────────────────────────────────────────────
+
+
+class BulkUpdateRequest(BaseModel):
+    rule_ids: list[int] = Field(..., min_length=1, max_length=100)
+    action: str = Field(..., pattern=r"^(enable|disable|set_monitoring)$")
+    reason: str | None = Field(None, max_length=500)
+
+
+class BulkUpdateResult(BaseModel):
+    updated: int
+    failed: list[int]
 
 
 # ─── Rule test (dry-run) schemas ──────────────────────────────────────────────

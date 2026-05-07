@@ -17,6 +17,7 @@ export interface DetectionResponse {
   readonly severity: DetectionSeverity;
   readonly confidence: string;
   readonly confidence_score: number;
+  readonly is_dry_run: boolean;
   readonly status: DetectionStatus;
   readonly title: string;
   readonly description: string;
@@ -82,6 +83,7 @@ export interface RuleResponse {
   readonly logic_type: string;
   readonly logic_config: Record<string, unknown>;
   readonly enabled: boolean;
+  readonly mode: string;
   readonly status: string;
   readonly version: number;
   readonly git_commit_sha: string | null;
@@ -108,6 +110,7 @@ export interface RuleCreate {
   logic_type: string;
   logic_config: Record<string, unknown>;
   enabled?: boolean;
+  mode?: string;
   status?: string;
   change_summary?: string;
 }

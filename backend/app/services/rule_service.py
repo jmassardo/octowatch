@@ -33,6 +33,7 @@ def _rule_to_yaml(rule: RuleDefinition) -> str:
         "default_severity": rule.default_severity,
         "enabled": rule.enabled,
         "status": rule.status,
+        "mode": rule.mode,
         "version": rule.version,
     }
     return yaml.dump(data, sort_keys=False, allow_unicode=True)
@@ -146,6 +147,7 @@ async def create_rule(
         logic_config=payload.logic_config,
         enabled=payload.enabled,
         status="draft",
+        mode=payload.mode,
         version=1,
         created_by=created_by,
     )
@@ -182,6 +184,7 @@ async def update_rule(
     rule.logic_type = payload.logic_type
     rule.logic_config = payload.logic_config
     rule.enabled = payload.enabled
+    rule.mode = payload.mode
     rule.updated_by = updated_by
     rule.updated_at = datetime.now(UTC)
 

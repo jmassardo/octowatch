@@ -28,6 +28,7 @@ const sampleRule: RuleResponse = {
   logic_type: 'statistical',
   logic_config: { action_filters: ['auth.login'], confidence: 0.5 },
   enabled: true,
+  mode: 'active',
   status: 'active',
   version: 2,
   git_commit_sha: null,
