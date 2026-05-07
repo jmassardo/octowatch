@@ -42,6 +42,7 @@ class RuleDefinition(Base):
     logic_config: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="active")
+    mode: Mapped[str] = mapped_column(Text, nullable=False, default="active")
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     git_commit_sha: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[str] = mapped_column(Text, nullable=False)
@@ -143,6 +144,7 @@ class Detection(Base):
     confidence: Mapped[str] = mapped_column(Text, nullable=False)
     confidence_score: Mapped[float] = mapped_column(Double, nullable=False, default=0.0)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="open")
+    is_dry_run: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     assigned_to: Mapped[str | None] = mapped_column(Text)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
@@ -179,6 +181,7 @@ class Detection(Base):
         Index("idx_detections_status", "status", "triggered_at"),
         Index("idx_detections_severity", "severity", "status", "triggered_at"),
         Index("idx_detections_rule", "rule_id", "triggered_at"),
+        Index("idx_detections_is_dry_run", "is_dry_run"),
     )
 
 

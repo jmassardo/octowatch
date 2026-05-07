@@ -2,15 +2,27 @@
 
 from __future__ import annotations
 
+import time
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
 from redis.asyncio import Redis
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import AuthenticatedUser, get_db, get_valkey, require_permission, verify_csrf
+from app.models.audit_event import AuditEvent
 from app.schemas.detection import (
+    BacktestMatch,
+    BacktestParams,
+    BacktestResult,
+    BulkUpdateRequest,
+    BulkUpdateResult,
+    DayCount,
+    RuleAnalytics,
     RuleCreate,
     RuleListResponse,
     RuleResponse,
@@ -20,6 +32,7 @@ from app.schemas.detection import (
     RuleVersionResponse,
     SuppressionCreate,
     SuppressionResponse,
+    TopItem,
     ValidateConfigRequest,
     ValidateConfigResponse,
 )
@@ -195,6 +208,37 @@ def validate_logic_config(
     # pattern type has no additional required fields beyond the common ones
 
     return errors, warnings
+
+
+def _audit_event_to_dict(event: AuditEvent) -> dict[str, Any]:
+    """Convert an audit event ORM object into a dict for dry-run evaluation."""
+    return {
+        "id": getattr(event, "id", None),
+        "created_at": getattr(event, "created_at", None),
+        "document_id": getattr(event, "document_id", None),
+        "action": getattr(event, "action", ""),
+        "namespace": getattr(event, "namespace", None),
+        "actor": getattr(event, "actor", None),
+        "actor_id": getattr(event, "actor_id", None),
+        "actor_is_bot": getattr(event, "actor_is_bot", False),
+        "org": getattr(event, "org", None),
+        "org_id": getattr(event, "org_id", None),
+        "repo": getattr(event, "repo", None),
+        "repo_id": getattr(event, "repo_id", None),
+        "business": getattr(event, "business", None),
+        "business_id": getattr(event, "business_id", None),
+        "source_ip": str(source_ip) if (source_ip := getattr(event, "source_ip", None)) else None,
+        "user_agent": getattr(event, "user_agent", None),
+        "geo_country_code": getattr(event, "geo_country_code", None),
+        "geo_city": getattr(event, "geo_city", None),
+        "geo_latitude": getattr(event, "geo_latitude", None),
+        "geo_longitude": getattr(event, "geo_longitude", None),
+        "geo_is_proxy": getattr(event, "geo_is_proxy", None),
+        "data": getattr(event, "data", {}) or {},
+        "custom_enrichments": getattr(event, "custom_enrichments", {}) or {},
+        "ingestion_source": getattr(event, "ingestion_source", None),
+        "source_file_path": getattr(event, "source_file_path", None),
+    }
 
 
 @router.get("", response_model=RuleListResponse)
@@ -441,6 +485,253 @@ async def test_rule(
         reason=result["reason"],
         matched_fields=result["matched_fields"],
     )
+
+
+@router.post(
+    "/{rule_id}/backtest",
+    response_model=BacktestResult,
+    dependencies=[Depends(verify_csrf)],
+)
+async def backtest_rule(
+    rule_id: int,
+    params: BacktestParams,
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "view")),
+    db: AsyncSession = Depends(get_db),
+) -> BacktestResult:
+    """Evaluate a rule against historical events without creating detections."""
+    if params.end_date < params.start_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="end_date must be greater than or equal to start_date",
+        )
+    if params.end_date - params.start_date > timedelta(days=30):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Backtest time range cannot exceed 30 days",
+        )
+
+    rule = await rule_service.get_rule_by_id(db, rule_id)
+    if not rule:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+
+    await db.execute(text("SET LOCAL statement_timeout = '60s'"))
+    result = await db.execute(
+        select(AuditEvent)
+        .where(
+            AuditEvent.created_at >= params.start_date,
+            AuditEvent.created_at <= params.end_date,
+        )
+        .order_by(AuditEvent.created_at.desc())
+    )
+    events = result.scalars().all()
+
+    started = time.monotonic()
+    matches: list[BacktestMatch] = []
+    events_scanned = 0
+    capped = False
+
+    for event in events:
+        events_scanned += 1
+        evaluation = evaluate_rule_against_event(rule, _audit_event_to_dict(event))
+        if not evaluation["matched"]:
+            continue
+        if len(matches) >= params.max_results:
+            capped = True
+            break
+        matches.append(
+            BacktestMatch(
+                event_id=event.id,
+                timestamp=event.created_at,
+                actor=event.actor,
+                action=event.action,
+                org=event.org,
+                repo=event.repo,
+                matched_conditions=list(evaluation["matched_fields"]),
+            )
+        )
+
+    duration_ms = int((time.monotonic() - started) * 1000)
+    return BacktestResult(
+        matches=matches,
+        total_matches=len(matches),
+        capped=capped,
+        duration_ms=duration_ms,
+        events_scanned=events_scanned,
+    )
+
+
+@router.get("/{rule_id}/analytics", response_model=RuleAnalytics)
+async def get_rule_analytics(
+    rule_id: int,
+    days: int = Query(default=30, ge=1, le=90),
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "view")),
+    db: AsyncSession = Depends(get_db),
+) -> RuleAnalytics:
+    """Return aggregated analytics for detections generated by a rule."""
+    rule = await rule_service.get_rule_by_id(db, rule_id)
+    if not rule:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+    params = {"rule_id": rule_id, "cutoff": cutoff}
+
+    summary_result = await db.execute(
+        text(
+            """
+            SELECT
+                COUNT(*)::int AS total_detections,
+                COALESCE(SUM(CASE WHEN status = 'false_positive' THEN 1 ELSE 0 END), 0)::int
+                    AS false_positives,
+                AVG(EXTRACT(EPOCH FROM (resolved_at - triggered_at)) / 3600.0)
+                    FILTER (WHERE resolved_at IS NOT NULL) AS mean_time_to_triage_hours
+            FROM detections
+            WHERE rule_id = :rule_id AND triggered_at >= :cutoff
+            """
+        ),
+        params,
+    )
+    summary = summary_result.mappings().one()
+
+    by_day_result = await db.execute(
+        text(
+            """
+            SELECT
+                TO_CHAR(DATE(triggered_at), 'YYYY-MM-DD') AS date,
+                COUNT(*)::int AS count
+            FROM detections
+            WHERE rule_id = :rule_id AND triggered_at >= :cutoff
+            GROUP BY DATE(triggered_at)
+            ORDER BY DATE(triggered_at)
+            """
+        ),
+        params,
+    )
+    detections_by_day = [DayCount(**row) for row in by_day_result.mappings().all()]
+
+    def _top_items(rows: Sequence[Any]) -> list[TopItem]:
+        return [TopItem(name=row["name"], count=row["count"]) for row in rows]
+
+    top_actors_result = await db.execute(
+        text(
+            """
+            SELECT
+                COALESCE(actor, context_data->>'actor') AS name,
+                COUNT(*)::int AS count
+            FROM detections
+            WHERE rule_id = :rule_id
+              AND triggered_at >= :cutoff
+              AND COALESCE(actor, context_data->>'actor') IS NOT NULL
+              AND COALESCE(actor, context_data->>'actor') != ''
+            GROUP BY name
+            ORDER BY count DESC, name ASC
+            LIMIT 10
+            """
+        ),
+        params,
+    )
+    top_repos_result = await db.execute(
+        text(
+            """
+            SELECT
+                COALESCE(repo, context_data->>'repo') AS name,
+                COUNT(*)::int AS count
+            FROM detections
+            WHERE rule_id = :rule_id
+              AND triggered_at >= :cutoff
+              AND COALESCE(repo, context_data->>'repo') IS NOT NULL
+              AND COALESCE(repo, context_data->>'repo') != ''
+            GROUP BY name
+            ORDER BY count DESC, name ASC
+            LIMIT 10
+            """
+        ),
+        params,
+    )
+    top_actions_result = await db.execute(
+        text(
+            """
+            SELECT
+                COALESCE(context_data->>'action', context_data->>'event_action') AS name,
+                COUNT(*)::int AS count
+            FROM detections
+            WHERE rule_id = :rule_id
+              AND triggered_at >= :cutoff
+              AND COALESCE(context_data->>'action', context_data->>'event_action') IS NOT NULL
+              AND COALESCE(context_data->>'action', context_data->>'event_action') != ''
+            GROUP BY name
+            ORDER BY count DESC, name ASC
+            LIMIT 10
+            """
+        ),
+        params,
+    )
+
+    total_detections = summary["total_detections"] or 0
+    false_positives = summary["false_positives"] or 0
+    mean_time_to_triage_hours = summary["mean_time_to_triage_hours"]
+
+    return RuleAnalytics(
+        total_detections=total_detections,
+        detections_by_day=detections_by_day,
+        avg_detections_per_day=(total_detections / days) if days else 0.0,
+        false_positive_rate=(false_positives / total_detections) if total_detections else 0.0,
+        mean_time_to_triage_hours=(
+            float(mean_time_to_triage_hours) if mean_time_to_triage_hours is not None else None
+        ),
+        top_actors=_top_items(top_actors_result.mappings().all()),
+        top_repos=_top_items(top_repos_result.mappings().all()),
+        top_actions=_top_items(top_actions_result.mappings().all()),
+    )
+
+
+@router.post("/bulk-update", response_model=BulkUpdateResult, dependencies=[Depends(verify_csrf)])
+async def bulk_update_rules(
+    body: BulkUpdateRequest,
+    current_user: AuthenticatedUser = Depends(require_permission("rules", "create")),
+    db: AsyncSession = Depends(get_db),
+    valkey: Redis = Depends(get_valkey),
+) -> BulkUpdateResult:
+    """Apply the same enablement change to multiple rules."""
+    updated = 0
+    failed: list[int] = []
+
+    for rule_id in body.rule_ids:
+        rule = await rule_service.get_rule_by_id(db, rule_id)
+        if not rule:
+            failed.append(rule_id)
+            continue
+
+        if body.action == "enable":
+            rule.enabled = True
+            rule.mode = "active"
+        elif body.action == "disable":
+            rule.enabled = False
+            rule.mode = "disabled"
+        else:
+            rule.enabled = True
+            rule.mode = "monitoring"
+
+        rule.updated_by = current_user.github_login
+        rule.updated_at = datetime.now(UTC)
+        await db.flush()
+        await invalidate_rule_cache(valkey, rule_id)
+        await log_action(
+            db,
+            user_login=current_user.github_login,
+            user_github_id=current_user.github_id,
+            action_type="rule.bulk_update",
+            resource_type="rule",
+            resource_id=str(rule_id),
+            parameters={
+                "action": body.action,
+                "reason": body.reason,
+                "enabled": rule.enabled,
+                "mode": rule.mode,
+            },
+        )
+        updated += 1
+
+    return BulkUpdateResult(updated=updated, failed=failed)
 
 
 # ─── Suppression sub-resource ─────────────────────────────────────────────────

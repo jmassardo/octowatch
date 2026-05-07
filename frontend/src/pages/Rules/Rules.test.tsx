@@ -18,8 +18,12 @@ vi.mock('../../api/rules', () => ({
         logic_type: 'statistical',
         logic_config: {},
         enabled: true,
+        mode: 'active',
         status: 'active',
         version: 2,
+        git_commit_sha: null,
+        created_by: 'admin',
+        updated_by: null,
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-06-15T10:30:00Z',
       },
@@ -34,8 +38,12 @@ vi.mock('../../api/rules', () => ({
         logic_type: 'pattern',
         logic_config: {},
         enabled: true,
+        mode: 'monitoring',
         status: 'active',
         version: 1,
+        git_commit_sha: null,
+        created_by: 'admin',
+        updated_by: null,
         created_at: '2024-02-01T00:00:00Z',
         updated_at: '2024-05-20T14:00:00Z',
       },
@@ -50,21 +58,38 @@ vi.mock('../../api/rules', () => ({
         logic_type: 'threshold',
         logic_config: {},
         enabled: false,
+        mode: 'disabled',
         status: 'draft',
         version: 1,
+        git_commit_sha: null,
+        created_by: 'admin',
+        updated_by: null,
         created_at: '2024-03-01T00:00:00Z',
-        updated_at: null,
+        updated_at: '2024-03-01T00:00:00Z',
       },
     ],
     total: 3,
-    page: 1,
-    page_size: 50,
+    limit: 25,
+    offset: 0,
   }),
   createRule: vi.fn().mockResolvedValue({}),
   updateRule: vi.fn().mockResolvedValue({}),
   deleteRule: vi.fn().mockResolvedValue(undefined),
   listRuleVersions: vi.fn().mockResolvedValue([]),
   validateRuleConfig: vi.fn().mockResolvedValue({ valid: true, errors: [], warnings: [] }),
+  bulkUpdateRules: vi.fn().mockResolvedValue({ updated: 1, failed: [] }),
+}));
+
+vi.mock('./RuleAnalytics', () => ({
+  RuleAnalytics: () => <div>Analytics Content</div>,
+}));
+
+vi.mock('./BacktestPanel', () => ({
+  BacktestPanel: () => <div>Backtest Content</div>,
+}));
+
+vi.mock('./RuleWizard', () => ({
+  RuleWizard: () => <div>Wizard Content</div>,
 }));
 
 describe('RulesPage', () => {
@@ -79,13 +104,14 @@ describe('RulesPage', () => {
     renderWithProviders(<RulesPage />);
 
     const table = await screen.findByRole('table');
-    // Get only the first row of column headers (skip filter row)
     const headerRow = within(table).getAllByRole('row')[0];
     const headers = within(headerRow).getAllByRole('columnheader');
     const headerTexts = headers.map((h) => h.textContent?.replace(/[⇅↑↓ⓘ]/g, '').trim());
 
     expect(headerTexts).toEqual([
+      '',
       'Status',
+      'Mode',
       'Rule name',
       'Logic',
       'Severity',
@@ -95,7 +121,7 @@ describe('RulesPage', () => {
     ]);
   });
 
-  it('renders all 3 rules with names', async () => {
+  it('renders all rules with names', async () => {
     renderWithProviders(<RulesPage />);
 
     expect(await screen.findByText('Impossible Travel Login')).toBeInTheDocument();
@@ -110,17 +136,23 @@ describe('RulesPage', () => {
 
     const table = screen.getByRole('table');
     const rows = within(table).getAllByRole('row');
-    // rows[0] is header; rows[1] is filter row; rows[2..4] are data rows
     const dataRows = rows.filter((r) => within(r).queryAllByRole('cell').length > 0);
 
     const activeRow1Cells = within(dataRows[0]).getAllByRole('cell');
-    expect(activeRow1Cells[4].textContent).toBe('0');
+    expect(activeRow1Cells[6].textContent).toBe('0');
 
     const activeRow2Cells = within(dataRows[1]).getAllByRole('cell');
-    expect(activeRow2Cells[4].textContent).toBe('0');
+    expect(activeRow2Cells[6].textContent).toBe('0');
 
     const draftRowCells = within(dataRows[2]).getAllByRole('cell');
-    expect(draftRowCells[4].textContent).toBe('—');
+    expect(draftRowCells[6].textContent).toBe('—');
+  });
+
+  it('shows mode badges', async () => {
+    renderWithProviders(<RulesPage />);
+
+    expect(await screen.findByText('monitoring')).toBeInTheDocument();
+    expect(screen.getByText('disabled')).toBeInTheDocument();
   });
 
   it('version numbers are clickable with clickableVersion class', async () => {
@@ -130,7 +162,6 @@ describe('RulesPage', () => {
 
     const versions = document.querySelectorAll('.clickableVersion');
     expect(versions).toHaveLength(3);
-
     expect(screen.getByText('v2.0.0')).toBeInTheDocument();
     expect(screen.getAllByText('v1.0.0')).toHaveLength(2);
   });
@@ -145,30 +176,34 @@ describe('RulesPage', () => {
     expect(await screen.findByText('Version history')).toBeInTheDocument();
   });
 
-  it('version modal shows rule name, version number, and status', async () => {
+  it('renders new rule buttons', () => {
+    renderWithProviders(<RulesPage />);
+
+    expect(screen.getByRole('button', { name: /^new rule$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /new rule \(wizard\)/i })).toBeInTheDocument();
+  });
+
+  it('shows bulk actions when rules are selected', async () => {
     const user = userEvent.setup();
     renderWithProviders(<RulesPage />);
 
-    const versionLink = await screen.findByText('v2.0.0');
-    await user.click(versionLink);
+    const checkbox = await screen.findByRole('checkbox', {
+      name: /select impossible travel login/i,
+    });
+    await user.click(checkbox);
 
-    const modalTitle = await screen.findByText('Version history');
-    const modal = modalTitle.closest('[role="dialog"]')!;
-
-    expect(within(modal as HTMLElement).getByText('Rule name')).toBeInTheDocument();
-    expect(within(modal as HTMLElement).getByText('Current version')).toBeInTheDocument();
-    expect(within(modal as HTMLElement).getByText('v2.0.0')).toBeInTheDocument();
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /set monitoring/i })).toBeInTheDocument();
   });
 
-  it('new rule button exists', () => {
+  it('opens analytics drawer from row actions', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<RulesPage />);
 
-    expect(screen.getByRole('button', { name: /new rule/i })).toBeInTheDocument();
-  });
+    const analyticsButtons = await screen.findAllByRole('button', { name: /analytics/i });
+    await user.click(analyticsButtons[0]!);
 
-  it('sync from GitHub button exists', () => {
-    renderWithProviders(<RulesPage />);
-
-    expect(screen.getByRole('button', { name: /sync from github/i })).toBeInTheDocument();
+    expect(await screen.findByText(/analytics: impossible travel login/i)).toBeInTheDocument();
+    expect(screen.getByText('Analytics Content')).toBeInTheDocument();
   });
 });
