@@ -38,7 +38,14 @@ export interface CopilotAdoption {
   tiers: AdoptionTier[];
   total_adoption: number;
   power_users: PowerUser[];
-  feature_adoption: Array<{ feature: string; pct: number; color: string }>;
+  feature_adoption: Array<{
+    feature: string;
+    active_users: number;
+    total_seats: number;
+    pct: number;
+    trend_7d: number;
+    color: string;
+  }>;
   minimal_users: MinimalUser[];
   error?: string;
   message?: string;
@@ -59,6 +66,7 @@ export interface CopilotAnomaly {
   description: string;
   timestamp: string;
   team: string;
+  affected_count?: number;
 }
 
 export interface CopilotAnomalies {
@@ -146,8 +154,47 @@ export interface CopilotROISummary {
   cost_per_active_user: number;
 }
 
+export interface CopilotValueStreams {
+  completion_value: number;
+  chat_savings: number;
+  pr_summary_savings: number;
+  total_value: number;
+}
+
+export interface CopilotROIMetrics {
+  total_roi: number;
+  roi_ratio: number;
+  breakeven_additional_users: number | null;
+}
+
+export interface CopilotGhostMember {
+  user: string;
+  last_activity: string;
+  days_inactive: number;
+  plan_type: string;
+}
+
+export interface CopilotLicenseOptimization {
+  inactive_savings_monthly: number;
+  inactive_savings_annual: number;
+  ghost_member_count: number;
+}
+
+export interface CopilotGrowthForecast {
+  current_active: number;
+  projected_30d: number;
+  projected_90d: number;
+  monthly_growth_pct: number;
+  weeks_to_capacity: number | null;
+}
+
 export interface CopilotROI {
   summary: CopilotROISummary;
+  value_streams: CopilotValueStreams;
+  roi: CopilotROIMetrics;
+  ghost_members: CopilotGhostMember[];
+  license_optimization: CopilotLicenseOptimization;
+  growth_forecast: CopilotGrowthForecast | Record<string, never>;
   tier_breakdown: Record<string, number>;
   plan_breakdown: Record<string, number>;
   cost_trend: Array<{

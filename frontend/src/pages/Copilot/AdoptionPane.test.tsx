@@ -184,6 +184,39 @@ describe('AdoptionPane clickable stats', () => {
     expect(screen.getByText('Feature adoption gaps')).toBeInTheDocument();
   });
 
+  it('shows Opportunity badge for features below 30% adoption', async () => {
+    renderPane();
+    await screen.findByText('Power Users');
+    // CLI (23%) and Knowledge bases (12%) are below 30%
+    const badges = screen.getAllByText('Opportunity');
+    expect(badges.length).toBe(2);
+  });
+
+  it('shows growth opportunities callout', async () => {
+    renderPane();
+    await screen.findByText('Power Users');
+    expect(
+      screen.getByText(/Features below 30% adoption represent growth opportunities/),
+    ).toBeInTheDocument();
+  });
+
+  it('shows tier threshold settings button', async () => {
+    renderPane();
+    await screen.findByText('Power Users');
+    expect(screen.getByLabelText('Tier threshold settings')).toBeInTheDocument();
+  });
+
+  it('opens tier threshold settings modal', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    await screen.findByText('Power Users');
+    await user.click(screen.getByLabelText('Tier threshold settings'));
+    expect(screen.getByText('Adoption tier thresholds')).toBeInTheDocument();
+    expect(screen.getByLabelText('Power user threshold')).toBeInTheDocument();
+    expect(screen.getByLabelText('Regular user threshold')).toBeInTheDocument();
+    expect(screen.getByLabelText('Minimal user threshold')).toBeInTheDocument();
+  });
+
   it('makes minimal users Days active cells clickable', async () => {
     renderPane();
     await screen.findByText('tom.jones');

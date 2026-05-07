@@ -10,6 +10,7 @@ Covers:
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1507,3 +1508,397 @@ class TestReconstructMetricsFromDb:
         assert day["copilot_ide_chat"]["total_engaged_users"] == 20
         assert day["copilot_dotcom_chat"]["total_engaged_users"] == 10
         assert day["copilot_dotcom_pull_requests"]["total_engaged_users"] == 5
+
+
+# ── Enhanced ROI tests ────────────────────────────────────────────────────────
+
+
+class TestEnhancedROI:
+    """Tests for the enhanced ROI calculations: value streams, ghost members, growth forecast."""
+
+    @pytest.mark.asyncio
+    async def test_roi_returns_value_streams(self) -> None:
+        """ROI response includes value_streams with completion_value, chat_savings, etc."""
+        db = AsyncMock(spec=AsyncSession)
+        sample_days = _make_sample_days(28)
+        sample_seats = [
+            {
+                "assignee": {"login": f"user{i}"},
+                "plan_type": "business",
+                "last_activity_at": "2025-01-20T12:00:00Z",
+                "last_activity_editor": "VS Code",
+            }
+            for i in range(10)
+        ]
+
+        mock_org_result = MagicMock()
+        mock_org_result.scalars.return_value.first.return_value = None
+        db.execute = AsyncMock(return_value=mock_org_result)
+
+        with (
+            patch.object(
+                copilot_metrics_service,
+                "_read_seats_from_store",
+                return_value=sample_seats,
+            ),
+            patch.object(
+                copilot_metrics_service,
+                "_read_metrics_from_store",
+                return_value=sample_days,
+            ),
+            patch.object(
+                copilot_metrics_service,
+                "get_copilot_teams",
+                return_value={"at_risk_count": 0},
+            ),
+        ):
+            result = await copilot_metrics_service.get_copilot_roi(db)
+
+        assert "value_streams" in result
+        vs = result["value_streams"]
+        assert "completion_value" in vs
+        assert "chat_savings" in vs
+        assert "pr_summary_savings" in vs
+        assert "total_value" in vs
+        assert vs["completion_value"] >= 0
+        assert vs["chat_savings"] >= 0
+        assert vs["pr_summary_savings"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_roi_returns_roi_metrics(self) -> None:
+        """ROI response includes roi with total_roi, roi_ratio, breakeven."""
+        db = AsyncMock(spec=AsyncSession)
+        sample_days = _make_sample_days(28)
+        sample_seats = [
+            {
+                "assignee": {"login": f"user{i}"},
+                "plan_type": "business",
+                "last_activity_at": "2025-01-20T12:00:00Z",
+            }
+            for i in range(5)
+        ]
+
+        mock_org_result = MagicMock()
+        mock_org_result.scalars.return_value.first.return_value = None
+        db.execute = AsyncMock(return_value=mock_org_result)
+
+        with (
+            patch.object(
+                copilot_metrics_service, "_read_seats_from_store", return_value=sample_seats
+            ),
+            patch.object(
+                copilot_metrics_service, "_read_metrics_from_store", return_value=sample_days
+            ),
+            patch.object(
+                copilot_metrics_service,
+                "get_copilot_teams",
+                return_value={"at_risk_count": 0},
+            ),
+        ):
+            result = await copilot_metrics_service.get_copilot_roi(db)
+
+        assert "roi" in result
+        roi = result["roi"]
+        assert "total_roi" in roi
+        assert "roi_ratio" in roi
+        assert "breakeven_additional_users" in roi
+        assert isinstance(roi["roi_ratio"], float)
+
+    @pytest.mark.asyncio
+    async def test_roi_ghost_members_detected(self) -> None:
+        """Seats with 60+ days of inactivity are flagged as ghost members."""
+        db = AsyncMock(spec=AsyncSession)
+        sample_days = _make_sample_days(7)
+        now_iso = datetime.now(UTC).isoformat()
+        old_iso = (datetime.now(UTC) - timedelta(days=90)).isoformat()
+        sample_seats = [
+            {
+                "assignee": {"login": "active-user"},
+                "plan_type": "business",
+                "last_activity_at": now_iso,
+            },
+            {
+                "assignee": {"login": "ghost-user"},
+                "plan_type": "business",
+                "last_activity_at": old_iso,
+            },
+            {
+                "assignee": {"login": "never-user"},
+                "plan_type": "business",
+                "last_activity_at": None,
+            },
+        ]
+
+        mock_org_result = MagicMock()
+        mock_org_result.scalars.return_value.first.return_value = None
+        db.execute = AsyncMock(return_value=mock_org_result)
+
+        with (
+            patch.object(
+                copilot_metrics_service, "_read_seats_from_store", return_value=sample_seats
+            ),
+            patch.object(
+                copilot_metrics_service, "_read_metrics_from_store", return_value=sample_days
+            ),
+            patch.object(
+                copilot_metrics_service,
+                "get_copilot_teams",
+                return_value={"at_risk_count": 0},
+            ),
+        ):
+            result = await copilot_metrics_service.get_copilot_roi(db)
+
+        assert "ghost_members" in result
+        ghost_logins = {g["user"] for g in result["ghost_members"]}
+        assert "ghost-user" in ghost_logins
+        assert "never-user" in ghost_logins
+        assert "active-user" not in ghost_logins
+
+    @pytest.mark.asyncio
+    async def test_roi_license_optimization(self) -> None:
+        """License optimization fields are present in the response."""
+        db = AsyncMock(spec=AsyncSession)
+        sample_days = _make_sample_days(7)
+        sample_seats = [
+            {
+                "assignee": {"login": "ghost"},
+                "plan_type": "business",
+                "last_activity_at": "2024-01-01T00:00:00Z",
+            },
+        ]
+
+        mock_org_result = MagicMock()
+        mock_org_result.scalars.return_value.first.return_value = None
+        db.execute = AsyncMock(return_value=mock_org_result)
+
+        with (
+            patch.object(
+                copilot_metrics_service, "_read_seats_from_store", return_value=sample_seats
+            ),
+            patch.object(
+                copilot_metrics_service, "_read_metrics_from_store", return_value=sample_days
+            ),
+            patch.object(
+                copilot_metrics_service,
+                "get_copilot_teams",
+                return_value={"at_risk_count": 0},
+            ),
+        ):
+            result = await copilot_metrics_service.get_copilot_roi(db)
+
+        assert "license_optimization" in result
+        lo = result["license_optimization"]
+        assert lo["ghost_member_count"] == 1
+        assert lo["inactive_savings_monthly"] > 0
+        assert lo["inactive_savings_annual"] == lo["inactive_savings_monthly"] * 12
+
+    @pytest.mark.asyncio
+    async def test_roi_growth_forecast_with_enough_data(self) -> None:
+        """Growth forecast is populated when we have 14+ days of data."""
+        db = AsyncMock(spec=AsyncSession)
+        sample_days = _make_sample_days(28)
+        # Simulate growth: first half has lower active users
+        for i in range(14):
+            sample_days[i]["total_active_users"] = 20
+        for i in range(14, 28):
+            sample_days[i]["total_active_users"] = 30
+
+        sample_seats = [
+            {
+                "assignee": {"login": f"user{i}"},
+                "plan_type": "business",
+                "last_activity_at": "2025-01-20T12:00:00Z",
+            }
+            for i in range(50)
+        ]
+
+        mock_org_result = MagicMock()
+        mock_org_result.scalars.return_value.first.return_value = None
+        db.execute = AsyncMock(return_value=mock_org_result)
+
+        with (
+            patch.object(
+                copilot_metrics_service, "_read_seats_from_store", return_value=sample_seats
+            ),
+            patch.object(
+                copilot_metrics_service, "_read_metrics_from_store", return_value=sample_days
+            ),
+            patch.object(
+                copilot_metrics_service,
+                "get_copilot_teams",
+                return_value={"at_risk_count": 0},
+            ),
+        ):
+            result = await copilot_metrics_service.get_copilot_roi(db)
+
+        assert "growth_forecast" in result
+        gf = result["growth_forecast"]
+        assert "current_active" in gf
+        assert "projected_30d" in gf
+        assert "projected_90d" in gf
+        assert "monthly_growth_pct" in gf
+
+
+# ── Enhanced adoption tests ───────────────────────────────────────────────────
+
+
+class TestEnhancedAdoption:
+    """Tests for enhanced adoption: feature trend_7d, active_users, total_seats."""
+
+    @pytest.mark.asyncio
+    async def test_feature_adoption_has_enhanced_fields(self) -> None:
+        """Each feature adoption entry should have active_users, total_seats, trend_7d."""
+        db = AsyncMock(spec=AsyncSession)
+        sample = _make_sample_days(28)
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+            result = await copilot_metrics_service.get_copilot_adoption(db)
+
+        for feat in result["feature_adoption"]:
+            assert "active_users" in feat
+            assert "total_seats" in feat
+            assert "trend_7d" in feat
+            assert isinstance(feat["active_users"], int)
+            assert isinstance(feat["trend_7d"], float)
+
+    @pytest.mark.asyncio
+    async def test_feature_adoption_trend_zero_with_few_days(self) -> None:
+        """Trend should be 0.0 when fewer than 14 days of data."""
+        db = AsyncMock(spec=AsyncSession)
+        sample = _make_sample_days(7)
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+            result = await copilot_metrics_service.get_copilot_adoption(db)
+
+        for feat in result["feature_adoption"]:
+            assert feat["trend_7d"] == 0.0
+
+
+# ── Enhanced anomaly detection tests ──────────────────────────────────────────
+
+
+class TestEnhancedAnomalies:
+    """Tests for new anomaly patterns: sudden drop, model switching, bulk policy."""
+
+    @pytest.mark.asyncio
+    async def test_detects_sudden_active_user_drop(self) -> None:
+        """A >30% drop from 7-day average in the latest day triggers an anomaly."""
+        db = AsyncMock(spec=AsyncSession)
+        days = _make_sample_days(10)
+        # Set 7-day avg around 42, then drop the last day to 10
+        for i in range(9):
+            days[i]["total_active_users"] = 42
+        days[9]["total_active_users"] = 10
+
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=days):
+            result = await copilot_metrics_service.get_copilot_anomalies(db)
+
+        anomalies = result["anomalies"]
+        drop_anomalies = [a for a in anomalies if "sudden" in a["title"].lower()]
+        assert len(drop_anomalies) >= 1
+        assert drop_anomalies[0]["severity"] == "high"
+        assert "affected_count" in drop_anomalies[0]
+
+    @pytest.mark.asyncio
+    async def test_detects_model_switching(self) -> None:
+        """Model share change >20% between two consecutive days triggers an anomaly."""
+        db = AsyncMock(spec=AsyncSession)
+        days = _make_sample_days(10)
+
+        # Day -2: GPT-4o has 90% share
+        prev_day = days[-2]
+        prev_completions = prev_day["copilot_ide_code_completions"]
+        prev_completions["editors"] = [
+            {
+                "name": "VS Code",
+                "total_engaged_users": 30,
+                "models": [
+                    {"name": "GPT-4o", "total_engaged_users": 90, "languages": []},
+                    {"name": "Claude-3.5-Sonnet", "total_engaged_users": 10, "languages": []},
+                ],
+            }
+        ]
+        prev_day["copilot_ide_chat"] = {"total_engaged_users": 0, "editors": []}
+
+        # Day -1: Claude-3.5-Sonnet now has 80% share (massive switch)
+        last_day = days[-1]
+        last_completions = last_day["copilot_ide_code_completions"]
+        last_completions["editors"] = [
+            {
+                "name": "VS Code",
+                "total_engaged_users": 30,
+                "models": [
+                    {"name": "GPT-4o", "total_engaged_users": 20, "languages": []},
+                    {"name": "Claude-3.5-Sonnet", "total_engaged_users": 80, "languages": []},
+                ],
+            }
+        ]
+        last_day["copilot_ide_chat"] = {"total_engaged_users": 0, "editors": []}
+
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=days):
+            result = await copilot_metrics_service.get_copilot_anomalies(db)
+
+        anomalies = result["anomalies"]
+        model_anomalies = [a for a in anomalies if "model switching" in a["title"].lower()]
+        assert len(model_anomalies) >= 1
+        assert model_anomalies[0]["severity"] == "medium"
+
+    @pytest.mark.asyncio
+    async def test_anomalies_sorted_by_severity(self) -> None:
+        """Anomalies should be sorted by severity (high first)."""
+        db = AsyncMock(spec=AsyncSession)
+        days = _make_sample_days(25)
+        # Create conditions for both high and medium severity anomalies
+        for i in range(3):
+            day = json.loads(json.dumps(_SAMPLE_DAY))
+            day["date"] = f"2025-01-{26 + i}"
+            day["total_active_users"] = 200  # big spike → high severity
+            day["copilot_dotcom_chat"]["total_engaged_users"] = 500  # usage spike → medium
+            days.append(day)
+
+        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=days):
+            result = await copilot_metrics_service.get_copilot_anomalies(db)
+
+        anomalies = result["anomalies"]
+        if len(anomalies) >= 2:
+            severity_map = {"high": 0, "medium": 1, "low": 2}
+            for i in range(len(anomalies) - 1):
+                curr = severity_map.get(anomalies[i]["severity"], 3)
+                nxt = severity_map.get(anomalies[i + 1]["severity"], 3)
+                assert curr <= nxt
+
+
+# ── Configurable _classify_user tests ─────────────────────────────────────────
+
+
+class TestClassifyUserConfigurable:
+    """Tests for configurable thresholds in _classify_user."""
+
+    def test_default_thresholds_work(self) -> None:
+        """Default thresholds should match original behavior."""
+        seat = {"last_activity_at": datetime.now(UTC).isoformat()}
+        assert copilot_metrics_service._classify_user(seat) == "power"
+
+    def test_custom_thresholds(self) -> None:
+        """Custom thresholds change classification boundaries."""
+        # 5 days ago
+        five_days_ago = (datetime.now(UTC) - timedelta(days=5)).isoformat()
+        seat = {"last_activity_at": five_days_ago}
+
+        # With defaults: 5 days is regular (>3, <=14)
+        assert copilot_metrics_service._classify_user(seat) == "regular"
+
+        # With custom: power_days=7 makes 5-day-old activity = power
+        assert copilot_metrics_service._classify_user(seat, power_days=7) == "power"
+
+    def test_no_activity_always_inactive(self) -> None:
+        """Regardless of thresholds, no activity = inactive."""
+        seat: dict[str, Any] = {"last_activity_at": None}
+        assert copilot_metrics_service._classify_user(seat) == "inactive"
+        assert (
+            copilot_metrics_service._classify_user(
+                seat,
+                power_days=99,
+                regular_days=99,
+                minimal_days=99,
+            )
+            == "inactive"
+        )

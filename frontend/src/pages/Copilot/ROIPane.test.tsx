@@ -3,6 +3,10 @@ import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ROIPane } from './ROIPane';
 
+vi.mock('echarts-for-react', () => ({
+  default: () => null,
+}));
+
 vi.mock('../../api/copilotMetrics', () => ({
   getCopilotROI: vi.fn().mockResolvedValue({
     summary: {
@@ -18,6 +22,17 @@ vi.mock('../../api/copilotMetrics', () => ({
     tier_breakdown: { power: 30, regular: 45, minimal: 15, inactive: 10 },
     plan_breakdown: { business: 80, enterprise: 20 },
     cost_trend: [],
+    value_streams: {
+      completion_value: 3200,
+      chat_savings: 1800,
+      pr_summary_savings: 600,
+      total_value: 5600,
+    },
+    roi: {
+      total_roi: 3700,
+      roi_ratio: 2.95,
+      breakeven_additional_users: 5,
+    },
     recommendations: [
       {
         type: 'reclaim',
@@ -81,12 +96,53 @@ describe('ROIPane', () => {
     expect(screen.getByText('25 seats have been inactive for 30+ days.')).toBeInTheDocument();
     expect(screen.getByText('Save $475/mo')).toBeInTheDocument();
   });
+
+  it('renders value stream metrics', async () => {
+    renderPane();
+    expect(await screen.findByText('Completion Value')).toBeInTheDocument();
+    expect(screen.getByText('Chat Savings')).toBeInTheDocument();
+    expect(screen.getByText('PR Summary Savings')).toBeInTheDocument();
+    expect(screen.getByText('Total Value')).toBeInTheDocument();
+  });
+
+  it('shows value stream amounts', async () => {
+    renderPane();
+    expect(await screen.findByText('$3,200')).toBeInTheDocument();
+    expect(screen.getByText('$1,800')).toBeInTheDocument();
+    expect(screen.getByText('$600')).toBeInTheDocument();
+    expect(screen.getByText('$5,600')).toBeInTheDocument();
+  });
+
+  it('renders ROI metrics strip', async () => {
+    renderPane();
+    expect(await screen.findByText('Net ROI (monthly)')).toBeInTheDocument();
+    expect(screen.getByText('ROI Ratio')).toBeInTheDocument();
+    expect(screen.getByText('Users to Breakeven')).toBeInTheDocument();
+  });
+
+  it('shows ROI ratio value', async () => {
+    renderPane();
+    expect(await screen.findByText('2.95x')).toBeInTheDocument();
+  });
+
+  it('shows breakeven users count', async () => {
+    renderPane();
+    expect(await screen.findByText('+5')).toBeInTheDocument();
+  });
+
+  it('renders cost vs value chart', async () => {
+    renderPane();
+    expect(await screen.findByText('Cost vs Value Streams (monthly)')).toBeInTheDocument();
+  });
 });
 
 describe('ROIPane with no data', () => {
   it('shows unavailable message when summary is null', async () => {
     // Clear the module cache and re-mock
     vi.resetModules();
+    vi.doMock('echarts-for-react', () => ({
+      default: () => null,
+    }));
     vi.doMock('../../api/copilotMetrics', () => ({
       getCopilotROI: vi.fn().mockResolvedValue({
         summary: null,

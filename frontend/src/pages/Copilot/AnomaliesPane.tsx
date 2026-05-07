@@ -131,6 +131,11 @@ export function AnomaliesPane() {
                 <div className={styles.anomalyTitle}>{anomaly.title}</div>
                 <div className={styles.anomalyDesc}>{anomaly.description}</div>
                 <div className={styles.anomalyMeta}>
+                  {anomaly.affected_count !== undefined && anomaly.affected_count > 0 && (
+                    <span style={{ marginRight: 12 }}>
+                      Affected: <strong>{anomaly.affected_count}</strong>
+                    </span>
+                  )}
                   Team:{' '}
                   <span
                     className={styles.anomalyTeamClickable}

@@ -89,6 +89,12 @@ _MINIMAL_THRESHOLD = 1
 _COST_BUSINESS = 19.0
 _COST_ENTERPRISE = 39.0
 
+# ROI calculation defaults
+_AVG_DEV_COST_PER_LINE = 0.50
+_AVG_MINUTES_SAVED_PER_CHAT_TURN = 2
+_AVG_MINUTES_SAVED_PER_PR_SUMMARY = 10
+_DEFAULT_HOURLY_RATE = 75.0
+
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -530,8 +536,21 @@ async def _fetch_copilot_seats(db: AsyncSession) -> list[dict[str, Any]] | dict[
     return all_seats
 
 
-def _classify_user(seat: dict[str, Any]) -> str:
-    """Classify a seat user into power/regular/minimal/inactive tier."""
+def _classify_user(
+    seat: dict[str, Any],
+    *,
+    power_days: int = 3,
+    regular_days: int = 14,
+    minimal_days: int = 30,
+) -> str:
+    """Classify a seat user into power/regular/minimal/inactive tier.
+
+    Thresholds are days-since-last-activity boundaries:
+    - power: active within ``power_days``
+    - regular: active within ``regular_days``
+    - minimal: active within ``minimal_days``
+    - inactive: no activity within ``minimal_days``
+    """
     last_activity = seat.get("last_activity_at")
     if not last_activity:
         return "inactive"
@@ -542,11 +561,11 @@ def _classify_user(seat: dict[str, Any]) -> str:
 
     now = datetime.now(UTC)
     days_since = (now - last_dt).days
-    if days_since <= 3:
+    if days_since <= power_days:
         return "power"
-    if days_since <= 14:
+    if days_since <= regular_days:
         return "regular"
-    if days_since <= 30:
+    if days_since <= minimal_days:
         return "minimal"
     return "inactive"
 
@@ -979,6 +998,7 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
 
     # ── Feature adoption ──────────────────────────────────────────────────────
     latest = days[-1] if days else {}
+    total_seats_count = len(seats_data) if has_seat_data and isinstance(seats_data, list) else 0
     latest_engaged = latest.get("total_engaged_users", 0) or 1
 
     completions_users = (latest.get("copilot_ide_code_completions") or {}).get(
@@ -988,25 +1008,55 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
     dotcom_chat_users = (latest.get("copilot_dotcom_chat") or {}).get("total_engaged_users", 0)
     pr_users = (latest.get("copilot_dotcom_pull_requests") or {}).get("total_engaged_users", 0)
 
-    feature_adoption = [
+    # Calculate 7-day trends
+    def _feature_trend_7d(feature_key: str) -> float:
+        """Calculate 7-day trend as percentage change."""
+        if len(days) < 14:
+            return 0.0
+        recent_7 = days[-7:]
+        prev_7 = days[-14:-7]
+        recent_avg = (
+            float(sum((d.get(feature_key) or {}).get("total_engaged_users", 0) for d in recent_7))
+            / 7
+        )
+        prev_avg = (
+            float(sum((d.get(feature_key) or {}).get("total_engaged_users", 0) for d in prev_7)) / 7
+        )
+        if prev_avg == 0:
+            return 0.0
+        return float(round((recent_avg - prev_avg) / prev_avg * 100, 1))
+
+    feature_adoption: list[dict[str, Any]] = [
         {
             "feature": "IDE completions",
+            "active_users": completions_users,
+            "total_seats": total_seats_count,
             "pct": round(completions_users / latest_engaged * 100, 1),
+            "trend_7d": _feature_trend_7d("copilot_ide_code_completions"),
             "color": _COLOR_GREEN,
         },
         {
             "feature": "IDE chat",
+            "active_users": chat_users,
+            "total_seats": total_seats_count,
             "pct": round(chat_users / latest_engaged * 100, 1),
+            "trend_7d": _feature_trend_7d("copilot_ide_chat"),
             "color": _COLOR_BLUE,
         },
         {
             "feature": "Dotcom chat",
+            "active_users": dotcom_chat_users,
+            "total_seats": total_seats_count,
             "pct": round(dotcom_chat_users / latest_engaged * 100, 1),
+            "trend_7d": _feature_trend_7d("copilot_dotcom_chat"),
             "color": _COLOR_PURPLE,
         },
         {
             "feature": "PR summaries",
+            "active_users": pr_users,
+            "total_seats": total_seats_count,
             "pct": round(pr_users / latest_engaged * 100, 1),
+            "trend_7d": _feature_trend_7d("copilot_dotcom_pull_requests"),
             "color": _COLOR_ORANGE,
         },
     ]
@@ -1273,6 +1323,120 @@ async def get_copilot_anomalies(db: AsyncSession) -> dict[str, Any]:
                     }
                 )
 
+    # ── Sudden drop: daily active users drops >30% from 7-day average ─────────
+    if len(days) >= 8:
+        last_7_active = [d.get("total_active_users", 0) for d in days[-8:-1]]
+        avg_7d = sum(last_7_active) / len(last_7_active) if last_7_active else 0
+        latest_active = days[-1].get("total_active_users", 0)
+        if avg_7d > 0:
+            drop_pct = (avg_7d - latest_active) / avg_7d * 100
+            if drop_pct > 30:
+                anomaly_id += 1
+                anomalies.append(
+                    {
+                        "id": anomaly_id,
+                        "severity": "high",
+                        "title": "Sudden active user drop",
+                        "description": (
+                            f"Daily active users dropped {drop_pct:.0f}% "
+                            f"from 7-day average ({avg_7d:.0f} → {latest_active}). "
+                            "This may indicate an outage, policy change, or tooling issue."
+                        ),
+                        "timestamp": days[-1].get("date", ""),
+                        "team": "Enterprise-wide",
+                        "affected_count": int(avg_7d - latest_active),
+                    }
+                )
+
+    # ── Model switching: >20% of users switch to a different model in a day ──
+    if len(days) >= 2:
+
+        def _get_model_distribution(day_obj: dict[str, Any]) -> dict[str, int]:
+            dist: dict[str, int] = {}
+            for feature_key in ("copilot_ide_code_completions", "copilot_ide_chat"):
+                feature = day_obj.get(feature_key) or {}
+                for editor in feature.get("editors", []):
+                    for model in editor.get("models", []):
+                        model_name = model.get("name", "Unknown")
+                        engaged = model.get("total_engaged_users", 0)
+                        dist[model_name] = dist.get(model_name, 0) + engaged
+            return dist
+
+        prev_dist = _get_model_distribution(days[-2])
+        curr_dist = _get_model_distribution(days[-1])
+        all_models_set = set(prev_dist.keys()) | set(curr_dist.keys())
+        total_prev = sum(prev_dist.values()) or 1
+        total_curr = sum(curr_dist.values()) or 1
+
+        max_share_change = 0.0
+        switched_model = ""
+        for m in all_models_set:
+            prev_share = prev_dist.get(m, 0) / total_prev * 100
+            curr_share = curr_dist.get(m, 0) / total_curr * 100
+            change = abs(curr_share - prev_share)
+            if change > max_share_change:
+                max_share_change = change
+                switched_model = m
+
+        if max_share_change > 20:
+            anomaly_id += 1
+            anomalies.append(
+                {
+                    "id": anomaly_id,
+                    "severity": "medium",
+                    "title": "Significant model switching detected",
+                    "description": (
+                        f"Model '{switched_model}' usage share changed by "
+                        f"{max_share_change:.0f}% in one day. This may indicate "
+                        "a model rollout or configuration change."
+                    ),
+                    "timestamp": days[-1].get("date", ""),
+                    "team": "Enterprise-wide",
+                    "affected_count": abs(
+                        curr_dist.get(switched_model, 0) - prev_dist.get(switched_model, 0)
+                    ),
+                }
+            )
+
+    # ── Bulk policy change detection ──────────────────────────────────────────
+    try:
+        from app.models.audit_event import AuditEvent
+
+        now = datetime.now(UTC)
+        one_day_ago = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        policy_result = await db.execute(
+            select(AuditEvent)
+            .where(
+                AuditEvent.action.like("copilot%"),
+                AuditEvent.created_at >= one_day_ago,
+            )
+            .limit(100)
+        )
+        recent_policy_events = list(policy_result.scalars().all())
+        if len(recent_policy_events) > 5:
+            anomaly_id += 1
+            anomalies.append(
+                {
+                    "id": anomaly_id,
+                    "severity": "high",
+                    "title": "Bulk policy changes detected",
+                    "description": (
+                        f"{len(recent_policy_events)} Copilot policy changes detected "
+                        "in the last 24 hours. This unusual volume may indicate "
+                        "unauthorized changes or a misconfigured automation."
+                    ),
+                    "timestamp": now.isoformat(),
+                    "team": "Enterprise-wide",
+                    "affected_count": len(recent_policy_events),
+                }
+            )
+    except Exception:
+        logger.debug("copilot_anomalies.policy_check_skipped", exc_info=True)
+
+    # Sort anomalies by severity (high first) then recency
+    severity_order = {"high": 0, "medium": 1, "low": 2}
+    anomalies.sort(key=lambda a: (severity_order.get(a["severity"], 3), a.get("id", 0)))
+
     return {"anomalies": anomalies}
 
 
@@ -1326,9 +1490,9 @@ async def get_copilot_teams(db: AsyncSession) -> dict[str, Any]:
         total_days_since_activity = 0
 
         for login in team_logins:
-            seat = login_to_seat.get(login)
-            if seat:
-                tier = _classify_user(seat)
+            seat_info = login_to_seat.get(login)
+            if seat_info:
+                tier = _classify_user(seat_info)
                 if tier in ("power", "regular"):
                     active_count += 1
                 elif tier == "inactive":
@@ -1719,6 +1883,118 @@ async def get_copilot_roi(db: AsyncSession) -> dict[str, Any]:
             }
         )
 
+    # ── Enhanced ROI calculations ─────────────────────────────────────────────
+    # Extract productivity metrics from daily data
+    total_lines_accepted = 0
+    total_days_with_data = 0
+    total_chat_turns = 0
+    total_pr_summaries = 0
+
+    for day_obj in days:
+        completions = day_obj.get("copilot_ide_code_completions") or {}
+        day_lines = 0
+        for editor in completions.get("editors", []):
+            for model in editor.get("models", []):
+                for lang in model.get("languages", []):
+                    day_lines += lang.get("total_code_lines_accepted", 0)
+        if day_lines > 0:
+            total_lines_accepted += day_lines
+            total_days_with_data += 1
+
+        # Estimate chat turns from engaged users (each engaged user ≈ 5 turns/day)
+        chat_engaged = (day_obj.get("copilot_ide_chat") or {}).get("total_engaged_users", 0)
+        dotcom_chat_engaged = (day_obj.get("copilot_dotcom_chat") or {}).get(
+            "total_engaged_users", 0
+        )
+        total_chat_turns += (chat_engaged + dotcom_chat_engaged) * 5
+
+        # PR summaries from engaged users
+        pr_engaged = (day_obj.get("copilot_dotcom_pull_requests") or {}).get(
+            "total_engaged_users", 0
+        )
+        total_pr_summaries += pr_engaged
+
+    avg_lines_per_day = total_lines_accepted / total_days_with_data if total_days_with_data else 0
+    avg_chat_turns_per_day = total_chat_turns / len(days) if days else 0
+    avg_pr_summaries_per_day = total_pr_summaries / len(days) if days else 0
+
+    # Value stream calculations (monthly, 22 working days)
+    working_days = 22
+    completion_value = round(avg_lines_per_day * _AVG_DEV_COST_PER_LINE * working_days, 2)
+    chat_savings = round(
+        avg_chat_turns_per_day
+        * _AVG_MINUTES_SAVED_PER_CHAT_TURN
+        * _DEFAULT_HOURLY_RATE
+        / 60
+        * working_days,
+        2,
+    )
+    pr_summary_savings = round(
+        avg_pr_summaries_per_day
+        * _AVG_MINUTES_SAVED_PER_PR_SUMMARY
+        * _DEFAULT_HOURLY_RATE
+        / 60
+        * working_days,
+        2,
+    )
+
+    total_value = round(completion_value + chat_savings + pr_summary_savings, 2)
+    total_roi = round(total_value - total_monthly_cost, 2)
+    roi_ratio = round(total_value / total_monthly_cost, 2) if total_monthly_cost > 0 else 0.0
+
+    # Breakeven analysis
+    breakeven_additional_users: int | None = None
+    if roi_ratio < 1.0 and active_seats > 0 and total_value > 0:
+        value_per_user = total_value / active_seats if active_seats > 0 else 0
+        if value_per_user > 0:
+            deficit = total_monthly_cost - total_value
+            breakeven_additional_users = max(1, int(deficit / value_per_user) + 1)
+
+    # Ghost members: seats with 0 activity in last 60+ days
+    ghost_members: list[dict[str, Any]] = []
+    for seat in seats:
+        assignee = seat.get("assignee") or {}
+        login = assignee.get("login", "unknown")
+        last_activity = seat.get("last_activity_at", "")
+        days_inactive = _days_since_last_activity(last_activity)
+        if days_inactive >= 60:
+            ghost_members.append(
+                {
+                    "user": login,
+                    "last_activity": last_activity if last_activity else "Never",
+                    "days_inactive": days_inactive,
+                    "plan_type": seat.get("plan_type", "business"),
+                }
+            )
+
+    # Growth forecast: linear projection
+    daily_active_users = [d.get("total_active_users", 0) for d in days]
+    growth_forecast: dict[str, Any] = {}
+    if len(daily_active_users) >= 7:
+        recent_avg = sum(daily_active_users[-7:]) / 7
+        older_avg = sum(daily_active_users[:7]) / 7 if len(daily_active_users) >= 14 else recent_avg
+        if older_avg > 0 and len(daily_active_users) >= 14:
+            weekly_growth_rate = (recent_avg - older_avg) / older_avg
+            monthly_growth_rate = weekly_growth_rate * 4
+            projected_users_30d = int(recent_avg * (1 + monthly_growth_rate))
+            projected_users_90d = int(recent_avg * (1 + monthly_growth_rate * 3))
+            weeks_to_capacity: int | None = None
+            if weekly_growth_rate > 0 and total_seats > 0 and recent_avg < total_seats:
+                remaining = total_seats - recent_avg
+                weeks_to_capacity = max(1, int(remaining / (recent_avg * weekly_growth_rate)))
+            growth_forecast = {
+                "current_active": int(recent_avg),
+                "projected_30d": projected_users_30d,
+                "projected_90d": projected_users_90d,
+                "monthly_growth_pct": round(monthly_growth_rate * 100, 1),
+                "weeks_to_capacity": weeks_to_capacity,
+            }
+
+    inactive_savings_monthly = round(
+        len(ghost_members) * _cost_for_plan("business", cost_override), 2
+    )
+    inactive_savings_annual = round(inactive_savings_monthly * 12, 2)
+
     return {
         "summary": {
             "total_seats": total_seats,
@@ -1732,6 +2008,24 @@ async def get_copilot_roi(db: AsyncSession) -> dict[str, Any]:
                 round(total_monthly_cost / active_seats, 2) if active_seats > 0 else 0
             ),
         },
+        "value_streams": {
+            "completion_value": completion_value,
+            "chat_savings": chat_savings,
+            "pr_summary_savings": pr_summary_savings,
+            "total_value": total_value,
+        },
+        "roi": {
+            "total_roi": total_roi,
+            "roi_ratio": roi_ratio,
+            "breakeven_additional_users": breakeven_additional_users,
+        },
+        "ghost_members": ghost_members,
+        "license_optimization": {
+            "inactive_savings_monthly": inactive_savings_monthly,
+            "inactive_savings_annual": inactive_savings_annual,
+            "ghost_member_count": len(ghost_members),
+        },
+        "growth_forecast": growth_forecast,
         "tier_breakdown": tier_counts,
         "plan_breakdown": plan_counts,
         "cost_trend": cost_trend,
