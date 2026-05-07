@@ -10,7 +10,7 @@ describe('HealthTabBar', () => {
     onTabChange: vi.fn(),
   };
 
-  it('renders all 8 tabs', () => {
+  it('renders all 12 tabs', () => {
     render(
       <MemoryRouter>
         <HealthTabBar {...defaultProps} />
@@ -18,7 +18,7 @@ describe('HealthTabBar', () => {
     );
     const tablist = screen.getByRole('tablist');
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs).toHaveLength(8);
+    expect(tabs).toHaveLength(12);
     expect(tabs[0]).toHaveTextContent('Repository Health');
     expect(tabs[1]).toHaveTextContent('Access & Identity');
     expect(tabs[2]).toHaveTextContent('Security Posture');
@@ -27,6 +27,10 @@ describe('HealthTabBar', () => {
     expect(tabs[5]).toHaveTextContent('License Health');
     expect(tabs[6]).toHaveTextContent('Maintenance Signals');
     expect(tabs[7]).toHaveTextContent('WAF Insights');
+    expect(tabs[8]).toHaveTextContent('API & Abuse');
+    expect(tabs[9]).toHaveTextContent('Users');
+    expect(tabs[10]).toHaveTextContent('Security');
+    expect(tabs[11]).toHaveTextContent('Maintenance');
   });
 
   it('marks the active tab with aria-selected', () => {

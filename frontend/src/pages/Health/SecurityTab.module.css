@@ -1,0 +1,141 @@
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.orgCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.orgCard {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--canvas-default);
+}
+
+.orgCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.orgName {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.scoreCircle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.scoreHigh {
+  background: var(--success);
+}
+
+.scoreMedium {
+  background: var(--attention);
+}
+
+.scoreLow {
+  background: var(--danger);
+}
+
+.checkList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.checkItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.checkIcon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.recommendations {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-muted);
+}
+
+.recommendations ul {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.recommendations li {
+  font-size: 12px;
+  color: var(--fg-muted);
+  padding-left: 16px;
+  position: relative;
+}
+
+.recommendations li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+.recTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.sourceNote {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-top: 8px;
+}
+
+.sourceCode {
+  font-size: 10px;
+  background: var(--canvas-inset);
+  padding: 1px 3px;
+  border-radius: 2px;
+  font-family: monospace;
+}
