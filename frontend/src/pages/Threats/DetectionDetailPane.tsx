@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateDetectionStatus, deleteDetection, assignDetection } from '../../api/detections';
 import { getDetectionTimeline } from '../../api/executive';
+import { listPlaybookTemplates, executePlaybook } from '../../api/playbooks';
 import type { TimelineEvent } from '../../api/executive';
 import type { DetectionResponse } from '../../types/detections';
 import { SeverityDot } from '../../components/primitives/SeverityDot';
@@ -159,6 +160,7 @@ export function DetectionDetailPane({
   onDeleted,
 }: DetectionDetailPaneProps) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   // Local UI state
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
@@ -169,6 +171,32 @@ export function DetectionDetailPane({
   const [showResolveForm, setShowResolveForm] = useState(false);
   const [resolveNote, setResolveNote] = useState('');
   const [timelineExpanded, setTimelineExpanded] = useState(false);
+  const [showPlaybooks, setShowPlaybooks] = useState(false);
+
+  // Playbook templates query — lazy loaded when panel opens
+  const { data: playbookTemplates } = useQuery({
+    queryKey: ['playbook-templates'],
+    queryFn: () => listPlaybookTemplates(),
+    enabled: showPlaybooks,
+    staleTime: 60_000,
+  });
+
+  // Filter templates by detection category if available
+  const detectionCategory = selected.context_data?.category as string | undefined;
+  const relevantPlaybooks = (playbookTemplates ?? []).filter((t) => {
+    if (t.detection_categories.length === 0) return true;
+    if (!detectionCategory) return true;
+    return t.detection_categories.includes(detectionCategory);
+  });
+
+  const executePlaybookMutation = useMutation({
+    mutationFn: (templateId: number) =>
+      executePlaybook({ template_id: templateId, detection_id: selected.id }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['detections'] });
+      navigate('/playbooks');
+    },
+  });
 
   // Mutations
   const assignMutation = useMutation({
@@ -600,7 +628,37 @@ export function DetectionDetailPane({
             {reopenMutation.isPending ? 'Reopening…' : '↺ Reopen'}
           </Button>
         )}
+        <Button size="sm" variant="primary" onClick={() => setShowPlaybooks((v) => !v)}>
+          ▶ Run Playbook
+        </Button>
       </div>
+
+      {/* Playbook selection panel */}
+      {showPlaybooks && (
+        <div className={styles.dismissForm} data-testid="playbook-panel">
+          <strong>Select a playbook to run:</strong>
+          {relevantPlaybooks.length === 0 && (
+            <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>No matching playbooks found.</p>
+          )}
+          {relevantPlaybooks.map((pb) => (
+            <div key={pb.id} style={{ marginTop: 8 }}>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => executePlaybookMutation.mutate(pb.id)}
+                disabled={executePlaybookMutation.isPending}
+              >
+                {pb.name}
+              </Button>
+              {pb.description && (
+                <span style={{ fontSize: 12, color: 'var(--fg-muted)', marginLeft: 8 }}>
+                  {pb.description}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Assign Dropdown */}
       {showAssignDropdown && (
