@@ -13,6 +13,8 @@ export interface DetectionResponse {
   readonly id: number;
   readonly rule_id: number;
   readonly rule_name: string | null;
+  readonly rule_category: string | null;
+  readonly rule_description: string | null;
   readonly rule_version: number;
   readonly severity: DetectionSeverity;
   readonly confidence: string;
