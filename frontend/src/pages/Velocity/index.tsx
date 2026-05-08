@@ -194,7 +194,6 @@ export function VelocityPage() {
   const dailyRunsRef = useRef<HTMLDivElement>(null);
   const reposRef = useRef<HTMLDivElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
-  const failuresRef = useRef<HTMLDivElement>(null);
 
   const {
     data: actionsData,
@@ -278,11 +277,6 @@ export function VelocityPage() {
     enabled: !!failureBucket && !!drillFilter,
     staleTime: 30_000,
   });
-
-  const handleOpenBucket = useCallback((b: ActionsVolumeBucket) => {
-    setDrillFilter(null);
-    setFailureBucket(b);
-  }, []);
 
   const handleCloseBucket = useCallback(() => {
     setFailureBucket(null);
@@ -479,14 +473,7 @@ export function VelocityPage() {
     workflowSuccess: workflowSuccessRef,
     dailyRuns: dailyRunsRef,
     repos: reposRef,
-    failures: failuresRef,
   } as const;
-
-  // Most recent failing buckets (last 7 days of failed runs > 0)
-  const recentFailingBuckets = buckets
-    .filter((b) => (b.workflow_runs_failed ?? 0) > 0)
-    .slice(-7)
-    .reverse();
 
   if (!features.velocity) {
     return (
@@ -797,71 +784,6 @@ export function VelocityPage() {
               )}
             </div>
           </div>
-
-          {recentFailingBuckets.length > 0 && (
-            <div ref={failuresRef}>
-              <div className={styles.sectionTitle}>Recent workflow failures — last 30 days</div>
-              <div className={styles.tableWrap} style={{ marginBottom: 20 }}>
-                <DataTable<ActionsVolumeBucket>
-                  columns={[
-                    {
-                      key: 'bucket',
-                      header: 'Date bucket',
-                      helpText:
-                        'Time window for aggregated workflow run data. Based on workflow_run audit events.',
-                      filterable: true,
-                      render: (b) => <>{formatBucketDate(b.bucket)}</>,
-                      filterValue: (b) => formatBucketDate(b.bucket),
-                    },
-                    {
-                      key: 'workflow_runs_total',
-                      header: 'Total runs',
-                      helpText:
-                        'Total number of workflow runs in this bucket. From workflow_run audit events.',
-                      sortable: true,
-                      render: (b) => (
-                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                          {b.workflow_runs_total ?? 0}
-                        </span>
-                      ),
-                      sortValue: (b) => b.workflow_runs_total ?? 0,
-                    },
-                    {
-                      key: 'workflow_runs_failed',
-                      header: 'Failed',
-                      helpText:
-                        'Number of workflow runs that failed in this bucket. From workflow_run audit events.',
-                      sortable: true,
-                      render: (b) => (
-                        <Label
-                          variant={(b.workflow_runs_failed ?? 0) > 10 ? 'danger' : 'attention'}
-                        >
-                          {b.workflow_runs_failed ?? 0}
-                        </Label>
-                      ),
-                      sortValue: (b) => b.workflow_runs_failed ?? 0,
-                    },
-                    {
-                      key: 'success_rate_pct',
-                      header: 'Success rate',
-                      helpText:
-                        'Percentage of workflow runs that succeeded. Based on workflow_run audit events. DORA elite teams target 95%+.',
-                      sortable: true,
-                      render: (b) => (
-                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                          {b.success_rate_pct != null ? `${Math.round(b.success_rate_pct)}%` : '—'}
-                        </span>
-                      ),
-                      sortValue: (b) => b.success_rate_pct ?? 0,
-                    },
-                  ]}
-                  data={recentFailingBuckets}
-                  rowKey={(b) => b.bucket}
-                  onRowClick={(b) => handleOpenBucket(b)}
-                />
-              </div>
-            </div>
-          )}
 
           <div className={styles.workflowCallout}>
             <div className={styles.calloutIcon}>⚡</div>
