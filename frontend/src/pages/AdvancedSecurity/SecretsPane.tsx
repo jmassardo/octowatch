@@ -195,8 +195,18 @@ export function SecretsPane() {
         header: 'State',
         sortable: true,
         filterable: true,
-        helpText: 'Current state of the alert (open, resolved)',
-        render: (r) => <Label variant={stateVariant(r.state)}>{r.state}</Label>,
+        helpText: 'Current state of the alert — click chip to filter',
+        render: (r) => (
+          <Label
+            variant={stateVariant(r.state)}
+            onClick={() => {
+              setStateFilter(r.state);
+              setPage(1);
+            }}
+          >
+            {r.state}
+          </Label>
+        ),
         sortValue: (r) => r.state,
         filterValue: (r) => r.state,
       },
@@ -248,7 +258,7 @@ export function SecretsPane() {
         filterValue: (r) => r.resolution ?? '',
       },
     ],
-    [],
+    [setStateFilter],
   );
 
   return (
