@@ -42,6 +42,8 @@ class DetectionResponse(BaseModel):
     id: int
     rule_id: int
     rule_name: str | None = None
+    rule_category: str | None = None
+    rule_description: str | None = None
     rule_version: int
     severity: str
     confidence: str
