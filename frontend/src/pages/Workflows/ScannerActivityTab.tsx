@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { listScanActivity } from '../../api/workflowScanner';
 import type { ScanActivity } from '../../api/workflowScanner';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Label } from '../../components/primitives/Label';
+import { MetricCard } from '../../components/primitives/MetricCard';
 import { formatRelativeShort } from '../../utils/dates';
 import styles from './Workflows.module.css';
 
@@ -31,6 +32,17 @@ function dataSourceLabel(source: string): string {
   if (source === 'audit_log') return 'Audit Log';
   if (source === 'github_api') return 'GitHub API';
   return source;
+}
+
+function scanResultIcon(activity: ScanActivity): string {
+  if (activity.status === 'running') return '🔄';
+  if (activity.status === 'failed') return '⚠️';
+  if (activity.findings_count === 0) return '🟢';
+  const hasHighSeverity = activity.checks_performed.some(
+    (c) => c.includes('self-hosted') || c.includes('script-injection'),
+  );
+  if (hasHighSeverity && activity.findings_count > 0) return '🔴';
+  return '🟡';
 }
 
 function ActivityDetailPanel({
@@ -103,7 +115,27 @@ export function ScannerActivityTab() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['workflow-scanner', 'activity', page],
     queryFn: () => listScanActivity({ page, page_size: 20 }),
+    refetchInterval: (query) => {
+      const items = query.state.data?.items ?? [];
+      return items.some((a) => a.status === 'running') ? 5000 : false;
+    },
   });
+
+  const stats = useMemo(() => {
+    const items = data?.items ?? [];
+    const total = data?.total ?? 0;
+    const eventDriven = items.filter((a) => a.trigger_event_ids.length > 0).length;
+    const totalFindings = items.reduce((sum, a) => sum + a.findings_count, 0);
+    const completedItems = items.filter((a) => a.duration_ms !== null);
+    const avgDuration =
+      completedItems.length > 0
+        ? Math.round(
+            completedItems.reduce((sum, a) => sum + (a.duration_ms ?? 0), 0) /
+              completedItems.length,
+          )
+        : 0;
+    return { total, eventDriven, totalFindings, avgDuration, pageItems: items.length };
+  }, [data]);
 
   if (isLoading) return <Spinner />;
   if (isError) {
@@ -127,9 +159,37 @@ export function ScannerActivityTab() {
 
   return (
     <div>
+      <div className={styles.activitySummary}>
+        <MetricCard
+          value={String(stats.total)}
+          label="Total Scans"
+          helpText="Total number of workflow scans recorded"
+        />
+        <MetricCard
+          value={
+            stats.pageItems > 0
+              ? `${Math.round((stats.eventDriven / stats.pageItems) * 100)}%`
+              : '0%'
+          }
+          label="Event-Driven"
+          helpText="Percentage of scans triggered by audit log events (vs manual)"
+        />
+        <MetricCard
+          value={String(stats.totalFindings)}
+          label="Findings (page)"
+          helpText="Total findings from scans on this page"
+        />
+        <MetricCard
+          value={formatDuration(stats.avgDuration)}
+          label="Avg Duration"
+          helpText="Average scan duration for completed scans on this page"
+        />
+      </div>
+
       <table className={styles.findingsTable}>
         <thead>
           <tr>
+            <th style={{ width: '36px' }}></th>
             <th>Status</th>
             <th>Workflow</th>
             <th>Trigger</th>
@@ -146,8 +206,22 @@ export function ScannerActivityTab() {
               className={`${styles.findingRow} ${selectedActivity?.id === a.id ? styles.findingRowSelected : ''}`}
               onClick={() => setSelectedActivity(selectedActivity?.id === a.id ? null : a)}
             >
+              <td
+                title={
+                  a.status === 'running'
+                    ? 'Scan in progress'
+                    : a.findings_count === 0
+                      ? 'No findings'
+                      : `${a.findings_count} findings`
+                }
+              >
+                {scanResultIcon(a)}
+              </td>
               <td>
-                <Label variant={statusVariant(a.status)}>{a.status}</Label>
+                <Label variant={statusVariant(a.status)}>
+                  {a.status}
+                  {a.status === 'running' && ' …'}
+                </Label>
               </td>
               <td className={styles.repoPath}>
                 {a.org}/{a.repo}
@@ -158,6 +232,11 @@ export function ScannerActivityTab() {
                 <Label variant={a.trigger_event_ids.length > 0 ? 'accent' : 'muted'}>
                   {a.trigger_event_ids.length > 0 ? 'Event-driven' : 'Manual'}
                 </Label>
+                {a.trigger_event_ids.length > 0 && (
+                  <small className={styles.triggerCount}>
+                    {a.trigger_event_ids.length} event{a.trigger_event_ids.length !== 1 ? 's' : ''}
+                  </small>
+                )}
               </td>
               <td>
                 <Label variant={findingsVariant(a.findings_count)}>{a.findings_count}</Label>
