@@ -585,8 +585,7 @@ async def get_metrics_that_matter(
             JOIN (
                 SELECT repo, data->>'number' AS pr_num, created_at
                 FROM events
-                WHERE action = 'pull_request.closed'
-                  AND data->>'merged' = 'true'
+                WHERE action = 'pull_request.merged'
                   AND created_at >= :start
             ) c ON o.repo = c.repo AND o.pr_num = c.pr_num
             WHERE c.created_at > o.created_at
@@ -960,8 +959,7 @@ async def get_metrics_that_matter(
             COUNT(*) FILTER (WHERE actor LIKE '%%[bot]' OR actor LIKE '%%bot%%') * 100.0 /
             NULLIF(COUNT(*), 0) AS automation_rate_pct
         FROM events
-        WHERE action = 'pull_request.closed'
-          AND data->>'merged' = 'true'
+        WHERE action = 'pull_request.merged'
           AND created_at >= :start
           {org_filter}
     """)
