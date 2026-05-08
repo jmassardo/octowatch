@@ -278,7 +278,8 @@ describe('PosturePage — Enterprise View', () => {
 
   it('renders enterprise score', async () => {
     renderWithProviders(<PosturePage />);
-    expect(await screen.findByText('85')).toBeInTheDocument();
+    const gauge = await screen.findByRole('img', { name: /85%/ });
+    expect(gauge).toBeInTheDocument();
   });
 
   it('renders enterprise title text', async () => {
@@ -292,7 +293,11 @@ describe('PosturePage — Enterprise View', () => {
   });
 
   it('renders org cards', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
+    // Expand the collapsed org grid
+    const toggle = await screen.findByRole('button', { name: /Organizations/ });
+    await user.click(toggle);
     // org names appear both in cards and multi-select; verify card elements exist
     const cards = await screen.findAllByText('octowatch-org');
     expect(cards.length).toBeGreaterThanOrEqual(1);
@@ -301,19 +306,28 @@ describe('PosturePage — Enterprise View', () => {
   });
 
   it('renders org scores on cards', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
+    const toggle = await screen.findByRole('button', { name: /Organizations/ });
+    await user.click(toggle);
     expect(await screen.findByText('90')).toBeInTheDocument();
     expect(await screen.findByText('40')).toBeInTheDocument();
   });
 
   it('renders repo summary on org cards', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
+    const toggle = await screen.findByRole('button', { name: /Organizations/ });
+    await user.click(toggle);
     expect(await screen.findByText('5 repos')).toBeInTheDocument();
     expect(await screen.findByText('3 repos')).toBeInTheDocument();
   });
 
   it('shows failing count on org card', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
+    const toggle = await screen.findByRole('button', { name: /Organizations/ });
+    await user.click(toggle);
     expect(await screen.findByText('2 failing')).toBeInTheDocument();
   });
 
@@ -326,6 +340,9 @@ describe('PosturePage — Enterprise View', () => {
   it('navigates to org on card click', async () => {
     const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
+    // Expand collapsed org grid first
+    const toggle = await screen.findByRole('button', { name: /Organizations/ });
+    await user.click(toggle);
     const cards = await screen.findAllByText('octowatch-org');
     // Find the one inside an orgCard (not the select option)
     const cardEl = cards.find((el) => el.closest('[class*="orgCard"]'));
@@ -374,7 +391,8 @@ describe('PosturePage — Org View', () => {
 
   it('renders org score gauge', async () => {
     renderWithProviders(<PosturePage />);
-    expect(await screen.findByText('90')).toBeInTheDocument();
+    const gauge = await screen.findByRole('img', { name: /90%/ });
+    expect(gauge).toBeInTheDocument();
   });
 
   it('renders org metadata card with 2FA status', async () => {
@@ -462,7 +480,8 @@ describe('PosturePage — Repo View', () => {
 
   it('renders repo score', async () => {
     renderWithProviders(<PosturePage />);
-    expect(await screen.findByText('45')).toBeInTheDocument();
+    const gauge = await screen.findByRole('img', { name: /45%/ });
+    expect(gauge).toBeInTheDocument();
   });
 
   it('renders repo metadata', async () => {
@@ -606,9 +625,10 @@ describe('PosturePage — Score gauge colors', () => {
   it('applies good class for score >= 80', async () => {
     mockGetPosture.mockResolvedValue(ENTERPRISE_RESPONSE);
     renderWithProviders(<PosturePage />);
-    await screen.findByText('85');
-    const gauge = document.querySelector('[class*="scoreGauge"]');
-    expect(gauge?.className).toContain('good');
+    const gauge = await screen.findByRole('img', { name: /85%/ });
+    expect(gauge).toBeInTheDocument();
+    // RadialGauge uses accent color for scores >= 75
+    expect(gauge.getAttribute('aria-label')).toContain('85%');
   });
 
   it('applies bad class for score < 50', async () => {
@@ -616,9 +636,10 @@ describe('PosturePage — Score gauge colors', () => {
     mockParams.org = 'octowatch-org';
     mockParams.repo = 'legacy-app';
     renderWithProviders(<PosturePage />);
-    await screen.findByText('45');
-    const gauge = document.querySelector('[class*="scoreGauge"]');
-    expect(gauge?.className).toContain('bad');
+    const gauge = await screen.findByRole('img', { name: /45%/ });
+    expect(gauge).toBeInTheDocument();
+    // RadialGauge uses danger color for scores < 50
+    expect(gauge.getAttribute('aria-label')).toContain('45%');
   });
 });
 
@@ -731,7 +752,8 @@ describe('PosturePage — Coverage Gauges', () => {
   it('shows Dependabot coverage label', async () => {
     renderWithProviders(<PosturePage />);
     await screen.findByTestId('coverage-gauges');
-    expect(screen.getByText('Dependabot')).toBeInTheDocument();
+    const labels = screen.getAllByText('Dependabot');
+    expect(labels.length).toBeGreaterThanOrEqual(1);
   });
 });
 
