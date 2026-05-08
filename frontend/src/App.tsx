@@ -29,6 +29,7 @@ import { PlaybooksPage } from './pages/Playbooks';
 import { SupplyChainPage } from './pages/SupplyChain';
 import { ThreatIntelPage } from './pages/ThreatIntel';
 import AuthSettingsPage from './pages/admin/AuthSettings';
+import { ProfilePage } from './pages/Profile';
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
@@ -81,6 +82,7 @@ export const router = createBrowserRouter([
       { path: '/settings/:tab', element: <SettingsPage /> },
       { path: '/telemetry', element: <TelemetryPage /> },
       { path: '/admin/auth', element: <AuthSettingsPage /> },
+      { path: '/profile', element: <ProfilePage /> },
     ],
   },
 ]);
