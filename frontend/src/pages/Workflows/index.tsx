@@ -232,7 +232,12 @@ export function WorkflowsPage() {
                       onClick={() => setSelectedFinding(selectedFinding?.id === f.id ? null : f)}
                     >
                       <td>
-                        <Label variant={sevVariant(f.severity)}>{f.severity}</Label>
+                        <Label
+                          variant={sevVariant(f.severity)}
+                          onClick={() => setSevFilter(f.severity)}
+                        >
+                          {f.severity}
+                        </Label>
                       </td>
                       <td>{f.title}</td>
                       <td className={styles.repoPath}>
@@ -240,7 +245,10 @@ export function WorkflowsPage() {
                       </td>
                       <td className={styles.repoPath}>{f.workflow_path}</td>
                       <td>
-                        <Label variant={f.status === 'open' ? 'attention' : 'muted'}>
+                        <Label
+                          variant={f.status === 'open' ? 'attention' : 'muted'}
+                          onClick={() => setStatusFilter(f.status)}
+                        >
                           {f.status}
                         </Label>
                       </td>
