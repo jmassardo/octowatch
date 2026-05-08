@@ -740,6 +740,40 @@
   border-color: var(--accent);
 }
 
+.categoryFormTextarea {
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+  width: 320px;
+  box-sizing: border-box;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.categoryFormTextarea:focus {
+  border-color: var(--accent);
+}
+
+.maintenanceMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+  color: var(--fg-muted);
+}
+
+.maintenancePreview {
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
 .categoryFormActions {
   display: flex;
   justify-content: flex-end;

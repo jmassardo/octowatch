@@ -21,6 +21,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
 from app.database import dispose_pool, warm_up_pool
+from app.middleware.maintenance import MaintenanceModeMiddleware
 from app.rate_limit import limiter
 from app.routers import (
     actors,
@@ -46,6 +47,7 @@ from app.routers import (
     ingest_hec,
     ingest_webhook,
     integrations,
+    maintenance,
     org_config,
     playbooks,
     posture,
@@ -594,6 +596,9 @@ def create_app() -> FastAPI:
     # Audit trail
     app.add_middleware(AuditTrailMiddleware)
 
+    # Maintenance mode controls
+    app.add_middleware(MaintenanceModeMiddleware)
+
     # GitHub IP allowlist (only when enabled)
     if settings.github_app.GITHUB_IP_ALLOWLIST_ENABLED:
         from app.middleware.ip_allowlist import GitHubIPAllowlistMiddleware
@@ -692,6 +697,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_teams.router, prefix=API_PREFIX)
     app.include_router(admin_audit_log.router, prefix=API_PREFIX)
     app.include_router(admin_settings.router, prefix=API_PREFIX)
+    app.include_router(maintenance.router, prefix=API_PREFIX)
     app.include_router(admin_auth.router, prefix=API_PREFIX)
     app.include_router(enterprise_pat.router, prefix=API_PREFIX)
     app.include_router(integrations.router, prefix=API_PREFIX)

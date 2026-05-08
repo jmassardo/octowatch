@@ -28,6 +28,7 @@ import { useToast } from '../../hooks/useToast';
 import { SyncRunHistory } from '../Integrations/SyncRunHistory';
 import { ManualIngestPanel } from '../Integrations/ManualIngestPanel';
 import { AuditStreamPanel } from './AuditStreamPanel';
+import { MaintenanceSettingsPanel } from './MaintenanceSettingsPanel';
 import { Button } from '../../components/primitives/Button';
 import { Drawer } from '../../components/primitives/Drawer';
 import { Modal } from '../../components/primitives/Modal';
@@ -1986,13 +1987,6 @@ const SYSTEM_FIELDS: SettingFieldDef[] = [
     defaultValue: 'false',
   },
   {
-    key: 'system.maintenance_mode',
-    label: 'Maintenance mode',
-    description: 'Display a maintenance banner and restrict write operations.',
-    type: 'toggle',
-    defaultValue: 'false',
-  },
-  {
     key: 'system.data_retention_days',
     label: 'Data retention (days)',
     description: 'Number of days to retain event and detection data.',
@@ -2139,12 +2133,15 @@ export function SettingsPage() {
         isLoading ? (
           <Spinner />
         ) : (
-          <CategorySettingsForm
-            category="System"
-            fields={SYSTEM_FIELDS}
-            description="System-level configuration including logging, maintenance, and data retention."
-            settings={settings ?? []}
-          />
+          <>
+            <CategorySettingsForm
+              category="System"
+              fields={SYSTEM_FIELDS}
+              description="System-level configuration including logging, maintenance, and data retention."
+              settings={settings ?? []}
+            />
+            <MaintenanceSettingsPanel />
+          </>
         )
       ) : (
         <>
