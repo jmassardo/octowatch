@@ -431,3 +431,64 @@
   min-width: 180px;
   max-height: 80px;
 }
+
+@media (max-width: 1024px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .content {
+    padding: 20px;
+    overflow-x: auto;
+  }
+
+  .filters,
+  .metricsSummary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .orgGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .repoTable {
+    min-width: 720px;
+  }
+}
+
+@media (max-width: 768px) {
+  .breadcrumb {
+    display: none;
+  }
+
+  .content {
+    padding: 16px;
+  }
+
+  .filters,
+  .orgGrid,
+  .metricsSummary,
+  .metaGrid,
+  .chartsRow {
+    grid-template-columns: 1fr;
+  }
+
+  .checkRow,
+  .orgCardHeader,
+  .orgMeta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .checkMeta {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .repoTable {
+    min-width: 640px;
+  }
+}
