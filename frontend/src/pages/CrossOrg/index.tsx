@@ -249,6 +249,47 @@ const timelineColumns: ColumnDef<CrossOrgTimelineEvent>[] = [
   },
 ];
 
+function isBot(actor: string): boolean {
+  return actor.endsWith('[bot]') || actor.startsWith('github-actions');
+}
+
+function csvExport(correlations: CrossOrgCorrelation[]): void {
+  const headers = [
+    'Actor',
+    'Type',
+    'Risk Score',
+    'Risk Tier',
+    'Orgs',
+    'Events',
+    'Actions',
+    'First Seen',
+    'Last Seen',
+  ];
+  const rows = correlations.map((c) => [
+    c.actor,
+    isBot(c.actor) ? 'Bot' : 'Human',
+    c.risk_score,
+    riskTierLabel(getRiskTier(c.risk_score)),
+    c.orgs.join('; '),
+    c.event_count,
+    c.distinct_actions,
+    c.first_seen,
+    c.last_seen,
+  ]);
+  const csv = [headers, ...rows]
+    .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cross-org-actors-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+type ActorType = 'all' | 'human' | 'bot';
+
 export function CrossOrgPage() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('correlations');
@@ -259,6 +300,9 @@ export function CrossOrgPage() {
   const [timelinePage, setTimelinePage] = useState(1);
   const [riskFilter, setRiskFilter] = useState<RiskTier | null>(null);
   const [guidanceCollapsed, setGuidanceCollapsed] = useState(getInitialGuidanceCollapsed);
+  const [orgFilter, setOrgFilter] = useState<string>('');
+  const [minOrgs, setMinOrgs] = useState(2);
+  const [actorType, setActorType] = useState<ActorType>('all');
 
   const {
     data: correlationData,
@@ -266,8 +310,8 @@ export function CrossOrgPage() {
     isError: correlationError,
     refetch: refetchCorrelations,
   } = useQuery({
-    queryKey: ['cross-org', 'correlations', hours],
-    queryFn: () => getCrossOrgCorrelations({ min_orgs: 2, hours }),
+    queryKey: ['cross-org', 'correlations', hours, minOrgs],
+    queryFn: () => getCrossOrgCorrelations({ min_orgs: minOrgs, hours }),
   });
 
   const {
@@ -313,12 +357,31 @@ export function CrossOrgPage() {
     return counts;
   }, [correlationData]);
 
-  // Filter correlations by risk tier
+  // Collect all unique orgs for org filter dropdown
+  const allOrgs = useMemo(() => {
+    const orgSet = new Set<string>();
+    for (const c of correlationData?.correlations ?? []) {
+      for (const org of c.orgs) orgSet.add(org);
+    }
+    return [...orgSet].sort();
+  }, [correlationData]);
+
+  // Filter correlations by risk tier, org, and actor type
   const filteredCorrelations = useMemo(() => {
-    const correlations = correlationData?.correlations ?? [];
-    if (!riskFilter) return correlations;
-    return correlations.filter((c) => getRiskTier(c.risk_score) === riskFilter);
-  }, [correlationData, riskFilter]);
+    let correlations = correlationData?.correlations ?? [];
+    if (riskFilter) {
+      correlations = correlations.filter((c) => getRiskTier(c.risk_score) === riskFilter);
+    }
+    if (orgFilter) {
+      correlations = correlations.filter((c) => c.orgs.includes(orgFilter));
+    }
+    if (actorType === 'bot') {
+      correlations = correlations.filter((c) => isBot(c.actor));
+    } else if (actorType === 'human') {
+      correlations = correlations.filter((c) => !isBot(c.actor));
+    }
+    return correlations;
+  }, [correlationData, riskFilter, orgFilter, actorType]);
 
   // The DataTable handles sorting internally via column headers,
   // so we pass data sorted by risk_score desc as default order
@@ -448,13 +511,32 @@ export function CrossOrgPage() {
         )}
 
         {/* AC-3: Active filter indicator */}
-        {riskFilter && (
+        {(riskFilter || orgFilter || actorType !== 'all') && (
           <div className={styles.filterIndicator}>
             <span>
-              Filtered by: <strong>{riskTierLabel(riskFilter)}</strong> risk
+              Filtered by: {riskFilter && <strong>{riskTierLabel(riskFilter)} risk</strong>}
+              {orgFilter && (
+                <>
+                  {riskFilter ? ', ' : ''}
+                  <strong>{orgFilter}</strong>
+                </>
+              )}
+              {actorType !== 'all' && (
+                <>
+                  {riskFilter || orgFilter ? ', ' : ''}
+                  <strong>{actorType === 'bot' ? 'Bots' : 'Humans'}</strong>
+                </>
+              )}
             </span>
-            <Button size="sm" onClick={() => setRiskFilter(null)}>
-              Clear filter
+            <Button
+              size="sm"
+              onClick={() => {
+                setRiskFilter(null);
+                setOrgFilter('');
+                setActorType('all');
+              }}
+            >
+              Clear all filters
             </Button>
           </div>
         )}
@@ -468,6 +550,8 @@ export function CrossOrgPage() {
                 setHours(Number(e.target.value));
                 setSelectedActor(null);
                 setRiskFilter(null);
+                setOrgFilter('');
+                setActorType('all');
                 setTimelinePage(1);
               }}
             >
@@ -476,6 +560,42 @@ export function CrossOrgPage() {
                   {o.label}
                 </option>
               ))}
+            </select>
+            <select
+              className={styles.filterSelect}
+              value={minOrgs}
+              onChange={(e) => setMinOrgs(Number(e.target.value))}
+              aria-label="Minimum organizations"
+            >
+              <option value={2}>≥ 2 orgs</option>
+              <option value={3}>≥ 3 orgs</option>
+              <option value={4}>≥ 4 orgs</option>
+              <option value={5}>≥ 5 orgs</option>
+            </select>
+            {allOrgs.length > 0 && (
+              <select
+                className={styles.filterSelect}
+                value={orgFilter}
+                onChange={(e) => setOrgFilter(e.target.value)}
+                aria-label="Filter by organization"
+              >
+                <option value="">All orgs</option>
+                {allOrgs.map((org) => (
+                  <option key={org} value={org}>
+                    {org}
+                  </option>
+                ))}
+              </select>
+            )}
+            <select
+              className={styles.filterSelect}
+              value={actorType}
+              onChange={(e) => setActorType(e.target.value as ActorType)}
+              aria-label="Actor type"
+            >
+              <option value="all">All actors</option>
+              <option value="human">Humans only</option>
+              <option value="bot">Bots only</option>
             </select>
             {tab === 'timeline' && (
               <div className={styles.timelineSearch}>
@@ -504,6 +624,13 @@ export function CrossOrgPage() {
                   </Button>
                 )}
               </div>
+            )}
+          </div>
+          <div className={styles.controlRight}>
+            {tab === 'correlations' && sortedCorrelations.length > 0 && (
+              <Button size="sm" onClick={() => csvExport(sortedCorrelations)}>
+                Export CSV
+              </Button>
             )}
           </div>
         </div>
@@ -535,23 +662,29 @@ export function CrossOrgPage() {
               />
             )}
             {/* AC-5: Improved empty state */}
-            {correlationData && sortedCorrelations.length === 0 && !riskFilter && (
-              <div className={styles.emptyStateSuccess}>
-                <span className={styles.emptyIcon} aria-hidden="true">
-                  🛡️
-                </span>
-                <p className={styles.emptyTitle}>All clear</p>
-                <p className={styles.emptyMessage}>
-                  No suspicious cross-org activity detected in the selected time window. Cross-org
-                  monitoring is working normally.
-                </p>
-              </div>
-            )}
-            {correlationData && sortedCorrelations.length === 0 && riskFilter && (
-              <div className={styles.emptyState}>
-                No actors found in the {riskTierLabel(riskFilter)} risk tier
-              </div>
-            )}
+            {correlationData &&
+              sortedCorrelations.length === 0 &&
+              !riskFilter &&
+              !orgFilter &&
+              actorType === 'all' && (
+                <div className={styles.emptyStateSuccess}>
+                  <span className={styles.emptyIcon} aria-hidden="true">
+                    🛡️
+                  </span>
+                  <p className={styles.emptyTitle}>All clear</p>
+                  <p className={styles.emptyMessage}>
+                    No suspicious cross-org activity detected in the selected time window. Cross-org
+                    monitoring is working normally.
+                  </p>
+                </div>
+              )}
+            {correlationData &&
+              sortedCorrelations.length === 0 &&
+              (riskFilter || orgFilter || actorType !== 'all') && (
+                <div className={styles.emptyState}>
+                  No actors found matching the current filters
+                </div>
+              )}
             {sortedCorrelations.length > 0 && (
               <DataTable<CrossOrgCorrelation>
                 columns={correlationColumnsWithActions}
@@ -714,7 +847,10 @@ export function CrossOrgPage() {
                             <span className={styles.orgDetailLabel}>Actions</span>
                             <span className={styles.actionList}>
                               {actions.slice(0, 5).map((a) => (
-                                <code key={a} className={styles.actionCode}>
+                                <code
+                                  key={a}
+                                  className={`${styles.actionCode} ${SENSITIVE_ACTIONS.includes(a) ? styles.sensitiveAction : ''}`}
+                                >
                                   {a}
                                 </code>
                               ))}

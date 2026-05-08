@@ -107,6 +107,13 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.controlRight {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .filterSelect {
@@ -397,6 +404,12 @@
   padding: 1px 5px;
   border-radius: 3px;
   border: 1px solid var(--border);
+}
+
+.sensitiveAction {
+  background: var(--severity-critical-bg, rgba(220, 38, 38, 0.1));
+  border-color: var(--severity-critical, #dc2626);
+  color: var(--severity-critical, #dc2626);
 }
 
 .muted {
