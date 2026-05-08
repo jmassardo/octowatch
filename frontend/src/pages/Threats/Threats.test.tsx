@@ -190,7 +190,7 @@ describe('ThreatsPage with data', () => {
     // Each event_id is rendered as a link
     const link101 = screen.getByText('#101');
     expect(link101).toBeInTheDocument();
-    expect(link101.closest('a')).toHaveAttribute('href', '/events?id=101');
+    expect(link101.closest('a')).toHaveAttribute('href', '/events/101');
   });
 
   it('shows all related events when 5 or fewer', async () => {
@@ -523,7 +523,7 @@ describe('DetectionDetailPane interactions', () => {
     const row = await screen.findByText('Suspicious admin activity detected');
     await user.click(row);
 
-    expect(screen.getByText('Status & Assignment')).toBeInTheDocument();
+    expect(screen.getByText('Assignment')).toBeInTheDocument();
     expect(screen.getByText('investigating')).toBeInTheDocument();
     expect(screen.getByText('Unassigned')).toBeInTheDocument();
   });

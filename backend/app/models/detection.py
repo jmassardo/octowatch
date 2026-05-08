@@ -172,6 +172,19 @@ class Detection(Base):
     )
 
     rule: Mapped[RuleDefinition] = relationship("RuleDefinition", back_populates="detections")
+
+    @property
+    def rule_name(self) -> str | None:
+        return self.rule.name if self.rule else None
+
+    @property
+    def rule_category(self) -> str | None:
+        return self.rule.category if self.rule else None
+
+    @property
+    def rule_description(self) -> str | None:
+        return self.rule.description if self.rule else None
+
     chain_id: Mapped[str | None] = mapped_column(
         Text, ForeignKey("correlation_chains.id", ondelete="SET NULL"), nullable=True
     )

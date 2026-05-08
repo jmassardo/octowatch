@@ -6,6 +6,7 @@ import { SetupPage } from './pages/Setup';
 import { DashboardPage } from './pages/Dashboard';
 import { ThreatsPage } from './pages/Threats';
 import { EventsPage } from './pages/Events';
+import { EventDetailPage } from './pages/Events/EventDetailPage';
 import { VelocityPage } from './pages/Velocity';
 import { DevActivityPage } from './pages/DevActivity';
 import { CopilotPage } from './pages/Copilot';
@@ -56,6 +57,7 @@ export const router = createBrowserRouter([
       { path: '/posture/:org', element: <PosturePage /> },
       { path: '/posture/:org/:repo', element: <PosturePage /> },
       { path: '/events', element: <EventsPage /> },
+      { path: '/events/:id', element: <EventDetailPage /> },
       { path: '/crossorg', element: <CrossOrgPage /> },
       { path: '/workflows', element: <WorkflowsPage /> },
       { path: '/workflows/health', element: <WorkflowHealthPage /> },
