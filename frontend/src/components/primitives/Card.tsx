@@ -1,20 +1,18 @@
 import styles from './Card.module.css';
 
-interface CardProps {
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
-  className?: string;
-  style?: React.CSSProperties;
-  onClick?: () => void;
 }
 
-export function Card({ children, className, style, onClick }: CardProps) {
+export function Card({ children, className, style, onClick, ...props }: CardProps) {
   return (
     <div
+      {...props}
       className={[styles.card, className].filter(Boolean).join(' ')}
       style={style}
       onClick={onClick}
-      role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
+      role={onClick ? 'button' : props.role}
+      tabIndex={onClick ? 0 : props.tabIndex}
       onKeyDown={
         onClick
           ? (e) => {
@@ -23,7 +21,7 @@ export function Card({ children, className, style, onClick }: CardProps) {
                 onClick();
               }
             }
-          : undefined
+          : props.onKeyDown
       }
     >
       {children}

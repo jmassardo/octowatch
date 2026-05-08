@@ -1,0 +1,399 @@
+.gridShell {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.gridToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.gridToolbar h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.gridToolbar p {
+  margin: 6px 0 0;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.gridItem {
+  min-width: 0;
+}
+
+.sizeSm {
+  grid-column: span 4;
+}
+
+.sizeMd {
+  grid-column: span 6;
+}
+
+.sizeLg {
+  grid-column: span 12;
+}
+
+.card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+}
+
+.cardDragging {
+  opacity: 0.55;
+}
+
+.cardDropTarget {
+  outline: 2px dashed var(--accent);
+  outline-offset: 4px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 0;
+}
+
+.cardTitleBlock {
+  min-width: 0;
+}
+
+.cardTitle {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.cardDescription {
+  display: block;
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.cardActions {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.handle,
+.iconButton,
+.resizeGrip,
+.actionLink {
+  border: 1px solid var(--border);
+  background: var(--canvas-subtle);
+  color: var(--fg-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.handle,
+.iconButton,
+.resizeGrip {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.handle {
+  cursor: grab;
+}
+
+.handle:active {
+  cursor: grabbing;
+}
+
+.handle:hover,
+.iconButton:hover,
+.resizeGrip:hover,
+.actionLink:hover {
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+.cardBody {
+  padding: 16px;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cardFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
+.cardMeta {
+  color: var(--fg-subtle);
+  font-size: 12px;
+}
+
+.metricRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.metricValue {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.metricLabel {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.statusHealthy {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+}
+
+.statusWarning {
+  background: color-mix(in srgb, var(--attention) 16%, transparent);
+  color: var(--attention);
+}
+
+.statusCritical {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.listItem,
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.listLabel,
+.barLabel {
+  flex: 1;
+  min-width: 0;
+  color: var(--fg-muted);
+}
+
+.listValue,
+.barValue {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.barTrack {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(177, 186, 196, 0.12);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: inherit;
+}
+
+.inlineStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.inlineStat {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(177, 186, 196, 0.04);
+}
+
+.inlineStat strong {
+  display: block;
+  font-size: 16px;
+}
+
+.inlineStat span {
+  display: block;
+  margin-top: 4px;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+
+.muted {
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+
+.actionLink {
+  padding: 6px 10px;
+  text-decoration: none;
+}
+
+.emptyState {
+  padding: 32px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  text-align: center;
+  color: var(--fg-muted);
+}
+
+.emptyState h3 {
+  margin: 0 0 8px;
+  color: var(--fg);
+  font-size: 16px;
+}
+
+.pickerBody {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.categorySection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.categoryTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.pickerGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.pickerOption {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(177, 186, 196, 0.04);
+}
+
+.pickerSelected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.pickerHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.pickerTitle {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pickerDescription {
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(177, 186, 196, 0.12);
+  color: var(--fg-muted);
+  font-size: 11px;
+  text-transform: capitalize;
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.checkboxLabel input {
+  margin: 0;
+}
+
+@media (max-width: 1024px) {
+  .sizeSm,
+  .sizeMd {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 768px) {
+  .gridToolbar {
+    flex-direction: column;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sizeSm,
+  .sizeMd,
+  .sizeLg {
+    grid-column: span 1;
+  }
+
+  .inlineStats {
+    grid-template-columns: 1fr;
+  }
+}
