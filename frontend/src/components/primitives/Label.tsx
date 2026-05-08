@@ -17,13 +17,40 @@ interface LabelProps {
   children: React.ReactNode;
   className?: string;
   title?: string;
+  onClick?: (e: React.MouseEvent) => void;
 }
 
-export function Label({ variant = 'muted', children, className, title }: LabelProps) {
-  const cls = [styles.label, styles[variant], className].filter(Boolean).join(' ');
+export function Label({ variant = 'muted', children, className, title, onClick }: LabelProps) {
+  const cls = [styles.label, styles[variant], onClick && styles.clickable, className]
+    .filter(Boolean)
+    .join(' ');
   const statusPrefix = VARIANT_LABELS[variant];
   return (
-    <span className={cls} title={title}>
+    <span
+      className={cls}
+      title={title}
+      onClick={
+        onClick
+          ? (e) => {
+              e.stopPropagation();
+              onClick(e);
+            }
+          : undefined
+      }
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                onClick(e as unknown as React.MouseEvent);
+              }
+            }
+          : undefined
+      }
+    >
       {statusPrefix && <span className="sr-only">{statusPrefix}: </span>}
       {children}
     </span>

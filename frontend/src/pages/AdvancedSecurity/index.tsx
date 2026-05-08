@@ -284,19 +284,43 @@ function OverviewTab({ onSwitchTab }: { onSwitchTab: (tab: TabKey) => void }) {
         <div className={styles.severityTitle}>Aggregated Severity Breakdown</div>
         <div className={styles.severityGrid}>
           <div className={styles.severityItem}>
-            <Label variant="danger">Critical</Label>
+            <Label
+              variant="danger"
+              onClick={() => onSwitchTab('code')}
+              title="View critical code scanning alerts"
+            >
+              Critical
+            </Label>
             <span className={styles.severityCount}>{totalCritical}</span>
           </div>
           <div className={styles.severityItem}>
-            <Label variant="severe">High</Label>
+            <Label
+              variant="severe"
+              onClick={() => onSwitchTab('code')}
+              title="View high code scanning alerts"
+            >
+              High
+            </Label>
             <span className={styles.severityCount}>{totalHigh}</span>
           </div>
           <div className={styles.severityItem}>
-            <Label variant="attention">Medium</Label>
+            <Label
+              variant="attention"
+              onClick={() => onSwitchTab('code')}
+              title="View medium code scanning alerts"
+            >
+              Medium
+            </Label>
             <span className={styles.severityCount}>{totalMedium}</span>
           </div>
           <div className={styles.severityItem}>
-            <Label variant="muted">Low</Label>
+            <Label
+              variant="muted"
+              onClick={() => onSwitchTab('code')}
+              title="View low code scanning alerts"
+            >
+              Low
+            </Label>
             <span className={styles.severityCount}>{totalLow}</span>
           </div>
         </div>
@@ -364,10 +388,18 @@ function CodeScanningTab() {
         header: 'Severity',
         sortable: true,
         filterable: true,
-        helpText: 'Alert severity level',
+        helpText: 'Alert severity level — click chip to filter',
         render: (r) =>
           r.security_severity ? (
-            <Label variant={sevVariant(r.security_severity)}>{r.security_severity}</Label>
+            <Label
+              variant={sevVariant(r.security_severity)}
+              onClick={() => {
+                setSevFilter(r.security_severity!);
+                setPage(1);
+              }}
+            >
+              {r.security_severity}
+            </Label>
           ) : (
             <Label variant="muted">{r.severity ?? '—'}</Label>
           ),
@@ -399,8 +431,18 @@ function CodeScanningTab() {
         header: 'State',
         sortable: true,
         filterable: true,
-        helpText: 'Current state of the alert',
-        render: (r) => <Label variant={stateVariant(r.state)}>{r.state}</Label>,
+        helpText: 'Current state of the alert — click chip to filter',
+        render: (r) => (
+          <Label
+            variant={stateVariant(r.state)}
+            onClick={() => {
+              setStateFilter(r.state);
+              setPage(1);
+            }}
+          >
+            {r.state}
+          </Label>
+        ),
         sortValue: (r) => r.state,
         filterValue: (r) => r.state,
       },
@@ -415,7 +457,7 @@ function CodeScanningTab() {
         filterValue: (r) => r.created_at,
       },
     ],
-    [],
+    [setSevFilter, setStateFilter],
   );
 
   return (
@@ -679,9 +721,21 @@ function DependabotTab() {
         header: 'Severity',
         sortable: true,
         filterable: true,
-        helpText: 'Vulnerability severity level',
+        helpText: 'Vulnerability severity level — click chip to filter',
         render: (r) =>
-          r.severity ? <Label variant={sevVariant(r.severity)}>{r.severity}</Label> : '—',
+          r.severity ? (
+            <Label
+              variant={sevVariant(r.severity)}
+              onClick={() => {
+                setSevFilter(r.severity!);
+                setPage(1);
+              }}
+            >
+              {r.severity}
+            </Label>
+          ) : (
+            '—'
+          ),
         sortValue: (r) => r.severity ?? '',
         filterValue: (r) => r.severity ?? '',
       },
@@ -710,8 +764,18 @@ function DependabotTab() {
         header: 'State',
         sortable: true,
         filterable: true,
-        helpText: 'Current state of the Dependabot alert',
-        render: (r) => <Label variant={stateVariant(r.state)}>{r.state}</Label>,
+        helpText: 'Current state of the Dependabot alert — click chip to filter',
+        render: (r) => (
+          <Label
+            variant={stateVariant(r.state)}
+            onClick={() => {
+              setStateFilter(r.state);
+              setPage(1);
+            }}
+          >
+            {r.state}
+          </Label>
+        ),
         sortValue: (r) => r.state,
         filterValue: (r) => r.state,
       },
@@ -726,7 +790,7 @@ function DependabotTab() {
         filterValue: (r) => r.created_at,
       },
     ],
-    [],
+    [setSevFilter, setStateFilter],
   );
 
   return (
