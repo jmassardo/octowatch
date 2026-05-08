@@ -1,0 +1,67 @@
+.content {
+  min-width: 360px;
+}
+
+.categoryTitle {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+  margin: 16px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.categoryTitle:first-child {
+  margin-top: 0;
+}
+
+.shortcutList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.shortcutRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  gap: 16px;
+}
+
+.label {
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--fg);
+  background: var(--canvas-default, #161b22);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+.then {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
