@@ -73,7 +73,7 @@ describe('ScannerActivityTab', () => {
       total: 1,
     });
     renderWithProviders(<ScannerActivityTab />);
-    expect(await screen.findByText('running')).toBeInTheDocument();
+    expect(await screen.findByText('running …')).toBeInTheDocument();
   });
 
   it('renders data source chips', async () => {
@@ -146,5 +146,79 @@ describe('ScannerActivityTab', () => {
     });
     renderWithProviders(<ScannerActivityTab />);
     expect(await screen.findByText('Manual')).toBeInTheDocument();
+  });
+
+  it('renders summary metrics bar', async () => {
+    mockedListScanActivity.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          trigger_event_ids: [10],
+          org: 'org',
+          repo: 'repo',
+          workflow_path: '.github/workflows/ci.yml',
+          started_at: '2026-01-01T00:00:00Z',
+          completed_at: '2026-01-01T00:00:01Z',
+          status: 'completed' as const,
+          checks_performed: ['self-hosted-runner'],
+          findings_count: 3,
+          data_sources: ['audit_log'],
+          duration_ms: 200,
+        },
+      ],
+      total: 1,
+    });
+    renderWithProviders(<ScannerActivityTab />);
+    expect(await screen.findByText('Total Scans')).toBeInTheDocument();
+    expect(await screen.findByText('Event-Driven')).toBeInTheDocument();
+    expect(await screen.findByText('Avg Duration')).toBeInTheDocument();
+  });
+
+  it('shows trigger event count for event-driven scans', async () => {
+    mockedListScanActivity.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          trigger_event_ids: [10, 11, 12],
+          org: 'org',
+          repo: 'repo',
+          workflow_path: '.github/workflows/ci.yml',
+          started_at: '2026-01-01T00:00:00Z',
+          completed_at: '2026-01-01T00:00:01Z',
+          status: 'completed' as const,
+          checks_performed: [],
+          findings_count: 0,
+          data_sources: ['audit_log'],
+          duration_ms: 100,
+        },
+      ],
+      total: 1,
+    });
+    renderWithProviders(<ScannerActivityTab />);
+    expect(await screen.findByText('3 events')).toBeInTheDocument();
+  });
+
+  it('shows result icon for completed scans', async () => {
+    mockedListScanActivity.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          trigger_event_ids: [],
+          org: 'org',
+          repo: 'repo',
+          workflow_path: '.github/workflows/ci.yml',
+          started_at: '2026-01-01T00:00:00Z',
+          completed_at: '2026-01-01T00:00:01Z',
+          status: 'completed' as const,
+          checks_performed: [],
+          findings_count: 0,
+          data_sources: ['audit_log'],
+          duration_ms: 100,
+        },
+      ],
+      total: 1,
+    });
+    renderWithProviders(<ScannerActivityTab />);
+    expect(await screen.findByText('🟢')).toBeInTheDocument();
   });
 });
