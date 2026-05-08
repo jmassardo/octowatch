@@ -108,6 +108,12 @@ app.config_from_object(
                 "schedule": crontab(hour=4, minute=0),
                 "options": {"queue": "baseline"},
             },
+            # Threat intel feed refresh — every 30 minutes
+            "refresh-threat-intel-feeds": {
+                "task": "app.workers.threat_intel_worker.refresh_threat_intel_feeds",
+                "schedule": crontab(minute="*/30"),
+                "options": {"queue": "baseline"},
+            },
         },
     }
 )
