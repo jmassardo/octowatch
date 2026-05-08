@@ -47,6 +47,13 @@
   margin: 2px 0 0;
 }
 
+.right {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .actions {
   display: flex;
   gap: 8px;
@@ -67,4 +74,11 @@
   .actions {
     flex-wrap: wrap;
   }
+}
+
+.helpButton {
+  min-width: 30px;
+  padding-inline: 0;
+  border-radius: 999px;
+  font-weight: 700;
 }

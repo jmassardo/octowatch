@@ -1,4 +1,6 @@
 import { Button } from '../primitives/Button';
+import { HelpPanel } from './HelpPanel';
+import { useHelp } from '../../hooks/useHelp';
 import styles from './PageHeader.module.css';
 
 export interface PageAction {
@@ -22,13 +24,39 @@ interface PageHeaderProps {
   actions?: PageAction[];
   /** Breadcrumb trail above the title. */
   breadcrumbs?: Breadcrumb[];
+  /** Show contextual help for the current page. */
+  showHelp?: boolean;
+}
+
+function PageHeaderHelp() {
+  const { helpContent, openHelp, closeHelp, isHelpOpen } = useHelp();
+
+  if (!helpContent) {
+    return null;
+  }
+
+  return (
+    <>
+      <Button
+        size="sm"
+        className={styles.helpButton}
+        onClick={openHelp}
+        aria-label="Open help panel"
+      >
+        ?
+      </Button>
+      <HelpPanel open={isHelpOpen} onClose={closeHelp} content={helpContent} />
+    </>
+  );
 }
 
 /**
  * PageHeader — consistent page header with title, description,
  * optional breadcrumbs, and action buttons.
  */
-export function PageHeader({ title, description, actions, breadcrumbs }: PageHeaderProps) {
+export function PageHeader({ title, description, actions, breadcrumbs, showHelp }: PageHeaderProps) {
+  const hasRightContent = showHelp || (actions && actions.length > 0);
+
   return (
     <div className={styles.header}>
       <div className={styles.left}>
@@ -45,19 +73,24 @@ export function PageHeader({ title, description, actions, breadcrumbs }: PageHea
         <h1 className={styles.title}>{title}</h1>
         {description && <p className={styles.description}>{description}</p>}
       </div>
-      {actions && actions.length > 0 && (
-        <div className={styles.actions}>
-          {actions.map((action) => (
-            <Button
-              key={action.label}
-              variant={action.variant ?? 'default'}
-              size="sm"
-              onClick={action.onClick}
-              disabled={action.disabled}
-            >
-              {action.label}
-            </Button>
-          ))}
+      {hasRightContent && (
+        <div className={styles.right}>
+          {showHelp && <PageHeaderHelp />}
+          {actions && actions.length > 0 && (
+            <div className={styles.actions}>
+              {actions.map((action) => (
+                <Button
+                  key={action.label}
+                  variant={action.variant ?? 'default'}
+                  size="sm"
+                  onClick={action.onClick}
+                  disabled={action.disabled}
+                >
+                  {action.label}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

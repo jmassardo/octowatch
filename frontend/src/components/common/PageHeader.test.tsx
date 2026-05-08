@@ -3,6 +3,29 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PageHeader } from './PageHeader';
 
+vi.mock('../../hooks/useHelp', async () => {
+  const React = await vi.importActual<typeof import('react')>('react');
+
+  return {
+    useHelp: () => {
+      const [isHelpOpen, setIsHelpOpen] = React.useState(false);
+
+      return {
+        helpContent: {
+          title: 'Test Help',
+          description: 'Helpful context for this header.',
+          concepts: [{ term: 'Concept', definition: 'Definition' }],
+          tasks: [{ title: 'Task', steps: ['Step'] }],
+          relatedPages: [{ title: 'Related', path: '/related' }],
+        },
+        openHelp: () => setIsHelpOpen(true),
+        closeHelp: () => setIsHelpOpen(false),
+        isHelpOpen,
+      };
+    },
+  };
+});
+
 describe('PageHeader', () => {
   it('renders title', () => {
     render(<PageHeader title="Dashboard" />);
@@ -54,5 +77,14 @@ describe('PageHeader', () => {
       <PageHeader title="T" actions={[{ label: 'Save', onClick: vi.fn(), disabled: true }]} />,
     );
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
+  it('renders help button and opens the help panel', async () => {
+    render(<PageHeader title="Dashboard" showHelp />);
+
+    await userEvent.click(screen.getByRole('button', { name: /open help panel/i }));
+
+    expect(screen.getByRole('dialog', { name: 'Test Help' })).toBeInTheDocument();
+    expect(screen.getByText('About this page')).toBeInTheDocument();
   });
 });
