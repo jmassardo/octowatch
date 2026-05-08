@@ -32,9 +32,6 @@ function actionVariant(action: string) {
   return 'muted' as const;
 }
 
-/** Maximum page depth for offset pagination. Beyond this, users must narrow filters. */
-const MAX_NAVIGABLE_PAGE = 100;
-
 /** Threshold at which we show a "narrow your filters" message. */
 const LARGE_RESULT_THRESHOLD = 5_000;
 
@@ -85,6 +82,7 @@ export function EventsPage() {
     return urlChips;
   });
   const [page, setPage] = useState(1);
+  const [cursors, setCursors] = useState<string[]>([]);
   const [sortKey] = useState<NonNullable<EventListParams['sort']>>('created_at_desc');
   const [detailEvent, setDetailEvent] = useState<EventResponse | null>(null);
   const clearedUrlParams = useRef(false);
@@ -167,10 +165,25 @@ export function EventsPage() {
   // Parse real-time search input for key:value filters
   const searchFilters = parseSearchFilters(debouncedSearch);
 
+  // Reset cursor stack when filters change
+  const chipsKey = chips.join('|');
+  useEffect(() => {
+    setCursors([]);
+    setPage(1);
+  }, [chipsKey, debouncedSearch]);
+
+  const currentCursor = cursors.length > 0 ? cursors[cursors.length - 1] : undefined;
+
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['events', chips, debouncedSearch, page, sortKey],
+    queryKey: ['events', chips, debouncedSearch, currentCursor, sortKey],
     queryFn: () =>
-      listEvents({ ...chipParams, ...searchFilters, sort: sortKey, page, page_size: 20 }),
+      listEvents({
+        ...chipParams,
+        ...searchFilters,
+        sort: sortKey,
+        cursor: currentCursor,
+        page_size: 20,
+      }),
   });
 
   const items = data?.items ?? [];
@@ -180,6 +193,7 @@ export function EventsPage() {
   function removeChip(chip: string) {
     setChips((prev) => prev.filter((c) => c !== chip));
     setPage(1);
+    setCursors([]);
   }
 
   const eventColumns: ColumnDef<EventResponse>[] = useMemo(
@@ -434,16 +448,26 @@ export function EventsPage() {
 
         {data && data.total > 20 && (
           <div className={styles.pagination}>
-            <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              ← Prev
-            </Button>
-            <span className={styles.pageInfo}>
-              Page {page} of {Math.min(Math.ceil(total / 20), MAX_NAVIGABLE_PAGE)}
-            </span>
             <Button
               size="sm"
-              disabled={!data.has_next || page >= MAX_NAVIGABLE_PAGE}
-              onClick={() => setPage((p) => p + 1)}
+              disabled={page <= 1}
+              onClick={() => {
+                setCursors((prev) => prev.slice(0, -1));
+                setPage((p) => p - 1);
+              }}
+            >
+              ← Prev
+            </Button>
+            <span className={styles.pageInfo}>Page {page}</span>
+            <Button
+              size="sm"
+              disabled={!data.has_next || !data.next_cursor}
+              onClick={() => {
+                if (data.next_cursor) {
+                  setCursors((prev) => [...prev, data.next_cursor!]);
+                  setPage((p) => p + 1);
+                }
+              }}
             >
               Next →
             </Button>
