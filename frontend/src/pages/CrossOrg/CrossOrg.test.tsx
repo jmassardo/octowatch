@@ -100,7 +100,9 @@ describe('CrossOrgPage — Correlations Tab', () => {
     renderWithProviders(<CrossOrgPage />);
     const orgAlphaTags = await screen.findAllByText('org-alpha');
     expect(orgAlphaTags.length).toBeGreaterThanOrEqual(1);
-    expect(await screen.findByText('org-beta')).toBeInTheDocument();
+    // org-beta appears in both the org tag and the org filter dropdown
+    const orgBetaTags = await screen.findAllByText('org-beta');
+    expect(orgBetaTags.length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows event count in table cell', async () => {
@@ -144,7 +146,7 @@ describe('CrossOrgPage — Correlations Tab', () => {
     const highCard = screen.getByRole('button', { name: 'High' });
     await user.click(highCard);
     // Filter indicator appears
-    expect(await screen.findByText('Clear filter')).toBeInTheDocument();
+    expect(await screen.findByText('Clear all filters')).toBeInTheDocument();
     // asmith (low risk) should not be visible
     expect(screen.queryByText('asmith')).not.toBeInTheDocument();
     // jdoe should still be visible
@@ -159,7 +161,7 @@ describe('CrossOrgPage — Correlations Tab', () => {
     await user.click(highCard);
     expect(screen.queryByText('asmith')).not.toBeInTheDocument();
     // Click clear filter
-    await user.click(screen.getByText('Clear filter'));
+    await user.click(screen.getByText('Clear all filters'));
     // asmith should be visible again
     expect(await screen.findByText('asmith')).toBeInTheDocument();
   });
@@ -233,5 +235,67 @@ describe('CrossOrgPage — Error Handling', () => {
     mockGetCorrelations.mockRejectedValue(new Error('Network error'));
     renderWithProviders(<CrossOrgPage />);
     expect(await screen.findByText('Failed to load correlations')).toBeInTheDocument();
+  });
+});
+
+describe('CrossOrgPage — Filters & Export', () => {
+  beforeEach(() => {
+    mockGetCorrelations.mockClear();
+    mockGetTimeline.mockClear();
+    mockGetCorrelations.mockResolvedValue(CORRELATIONS_RESPONSE);
+    mockGetTimeline.mockResolvedValue(TIMELINE_RESPONSE);
+  });
+
+  it('renders org filter dropdown', async () => {
+    renderWithProviders(<CrossOrgPage />);
+    await screen.findByText('jdoe');
+    const orgSelect = screen.getByLabelText('Filter by organization');
+    expect(orgSelect).toBeInTheDocument();
+  });
+
+  it('renders min orgs threshold dropdown', async () => {
+    renderWithProviders(<CrossOrgPage />);
+    await screen.findByText('jdoe');
+    const minOrgSelect = screen.getByLabelText('Minimum organizations');
+    expect(minOrgSelect).toBeInTheDocument();
+  });
+
+  it('renders actor type filter', async () => {
+    renderWithProviders(<CrossOrgPage />);
+    await screen.findByText('jdoe');
+    const typeSelect = screen.getByLabelText('Actor type');
+    expect(typeSelect).toBeInTheDocument();
+  });
+
+  it('filters by actor type when bot is selected', async () => {
+    const user = userEvent.setup();
+    mockGetCorrelations.mockResolvedValue({
+      correlations: [
+        ...CORRELATIONS_RESPONSE.correlations,
+        {
+          actor: 'dependabot[bot]',
+          orgs: ['org-alpha', 'org-beta'],
+          org_count: 2,
+          event_count: 100,
+          distinct_actions: 2,
+          first_seen: '2024-06-01T10:00:00Z',
+          last_seen: '2024-06-07T15:00:00Z',
+          risk_score: 45,
+        },
+      ],
+      total: 3,
+    });
+    renderWithProviders(<CrossOrgPage />);
+    await screen.findByText('dependabot[bot]');
+    const typeSelect = screen.getByLabelText('Actor type');
+    await user.selectOptions(typeSelect, 'bot');
+    expect(screen.queryByText('jdoe')).not.toBeInTheDocument();
+    expect(screen.getByText('dependabot[bot]')).toBeInTheDocument();
+  });
+
+  it('shows Export CSV button when correlations exist', async () => {
+    renderWithProviders(<CrossOrgPage />);
+    await screen.findByText('jdoe');
+    expect(screen.getByText('Export CSV')).toBeInTheDocument();
   });
 });
