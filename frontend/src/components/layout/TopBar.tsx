@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useOrg } from '../../hooks/useOrg';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useTheme } from '../../hooks/useTheme';
 import { Avatar } from '../primitives/Avatar';
 import { Button } from '../primitives/Button';
 import { logout } from '../../api/auth';
+import { listNotifications, markNotificationRead, markAllNotificationsRead } from '../../api/notifications';
+import type { NotificationItem } from '../../types/notifications';
 import styles from './TopBar.module.css';
 
 export function TopBar({
@@ -29,6 +31,31 @@ export function TopBar({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const filterInputRef = useRef<HTMLInputElement>(null);
 
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  const { data: notifData } = useQuery({
+    queryKey: ['notifications', 'topbar'],
+    queryFn: () => listNotifications({ page: 1, page_size: 5 }),
+    refetchInterval: 30000,
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: markNotificationRead,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: markAllNotificationsRead,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+
+  const unreadCount = notifData?.unread_count ?? 0;
+
   const orgs: readonly string[] = user?.scoped_orgs ?? [];
 
   const filteredOrgs = orgs.filter((org) => org.toLowerCase().includes(filterText.toLowerCase()));
@@ -38,17 +65,20 @@ export function TopBar({
       setDropdownOpen(false);
       setFilterText('');
     }
+    if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+      setNotifOpen(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (dropdownOpen) {
+    if (dropdownOpen || notifOpen) {
       document.addEventListener('mousedown', handleClickOutside);
-      filterInputRef.current?.focus();
+      if (dropdownOpen) filterInputRef.current?.focus();
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [dropdownOpen, handleClickOutside]);
+  }, [dropdownOpen, notifOpen, handleClickOutside]);
 
   function selectOrg(org: string) {
     setSelectedOrg(org);
@@ -203,6 +233,69 @@ export function TopBar({
         >
           {themeIcon}
         </button>
+        <div className={styles.notifWrap} ref={notifRef}>
+          <button
+            className={styles.notifBtn}
+            onClick={() => setNotifOpen((prev) => !prev)}
+            aria-label="Notifications"
+            aria-expanded={notifOpen}
+            data-testid="notification-bell"
+          >
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M8 16a2 2 0 001.985-1.75c.017-.137-.097-.25-.235-.25h-3.5c-.138 0-.252.113-.235.25A2 2 0 008 16zM8 1.5A3.5 3.5 0 004.5 5v2.947c0 .346-.102.683-.294.97l-1.703 2.556a.018.018 0 00-.003.01l.001.006c0 .002.002.004.004.006a.017.017 0 00.006.004l.007.001h10.964l.007-.001a.016.016 0 00.006-.004.016.016 0 00.004-.006l.001-.007a.017.017 0 00-.003-.01l-1.703-2.554a1.745 1.745 0 01-.294-.97V5A3.5 3.5 0 008 1.5z" />
+            </svg>
+            {unreadCount > 0 && (
+              <span className={styles.notifBadge} data-testid="notification-count">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </button>
+          {notifOpen && (
+            <div className={styles.notifPanel} data-testid="notification-dropdown">
+              <div className={styles.notifHeader}>
+                <span className={styles.notifTitle}>Notifications</span>
+                {unreadCount > 0 && (
+                  <button
+                    className={styles.notifMarkAll}
+                    onClick={() => markAllReadMutation.mutate()}
+                  >
+                    Mark all read
+                  </button>
+                )}
+              </div>
+              <div className={styles.notifList}>
+                {(!notifData || notifData.items.length === 0) && (
+                  <div className={styles.notifEmpty}>No notifications</div>
+                )}
+                {notifData?.items.map((item: NotificationItem) => (
+                  <button
+                    key={item.id}
+                    className={`${styles.notifItem}${!item.read ? ` ${styles.notifItemUnread}` : ''}`}
+                    onClick={() => {
+                      if (!item.read) markReadMutation.mutate(item.id);
+                      if (item.link) {
+                        setNotifOpen(false);
+                        navigate(item.link);
+                      }
+                    }}
+                  >
+                    <div className={styles.notifItemTitle}>{item.title}</div>
+                    <div className={styles.notifItemMsg}>{item.message}</div>
+                  </button>
+                ))}
+              </div>
+              <button
+                className={styles.notifViewAll}
+                onClick={() => {
+                  setNotifOpen(false);
+                  navigate('/notifications');
+                }}
+              >
+                View all notifications
+              </button>
+            </div>
+          )}
+        </div>
         <Button size="sm" onClick={() => navigate('/reports')}>
           <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
             <path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z" />

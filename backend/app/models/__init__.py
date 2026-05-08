@@ -48,6 +48,7 @@ from app.models.integration import (
     Ticket,
     TicketingConfig,
 )
+from app.models.notification import Notification, NotificationPreference
 from app.models.org_config import OrgConfig
 from app.models.playbook import PlaybookExecution, PlaybookTemplate
 from app.models.query_template import QueryTemplate
@@ -94,6 +95,8 @@ __all__ = [
     "IngestionCursor",
     "IdpActorEnrichment",
     "NotificationConfig",
+    "Notification",
+    "NotificationPreference",
     "OrgActionsWorkflowSummary",
     "OrgCodeScanningAlertSummary",
     "OrgConfig",

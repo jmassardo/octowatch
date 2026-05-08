@@ -48,6 +48,7 @@ from app.routers import (
     ingest_webhook,
     integrations,
     maintenance,
+    notifications,
     org_config,
     playbooks,
     posture,
@@ -704,6 +705,7 @@ def create_app() -> FastAPI:
     app.include_router(enterprise_pat.router, prefix=API_PREFIX)
     app.include_router(integrations.router, prefix=API_PREFIX)
     app.include_router(slack.router, prefix=API_PREFIX)
+    app.include_router(notifications.router, prefix=API_PREFIX)
     app.include_router(health_signals.router, prefix=API_PREFIX)
     app.include_router(copilot.router, prefix=API_PREFIX)
     app.include_router(features.router, prefix=API_PREFIX)
