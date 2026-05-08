@@ -102,7 +102,7 @@ export function WorkflowsPage() {
           <div>
             <PageHeader
               title="Workflow Security Scanner"
-              description="Scan GitHub Actions workflows for security issues"
+              description="Event-driven workflow security scanning — findings appear automatically as audit log events are ingested"
             />
           </div>
           <div className={styles.headerActions}>
@@ -129,19 +129,28 @@ export function WorkflowsPage() {
         </div>
 
         <div className={styles.guidanceBox}>
-          <div className={styles.guidanceTitle}>What this page shows</div>
+          <div className={styles.guidanceTitle}>How scanning works</div>
           <ul className={styles.guidanceList}>
             <li>
-              <strong>Findings</strong> — Security issues detected in workflow YAML files: unpinned
-              actions, script injection, excessive permissions, and more.
+              <strong>Event-driven</strong> — Workflow audit log events are automatically scanned as
+              they arrive through the HEC ingestion pipeline. No manual action needed.
+            </li>
+            <li>
+              <strong>Findings</strong> — Security issues detected in workflow configurations:
+              unpinned actions, script injection, excessive permissions, self-hosted runners, and
+              more.
             </li>
             <li>
               <strong>Repo Scores</strong> — Per-repo security scores (100 = clean, lower = more
               issues). Scores are weighted by severity.
             </li>
             <li>
-              Click <strong>Analyze Events</strong> to scan workflow audit log events for security
-              anti-patterns — no GitHub API calls are made.
+              <strong>Scanner Activity</strong> — View scan history, trigger sources (event-driven
+              vs manual), checks performed, and provenance.
+            </li>
+            <li>
+              Click <strong>Analyze Events</strong> to trigger a batch scan of existing events —
+              this is in addition to the automatic event-driven scanning.
             </li>
           </ul>
         </div>
