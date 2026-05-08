@@ -1,27 +1,54 @@
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listDetections } from '../../api/detections';
 import { listEvents } from '../../api/events';
 import { getActionsVolumeReport } from '../../api/reports';
 import {
+  getCoverageGrowth,
+  getHealthScore,
+  getPlatformSecurity,
+  getStalePrs,
   getSystemHealth,
-  getRepoHealth,
-  getPatHealth,
   getUnifiedSecurity,
+  getUnhealthyHooks,
 } from '../../api/healthSignals';
+import { getComplianceSummary, getPolicyChecks } from '../../api/compliance';
+import { getCopilotAdoption } from '../../api/copilotMetrics';
+import { getDevelopers } from '../../api/devActivity';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { PageHeader } from '../../components/common/PageHeader';
-
+import { StatPill } from '../../components/widgets/StatPill';
+import { StatPillConfigDrawer } from '../../components/widgets/StatPillConfig';
+import {
+  STAT_PILL_REGISTRY,
+  type ThresholdConfig,
+} from '../../components/widgets/statPillRegistry';
+import {
+  loadStatPillConfig,
+  saveStatPillConfig,
+  type StatPillConfig,
+} from '../../components/widgets/statPillConfigStorage';
 import { ExecutiveView } from './ExecutiveView';
 import { SecurityView } from './SecurityView';
 import { CiCdView } from './CiCdView';
 import { SecurityOverviewWidget } from '../../components/widgets/SecurityOverviewWidget';
 import { useOrg } from '../../hooks/useOrg';
 import type { ActionsVolumeBucket } from '../../types/reports';
+import type { EventResponse } from '../../types/events';
 import { formatRelative } from '../../utils/dates';
 import styles from './Dashboard.module.css';
 
 type DashboardView = 'operations' | 'executive' | 'security' | 'cicd';
+
+type MetricVariant = 'default' | 'success' | 'warning' | 'danger';
+
+interface MetricState {
+  rawValue: number;
+  trend?: number;
+  isLoading: boolean;
+  hasError: boolean;
+}
 
 function ClickableValue({
   children,
@@ -39,9 +66,9 @@ function ClickableValue({
       aria-label={label}
       className={styles.clickableValue}
       onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
           onClick();
         }
       }}
@@ -50,198 +77,444 @@ function ClickableValue({
     </span>
   );
 }
-function StatPill({
-  value,
-  label,
-  variant,
-  onClick,
-  helpText,
-}: {
-  value: string;
-  label: string;
-  variant?: 'danger' | 'success' | 'accent' | 'done';
-  onClick?: () => void;
-  helpText?: string;
-}) {
-  return (
-    <div
-      className={[styles.pill, variant && styles[variant], onClick && styles.pillClickable]
-        .filter(Boolean)
-        .join(' ')}
-      onClick={onClick}
-      role={onClick ? 'button' : undefined}
-      aria-label={onClick ? `${value} ${label}` : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onKeyDown={
-        onClick
-          ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onClick();
-              }
-            }
-          : undefined
-      }
-    >
-      <span className={styles.pillVal}>{value}</span>&nbsp;{label}
-      {helpText && (
-        <span className={styles.helpIcon} title={helpText} aria-label={`Help: ${label}`}>
-          ⓘ
-        </span>
-      )}
-      {onClick && (
-        <span className={styles.pillArrow} aria-hidden="true">
-          →
-        </span>
-      )}
-    </div>
-  );
+
+function formatCount(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return String(value);
 }
 
-function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
+function average(values: number[]): number {
+  if (values.length === 0) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function percentChange(current: number, previous: number): number | undefined {
+  if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) return undefined;
+  return Number((((current - previous) / Math.abs(previous)) * 100).toFixed(1));
+}
+
+function latestDelta(values: number[]): number | undefined {
+  if (values.length < 2) return undefined;
+  const previous = values[values.length - 2];
+  const current = values[values.length - 1];
+  if (previous == null || current == null) return undefined;
+  return percentChange(current, previous);
+}
+
+function getThresholdVariant(
+  rawValue: number,
+  thresholds: ThresholdConfig,
+  direction: 'higher-is-worse' | 'lower-is-worse',
+): MetricVariant {
+  if (!Number.isFinite(rawValue)) return 'default';
+
+  if (direction === 'higher-is-worse') {
+    const warning = Math.min(thresholds.warning, thresholds.critical);
+    const critical = Math.max(thresholds.warning, thresholds.critical);
+    if (rawValue >= critical) return 'danger';
+    if (rawValue >= warning) return 'warning';
+    return 'success';
+  }
+
+  const warning = Math.max(thresholds.warning, thresholds.critical);
+  const critical = Math.min(thresholds.warning, thresholds.critical);
+  if (rawValue <= critical) return 'danger';
+  if (rawValue <= warning) return 'warning';
+  return 'success';
+}
+
+function computeEventsPerHour(items: readonly EventResponse[] | undefined, total: number | undefined) {
+  if (!items || items.length === 0) {
+    return { rate: total ? total / 24 : 0, trend: undefined as number | undefined };
+  }
+
+  const sorted = [...items].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const oldest = new Date(sorted[0]!.created_at).getTime();
+  const newest = new Date(sorted[sorted.length - 1]!.created_at).getTime();
+  const spanHours = Math.max((newest - oldest) / 3_600_000, 1);
+  const rate = sorted.length / spanHours;
+
+  if (spanHours < 2) {
+    return { rate, trend: undefined as number | undefined };
+  }
+
+  const midpoint = oldest + (newest - oldest) / 2;
+  const previousCount = sorted.filter((event) => new Date(event.created_at).getTime() <= midpoint).length;
+  const recentCount = sorted.length - previousCount;
+  const halfHours = Math.max(spanHours / 2, 1);
+
+  return {
+    rate,
+    trend: percentChange(recentCount / halfHours, previousCount / halfHours),
+  };
 }
 
 export function DashboardPage() {
   const navigate = useNavigate();
   const { selectedOrg } = useOrg();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [pillConfig, setPillConfig] = useState<StatPillConfig>(() => loadStatPillConfig());
+  const [configOpen, setConfigOpen] = useState(false);
+  const [renderTime] = useState(() => Date.now());
 
-  const VALID_VIEWS: DashboardView[] = ['operations', 'executive', 'security', 'cicd'];
+  const validViews: DashboardView[] = ['operations', 'executive', 'security', 'cicd'];
   const rawView = searchParams.get('view') ?? 'operations';
-  const view: DashboardView = VALID_VIEWS.includes(rawView as DashboardView)
+  const view: DashboardView = validViews.includes(rawView as DashboardView)
     ? (rawView as DashboardView)
     : 'operations';
 
-  function setView(v: DashboardView) {
-    setSearchParams(v === 'operations' ? {} : { view: v }, { replace: true });
-  }
-
   const orgLabel = !selectedOrg || selectedOrg === 'all' ? 'All organizations' : selectedOrg;
-
   const orgParam = selectedOrg && selectedOrg !== 'all' ? selectedOrg : undefined;
 
-  const { data: detections } = useQuery({
-    queryKey: ['detections', 'open', selectedOrg],
+  function setView(nextView: DashboardView) {
+    setSearchParams(nextView === 'operations' ? {} : { view: nextView }, { replace: true });
+  }
+
+  const openDetectionsQuery = useQuery({
+    queryKey: ['detections', 'open', orgParam],
     queryFn: () => listDetections({ status: 'open', org: orgParam, page_size: 100 }),
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: events } = useQuery({
-    queryKey: ['events', 'recent', selectedOrg],
-    queryFn: () => listEvents({ page_size: 10, sort: 'created_at_desc', org: orgParam }),
+  const criticalDetectionsQuery = useQuery({
+    queryKey: ['detections', 'open-critical', orgParam],
+    queryFn: () => listDetections({ status: 'open', severity: 'critical', org: orgParam, page_size: 100 }),
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch events for unique actor count and events volume metric
-  const { data: calendarEvents } = useQuery({
-    queryKey: ['events', 'calendar', selectedOrg],
+  const unresolvedThreatsQuery = useQuery({
+    queryKey: ['detections', 'investigating', orgParam],
+    queryFn: () => listDetections({ status: 'investigating', org: orgParam, page_size: 100 }),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const eventsQuery = useQuery({
+    queryKey: ['events', 'dashboard', orgParam],
     queryFn: () => listEvents({ page_size: 500, sort: 'created_at_desc', org: orgParam }),
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch actions volume data for workflow success metrics
-  const { data: actionsReport } = useQuery({
-    queryKey: ['reports', 'actions-volume-dashboard', selectedOrg],
+  const actionsReportQuery = useQuery({
+    queryKey: ['reports', 'actions-volume-dashboard', orgParam],
     queryFn: () => getActionsVolumeReport({ window_days: 7, granularity: 'daily', org: orgParam }),
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch repo health for ops summary
-  const { data: repoHealth } = useQuery({
-    queryKey: ['health-signals', 'repo-health-ops'],
-    queryFn: () => getRepoHealth(),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Fetch PAT health for ops summary
-  const { data: patHealth } = useQuery({
-    queryKey: ['health-signals', 'pat-health-ops'],
-    queryFn: () => getPatHealth(),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Fetch system health for ingestion banner
-  const { data: systemHealth } = useQuery({
+  const systemHealthQuery = useQuery({
     queryKey: ['health-signals', 'system-dashboard'],
     queryFn: getSystemHealth,
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch unified security for GHAS pills
-  const { data: unifiedSecurity } = useQuery({
+  const unifiedSecurityQuery = useQuery({
     queryKey: ['health-signals', 'unified-security-dashboard'],
     queryFn: getUnifiedSecurity,
     staleTime: 5 * 60 * 1000,
   });
 
-  // Derive workflow metrics from actions volume data
-  const actionsBuckets = (actionsReport?.data ?? []) as unknown as ActionsVolumeBucket[];
-  const totalWorkflowRuns = actionsBuckets.reduce(
-    (sum, b) => sum + (b.workflow_runs_total ?? 0),
-    0,
-  );
+  const coverageGrowthQuery = useQuery({
+    queryKey: ['health-signals', 'coverage-growth-dashboard'],
+    queryFn: () => getCoverageGrowth('90d'),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const unhealthyHooksQuery = useQuery({
+    queryKey: ['health-signals', 'unhealthy-hooks-dashboard'],
+    queryFn: () => getUnhealthyHooks(50),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const healthScoreQuery = useQuery({
+    queryKey: ['health-signals', 'score-dashboard'],
+    queryFn: getHealthScore,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const copilotAdoptionQuery = useQuery({
+    queryKey: ['copilot', 'adoption-dashboard'],
+    queryFn: getCopilotAdoption,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const developersQuery = useQuery({
+    queryKey: ['dev-activity', 'developers-dashboard'],
+    queryFn: () => getDevelopers(30),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const stalePrsQuery = useQuery({
+    queryKey: ['health-signals', 'stale-prs-dashboard'],
+    queryFn: () => getStalePrs(30, 50),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const complianceSummaryQuery = useQuery({
+    queryKey: ['compliance', 'summary-dashboard', orgParam],
+    queryFn: () => getComplianceSummary(orgParam),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const policyChecksQuery = useQuery({
+    queryKey: ['compliance', 'policy-checks-dashboard', orgParam],
+    queryFn: () => getPolicyChecks(orgParam),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const platformSecurityQuery = useQuery({
+    queryKey: ['health-signals', 'platform-security-dashboard'],
+    queryFn: getPlatformSecurity,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const actionsBuckets = ((actionsReportQuery.data?.data ?? []) as unknown as ActionsVolumeBucket[]) ?? [];
+  const totalWorkflowRuns = actionsBuckets.reduce((sum, bucket) => sum + (bucket.workflow_runs_total ?? 0), 0);
   const succeededWorkflowRuns = actionsBuckets.reduce(
-    (sum, b) => sum + (b.workflow_runs_succeeded ?? 0),
+    (sum, bucket) => sum + (bucket.workflow_runs_succeeded ?? 0),
     0,
   );
   const failedWorkflowRuns = actionsBuckets.reduce(
-    (sum, b) => sum + (b.workflow_runs_failed ?? 0),
+    (sum, bucket) => sum + (bucket.workflow_runs_failed ?? 0),
     0,
   );
-  const workflowSuccessRate =
-    totalWorkflowRuns > 0 ? ((succeededWorkflowRuns / totalWorkflowRuns) * 100).toFixed(1) : null;
+  const workflowSuccessRate = totalWorkflowRuns > 0 ? (succeededWorkflowRuns / totalWorkflowRuns) * 100 : 0;
 
-  const openThreats = detections?.total ?? 0;
+  const recentEvents = eventsQuery.data?.items ?? [];
+  const eventsPerHour = computeEventsPerHour(recentEvents, eventsQuery.data?.total);
+  const activeOrgsFromEvents = new Set(recentEvents.map((event) => event.org).filter(Boolean)).size;
+  const activeOrgs = orgParam ? 1 : Math.max(activeOrgsFromEvents, healthScoreQuery.data?.orgs_monitored ?? 0);
+  const uniqueActors = developersQuery.data?.developers.length ?? 0;
+  const secretTrend = latestDelta(
+    (unifiedSecurityQuery.data?.trend_30d ?? []).map((point) => point.secret_scanning),
+  );
+  const coveragePoints = coverageGrowthQuery.data?.time_series ?? [];
+  const coverageTrend = latestDelta(coveragePoints.map((point) => point.ghas_pct));
+  const ghasCoverage =
+    coverageGrowthQuery.data?.feature_coverage['ghas']?.pct ??
+    coveragePoints[coveragePoints.length - 1]?.ghas_pct ??
+    0;
+  const syncHealth = systemHealthQuery.data?.gap_detected
+    ? Math.max(0, 100 - Math.min(systemHealthQuery.data.gap_duration_minutes ?? 100, 100))
+    : 100;
+  const webhookLagMinutes = systemHealthQuery.data?.last_event_at
+    ? Math.max(
+        0,
+        Math.round((renderTime - new Date(systemHealthQuery.data.last_event_at).getTime()) / 60_000),
+      )
+    : 0;
+  const copilotAdoption = copilotAdoptionQuery.data?.total_adoption ?? 0;
+  const copilotTrend = latestDelta(
+    (copilotAdoptionQuery.data?.feature_adoption ?? []).map((entry) => entry.trend_7d),
+  );
+  const stalePrs = stalePrsQuery.data?.stale_prs ?? [];
+  const averageMergeMinutes = average(stalePrs.map((pr) => pr.days_open * 24 * 60));
+  const complianceScore = complianceSummaryQuery.data?.overall_score ?? 0;
+  const policyViolations = policyChecksQuery.data
+    ? policyChecksQuery.data.checks_total - policyChecksQuery.data.checks_passing
+    : 0;
+  const branchProtectionPct = platformSecurityQuery.data?.orgs.length
+    ? (platformSecurityQuery.data.orgs.filter((org) => org.branch_protection_default).length /
+        platformSecurityQuery.data.orgs.length) *
+      100
+    : 0;
 
-  const eventTotal = events?.total ?? 0;
-  const eventCountLabel = formatCount(eventTotal);
+  const metricStates = useMemo<Record<string, MetricState>>(
+    () => ({
+      'open-detections': {
+        rawValue: openDetectionsQuery.data?.total ?? 0,
+        isLoading: openDetectionsQuery.isLoading,
+        hasError: openDetectionsQuery.isError,
+      },
+      'critical-detections': {
+        rawValue: criticalDetectionsQuery.data?.total ?? 0,
+        isLoading: criticalDetectionsQuery.isLoading,
+        hasError: criticalDetectionsQuery.isError,
+      },
+      'unresolved-threats': {
+        rawValue: unresolvedThreatsQuery.data?.total ?? 0,
+        isLoading: unresolvedThreatsQuery.isLoading,
+        hasError: unresolvedThreatsQuery.isError,
+      },
+      'secret-alerts': {
+        rawValue: unifiedSecurityQuery.data?.secret_scanning.open ?? 0,
+        trend: secretTrend,
+        isLoading: unifiedSecurityQuery.isLoading,
+        hasError: unifiedSecurityQuery.isError,
+      },
+      'ghas-coverage': {
+        rawValue: ghasCoverage,
+        trend: coverageTrend,
+        isLoading: coverageGrowthQuery.isLoading,
+        hasError: coverageGrowthQuery.isError,
+      },
+      'sync-health': {
+        rawValue: syncHealth,
+        isLoading: systemHealthQuery.isLoading,
+        hasError: systemHealthQuery.isError,
+      },
+      'events-per-hour': {
+        rawValue: eventsPerHour.rate,
+        trend: eventsPerHour.trend,
+        isLoading: eventsQuery.isLoading,
+        hasError: eventsQuery.isError,
+      },
+      'failed-syncs': {
+        rawValue: unhealthyHooksQuery.data?.unhealthy_hooks.length ?? 0,
+        isLoading: unhealthyHooksQuery.isLoading,
+        hasError: unhealthyHooksQuery.isError,
+      },
+      'active-orgs': {
+        rawValue: activeOrgs,
+        isLoading: eventsQuery.isLoading || healthScoreQuery.isLoading,
+        hasError: eventsQuery.isError || healthScoreQuery.isError,
+      },
+      'webhook-lag': {
+        rawValue: webhookLagMinutes,
+        isLoading: systemHealthQuery.isLoading,
+        hasError: systemHealthQuery.isError,
+      },
+      'copilot-adoption': {
+        rawValue: copilotAdoption,
+        trend: copilotTrend,
+        isLoading: copilotAdoptionQuery.isLoading,
+        hasError: copilotAdoptionQuery.isError,
+      },
+      'active-developers': {
+        rawValue: uniqueActors,
+        isLoading: developersQuery.isLoading,
+        hasError: developersQuery.isError,
+      },
+      'pr-merge-time': {
+        rawValue: averageMergeMinutes,
+        isLoading: stalePrsQuery.isLoading,
+        hasError: stalePrsQuery.isError,
+      },
+      'workflow-success-rate': {
+        rawValue: workflowSuccessRate,
+        trend: latestDelta(actionsBuckets.map((bucket) => Number(bucket.success_rate_pct ?? 0))),
+        isLoading: actionsReportQuery.isLoading,
+        hasError: actionsReportQuery.isError,
+      },
+      'compliance-score': {
+        rawValue: complianceScore,
+        isLoading: complianceSummaryQuery.isLoading,
+        hasError: complianceSummaryQuery.isError,
+      },
+      'policy-violations': {
+        rawValue: policyViolations,
+        isLoading: policyChecksQuery.isLoading,
+        hasError: policyChecksQuery.isError,
+      },
+      'overdue-reviews': {
+        rawValue: stalePrs.length,
+        isLoading: stalePrsQuery.isLoading,
+        hasError: stalePrsQuery.isError,
+      },
+      'branch-protection': {
+        rawValue: branchProtectionPct,
+        isLoading: platformSecurityQuery.isLoading,
+        hasError: platformSecurityQuery.isError,
+      },
+    }),
+    [
+      actionsBuckets,
+      actionsReportQuery.isError,
+      actionsReportQuery.isLoading,
+      activeOrgs,
+      averageMergeMinutes,
+      branchProtectionPct,
+      complianceScore,
+      complianceSummaryQuery.isError,
+      complianceSummaryQuery.isLoading,
+      copilotAdoption,
+      copilotAdoptionQuery.isError,
+      copilotAdoptionQuery.isLoading,
+      copilotTrend,
+      coverageGrowthQuery.isError,
+      coverageGrowthQuery.isLoading,
+      coverageTrend,
+      criticalDetectionsQuery.data?.total,
+      criticalDetectionsQuery.isError,
+      criticalDetectionsQuery.isLoading,
+      developersQuery.isError,
+      developersQuery.isLoading,
+      eventsPerHour.rate,
+      eventsPerHour.trend,
+      eventsQuery.isError,
+      eventsQuery.isLoading,
+      ghasCoverage,
+      healthScoreQuery.isError,
+      healthScoreQuery.isLoading,
+      openDetectionsQuery.data?.total,
+      openDetectionsQuery.isError,
+      openDetectionsQuery.isLoading,
+      platformSecurityQuery.isError,
+      platformSecurityQuery.isLoading,
+      policyChecksQuery.isError,
+      policyChecksQuery.isLoading,
+      policyViolations,
+      secretTrend,
+      stalePrs,
+      stalePrsQuery.isError,
+      stalePrsQuery.isLoading,
+      syncHealth,
+      systemHealthQuery.isError,
+      systemHealthQuery.isLoading,
+      unhealthyHooksQuery.data?.unhealthy_hooks.length,
+      unhealthyHooksQuery.isError,
+      unhealthyHooksQuery.isLoading,
+      unifiedSecurityQuery.data?.secret_scanning.open,
+      unifiedSecurityQuery.isError,
+      unifiedSecurityQuery.isLoading,
+      unresolvedThreatsQuery.data?.total,
+      unresolvedThreatsQuery.isError,
+      unresolvedThreatsQuery.isLoading,
+      uniqueActors,
+      webhookLagMinutes,
+      workflowSuccessRate,
+    ],
+  );
 
-  const uniqueActors = new Set((calendarEvents?.items ?? []).map((e) => e.actor).filter(Boolean))
-    .size;
+  const orderedPills = pillConfig.order.filter((metricId) => pillConfig.enabledPills.includes(metricId));
+
+  function handleSaveConfig(nextConfig: StatPillConfig) {
+    setPillConfig(nextConfig);
+    saveStatPillConfig(nextConfig);
+    setConfigOpen(false);
+  }
 
   return (
     <div className={styles.page}>
       <PageHeader
         title={`Dashboard · ${orgLabel}`}
         description={
-          systemHealth?.last_event_at
-            ? `Last synced: ${formatRelative(systemHealth.last_event_at)}`
+          systemHealthQuery.data?.last_event_at
+            ? `Last synced: ${formatRelative(systemHealthQuery.data.last_event_at)}`
             : 'Activity across your organizations'
         }
       />
 
       <div className={styles.viewToggle}>
         <button
-          className={[styles.viewBtn, view === 'operations' && styles.viewActive]
-            .filter(Boolean)
-            .join(' ')}
+          className={[styles.viewBtn, view === 'operations' && styles.viewActive].filter(Boolean).join(' ')}
           onClick={() => setView('operations')}
         >
           Operations
         </button>
         <button
-          className={[styles.viewBtn, view === 'executive' && styles.viewActive]
-            .filter(Boolean)
-            .join(' ')}
+          className={[styles.viewBtn, view === 'executive' && styles.viewActive].filter(Boolean).join(' ')}
           onClick={() => setView('executive')}
         >
           Executive
         </button>
         <button
-          className={[styles.viewBtn, view === 'security' && styles.viewActive]
-            .filter(Boolean)
-            .join(' ')}
+          className={[styles.viewBtn, view === 'security' && styles.viewActive].filter(Boolean).join(' ')}
           onClick={() => setView('security')}
         >
           Security Engineering
         </button>
         <button
-          className={[styles.viewBtn, view === 'cicd' && styles.viewActive]
-            .filter(Boolean)
-            .join(' ')}
+          className={[styles.viewBtn, view === 'cicd' && styles.viewActive].filter(Boolean).join(' ')}
           onClick={() => setView('cicd')}
         >
           CI/CD
@@ -256,118 +529,102 @@ export function DashboardPage() {
         <CiCdView />
       ) : (
         <>
-          {systemHealth != null && (
+          {systemHealthQuery.data != null && (
             <div
-              className={[styles.systemHealthBar, systemHealth.gap_detected && styles.healthWarning]
+              className={[
+                styles.systemHealthBar,
+                systemHealthQuery.data.gap_detected && styles.healthWarning,
+              ]
                 .filter(Boolean)
                 .join(' ')}
             >
               <span
                 className={[
                   styles.systemHealthDot,
-                  systemHealth.gap_detected ? styles.warn : styles.ok,
+                  systemHealthQuery.data.gap_detected ? styles.warn : styles.ok,
                 ].join(' ')}
               />
-              {systemHealth.gap_detected ? (
+              {systemHealthQuery.data.gap_detected ? (
                 <span>
                   Ingestion gap detected
-                  {systemHealth.gap_duration_minutes != null && (
-                    <> — {systemHealth.gap_duration_minutes}m of missing data</>
+                  {systemHealthQuery.data.gap_duration_minutes != null && (
+                    <> — {systemHealthQuery.data.gap_duration_minutes}m of missing data</>
                   )}
                 </span>
               ) : (
                 <span>
                   System healthy
-                  {systemHealth.last_event_at && (
-                    <> · Last event: {formatRelative(systemHealth.last_event_at)}</>
+                  {systemHealthQuery.data.last_event_at && (
+                    <> · Last event: {formatRelative(systemHealthQuery.data.last_event_at)}</>
                   )}
                 </span>
               )}
             </div>
           )}
 
-          <div className={styles.pills}>
-            <StatPill
-              value={eventCountLabel || '—'}
-              label="total events"
-              helpText="Total audit log events stored across all orgs. Source: events table."
-              onClick={() => navigate('/events')}
-            />
-            <StatPill
-              value={workflowSuccessRate != null ? `${workflowSuccessRate}%` : '—'}
-              label="pipeline success"
-              helpText="7-day Actions workflow success rate. Calculated from workflow_run.completed events."
-              variant={
-                workflowSuccessRate != null && parseFloat(workflowSuccessRate) >= 90
-                  ? 'success'
-                  : undefined
-              }
-              onClick={() => navigate('/velocity')}
-            />
-            <StatPill
-              value={String(uniqueActors || '—')}
-              label="active devs"
-              variant="done"
-              helpText="Unique human actors (non-bot) seen in audit log events over the last 30 days."
-              onClick={() => navigate('/devactivity')}
-            />
-            <StatPill
-              value={String(repoHealth?.stale.length ?? '—')}
-              label="stale repos"
-              helpText="Repositories with no activity in the last 90 days."
-              onClick={() => navigate('/health')}
-            />
-            <StatPill
-              value={String(patHealth?.summary.stale_90d_count ?? '—')}
-              label="stale PATs"
-              helpText="Personal access tokens with no use in the last 90 days."
-              onClick={() => navigate('/health/access')}
-            />
-            <StatPill
-              value={String(patHealth?.summary.no_expiry_count ?? '—')}
-              label="PATs no expiry"
-              variant={(patHealth?.summary.no_expiry_count ?? 0) > 0 ? 'danger' : undefined}
-              helpText="Personal access tokens with no expiration date set."
-              onClick={() => navigate('/health/access')}
-            />
-            <StatPill
-              value={String(unifiedSecurity?.secret_scanning.open ?? '—')}
-              label="secret alerts"
-              variant={(unifiedSecurity?.secret_scanning.open ?? 0) > 0 ? 'danger' : undefined}
-              helpText="Open GitHub secret scanning alerts across all organizations (GHAS)."
-              onClick={() => navigate('/advanced-security?tab=secrets')}
-            />
-            <StatPill
-              value={String(unifiedSecurity?.code_scanning.open ?? '—')}
-              label="code alerts"
-              helpText="Open GitHub code scanning (CodeQL) alerts across all organizations (GHAS)."
-              onClick={() => navigate('/advanced-security?tab=code')}
-            />
-            <StatPill
-              value={String(unifiedSecurity?.dependabot.open ?? '—')}
-              label="dependabot"
-              helpText="Open Dependabot vulnerability alerts across all organizations (GHAS)."
-              onClick={() => navigate('/advanced-security?tab=dependabot')}
-            />
+          <div className={styles.pillsBar}>
+            <div className={styles.pills}>
+              {orderedPills.map((metricId) => {
+                const metric = STAT_PILL_REGISTRY[metricId];
+                const state = metricStates[metricId];
+                if (!metric || !state) return null;
+
+                return (
+                  <StatPill
+                    key={metric.id}
+                    id={metric.id}
+                    icon={metric.icon}
+                    label={metric.label}
+                    value={state.rawValue}
+                    format={metric.format}
+                    trend={state.trend}
+                    variant={getThresholdVariant(
+                      state.rawValue,
+                      pillConfig.thresholds[metric.id] ?? metric.defaultThresholds,
+                      metric.thresholdDirection,
+                    )}
+                    path={metric.path}
+                    isLoading={state.isLoading}
+                    hasError={state.hasError}
+                  />
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              className={styles.configBtn}
+              onClick={() => setConfigOpen(true)}
+              aria-label="Configure stat pills"
+            >
+              <span aria-hidden="true">⚙</span>
+              <span>Configure</span>
+            </button>
           </div>
 
-          {systemHealth != null && systemHealth.gap_detected && (
+          <StatPillConfigDrawer
+            key={`${configOpen}-${JSON.stringify(pillConfig)}`}
+            open={configOpen}
+            onClose={() => setConfigOpen(false)}
+            config={pillConfig}
+            onSave={handleSaveConfig}
+          />
+
+          {systemHealthQuery.data != null && systemHealthQuery.data.gap_detected && (
             <div className={styles.ingestionBanner}>
               <span className={styles.ingestionIcon}>⚠</span>
               <span>
                 Data ingestion gap detected
-                {systemHealth.gap_duration_minutes != null && (
-                  <> — {systemHealth.gap_duration_minutes} minutes of missing data</>
+                {systemHealthQuery.data.gap_duration_minutes != null && (
+                  <> — {systemHealthQuery.data.gap_duration_minutes} minutes of missing data</>
                 )}
                 . Some health signals may be incomplete.
               </span>
             </div>
           )}
 
-          {/* Security Overview + Platform alerts on same row */}
           <div className={styles.grid}>
             <div className={styles.flex1}>
-              <SecurityOverviewWidget detections={detections?.items ?? []} />
+              <SecurityOverviewWidget detections={openDetectionsQuery.data?.items ?? []} />
             </div>
 
             <div className={styles.sidebar}>
@@ -396,7 +653,7 @@ export function DashboardPage() {
                       >
                         <strong>{failedWorkflowRuns} failed</strong>
                       </ClickableValue>
-                      {totalWorkflowRuns > 0 ? ` (${workflowSuccessRate}% success)` : ''}
+                      {totalWorkflowRuns > 0 ? ` (${workflowSuccessRate.toFixed(1)}% success)` : ''}
                     </div>
                   </div>
                   <div className={`${styles.alertRow} ${styles.alertBorder}`}>
@@ -407,9 +664,9 @@ export function DashboardPage() {
                       Events volume:{' '}
                       <ClickableValue
                         onClick={() => navigate('/events')}
-                        label={`${formatCount(calendarEvents?.total ?? 0)} events — view all events`}
+                        label={`${formatCount(eventsQuery.data?.total ?? 0)} events — view all events`}
                       >
-                        <strong>{formatCount(calendarEvents?.total ?? 0)} events</strong>
+                        <strong>{formatCount(eventsQuery.data?.total ?? 0)} events</strong>
                       </ClickableValue>{' '}
                       tracked
                     </div>
@@ -417,17 +674,19 @@ export function DashboardPage() {
                   <div className={`${styles.alertRow} ${styles.alertBorder}`}>
                     <span
                       className={styles.alertIcon}
-                      style={{ color: openThreats > 0 ? 'var(--attention)' : 'var(--success)' }}
+                      style={{
+                        color: (openDetectionsQuery.data?.total ?? 0) > 0 ? 'var(--attention)' : 'var(--success)',
+                      }}
                     >
-                      {openThreats > 0 ? '⚠' : '✓'}
+                      {(openDetectionsQuery.data?.total ?? 0) > 0 ? '⚠' : '✓'}
                     </span>
                     <div>
                       Active detections:{' '}
                       <ClickableValue
                         onClick={() => navigate('/threats')}
-                        label={`${openThreats} investigating — view threats`}
+                        label={`${openDetectionsQuery.data?.total ?? 0} investigating — view threats`}
                       >
-                        <strong>{openThreats} investigating</strong>
+                        <strong>{openDetectionsQuery.data?.total ?? 0} investigating</strong>
                       </ClickableValue>
                     </div>
                   </div>
