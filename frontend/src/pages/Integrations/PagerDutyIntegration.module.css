@@ -1,0 +1,153 @@
+.panel {
+  border: 1px solid var(--border-subtle, #d0d7de);
+  border-radius: 16px;
+  background: var(--surface-raised, #fff);
+  padding: 24px;
+  display: grid;
+  gap: 20px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.titleGroup {
+  display: grid;
+  gap: 6px;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.description {
+  margin: 0;
+  color: var(--fg-muted, #667085);
+}
+
+.statusRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: var(--bg-subtle, #f2f4f7);
+  color: var(--fg-muted, #475467);
+}
+
+.badge[data-state='ready'] {
+  background: rgba(18, 183, 106, 0.12);
+  color: #027a48;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.label {
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--border-subtle, #d0d7de);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  background: var(--surface-default, #fff);
+  color: var(--fg-default, #101828);
+}
+
+.help {
+  font-size: 0.875rem;
+  color: var(--fg-muted, #667085);
+}
+
+.mappingSection {
+  display: grid;
+  gap: 12px;
+}
+
+.mappingRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.4fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.testStatus {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.testStatus[data-state='success'] {
+  color: #027a48;
+}
+
+.testStatus[data-state='error'] {
+  color: #b42318;
+}
+
+.instructions {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--fg-muted, #667085);
+}
+
+.commandList {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.command {
+  font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875rem;
+  background: var(--bg-subtle, #f2f4f7);
+  border-radius: 999px;
+  padding: 6px 10px;
+}
+
+.error {
+  color: #b42318;
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .mappingRow {
+    grid-template-columns: 1fr;
+  }
+}

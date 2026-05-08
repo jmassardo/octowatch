@@ -50,6 +50,7 @@ from app.routers import (
     maintenance,
     notifications,
     org_config,
+    pagerduty,
     playbooks,
     posture,
     query,
@@ -60,6 +61,7 @@ from app.routers import (
     slack,
     suggestions,
     sync,
+    teams,
     threat_intel,
     user_preferences,
     workflow_metrics,
@@ -706,6 +708,7 @@ def create_app() -> FastAPI:
     app.include_router(integrations.router, prefix=API_PREFIX)
     app.include_router(slack.router, prefix=API_PREFIX)
     app.include_router(notifications.router, prefix=API_PREFIX)
+    app.include_router(pagerduty.router, prefix=API_PREFIX)
     app.include_router(health_signals.router, prefix=API_PREFIX)
     app.include_router(copilot.router, prefix=API_PREFIX)
     app.include_router(features.router, prefix=API_PREFIX)
@@ -713,6 +716,7 @@ def create_app() -> FastAPI:
     app.include_router(sync.router, prefix=API_PREFIX + "/admin")
     app.include_router(setup.router, prefix=API_PREFIX)
     app.include_router(suggestions.router, prefix=API_PREFIX)
+    app.include_router(teams.router, prefix=API_PREFIX)
     app.include_router(dev_activity.router, prefix=API_PREFIX)
     app.include_router(threat_intel.router, prefix=API_PREFIX)
     app.include_router(actors.router, prefix=API_PREFIX)

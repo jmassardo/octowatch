@@ -174,6 +174,22 @@ vi.mock('../../api/slack', () => ({
     ok: true,
     channel: '#security-alerts',
     message: 'Test message sent successfully',
+vi.mock('../../api/pagerduty', () => ({
+  getPagerDutyConfig: vi.fn().mockResolvedValue({
+    routing_key_configured: true,
+    routing_key_masked: 'abcd********wxyz',
+    severity_mapping: { critical: 'critical', high: 'error', medium: 'warning', low: 'info', info: 'info' },
+    notification_settings: { detections: true, sync_errors: true, system_health: false, threat_intel: false },
+    auto_resolve: true,
+  }),
+}));
+
+vi.mock('../../api/teams', () => ({
+  getTeamsConfig: vi.fn().mockResolvedValue({
+    channel_webhook_configured: { default: true, detections: true, sync_errors: false, system_health: false, threat_intel: false },
+    channel_webhooks_masked: { default: 'https://o*******1234', detections: 'https://d*******5678', sync_errors: null, system_health: null, threat_intel: null },
+    source_mappings: { detections: 'detections', sync_errors: 'default', system_health: 'default', threat_intel: 'default' },
+    notification_settings: { detections: true, sync_errors: true, system_health: false, threat_intel: false },
   }),
 }));
 
@@ -536,9 +552,12 @@ describe('SettingsPage', () => {
     });
 
     expect(screen.getByText(/slack integration/i)).toBeInTheDocument();
+    expect(screen.getByText('Slack')).toBeInTheDocument();
+    expect(screen.getByText('Microsoft Teams')).toBeInTheDocument();
     expect(screen.getByText('Microsoft Sentinel')).toBeInTheDocument();
     expect(screen.getByText('Splunk')).toBeInTheDocument();
     expect(screen.getByText('PagerDuty')).toBeInTheDocument();
+    expect(screen.getByText('Microsoft Teams')).toBeInTheDocument();
   });
 
   it('renders Integrations tab via direct URL', async () => {

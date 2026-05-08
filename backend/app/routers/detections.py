@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 from sqlalchemy import func, select
@@ -22,6 +25,8 @@ from app.schemas.detection import (
 from app.services.audit_service import log_action
 from app.services.rbac_service import get_user_scope
 from app.utils.client_ip import get_client_ip
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/detections", tags=["detections"])
 
@@ -135,10 +140,37 @@ async def update_detection_status(
             detail=f"Cannot transition from '{detection.status}' to '{payload.status}'",
         )
 
+    previous_status = detection.status
     detection.status = payload.status
+    if payload.status == "resolved":
+        detection.resolved_at = datetime.now(UTC)
+        detection.resolved_by = current_user.github_login
+    elif previous_status == "resolved" and payload.status != "resolved":
+        detection.resolved_at = None
+        detection.resolved_by = None
+
     if payload.resolution_note:
         detection.resolution_note = payload.resolution_note
     await db.flush()
+
+    if payload.status == "resolved":
+        try:
+            import redis.asyncio as aioredis
+
+            from app.config import settings
+            from app.services.pagerduty_service import resolve_detection_incident
+
+            valkey = aioredis.from_url(settings.VALKEY_URL, decode_responses=True)
+            try:
+                await resolve_detection_incident(db, valkey, detection_id)
+            finally:
+                await valkey.aclose()
+        except Exception as exc:
+            logger.warning(
+                "detection.pagerduty_auto_resolve_failed",
+                detection_id=detection_id,
+                error=str(exc),
+            )
 
     ip = get_client_ip(request)
     await log_action(
