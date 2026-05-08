@@ -10,17 +10,12 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Pagination } from '../../components/primitives/Pagination';
 import { EmptyState } from '../../components/common/EmptyState';
+import { RadialGauge } from '../../components/charts/RadialGauge';
 import { useChartColors } from '../../hooks/useChartColors';
 import { formatDateOnly } from '../../utils/dates';
 import styles from './Posture.module.css';
 
 /* ── Helpers ───────────────────────────────────────────────────────── */
-
-function scoreClass(score: number) {
-  if (score >= 80) return styles.good;
-  if (score >= 50) return styles.warn;
-  return styles.bad;
-}
 
 function scoreColor(score: number) {
   if (score >= 80) return 'var(--success)';
@@ -43,20 +38,6 @@ function boolDisplay(
 ) {
   if (val === null || val === undefined) return 'Unknown';
   return val ? trueLabel : falseLabel;
-}
-
-/* ── Score Gauge ───────────────────────────────────────────────────── */
-
-function ScoreGauge({ score, label }: { score: number; label: string }) {
-  return (
-    <div
-      className={`${styles.scoreGauge} ${scoreClass(score)}`}
-      title={`${label}: ${Math.round(score)}/100. Weighted average of all security checks. Green ≥ 80, yellow ≥ 50, red < 50.`}
-    >
-      <span className={styles.scoreValue}>{Math.round(score)}</span>
-      <span className={styles.scoreLabel}>{label}</span>
-    </div>
-  );
 }
 
 /* ── Breadcrumb ────────────────────────────────────────────────────── */
@@ -240,20 +221,55 @@ function computeMetrics(orgs: OrgPosture[]): AggregateMetrics {
 
 /* ── Metrics Summary Bar ───────────────────────────────────────────── */
 
-function MetricsSummary({ metrics }: { metrics: AggregateMetrics }) {
+function MetricsSummary({
+  metrics,
+  onSeverityClick,
+}: {
+  metrics: AggregateMetrics;
+  onSeverityClick?: (severity: string) => void;
+}) {
+  const clickable = onSeverityClick ? styles.metricClickable : '';
   return (
     <div className={styles.metricsSummary} data-testid="metrics-summary">
-      <div className={styles.metricCard}>
+      <div
+        className={`${styles.metricCard} ${clickable}`}
+        onClick={() => onSeverityClick?.('')}
+        role={onSeverityClick ? 'button' : undefined}
+      >
         <div className={styles.metricValue}>{metrics.totalOpen}</div>
         <div className={styles.metricLabel}>Open Alerts</div>
       </div>
-      <div className={styles.metricCard}>
+      <div
+        className={`${styles.metricCard} ${clickable}`}
+        onClick={() => onSeverityClick?.('critical')}
+        role={onSeverityClick ? 'button' : undefined}
+      >
         <div className={`${styles.metricValue} ${styles.metricCritical}`}>{metrics.critical}</div>
         <div className={styles.metricLabel}>Critical</div>
       </div>
-      <div className={styles.metricCard}>
+      <div
+        className={`${styles.metricCard} ${clickable}`}
+        onClick={() => onSeverityClick?.('high')}
+        role={onSeverityClick ? 'button' : undefined}
+      >
         <div className={`${styles.metricValue} ${styles.metricHigh}`}>{metrics.high}</div>
         <div className={styles.metricLabel}>High</div>
+      </div>
+      <div
+        className={`${styles.metricCard} ${clickable}`}
+        onClick={() => onSeverityClick?.('medium')}
+        role={onSeverityClick ? 'button' : undefined}
+      >
+        <div className={styles.metricValue}>{metrics.medium}</div>
+        <div className={styles.metricLabel}>Medium</div>
+      </div>
+      <div
+        className={`${styles.metricCard} ${clickable}`}
+        onClick={() => onSeverityClick?.('low')}
+        role={onSeverityClick ? 'button' : undefined}
+      >
+        <div className={styles.metricValue}>{metrics.low}</div>
+        <div className={styles.metricLabel}>Low</div>
       </div>
       <div className={styles.metricCard}>
         <div className={styles.metricValue}>{metrics.secretScanningCoverage}%</div>
@@ -262,6 +278,10 @@ function MetricsSummary({ metrics }: { metrics: AggregateMetrics }) {
       <div className={styles.metricCard}>
         <div className={styles.metricValue}>{metrics.codeScanningCoverage}%</div>
         <div className={styles.metricLabel}>Code Scanning</div>
+      </div>
+      <div className={styles.metricCard}>
+        <div className={styles.metricValue}>{metrics.dependabotCoverage}%</div>
+        <div className={styles.metricLabel}>Dependabot</div>
       </div>
     </div>
   );
@@ -408,16 +428,29 @@ function EnterpriseView({
   const [severity, setSeverity] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedOrgs, setSelectedOrgs] = useState<string[]>([]);
+  const [orgsExpanded, setOrgsExpanded] = useState(false);
   const orgs = useMemo(() => data.orgs ?? [], [data.orgs]);
 
-  const metrics = useMemo(() => computeMetrics(orgs), [orgs]);
+  const filteredOrgsForMetrics = useMemo(() => {
+    if (selectedOrgs.length === 0) return orgs;
+    return orgs.filter((o) => selectedOrgs.includes(o.org_login));
+  }, [orgs, selectedOrgs]);
+
+  const metrics = useMemo(() => computeMetrics(filteredOrgsForMetrics), [filteredOrgsForMetrics]);
+
+  const orgLabel =
+    selectedOrgs.length === 1
+      ? selectedOrgs[0]
+      : selectedOrgs.length > 1
+        ? `${selectedOrgs.length} Organizations`
+        : 'All Organizations';
 
   // Empty state
   if (orgs.length === 0) {
     return (
       <>
         <div className={styles.header}>
-          <ScoreGauge score={data.score} label="Score" />
+          <RadialGauge value={data.score} label="Overall Security Posture" size={120} />
           <div className={styles.headerInfo}>
             <div className={styles.headerTitle}>Enterprise Security Posture</div>
             <div className={styles.headerSub}>
@@ -447,18 +480,18 @@ function EnterpriseView({
   return (
     <>
       <div className={styles.header}>
-        <ScoreGauge score={data.score} label="Score" />
+        <RadialGauge value={data.score} label="Overall Security Posture" size={120} />
         <div className={styles.headerInfo}>
           <div className={styles.headerTitle}>Enterprise Security Posture</div>
           <div className={styles.headerSub}>
-            {data.total} org{data.total !== 1 ? 's' : ''} · Last synced{' '}
+            {orgLabel} · {data.total} org{data.total !== 1 ? 's' : ''} · Last synced{' '}
             {formatDateOnly(data.last_sync_at)}
           </div>
         </div>
       </div>
       <div className={styles.content}>
-        {/* Metrics Summary Bar */}
-        <MetricsSummary metrics={metrics} />
+        {/* Metrics Summary Bar — clickable to filter */}
+        <MetricsSummary metrics={metrics} onSeverityClick={setSeverity} />
 
         {/* Severity Distribution + Coverage Gauges */}
         <div className={styles.chartsRow}>
@@ -497,75 +530,11 @@ function EnterpriseView({
           setStatusFilter={setStatusFilter}
         />
 
-        {/* Org grid */}
-        <div className={styles.orgGrid}>
-          {filteredOrgs.map((org) => (
-            <div
-              key={org.org_login}
-              className={styles.orgCard}
-              onClick={() => navigate(`/posture/${org.org_login}`)}
-              title={`View posture details for ${org.org_login}`}
-            >
-              <div className={styles.orgCardHeader}>
-                <span className={styles.orgName}>{org.org_login}</span>
-                <span
-                  className={styles.orgMiniScore}
-                  style={{ color: scoreColor(org.score) }}
-                  title={`Security score: ${Math.round(org.score)}/100`}
-                >
-                  {Math.round(org.score)}
-                </span>
-              </div>
-              <div
-                className={styles.scoreBar}
-                title={`Score: ${Math.round(org.score)}% — green ≥ 80, yellow ≥ 50, red < 50`}
-              >
-                <div
-                  className={styles.scoreBarFill}
-                  style={{ width: `${org.score}%`, background: scoreColor(org.score) }}
-                />
-              </div>
-              <div className={styles.orgMeta}>
-                {org.repo_summary && (
-                  <>
-                    <span>{org.repo_summary.total} repos</span>
-                    {org.repo_summary.failing > 0 && (
-                      <span style={{ color: 'var(--danger)' }}>
-                        {org.repo_summary.failing} failing
-                      </span>
-                    )}
-                    {org.repo_summary.warning > 0 && (
-                      <span style={{ color: 'var(--attention)' }}>
-                        {org.repo_summary.warning} warning
-                      </span>
-                    )}
-                    <span style={{ color: 'var(--success)' }}>
-                      {org.repo_summary.passing} passing
-                    </span>
-                  </>
-                )}
-              </div>
-              {severity && (
-                <div style={{ marginTop: 8, fontSize: 12, color: 'var(--fg-muted)' }}>
-                  {org.checks.filter((c) => c.severity === severity && c.status !== 'pass').length}{' '}
-                  {severity} finding(s)
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <Pagination
-          page={page}
-          pageSize={data.page_size}
-          total={data.total}
-          hasNext={data.has_next}
-          onPageChange={setPage}
-        />
-
         {/* Top findings across enterprise */}
         {(() => {
-          const allChecks = orgs.flatMap((o) => o.checks.filter((c) => c.status !== 'pass'));
+          const allChecks = filteredOrgs.flatMap((o) =>
+            o.checks.filter((c) => c.status !== 'pass'),
+          );
           const sorted = allChecks
             .filter((c) => !severity || c.severity === severity)
             .sort((a, b) => {
@@ -595,6 +564,89 @@ function EnterpriseView({
             </div>
           );
         })()}
+
+        {/* Collapsible Organizations Grid */}
+        <div className={styles.section}>
+          <button
+            type="button"
+            className={styles.sectionToggle}
+            onClick={() => setOrgsExpanded((v) => !v)}
+            aria-expanded={orgsExpanded}
+          >
+            {orgsExpanded ? '▾' : '▸'} Organizations ({filteredOrgs.length})
+          </button>
+          {orgsExpanded && (
+            <>
+              <div className={styles.orgGrid}>
+                {filteredOrgs.map((org) => (
+                  <div
+                    key={org.org_login}
+                    className={styles.orgCard}
+                    onClick={() => navigate(`/posture/${org.org_login}`)}
+                    title={`View posture details for ${org.org_login}`}
+                  >
+                    <div className={styles.orgCardHeader}>
+                      <span className={styles.orgName}>{org.org_login}</span>
+                      <span
+                        className={styles.orgMiniScore}
+                        style={{ color: scoreColor(org.score) }}
+                        title={`Security score: ${Math.round(org.score)}/100`}
+                      >
+                        {Math.round(org.score)}
+                      </span>
+                    </div>
+                    <div
+                      className={styles.scoreBar}
+                      title={`Score: ${Math.round(org.score)}% — green ≥ 80, yellow ≥ 50, red < 50`}
+                    >
+                      <div
+                        className={styles.scoreBarFill}
+                        style={{ width: `${org.score}%`, background: scoreColor(org.score) }}
+                      />
+                    </div>
+                    <div className={styles.orgMeta}>
+                      {org.repo_summary && (
+                        <>
+                          <span>{org.repo_summary.total} repos</span>
+                          {org.repo_summary.failing > 0 && (
+                            <span style={{ color: 'var(--danger)' }}>
+                              {org.repo_summary.failing} failing
+                            </span>
+                          )}
+                          {org.repo_summary.warning > 0 && (
+                            <span style={{ color: 'var(--attention)' }}>
+                              {org.repo_summary.warning} warning
+                            </span>
+                          )}
+                          <span style={{ color: 'var(--success)' }}>
+                            {org.repo_summary.passing} passing
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    {severity && (
+                      <div style={{ marginTop: 8, fontSize: 12, color: 'var(--fg-muted)' }}>
+                        {
+                          org.checks.filter((c) => c.severity === severity && c.status !== 'pass')
+                            .length
+                        }{' '}
+                        {severity} finding(s)
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <Pagination
+                page={page}
+                pageSize={data.page_size}
+                total={data.total}
+                hasNext={data.has_next}
+                onPageChange={setPage}
+              />
+            </>
+          )}
+        </div>
       </div>
     </>
   );
@@ -652,7 +704,7 @@ function OrgView({
   return (
     <>
       <div className={styles.header}>
-        <ScoreGauge score={org.score} label="Score" />
+        <RadialGauge value={org.score} label="Organization Score" size={100} />
         <div className={styles.headerInfo}>
           <div className={styles.headerTitle}>{org.org_login}</div>
           <div className={styles.headerSub}>
@@ -868,7 +920,7 @@ function RepoView({ data }: { data: PostureResponse }) {
   return (
     <>
       <div className={styles.header}>
-        <ScoreGauge score={repo.score} label="Score" />
+        <RadialGauge value={repo.score} label="Repository Score" size={100} />
         <div className={styles.headerInfo}>
           <div className={styles.headerTitle}>{repo.repo_name}</div>
           <div className={styles.headerSub}>
