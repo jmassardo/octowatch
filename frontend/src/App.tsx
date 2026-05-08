@@ -28,6 +28,7 @@ import { AdvancedSecurityPage } from './pages/AdvancedSecurity';
 import { PlaybooksPage } from './pages/Playbooks';
 import { SupplyChainPage } from './pages/SupplyChain';
 import { ThreatIntelPage } from './pages/ThreatIntel';
+import { SyncStatusPage } from './pages/SyncStatus';
 import AuthSettingsPage from './pages/admin/AuthSettings';
 
 export const router = createBrowserRouter([
@@ -80,6 +81,7 @@ export const router = createBrowserRouter([
       { path: '/settings', element: <Navigate to="/settings/all" replace /> },
       { path: '/settings/:tab', element: <SettingsPage /> },
       { path: '/telemetry', element: <TelemetryPage /> },
+      { path: '/monitoring/sync-status', element: <SyncStatusPage /> },
       { path: '/admin/auth', element: <AuthSettingsPage /> },
     ],
   },
