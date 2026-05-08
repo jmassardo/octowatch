@@ -324,6 +324,34 @@
 .metricHigh {
   color: var(--severe, #db6d28);
 }
+.metricClickable {
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.metricClickable:hover {
+  border-color: var(--accent-fg);
+  box-shadow: 0 0 0 1px var(--accent-fg);
+}
+
+/* ── Section Toggle ────────────────────────────────────────────────── */
+.sectionToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  cursor: pointer;
+  padding: 4px 0;
+  margin-bottom: 12px;
+}
+.sectionToggle:hover {
+  color: var(--accent-fg);
+}
 
 /* ── Charts Row ────────────────────────────────────────────────────── */
 .chartsRow {
