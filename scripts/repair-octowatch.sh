@@ -14,8 +14,9 @@
 #   4. Node readiness
 #   5. Pod health (CrashLoopBackOff, ImagePullBackOff, Pending, etc.)
 #   6. Image tag alignment (Helm values vs running pods)
-#   7. Internal health endpoint
-#   8. External ingress reachability
+#   7. Database migrations (alembic upgrade head)
+#   8. Internal health endpoint
+#   9. External ingress reachability
 #
 # Each step prints a status and, when a problem is found, attempts a fix
 # (unless --dry-run is passed).
@@ -263,9 +264,60 @@ else
   warn "$HELM_TAG_FILE not found — skipping tag check (run from repo root)"
 fi
 
-# ── Step 6: Internal health check ───────────────────────────────────────────
+# ── Step 6: Database migrations ─────────────────────────────────────────────
 echo ""
-info "Step 6: Internal API health check..."
+info "Step 6: Checking database migrations..."
+
+CURRENT_REV=$(kubectl exec -n "$NAMESPACE" deploy/octowatch-api -- \
+  python -c "
+from alembic.config import Config
+from alembic import command
+import io, sys
+buf = io.StringIO()
+sys.stdout = buf
+cfg = Config('alembic.ini')
+command.current(cfg)
+sys.stdout = sys.__stdout__
+out = buf.getvalue()
+for line in out.splitlines():
+  if line.strip() and not line.startswith('INFO'):
+    print(line.strip())
+" 2>/dev/null || echo "UNKNOWN")
+
+HEAD_REV=$(kubectl exec -n "$NAMESPACE" deploy/octowatch-api -- \
+  python -c "
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+cfg = Config('alembic.ini')
+script = ScriptDirectory.from_config(cfg)
+print(script.get_current_head())
+" 2>/dev/null || echo "UNKNOWN")
+
+if [[ "$CURRENT_REV" == *"(head)"* ]] || [[ "$CURRENT_REV" == "$HEAD_REV" ]]; then
+  ok "Database is at latest migration: $CURRENT_REV"
+else
+  fail "Database migration mismatch — current: $CURRENT_REV, head: $HEAD_REV"
+  run_fix "Running pending migrations (alembic upgrade head)" \
+    "kubectl exec -n $NAMESPACE deploy/octowatch-api -- python -c \"
+from alembic.config import Config
+from alembic import command
+cfg = Config('alembic.ini')
+command.upgrade(cfg, 'head')
+\""
+
+  if ! $DRY_RUN; then
+    info "Restarting API and worker pods to pick up schema changes..."
+    kubectl rollout restart deployment/octowatch-api -n "$NAMESPACE" 2>/dev/null
+    kubectl rollout restart deployment/octowatch-worker-detection -n "$NAMESPACE" 2>/dev/null
+    kubectl rollout restart deployment/octowatch-worker-ingestion -n "$NAMESPACE" 2>/dev/null
+    kubectl rollout status deployment/octowatch-api -n "$NAMESPACE" --timeout=120s 2>/dev/null
+    ok "Migrations applied and pods restarted"
+  fi
+fi
+
+# ── Step 7: Internal health check ───────────────────────────────────────────
+echo ""
+info "Step 7: Internal API health check..."
 
 HEALTH=$(kubectl exec -n "$NAMESPACE" deploy/octowatch-api -- \
   curl -sf http://localhost:8000/health 2>/dev/null || echo "FAIL")
@@ -278,9 +330,9 @@ else
   kubectl logs -n "$NAMESPACE" deploy/octowatch-api --tail=30 2>&1 | sed 's/^/    /'
 fi
 
-# ── Step 7: External ingress check ──────────────────────────────────────────
+# ── Step 8: External ingress check ──────────────────────────────────────────
 echo ""
-info "Step 7: External ingress check..."
+info "Step 8: External ingress check..."
 
 INGRESS_COUNT=$(kubectl get ingress -n "$NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d ' ')
 info "Found $INGRESS_COUNT ingress resource(s)"
