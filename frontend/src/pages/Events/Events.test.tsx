@@ -473,12 +473,14 @@ describe('EventsPage', () => {
       page: 1,
       page_size: 20,
       has_next: true,
+      count_is_estimated: false,
+      next_cursor: 'cursor_abc',
     });
 
     renderWithProviders(<EventsPage />);
     await screen.findByText('repo.create');
 
-    expect(screen.getByText('Page 1 of 5')).toBeInTheDocument();
+    expect(screen.getByText('Page 1')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '← Prev' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Next →' })).not.toBeDisabled();
   });
@@ -487,7 +489,7 @@ describe('EventsPage', () => {
     renderWithProviders(<EventsPage />);
     await screen.findByText('repo.create');
 
-    expect(screen.queryByText(/Page \d+ of/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Page \d+$/)).not.toBeInTheDocument();
   });
 
   it('chip parser handles repo, since, and until keys', async () => {
@@ -528,18 +530,20 @@ describe('EventsPage', () => {
       page: 1,
       page_size: 20,
       has_next: true,
+      count_is_estimated: false,
+      next_cursor: 'cursor_page2',
     });
 
     renderWithProviders(<EventsPage />);
-    await screen.findByText('Page 1 of 3');
+    await screen.findByText('Page 1');
 
     await user.click(screen.getByRole('button', { name: 'Next →' }));
 
-    // Should call API with page 2
-    const callsAfterNext = listEventsMock.mock.calls.filter(
-      (call: unknown[]) => (call[0] as Record<string, unknown>).page === 2,
+    // Should call API with cursor param
+    const callsWithCursor = listEventsMock.mock.calls.filter(
+      (call: unknown[]) => (call[0] as Record<string, unknown>).cursor === 'cursor_page2',
     );
-    expect(callsAfterNext.length).toBeGreaterThan(0);
+    expect(callsWithCursor.length).toBeGreaterThan(0);
   });
 
   it('shows the second event details when its row is clicked', async () => {
@@ -700,20 +704,5 @@ describe('EventsPage', () => {
 
     renderWithProviders(<EventsPage />);
     expect(await screen.findByText(/Showing first 5,000 results/)).toBeInTheDocument();
-  });
-
-  it('caps page count at 100 for large result sets', async () => {
-    listEventsMock.mockResolvedValue({
-      items: MOCK_EVENTS,
-      total: 100000,
-      page: 1,
-      page_size: 20,
-      has_next: true,
-      count_is_estimated: false,
-      next_cursor: null,
-    });
-
-    renderWithProviders(<EventsPage />);
-    expect(await screen.findByText('Page 1 of 100')).toBeInTheDocument();
   });
 });
