@@ -565,7 +565,9 @@ export function DetectionDetailPane({
             {selected.rule_description && (
               <>
                 <span className={styles.keyDetailsLabel}>Description</span>
-                <span className={styles.keyDetailsValue}>{safeText(selected.rule_description)}</span>
+                <span className={styles.keyDetailsValue}>
+                  {safeText(selected.rule_description)}
+                </span>
               </>
             )}
           </div>
@@ -665,11 +667,7 @@ export function DetectionDetailPane({
               eventIds.map((eventId) => {
                 const timelineEvent = timelineEvents.find((e) => e.id === eventId);
                 return (
-                  <Link
-                    key={eventId}
-                    to={`/events/${eventId}`}
-                    className={styles.relatedEventRow}
-                  >
+                  <Link key={eventId} to={`/events/${eventId}`} className={styles.relatedEventRow}>
                     <span className={styles.relatedEventId}>#{eventId}</span>
                     {timelineEvent && (
                       <>
