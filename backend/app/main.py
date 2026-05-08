@@ -49,6 +49,7 @@ from app.routers import (
     integrations,
     maintenance,
     org_config,
+    slack,
     playbooks,
     posture,
     query,
@@ -702,6 +703,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_auth.router, prefix=API_PREFIX)
     app.include_router(enterprise_pat.router, prefix=API_PREFIX)
     app.include_router(integrations.router, prefix=API_PREFIX)
+    app.include_router(slack.router, prefix=API_PREFIX)
     app.include_router(health_signals.router, prefix=API_PREFIX)
     app.include_router(copilot.router, prefix=API_PREFIX)
     app.include_router(features.router, prefix=API_PREFIX)

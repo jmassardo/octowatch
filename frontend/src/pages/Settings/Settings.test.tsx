@@ -146,6 +146,37 @@ vi.mock('../../api/maintenance', () => ({
   toggleMaintenanceMode: (...args: unknown[]) => mockToggleMaintenanceMode(...args),
 }));
 
+vi.mock('../../api/slack', () => ({
+  getSlackConfig: vi.fn().mockResolvedValue({
+    bot_token_configured: false,
+    signing_secret_configured: false,
+    bot_token_masked: null,
+    signing_secret_masked: null,
+    default_channel: '',
+    channel_mappings: {
+      detections: '',
+      sync_errors: '',
+      system_health: '',
+      threat_intel: '',
+    },
+    notification_settings: {
+      detections: true,
+      sync_errors: true,
+      system_health: true,
+      threat_intel: false,
+    },
+    installation_url: 'https://api.slack.com/apps',
+    installation_instructions: ['Create a Slack app'],
+    commands: ['/octowatch status'],
+  }),
+  updateSlackConfig: vi.fn().mockResolvedValue({}),
+  testSlackConnection: vi.fn().mockResolvedValue({
+    ok: true,
+    channel: '#security-alerts',
+    message: 'Test message sent successfully',
+  }),
+}));
+
 vi.mock('../../api/sync', () => ({
   getSyncStatus: vi.fn().mockResolvedValue({
     id: 'run-1',
@@ -504,7 +535,7 @@ describe('SettingsPage', () => {
       expect(screen.getByText(/connect external services/i)).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Slack')).toBeInTheDocument();
+    expect(screen.getByText(/slack integration/i)).toBeInTheDocument();
     expect(screen.getByText('Microsoft Sentinel')).toBeInTheDocument();
     expect(screen.getByText('Splunk')).toBeInTheDocument();
     expect(screen.getByText('PagerDuty')).toBeInTheDocument();
@@ -517,7 +548,7 @@ describe('SettingsPage', () => {
       expect(screen.getByText(/connect external services/i)).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Slack')).toBeInTheDocument();
+    expect(screen.getByText(/slack integration/i)).toBeInTheDocument();
   });
 
   it('shows Data Import section on GitHub tab', async () => {
