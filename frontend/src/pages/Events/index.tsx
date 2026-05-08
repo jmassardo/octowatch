@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { listEvents } from '../../api/events';
@@ -165,12 +165,12 @@ export function EventsPage() {
   // Parse real-time search input for key:value filters
   const searchFilters = parseSearchFilters(debouncedSearch);
 
-  // Reset cursor stack when filters change
-  const chipsKey = chips.join('|');
-  useEffect(() => {
+  // Wrap chip additions to reset cursors on filter changes
+  const addChip = useCallback((chip: string) => {
+    setChips((prev) => [...prev, chip]);
     setCursors([]);
     setPage(1);
-  }, [chipsKey, debouncedSearch]);
+  }, []);
 
   const currentCursor = cursors.length > 0 ? cursors[cursors.length - 1] : undefined;
 
@@ -224,7 +224,7 @@ export function EventsPage() {
               ev.stopPropagation();
               const chip = `action:${e.action}`;
               if (!chips.includes(chip)) {
-                setChips((prev) => [...prev, chip]);
+                addChip(chip);
                 setPage(1);
               }
             }}
@@ -233,7 +233,7 @@ export function EventsPage() {
                 ev.stopPropagation();
                 const chip = `action:${e.action}`;
                 if (!chips.includes(chip)) {
-                  setChips((prev) => [...prev, chip]);
+                  addChip(chip);
                   setPage(1);
                 }
               }
@@ -263,7 +263,7 @@ export function EventsPage() {
               ev.stopPropagation();
               const chip = `actor:${e.actor}`;
               if (!chips.includes(chip)) {
-                setChips((prev) => [...prev, chip]);
+                addChip(chip);
                 setPage(1);
               }
             }}
@@ -273,7 +273,7 @@ export function EventsPage() {
                 ev.stopPropagation();
                 const chip = `actor:${e.actor}`;
                 if (!chips.includes(chip)) {
-                  setChips((prev) => [...prev, chip]);
+                  addChip(chip);
                   setPage(1);
                 }
               }
@@ -305,7 +305,7 @@ export function EventsPage() {
                 ev.stopPropagation();
                 const chip = `${chipKey}:${val}`;
                 if (!chips.includes(chip)) {
-                  setChips((prev) => [...prev, chip]);
+                  addChip(chip);
                   setPage(1);
                 }
               }}
@@ -315,7 +315,7 @@ export function EventsPage() {
                   ev.stopPropagation();
                   const chip = `${chipKey}:${val}`;
                   if (!chips.includes(chip)) {
-                    setChips((prev) => [...prev, chip]);
+                    addChip(chip);
                     setPage(1);
                   }
                 }
@@ -344,7 +344,7 @@ export function EventsPage() {
         filterValue: (e) => [e.source_ip ?? '', e.geo_country_code ?? ''].join(' ').trim(),
       },
     ],
-    [chips],
+    [chips, addChip],
   );
 
   return (
@@ -361,10 +361,14 @@ export function EventsPage() {
           </svg>
           <EventSearchInput
             value={search}
-            onChange={setSearch}
+            onChange={(val) => {
+              setSearch(val);
+              setCursors([]);
+              setPage(1);
+            }}
             onSubmit={(val) => {
               if (val.trim() && !chips.includes(val.trim())) {
-                setChips((prev) => [...prev, val.trim()]);
+                addChip(val.trim());
               }
               setSearch('');
             }}
