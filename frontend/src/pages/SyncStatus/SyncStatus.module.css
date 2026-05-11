@@ -1,0 +1,239 @@
+/* ------------------------------------------------------------------ */
+/*  SyncStatus page                                                    */
+/* ------------------------------------------------------------------ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Health summary banner */
+.healthBanner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.healthBanner svg {
+  flex-shrink: 0;
+}
+
+.bannerHealthy {
+  background: var(--color-success-subtle, #1a2e1a);
+  color: var(--color-success-fg, #3fb950);
+  border: 1px solid var(--color-success-muted, #238636);
+}
+
+.bannerDegraded {
+  background: var(--color-attention-subtle, #2e2a1a);
+  color: var(--color-attention-fg, #d29922);
+  border: 1px solid var(--color-attention-muted, #9e6a03);
+}
+
+.bannerUnhealthy {
+  background: var(--color-danger-subtle, #2e1a1a);
+  color: var(--color-danger-fg, #f85149);
+  border: 1px solid var(--color-danger-muted, #da3633);
+}
+
+.bannerUnknown {
+  background: var(--color-neutral-subtle, #1c1c1e);
+  color: var(--color-fg-muted, #8b949e);
+  border: 1px solid var(--color-border-default, #30363d);
+}
+
+.bannerText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.bannerTitle {
+  font-weight: 600;
+}
+
+.bannerDetail {
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+/* Sync type cards grid */
+.cardsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.syncCard {
+  position: relative;
+}
+
+.cardBody {
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.cardMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.cardMetaRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8125rem;
+  color: var(--color-fg-muted, #8b949e);
+}
+
+.cardMetaRow strong {
+  color: var(--color-fg-default, #e6edf3);
+  font-weight: 500;
+}
+
+.cardStatusRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.statusDot[data-status='healthy'] {
+  background: var(--color-success-fg, #3fb950);
+}
+
+.statusDot[data-status='degraded'] {
+  background: var(--color-attention-fg, #d29922);
+}
+
+.statusDot[data-status='unhealthy'] {
+  background: var(--color-danger-fg, #f85149);
+}
+
+.statusDot[data-status='unknown'] {
+  background: var(--color-fg-muted, #8b949e);
+}
+
+.statusText {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+/* Sparkline chart */
+.sparklineContainer {
+  height: 32px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.sparklineBar {
+  flex: 1;
+  min-width: 4px;
+  max-width: 12px;
+  border-radius: 2px 2px 0 0;
+  transition: opacity 0.15s ease;
+}
+
+.sparklineBar:hover {
+  opacity: 0.8;
+}
+
+.sparklineBarSuccess {
+  background: var(--color-success-fg, #3fb950);
+}
+
+.sparklineBarFailed {
+  background: var(--color-danger-fg, #f85149);
+}
+
+.sparklineBarRunning {
+  background: var(--color-attention-fg, #d29922);
+}
+
+.sparklineBarEmpty {
+  background: var(--color-border-default, #30363d);
+}
+
+/* Detail panel (expanded) */
+.detailPanel {
+  margin-top: 1.5rem;
+}
+
+.detailTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.detailTable th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  color: var(--color-fg-muted, #8b949e);
+  font-weight: 500;
+  border-bottom: 1px solid var(--color-border-default, #30363d);
+}
+
+.detailTable td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border-muted, #21262d);
+  color: var(--color-fg-default, #e6edf3);
+}
+
+.detailTable tbody tr:hover {
+  background: var(--color-canvas-subtle, #161b22);
+}
+
+/* Schedule section */
+.scheduleSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--color-fg-muted, #8b949e);
+}
+
+.scheduleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.scheduleRow strong {
+  color: var(--color-fg-default, #e6edf3);
+  font-weight: 500;
+}
+
+/* Loading & empty states */
+.loadingState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 3rem 1rem;
+  color: var(--color-fg-muted, #8b949e);
+}
+
+.emptyState {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--color-fg-muted, #8b949e);
+  font-size: 0.875rem;
+}
