@@ -114,6 +114,18 @@ app.config_from_object(
                 "schedule": crontab(minute="*/30"),
                 "options": {"queue": "baseline"},
             },
+            # S3 audit log polling — every 5 minutes
+            "poll-s3-sources": {
+                "task": "app.workers.ingestion.s3_worker.poll_s3_sources",
+                "schedule": 300.0,
+                "options": {"queue": "ingestion"},
+            },
+            # Azure Blob audit log polling — every 5 minutes
+            "poll-azure-sources": {
+                "task": "app.workers.ingestion.azure_worker.poll_azure_sources",
+                "schedule": 300.0,
+                "options": {"queue": "ingestion"},
+            },
         },
     }
 )
@@ -136,6 +148,8 @@ app.conf.include = [
     "app.workers.retention_worker",
     "app.workers.copilot_metrics_worker",
     "app.workers.ingestion.base",
+    "app.workers.ingestion.s3_worker",
+    "app.workers.ingestion.azure_worker",
     "app.workers.ingest_webhook_worker",
     "app.workers.siem_export_worker",
     "app.workers.ingestion_health",
