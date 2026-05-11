@@ -225,12 +225,12 @@ export function WorkflowsPage() {
               <table className={styles.findingsTable}>
                 <thead>
                   <tr>
-                    <th>Severity</th>
-                    <th>Title</th>
-                    <th>Repository</th>
-                    <th>Workflow</th>
-                    <th>Status</th>
-                    <th>Last Seen</th>
+                    <th scope="col">Severity</th>
+                    <th scope="col">Title</th>
+                    <th scope="col">Repository</th>
+                    <th scope="col">Workflow</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Last Seen</th>
                   </tr>
                 </thead>
                 <tbody>

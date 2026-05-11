@@ -285,12 +285,12 @@ function IngestJobHistory() {
       <table className={styles.historyTable} data-testid="ingest-history-table">
         <thead>
           <tr>
-            <th>File</th>
-            <th>Type</th>
-            <th>Size</th>
-            <th>Submitted</th>
-            <th>Records</th>
-            <th>Status</th>
+            <th scope="col">File</th>
+            <th scope="col">Type</th>
+            <th scope="col">Size</th>
+            <th scope="col">Submitted</th>
+            <th scope="col">Records</th>
+            <th scope="col">Status</th>
           </tr>
         </thead>
         <tbody>

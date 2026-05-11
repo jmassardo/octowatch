@@ -189,14 +189,14 @@ export function ScannerActivityTab() {
       <table className={styles.findingsTable}>
         <thead>
           <tr>
-            <th style={{ width: '36px' }}></th>
-            <th>Status</th>
-            <th>Workflow</th>
-            <th>Trigger</th>
-            <th>Findings</th>
-            <th>Data Sources</th>
-            <th>Duration</th>
-            <th>When</th>
+            <th scope="col" style={{ width: '36px' }}></th>
+            <th scope="col">Status</th>
+            <th scope="col">Workflow</th>
+            <th scope="col">Trigger</th>
+            <th scope="col">Findings</th>
+            <th scope="col">Data Sources</th>
+            <th scope="col">Duration</th>
+            <th scope="col">When</th>
           </tr>
         </thead>
         <tbody>

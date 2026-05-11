@@ -60,12 +60,12 @@ function RisksTab({
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Title</th>
-                  <th>Severity</th>
-                  <th>Status</th>
-                  <th>Repo</th>
-                  <th>Type</th>
-                  <th>Detected</th>
+                  <th scope="col">Title</th>
+                  <th scope="col">Severity</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Repo</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Detected</th>
                 </tr>
               </thead>
               <tbody>
@@ -98,8 +98,8 @@ function RisksTab({
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Repository</th>
-                  <th>Risks</th>
+                  <th scope="col">Repository</th>
+                  <th scope="col">Risks</th>
                 </tr>
               </thead>
               <tbody>
@@ -131,12 +131,12 @@ function RulesTab({ data }: { data: RulesListResponse | undefined }) {
       <table className={styles.table}>
         <thead>
           <tr>
-            <th>Rule</th>
-            <th>Severity</th>
-            <th>Confidence</th>
-            <th>Type</th>
-            <th>Detections</th>
-            <th>Status</th>
+            <th scope="col">Rule</th>
+            <th scope="col">Severity</th>
+            <th scope="col">Confidence</th>
+            <th scope="col">Type</th>
+            <th scope="col">Detections</th>
+            <th scope="col">Status</th>
           </tr>
         </thead>
         <tbody>

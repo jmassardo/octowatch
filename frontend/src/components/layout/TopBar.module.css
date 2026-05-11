@@ -9,7 +9,6 @@
   gap: 12px;
 }
 
-/* Hamburger menu button — hidden on desktop, visible on tablet/mobile */
 .hamburger {
   display: none;
   align-items: center;
@@ -24,7 +23,8 @@
   transition: border-color 0.15s;
 }
 
-.hamburger:hover {
+.hamburger:hover,
+.hamburger:focus-visible {
   border-color: var(--fg-muted);
   color: var(--fg);
 }
@@ -35,13 +35,9 @@
   }
 }
 
-/* ---- Org dropdown ---- */
-
 .orgDropdownWrap {
   position: relative;
 }
-
-/* ---- Org single label (1 org) ---- */
 
 .orgSingleLabel {
   font-size: 13px;
@@ -50,8 +46,6 @@
   padding: 0 4px;
   white-space: nowrap;
 }
-
-/* ---- Org segmented pill tabs (multiple orgs) ---- */
 
 .orgTabs {
   display: flex;
@@ -85,7 +79,8 @@
     color 0.15s;
 }
 
-.orgTab:hover {
+.orgTab:hover,
+.orgTab:focus-visible {
   color: var(--fg);
   background: var(--canvas-subtle);
 }
@@ -94,33 +89,6 @@
   color: var(--fg);
   background: var(--canvas-subtle);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-/* ---- Add org button ---- */
-
-.addOrgBtn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
-  font-family: inherit;
-  font-weight: 500;
-  color: var(--fg-muted);
-  background: transparent;
-  border: 1px dashed var(--border);
-  border-radius: 6px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    border-color 0.15s,
-    color 0.15s;
-}
-
-.addOrgBtn:hover {
-  border-color: var(--fg-muted);
-  color: var(--fg);
 }
 
 .orgDropdownTrigger {
@@ -139,7 +107,8 @@
   transition: border-color 0.15s;
 }
 
-.orgDropdownTrigger:hover {
+.orgDropdownTrigger:hover,
+.orgDropdownTrigger:focus-visible {
   border-color: var(--fg-muted);
 }
 
@@ -211,7 +180,8 @@
     color 0.1s;
 }
 
-.orgDropdownItem:hover {
+.orgDropdownItem:hover,
+.orgDropdownItem:focus-visible {
   background: var(--canvas-subtle);
   color: var(--fg);
 }
@@ -255,7 +225,8 @@
   transition: border-color 0.15s;
 }
 
-.themeToggle:hover {
+.themeToggle:hover,
+.themeToggle:focus-visible {
   border-color: var(--fg-muted);
 }
 
@@ -336,7 +307,8 @@
     color 0.1s;
 }
 
-.menuItem:hover {
+.menuItem:hover,
+.menuItem:focus-visible {
   background: var(--canvas-subtle);
   color: var(--fg);
 }
@@ -408,6 +380,40 @@
 
   .menuRole {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topbar,
+  .hamburger,
+  .orgDropdownWrap,
+  .orgSingleLabel,
+  .orgTabs,
+  .orgTab,
+  .orgTabActive,
+  .orgDropdownTrigger,
+  .orgDropdownLabel,
+  .orgDropdownChevron,
+  .orgDropdownPanel,
+  .orgDropdownFilter,
+  .orgDropdownList,
+  .orgDropdownItem,
+  .orgDropdownItemSelected,
+  .orgDropdownCheck,
+  .orgDropdownEmpty,
+  .right,
+  .themeToggle,
+  .avatarWrap,
+  .avatarBtn,
+  .menuBackdrop,
+  .menu,
+  .menuHeader,
+  .menuLogin,
+  .menuRole,
+  .menuDivider,
+  .menuItem {
+    animation: none !important;
+    transition: none !important;
   }
 }
 

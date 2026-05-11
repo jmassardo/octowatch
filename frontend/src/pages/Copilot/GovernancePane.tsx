@@ -163,13 +163,13 @@ export function GovernancePane() {
           <table className={styles.govTable}>
             <thead>
               <tr>
-                <th>Policy</th>
-                <th>Severity</th>
-                <th>Actor</th>
-                <th>Org</th>
-                <th>Description</th>
-                <th>Status</th>
-                <th>Detected</th>
+                <th scope="col">Policy</th>
+                <th scope="col">Severity</th>
+                <th scope="col">Actor</th>
+                <th scope="col">Org</th>
+                <th scope="col">Description</th>
+                <th scope="col">Status</th>
+                <th scope="col">Detected</th>
               </tr>
             </thead>
             <tbody>

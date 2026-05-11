@@ -82,10 +82,10 @@ function ActivityTab({ login }: { login: string }) {
       <table className={styles.table}>
         <thead>
           <tr>
-            <th>Time</th>
-            <th>Action</th>
-            <th>Repository</th>
-            <th>Source IP</th>
+            <th scope="col">Time</th>
+            <th scope="col">Action</th>
+            <th scope="col">Repository</th>
+            <th scope="col">Source IP</th>
           </tr>
         </thead>
         <tbody>
@@ -129,10 +129,10 @@ function DetectionsTab({ login }: { login: string }) {
       <table className={styles.table}>
         <thead>
           <tr>
-            <th>Triggered</th>
-            <th>Title</th>
-            <th>Severity</th>
-            <th>Status</th>
+            <th scope="col">Triggered</th>
+            <th scope="col">Title</th>
+            <th scope="col">Severity</th>
+            <th scope="col">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -192,10 +192,10 @@ function GeoTab({ login }: { login: string }) {
       <table className={styles.table}>
         <thead>
           <tr>
-            <th>City</th>
-            <th>Country</th>
-            <th>Events</th>
-            <th>Last Seen</th>
+            <th scope="col">City</th>
+            <th scope="col">Country</th>
+            <th scope="col">Events</th>
+            <th scope="col">Last Seen</th>
           </tr>
         </thead>
         <tbody>

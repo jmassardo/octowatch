@@ -7,6 +7,7 @@ import { OrgProvider } from './context/OrgContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './components/common/ToastProvider';
 import '@/styles/global.css';
+import '@/styles/accessibility.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -216,7 +216,7 @@ export function DataTable<T>({
           {hasFilters && (
             <tr className={styles.filterRow} data-testid="filter-row">
               {columns.map((col) => (
-                <th key={`filter-${col.key}`}>
+                <th scope="col" key={`filter-${col.key}`}>
                   {col.filterable ? (
                     <input
                       className={styles.filterInput}

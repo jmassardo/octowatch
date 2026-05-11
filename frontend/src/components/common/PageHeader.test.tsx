@@ -29,7 +29,12 @@ vi.mock('../../hooks/useHelp', async () => {
 describe('PageHeader', () => {
   it('renders title', () => {
     render(<PageHeader title="Dashboard" />);
-    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeInTheDocument();
+  });
+
+  it('renders a custom heading level when provided', () => {
+    render(<PageHeader title="Section" headingLevel={2} />);
+    expect(screen.getByRole('heading', { name: 'Section', level: 2 })).toBeInTheDocument();
   });
 
   it('renders description when provided', () => {
@@ -52,6 +57,7 @@ describe('PageHeader', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
     expect(action).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('group', { name: /test actions/i })).toBeInTheDocument();
   });
 
   it('renders breadcrumbs', () => {

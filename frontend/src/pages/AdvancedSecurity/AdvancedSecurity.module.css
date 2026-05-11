@@ -270,3 +270,44 @@
   display: block;
   margin: 0 auto;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .splitLayout,
+  .splitMain,
+  .pageHeader,
+  .pageTitle,
+  .pageSub,
+  .tabs,
+  .tab,
+  .tabActive,
+  .tabBadge,
+  .cardGrid,
+  .trendSection,
+  .trendHeader,
+  .trendTitle,
+  .periodToggle,
+  .periodBtn,
+  .periodBtnActive,
+  .trendChart,
+  .trendLegend,
+  .legendDot,
+  .severitySection,
+  .severityTitle,
+  .severityGrid,
+  .severityItem,
+  .severityCount,
+  .tableSection,
+  .drawerField,
+  .drawerLabel,
+  .drawerValue,
+  .drawerMono,
+  .filters,
+  .filterSelect,
+  .emptyState,
+  .center,
+  .cardWithSparkline,
+  .miniSparkline {
+    animation: none !important;
+    transition: none !important;
+  }
+}
