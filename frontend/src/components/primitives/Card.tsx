@@ -32,13 +32,16 @@ export function Card({ children, className, style, onClick, ...props }: CardProp
 interface CardHeaderProps {
   children: React.ReactNode;
   actions?: React.ReactNode;
+  headingLevel?: 2 | 3 | 4 | 5 | 6;
 }
 
-export function CardHeader({ children, actions }: CardHeaderProps) {
+export function CardHeader({ children, actions, headingLevel = 2 }: CardHeaderProps) {
+  const Heading = `h${headingLevel}` as const;
+
   return (
     <div className={styles.header}>
-      <span>{children}</span>
-      {actions && <span className={styles.headerActions}>{actions}</span>}
+      <Heading className={styles.headerTitle}>{children}</Heading>
+      {actions && <div className={styles.headerActions}>{actions}</div>}
     </div>
   );
 }

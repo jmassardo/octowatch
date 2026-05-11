@@ -167,3 +167,27 @@
 .tooltipBottom {
   /* These are placeholders for placement-specific styles if needed */
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .svgOverlay,
+  .spotlight,
+  .tooltip,
+  .tooltipHeader,
+  .tooltipStep,
+  .tooltipClose,
+  .tooltipTitle,
+  .tooltipDescription,
+  .tooltipFooter,
+  .tooltipBtnPrimary,
+  .tooltipBtnSecondary,
+  .tooltipDots,
+  .dot,
+  .dotActive,
+  .tooltipRight,
+  .tooltipLeft,
+  .tooltipBottom {
+    animation: none !important;
+    transition: none !important;
+  }
+}

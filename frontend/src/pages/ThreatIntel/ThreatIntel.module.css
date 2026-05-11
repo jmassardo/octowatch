@@ -482,3 +482,54 @@
 .chartFull {
   grid-column: 1 / -1;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .tabStrip,
+  .tab,
+  .metricsRow,
+  .dataTable,
+  .tableWrap,
+  .toolbar,
+  .searchInput,
+  .filterSelect,
+  .statusBadge,
+  .statusActive,
+  .statusPaused,
+  .statusError,
+  .statusRefreshing,
+  .typeBadge,
+  .severityCritical,
+  .severityHigh,
+  .severityMedium,
+  .severityLow,
+  .btnPrimary,
+  .btnSmall,
+  .btnDanger,
+  .modalOverlay,
+  .modal,
+  .modalTitle,
+  .formGroup,
+  .formLabel,
+  .formInput,
+  .formSelect,
+  .formTextarea,
+  .modalActions,
+  .centered,
+  .emptyState,
+  .chartsGrid,
+  .chartCard,
+  .chartTitle,
+  .actionsCell,
+  .truncate,
+  .confidenceBar,
+  .confidenceFill,
+  .matchLink,
+  .errorTooltip,
+  .toggle,
+  .bulkImportArea,
+  .chartFull {
+    animation: none !important;
+    transition: none !important;
+  }
+}

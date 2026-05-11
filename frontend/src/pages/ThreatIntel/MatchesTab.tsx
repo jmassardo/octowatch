@@ -68,12 +68,12 @@ export function MatchesTab() {
             <table className={styles.dataTable}>
               <thead>
                 <tr>
-                  <th>Detection</th>
-                  <th>Matched Indicator</th>
-                  <th>Actor</th>
-                  <th>Severity</th>
-                  <th>Status</th>
-                  <th>Timestamp</th>
+                  <th scope="col">Detection</th>
+                  <th scope="col">Matched Indicator</th>
+                  <th scope="col">Actor</th>
+                  <th scope="col">Severity</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Timestamp</th>
                 </tr>
               </thead>
               <tbody>

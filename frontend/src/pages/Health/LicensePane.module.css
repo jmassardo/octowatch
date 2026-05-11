@@ -167,3 +167,29 @@
   background: var(--border);
   margin: 24px 0 8px;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .pane,
+  .grid2,
+  .sectionTitle,
+  .sectionSub,
+  .tableWrap,
+  .gaugeTrack,
+  .gaugeBar,
+  .cardTitle,
+  .cardValue,
+  .cardSub,
+  .mention,
+  .crossRefNote,
+  .numCol,
+  .grid3,
+  .metricStrip,
+  .sourceNote,
+  .sourceCode,
+  .copilotCrossRef,
+  .sectionHeader,
+  .sectionDivider {
+    animation: none !important;
+    transition: none !important;
+  }
+}

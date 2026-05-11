@@ -183,12 +183,12 @@ function AuditTrailTable() {
       <table className={styles.table}>
         <thead>
           <tr>
-            <th>Setting</th>
-            <th>Action</th>
-            <th>Changed by</th>
-            <th>Old value</th>
-            <th>New value</th>
-            <th>Date</th>
+            <th scope="col">Setting</th>
+            <th scope="col">Action</th>
+            <th scope="col">Changed by</th>
+            <th scope="col">Old value</th>
+            <th scope="col">New value</th>
+            <th scope="col">Date</th>
           </tr>
         </thead>
         <tbody>
@@ -1696,12 +1696,12 @@ function RetentionPane() {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Table</th>
-              <th>Time Column</th>
-              <th>Retention (days)</th>
-              <th>Default</th>
-              <th>Rows</th>
-              <th>Size</th>
+              <th scope="col">Table</th>
+              <th scope="col">Time Column</th>
+              <th scope="col">Retention (days)</th>
+              <th scope="col">Default</th>
+              <th scope="col">Rows</th>
+              <th scope="col">Size</th>
             </tr>
           </thead>
           <tbody>
@@ -2010,12 +2010,12 @@ export function SettingsPage() {
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>Key</th>
-                    <th>Value</th>
-                    <th>Sensitivity</th>
-                    <th>Description</th>
-                    <th>Updated</th>
-                    <th></th>
+                    <th scope="col">Key</th>
+                    <th scope="col">Value</th>
+                    <th scope="col">Sensitivity</th>
+                    <th scope="col">Description</th>
+                    <th scope="col">Updated</th>
+                    <th scope="col"></th>
                   </tr>
                 </thead>
                 <tbody>

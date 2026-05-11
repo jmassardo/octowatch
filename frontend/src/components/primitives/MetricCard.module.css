@@ -78,3 +78,20 @@
 .neutral {
   color: var(--fg-muted);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .metric,
+  .accented,
+  .clickable,
+  .arrow,
+  .helpIcon,
+  .val,
+  .lbl,
+  .delta,
+  .up,
+  .down,
+  .neutral {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -358,3 +358,57 @@
   margin-top: 8px;
   font-family: inherit;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .tabs,
+  .tab,
+  .tabActive,
+  .templateGrid,
+  .templateCard,
+  .templateName,
+  .templateDesc,
+  .templateMeta,
+  .templateActions,
+  .progressBar,
+  .progressFill,
+  .progressText,
+  .runner,
+  .runnerMain,
+  .runnerSide,
+  .stepCard,
+  .stepCardActive,
+  .stepCardCompleted,
+  .stepTitle,
+  .stepDesc,
+  .stepActions,
+  .stepCheck,
+  .skipInput,
+  .stepBadge,
+  .stepBadgeActive,
+  .stepBadgeCompleted,
+  .stepBadgeSkipped,
+  .sideSection,
+  .sideLabel,
+  .sideValue,
+  .editorForm,
+  .formGroup,
+  .formLabel,
+  .formInput,
+  .formTextarea,
+  .formSelect,
+  .stepList,
+  .stepItem,
+  .stepItemHeader,
+  .stepNumber,
+  .stepItemActions,
+  .moveBtn,
+  .removeBtn,
+  .statusDot,
+  .statusOpen,
+  .statusCompleted,
+  .notesInput {
+    animation: none !important;
+    transition: none !important;
+  }
+}

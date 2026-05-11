@@ -214,3 +214,33 @@
   color: var(--fg);
   border-bottom-color: var(--accent);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .pageHeader,
+  .pageTitle,
+  .pageSub,
+  .sectionTitle,
+  .tableWrap,
+  .table,
+  .teamName,
+  .mention,
+  .muted,
+  .empty,
+  .addForm,
+  .formRow,
+  .formLabel,
+  .formInput,
+  .formSelect,
+  .formActions,
+  .clickableSession,
+  .clickableMention,
+  .sessionDetail,
+  .sessionNote,
+  .tabBar,
+  .tab,
+  .tabActive {
+    animation: none !important;
+    transition: none !important;
+  }
+}

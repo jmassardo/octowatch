@@ -5,7 +5,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Sidebar } from './Sidebar';
 
-// Mock API calls used by Sidebar
 vi.mock('../../api/detections', () => ({
   listDetections: vi.fn().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 1 }),
 }));
@@ -46,10 +45,13 @@ function createQueryClient() {
   });
 }
 
-function renderSidebar(props: { mobileOpen?: boolean; onMobileClose?: () => void } = {}) {
+function renderSidebar(
+  props: { mobileOpen?: boolean; onMobileClose?: () => void } = {},
+  initialEntries = ['/'],
+) {
   return render(
     <QueryClientProvider client={createQueryClient()}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={initialEntries}>
         <Sidebar {...props} />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -62,13 +64,17 @@ describe('Sidebar', () => {
     expect(screen.getByRole('navigation', { name: /main navigation/i })).toBeInTheDocument();
   });
 
+  it('marks the active item with aria-current', () => {
+    renderSidebar({}, ['/dashboard']);
+    expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute('aria-current', 'page');
+  });
+
   it('renders nav links for all sections', () => {
     renderSidebar();
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Threat Detections')).toBeInTheDocument();
     expect(screen.getByText('Events Explorer')).toBeInTheDocument();
     expect(screen.getByText('Query Explorer')).toBeInTheDocument();
-    // "Settings" appears both as section label and nav item
     expect(screen.getAllByText('Settings').length).toBeGreaterThanOrEqual(1);
   });
 

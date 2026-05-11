@@ -40,7 +40,9 @@ const MANY_ORGS_USER = {
   scoped_orgs: ['org-1', 'org-2', 'org-3', 'org-4', 'org-5', 'org-6', 'org-7'],
 } as const;
 
-function renderTopBar() {
+function renderTopBar(
+  props: { onShowTour?: () => void; onToggleSidebar?: () => void; sidebarOpen?: boolean } = {},
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -48,7 +50,7 @@ function renderTopBar() {
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <TopBar />
+        <TopBar {...props} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -80,7 +82,13 @@ describe('TopBar', () => {
     expect(screen.getByRole('banner')).toBeInTheDocument();
   });
 
-  // ----- Org tabs (multiple orgs, ≤6) -----
+  it('renders a mobile navigation toggle with state when provided', () => {
+    renderTopBar({ onToggleSidebar: vi.fn(), sidebarOpen: true });
+    expect(screen.getByRole('button', { name: /close navigation menu/i })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+  });
 
   it('renders dropdown for multiple orgs with all options', async () => {
     const user = userEvent.setup();
@@ -92,7 +100,6 @@ describe('TopBar', () => {
 
     await user.click(trigger);
     const options = screen.getAllByRole('option');
-    // "All organizations" + 2 org options
     expect(options).toHaveLength(3);
     expect(options[0]).toHaveTextContent('All organizations');
     expect(options[1]).toHaveTextContent('my-org');
@@ -139,8 +146,6 @@ describe('TopBar', () => {
     expect(setSelectedOrg).toHaveBeenCalledWith('');
   });
 
-  // ----- Single org label -----
-
   it('renders single org as dropdown (not tabs)', () => {
     mockUseCurrentUser.mockReturnValue({
       data: SINGLE_ORG_USER,
@@ -152,8 +157,6 @@ describe('TopBar', () => {
     expect(screen.getByLabelText('Select organization')).toBeInTheDocument();
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
   });
-
-  // ----- No orgs label -----
 
   it('shows "No organizations" label when user has no scoped_orgs', () => {
     mockUseCurrentUser.mockReturnValue({
@@ -176,8 +179,6 @@ describe('TopBar', () => {
     renderTopBar();
     expect(screen.getByTestId('org-label')).toHaveTextContent('No organizations');
   });
-
-  // ----- Dropdown for many orgs (>6) -----
 
   it('renders dropdown for >6 orgs', async () => {
     mockUseCurrentUser.mockReturnValue({
@@ -214,6 +215,16 @@ describe('TopBar', () => {
     expect(screen.queryByRole('option', { name: 'org-3' })).not.toBeInTheDocument();
   });
 
+  it('announces when no organizations match the filter', async () => {
+    const user = userEvent.setup();
+    renderTopBar();
+
+    await user.click(screen.getByLabelText('Select organization'));
+    await user.type(screen.getByLabelText('Filter organizations'), 'missing-org');
+
+    expect(screen.getByRole('status')).toHaveTextContent(/no organizations match your filter/i);
+  });
+
   it('selects org from dropdown and closes it', async () => {
     mockUseCurrentUser.mockReturnValue({
       data: MANY_ORGS_USER,
@@ -248,8 +259,6 @@ describe('TopBar', () => {
     expect(screen.queryByLabelText('Filter organizations')).not.toBeInTheDocument();
   });
 
-  // ----- Add org button -----
-
   it('renders the org dropdown trigger with proper aria attributes', () => {
     renderTopBar();
     const trigger = screen.getByLabelText('Select organization');
@@ -258,14 +267,10 @@ describe('TopBar', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
   });
 
-  // ----- "New report" button -----
-
-  it('renders the "New report" button', () => {
+  it('renders the new report button with an accessible name', () => {
     renderTopBar();
-    expect(screen.getByText('New report')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /create new report/i })).toBeInTheDocument();
   });
-
-  // ----- Theme toggle -----
 
   it('renders the theme toggle button with system label by default', () => {
     renderTopBar();
@@ -292,11 +297,13 @@ describe('TopBar', () => {
     expect(screen.getByLabelText(/Theme: Dark/)).toBeInTheDocument();
   });
 
-  // ----- User avatar & menu -----
-
   it('renders user avatar button when user is loaded', () => {
     renderTopBar();
     expect(screen.getByLabelText('User menu')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'User menu' })).toHaveAttribute(
+      'aria-haspopup',
+      'menu',
+    );
   });
 
   it('does not render user avatar when user data is unavailable', () => {
@@ -316,6 +323,7 @@ describe('TopBar', () => {
 
     await user.click(screen.getByLabelText('User menu'));
 
+    expect(screen.getByRole('menu', { name: /user actions/i })).toBeInTheDocument();
     expect(screen.getByText('@jane-doe')).toBeInTheDocument();
     expect(screen.getByText('admin')).toBeInTheDocument();
     expect(screen.getByText('Sign out')).toBeInTheDocument();

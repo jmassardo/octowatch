@@ -88,3 +88,15 @@
     border-left: none;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .panel,
+  .header,
+  .title,
+  .close,
+  .body {
+    animation: none !important;
+    transition: none !important;
+  }
+}

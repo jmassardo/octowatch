@@ -1077,11 +1077,11 @@ export function VelocityPage() {
                         <table>
                           <thead>
                             <tr>
-                              <th>Repository</th>
-                              <th>Workflow</th>
-                              <th>Status</th>
-                              <th>Time</th>
-                              <th></th>
+                              <th scope="col">Repository</th>
+                              <th scope="col">Workflow</th>
+                              <th scope="col">Status</th>
+                              <th scope="col">Time</th>
+                              <th scope="col"></th>
                             </tr>
                           </thead>
                           <tbody>

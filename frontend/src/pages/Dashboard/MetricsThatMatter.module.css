@@ -215,5 +215,32 @@
 
   .metricCard {
     flex-wrap: wrap;
+@media (prefers-reduced-motion: reduce) {
+  .section,
+  .sectionHeader,
+  .sectionTitle,
+  .sectionSubtitle,
+  .grid,
+  .columnCard,
+  .column,
+  .columnHeader,
+  .columnIcon,
+  .columnTitle,
+  .metricCard,
+  .metricLabel,
+  .metricValue,
+  .metricSmall,
+  .metricDanger,
+  .metricSuccess,
+  .helpIcon,
+  .chartWrapper,
+  .chartLabel,
+  .emptyChart,
+  .skeletonTitle,
+  .skeletonLabel,
+  .skeletonValue,
+  .skeletonChart {
+    animation: none !important;
+    transition: none !important;
   }
 }

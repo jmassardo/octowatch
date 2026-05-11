@@ -97,10 +97,10 @@ function RunHistoryModal({ workflow, lookbackDays, onClose }: RunHistoryModalPro
             <table className={styles.findingsTable}>
               <thead>
                 <tr>
-                  <th>Run ID</th>
-                  <th>Started</th>
-                  <th>Conclusion</th>
-                  <th>Duration</th>
+                  <th scope="col">Run ID</th>
+                  <th scope="col">Started</th>
+                  <th scope="col">Conclusion</th>
+                  <th scope="col">Duration</th>
                 </tr>
               </thead>
               <tbody>

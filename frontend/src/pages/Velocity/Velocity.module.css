@@ -533,5 +533,53 @@
   .workflowCallout {
     flex-direction: column;
     align-items: flex-start;
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .tabBar,
+  .tab,
+  .tabActive,
+  .titleRow,
+  .pageTitle,
+  .doraGroup,
+  .doraLabel,
+  .doraBadge,
+  .pageSub,
+  .contextCard,
+  .metricStrip,
+  .defsPanel,
+  .defsSummary,
+  .defsGrid,
+  .defItem,
+  .defLabel,
+  .defText,
+  .chartsGrid,
+  .chartWrap,
+  .chartTitle,
+  .chartSub,
+  .sectionTitle,
+  .tableWrap,
+  .clickableRow,
+  .doraBadgeClickable,
+  .doraTable,
+  .modalMetrics,
+  .workflowName,
+  .modalMetric,
+  .modalMetricClickable,
+  .modalMetricActive,
+  .modalMetricVal,
+  .modalMetricLbl,
+  .drillTable,
+  .chartSkeleton,
+  .doraTierElite,
+  .doraTierHigh,
+  .doraTierMedium,
+  .doraTierLow,
+  .workflowCallout,
+  .calloutIcon,
+  .calloutContent,
+  .calloutTitle,
+  .calloutDesc {
+    animation: none !important;
+    transition: none !important;
   }
 }

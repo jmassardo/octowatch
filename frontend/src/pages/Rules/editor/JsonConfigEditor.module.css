@@ -147,3 +147,23 @@
   background: var(--danger-subtle, rgba(218, 54, 51, 0.1));
   border-radius: 3px;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .container,
+  .editorWrap,
+  .gutter,
+  .textarea,
+  .toolbar,
+  .toolbarActions,
+  .toolBtn,
+  .status,
+  .statusDot,
+  .valid,
+  .invalid,
+  .errorDetail,
+  .validationErrors,
+  .validationError {
+    animation: none !important;
+    transition: none !important;
+  }
+}
