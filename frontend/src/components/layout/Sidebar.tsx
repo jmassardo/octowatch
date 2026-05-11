@@ -59,6 +59,10 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const { hasPermission, isLoading: permissionsLoading } = usePermissions();
   const isMobileOverlay = mobileOpen !== undefined;
 
+  const handleNavClick = () => {
+    if (isMobileOverlay) onMobileClose?.();
+  };
+
   const { data: detections } = useQuery({
     queryKey: ['threats', 'open-count'],
     queryFn: () => listDetections({ status: 'open', page_size: 1 }),

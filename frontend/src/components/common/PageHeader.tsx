@@ -26,6 +26,8 @@ interface PageHeaderProps {
   breadcrumbs?: Breadcrumb[];
   /** Show contextual help for the current page. */
   showHelp?: boolean;
+  /** Heading level (1-6). Defaults to 1. */
+  headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
 }
 
 function PageHeaderHelp() {
@@ -60,8 +62,10 @@ export function PageHeader({
   actions,
   breadcrumbs,
   showHelp,
+  headingLevel = 1,
 }: PageHeaderProps) {
   const hasRightContent = showHelp || (actions && actions.length > 0);
+  const Heading = `h${headingLevel}` as const;
 
   return (
     <div className={styles.header}>
@@ -76,14 +80,14 @@ export function PageHeader({
             ))}
           </nav>
         )}
-        <h1 className={styles.title}>{title}</h1>
+        <Heading className={styles.title}>{title}</Heading>
         {description && <p className={styles.description}>{description}</p>}
       </div>
       {hasRightContent && (
         <div className={styles.right}>
           {showHelp && <PageHeaderHelp />}
           {actions && actions.length > 0 && (
-            <div className={styles.actions}>
+            <div className={styles.actions} role="group" aria-label={`${title} actions`}>
               {actions.map((action) => (
                 <Button
                   key={action.label}
