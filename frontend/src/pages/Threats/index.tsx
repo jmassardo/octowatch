@@ -12,6 +12,7 @@ import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Pagination } from '../../components/primitives/Pagination';
 import { Autocomplete } from '../../components/primitives/Autocomplete';
 import { PageHeader } from '../../components/common/PageHeader';
+import { InfoTooltip } from '../../components/common/InfoTooltip';
 import { EmptyState } from '../../components/common/EmptyState';
 import { DetectionDetailPane } from './DetectionDetailPane';
 import { ChainsPane } from './ChainsPane';
@@ -238,6 +239,7 @@ export function ThreatsPage() {
         <PageHeader
           title="Threat Detections"
           description="Rule-based and ML-powered detections from audit log analysis"
+          showHelp
         />
         <div className={styles.filterBar}>
           {/* Row 1: dropdowns */}
@@ -258,11 +260,8 @@ export function ThreatsPage() {
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
               </select>
-              <span
-                title="Detection severity as defined by the triggering rule. Critical = immediate response needed."
-                style={{ cursor: 'help', opacity: 0.5, fontSize: '0.8em', marginLeft: 4 }}
-              >
-                ⓘ
+              <span style={{ marginLeft: 4 }}>
+                <InfoTooltip content="**Severity** is defined by the triggering rule. Critical findings usually need immediate response." />
               </span>
             </label>
 

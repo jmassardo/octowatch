@@ -353,6 +353,7 @@ export function EventsPage() {
         <PageHeader
           title="Events Explorer"
           description="Search and explore raw audit log events across all organizations"
+          showHelp
         />
 
         <div className={styles.searchBar}>

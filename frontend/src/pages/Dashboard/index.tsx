@@ -509,6 +509,7 @@ export function DashboardPage() {
             ? `Last synced: ${formatRelative(systemHealthQuery.data.last_event_at)}`
             : 'Activity across your organizations'
         }
+        showHelp
       />
 
       <div className={styles.viewToggle}>
