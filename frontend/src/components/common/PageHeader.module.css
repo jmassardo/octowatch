@@ -52,3 +52,19 @@
   gap: 8px;
   flex-shrink: 0;
 }
+
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .breadcrumbs {
+    display: none;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+}

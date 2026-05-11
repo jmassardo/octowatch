@@ -565,3 +565,82 @@
   color: var(--fg-muted);
   margin-top: 2px;
 }
+
+@media (max-width: 1024px) {
+  .splitMain {
+    padding: 20px;
+    overflow: auto;
+  }
+
+  .pageHeader,
+  .headerActions,
+  .filters,
+  .metricsControlGroup {
+    flex-wrap: wrap;
+  }
+
+  .tabs {
+    overflow-x: auto;
+  }
+
+  .findingsTable {
+    min-width: 760px;
+  }
+
+  .scoreGrid,
+  .modalMetrics,
+  .activitySummary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .modalPanel {
+    width: min(100vw, 720px);
+    max-height: 90dvh;
+  }
+}
+
+@media (max-width: 768px) {
+  .splitLayout {
+    flex-direction: column;
+  }
+
+  .splitMain {
+    padding: 16px;
+  }
+
+  .pageHeader,
+  .filters,
+  .panelKv,
+  .workflowCallout {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filterSelect,
+  .panelLabel {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .scoreGrid,
+  .modalMetrics,
+  .activitySummary {
+    grid-template-columns: 1fr;
+  }
+
+  .modalOverlay {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .modalPanel {
+    width: 100vw;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .modalHeader,
+  .modalBody {
+    padding-inline: 16px;
+  }
+}

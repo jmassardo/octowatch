@@ -130,3 +130,20 @@
     opacity: 1;
   }
 }
+
+@media (max-width: 1024px) {
+  .sidebar {
+    width: min(320px, 84vw);
+    min-width: 0;
+    overscroll-behavior: contain;
+  }
+}
+
+@media (max-width: 768px) {
+  .logo {
+    position: sticky;
+    top: 0;
+    background: var(--canvas-subtle);
+    z-index: 1;
+  }
+}

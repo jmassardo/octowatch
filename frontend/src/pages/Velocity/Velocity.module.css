@@ -481,3 +481,57 @@
 .calloutDesc a:hover {
   text-decoration: underline;
 }
+
+@media (max-width: 1024px) {
+  .page {
+    padding: 20px;
+  }
+
+  .metricStrip,
+  .defsGrid,
+  .chartsGrid,
+  .modalMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tabBar {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .tab {
+    flex: 0 0 auto;
+  }
+
+  .tableWrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tableWrap table,
+  .doraTable,
+  .drillTable table {
+    min-width: 720px;
+  }
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 16px;
+  }
+
+  .metricStrip,
+  .defsGrid,
+  .chartsGrid,
+  .modalMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .titleRow,
+  .doraGroup,
+  .contextCard,
+  .workflowCallout {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

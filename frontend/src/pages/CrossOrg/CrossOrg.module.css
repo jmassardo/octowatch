@@ -416,3 +416,61 @@
   color: var(--fg-muted);
   font-size: 10px;
 }
+
+@media (max-width: 1024px) {
+  .splitMain {
+    padding: 20px;
+  }
+
+  .pageHeader,
+  .headerActions,
+  .filters,
+  .controlBar,
+  .controlRight,
+  .controlLeft,
+  .scoreMeta,
+  .panelMeta {
+    flex-wrap: wrap;
+  }
+
+  .tabs {
+    overflow-x: auto;
+  }
+
+  .splitPanel,
+  .splitPanelOpen {
+    width: 100%;
+  }
+
+  .scoreGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .splitLayout {
+    flex-direction: column;
+  }
+
+  .splitMain {
+    padding: 16px;
+  }
+
+  .filters,
+  .controlBar,
+  .pageHeader,
+  .panelKv {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filterSelect,
+  .panelLabel {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .scoreGrid {
+    grid-template-columns: 1fr;
+  }
+}

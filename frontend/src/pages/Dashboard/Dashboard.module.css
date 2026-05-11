@@ -486,3 +486,81 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+@media (max-width: 1024px) {
+  .page {
+    padding: 20px;
+  }
+
+  .pills {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .pill {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .viewToggle {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .viewBtn {
+    flex: 1 1 calc(50% - 1px);
+    min-width: 140px;
+  }
+
+  .cardGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gaugeGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .tableWrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tableWrap table,
+  .modalTable,
+  .dataTable {
+    min-width: 720px;
+  }
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 16px;
+  }
+
+  .pills,
+  .cardGrid,
+  .gaugeGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .pill {
+    justify-content: space-between;
+  }
+
+  .viewBtn {
+    flex-basis: 100%;
+  }
+
+  .legend,
+  .stackedLegend {
+    flex-wrap: wrap;
+  }
+
+  .alertRow,
+  .ingestionBanner,
+  .systemHealthBar {
+    align-items: flex-start;
+  }
+}

@@ -55,3 +55,25 @@
     display: contents;
   }
 }
+
+@media (max-width: 1024px) {
+  .layout {
+    width: 100%;
+  }
+
+  .main,
+  .content {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .layout {
+    min-height: 100dvh;
+  }
+
+  .content {
+    overflow-x: hidden;
+  }
+}

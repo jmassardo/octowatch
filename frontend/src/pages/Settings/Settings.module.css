@@ -746,3 +746,68 @@
   gap: 8px;
   padding-top: 1rem;
 }
+
+@media (max-width: 1024px) {
+  .page {
+    padding: 20px;
+  }
+
+  .tableWrap,
+  .versionTableWrap {
+    overflow-x: auto;
+  }
+
+  .table,
+  .versionTable {
+    min-width: 720px;
+  }
+
+  .featureRow,
+  .categoryFormRow,
+  .configToggleRow,
+  .backtestControls,
+  .analyticsTimeRange,
+  .bulkBar {
+    flex-wrap: wrap;
+  }
+
+  .formActions,
+  .configActions,
+  .categoryFormActions {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 16px;
+  }
+
+  .featureRow,
+  .categoryFormRow,
+  .configRow,
+  .configToggleRow,
+  .wizardSummaryRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .configLabel,
+  .categoryFormControl,
+  .configValue {
+    width: 100%;
+  }
+
+  .categoryFormInput,
+  .categoryFormSelect {
+    width: 100%;
+  }
+
+  .formActions,
+  .configActions,
+  .categoryFormActions,
+  .wizardNav {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+}
