@@ -1972,6 +1972,7 @@ export function SettingsPage() {
       <PageHeader
         title="Settings"
         description="Manage application settings and view the audit trail"
+        showHelp
       />
 
       {/* Tab bar */}

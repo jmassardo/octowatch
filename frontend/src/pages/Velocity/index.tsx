@@ -495,6 +495,7 @@ export function VelocityPage() {
       <PageHeader
         title="Engineering Velocity"
         description="Track CI/CD throughput and development flow metrics"
+        showHelp
       />
 
       {/* Tab bar */}

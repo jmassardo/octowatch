@@ -121,6 +121,8 @@ function AppShellInner() {
           onShowTour={handleReplayTour}
           onToggleSidebar={() => setSidebarOpen((o) => !o)}
           sidebarOpen={sidebarOpen}
+          onOpenSearch={commandPalette.open}
+          onOpenShortcuts={openShortcuts}
         />
         <MaintenanceBanner />
         <main id="main-content" className={styles.content} tabIndex={-1}>

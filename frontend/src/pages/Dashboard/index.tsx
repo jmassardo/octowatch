@@ -24,6 +24,11 @@ import {
   loadDashboardLayout,
   saveDashboardLayout,
 } from '../../components/widgets/WidgetRegistry';
+import { StatPillConfigDrawer } from '../../components/widgets/StatPillConfig';
+import {
+  loadStatPillConfig,
+  saveStatPillConfig,
+} from '../../components/widgets/statPillConfigStorage';
 import { ExecutiveView } from './ExecutiveView';
 import { SecurityView } from './SecurityView';
 import { CiCdView } from './CiCdView';
@@ -123,6 +128,8 @@ export function DashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [widgetLayout, setWidgetLayout] = useState(() => loadDashboardLayout());
   const [showOnboarding, setShowOnboarding] = useState(() => !isOnboardingComplete());
+  const [pillConfig, setPillConfig] = useState(() => loadStatPillConfig());
+  const [pillConfigOpen, setPillConfigOpen] = useState(false);
 
   useEffect(() => {
     saveDashboardLayout(widgetLayout);
@@ -278,7 +285,42 @@ export function DashboardPage() {
 
       {view === 'widgets' ? (
         <div className={styles.widgetSection}>
-          <WidgetGrid layout={widgetLayout} onChange={setWidgetLayout} />
+          {widgetLayout.length === 0 ? (
+            <div className={styles.widgetEmptyState}>
+              <svg
+                width="48"
+                height="48"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"
+                />
+              </svg>
+              <h3>Build your custom dashboard</h3>
+              <p>Drag and drop widgets to create a personalized view of your security data.</p>
+              <button
+                className={styles.widgetAddBtn}
+                onClick={() => {
+                  const defaultLayout = createDashboardLayout([
+                    'security-overview',
+                    'detection-summary',
+                    'posture-gauge',
+                    'event-volume',
+                  ]);
+                  setWidgetLayout(defaultLayout);
+                }}
+              >
+                Add starter widgets
+              </button>
+            </div>
+          ) : (
+            <WidgetGrid layout={widgetLayout} onChange={setWidgetLayout} />
+          )}
         </div>
       ) : view === 'executive' ? (
         <ExecutiveView />
@@ -318,70 +360,93 @@ export function DashboardPage() {
             </div>
           )}
 
-          <div className={styles.pills}>
-            <StatPill
-              value={eventCountLabel || '—'}
-              label="total events"
-              helpText="Total audit log events stored across all orgs. Source: events table."
-              onClick={() => navigate('/events')}
-            />
-            <StatPill
-              value={workflowSuccessRate != null ? `${workflowSuccessRate}%` : '—'}
-              label="pipeline success"
-              helpText="7-day Actions workflow success rate. Calculated from workflow_run.completed events."
-              variant={
-                workflowSuccessRate != null && parseFloat(workflowSuccessRate) >= 90
-                  ? 'success'
-                  : undefined
-              }
-              onClick={() => navigate('/velocity')}
-            />
-            <StatPill
-              value={String(uniqueActors || '—')}
-              label="active devs"
-              variant="done"
-              helpText="Unique human actors (non-bot) seen in audit log events over the last 30 days."
-              onClick={() => navigate('/devactivity')}
-            />
-            <StatPill
-              value={String(repoHealth?.stale.length ?? '—')}
-              label="stale repos"
-              helpText="Repositories with no activity in the last 90 days."
-              onClick={() => navigate('/health')}
-            />
-            <StatPill
-              value={String(patHealth?.summary.stale_90d_count ?? '—')}
-              label="stale PATs"
-              helpText="Personal access tokens with no use in the last 90 days."
-              onClick={() => navigate('/health/access')}
-            />
-            <StatPill
-              value={String(patHealth?.summary.no_expiry_count ?? '—')}
-              label="PATs no expiry"
-              variant={(patHealth?.summary.no_expiry_count ?? 0) > 0 ? 'danger' : undefined}
-              helpText="Personal access tokens with no expiration date set."
-              onClick={() => navigate('/health/access')}
-            />
-            <StatPill
-              value={String(unifiedSecurity?.secret_scanning.open ?? '—')}
-              label="secret alerts"
-              variant={(unifiedSecurity?.secret_scanning.open ?? 0) > 0 ? 'danger' : undefined}
-              helpText="Open GitHub secret scanning alerts across all organizations (GHAS)."
-              onClick={() => navigate('/advanced-security?tab=secrets')}
-            />
-            <StatPill
-              value={String(unifiedSecurity?.code_scanning.open ?? '—')}
-              label="code alerts"
-              helpText="Open GitHub code scanning (CodeQL) alerts across all organizations (GHAS)."
-              onClick={() => navigate('/advanced-security?tab=code')}
-            />
-            <StatPill
-              value={String(unifiedSecurity?.dependabot.open ?? '—')}
-              label="dependabot"
-              helpText="Open Dependabot vulnerability alerts across all organizations (GHAS)."
-              onClick={() => navigate('/advanced-security?tab=dependabot')}
-            />
+          <div className={styles.pillsHeader}>
+            <div className={styles.pills}>
+              <StatPill
+                value={eventCountLabel || '—'}
+                label="total events"
+                helpText="Total audit log events stored across all orgs. Source: events table."
+                onClick={() => navigate('/events')}
+              />
+              <StatPill
+                value={workflowSuccessRate != null ? `${workflowSuccessRate}%` : '—'}
+                label="pipeline success"
+                helpText="7-day Actions workflow success rate. Calculated from workflow_run.completed events."
+                variant={
+                  workflowSuccessRate != null && parseFloat(workflowSuccessRate) >= 90
+                    ? 'success'
+                    : undefined
+                }
+                onClick={() => navigate('/velocity')}
+              />
+              <StatPill
+                value={String(uniqueActors || '—')}
+                label="active devs"
+                variant="done"
+                helpText="Unique human actors (non-bot) seen in audit log events over the last 30 days."
+                onClick={() => navigate('/devactivity')}
+              />
+              <StatPill
+                value={String(repoHealth?.stale.length ?? '—')}
+                label="stale repos"
+                helpText="Repositories with no activity in the last 90 days."
+                onClick={() => navigate('/health')}
+              />
+              <StatPill
+                value={String(patHealth?.summary.stale_90d_count ?? '—')}
+                label="stale PATs"
+                helpText="Personal access tokens with no use in the last 90 days."
+                onClick={() => navigate('/health/access')}
+              />
+              <StatPill
+                value={String(patHealth?.summary.no_expiry_count ?? '—')}
+                label="PATs no expiry"
+                variant={(patHealth?.summary.no_expiry_count ?? 0) > 0 ? 'danger' : undefined}
+                helpText="Personal access tokens with no expiration date set."
+                onClick={() => navigate('/health/access')}
+              />
+              <StatPill
+                value={String(unifiedSecurity?.secret_scanning.open ?? '—')}
+                label="secret alerts"
+                variant={(unifiedSecurity?.secret_scanning.open ?? 0) > 0 ? 'danger' : undefined}
+                helpText="Open GitHub secret scanning alerts across all organizations (GHAS)."
+                onClick={() => navigate('/advanced-security?tab=secrets')}
+              />
+              <StatPill
+                value={String(unifiedSecurity?.code_scanning.open ?? '—')}
+                label="code alerts"
+                helpText="Open GitHub code scanning (CodeQL) alerts across all organizations (GHAS)."
+                onClick={() => navigate('/advanced-security?tab=code')}
+              />
+              <StatPill
+                value={String(unifiedSecurity?.dependabot.open ?? '—')}
+                label="dependabot"
+                helpText="Open Dependabot vulnerability alerts across all organizations (GHAS)."
+                onClick={() => navigate('/advanced-security?tab=dependabot')}
+              />
+            </div>
+            <button
+              className={styles.pillsCustomize}
+              onClick={() => setPillConfigOpen(true)}
+              aria-label="Customize metrics"
+              title="Customize metrics"
+            >
+              <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 0a8.2 8.2 0 01.701.031C11.444.199 13.5 1.5 14.5 3.5c.5 1 .75 2.5.5 4-.25 1-.75 2-1.5 3-.5.5-1 1-1.5 1.5l-.5.5V14a1 1 0 01-1 1H5.5a1 1 0 01-1-1v-1.5l-.5-.5c-.5-.5-1-1-1.5-1.5-.75-1-1.25-2-1.5-3-.25-1.5 0-3 .5-4C2.5 1.5 4.556.199 7.299.031A8.2 8.2 0 018 0zM5 5.5a1 1 0 10-2 0 1 1 0 002 0zm4-1a1 1 0 110 2 1 1 0 010-2zM7.5 9.5a1 1 0 10-2 0 1 1 0 002 0z" />
+              </svg>
+            </button>
           </div>
+
+          <StatPillConfigDrawer
+            open={pillConfigOpen}
+            onClose={() => setPillConfigOpen(false)}
+            config={pillConfig}
+            onSave={(cfg) => {
+              setPillConfig(cfg);
+              saveStatPillConfig(cfg);
+              setPillConfigOpen(false);
+            }}
+          />
 
           {systemHealth != null && systemHealth.gap_detected && (
             <div className={styles.ingestionBanner}>

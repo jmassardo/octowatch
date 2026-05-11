@@ -19,10 +19,14 @@ export function TopBar({
   onShowTour,
   onToggleSidebar,
   sidebarOpen,
+  onOpenSearch,
+  onOpenShortcuts,
 }: {
   onShowTour?: () => void;
   onToggleSidebar?: () => void;
   sidebarOpen?: boolean;
+  onOpenSearch?: () => void;
+  onOpenShortcuts?: () => void;
 }) {
   const { selectedOrg, setSelectedOrg } = useOrg();
   const { data: user } = useCurrentUser();
@@ -237,6 +241,20 @@ export function TopBar({
       )}
 
       <div className={styles.right}>
+        {onOpenSearch && (
+          <button
+            className={styles.searchBtn}
+            onClick={onOpenSearch}
+            aria-label="Search (⌘K)"
+            title="Search (⌘K)"
+          >
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M10.68 11.74a6 6 0 01-7.922-8.982 6 6 0 018.982 7.922l3.04 3.04a.749.749 0 01-.326 1.275.749.749 0 01-.734-.215l-3.04-3.04zM11.5 7a4.499 4.499 0 10-8.997 0A4.499 4.499 0 0011.5 7z" />
+            </svg>
+            <span className={styles.searchLabel}>Search</span>
+            <kbd className={styles.searchKbd}>⌘K</kbd>
+          </button>
+        )}
         <button
           className={styles.themeToggle}
           onClick={toggleTheme}
@@ -362,6 +380,21 @@ export function TopBar({
                     </svg>
                     Profile
                   </button>
+                  {onOpenShortcuts && (
+                    <button
+                      className={styles.menuItem}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onOpenShortcuts();
+                      }}
+                    >
+                      <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M0 3.75C0 2.784.784 2 1.75 2h12.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0114.25 14H1.75A1.75 1.75 0 010 12.25v-8.5zm1.75-.25a.25.25 0 00-.25.25v8.5c0 .138.112.25.25.25h12.5a.25.25 0 00.25-.25v-8.5a.25.25 0 00-.25-.25H1.75zM3.5 6.25a.75.75 0 01.75-.75h1a.75.75 0 010 1.5h-1a.75.75 0 01-.75-.75zm5.5-.75a.75.75 0 000 1.5h1a.75.75 0 000-1.5h-1zm-3.25.75a.75.75 0 01.75-.75h1a.75.75 0 010 1.5h-1a.75.75 0 01-.75-.75zM4.25 9a.75.75 0 000 1.5h7a.75.75 0 000-1.5h-7z" />
+                      </svg>
+                      Keyboard shortcuts
+                      <kbd className={styles.menuKbd}>?</kbd>
+                    </button>
+                  )}
                   {onShowTour && (
                     <button
                       className={styles.menuItem}

@@ -22,6 +22,37 @@
   min-width: 0;
 }
 
+.pillsHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.pillsCustomize {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--fg-muted);
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+  margin-top: 2px;
+}
+
+.pillsCustomize:hover,
+.pillsCustomize:focus-visible {
+  border-color: var(--fg-muted);
+  color: var(--fg);
+}
+
 .pillsBar {
   display: flex;
   align-items: flex-start;
@@ -393,6 +424,48 @@
 
 .widgetSection {
   margin-top: 8px;
+}
+
+.widgetEmptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 4rem 2rem;
+  color: var(--fg-muted);
+  text-align: center;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+}
+
+.widgetEmptyState h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--fg);
+}
+
+.widgetEmptyState p {
+  margin: 0;
+  font-size: 14px;
+  max-width: 360px;
+}
+
+.widgetAddBtn {
+  margin-top: 8px;
+  padding: 8px 20px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.widgetAddBtn:hover {
+  opacity: 0.85;
 }
 
 /* Responsive: tablet (768–1024px) — 2-column grid */
