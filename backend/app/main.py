@@ -60,6 +60,7 @@ from app.routers import (
     setup,
     slack,
     suggestions,
+    supply_chain,
     sync,
     teams,
     threat_intel,
@@ -716,6 +717,7 @@ def create_app() -> FastAPI:
     app.include_router(sync.router, prefix=API_PREFIX + "/admin")
     app.include_router(setup.router, prefix=API_PREFIX)
     app.include_router(suggestions.router, prefix=API_PREFIX)
+    app.include_router(supply_chain.router, prefix=API_PREFIX)
     app.include_router(teams.router, prefix=API_PREFIX)
     app.include_router(dev_activity.router, prefix=API_PREFIX)
     app.include_router(threat_intel.router, prefix=API_PREFIX)
