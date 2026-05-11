@@ -24,8 +24,8 @@ from app.services.settings_service import get_setting, set_setting
 logger = structlog.get_logger(__name__)
 
 _SLACK_API_URL = "https://slack.com/api/chat.postMessage"
-_SLACK_BOT_TOKEN_KEY = "slack_bot_token"
-_SLACK_SIGNING_SECRET_KEY = "slack_signing_secret"
+_SLACK_BOT_TOKEN_KEY = "slack_bot_token"  # noqa: S105
+_SLACK_SIGNING_SECRET_KEY = "slack_signing_secret"  # noqa: S105
 _SLACK_DEFAULT_CHANNEL_KEY = "slack_default_channel"
 _SLACK_CHANNEL_MAPPINGS_KEY = "slack_channel_mappings"
 _SLACK_NOTIFICATION_SETTINGS_KEY = "slack_notification_settings"
@@ -47,7 +47,7 @@ def _mask_secret(value: str | None) -> str | None:
 
 
 def _normalize_channel_mappings(value: dict[str, Any] | None) -> dict[str, str]:
-    mappings = {source: "" for source in _SLACK_SOURCES}
+    mappings = dict.fromkeys(_SLACK_SOURCES, "")
     if value:
         for source in _SLACK_SOURCES:
             raw = value.get(source, "")
@@ -97,9 +97,11 @@ async def get_slack_config(db: AsyncSession) -> dict[str, Any]:
         "notification_settings": notification_settings,
         "installation_url": "https://api.slack.com/apps",
         "installation_instructions": [
-            "Create or update your Slack app with chat:write, commands, and incoming webhook scopes.",
+            "Create or update your Slack app with chat:write, "
+            "commands, and incoming webhook scopes.",
             "Set the slash command request URL to /api/v1/integrations/slack/commands.",
-            "Set the interactive components and event request URL to /api/v1/integrations/slack/events and /interactions.",
+            "Set the interactive components and event request URL to "
+            "/api/v1/integrations/slack/events and /interactions.",
         ],
         "commands": ["/octowatch status", "/octowatch threats", "/octowatch search <query>"],
     }
@@ -177,7 +179,8 @@ async def get_runtime_notification_config(db: AsyncSession, source: str) -> dict
     return {
         "enabled": bool(notification_settings.get(source, False)),
         "channel": channel_mappings.get(source) or config["default_channel"],
-        "bot_token": await get_setting(db, _SLACK_BOT_TOKEN_KEY) or settings.INTEGRATIONS.SLACK_BOT_TOKEN,
+        "bot_token": await get_setting(db, _SLACK_BOT_TOKEN_KEY)
+        or settings.INTEGRATIONS.SLACK_BOT_TOKEN,
         "base_url": settings.AUTH.APP_BASE_URL,
     }
 
@@ -224,7 +227,9 @@ async def send_slack_message(
     return data
 
 
-async def send_slack_notification(notification: Any, config: dict[str, Any]) -> dict[str, Any] | None:
+async def send_slack_notification(
+    notification: Any, config: dict[str, Any]
+) -> dict[str, Any] | None:
     if not config.get("enabled", True):
         return None
 
@@ -338,11 +343,14 @@ def verify_slack_signature(
         return False
 
     basestring = f"v0:{timestamp}:{body.decode('utf-8')}"
-    expected = "v0=" + hmac.new(
-        signing_secret.encode("utf-8"),
-        basestring.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
+    expected = (
+        "v0="
+        + hmac.new(
+            signing_secret.encode("utf-8"),
+            basestring.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+    )
     return hmac.compare_digest(expected, signature)
 
 
@@ -388,7 +396,10 @@ async def _status_blocks(user_id: str) -> tuple[str, list[dict[str, Any]]]:
         },
         {
             "type": "actions",
-            "elements": [_command_action("Refresh", "status"), _command_action("View threats", "threats")],
+            "elements": [
+                _command_action("Refresh", "status"),
+                _command_action("View threats", "threats"),
+            ],
         },
         {
             "type": "context",
@@ -437,22 +448,32 @@ async def _threat_blocks(user_id: str) -> tuple[str, list[dict[str, Any]]]:
 
     if recent:
         lines = [
-            f"• *{row.severity.upper()}* — {row.title} ({row.org or 'global'} / {row.actor or 'unknown'})"
+            f"• *{row.severity.upper()}* — {row.title} "
+            f"({row.org or 'global'} / {row.actor or 'unknown'})"
             for row in recent
         ]
         blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": "*Latest detections*\n" + "\n".join(lines)}}
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*Latest detections*\n" + "\n".join(lines)},
+            }
         )
     else:
         blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": "No critical or high detections found."}}
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "No critical or high detections found."},
+            }
         )
 
     blocks.extend(
         [
             {
                 "type": "actions",
-                "elements": [_command_action("Refresh", "threats"), _command_action("Status", "status")],
+                "elements": [
+                    _command_action("Refresh", "threats"),
+                    _command_action("Status", "status"),
+                ],
             },
             {
                 "type": "context",
@@ -488,7 +509,10 @@ async def _search_blocks(query: str, user_id: str) -> tuple[str, list[dict[str, 
 
     if rows:
         results = [
-            f"• `{row.created_at.strftime('%Y-%m-%d %H:%M')}` — *{row.action}* · {row.actor or 'unknown'} · {row.org or 'global'}{f'/{row.repo}' if row.repo else ''}"
+            f"• `{row.created_at.strftime('%Y-%m-%d %H:%M')}` "
+            f"— *{row.action}* · {row.actor or 'unknown'} "
+            f"· {row.org or 'global'}"
+            f"{f'/{row.repo}' if row.repo else ''}"
             for row in rows
         ]
         text = "\n".join(results)
@@ -496,14 +520,17 @@ async def _search_blocks(query: str, user_id: str) -> tuple[str, list[dict[str, 
         text = "No recent events matched your search."
 
     blocks = [
-        {"type": "header", "text": {"type": "plain_text", "text": f'Search: {query}'}}
-        ,{
+        {"type": "header", "text": {"type": "plain_text", "text": f"Search: {query}"}},
+        {
             "type": "section",
             "text": {"type": "mrkdwn", "text": text},
         },
         {
             "type": "actions",
-            "elements": [_command_action("Run again", f"search {query}"), _command_action("Status", "status")],
+            "elements": [
+                _command_action("Run again", f"search {query}"),
+                _command_action("Status", "status"),
+            ],
         },
         {
             "type": "context",
@@ -520,7 +547,11 @@ def _help_response() -> dict[str, Any]:
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "• `/octowatch status` — system health summary\n• `/octowatch threats` — recent critical and high detections\n• `/octowatch search <query>` — quick event lookup",
+                "text": (
+                    "• `/octowatch status` — system health summary\n"
+                    "• `/octowatch threats` — recent critical/high detections\n"
+                    "• `/octowatch search <query>` — quick event lookup"
+                ),
             },
         },
     ]

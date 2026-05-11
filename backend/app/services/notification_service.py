@@ -27,6 +27,8 @@ from app.models.detection import Detection, RuleDefinition
 from app.models.integration import NotificationConfig
 from app.services.slack_service import (
     get_runtime_notification_config,
+)
+from app.services.slack_service import (
     send_slack_notification as send_octowatch_slack_notification,
 )
 
@@ -167,7 +169,11 @@ async def send_detection_notifications(
     if not has_legacy_slack:
         try:
             slack_config = await get_runtime_notification_config(session, "detections")
-            if slack_config.get("enabled") and slack_config.get("channel") and slack_config.get("bot_token"):
+            if (
+                slack_config.get("enabled")
+                and slack_config.get("channel")
+                and slack_config.get("bot_token")
+            ):
                 await send_octowatch_slack_notification(detection, slack_config)
         except Exception as exc:
             logger.error(

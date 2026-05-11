@@ -32,7 +32,9 @@ async def slack_events(request: Request) -> JSONResponse:
         signature=request.headers.get("X-Slack-Signature"),
         signing_secret=signing_secret,
     ):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Slack signature")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Slack signature"
+        )
 
     return JSONResponse({"ok": True})
 
@@ -47,7 +49,9 @@ async def slack_commands(request: Request) -> JSONResponse:
         signature=request.headers.get("X-Slack-Signature"),
         signing_secret=signing_secret,
     ):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Slack signature")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Slack signature"
+        )
 
     form = await request.form()
     response = await slack_service.handle_slack_command(
@@ -68,7 +72,9 @@ async def slack_interactions(request: Request) -> JSONResponse:
         signature=request.headers.get("X-Slack-Signature"),
         signing_secret=signing_secret,
     ):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Slack signature")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Slack signature"
+        )
 
     form = await request.form()
     raw_payload = form.get("payload")
@@ -123,9 +129,14 @@ async def test_slack_connection(
     bot_token = await get_setting(db, "slack_bot_token")
     channel = config["default_channel"]
     if not bot_token:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Slack bot token is not configured")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Slack bot token is not configured"
+        )
     if not channel:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Default Slack channel is not configured")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Default Slack channel is not configured",
+        )
 
     await slack_service.send_slack_message(
         channel,
