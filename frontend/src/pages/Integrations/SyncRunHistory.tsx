@@ -168,9 +168,9 @@ function OrgBreakdown({
               <table className={styles.entityTableNested} data-testid="org-breakdown-table">
                 <thead>
                   <tr>
-                    <th>Organisation</th>
-                    <th>Categories</th>
-                    <th>Records</th>
+                    <th scope="col">Organisation</th>
+                    <th scope="col">Categories</th>
+                    <th scope="col">Records</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -304,9 +304,9 @@ function OrgCategoriesContent({
         <table className={styles.entityTableNested} data-testid="org-categories-table">
           <thead>
             <tr>
-              <th>Category</th>
-              <th>Status</th>
-              <th>Records</th>
+              <th scope="col">Category</th>
+              <th scope="col">Status</th>
+              <th scope="col">Records</th>
             </tr>
           </thead>
           <tbody>
@@ -479,10 +479,10 @@ export function SyncRunHistory() {
             <table className={styles.historyTable} data-testid="sync-history-table">
               <thead>
                 <tr>
-                  <th>Triggered by</th>
-                  <th>Start time</th>
-                  <th>Duration</th>
-                  <th>Status</th>
+                  <th scope="col">Triggered by</th>
+                  <th scope="col">Start time</th>
+                  <th scope="col">Duration</th>
+                  <th scope="col">Status</th>
                 </tr>
               </thead>
               <tbody>

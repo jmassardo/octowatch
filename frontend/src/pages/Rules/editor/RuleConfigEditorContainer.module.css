@@ -53,3 +53,14 @@
   background: var(--attention-subtle, rgba(210, 153, 34, 0.1));
   border-radius: 4px;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .container,
+  .modeToggle,
+  .modeTab,
+  .editorBody,
+  .switchWarning {
+    animation: none !important;
+    transition: none !important;
+  }
+}

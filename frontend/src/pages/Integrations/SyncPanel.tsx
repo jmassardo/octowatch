@@ -80,10 +80,10 @@ function EntityTable({ cursors }: { cursors: EntityStatus[] }) {
     <table className={styles.entityTable} data-testid="entity-table">
       <thead>
         <tr>
-          <th>Entity</th>
-          <th>Org</th>
-          <th>Status</th>
-          <th>Records</th>
+          <th scope="col">Entity</th>
+          <th scope="col">Org</th>
+          <th scope="col">Status</th>
+          <th scope="col">Records</th>
         </tr>
       </thead>
       <tbody>

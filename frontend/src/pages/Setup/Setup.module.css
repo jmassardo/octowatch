@@ -260,3 +260,46 @@
   color: var(--success);
   margin: 0 0 8px;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .container,
+  .wizardCard,
+  .header,
+  .logo,
+  .title,
+  .subtitle,
+  .stepper,
+  .step,
+  .stepActive,
+  .stepComplete,
+  .stepPending,
+  .stepLabel,
+  .formGroup,
+  .label,
+  .input,
+  .textarea,
+  .actions,
+  .actionsRight,
+  .hint,
+  .hintCode,
+  .successMessage,
+  .errorMessage,
+  .reviewItem,
+  .reviewLabel,
+  .reviewValue,
+  .reviewConfigured,
+  .reviewSkipped,
+  .checkboxRow,
+  .checkboxLabel,
+  .skipNote,
+  .completeBanner,
+  .completeTitle,
+  .completeSubtitle,
+  .syncHeading,
+  .syncDescription,
+  .syncProgress,
+  .syncSuccess {
+    animation: none !important;
+    transition: none !important;
+  }
+}

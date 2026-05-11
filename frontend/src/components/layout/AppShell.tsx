@@ -5,6 +5,7 @@ import { TopBar } from './TopBar';
 import { GuidedTour } from '../GuidedTour/GuidedTour';
 import { MaintenanceBanner } from './MaintenanceBanner';
 import { CommandPalette } from '../common/CommandPalette';
+import { SkipToContent } from '../common/SkipToContent';
 import { isTourCompleted, resetTour } from '../GuidedTour/tourStorage';
 import { HotkeyProvider } from '../../contexts/HotkeyProvider';
 import { useHotkeys, type HotkeyBinding } from '../../hooks/useHotkeys';
@@ -108,19 +109,21 @@ function AppShellInner() {
 
   return (
     <div className={styles.layout}>
-      <a href="#main-content" className={styles.skipNav}>
-        Skip to main content
-      </a>
-      <aside className={styles.desktopSidebar}>
+      <SkipToContent />
+      <aside className={styles.desktopSidebar} aria-label="Primary sidebar">
         <Sidebar />
       </aside>
-      <aside className={styles.mobileSidebar}>
+      <aside className={styles.mobileSidebar} aria-label="Primary sidebar">
         <Sidebar mobileOpen={sidebarOpen} onMobileClose={() => setSidebarOpen(false)} />
       </aside>
       <div className={styles.main}>
-        <TopBar onShowTour={handleReplayTour} onToggleSidebar={() => setSidebarOpen((o) => !o)} />
+        <TopBar
+          onShowTour={handleReplayTour}
+          onToggleSidebar={() => setSidebarOpen((o) => !o)}
+          sidebarOpen={sidebarOpen}
+        />
         <MaintenanceBanner />
-        <main id="main-content" className={styles.content}>
+        <main id="main-content" className={styles.content} tabIndex={-1}>
           <Outlet />
         </main>
       </div>

@@ -820,23 +820,27 @@ function OrgView({
           <table className={styles.repoTable}>
             <thead>
               <tr>
-                <th onClick={() => toggleSort('name')} title="Sort by repository name">
+                <th scope="col" onClick={() => toggleSort('name')} title="Sort by repository name">
                   Repository {sortCol === 'name' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </th>
                 <th
+                  scope="col"
                   onClick={() => toggleSort('score')}
                   title="Weighted security score (0–100). Click to sort."
                 >
                   Score {sortCol === 'score' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </th>
                 <th
+                  scope="col"
                   onClick={() => toggleSort('visibility')}
                   title="Repository visibility: public, private, or internal"
                 >
                   Visibility {sortCol === 'visibility' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </th>
-                <th title="Number of passing and failing security checks">Checks</th>
-                <th title="Number of detection rules that have triggered for this repo">
+                <th scope="col" title="Number of passing and failing security checks">
+                  Checks
+                </th>
+                <th scope="col" title="Number of detection rules that have triggered for this repo">
                   Detections
                 </th>
               </tr>

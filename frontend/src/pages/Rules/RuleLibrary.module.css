@@ -165,3 +165,31 @@
   display: flex;
   justify-content: flex-end;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .library,
+  .header,
+  .title,
+  .subtitle,
+  .categories,
+  .category,
+  .categoryHeader,
+  .categoryChevron,
+  .categoryName,
+  .categoryCount,
+  .ruleList,
+  .ruleCard,
+  .ruleInfo,
+  .ruleNameRow,
+  .ruleName,
+  .ruleDescription,
+  .enableError,
+  .ruleActions,
+  .customizeContent,
+  .customizeHint,
+  .customizeJson,
+  .customizeActions {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -205,3 +205,33 @@
   color: var(--fg-muted);
   font-size: 13px;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .metricGrid,
+  .sectionTitle,
+  .sectionSub,
+  .centered,
+  .tabs,
+  .tab,
+  .tabActive,
+  .tableWrapper,
+  .table,
+  .badge,
+  .critical,
+  .high,
+  .medium,
+  .low,
+  .none,
+  .toggleBtn,
+  .workflowInput,
+  .analyzeBtn,
+  .findingCard,
+  .findingHeader,
+  .findingDetail,
+  .findingRecommendation,
+  .emptyState {
+    animation: none !important;
+    transition: none !important;
+  }
+}

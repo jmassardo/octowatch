@@ -290,13 +290,13 @@ export function IndicatorsTab() {
             <table className={styles.dataTable}>
               <thead>
                 <tr>
-                  <th>Value</th>
-                  <th>Type</th>
-                  <th>Source</th>
-                  <th>Confidence</th>
-                  <th>First Seen</th>
-                  <th>Notes</th>
-                  <th>Actions</th>
+                  <th scope="col">Value</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Source</th>
+                  <th scope="col">Confidence</th>
+                  <th scope="col">First Seen</th>
+                  <th scope="col">Notes</th>
+                  <th scope="col">Actions</th>
                 </tr>
               </thead>
               <tbody>

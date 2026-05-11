@@ -5,14 +5,23 @@
   padding: 16px;
 }
 
+.card:focus-visible {
+  border-color: var(--accent);
+}
+
 .header {
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--fg);
-  margin-bottom: 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.headerTitle {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--fg);
+  margin: 0;
 }
 
 .headerActions {

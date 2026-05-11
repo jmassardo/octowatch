@@ -161,3 +161,28 @@
   font-size: 14px;
   padding: 48px 0;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .center,
+  .profileHeader,
+  .avatar,
+  .profileInfo,
+  .profileName,
+  .profileMeta,
+  .riskMeter,
+  .riskBar,
+  .riskFill,
+  .riskScore,
+  .tabBar,
+  .tabBtn,
+  .tabActive,
+  .tabContent,
+  .table,
+  .mono,
+  .link,
+  .emptyTab {
+    animation: none !important;
+    transition: none !important;
+  }
+}

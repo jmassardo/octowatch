@@ -207,3 +207,34 @@
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .pane,
+  .metricsStrip,
+  .sectionTitle,
+  .sectionNote,
+  .riskBadge,
+  .avatarChips,
+  .avatarChip,
+  .avatarChipPct,
+  .devLogin,
+  .stackedBarContainer,
+  .stackedBar,
+  .stackedSegment,
+  .stackedLegend,
+  .legendItem,
+  .legendDot,
+  .trendBars,
+  .trendBarCol,
+  .trendBarFill,
+  .trendBarLabel,
+  .violationFilters,
+  .filterBtn,
+  .filterBtnActive,
+  .tabBar,
+  .tab,
+  .tabActive {
+    animation: none !important;
+    transition: none !important;
+  }
+}

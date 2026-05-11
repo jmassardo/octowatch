@@ -196,3 +196,29 @@
     transform: translateY(0);
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .headerRow,
+  .pageTitle,
+  .pageSub,
+  .settingsGroup,
+  .settingsGroupTitle,
+  .settingsRow,
+  .settingsLabel,
+  .settingsHint,
+  .settingsControl,
+  .inputSm,
+  .settingsUnit,
+  .toggle,
+  .toggleTrack,
+  .toggleOn,
+  .toggleThumb,
+  .selectSm,
+  .infoBanner,
+  .footerActions,
+  .toast {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -168,8 +168,8 @@ export function AnomaliesPane() {
                 <table className={styles.modalTable}>
                   <thead>
                     <tr>
-                      <th>Detail</th>
-                      <th>Value</th>
+                      <th scope="col">Detail</th>
+                      <th scope="col">Value</th>
                     </tr>
                   </thead>
                   <tbody>

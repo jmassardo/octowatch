@@ -18,9 +18,11 @@ import styles from './TopBar.module.css';
 export function TopBar({
   onShowTour,
   onToggleSidebar,
+  sidebarOpen,
 }: {
   onShowTour?: () => void;
   onToggleSidebar?: () => void;
+  sidebarOpen?: boolean;
 }) {
   const { selectedOrg, setSelectedOrg } = useOrg();
   const { data: user } = useCurrentUser();
@@ -156,7 +158,8 @@ export function TopBar({
         <button
           className={styles.hamburger}
           onClick={onToggleSidebar}
-          aria-label="Toggle navigation menu"
+          aria-label={sidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={sidebarOpen}
         >
           <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
             <path d="M1 2.75A.75.75 0 011.75 2h12.5a.75.75 0 010 1.5H1.75A.75.75 0 011 2.75zm0 5A.75.75 0 011.75 7h12.5a.75.75 0 010 1.5H1.75A.75.75 0 011 7.75zM1.75 12h12.5a.75.75 0 010 1.5H1.75a.75.75 0 010-1.5z" />
@@ -220,6 +223,11 @@ export function TopBar({
                     )}
                   </button>
                 ))}
+                {filteredOrgs.length === 0 && (
+                  <span role="status" className={styles.orgDropdownEmpty}>
+                    No organizations match your filter
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -300,7 +308,7 @@ export function TopBar({
             </div>
           )}
         </div>
-        <Button size="sm" onClick={() => navigate('/reports')}>
+        <Button size="sm" onClick={() => navigate('/reports')} aria-label="Create new report">
           <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
             <path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z" />
           </svg>
@@ -314,13 +322,14 @@ export function TopBar({
               onClick={() => setMenuOpen((o) => !o)}
               aria-label="User menu"
               aria-expanded={menuOpen}
+              aria-haspopup="menu"
             >
               <Avatar username={user.github_login} size={28} />
             </button>
             {menuOpen && (
               <>
                 <div className={styles.menuBackdrop} onClick={() => setMenuOpen(false)} />
-                <div className={styles.menu}>
+                <div className={styles.menu} role="menu" aria-label="User actions">
                   <div className={styles.menuHeader}>
                     <span className={styles.menuLogin}>@{user.github_login}</span>
                     {user.roles.length > 0 && (

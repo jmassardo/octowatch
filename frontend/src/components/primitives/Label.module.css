@@ -66,3 +66,18 @@
   outline: 2px solid var(--accent-fg);
   outline-offset: 1px;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .label,
+  .danger,
+  .attention,
+  .success,
+  .done,
+  .muted,
+  .accent,
+  .severe,
+  .clickable {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -300,3 +300,53 @@
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .compliancePage,
+  .summaryStrip,
+  .tabBar,
+  .tab,
+  .tabActive,
+  .tabContent,
+  .frameworkGrid,
+  .frameworkCard,
+  .frameworkCardHeader,
+  .frameworkName,
+  .frameworkScore,
+  .frameworkMeta,
+  .scoreHigh,
+  .scoreMedium,
+  .scoreLow,
+  .progressBar,
+  .progressFill,
+  .controlSection,
+  .controlHeader,
+  .controlTitle,
+  .controlPassRate,
+  .controlList,
+  .controlItem,
+  .controlItemLeft,
+  .controlItemId,
+  .controlItemTitle,
+  .controlItemDesc,
+  .controlItemEvidence,
+  .controlItemRight,
+  .gdprSection,
+  .gdprSectionTitle,
+  .activityList,
+  .activityItem,
+  .activityName,
+  .activityMeta,
+  .checklistItem,
+  .checkComplete,
+  .checkIncomplete,
+  .statsRow,
+  .statCard,
+  .statValue,
+  .statLabel,
+  .radarPlaceholder,
+  .actionsBar {
+    animation: none !important;
+    transition: none !important;
+  }
+}

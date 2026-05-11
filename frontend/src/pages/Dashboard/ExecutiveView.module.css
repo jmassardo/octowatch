@@ -350,3 +350,48 @@
     flex: 1 1 0;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .header,
+  .title,
+  .subtitle,
+  .headerActions,
+  .periodToggle,
+  .periodBtn,
+  .scoreCard,
+  .scoreValue,
+  .scoreLabel,
+  .scoreDelta,
+  .deltaUp,
+  .deltaDown,
+  .deltaBigDrop,
+  .grid3,
+  .grid2,
+  .complianceGrid,
+  .complianceCard,
+  .complianceFramework,
+  .complianceBar,
+  .complianceFill,
+  .complianceMeta,
+  .compliancePct,
+  .complianceDetail,
+  .riskList,
+  .riskRow,
+  .riskDot,
+  .riskInfo,
+  .riskTitle,
+  .riskMeta,
+  .momGrid,
+  .momCard,
+  .momValue,
+  .momLabel,
+  .momChange,
+  .momUp,
+  .momDn,
+  .emptyText,
+  .center {
+    animation: none !important;
+    transition: none !important;
+  }
+}

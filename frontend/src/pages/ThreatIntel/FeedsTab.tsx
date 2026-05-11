@@ -155,14 +155,14 @@ export function FeedsTab() {
           <table className={styles.dataTable}>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Source URL</th>
-                <th>Status</th>
-                <th>Indicators</th>
-                <th>Last Refresh</th>
-                <th>Interval</th>
-                <th>Actions</th>
+                <th scope="col">Name</th>
+                <th scope="col">Type</th>
+                <th scope="col">Source URL</th>
+                <th scope="col">Status</th>
+                <th scope="col">Indicators</th>
+                <th scope="col">Last Refresh</th>
+                <th scope="col">Interval</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>

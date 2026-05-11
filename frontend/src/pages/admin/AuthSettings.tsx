@@ -206,10 +206,10 @@ function SessionPolicyPanel() {
       <table className={styles.policyTable}>
         <thead>
           <tr>
-            <th>Policy</th>
-            <th>Value</th>
-            <th>Description</th>
-            <th></th>
+            <th scope="col">Policy</th>
+            <th scope="col">Value</th>
+            <th scope="col">Description</th>
+            <th scope="col"></th>
           </tr>
         </thead>
         <tbody>
