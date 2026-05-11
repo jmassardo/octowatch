@@ -16,9 +16,50 @@
 
 .pills {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.pillsBar {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   margin-bottom: 24px;
+}
+
+.configBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.configBtn:hover {
+  border-color: var(--accent);
+  background: var(--canvas-default);
+  transform: translateY(-1px);
+}
+
+.configBtn:active {
+  transform: translateY(0);
+}
+
+.configBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .pill {
@@ -371,6 +412,14 @@
 
   .pills {
     flex-wrap: wrap;
+  }
+
+  .pillsBar {
+    flex-direction: column;
+  }
+
+  .configBtn {
+    align-self: flex-start;
   }
 }
 

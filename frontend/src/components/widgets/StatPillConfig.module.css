@@ -1,0 +1,161 @@
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.description {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sectionTitle {
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.metricList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.metricCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--canvas-subtle);
+}
+
+.metricHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.metricToggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.metricToggle input {
+  accent-color: var(--accent);
+}
+
+.metricIcon {
+  width: 20px;
+  text-align: center;
+}
+
+.orderControls {
+  display: flex;
+  gap: 6px;
+}
+
+.orderButton {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--canvas-default);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.orderButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.thresholdGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.thresholdField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inputWrap input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--canvas-default);
+  color: var(--fg);
+  font: inherit;
+}
+
+.unit {
+  min-width: 18px;
+  color: var(--fg-subtle);
+}
+
+.metricMeta {
+  font-size: 12px;
+  color: var(--fg-subtle);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.actionGroup {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .metricHeader,
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .thresholdGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .actionGroup {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
