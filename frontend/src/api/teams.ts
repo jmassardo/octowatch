@@ -72,3 +72,48 @@ export function assignTeamRole(teamId: number, roleId: number, orgSlug?: string)
 export function removeTeamRole(teamId: number, roleId: number): Promise<void> {
   return api.delete<void>(`/admin/teams/${teamId}/roles/${roleId}`);
 }
+
+export type TeamsNotificationSource =
+  | 'detections'
+  | 'sync_errors'
+  | 'system_health'
+  | 'threat_intel';
+
+export type TeamsChannelKey =
+  | 'default'
+  | 'detections'
+  | 'sync_errors'
+  | 'system_health'
+  | 'threat_intel';
+
+export interface TeamsConfigResponse {
+  channel_webhook_configured: Record<TeamsChannelKey, boolean>;
+  channel_webhooks_masked: Record<TeamsChannelKey, string | null>;
+  source_mappings: Record<TeamsNotificationSource, TeamsChannelKey>;
+  notification_settings: Record<TeamsNotificationSource, boolean>;
+}
+
+export interface TeamsConfigUpdate {
+  channel_webhooks: Record<TeamsChannelKey, string>;
+  source_mappings: Record<TeamsNotificationSource, TeamsChannelKey>;
+  notification_settings: Record<TeamsNotificationSource, boolean>;
+  clear_channels: TeamsChannelKey[];
+}
+
+export interface TeamsTestResponse {
+  ok: boolean;
+  channel: TeamsChannelKey;
+  message: string;
+}
+
+export function getTeamsConfig(): Promise<TeamsConfigResponse> {
+  return api.get<TeamsConfigResponse>('/integrations/teams/config');
+}
+
+export function updateTeamsConfig(payload: TeamsConfigUpdate): Promise<TeamsConfigResponse> {
+  return api.put<TeamsConfigResponse>('/integrations/teams/config', payload);
+}
+
+export function testTeamsConnection(channel?: TeamsChannelKey): Promise<TeamsTestResponse> {
+  return api.post<TeamsTestResponse>('/integrations/teams/test', channel ? { channel } : undefined);
+}

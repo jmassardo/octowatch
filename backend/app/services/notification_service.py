@@ -25,11 +25,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models.detection import Detection, RuleDefinition
 from app.models.integration import NotificationConfig
+from app.services.pagerduty_service import (
+    get_runtime_notification_config as get_runtime_pagerduty_config,
+)
+from app.services.pagerduty_service import (
+    send_pagerduty_notification as send_octowatch_pagerduty_notification,
+)
 from app.services.slack_service import (
     get_runtime_notification_config,
 )
 from app.services.slack_service import (
     send_slack_notification as send_octowatch_slack_notification,
+)
+from app.services.teams_service import (
+    get_runtime_notification_config as get_runtime_teams_config,
+)
+from app.services.teams_service import (
+    send_teams_notification as send_octowatch_teams_notification,
 )
 
 logger = structlog.get_logger(__name__)
@@ -178,6 +190,32 @@ async def send_detection_notifications(
         except Exception as exc:
             logger.error(
                 "notification.slack_global_failed",
+                detection_id=detection.id,
+                error=str(exc),
+            )
+
+    has_legacy_pagerduty = any(c.channel_type == "pagerduty" for c in matched_configs)
+    if not has_legacy_pagerduty:
+        try:
+            pagerduty_config = await get_runtime_pagerduty_config(session, "detections")
+            if pagerduty_config.get("enabled") and pagerduty_config.get("routing_key"):
+                await send_octowatch_pagerduty_notification(detection, pagerduty_config, valkey)
+        except Exception as exc:
+            logger.error(
+                "notification.pagerduty_global_failed",
+                detection_id=detection.id,
+                error=str(exc),
+            )
+
+    has_legacy_teams = any(c.channel_type == "teams" for c in matched_configs)
+    if not has_legacy_teams:
+        try:
+            teams_config = await get_runtime_teams_config(session, "detections")
+            if teams_config.get("enabled"):
+                await send_octowatch_teams_notification(detection, teams_config)
+        except Exception as exc:
+            logger.error(
+                "notification.teams_global_failed",
                 detection_id=detection.id,
                 error=str(exc),
             )
