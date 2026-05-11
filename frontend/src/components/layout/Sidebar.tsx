@@ -35,7 +35,10 @@ function NavItem({
       <span aria-hidden="true">{icon}</span>
       <span>{children}</span>
       {badge !== undefined && badge > 0 && (
-        <span className={styles.navCount} aria-label={badgeLabel ? `${badge} ${badgeLabel}` : `${badge}`}>
+        <span
+          className={styles.navCount}
+          aria-label={badgeLabel ? `${badge} ${badgeLabel}` : `${badge}`}
+        >
           {badge}
         </span>
       )}
@@ -83,7 +86,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       return;
     }
 
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const navElement = navRef.current;
     const focusableElements = Array.from(
       navElement.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
@@ -101,7 +105,9 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         return;
       }
 
-      const currentFocusable = Array.from(navElement.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+      const currentFocusable = Array.from(
+        navElement.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      );
       if (currentFocusable.length === 0) {
         event.preventDefault();
         return;
@@ -159,10 +165,42 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         >
           <circle cx="12" cy="12" r="3.5" fill="#bc8cff" />
           <ellipse cx="12" cy="12" rx="9" ry="5.5" stroke="#bc8cff" strokeWidth="1.5" fill="none" />
-          <line x1="12" y1="2" x2="12" y2="5" stroke="#bc8cff" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="12" y1="19" x2="12" y2="22" stroke="#bc8cff" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="2" y1="12" x2="5" y2="12" stroke="#bc8cff" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="19" y1="12" x2="22" y2="12" stroke="#bc8cff" strokeWidth="1.5" strokeLinecap="round" />
+          <line
+            x1="12"
+            y1="2"
+            x2="12"
+            y2="5"
+            stroke="#bc8cff"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+          <line
+            x1="12"
+            y1="19"
+            x2="12"
+            y2="22"
+            stroke="#bc8cff"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+          <line
+            x1="2"
+            y1="12"
+            x2="5"
+            y2="12"
+            stroke="#bc8cff"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+          <line
+            x1="19"
+            y1="12"
+            x2="22"
+            y2="12"
+            stroke="#bc8cff"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
         </svg>
         OctoWatch
         {onMobileClose && (
@@ -280,7 +318,14 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             icon={
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                 <path d="M8 16A8 8 0 108 0a8 8 0 000 16zm0-1.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13z" />
-                <path d="M2.5 8h2.3l1.2-3 2 6 1.2-3h4.3" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d="M2.5 8h2.3l1.2-3 2 6 1.2-3h4.3"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             }
           >
@@ -490,7 +535,14 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             icon={
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8 16A8 8 0 108 0a8 8 0 000 16zm0-1.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13z" />
-                <path d="M2.5 8h2.3l1.2-3 2 6 1.2-3h4.3" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d="M2.5 8h2.3l1.2-3 2 6 1.2-3h4.3"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             }
           >

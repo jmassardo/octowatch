@@ -66,7 +66,10 @@ describe('Sidebar', () => {
 
   it('marks the active item with aria-current', () => {
     renderSidebar({}, ['/dashboard']);
-    expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 
   it('renders nav links for all sections', () => {
