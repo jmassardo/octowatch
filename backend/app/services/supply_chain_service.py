@@ -272,8 +272,7 @@ async def get_supply_chain_posture(
     # Dependency alerts (Dependabot-related events)
     dep_q = await session.execute(
         text(
-            "SELECT count(*) FROM audit_events "
-            f"WHERE action LIKE 'dependabot_alerts.%%' {org_filter}"
+            f"SELECT count(*) FROM events d WHERE action LIKE 'dependabot_alerts.%%' {org_filter}"
         ),
         params,
     )
