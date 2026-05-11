@@ -161,7 +161,7 @@ class RoleAssignmentCreate(BaseModel):
     github_team_id: int | None = None
     github_team_slug: str | None = Field(None, max_length=255)
     saml_subject: str | None = Field(None, max_length=500)
-    role_name: str = Field(..., pattern=r"^(analyst|report_admin|rule_author|sys_admin)$")
+    role_name: str = Field(..., min_length=1, max_length=100)
     scope_type: str = Field(..., pattern=r"^(global|org|repo)$")
     scope_value: str | None = Field(None, max_length=512)
     expires_at: datetime | None = None
