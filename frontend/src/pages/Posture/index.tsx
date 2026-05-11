@@ -10,6 +10,7 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Pagination } from '../../components/primitives/Pagination';
 import { EmptyState } from '../../components/common/EmptyState';
+import { PageHeader } from '../../components/common/PageHeader';
 import { RadialGauge } from '../../components/charts/RadialGauge';
 import { useChartColors } from '../../hooks/useChartColors';
 import { formatDateOnly } from '../../utils/dates';
@@ -1021,21 +1022,38 @@ export function PosturePage() {
     setSearch('');
   };
 
+  const pageHeader = (
+    <div className={styles.pageHeader}>
+      <PageHeader
+        title="Security Posture"
+        description="Review enterprise, organization, and repository security posture"
+        showHelp
+      />
+    </div>
+  );
+
   if (isLoading)
     return (
-      <div className={styles.loading}>
-        <Spinner />
+      <div className={styles.page}>
+        {pageHeader}
+        <div className={styles.loading}>
+          <Spinner />
+        </div>
       </div>
     );
   if (isError || !data)
     return (
-      <div className={styles.content}>
-        <ErrorBanner message="Failed to load posture data" onRetry={refetch} />
+      <div className={styles.page}>
+        {pageHeader}
+        <div className={styles.content}>
+          <ErrorBanner message="Failed to load posture data" onRetry={refetch} />
+        </div>
       </div>
     );
 
   return (
     <div className={styles.page}>
+      {pageHeader}
       <Breadcrumb items={data.breadcrumb} />
       {data.level === 'enterprise' && (
         <EnterpriseView
