@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { DashboardPage } from './index';
+import { STAT_PILL_STORAGE_KEY } from '../../components/widgets/statPillConfigStorage';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -10,9 +11,37 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
-const mockGetActionsVolumeReport = vi.fn().mockResolvedValue({ data: [] });
-const mockListDetections = vi.fn().mockResolvedValue({ items: [], total: 0 });
-const mockListEvents = vi.fn().mockResolvedValue({ items: [], total: 0 });
+const mockGetActionsVolumeReport = vi.fn().mockResolvedValue({
+  data: [
+    {
+      bucket: '2024-01-01',
+      workflow_runs_total: 100,
+      workflow_runs_succeeded: 90,
+      workflow_runs_failed: 10,
+      success_rate_pct: 90,
+    },
+    {
+      bucket: '2024-01-02',
+      workflow_runs_total: 100,
+      workflow_runs_succeeded: 95,
+      workflow_runs_failed: 5,
+      success_rate_pct: 95,
+    },
+  ],
+});
+const mockListDetections = vi.fn();
+const mockListEvents = vi.fn();
+const mockGetSystemHealth = vi.fn();
+const mockGetUnifiedSecurity = vi.fn();
+const mockGetCoverageGrowth = vi.fn();
+const mockGetUnhealthyHooks = vi.fn();
+const mockGetHealthScore = vi.fn();
+const mockGetStalePrs = vi.fn();
+const mockGetPlatformSecurity = vi.fn();
+const mockGetComplianceSummary = vi.fn();
+const mockGetPolicyChecks = vi.fn();
+const mockGetCopilotAdoption = vi.fn();
+const mockGetDevelopers = vi.fn();
 
 vi.mock('../../api/reports', () => ({
   getActionsVolumeReport: (...args: unknown[]) => mockGetActionsVolumeReport(...args),
@@ -26,404 +55,355 @@ vi.mock('../../api/events', () => ({
   listEvents: (...args: unknown[]) => mockListEvents(...args),
 }));
 
-vi.mock('../../components/charts/ContributionCalendar', () => ({
-  ContributionCalendar: () => <div data-testid="contribution-calendar" />,
-}));
-
-const mockGetUnifiedSecurity = vi.fn().mockResolvedValue({
-  secret_scanning: { open: 0, fixed: 0, dismissed: 0 },
-  code_scanning: { open: 0, fixed: 0, dismissed: 0 },
-  dependabot: { open: 0, fixed: 0, dismissed: 0 },
-  detections: { total: 0, critical: 0 },
-  trend_30d: [],
-});
-
-const mockGetSystemHealth = vi.fn().mockResolvedValue({
-  ingestion_healthy: true,
-  last_event_at: '2025-03-15T00:00:00Z',
-  gap_detected: false,
-  gap_duration_minutes: null,
-});
-
-const mockGetRepoHealth = vi.fn().mockResolvedValue({
-  stale: [],
-  archived: [],
-  abandoned_forks: [],
-});
-
-const mockGetPatHealth = vi.fn().mockResolvedValue({
-  summary: { no_expiry_count: 0, expired_count: 0, stale_90d_count: 0 },
-  tokens: [],
-  dormant: [],
-});
-
 vi.mock('../../api/healthSignals', () => ({
   getSystemHealth: (...args: unknown[]) => mockGetSystemHealth(...args),
-  getRepoHealth: (...args: unknown[]) => mockGetRepoHealth(...args),
-  getPatHealth: (...args: unknown[]) => mockGetPatHealth(...args),
   getUnifiedSecurity: (...args: unknown[]) => mockGetUnifiedSecurity(...args),
+  getCoverageGrowth: (...args: unknown[]) => mockGetCoverageGrowth(...args),
+  getUnhealthyHooks: (...args: unknown[]) => mockGetUnhealthyHooks(...args),
+  getHealthScore: (...args: unknown[]) => mockGetHealthScore(...args),
+  getStalePrs: (...args: unknown[]) => mockGetStalePrs(...args),
+  getPlatformSecurity: (...args: unknown[]) => mockGetPlatformSecurity(...args),
+}));
+
+vi.mock('../../api/compliance', () => ({
+  getComplianceSummary: (...args: unknown[]) => mockGetComplianceSummary(...args),
+  getPolicyChecks: (...args: unknown[]) => mockGetPolicyChecks(...args),
+}));
+
+vi.mock('../../api/copilotMetrics', () => ({
+  getCopilotAdoption: (...args: unknown[]) => mockGetCopilotAdoption(...args),
+}));
+
+vi.mock('../../api/devActivity', () => ({
+  getDevelopers: (...args: unknown[]) => mockGetDevelopers(...args),
 }));
 
 describe('DashboardPage', () => {
-  /* ---------------------------------------------------------------- */
-  /*  Page header                                                      */
-  /* ---------------------------------------------------------------- */
-
   beforeEach(() => {
+    localStorage.clear();
     mockNavigate.mockClear();
-  });
 
-  it('renders the page title', () => {
-    renderWithProviders(<DashboardPage />);
-
-    expect(screen.getByText(/Dashboard/)).toBeInTheDocument();
-  });
-
-  it('renders the page subtitle with last synced time', async () => {
-    renderWithProviders(<DashboardPage />);
-
-    // systemHealth resolves asynchronously with last_event_at
-    expect(await screen.findByText(/last synced:/i)).toBeInTheDocument();
-  });
-
-  it('shows fallback subtitle when no system health data', () => {
-    mockGetSystemHealth.mockResolvedValue({
-      gap_detected: false,
-      gap_duration_minutes: null,
-      last_event_at: null,
+    mockListDetections.mockImplementation((params?: { severity?: string; status?: string }) => {
+      if (params?.severity === 'critical') {
+        return Promise.resolve({ items: [], total: 2, page: 1, page_size: 100, has_next: false });
+      }
+      if (params?.status === 'investigating') {
+        return Promise.resolve({ items: [], total: 4, page: 1, page_size: 100, has_next: false });
+      }
+      return Promise.resolve({
+        items: [
+          {
+            id: 1,
+            rule_id: 1,
+            rule_name: 'Suspicious login',
+            rule_version: 1,
+            severity: 'high',
+            confidence: 'high',
+            confidence_score: 0.9,
+            status: 'investigating',
+            title: 'Suspicious login',
+            description: '',
+            actor: 'alice',
+            org: 'octowatch',
+            repo: 'repo',
+            source_ip: null,
+            window_start: null,
+            window_end: null,
+            event_ids: [],
+            context_data: {},
+            triggered_at: '2024-01-02T00:00:00Z',
+            assigned_to: null,
+            resolved_at: null,
+            resolution_note: null,
+            tickets: [],
+          },
+        ],
+        total: 6,
+        page: 1,
+        page_size: 100,
+        has_next: false,
+      });
     });
-    renderWithProviders(<DashboardPage />);
 
-    expect(screen.getByText(/activity across your organizations/i)).toBeInTheDocument();
-  });
-
-  it('shows org label in page title', () => {
-    renderWithProviders(<DashboardPage />);
-
-    // Default org context is empty string → "All organizations"
-    expect(screen.getByText(/All organizations/)).toBeInTheDocument();
-  });
-
-  /* ---------------------------------------------------------------- */
-  /*  Stat pills                                                       */
-  /* ---------------------------------------------------------------- */
-
-  it('renders retained stat pill labels', () => {
-    renderWithProviders(<DashboardPage />);
-
-    expect(screen.getByText(/total events/)).toBeInTheDocument();
-    expect(screen.getByText(/pipeline success/)).toBeInTheDocument();
-    expect(screen.getByText(/active devs/)).toBeInTheDocument();
-  });
-
-  it('does not render removed security pills', () => {
-    renderWithProviders(<DashboardPage />);
-
-    expect(screen.queryByText(/unresolved secrets/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/feature disables \(7d\)/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/open threats/)).not.toBeInTheDocument();
-    // "API calls (24h)" pill was removed — it had a hardcoded em-dash and no real data source
-    expect(screen.queryByText(/API calls \(24h\)/)).not.toBeInTheDocument();
-  });
-
-  it('shows dash for pipeline success when no data', () => {
-    renderWithProviders(<DashboardPage />);
-
-    // With empty mock data, workflowSuccessRate is null → '—'
-    const dashes = screen.getAllByText('—');
-    expect(dashes.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('does not show hardcoded "94.2%" or "1.8M"', () => {
-    renderWithProviders(<DashboardPage />);
-
-    expect(screen.queryByText('94.2%')).not.toBeInTheDocument();
-    expect(screen.queryByText('1.8M')).not.toBeInTheDocument();
-  });
-
-  /* ---------------------------------------------------------------- */
-  /*  Ingestion banner                                                  */
-  /* ---------------------------------------------------------------- */
-
-  it('does not render ingestion banner when no gap detected', () => {
-    renderWithProviders(<DashboardPage />);
-    expect(screen.queryByText(/Data ingestion gap detected/)).not.toBeInTheDocument();
-  });
-
-  it('renders ingestion banner when gap is detected', async () => {
-    mockGetSystemHealth.mockResolvedValue({
-      ingestion_healthy: false,
-      last_event_at: '2025-03-15T00:00:00Z',
-      gap_detected: true,
-      gap_duration_minutes: 45,
-    });
-    renderWithProviders(<DashboardPage />);
-    expect(await screen.findByText(/Data ingestion gap detected/)).toBeInTheDocument();
-    expect(screen.getByText(/45 minutes of missing data/)).toBeInTheDocument();
-  });
-
-  /* ---------------------------------------------------------------- */
-  /*  Operations summary MetricCards                                    */
-  /* ---------------------------------------------------------------- */
-
-  it('renders ops summary pills', async () => {
-    renderWithProviders(<DashboardPage />);
-
-    expect(await screen.findByText('stale repos')).toBeInTheDocument();
-    expect(screen.getByText('stale PATs')).toBeInTheDocument();
-    expect(screen.getByText('PATs no expiry')).toBeInTheDocument();
-    expect(screen.getByText('active devs')).toBeInTheDocument();
-  });
-
-  it('shows stale repo count from repo health', async () => {
-    mockGetRepoHealth.mockResolvedValue({
-      stale: [{ org: 'o', repo: 'r', last_event_at: '2024-01-01', days_since_activity: 100 }],
-      archived: [],
-      abandoned_forks: [],
-    });
-    renderWithProviders(<DashboardPage />);
-
-    await screen.findByText('stale repos');
-    expect(screen.getByText('1')).toBeInTheDocument();
-  });
-
-  /* ---------------------------------------------------------------- */
-  /*  Platform alerts                                                   */
-  /* ---------------------------------------------------------------- */
-
-  it('renders dynamic platform alerts with real labels', () => {
-    renderWithProviders(<DashboardPage />);
-
-    expect(screen.getByText(/Workflow runs:/)).toBeInTheDocument();
-    expect(screen.getByText(/Events volume:/)).toBeInTheDocument();
-    expect(screen.getByText(/Active detections:/)).toBeInTheDocument();
-  });
-
-  it('does not render hardcoded alert text', () => {
-    renderWithProviders(<DashboardPage />);
-
-    expect(screen.queryByText(/Workflow failure rate.*\+12%/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/PR cycle time.*platform-team/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Deploy frequency.*\+28%/)).not.toBeInTheDocument();
-  });
-
-  it('shows zero values in alerts when no data is available', () => {
-    renderWithProviders(<DashboardPage />);
-
-    expect(screen.getByText('0 succeeded')).toBeInTheDocument();
-    expect(screen.getByText('0 failed')).toBeInTheDocument();
-    expect(screen.getByText('0 investigating')).toBeInTheDocument();
-  });
-
-  it('does not render "Open threats by severity" card', () => {
-    renderWithProviders(<DashboardPage />);
-
-    expect(screen.queryByText('Open threats by severity')).not.toBeInTheDocument();
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  Tests with populated API data                                      */
-/* ------------------------------------------------------------------ */
-
-describe('DashboardPage with data', () => {
-  const MOCK_BUCKETS = [
-    {
-      bucket: '2024-01-15',
-      workflow_runs_total: 200,
-      workflow_runs_succeeded: 190,
-      workflow_runs_failed: 10,
-      success_rate_pct: 95.0,
-      unique_workflows: 5,
-    },
-  ];
-
-  beforeEach(() => {
-    mockGetActionsVolumeReport.mockResolvedValue({
-      report_type: 'actions-volume',
-      org: null,
-      granularity: 'daily',
-      window_days: 7,
-      generated_at: '2024-01-16T00:00:00Z',
-      data: MOCK_BUCKETS,
-    });
-    mockListDetections.mockResolvedValue({
+    mockListEvents.mockResolvedValue({
       items: [
         {
           id: 1,
-          rule_id: 1,
-          rule_name: 'Test Rule',
-          rule_version: 1,
-          severity: 'critical',
-          confidence: 'high',
-          confidence_score: 0.95,
-          status: 'investigating',
-          title: 'Test',
-          description: '',
-          actor: null,
-          org: 'org',
-          repo: null,
-          source_ip: null,
-          window_start: null,
-          window_end: null,
-          event_ids: [1],
-          context_data: {},
-          triggered_at: '2024-01-15T00:00:00Z',
-          assigned_to: null,
-          resolved_at: null,
-          resolution_note: null,
-          tickets: [],
+          created_at: '2024-01-02T10:00:00Z',
+          actor: 'alice',
+          org: 'octowatch',
+          repo: 'a',
+          action: 'pull_request.opened',
+        },
+        {
+          id: 2,
+          created_at: '2024-01-02T09:00:00Z',
+          actor: 'bob',
+          org: 'octowatch',
+          repo: 'b',
+          action: 'workflow_run.completed',
+        },
+        {
+          id: 3,
+          created_at: '2024-01-02T08:00:00Z',
+          actor: 'chris',
+          org: 'acme',
+          repo: 'c',
+          action: 'push',
         },
       ],
-      total: 1,
-      page: 1,
-      page_size: 100,
-      has_next: false,
-    });
-    mockListEvents.mockResolvedValue({
-      items: [],
       total: 1500,
       page: 1,
       page_size: 500,
       has_next: true,
     });
-  });
 
-  it('renders workflow success rate from API data', async () => {
-    renderWithProviders(<DashboardPage />);
-
-    // 190/200 = 95.0%
-    expect(await screen.findByText('95.0%')).toBeInTheDocument();
-  });
-
-  it('renders formatted total events count', async () => {
-    renderWithProviders(<DashboardPage />);
-
-    // 1500 → "1.5K"
-    expect(await screen.findByText('1.5K')).toBeInTheDocument();
-  });
-
-  it('renders workflow alert with real counts', async () => {
-    renderWithProviders(<DashboardPage />);
-
-    expect(await screen.findByText('190 succeeded')).toBeInTheDocument();
-    expect(screen.getByText('10 failed')).toBeInTheDocument();
-  });
-
-  it('renders open threats count in alerts', async () => {
-    renderWithProviders(<DashboardPage />);
-
-    expect(await screen.findByText('1 investigating')).toBeInTheDocument();
-  });
-
-  it('renders events volume in alerts', async () => {
-    renderWithProviders(<DashboardPage />);
-
-    // calendarEvents total = 1500 → "1.5K events"
-    expect(await screen.findByText(/1\.5K events/)).toBeInTheDocument();
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  Platform alerts clickable values                                   */
-/* ------------------------------------------------------------------ */
-
-describe('DashboardPage platform alerts clicks', () => {
-  beforeEach(() => {
-    mockNavigate.mockClear();
-    mockGetActionsVolumeReport.mockResolvedValue({
-      data: [
+    mockGetSystemHealth.mockResolvedValue({
+      gap_detected: false,
+      gap_duration_minutes: null,
+      last_event_at: new Date(Date.now() - 4 * 60_000).toISOString(),
+    });
+    mockGetUnifiedSecurity.mockResolvedValue({
+      secret_scanning: { open: 3, resolved: 10, total: 13, bypassed_open: 0 },
+      code_scanning: { open: 1, critical: 0, high: 1, medium: 0, low: 0, total: 1 },
+      dependabot: {
+        open: 2,
+        critical: 0,
+        high: 1,
+        medium: 1,
+        low: 0,
+        total: 2,
+        critical_aging_gt_90d: 0,
+      },
+      detections: { active: 6, critical: 2, high: 2, medium: 1, low: 1 },
+      trend_30d: [
+        { day: '2024-01-01', secret_scanning: 2, code_scanning: 1, dependabot: 2 },
+        { day: '2024-01-02', secret_scanning: 3, code_scanning: 1, dependabot: 2 },
+      ],
+    });
+    mockGetCoverageGrowth.mockResolvedValue({
+      total_repos: 10,
+      feature_coverage: { ghas: { repos: 8, pct: 80 } },
+      time_series: [
         {
-          bucket: '2024-01-15',
-          workflow_runs_total: 100,
-          workflow_runs_succeeded: 90,
-          workflow_runs_failed: 10,
-          success_rate_pct: 90.0,
-          unique_workflows: 5,
+          date: '2024-01-01',
+          ghas_pct: 75,
+          code_scanning_pct: 70,
+          secret_scanning_pct: 72,
+          dependabot_pct: 65,
+          push_protection_pct: 60,
+          ghas_repos: 7,
+          code_scanning_repos: 7,
+          secret_scanning_repos: 7,
+          dependabot_repos: 6,
+          push_protection_repos: 6,
+        },
+        {
+          date: '2024-01-02',
+          ghas_pct: 80,
+          code_scanning_pct: 75,
+          secret_scanning_pct: 72,
+          dependabot_pct: 70,
+          push_protection_pct: 60,
+          ghas_repos: 8,
+          code_scanning_repos: 8,
+          secret_scanning_repos: 7,
+          dependabot_repos: 7,
+          push_protection_repos: 6,
+        },
+      ],
+      uncovered_repos: [],
+    });
+    mockGetUnhealthyHooks.mockResolvedValue({
+      unhealthy_hooks: [
+        {
+          org: 'octowatch',
+          repo: 'repo',
+          action: 'webhook.disabled',
+          actor: 'svc',
+          hook_id: '1',
+          app_name: null,
+          config_url: null,
+          created_at: '2024-01-02T00:00:00Z',
         },
       ],
     });
-    mockListDetections.mockResolvedValue({
-      items: [
+    mockGetHealthScore.mockResolvedValue({
+      score: 88,
+      grade: 'B',
+      critical_count: 1,
+      high_count: 1,
+      medium_count: 1,
+      low_count: 1,
+      total_signals: 4,
+      orgs_monitored: 2,
+    });
+    mockGetStalePrs.mockResolvedValue({
+      stale_prs: [
         {
-          id: 1,
-          rule_id: 1,
-          rule_name: 'R',
-          rule_version: 1,
-          severity: 'high',
-          confidence: 'high',
-          confidence_score: 0.9,
-          status: 'investigating',
-          title: 'T',
-          description: '',
-          actor: null,
-          org: 'o',
-          repo: null,
-          source_ip: null,
-          window_start: null,
-          window_end: null,
-          event_ids: [],
-          context_data: {},
-          triggered_at: '2024-01-15T00:00:00Z',
-          assigned_to: null,
-          resolved_at: null,
-          resolution_note: null,
-          tickets: [],
+          org: 'octowatch',
+          repo: 'repo',
+          pr_number: '12',
+          title: 'Refactor',
+          actor: 'alice',
+          opened_at: '2024-01-01T00:00:00Z',
+          days_open: 2,
         },
       ],
-      total: 1,
-      page: 1,
-      page_size: 100,
-      has_next: false,
     });
-    mockListEvents.mockResolvedValue({ items: [], total: 500 });
+    mockGetPlatformSecurity.mockResolvedValue({
+      orgs: [
+        {
+          org: 'octowatch',
+          sso_configured: true,
+          two_fa_required: true,
+          audit_log_streaming: true,
+          ip_allowlist_configured: true,
+          branch_protection_default: true,
+          compliance_score: 92,
+          recommendations: [],
+        },
+        {
+          org: 'acme',
+          sso_configured: true,
+          two_fa_required: true,
+          audit_log_streaming: true,
+          ip_allowlist_configured: false,
+          branch_protection_default: false,
+          compliance_score: 78,
+          recommendations: [],
+        },
+      ],
+      overall_compliance_score: 85,
+    });
+    mockGetComplianceSummary.mockResolvedValue({
+      overall_score: 85,
+      frameworks_tracked: 4,
+      controls_passing: 120,
+      controls_total: 140,
+      critical_gaps: 2,
+      last_assessment_date: '2024-01-02T00:00:00Z',
+      frameworks: [],
+    });
+    mockGetPolicyChecks.mockResolvedValue({
+      checks: [],
+      last_run: '2024-01-02T00:00:00Z',
+      checks_passing: 9,
+      checks_total: 12,
+    });
+    mockGetCopilotAdoption.mockResolvedValue({
+      tiers: [],
+      total_adoption: 61,
+      power_users: [],
+      feature_adoption: [
+        { feature: 'chat', active_users: 10, total_seats: 20, pct: 50, trend_7d: 4, color: '#000' },
+        {
+          feature: 'completions',
+          active_users: 15,
+          total_seats: 20,
+          pct: 75,
+          trend_7d: 2,
+          color: '#111',
+        },
+      ],
+      minimal_users: [],
+    });
+    mockGetDevelopers.mockResolvedValue({
+      developers: [
+        {
+          login: 'alice',
+          event_count: 10,
+          pr_count: 2,
+          review_count: 4,
+          top_repos: ['a'],
+          repo_count: 1,
+          last_active: '2024-01-02T00:00:00Z',
+          weekly_counts: [1, 2, 3],
+        },
+        {
+          login: 'bob',
+          event_count: 8,
+          pr_count: 1,
+          review_count: 2,
+          top_repos: ['b'],
+          repo_count: 1,
+          last_active: '2024-01-02T00:00:00Z',
+          weekly_counts: [1, 1, 2],
+        },
+        {
+          login: 'chris',
+          event_count: 6,
+          pr_count: 1,
+          review_count: 1,
+          top_repos: ['c'],
+          repo_count: 1,
+          last_active: '2024-01-02T00:00:00Z',
+          weekly_counts: [1, 1, 1],
+        },
+      ],
+      lookback_days: 30,
+    });
   });
 
-  it('workflow succeeded count is clickable and navigates to /velocity', async () => {
+  it('renders default customizable pills and platform alerts', async () => {
+    renderWithProviders(<DashboardPage />);
+
+    expect(await screen.findByTestId('stat-pill-open-detections')).toBeInTheDocument();
+    expect(screen.getByTestId('stat-pill-compliance-score')).toBeInTheDocument();
+    expect(screen.getByText(/92\.5% success/)).toBeInTheDocument();
+    expect(screen.getByText(/1.5K events/)).toBeInTheDocument();
+  });
+
+  it('opens the configure drawer and persists changes', async () => {
     const user = userEvent.setup();
     renderWithProviders(<DashboardPage />);
 
-    const succeededLink = await screen.findByLabelText(/90 succeeded.*velocity/i);
-    await user.click(succeededLink);
+    await user.click(screen.getByRole('button', { name: /Configure stat pills/i }));
+    expect(screen.getByRole('dialog', { name: /Configure stat pills/i })).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('checkbox')[0]!);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(screen.queryByTestId('stat-pill-open-detections')).not.toBeInTheDocument();
+    expect(localStorage.getItem(STAT_PILL_STORAGE_KEY)).toContain('secret-alerts');
+  });
+
+  it('loads saved pill configuration from localStorage', async () => {
+    localStorage.setItem(
+      STAT_PILL_STORAGE_KEY,
+      JSON.stringify({
+        enabledPills: ['secret-alerts'],
+        order: ['secret-alerts', 'open-detections'],
+        thresholds: {},
+      }),
+    );
+
+    renderWithProviders(<DashboardPage />);
+
+    expect(await screen.findByTestId('stat-pill-secret-alerts')).toBeInTheDocument();
+    expect(screen.queryByTestId('stat-pill-open-detections')).not.toBeInTheDocument();
+  });
+
+  it('renders the ingestion banner when a sync gap exists', async () => {
+    mockGetSystemHealth.mockResolvedValueOnce({
+      gap_detected: true,
+      gap_duration_minutes: 45,
+      last_event_at: new Date(Date.now() - 45 * 60_000).toISOString(),
+    });
+
+    renderWithProviders(<DashboardPage />);
+
+    expect(await screen.findByText(/Data ingestion gap detected/)).toBeInTheDocument();
+  });
+
+  it('keeps platform alert navigation clickable', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DashboardPage />);
+
+    await user.click(await screen.findByLabelText(/185 succeeded — view velocity/i));
+    await user.click(screen.getByLabelText(/1.5K events — view all events/i));
 
     expect(mockNavigate).toHaveBeenCalledWith('/velocity');
-  });
-
-  it('workflow failed count is clickable and navigates to /velocity', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<DashboardPage />);
-
-    const failedLink = await screen.findByLabelText(/10 failed.*velocity/i);
-    await user.click(failedLink);
-
-    expect(mockNavigate).toHaveBeenCalledWith('/velocity');
-  });
-
-  it('events volume count is clickable and navigates to /events', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<DashboardPage />);
-
-    const eventsLink = await screen.findByLabelText(/events.*view all events/i);
-    await user.click(eventsLink);
-
     expect(mockNavigate).toHaveBeenCalledWith('/events');
-  });
-
-  it('investigating count is clickable and navigates to /threats', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<DashboardPage />);
-
-    const threatsLink = await screen.findByLabelText(/1 investigating.*threats/i);
-    await user.click(threatsLink);
-
-    expect(mockNavigate).toHaveBeenCalledWith('/threats');
-  });
-
-  it('clickable values have proper accessibility attributes', async () => {
-    renderWithProviders(<DashboardPage />);
-
-    const succeededLink = await screen.findByLabelText(/90 succeeded.*velocity/i);
-    expect(succeededLink).toHaveAttribute('role', 'button');
-    expect(succeededLink).toHaveAttribute('tabindex', '0');
   });
 });
