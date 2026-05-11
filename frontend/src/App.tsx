@@ -29,6 +29,7 @@ import { PlaybooksPage } from './pages/Playbooks';
 import { SupplyChainPage } from './pages/SupplyChain';
 import { ThreatIntelPage } from './pages/ThreatIntel';
 import { SyncStatusPage } from './pages/SyncStatus';
+import { NotificationsPage } from './pages/Notifications';
 import AuthSettingsPage from './pages/admin/AuthSettings';
 import { ProfilePage } from './pages/Profile';
 
@@ -78,6 +79,7 @@ export const router = createBrowserRouter([
       { path: '/query', element: <QueryPage /> },
       { path: '/rules', element: <RulesPage /> },
       { path: '/users', element: <UsersPage /> },
+      { path: '/notifications', element: <NotificationsPage /> },
       { path: '/integrations', element: <Navigate to="/settings/integrations" replace /> },
       { path: '/settings', element: <Navigate to="/settings/all" replace /> },
       { path: '/settings/:tab', element: <SettingsPage /> },
