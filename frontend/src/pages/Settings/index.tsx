@@ -27,6 +27,7 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { useToast } from '../../hooks/useToast';
 import { SyncRunHistory } from '../Integrations/SyncRunHistory';
 import { ManualIngestPanel } from '../Integrations/ManualIngestPanel';
+import { SlackIntegration } from '../Integrations/SlackIntegration';
 import { AuditStreamPanel } from './AuditStreamPanel';
 import { MaintenanceSettingsPanel } from './MaintenanceSettingsPanel';
 import { Button } from '../../components/primitives/Button';
@@ -508,17 +509,6 @@ function GitHubPane() {
 /*  Integration Icons                                                  */
 /* ------------------------------------------------------------------ */
 
-function SlackIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="8" cy="12" r="2" fill="#E01E5A" />
-      <circle cx="12" cy="8" r="2" fill="#36C5F0" />
-      <circle cx="16" cy="12" r="2" fill="#2EB67D" />
-      <circle cx="12" cy="16" r="2" fill="#ECB22E" />
-    </svg>
-  );
-}
-
 function SentinelIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -598,13 +588,6 @@ const INTEGRATION_INFO: {
   iconBg: string;
 }[] = [
   {
-    key: 'slack',
-    label: 'Slack',
-    description: 'Send real-time alerts and weekly digest reports to Slack channels.',
-    icon: <SlackIcon />,
-    iconBg: '#4a154b',
-  },
-  {
     key: 'jira',
     label: 'Jira',
     description: 'Automatically create Jira issues for security findings and track remediation.',
@@ -657,133 +640,6 @@ const INTEGRATION_INFO: {
     iconBg: '#f59e0b',
   },
 ];
-
-/* ------------------------------------------------------------------ */
-/*  Slack config form                                                  */
-/* ------------------------------------------------------------------ */
-
-function SlackConfigForm({ onClose }: { onClose: () => void }) {
-  const [displayName, setDisplayName] = useState('');
-  const [webhookUrl, setWebhookUrl] = useState('');
-  const [severities, setSeverities] = useState<string[]>(['critical', 'high']);
-  const [cooldown, setCooldown] = useState(3600);
-  const queryClient = useQueryClient();
-
-  const createMutation = useMutation({
-    mutationFn: () =>
-      createNotificationConfig({
-        channel_type: 'slack',
-        display_name: displayName || 'Slack',
-        target: webhookUrl,
-        notify_severities: severities,
-        cooldown_seconds: cooldown,
-        enabled: true,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notification-configs'] });
-      onClose();
-    },
-  });
-
-  return (
-    <form
-      className={styles.configForm}
-      onSubmit={(e) => {
-        e.preventDefault();
-        createMutation.mutate();
-      }}
-    >
-      <div className={styles.configField}>
-        <label className={styles.configLabel} htmlFor="slack-display-name">
-          Display Name
-        </label>
-        <input
-          id="slack-display-name"
-          className={styles.configInput}
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="e.g. #security-alerts"
-        />
-        <span className={styles.configHelp}>
-          A friendly name to identify this Slack integration in the dashboard.
-        </span>
-      </div>
-      <div className={styles.configField}>
-        <label className={styles.configLabel} htmlFor="slack-webhook-url">
-          Webhook URL
-        </label>
-        <input
-          id="slack-webhook-url"
-          className={styles.configInput}
-          value={webhookUrl}
-          onChange={(e) => setWebhookUrl(e.target.value)}
-          placeholder="https://hooks.slack.com/services/..."
-          required
-        />
-        <span className={styles.configHelp}>
-          Incoming webhook URL from your Slack app. Create one at api.slack.com.
-        </span>
-      </div>
-      <div className={styles.configField}>
-        <span className={styles.configLabel}>Alert severities</span>
-        <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
-          {['critical', 'high', 'medium', 'low'].map((s) => (
-            <label
-              key={s}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                fontSize: 12,
-                color: 'var(--fg)',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={severities.includes(s)}
-                onChange={(e) =>
-                  setSeverities((prev) =>
-                    e.target.checked ? [...prev, s] : prev.filter((x) => x !== s),
-                  )
-                }
-              />
-              {s}
-            </label>
-          ))}
-        </div>
-        <span className={styles.configHelp}>
-          Select which severity levels trigger Slack notifications.
-        </span>
-      </div>
-      <div className={styles.configField}>
-        <label className={styles.configLabel} htmlFor="slack-cooldown">
-          Cooldown (seconds)
-        </label>
-        <input
-          id="slack-cooldown"
-          className={styles.configInput}
-          type="number"
-          min={60}
-          max={86400}
-          value={cooldown}
-          onChange={(e) => setCooldown(Number(e.target.value))}
-        />
-        <span className={styles.configHelp}>Minimum time between alerts (60–86,400 seconds).</span>
-      </div>
-      {createMutation.isError && (
-        <div className={styles.configError}>Failed to save configuration. Please try again.</div>
-      )}
-      <div className={styles.configActions}>
-        <Button size="sm" type="button" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button variant="primary" size="sm" disabled={!webhookUrl || createMutation.isPending}>
-          {createMutation.isPending ? 'Saving…' : 'Save'}
-        </Button>
-      </div>
-    </form>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Jira config form                                                   */
@@ -1521,6 +1377,7 @@ function IntegrationsPane() {
         Connect external services to extend OctoWatch capabilities. GitHub Enterprise is always
         connected and managed in the GitHub tab.
       </p>
+      <SlackIntegration />
       <div className={styles.featuresList}>
         {INTEGRATION_INFO.map(({ key, label, description, icon, iconBg }) => {
           const { configured, enabled } = getStatus(key);
@@ -1574,15 +1431,6 @@ function IntegrationsPane() {
           );
         })}
       </div>
-
-      {/* Slack config modal */}
-      <Drawer
-        open={configTarget === 'slack'}
-        onClose={() => setConfigTarget(null)}
-        title="Configure Slack"
-      >
-        <SlackConfigForm onClose={() => setConfigTarget(null)} />
-      </Drawer>
 
       {/* Jira config modal */}
       <Drawer

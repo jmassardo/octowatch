@@ -19,14 +19,18 @@ import aiosmtplib
 import httpx
 import structlog
 from jinja2 import Environment, PackageLoader, select_autoescape
-from slack_sdk.errors import SlackApiError
-from slack_sdk.web.async_client import AsyncWebClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.detection import Detection, RuleDefinition
 from app.models.integration import NotificationConfig
+from app.services.slack_service import (
+    get_runtime_notification_config,
+)
+from app.services.slack_service import (
+    send_slack_notification as send_octowatch_slack_notification,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -161,6 +165,23 @@ async def send_detection_notifications(
             c for c in catch_all_configs if _matches_config(c, detection, rule_category)
         ]
 
+    has_legacy_slack = any(c.channel_type == "slack" for c in matched_configs)
+    if not has_legacy_slack:
+        try:
+            slack_config = await get_runtime_notification_config(session, "detections")
+            if (
+                slack_config.get("enabled")
+                and slack_config.get("channel")
+                and slack_config.get("bot_token")
+            ):
+                await send_octowatch_slack_notification(detection, slack_config)
+        except Exception as exc:
+            logger.error(
+                "notification.slack_global_failed",
+                detection_id=detection.id,
+                error=str(exc),
+            )
+
     for config in matched_configs:
         try:
             if config.channel_type == "slack":
@@ -238,36 +259,31 @@ async def _send_slack_notification(
     config: NotificationConfig,
     detection: Detection,
 ) -> None:
-    """Send Slack notification via Slack Web API.
-
-    Reads the bot token from the environment variable named by
-    ``config.credential_env_var`` and posts to the channel in ``config.target``.
-    """
-    token = os.environ.get(config.credential_env_var, "") if config.credential_env_var else ""
+    """Send Slack notification via the shared Slack integration service."""
+    token = settings.INTEGRATIONS.SLACK_BOT_TOKEN or (
+        os.environ.get(config.credential_env_var, "") if config.credential_env_var else ""
+    )
     if not token:
         logger.warning("notification.slack_no_token", config_id=config.id)
         return
+    if not config.target:
+        logger.warning("notification.slack_no_channel", config_id=config.id)
+        return
 
-    client = AsyncWebClient(token=token)
-
-    try:
-        await client.chat_postMessage(
-            channel=config.target,
-            text=f"[{detection.severity.upper()}] {detection.title}",
-            blocks=_render_slack_blocks(detection),
-        )
-        logger.info(
-            "notification.slack_sent",
-            config_id=config.id,
-            detection_id=detection.id,
-        )
-    except SlackApiError as exc:
-        logger.error(
-            "notification.slack_error",
-            config_id=config.id,
-            error=exc.response.get("error", str(exc)),
-        )
-        raise
+    await send_octowatch_slack_notification(
+        detection,
+        {
+            "enabled": True,
+            "channel": config.target,
+            "bot_token": token,
+            "base_url": settings.AUTH.APP_BASE_URL,
+        },
+    )
+    logger.info(
+        "notification.slack_sent",
+        config_id=config.id,
+        detection_id=detection.id,
+    )
 
 
 # ── Email ────────────────────────────────────────────────────────────────────
