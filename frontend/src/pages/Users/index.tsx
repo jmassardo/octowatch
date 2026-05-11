@@ -958,7 +958,7 @@ export function UsersPage() {
     queryFn: getActiveSessions,
   });
 
-  const roles = roleDefs?.map((r) => r.name) ?? ['viewer', 'analyst', 'admin'];
+  const roles = roleDefs?.map((r) => r.name) ?? ['viewer', 'security_analyst', 'super_admin'];
 
   const createMutation = useMutation({
     mutationFn: createRoleAssignment,
