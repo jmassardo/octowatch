@@ -601,6 +601,17 @@ const INTEGRATION_INFO: {
   iconBg: string;
 }[] = [
   {
+    key: 'slack',
+    label: 'Slack',
+    description: 'Send real-time notifications and alerts to Slack channels.',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z" />
+      </svg>
+    ),
+    iconBg: '#4A154B',
+  },
+  {
     key: 'jira',
     label: 'Jira',
     description: 'Automatically create Jira issues for security findings and track remediation.',
