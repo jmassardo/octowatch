@@ -57,6 +57,7 @@ from app.routers import (
     suggestions,
     sync,
     threat_intel,
+    user_preferences,
     workflow_metrics,
     workflow_scanner,
 )
@@ -712,6 +713,7 @@ def create_app() -> FastAPI:
     app.include_router(workflow_scanner.router, prefix=API_PREFIX)
     app.include_router(workflow_metrics.router, prefix=API_PREFIX)
     app.include_router(copilot_governance.router, prefix=API_PREFIX)
+    app.include_router(user_preferences.router, prefix=API_PREFIX)
 
     return app
 
