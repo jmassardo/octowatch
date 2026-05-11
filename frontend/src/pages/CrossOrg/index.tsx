@@ -431,6 +431,7 @@ export function CrossOrgPage() {
         <PageHeader
           title="Cross-Organization Correlation"
           description="Correlate events across organizations for threat detection"
+          showHelp
         />
 
         {/* AC-6: Collapsible guidance box */}

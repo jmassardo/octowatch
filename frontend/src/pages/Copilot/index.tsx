@@ -92,6 +92,7 @@ export function CopilotPage() {
       <PageHeader
         title="Copilot Insights"
         description="GitHub Copilot usage analytics and adoption metrics"
+        showHelp
       />
 
       <CopilotTabBar
