@@ -640,5 +640,101 @@
       ],
       "confidence": 0.6
     }
+  },
+  {
+    "name": "Project Made Public",
+    "slug": "project-visibility-public",
+    "description": "Detects when a GitHub Project is changed from private to public visibility, potentially exposing work items, issue titles, and planning data to anyone.",
+    "category": "data_exfiltration",
+    "default_severity": "critical",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "project.visibility_public"
+      ],
+      "field_conditions": [],
+      "confidence": 0.9
+    }
+  },
+  {
+    "name": "External Collaborator Added to Project",
+    "slug": "project-collaborator-added-external",
+    "description": "Detects when a collaborator is added to a GitHub Project. External collaborators gain visibility into issue titles, status, and planning data across all linked repositories.",
+    "category": "privilege_escalation",
+    "default_severity": "high",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "project_collaborator.add"
+      ],
+      "field_conditions": [],
+      "confidence": 0.8
+    }
+  },
+  {
+    "name": "Project Collaborator Role Escalated",
+    "slug": "project-collaborator-role-escalated",
+    "description": "Detects when an existing project collaborator's permission level is upgraded (e.g. read to write or admin), granting broader access to project data and settings.",
+    "category": "privilege_escalation",
+    "default_severity": "medium",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "project_collaborator.update"
+      ],
+      "field_conditions": [],
+      "confidence": 0.75
+    }
+  },
+  {
+    "name": "Project Default Access Level Elevated",
+    "slug": "project-base-role-elevated",
+    "description": "Detects when the default project access role for all organization members is raised, potentially granting overly permissive access to project data across the org.",
+    "category": "privilege_escalation",
+    "default_severity": "high",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "project_base_role.update"
+      ],
+      "field_conditions": [],
+      "confidence": 0.8
+    }
+  },
+  {
+    "name": "Project Deleted",
+    "slug": "project-deleted",
+    "description": "Detects when a GitHub Project is deleted. This could indicate evidence destruction, accidental deletion, or an insider removing audit trails of planned work.",
+    "category": "defense_evasion",
+    "default_severity": "high",
+    "default_confidence": "high",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "project.delete"
+      ],
+      "field_conditions": [],
+      "confidence": 0.85
+    }
+  },
+  {
+    "name": "Project Custom Field Deleted",
+    "slug": "project-field-deleted",
+    "description": "Detects when a custom field is removed from a GitHub Project. Deleting tracking fields (e.g. priority, status) can obscure project health data and remove historical context.",
+    "category": "defense_evasion",
+    "default_severity": "medium",
+    "default_confidence": "medium",
+    "logic_type": "pattern",
+    "logic_config": {
+      "action_filters": [
+        "project_field.delete"
+      ],
+      "field_conditions": [],
+      "confidence": 0.7
+    }
   }
 ]
