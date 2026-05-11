@@ -145,6 +145,9 @@
     top: 0;
     background: var(--canvas-subtle);
     z-index: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sidebar,
   .logo,

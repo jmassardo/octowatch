@@ -380,6 +380,9 @@
 
   .menuRole {
     display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .topbar,
   .hamburger,
