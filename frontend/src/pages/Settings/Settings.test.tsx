@@ -65,6 +65,30 @@ const mockUpdateSetting = vi.fn().mockResolvedValue({
 });
 
 const mockDeleteSetting = vi.fn().mockResolvedValue(undefined);
+const mockGetMaintenanceStatus = vi.fn().mockResolvedValue({
+  enabled: false,
+  message: 'Scheduled maintenance',
+  severity: 'warning',
+  block_writes: false,
+  started_at: null,
+  estimated_end: null,
+});
+const mockUpdateMaintenanceStatus = vi.fn().mockResolvedValue({
+  enabled: true,
+  message: 'Scheduled maintenance',
+  severity: 'warning',
+  block_writes: true,
+  started_at: '2025-06-03T10:00:00Z',
+  estimated_end: null,
+});
+const mockToggleMaintenanceMode = vi.fn().mockResolvedValue({
+  enabled: true,
+  message: 'Scheduled maintenance',
+  severity: 'warning',
+  block_writes: false,
+  started_at: '2025-06-03T10:00:00Z',
+  estimated_end: null,
+});
 
 const mockGetAuditTrail = vi.fn().mockResolvedValue([
   {
@@ -114,6 +138,12 @@ vi.mock('../../api/integrations', () => ({
   createNotificationConfig: vi.fn().mockResolvedValue({}),
   createTicketingConfig: vi.fn().mockResolvedValue({}),
   createSiemConfig: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('../../api/maintenance', () => ({
+  getMaintenanceStatus: (...args: unknown[]) => mockGetMaintenanceStatus(...args),
+  updateMaintenanceStatus: (...args: unknown[]) => mockUpdateMaintenanceStatus(...args),
+  toggleMaintenanceMode: (...args: unknown[]) => mockToggleMaintenanceMode(...args),
 }));
 
 vi.mock('../../api/sync', () => ({
@@ -184,6 +214,9 @@ describe('SettingsPage', () => {
     mockUpdateSetting.mockClear();
     mockDeleteSetting.mockClear();
     mockGetAuditTrail.mockClear();
+    mockGetMaintenanceStatus.mockClear();
+    mockUpdateMaintenanceStatus.mockClear();
+    mockToggleMaintenanceMode.mockClear();
   });
 
   /* ---------------------------------------------------------------- */
@@ -411,10 +444,15 @@ describe('SettingsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'System' }));
 
-    expect(screen.getByText(/system-level configuration including logging/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /system-level configuration including logging, maintenance, and data retention/i,
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText(/log level/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/debug mode/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/maintenance mode/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^maintenance mode$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/banner message/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/data retention/i)).toBeInTheDocument();
   });
 

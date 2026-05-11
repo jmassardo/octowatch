@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { GuidedTour } from '../GuidedTour/GuidedTour';
+import { MaintenanceBanner } from './MaintenanceBanner';
 import { isTourCompleted, resetTour } from '../GuidedTour/tourStorage';
 import styles from './AppShell.module.css';
 
@@ -28,6 +29,7 @@ export function AppShell() {
       </aside>
       <div className={styles.main}>
         <TopBar onShowTour={handleReplayTour} onToggleSidebar={() => setSidebarOpen((o) => !o)} />
+        <MaintenanceBanner />
         <main id="main-content" className={styles.content}>
           <Outlet />
         </main>
