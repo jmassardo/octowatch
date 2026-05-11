@@ -103,6 +103,7 @@ export function WorkflowsPage() {
             <PageHeader
               title="Workflow Security Scanner"
               description="Event-driven workflow security scanning — findings appear automatically as audit log events are ingested"
+              showHelp
             />
           </div>
           <div className={styles.headerActions}>

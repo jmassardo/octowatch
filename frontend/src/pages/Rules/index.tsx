@@ -515,6 +515,7 @@ export function RulesPage() {
             <PageHeader
               title="Detection Rules"
               description="Configure automated threat detection patterns"
+              showHelp
             />
             <div className={styles.headerActions}>
               <Button variant="default" size="sm" onClick={() => setShowLibrary(true)}>

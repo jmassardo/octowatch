@@ -69,6 +69,7 @@ export function CompliancePage() {
         <PageHeader
           title="Compliance Center"
           description="Track compliance posture across security frameworks"
+          showHelp
         />
         <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
           <Spinner size={32} />
@@ -83,6 +84,7 @@ export function CompliancePage() {
         <PageHeader
           title="Compliance Center"
           description="Track compliance posture across security frameworks"
+          showHelp
         />
         <ErrorBanner message="Failed to load compliance data" onRetry={() => refetch()} />
       </div>
@@ -98,6 +100,7 @@ export function CompliancePage() {
       <PageHeader
         title="Compliance Center"
         description="Track compliance posture across security frameworks"
+        showHelp
       />
 
       {/* Summary Strip */}

@@ -477,7 +477,11 @@ export function ReportsPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <div>
-          <PageHeader title="Reports" description="Organization activity and usage analytics" />
+          <PageHeader
+            title="Reports"
+            description="Organization activity and usage analytics"
+            showHelp
+          />
         </div>
         <div className={styles.headerActions}>
           <Button onClick={() => setShowBuilder(true)}>+ New Custom Report</Button>
