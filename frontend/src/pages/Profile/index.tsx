@@ -48,7 +48,10 @@ export function ProfilePage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title="Profile &amp; Preferences" description="View your profile and manage personal settings." />
+      <PageHeader
+        title="Profile &amp; Preferences"
+        description="View your profile and manage personal settings."
+      />
 
       <div className={styles.tabs} role="tablist" aria-label="Profile tabs">
         {TABS.map((tab) => (
@@ -74,7 +77,11 @@ export function ProfilePage() {
 /* ─── Profile Tab ──────────────────────────────────────────────────────────── */
 
 function ProfileTab() {
-  const { data: profile, isLoading, error } = useQuery({
+  const {
+    data: profile,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['user-profile'],
     queryFn: getUserProfile,
   });
@@ -147,7 +154,11 @@ function ProfileTab() {
 function PreferencesTab() {
   const queryClient = useQueryClient();
 
-  const { data: prefs, isLoading, error } = useQuery({
+  const {
+    data: prefs,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['user-preferences'],
     queryFn: getUserPreferences,
   });
@@ -192,7 +203,9 @@ function PreferencesTab() {
       <div style={{ padding: '16px' }}>
         <div className={styles.prefsForm}>
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel} htmlFor="pref-theme">Theme</label>
+            <label className={styles.fieldLabel} htmlFor="pref-theme">
+              Theme
+            </label>
             <select
               id="pref-theme"
               className={styles.fieldSelect}
@@ -207,7 +220,9 @@ function PreferencesTab() {
           </div>
 
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel} htmlFor="pref-dashboard">Default Dashboard View</label>
+            <label className={styles.fieldLabel} htmlFor="pref-dashboard">
+              Default Dashboard View
+            </label>
             <select
               id="pref-dashboard"
               className={styles.fieldSelect}
@@ -215,13 +230,17 @@ function PreferencesTab() {
               onChange={(e) => handleChange('default_dashboard_view', e.target.value)}
             >
               {DASHBOARD_VIEW_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
               ))}
             </select>
           </div>
 
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel} htmlFor="pref-org">Default Organization</label>
+            <label className={styles.fieldLabel} htmlFor="pref-org">
+              Default Organization
+            </label>
             <input
               id="pref-org"
               className={styles.fieldInput}
@@ -234,7 +253,9 @@ function PreferencesTab() {
           </div>
 
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel} htmlFor="pref-tz">Timezone</label>
+            <label className={styles.fieldLabel} htmlFor="pref-tz">
+              Timezone
+            </label>
             <input
               id="pref-tz"
               className={styles.fieldInput}
@@ -246,7 +267,9 @@ function PreferencesTab() {
           </div>
 
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel} htmlFor="pref-dateformat">Date Format</label>
+            <label className={styles.fieldLabel} htmlFor="pref-dateformat">
+              Date Format
+            </label>
             <select
               id="pref-dateformat"
               className={styles.fieldSelect}
@@ -259,7 +282,9 @@ function PreferencesTab() {
           </div>
 
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel} htmlFor="pref-perpage">Items Per Page</label>
+            <label className={styles.fieldLabel} htmlFor="pref-perpage">
+              Items Per Page
+            </label>
             <select
               id="pref-perpage"
               className={styles.fieldSelect}
@@ -267,7 +292,9 @@ function PreferencesTab() {
               onChange={(e) => handleChange('items_per_page', Number(e.target.value))}
             >
               {ITEMS_PER_PAGE_OPTIONS.map((n) => (
-                <option key={n} value={n}>{n}</option>
+                <option key={n} value={n}>
+                  {n}
+                </option>
               ))}
             </select>
           </div>
@@ -334,12 +361,12 @@ function SessionsTab() {
                 <tr key={session.session_id}>
                   <td>
                     {session.session_id.slice(0, 8)}…
-                    {session.is_current && (
-                      <span className={styles.currentBadge}>Current</span>
-                    )}
+                    {session.is_current && <span className={styles.currentBadge}>Current</span>}
                   </td>
                   <td>{session.ip_address ?? '—'}</td>
-                  <td>{session.expires_at ? new Date(session.expires_at).toLocaleString() : '—'}</td>
+                  <td>
+                    {session.expires_at ? new Date(session.expires_at).toLocaleString() : '—'}
+                  </td>
                   <td>
                     {session.is_current ? (
                       <span style={{ fontSize: '12px', color: 'var(--fg-muted)' }}>—</span>
@@ -358,9 +385,7 @@ function SessionsTab() {
             </tbody>
           </table>
         )}
-        {revokeMutation.isError && (
-          <p className={styles.errorMsg}>Failed to revoke session.</p>
-        )}
+        {revokeMutation.isError && <p className={styles.errorMsg}>Failed to revoke session.</p>}
       </div>
     </Card>
   );

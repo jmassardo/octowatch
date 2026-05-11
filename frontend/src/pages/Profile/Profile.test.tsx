@@ -267,9 +267,7 @@ describe('ProfilePage', () => {
     await user.click(revokeButton);
 
     await waitFor(() => {
-      expect(mockRevokeSession).toHaveBeenCalledWith(
-        'def67890-5555-6666-7777-888888888888',
-      );
+      expect(mockRevokeSession).toHaveBeenCalledWith('def67890-5555-6666-7777-888888888888');
     });
   });
 
