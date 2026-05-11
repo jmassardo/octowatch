@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '../../components/primitives/Button';
 import { getNotificationPreferences, updateNotificationPreferences } from '../../api/notifications';
-import type { NotificationPreferencesUpdate, NotificationSeverity } from '../../types/notifications';
+import type {
+  NotificationPreferencesUpdate,
+  NotificationSeverity,
+} from '../../types/notifications';
 import styles from './NotificationPreferences.module.css';
 
 export function NotificationPreferences() {

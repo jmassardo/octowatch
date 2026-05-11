@@ -8,7 +8,9 @@ import type {
   NotificationListParams,
 } from '../types/notifications';
 
-export function listNotifications(params?: NotificationListParams): Promise<NotificationListResponse> {
+export function listNotifications(
+  params?: NotificationListParams,
+): Promise<NotificationListResponse> {
   const query: Record<string, string | number | boolean | undefined> = {};
   if (params?.page !== undefined) query.page = params.page;
   if (params?.page_size !== undefined) query.page_size = params.page_size;

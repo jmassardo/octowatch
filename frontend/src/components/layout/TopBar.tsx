@@ -7,7 +7,11 @@ import { useTheme } from '../../hooks/useTheme';
 import { Avatar } from '../primitives/Avatar';
 import { Button } from '../primitives/Button';
 import { logout } from '../../api/auth';
-import { listNotifications, markNotificationRead, markAllNotificationsRead } from '../../api/notifications';
+import {
+  listNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+} from '../../api/notifications';
 import type { NotificationItem } from '../../types/notifications';
 import styles from './TopBar.module.css';
 

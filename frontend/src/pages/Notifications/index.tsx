@@ -8,7 +8,11 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
 } from '../../api/notifications';
-import type { NotificationSeverity, NotificationSource, NotificationItem } from '../../types/notifications';
+import type {
+  NotificationSeverity,
+  NotificationSource,
+  NotificationItem,
+} from '../../types/notifications';
 import { NotificationPreferences } from './NotificationPreferences';
 import styles from './Notifications.module.css';
 
@@ -94,10 +98,7 @@ export function NotificationsPage() {
           description="Manage your notification settings and preferences"
         />
         <div className={styles.tabs}>
-          <button
-            className={`${styles.tab}`}
-            onClick={() => setActiveTab('notifications')}
-          >
+          <button className={`${styles.tab}`} onClick={() => setActiveTab('notifications')}>
             Notifications
           </button>
           <button
@@ -114,10 +115,7 @@ export function NotificationsPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        title="Notifications"
-        description="View and manage your notification alerts"
-      />
+      <PageHeader title="Notifications" description="View and manage your notification alerts" />
 
       <div className={styles.tabs}>
         <button
@@ -127,10 +125,7 @@ export function NotificationsPage() {
           Notifications
           {data && data.unread_count > 0 && ` (${data.unread_count})`}
         </button>
-        <button
-          className={`${styles.tab}`}
-          onClick={() => setActiveTab('preferences')}
-        >
+        <button className={`${styles.tab}`} onClick={() => setActiveTab('preferences')}>
           Preferences
         </button>
       </div>
@@ -236,9 +231,7 @@ export function NotificationsPage() {
                         {item.severity}
                       </span>
                       <span className={styles.sourceBadge}>{item.source}</span>
-                      <span className={styles.itemTime}>
-                        {formatRelativeTime(item.created_at)}
-                      </span>
+                      <span className={styles.itemTime}>{formatRelativeTime(item.created_at)}</span>
                     </div>
                   </div>
                   <div className={styles.itemMessage}>{item.message}</div>
