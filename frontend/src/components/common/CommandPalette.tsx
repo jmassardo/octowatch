@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -264,7 +270,11 @@ function scoreFuzzyMatch(value: string, query: string): number | null {
   return score - (normalizedValue.length - normalizedQuery.length);
 }
 
-function rankNavigationItems(items: SearchableNavigationItem[], query: string, type: 'page' | 'action') {
+function rankNavigationItems(
+  items: SearchableNavigationItem[],
+  query: string,
+  type: 'page' | 'action',
+) {
   return items
     .map<RankedNavigationItem | null>((item) => {
       const score = scoreFuzzyMatch(`${item.title} ${item.searchText}`, query);
@@ -310,7 +320,10 @@ function buildEventItems(events: readonly EventResponse[], query: string): Palet
     }));
 }
 
-function buildDetectionItems(detections: readonly DetectionResponse[], query: string): PaletteItem[] {
+function buildDetectionItems(
+  detections: readonly DetectionResponse[],
+  query: string,
+): PaletteItem[] {
   const normalizedQuery = query.toLowerCase();
 
   return detections
@@ -368,13 +381,7 @@ function executeRoute(navigate: ReturnType<typeof useNavigate>, item: PaletteIte
   }
 }
 
-export function CommandPalette({
-  isOpen,
-  onClose,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-}) {
+export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const paletteRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -491,7 +498,18 @@ export function CommandPalette({
     }
 
     return nextGroups.filter((group) => group.items.length > 0 || group.isLoading);
-  }, [actions, actorsQuery.data, actorsQuery.isLoading, detectionsQuery.data, detectionsQuery.isLoading, eventsQuery.data, eventsQuery.isLoading, pages, query, recent]);
+  }, [
+    actions,
+    actorsQuery.data,
+    actorsQuery.isLoading,
+    detectionsQuery.data,
+    detectionsQuery.isLoading,
+    eventsQuery.data,
+    eventsQuery.isLoading,
+    pages,
+    query,
+    recent,
+  ]);
 
   const flatItems = useMemo(() => groups.flatMap((group) => group.items), [groups]);
   const activeItemIndex =
@@ -499,7 +517,8 @@ export function CommandPalette({
 
   if (!isOpen) return null;
 
-  const isLoadingResults = eventsQuery.isLoading || detectionsQuery.isLoading || actorsQuery.isLoading;
+  const isLoadingResults =
+    eventsQuery.isLoading || detectionsQuery.isLoading || actorsQuery.isLoading;
   const showEmptyState = query.trim().length > 0 && !isLoadingResults && flatItems.length === 0;
 
   function closePalette() {
@@ -604,7 +623,11 @@ export function CommandPalette({
 
         <div className={styles.results} role="listbox" aria-label="Command palette results">
           {groups.map((group) => (
-            <section key={group.key} className={styles.group} aria-labelledby={`command-palette-group-${group.key}`}>
+            <section
+              key={group.key}
+              className={styles.group}
+              aria-labelledby={`command-palette-group-${group.key}`}
+            >
               <div className={styles.groupTitle} id={`command-palette-group-${group.key}`}>
                 {group.title}
               </div>

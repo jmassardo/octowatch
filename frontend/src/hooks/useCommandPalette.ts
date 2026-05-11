@@ -10,7 +10,9 @@ function parseRecentSearches(rawValue: string | null): string[] {
     const parsed = JSON.parse(rawValue);
     if (!Array.isArray(parsed)) return [];
 
-    return parsed.filter((entry): entry is string => typeof entry === 'string').slice(0, MAX_RECENT_SEARCHES);
+    return parsed
+      .filter((entry): entry is string => typeof entry === 'string')
+      .slice(0, MAX_RECENT_SEARCHES);
   } catch {
     return [];
   }
@@ -58,8 +60,5 @@ export function useCommandPalette() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  return useMemo(
-    () => ({ isOpen, open, close, toggle }),
-    [close, isOpen, open, toggle],
-  );
+  return useMemo(() => ({ isOpen, open, close, toggle }), [close, isOpen, open, toggle]);
 }

@@ -44,8 +44,20 @@ describe('CommandPalette', () => {
   beforeEach(() => {
     localStorage.clear();
     navigateMock.mockReset();
-    listEventsMock.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 6, has_next: false });
-    listDetectionsMock.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 12, has_next: false });
+    listEventsMock.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 6,
+      has_next: false,
+    });
+    listDetectionsMock.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 12,
+      has_next: false,
+    });
     searchActorsMock.mockResolvedValue([]);
   });
 
