@@ -1,0 +1,267 @@
+/* ===== Page layout ===== */
+.page {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ===== Tab bar ===== */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+  font-family: inherit;
+}
+
+.tab:hover {
+  color: var(--fg);
+}
+
+.tabActive {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+
+/* ===== Profile section ===== */
+.profileHeader {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.avatarLarge {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-muted);
+}
+
+.profileInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.displayName {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0;
+}
+
+.username {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0;
+}
+
+.email {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0;
+}
+
+/* ===== Roles & Permissions ===== */
+.rolesSection {
+  margin-top: 16px;
+}
+
+.sectionLabel {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--fg-muted);
+  margin: 0 0 8px;
+}
+
+.roleBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.roleBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 12px;
+  background: var(--bg-muted);
+  color: var(--fg);
+  border: 1px solid var(--border);
+}
+
+/* ===== Login History ===== */
+.historyTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.historyTable th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--fg-muted);
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.historyTable td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle, var(--border));
+  color: var(--fg);
+}
+
+/* ===== Preferences form ===== */
+.prefsForm {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 480px;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.fieldHint {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin: 0;
+}
+
+.fieldSelect {
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  max-width: 280px;
+}
+
+.fieldInput {
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  max-width: 280px;
+}
+
+.saveBtn {
+  align-self: flex-start;
+}
+
+/* ===== Sessions ===== */
+.sessionsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.sessionsTable th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--fg-muted);
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.sessionsTable td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle, var(--border));
+  color: var(--fg);
+}
+
+.currentBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  background: var(--success-bg, #dcfce7);
+  color: var(--success-fg, #166534);
+  margin-left: 6px;
+}
+
+.revokeBtn {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--danger, #cf222e);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.revokeBtn:hover {
+  background: var(--danger-bg, #fef2f2);
+  border-color: var(--danger, #cf222e);
+}
+
+/* ===== Status messages ===== */
+.successMsg {
+  font-size: 13px;
+  color: var(--success-fg, #166534);
+  padding: 8px 12px;
+  background: var(--success-bg, #dcfce7);
+  border-radius: 6px;
+}
+
+.errorMsg {
+  font-size: 13px;
+  color: var(--danger, #cf222e);
+  padding: 8px 12px;
+  background: var(--danger-bg, #fef2f2);
+  border-radius: 6px;
+}
+
+.emptyState {
+  font-size: 13px;
+  color: var(--fg-muted);
+  padding: 16px 0;
+}

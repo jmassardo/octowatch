@@ -30,6 +30,7 @@ import { SupplyChainPage } from './pages/SupplyChain';
 import { ThreatIntelPage } from './pages/ThreatIntel';
 import { SyncStatusPage } from './pages/SyncStatus';
 import AuthSettingsPage from './pages/admin/AuthSettings';
+import { ProfilePage } from './pages/Profile';
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
@@ -83,6 +84,7 @@ export const router = createBrowserRouter([
       { path: '/telemetry', element: <TelemetryPage /> },
       { path: '/monitoring/sync-status', element: <SyncStatusPage /> },
       { path: '/admin/auth', element: <AuthSettingsPage /> },
+      { path: '/profile', element: <ProfilePage /> },
     ],
   },
 ]);
