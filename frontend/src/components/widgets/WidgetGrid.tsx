@@ -47,7 +47,10 @@ export function WidgetGrid({ layout, onChange, definitions = WIDGET_REGISTRY }: 
     [definitions],
   );
 
-  function updateWidget(widgetId: string, updater: (item: WidgetLayoutItem) => WidgetLayoutItem | null) {
+  function updateWidget(
+    widgetId: string,
+    updater: (item: WidgetLayoutItem) => WidgetLayoutItem | null,
+  ) {
     onChange(
       layout.flatMap((item) => {
         if (item.id !== widgetId) return [item];
@@ -86,8 +89,8 @@ export function WidgetGrid({ layout, onChange, definitions = WIDGET_REGISTRY }: 
         <div>
           <h2>Unified widget dashboard</h2>
           <p>
-            Curate the signals that matter most, then drag, resize, and remove widgets as your
-            focus shifts.
+            Curate the signals that matter most, then drag, resize, and remove widgets as your focus
+            shifts.
           </p>
         </div>
         <Button type="button" variant="primary" onClick={() => setPickerOpen(true)}>
@@ -147,7 +150,10 @@ export function WidgetGrid({ layout, onChange, definitions = WIDGET_REGISTRY }: 
                   }}
                   onRemove={() => removeWidget(item.id)}
                   onResize={() =>
-                    updateWidget(item.id, (current) => ({ ...current, size: NEXT_SIZE[current.size] }))
+                    updateWidget(item.id, (current) => ({
+                      ...current,
+                      size: NEXT_SIZE[current.size],
+                    }))
                   }
                 >
                   <WidgetComponent />
@@ -193,7 +199,9 @@ export function WidgetGrid({ layout, onChange, definitions = WIDGET_REGISTRY }: 
                           type="button"
                           size="sm"
                           variant={selected ? 'default' : 'primary'}
-                          onClick={() => (selected ? removeWidget(widget.id) : addWidget(widget.id))}
+                          onClick={() =>
+                            selected ? removeWidget(widget.id) : addWidget(widget.id)
+                          }
                         >
                           {selected ? 'Remove' : 'Add'}
                         </Button>

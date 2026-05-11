@@ -105,7 +105,9 @@ export const PERSONA_WIDGET_PRESETS: Record<DashboardPersona, readonly string[]>
   'engineering-lead': ['copilot-usage', 'event-volume', 'unified-security', 'sync-health'],
 };
 
-const WIDGET_REGISTRY_BY_ID = Object.fromEntries(WIDGET_REGISTRY.map((widget) => [widget.id, widget]));
+const WIDGET_REGISTRY_BY_ID = Object.fromEntries(
+  WIDGET_REGISTRY.map((widget) => [widget.id, widget]),
+);
 
 function isWidgetSize(value: unknown): value is WidgetSize {
   return value === 'sm' || value === 'md' || value === 'lg';

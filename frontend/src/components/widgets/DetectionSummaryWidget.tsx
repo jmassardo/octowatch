@@ -31,7 +31,9 @@ export function DetectionSummaryWidget() {
   }
 
   if (isError || !data) {
-    return <ErrorBanner message="Failed to load detection summary" onRetry={() => void refetch()} />;
+    return (
+      <ErrorBanner message="Failed to load detection summary" onRetry={() => void refetch()} />
+    );
   }
 
   const counts = data.items.reduce<Record<DetectionSeverity, number>>(
@@ -70,7 +72,10 @@ export function DetectionSummaryWidget() {
               <div
                 className={styles.barFill}
                 style={{
-                  width: counts[severity] > 0 ? `${Math.max(6, (counts[severity] / max) * 100)}%` : '2px',
+                  width:
+                    counts[severity] > 0
+                      ? `${Math.max(6, (counts[severity] / max) * 100)}%`
+                      : '2px',
                   background: SEVERITY_COLORS[severity],
                 }}
               />

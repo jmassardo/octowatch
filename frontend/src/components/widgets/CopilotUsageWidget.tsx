@@ -33,7 +33,11 @@ export function CopilotUsageWidget() {
           Open Copilot view
         </button>
       </div>
-      <MiniBarChart data={tierCounts.length > 0 ? tierCounts : [0]} height={84} color="var(--done)" />
+      <MiniBarChart
+        data={tierCounts.length > 0 ? tierCounts : [0]}
+        height={84}
+        color="var(--done)"
+      />
       <div className={styles.list}>
         <div className={styles.listItem}>
           <span className={styles.listLabel}>Largest cohort</span>

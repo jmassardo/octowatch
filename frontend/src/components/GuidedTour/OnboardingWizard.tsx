@@ -140,14 +140,20 @@ export function OnboardingWizard({
     },
     {
       title: 'Select organizations to monitor',
-      description: 'Start with the orgs you want in focus. You can change this later from the top bar.',
+      description:
+        'Start with the orgs you want in focus. You can change this later from the top bar.',
       content:
         meQuery.isError && availableOrganizations == null ? (
-          <ErrorBanner message="Failed to load organizations" onRetry={() => void meQuery.refetch()} />
+          <ErrorBanner
+            message="Failed to load organizations"
+            onRetry={() => void meQuery.refetch()}
+          />
         ) : meQuery.isLoading && availableOrganizations == null ? (
           <div className={styles.emptyState}>Loading organizations…</div>
         ) : organizationOptions.length === 0 ? (
-          <div className={styles.emptyState}>No scoped organizations were available for onboarding.</div>
+          <div className={styles.emptyState}>
+            No scoped organizations were available for onboarding.
+          </div>
         ) : (
           <div className={styles.checklist}>
             {organizationOptions.map((org) => {
@@ -168,7 +174,9 @@ export function OnboardingWizard({
                   />
                   <span className={styles.checkboxText}>
                     <strong>{org}</strong>
-                    <span>Include activity from this organization in your default monitoring scope.</span>
+                    <span>
+                      Include activity from this organization in your default monitoring scope.
+                    </span>
                   </span>
                 </label>
               );
@@ -223,7 +231,10 @@ export function OnboardingWizard({
                 type="checkbox"
                 checked={notifications[option.id]}
                 onChange={(event) => {
-                  setNotifications((current) => ({ ...current, [option.id]: event.target.checked }));
+                  setNotifications((current) => ({
+                    ...current,
+                    [option.id]: event.target.checked,
+                  }));
                 }}
               />
               <span className={styles.checkboxText}>
@@ -292,7 +303,12 @@ export function OnboardingWizard({
                 Next
               </Button>
             ) : (
-              <Button type="button" variant="primary" disabled={!canContinue} onClick={handleFinish}>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={!canContinue}
+                onClick={handleFinish}
+              >
                 Launch dashboard
               </Button>
             )}

@@ -11,7 +11,10 @@ import {
   getUnifiedSecurity,
 } from '../../api/healthSignals';
 import { PageHeader } from '../../components/common/PageHeader';
-import { OnboardingWizard, type OnboardingResult } from '../../components/GuidedTour/OnboardingWizard';
+import {
+  OnboardingWizard,
+  type OnboardingResult,
+} from '../../components/GuidedTour/OnboardingWizard';
 import { isOnboardingComplete } from '../../components/GuidedTour/onboardingStorage';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { WidgetGrid } from '../../components/widgets/WidgetGrid';
@@ -140,7 +143,7 @@ export function DashboardPage() {
     const layout = createDashboardLayout(result.widgetIds);
     setWidgetLayout(layout);
     saveDashboardLayout(layout);
-    setSelectedOrg(result.organizations.length === 1 ? result.organizations[0] ?? '' : '');
+    setSelectedOrg(result.organizations.length === 1 ? (result.organizations[0] ?? '') : '');
     setShowOnboarding(false);
     setView('widgets');
   }
@@ -214,8 +217,9 @@ export function DashboardPage() {
 
   const openThreats = detections?.total ?? 0;
   const eventCountLabel = formatCount(events?.total ?? 0);
-  const uniqueActors = new Set((calendarEvents?.items ?? []).map((event) => event.actor).filter(Boolean))
-    .size;
+  const uniqueActors = new Set(
+    (calendarEvents?.items ?? []).map((event) => event.actor).filter(Boolean),
+  ).size;
 
   return (
     <div className={styles.page}>
@@ -231,31 +235,41 @@ export function DashboardPage() {
 
       <div className={styles.viewToggle}>
         <button
-          className={[styles.viewBtn, view === 'widgets' && styles.viewActive].filter(Boolean).join(' ')}
+          className={[styles.viewBtn, view === 'widgets' && styles.viewActive]
+            .filter(Boolean)
+            .join(' ')}
           onClick={() => setView('widgets')}
         >
           My Dashboard
         </button>
         <button
-          className={[styles.viewBtn, view === 'operations' && styles.viewActive].filter(Boolean).join(' ')}
+          className={[styles.viewBtn, view === 'operations' && styles.viewActive]
+            .filter(Boolean)
+            .join(' ')}
           onClick={() => setView('operations')}
         >
           Operations
         </button>
         <button
-          className={[styles.viewBtn, view === 'executive' && styles.viewActive].filter(Boolean).join(' ')}
+          className={[styles.viewBtn, view === 'executive' && styles.viewActive]
+            .filter(Boolean)
+            .join(' ')}
           onClick={() => setView('executive')}
         >
           Executive
         </button>
         <button
-          className={[styles.viewBtn, view === 'security' && styles.viewActive].filter(Boolean).join(' ')}
+          className={[styles.viewBtn, view === 'security' && styles.viewActive]
+            .filter(Boolean)
+            .join(' ')}
           onClick={() => setView('security')}
         >
           Security Engineering
         </button>
         <button
-          className={[styles.viewBtn, view === 'cicd' && styles.viewActive].filter(Boolean).join(' ')}
+          className={[styles.viewBtn, view === 'cicd' && styles.viewActive]
+            .filter(Boolean)
+            .join(' ')}
           onClick={() => setView('cicd')}
         >
           CI/CD
@@ -316,7 +330,9 @@ export function DashboardPage() {
               label="pipeline success"
               helpText="7-day Actions workflow success rate. Calculated from workflow_run.completed events."
               variant={
-                workflowSuccessRate != null && parseFloat(workflowSuccessRate) >= 90 ? 'success' : undefined
+                workflowSuccessRate != null && parseFloat(workflowSuccessRate) >= 90
+                  ? 'success'
+                  : undefined
               }
               onClick={() => navigate('/velocity')}
             />

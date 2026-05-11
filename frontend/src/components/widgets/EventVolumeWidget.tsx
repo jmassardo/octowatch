@@ -62,7 +62,9 @@ export function EventVolumeWidget() {
       windowConfig.bucketCount - 1,
       Math.max(
         0,
-        Math.floor((timestamp - (windowConfig.now - windowConfig.windowMs)) / windowConfig.bucketMs),
+        Math.floor(
+          (timestamp - (windowConfig.now - windowConfig.windowMs)) / windowConfig.bucketMs,
+        ),
       ),
     );
     buckets[index] += 1;

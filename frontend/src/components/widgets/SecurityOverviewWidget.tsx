@@ -89,7 +89,8 @@ export function SecurityOverviewWidget({ detections }: Props) {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['widget', 'security-overview', selectedOrg],
-    queryFn: () => listDetections({ status: 'open', org: selectedOrg || undefined, page_size: 100 }),
+    queryFn: () =>
+      listDetections({ status: 'open', org: selectedOrg || undefined, page_size: 100 }),
     staleTime: 60_000,
     enabled: detections == null,
   });
