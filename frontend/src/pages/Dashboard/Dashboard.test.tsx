@@ -127,9 +127,30 @@ describe('DashboardPage', () => {
 
     mockListEvents.mockResolvedValue({
       items: [
-        { id: 1, created_at: '2024-01-02T10:00:00Z', actor: 'alice', org: 'octowatch', repo: 'a', action: 'pull_request.opened' },
-        { id: 2, created_at: '2024-01-02T09:00:00Z', actor: 'bob', org: 'octowatch', repo: 'b', action: 'workflow_run.completed' },
-        { id: 3, created_at: '2024-01-02T08:00:00Z', actor: 'chris', org: 'acme', repo: 'c', action: 'push' },
+        {
+          id: 1,
+          created_at: '2024-01-02T10:00:00Z',
+          actor: 'alice',
+          org: 'octowatch',
+          repo: 'a',
+          action: 'pull_request.opened',
+        },
+        {
+          id: 2,
+          created_at: '2024-01-02T09:00:00Z',
+          actor: 'bob',
+          org: 'octowatch',
+          repo: 'b',
+          action: 'workflow_run.completed',
+        },
+        {
+          id: 3,
+          created_at: '2024-01-02T08:00:00Z',
+          actor: 'chris',
+          org: 'acme',
+          repo: 'c',
+          action: 'push',
+        },
       ],
       total: 1500,
       page: 1,
@@ -145,7 +166,15 @@ describe('DashboardPage', () => {
     mockGetUnifiedSecurity.mockResolvedValue({
       secret_scanning: { open: 3, resolved: 10, total: 13, bypassed_open: 0 },
       code_scanning: { open: 1, critical: 0, high: 1, medium: 0, low: 0, total: 1 },
-      dependabot: { open: 2, critical: 0, high: 1, medium: 1, low: 0, total: 2, critical_aging_gt_90d: 0 },
+      dependabot: {
+        open: 2,
+        critical: 0,
+        high: 1,
+        medium: 1,
+        low: 0,
+        total: 2,
+        critical_aging_gt_90d: 0,
+      },
       detections: { active: 6, critical: 2, high: 2, medium: 1, low: 1 },
       trend_30d: [
         { day: '2024-01-01', secret_scanning: 2, code_scanning: 1, dependabot: 2 },
@@ -156,18 +185,94 @@ describe('DashboardPage', () => {
       total_repos: 10,
       feature_coverage: { ghas: { repos: 8, pct: 80 } },
       time_series: [
-        { date: '2024-01-01', ghas_pct: 75, code_scanning_pct: 70, secret_scanning_pct: 72, dependabot_pct: 65, push_protection_pct: 60, ghas_repos: 7, code_scanning_repos: 7, secret_scanning_repos: 7, dependabot_repos: 6, push_protection_repos: 6 },
-        { date: '2024-01-02', ghas_pct: 80, code_scanning_pct: 75, secret_scanning_pct: 72, dependabot_pct: 70, push_protection_pct: 60, ghas_repos: 8, code_scanning_repos: 8, secret_scanning_repos: 7, dependabot_repos: 7, push_protection_repos: 6 },
+        {
+          date: '2024-01-01',
+          ghas_pct: 75,
+          code_scanning_pct: 70,
+          secret_scanning_pct: 72,
+          dependabot_pct: 65,
+          push_protection_pct: 60,
+          ghas_repos: 7,
+          code_scanning_repos: 7,
+          secret_scanning_repos: 7,
+          dependabot_repos: 6,
+          push_protection_repos: 6,
+        },
+        {
+          date: '2024-01-02',
+          ghas_pct: 80,
+          code_scanning_pct: 75,
+          secret_scanning_pct: 72,
+          dependabot_pct: 70,
+          push_protection_pct: 60,
+          ghas_repos: 8,
+          code_scanning_repos: 8,
+          secret_scanning_repos: 7,
+          dependabot_repos: 7,
+          push_protection_repos: 6,
+        },
       ],
       uncovered_repos: [],
     });
-    mockGetUnhealthyHooks.mockResolvedValue({ unhealthy_hooks: [{ org: 'octowatch', repo: 'repo', action: 'webhook.disabled', actor: 'svc', hook_id: '1', app_name: null, config_url: null, created_at: '2024-01-02T00:00:00Z' }] });
-    mockGetHealthScore.mockResolvedValue({ score: 88, grade: 'B', critical_count: 1, high_count: 1, medium_count: 1, low_count: 1, total_signals: 4, orgs_monitored: 2 });
-    mockGetStalePrs.mockResolvedValue({ stale_prs: [{ org: 'octowatch', repo: 'repo', pr_number: '12', title: 'Refactor', actor: 'alice', opened_at: '2024-01-01T00:00:00Z', days_open: 2 }] });
+    mockGetUnhealthyHooks.mockResolvedValue({
+      unhealthy_hooks: [
+        {
+          org: 'octowatch',
+          repo: 'repo',
+          action: 'webhook.disabled',
+          actor: 'svc',
+          hook_id: '1',
+          app_name: null,
+          config_url: null,
+          created_at: '2024-01-02T00:00:00Z',
+        },
+      ],
+    });
+    mockGetHealthScore.mockResolvedValue({
+      score: 88,
+      grade: 'B',
+      critical_count: 1,
+      high_count: 1,
+      medium_count: 1,
+      low_count: 1,
+      total_signals: 4,
+      orgs_monitored: 2,
+    });
+    mockGetStalePrs.mockResolvedValue({
+      stale_prs: [
+        {
+          org: 'octowatch',
+          repo: 'repo',
+          pr_number: '12',
+          title: 'Refactor',
+          actor: 'alice',
+          opened_at: '2024-01-01T00:00:00Z',
+          days_open: 2,
+        },
+      ],
+    });
     mockGetPlatformSecurity.mockResolvedValue({
       orgs: [
-        { org: 'octowatch', sso_configured: true, two_fa_required: true, audit_log_streaming: true, ip_allowlist_configured: true, branch_protection_default: true, compliance_score: 92, recommendations: [] },
-        { org: 'acme', sso_configured: true, two_fa_required: true, audit_log_streaming: true, ip_allowlist_configured: false, branch_protection_default: false, compliance_score: 78, recommendations: [] },
+        {
+          org: 'octowatch',
+          sso_configured: true,
+          two_fa_required: true,
+          audit_log_streaming: true,
+          ip_allowlist_configured: true,
+          branch_protection_default: true,
+          compliance_score: 92,
+          recommendations: [],
+        },
+        {
+          org: 'acme',
+          sso_configured: true,
+          two_fa_required: true,
+          audit_log_streaming: true,
+          ip_allowlist_configured: false,
+          branch_protection_default: false,
+          compliance_score: 78,
+          recommendations: [],
+        },
       ],
       overall_compliance_score: 85,
     });
@@ -192,15 +297,49 @@ describe('DashboardPage', () => {
       power_users: [],
       feature_adoption: [
         { feature: 'chat', active_users: 10, total_seats: 20, pct: 50, trend_7d: 4, color: '#000' },
-        { feature: 'completions', active_users: 15, total_seats: 20, pct: 75, trend_7d: 2, color: '#111' },
+        {
+          feature: 'completions',
+          active_users: 15,
+          total_seats: 20,
+          pct: 75,
+          trend_7d: 2,
+          color: '#111',
+        },
       ],
       minimal_users: [],
     });
     mockGetDevelopers.mockResolvedValue({
       developers: [
-        { login: 'alice', event_count: 10, pr_count: 2, review_count: 4, top_repos: ['a'], repo_count: 1, last_active: '2024-01-02T00:00:00Z', weekly_counts: [1, 2, 3] },
-        { login: 'bob', event_count: 8, pr_count: 1, review_count: 2, top_repos: ['b'], repo_count: 1, last_active: '2024-01-02T00:00:00Z', weekly_counts: [1, 1, 2] },
-        { login: 'chris', event_count: 6, pr_count: 1, review_count: 1, top_repos: ['c'], repo_count: 1, last_active: '2024-01-02T00:00:00Z', weekly_counts: [1, 1, 1] },
+        {
+          login: 'alice',
+          event_count: 10,
+          pr_count: 2,
+          review_count: 4,
+          top_repos: ['a'],
+          repo_count: 1,
+          last_active: '2024-01-02T00:00:00Z',
+          weekly_counts: [1, 2, 3],
+        },
+        {
+          login: 'bob',
+          event_count: 8,
+          pr_count: 1,
+          review_count: 2,
+          top_repos: ['b'],
+          repo_count: 1,
+          last_active: '2024-01-02T00:00:00Z',
+          weekly_counts: [1, 1, 2],
+        },
+        {
+          login: 'chris',
+          event_count: 6,
+          pr_count: 1,
+          review_count: 1,
+          top_repos: ['c'],
+          repo_count: 1,
+          last_active: '2024-01-02T00:00:00Z',
+          weekly_counts: [1, 1, 1],
+        },
       ],
       lookback_days: 30,
     });

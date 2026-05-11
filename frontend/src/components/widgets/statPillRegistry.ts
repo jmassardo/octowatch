@@ -232,7 +232,9 @@ export const DEFAULT_ENABLED_PILLS = [
 export const DEFAULT_PILL_ORDER = Object.keys(STAT_PILL_REGISTRY);
 
 export function getMetricsByCategory(category: MetricCategory): StatPillMetricDefinition[] {
-  return DEFAULT_PILL_ORDER.map((id) => STAT_PILL_REGISTRY[id]!).filter((metric) => metric.category === category);
+  return DEFAULT_PILL_ORDER.map((id) => STAT_PILL_REGISTRY[id]!).filter(
+    (metric) => metric.category === category,
+  );
 }
 
 export function getAllMetrics(): StatPillMetricDefinition[] {

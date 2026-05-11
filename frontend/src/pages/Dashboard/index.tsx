@@ -124,7 +124,10 @@ function getThresholdVariant(
   return 'success';
 }
 
-function computeEventsPerHour(items: readonly EventResponse[] | undefined, total: number | undefined) {
+function computeEventsPerHour(
+  items: readonly EventResponse[] | undefined,
+  total: number | undefined,
+) {
   if (!items || items.length === 0) {
     return { rate: total ? total / 24 : 0, trend: undefined as number | undefined };
   }
@@ -140,7 +143,9 @@ function computeEventsPerHour(items: readonly EventResponse[] | undefined, total
   }
 
   const midpoint = oldest + (newest - oldest) / 2;
-  const previousCount = sorted.filter((event) => new Date(event.created_at).getTime() <= midpoint).length;
+  const previousCount = sorted.filter(
+    (event) => new Date(event.created_at).getTime() <= midpoint,
+  ).length;
   const recentCount = sorted.length - previousCount;
   const halfHours = Math.max(spanHours / 2, 1);
 
@@ -179,7 +184,8 @@ export function DashboardPage() {
 
   const criticalDetectionsQuery = useQuery({
     queryKey: ['detections', 'open-critical', orgParam],
-    queryFn: () => listDetections({ status: 'open', severity: 'critical', org: orgParam, page_size: 100 }),
+    queryFn: () =>
+      listDetections({ status: 'open', severity: 'critical', org: orgParam, page_size: 100 }),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -267,8 +273,12 @@ export function DashboardPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const actionsBuckets = ((actionsReportQuery.data?.data ?? []) as unknown as ActionsVolumeBucket[]) ?? [];
-  const totalWorkflowRuns = actionsBuckets.reduce((sum, bucket) => sum + (bucket.workflow_runs_total ?? 0), 0);
+  const actionsBuckets =
+    ((actionsReportQuery.data?.data ?? []) as unknown as ActionsVolumeBucket[]) ?? [];
+  const totalWorkflowRuns = actionsBuckets.reduce(
+    (sum, bucket) => sum + (bucket.workflow_runs_total ?? 0),
+    0,
+  );
   const succeededWorkflowRuns = actionsBuckets.reduce(
     (sum, bucket) => sum + (bucket.workflow_runs_succeeded ?? 0),
     0,
@@ -277,12 +287,15 @@ export function DashboardPage() {
     (sum, bucket) => sum + (bucket.workflow_runs_failed ?? 0),
     0,
   );
-  const workflowSuccessRate = totalWorkflowRuns > 0 ? (succeededWorkflowRuns / totalWorkflowRuns) * 100 : 0;
+  const workflowSuccessRate =
+    totalWorkflowRuns > 0 ? (succeededWorkflowRuns / totalWorkflowRuns) * 100 : 0;
 
   const recentEvents = eventsQuery.data?.items ?? [];
   const eventsPerHour = computeEventsPerHour(recentEvents, eventsQuery.data?.total);
   const activeOrgsFromEvents = new Set(recentEvents.map((event) => event.org).filter(Boolean)).size;
-  const activeOrgs = orgParam ? 1 : Math.max(activeOrgsFromEvents, healthScoreQuery.data?.orgs_monitored ?? 0);
+  const activeOrgs = orgParam
+    ? 1
+    : Math.max(activeOrgsFromEvents, healthScoreQuery.data?.orgs_monitored ?? 0);
   const uniqueActors = developersQuery.data?.developers.length ?? 0;
   const secretTrend = latestDelta(
     (unifiedSecurityQuery.data?.trend_30d ?? []).map((point) => point.secret_scanning),
@@ -299,7 +312,9 @@ export function DashboardPage() {
   const webhookLagMinutes = systemHealthQuery.data?.last_event_at
     ? Math.max(
         0,
-        Math.round((renderTime - new Date(systemHealthQuery.data.last_event_at).getTime()) / 60_000),
+        Math.round(
+          (renderTime - new Date(systemHealthQuery.data.last_event_at).getTime()) / 60_000,
+        ),
       )
     : 0;
   const copilotAdoption = copilotAdoptionQuery.data?.total_adoption ?? 0;
@@ -475,7 +490,9 @@ export function DashboardPage() {
     ],
   );
 
-  const orderedPills = pillConfig.order.filter((metricId) => pillConfig.enabledPills.includes(metricId));
+  const orderedPills = pillConfig.order.filter((metricId) =>
+    pillConfig.enabledPills.includes(metricId),
+  );
 
   function handleSaveConfig(nextConfig: StatPillConfig) {
     setPillConfig(nextConfig);
@@ -496,25 +513,33 @@ export function DashboardPage() {
 
       <div className={styles.viewToggle}>
         <button
-          className={[styles.viewBtn, view === 'operations' && styles.viewActive].filter(Boolean).join(' ')}
+          className={[styles.viewBtn, view === 'operations' && styles.viewActive]
+            .filter(Boolean)
+            .join(' ')}
           onClick={() => setView('operations')}
         >
           Operations
         </button>
         <button
-          className={[styles.viewBtn, view === 'executive' && styles.viewActive].filter(Boolean).join(' ')}
+          className={[styles.viewBtn, view === 'executive' && styles.viewActive]
+            .filter(Boolean)
+            .join(' ')}
           onClick={() => setView('executive')}
         >
           Executive
         </button>
         <button
-          className={[styles.viewBtn, view === 'security' && styles.viewActive].filter(Boolean).join(' ')}
+          className={[styles.viewBtn, view === 'security' && styles.viewActive]
+            .filter(Boolean)
+            .join(' ')}
           onClick={() => setView('security')}
         >
           Security Engineering
         </button>
         <button
-          className={[styles.viewBtn, view === 'cicd' && styles.viewActive].filter(Boolean).join(' ')}
+          className={[styles.viewBtn, view === 'cicd' && styles.viewActive]
+            .filter(Boolean)
+            .join(' ')}
           onClick={() => setView('cicd')}
         >
           CI/CD
@@ -675,7 +700,10 @@ export function DashboardPage() {
                     <span
                       className={styles.alertIcon}
                       style={{
-                        color: (openDetectionsQuery.data?.total ?? 0) > 0 ? 'var(--attention)' : 'var(--success)',
+                        color:
+                          (openDetectionsQuery.data?.total ?? 0) > 0
+                            ? 'var(--attention)'
+                            : 'var(--success)',
                       }}
                     >
                       {(openDetectionsQuery.data?.total ?? 0) > 0 ? '⚠' : '✓'}

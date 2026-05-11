@@ -1,11 +1,7 @@
 import { useState } from 'react';
 import { Drawer } from '../primitives/Drawer';
 import { Button } from '../primitives/Button';
-import {
-  STAT_PILL_CATEGORIES,
-  STAT_PILL_REGISTRY,
-  getMetricsByCategory,
-} from './statPillRegistry';
+import { STAT_PILL_CATEGORIES, STAT_PILL_REGISTRY, getMetricsByCategory } from './statPillRegistry';
 import { getDefaultStatPillConfig, type StatPillConfig } from './statPillConfigStorage';
 import styles from './StatPillConfig.module.css';
 

@@ -65,7 +65,9 @@ export function StatPill({
   const navigate = useNavigate();
   const displayValue = isLoading ? '…' : hasError ? '—' : formatValue(value, format);
   const trendLabel =
-    trend == null ? null : `${trend > 0 ? '↑' : trend < 0 ? '↓' : '→'} ${Math.abs(trend).toFixed(1).replace(/\.0$/, '')}%`;
+    trend == null
+      ? null
+      : `${trend > 0 ? '↑' : trend < 0 ? '↓' : '→'} ${Math.abs(trend).toFixed(1).replace(/\.0$/, '')}%`;
 
   function handleActivate() {
     if (path) navigate(path);
@@ -107,7 +109,10 @@ export function StatPill({
           <span className={styles.value}>{displayValue}</span>
           {!isLoading && !hasError && trendLabel && (
             <span
-              className={[styles.trend, trend != null && trend < 0 ? styles.trendDown : styles.trendUp]
+              className={[
+                styles.trend,
+                trend != null && trend < 0 ? styles.trendDown : styles.trendUp,
+              ]
                 .filter(Boolean)
                 .join(' ')}
             >

@@ -28,18 +28,45 @@ describe('StatPill', () => {
   });
 
   it('renders trend indicators', () => {
-    render(<StatPill id="adoption" icon="🤖" label="Adoption" value={72} format="percentage" trend={4.5} />);
+    render(
+      <StatPill
+        id="adoption"
+        icon="🤖"
+        label="Adoption"
+        value={72}
+        format="percentage"
+        trend={4.5}
+      />,
+    );
     expect(screen.getByText('↑ 4.5%')).toBeInTheDocument();
   });
 
   it('applies warning styling', () => {
-    render(<StatPill id="detections" icon="🚨" label="Critical" value={2} format="count" variant="warning" />);
+    render(
+      <StatPill
+        id="detections"
+        icon="🚨"
+        label="Critical"
+        value={2}
+        format="count"
+        variant="warning"
+      />,
+    );
     expect(screen.getByTestId('stat-pill-detections')).toHaveClass('warning');
   });
 
   it('navigates on click when a path is provided', async () => {
     const user = userEvent.setup();
-    render(<StatPill id="clickable" icon="🔗" label="Open Detections" value={3} format="count" path="/threats" />);
+    render(
+      <StatPill
+        id="clickable"
+        icon="🔗"
+        label="Open Detections"
+        value={3}
+        format="count"
+        path="/threats"
+      />,
+    );
     await user.click(screen.getByRole('button', { name: /Open Detections: 3/i }));
     expect(mockNavigate).toHaveBeenCalledWith('/threats');
   });

@@ -38,7 +38,8 @@ function sanitizeThresholds(value: unknown): Record<string, ThresholdConfig> {
 
   const merged: Record<string, ThresholdConfig> = { ...defaults };
   for (const [metricId, thresholds] of Object.entries(value as Record<string, unknown>)) {
-    if (!(metricId in STAT_PILL_REGISTRY) || !thresholds || typeof thresholds !== 'object') continue;
+    if (!(metricId in STAT_PILL_REGISTRY) || !thresholds || typeof thresholds !== 'object')
+      continue;
     const warning = Number((thresholds as { warning?: unknown }).warning);
     const critical = Number((thresholds as { critical?: unknown }).critical);
     if (!Number.isFinite(warning) || !Number.isFinite(critical)) continue;
