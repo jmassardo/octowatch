@@ -38,7 +38,7 @@ class TicketingConfigResponse(BaseModel):
 
 
 class NotificationConfigCreate(BaseModel):
-    channel_type: str = Field(..., pattern=r"^(slack|email|webhook|pagerduty)$")
+    channel_type: str = Field(..., pattern=r"^(slack|email|webhook|pagerduty|teams)$")
     display_name: str = Field(..., min_length=1, max_length=255)
     target: str = Field(..., max_length=1000)
     credential_env_var: str | None = Field(None, max_length=255)
@@ -83,6 +83,50 @@ class SlackConfigResponse(BaseModel):
 
 
 class SlackTestResponse(BaseModel):
+    ok: bool
+    channel: str
+    message: str
+
+
+class PagerDutyConfigUpdate(BaseModel):
+    routing_key: str | None = Field(default=None, max_length=255)
+    severity_mapping: dict[str, str] = Field(default_factory=dict)
+    notification_settings: dict[str, bool] = Field(default_factory=dict)
+    auto_resolve: bool = False
+
+
+class PagerDutyConfigResponse(BaseModel):
+    routing_key_configured: bool
+    routing_key_masked: str | None = None
+    severity_mapping: dict[str, str] = Field(default_factory=dict)
+    notification_settings: dict[str, bool] = Field(default_factory=dict)
+    auto_resolve: bool = False
+
+
+class PagerDutyTestResponse(BaseModel):
+    ok: bool
+    message: str
+
+
+class TeamsConfigUpdate(BaseModel):
+    channel_webhooks: dict[str, str] = Field(default_factory=dict)
+    source_mappings: dict[str, str] = Field(default_factory=dict)
+    notification_settings: dict[str, bool] = Field(default_factory=dict)
+    clear_channels: list[str] = Field(default_factory=list)
+
+
+class TeamsConfigResponse(BaseModel):
+    channel_webhook_configured: dict[str, bool] = Field(default_factory=dict)
+    channel_webhooks_masked: dict[str, str | None] = Field(default_factory=dict)
+    source_mappings: dict[str, str] = Field(default_factory=dict)
+    notification_settings: dict[str, bool] = Field(default_factory=dict)
+
+
+class TeamsTestRequest(BaseModel):
+    channel: str | None = Field(default=None, max_length=100)
+
+
+class TeamsTestResponse(BaseModel):
     ok: bool
     channel: str
     message: str

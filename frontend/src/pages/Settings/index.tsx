@@ -23,6 +23,8 @@ import {
 import { getRetentionPolicies, updateRetentionPolicies } from '../../api/admin';
 import type { RetentionPolicyItem } from '../../api/admin';
 import { SyncPanel } from '../Integrations/SyncPanel';
+import { PagerDutyIntegration } from '../Integrations/PagerDutyIntegration';
+import { TeamsIntegration } from '../Integrations/TeamsIntegration';
 import { PageHeader } from '../../components/common/PageHeader';
 import { useToast } from '../../hooks/useToast';
 import { SyncRunHistory } from '../Integrations/SyncRunHistory';
@@ -38,6 +40,8 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { useFeatures } from '../../hooks/useFeatures';
 import { formatAbsolute } from '../../utils/dates';
+import { getPagerDutyConfig } from '../../api/pagerduty';
+import { getTeamsConfig } from '../../api/teams';
 import styles from './Settings.module.css';
 
 /* ------------------------------------------------------------------ */
@@ -536,6 +540,15 @@ function PagerDutyIcon() {
   );
 }
 
+function TeamsIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="4" y="5" width="16" height="14" rx="3" fill="#5b5fc7" />
+      <path d="M9 10h6M9 14h4" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function JiraIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -588,6 +601,17 @@ const INTEGRATION_INFO: {
   iconBg: string;
 }[] = [
   {
+    key: 'slack',
+    label: 'Slack',
+    description: 'Send real-time notifications and alerts to Slack channels.',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z" />
+      </svg>
+    ),
+    iconBg: '#4A154B',
+  },
+  {
     key: 'jira',
     label: 'Jira',
     description: 'Automatically create Jira issues for security findings and track remediation.',
@@ -614,6 +638,13 @@ const INTEGRATION_INFO: {
     description: 'Trigger PagerDuty incidents for critical security detections.',
     icon: <PagerDutyIcon />,
     iconBg: '#06ac38',
+  },
+  {
+    key: 'teams',
+    label: 'Microsoft Teams',
+    description: 'Send adaptive card notifications to Teams channels through incoming webhooks.',
+    icon: <TeamsIcon />,
+    iconBg: '#5b5fc7',
   },
   {
     key: 'syslog_cef',
@@ -1319,6 +1350,16 @@ function IntegrationsPane() {
     queryFn: listSiemConfigs,
   });
 
+  const { data: pagerDutyConfig } = useQuery({
+    queryKey: ['pagerduty-config'],
+    queryFn: getPagerDutyConfig,
+  });
+
+  const { data: teamsConfig } = useQuery({
+    queryKey: ['teams-config'],
+    queryFn: getTeamsConfig,
+  });
+
   const notifConfigs = notificationConfigs ?? [];
   const ticketConfigs = ticketingConfigs ?? [];
   const siemCfgs = siemConfigs ?? [];
@@ -1346,8 +1387,18 @@ function IntegrationsPane() {
         return { configured: found.length > 0, enabled: found.some((c) => c.enabled) };
       }
       case 'pagerduty': {
-        const found = notifConfigs.filter((c) => c.channel_type === 'pagerduty');
-        return { configured: found.length > 0, enabled: found.some((c) => c.enabled) };
+        const configured = Boolean(pagerDutyConfig?.routing_key_configured);
+        const enabled =
+          configured && Object.values(pagerDutyConfig?.notification_settings ?? {}).some(Boolean);
+        return { configured, enabled };
+      }
+      case 'teams': {
+        const configured = Object.values(teamsConfig?.channel_webhook_configured ?? {}).some(
+          Boolean,
+        );
+        const enabled =
+          configured && Object.values(teamsConfig?.notification_settings ?? {}).some(Boolean);
+        return { configured, enabled };
       }
       case 'syslog_cef': {
         const found = siemCfgs.filter((c) => c.export_type === 'syslog');
@@ -1441,18 +1492,34 @@ function IntegrationsPane() {
         <JiraConfigForm onClose={() => setConfigTarget(null)} />
       </Drawer>
 
-      {/* Webhook-based config modal (Sentinel, Splunk, PagerDuty) */}
+      {/* Webhook-based config modal (Sentinel, Splunk) */}
       <Drawer
-        open={configTarget !== null && ['sentinel', 'splunk', 'pagerduty'].includes(configTarget)}
+        open={configTarget !== null && ['sentinel', 'splunk'].includes(configTarget)}
         onClose={() => setConfigTarget(null)}
         title={getConfigModalTitle(configTarget ?? '')}
       >
-        {configTarget && ['sentinel', 'splunk', 'pagerduty'].includes(configTarget) && (
+        {configTarget && ['sentinel', 'splunk'].includes(configTarget) && (
           <WebhookConfigForm
             name={INTEGRATION_INFO.find((i) => i.key === configTarget)?.label ?? configTarget}
             onClose={() => setConfigTarget(null)}
           />
         )}
+      </Drawer>
+
+      <Drawer
+        open={configTarget === 'pagerduty'}
+        onClose={() => setConfigTarget(null)}
+        title="Configure PagerDuty"
+      >
+        <PagerDutyIntegration />
+      </Drawer>
+
+      <Drawer
+        open={configTarget === 'teams'}
+        onClose={() => setConfigTarget(null)}
+        title="Configure Microsoft Teams"
+      >
+        <TeamsIntegration />
       </Drawer>
 
       {/* Syslog/CEF config modal */}
