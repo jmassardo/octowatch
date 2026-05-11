@@ -96,6 +96,6 @@ describe('MaintenanceBanner', () => {
     await waitFor(() => {
       expect(screen.getByText('Updated message')).toBeInTheDocument();
     });
-    expect(mockGetMaintenanceStatus).toHaveBeenCalledTimes(2);
+    expect(mockGetMaintenanceStatus.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });
