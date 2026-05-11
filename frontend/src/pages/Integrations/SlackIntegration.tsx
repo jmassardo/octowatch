@@ -36,9 +36,10 @@ export function SlackIntegration() {
   const [botToken, setBotToken] = useState('');
   const [signingSecret, setSigningSecret] = useState('');
   const [draft, setDraft] = useState<SlackConfigUpdate | null>(null);
-  const [testStatus, setTestStatus] = useState<{ state: 'success' | 'error'; message: string } | null>(
-    null,
-  );
+  const [testStatus, setTestStatus] = useState<{
+    state: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['slack-config'],
@@ -72,7 +73,10 @@ export function SlackIntegration() {
       showToast('Slack test sent', 'success');
     },
     onError: () => {
-      setTestStatus({ state: 'error', message: 'Slack test failed. Check the token and default channel.' });
+      setTestStatus({
+        state: 'error',
+        message: 'Slack test failed. Check the token and default channel.',
+      });
       showToast('Slack test failed', 'error');
     },
   });
@@ -89,7 +93,11 @@ export function SlackIntegration() {
   }
 
   if (isError) {
-    return <ErrorBanner message={error instanceof Error ? error.message : 'Failed to load Slack integration'} />;
+    return (
+      <ErrorBanner
+        message={error instanceof Error ? error.message : 'Failed to load Slack integration'}
+      />
+    );
   }
 
   if (!data) {
@@ -105,14 +113,21 @@ export function SlackIntegration() {
           <div className={styles.titleGroup}>
             <h2 className={styles.title}>Slack integration</h2>
             <p className={styles.description}>
-              Deliver OctoWatch alerts to Slack and enable the /octowatch slash command for quick lookups.
+              Deliver OctoWatch alerts to Slack and enable the /octowatch slash command for quick
+              lookups.
             </p>
           </div>
           <div className={styles.statusRow}>
-            <span className={styles.badge} data-state={data.bot_token_configured ? 'ready' : 'missing'}>
+            <span
+              className={styles.badge}
+              data-state={data.bot_token_configured ? 'ready' : 'missing'}
+            >
               Bot token {data.bot_token_configured ? 'configured' : 'missing'}
             </span>
-            <span className={styles.badge} data-state={data.signing_secret_configured ? 'ready' : 'missing'}>
+            <span
+              className={styles.badge}
+              data-state={data.signing_secret_configured ? 'ready' : 'missing'}
+            >
               Signing secret {data.signing_secret_configured ? 'configured' : 'missing'}
             </span>
           </div>
@@ -146,7 +161,9 @@ export function SlackIntegration() {
               onChange={(event) => setSigningSecret(event.target.value)}
               placeholder={data.signing_secret_masked ?? '••••••••'}
             />
-            <span className={styles.help}>Used to verify Slack Events, slash commands, and interactions.</span>
+            <span className={styles.help}>
+              Used to verify Slack Events, slash commands, and interactions.
+            </span>
           </div>
 
           <div className={styles.field}>
@@ -160,7 +177,9 @@ export function SlackIntegration() {
               onChange={(event) => setDraft({ ...form, default_channel: event.target.value })}
               placeholder="#security-alerts"
             />
-            <span className={styles.help}>Fallback channel when a source-specific mapping is not set.</span>
+            <span className={styles.help}>
+              Fallback channel when a source-specific mapping is not set.
+            </span>
           </div>
         </div>
 
@@ -204,7 +223,11 @@ export function SlackIntegration() {
         </div>
 
         <div className={styles.actions}>
-          <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <Button
+            variant="primary"
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending}
+          >
             {saveMutation.isPending ? 'Saving…' : 'Save Slack settings'}
           </Button>
           <Button onClick={() => testMutation.mutate()} disabled={testMutation.isPending}>
@@ -215,7 +238,9 @@ export function SlackIntegration() {
               {testStatus.message}
             </span>
           )}
-          {saveMutation.isError && <span className={styles.error}>Unable to save Slack settings.</span>}
+          {saveMutation.isError && (
+            <span className={styles.error}>Unable to save Slack settings.</span>
+          )}
         </div>
 
         <div className={styles.mappingSection}>

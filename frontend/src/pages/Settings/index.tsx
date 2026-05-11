@@ -1432,7 +1432,6 @@ function IntegrationsPane() {
         })}
       </div>
 
-
       {/* Jira config modal */}
       <Drawer
         open={configTarget === 'jira'}
