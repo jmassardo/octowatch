@@ -642,6 +642,9 @@
   .modalHeader,
   .modalBody {
     padding-inline: 16px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .splitLayout,
   .splitMain,

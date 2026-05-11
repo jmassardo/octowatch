@@ -955,6 +955,9 @@
   .govFilters {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page,
   .pageTitle,

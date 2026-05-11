@@ -615,6 +615,9 @@
   .ingestionBanner,
   .systemHealthBar {
     align-items: flex-start;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page,
   .pageTitle,

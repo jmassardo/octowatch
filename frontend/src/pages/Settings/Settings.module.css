@@ -843,6 +843,9 @@
   .wizardNav {
     flex-direction: column-reverse;
     align-items: stretch;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page,
   .pageHeader,

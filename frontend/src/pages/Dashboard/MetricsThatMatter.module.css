@@ -215,6 +215,9 @@
 
   .metricCard {
     flex-wrap: wrap;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .section,
   .sectionHeader,

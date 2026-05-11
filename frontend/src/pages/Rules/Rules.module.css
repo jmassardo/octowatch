@@ -603,6 +603,9 @@
 
   .wizardStepLabels {
     display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page,
   .pageHeader,
