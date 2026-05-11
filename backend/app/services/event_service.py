@@ -51,13 +51,13 @@ async def _get_count(
     If the filtered count hits the threshold, returns the threshold as an estimate.
     """
     if not has_narrowing_filters:
-        # Use pg_class reltuples for a fast approximate count on unfiltered queries
-        est_result = await session.execute(
-            text("SELECT reltuples::bigint FROM pg_class WHERE relname = 'events'")
-        )
+        # Use TimescaleDB approximate_row_count() which sums chunk
+        # reltuples (pg_class reltuples on the parent hypertable is 0).
+        # Falls back to pg_class reltuples for non-hypertables.
+        est_result = await session.execute(text("SELECT approximate_row_count('events')"))
         row = est_result.scalar_one_or_none()
         total = max(int(row), 0) if row else 0
-        return total, True  # reltuples is always an estimate
+        return total, True  # approximate_row_count is always an estimate
 
     # For filtered queries: count up to threshold
     limited_subquery = base_stmt.with_only_columns(AuditEvent.id).limit(_COUNT_THRESHOLD).subquery()
