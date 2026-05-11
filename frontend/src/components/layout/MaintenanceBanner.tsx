@@ -55,11 +55,15 @@ export function MaintenanceBanner({
       <div className={styles.content}>
         <div className={styles.titleRow}>
           <span className={styles.badge}>Maintenance</span>
-          {status.block_writes && <span className={styles.action}>Write operations are temporarily disabled.</span>}
+          {status.block_writes && (
+            <span className={styles.action}>Write operations are temporarily disabled.</span>
+          )}
         </div>
         <p className={styles.message}>{status.message || DEFAULT_MESSAGE}</p>
         <div className={styles.meta}>
-          {status.estimated_end && <span>Estimated end: {formatAbsolute(status.estimated_end)}</span>}
+          {status.estimated_end && (
+            <span>Estimated end: {formatAbsolute(status.estimated_end)}</span>
+          )}
           {status.started_at && <span>Started: {formatAbsolute(status.started_at)}</span>}
         </div>
       </div>

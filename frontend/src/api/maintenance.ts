@@ -29,8 +29,6 @@ export function updateMaintenanceStatus(
   return api.put<MaintenanceStatus>('/admin/maintenance', payload);
 }
 
-export function toggleMaintenanceMode(payload?: {
-  enabled?: boolean;
-}): Promise<MaintenanceStatus> {
+export function toggleMaintenanceMode(payload?: { enabled?: boolean }): Promise<MaintenanceStatus> {
   return api.post<MaintenanceStatus>('/admin/maintenance/toggle', payload ?? {});
 }

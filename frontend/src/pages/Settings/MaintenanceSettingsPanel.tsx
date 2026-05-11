@@ -144,7 +144,10 @@ export function MaintenanceSettingsPanel() {
                 type="checkbox"
                 checked={form.enabled}
                 onChange={(event) =>
-                  setDraft((current) => ({ ...(current ?? baseForm), enabled: event.target.checked }))
+                  setDraft((current) => ({
+                    ...(current ?? baseForm),
+                    enabled: event.target.checked,
+                  }))
                 }
               />
               <span className={styles.toggleSlider} />
@@ -218,7 +221,10 @@ export function MaintenanceSettingsPanel() {
                 type="checkbox"
                 checked={form.block_writes}
                 onChange={(event) =>
-                  setDraft((current) => ({ ...(current ?? baseForm), block_writes: event.target.checked }))
+                  setDraft((current) => ({
+                    ...(current ?? baseForm),
+                    block_writes: event.target.checked,
+                  }))
                 }
               />
               <span className={styles.toggleSlider} />
@@ -242,7 +248,10 @@ export function MaintenanceSettingsPanel() {
               type="datetime-local"
               value={form.estimated_end}
               onChange={(event) =>
-                setDraft((current) => ({ ...(current ?? baseForm), estimated_end: event.target.value }))
+                setDraft((current) => ({
+                  ...(current ?? baseForm),
+                  estimated_end: event.target.value,
+                }))
               }
             />
           </div>

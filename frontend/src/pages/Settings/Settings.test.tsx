@@ -445,7 +445,9 @@ describe('SettingsPage', () => {
     await user.click(screen.getByRole('button', { name: 'System' }));
 
     expect(
-      screen.getByText(/system-level configuration including logging, maintenance, and data retention/i),
+      screen.getByText(
+        /system-level configuration including logging, maintenance, and data retention/i,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/log level/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/debug mode/i)).toBeInTheDocument();
