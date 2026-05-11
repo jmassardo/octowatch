@@ -858,20 +858,18 @@ class TestFieldMismatchFixes:
         )
         detection = _make_detection()
 
-        mock_client = AsyncMock()
-        mock_client.chat_postMessage = AsyncMock()
-
         with (
             patch.dict(os.environ, {"MY_SLACK_TOKEN": "xoxb-test-token"}),
             patch(
-                "app.services.notification_service.AsyncWebClient",
-                return_value=mock_client,
-            ) as mock_client_cls,
+                "app.services.notification_service.send_octowatch_slack_notification",
+                new_callable=AsyncMock,
+            ) as mock_send,
         ):
             await _send_slack_notification(config, detection)
 
-        # Verify the client was created with the env var token
-        mock_client_cls.assert_called_once_with(token="xoxb-test-token")
+        mock_send.assert_awaited_once()
+        call_kwargs = mock_send.call_args
+        assert call_kwargs[0][1]["bot_token"] == "xoxb-test-token"
 
     @pytest.mark.anyio
     async def test_slack_uses_target_not_destination(self) -> None:
@@ -883,21 +881,18 @@ class TestFieldMismatchFixes:
         )
         detection = _make_detection()
 
-        mock_client = AsyncMock()
-        mock_client.chat_postMessage = AsyncMock()
-
         with (
             patch.dict(os.environ, {"SLACK_TOKEN": "xoxb-token"}),
             patch(
-                "app.services.notification_service.AsyncWebClient",
-                return_value=mock_client,
-            ),
+                "app.services.notification_service.send_octowatch_slack_notification",
+                new_callable=AsyncMock,
+            ) as mock_send,
         ):
             await _send_slack_notification(config, detection)
 
-        mock_client.chat_postMessage.assert_awaited_once()
-        call_kwargs = mock_client.chat_postMessage.call_args.kwargs
-        assert call_kwargs["channel"] == "#my-channel"
+        mock_send.assert_awaited_once()
+        call_kwargs = mock_send.call_args
+        assert call_kwargs[0][1]["channel"] == "#my-channel"
 
     @pytest.mark.anyio
     async def test_slack_skips_when_no_token_env_var(self) -> None:
@@ -912,10 +907,11 @@ class TestFieldMismatchFixes:
         os.environ.pop("NONEXISTENT_VAR", None)
 
         with patch(
-            "app.services.notification_service.AsyncWebClient",
-        ) as mock_client_cls:
+            "app.services.notification_service.send_octowatch_slack_notification",
+            new_callable=AsyncMock,
+        ) as mock_send:
             await _send_slack_notification(config, detection)
-            mock_client_cls.assert_not_called()
+            mock_send.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_email_uses_target_not_destination(self) -> None:
