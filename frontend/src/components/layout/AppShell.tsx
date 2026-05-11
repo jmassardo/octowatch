@@ -4,10 +4,12 @@ import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { GuidedTour } from '../GuidedTour/GuidedTour';
 import { MaintenanceBanner } from './MaintenanceBanner';
+import { CommandPalette } from '../common/CommandPalette';
 import { isTourCompleted, resetTour } from '../GuidedTour/tourStorage';
 import { HotkeyProvider } from '../../contexts/HotkeyProvider';
 import { useHotkeys, type HotkeyBinding } from '../../hooks/useHotkeys';
 import { ShortcutsDialog } from '../common/ShortcutsDialog';
+import { useCommandPalette } from '../../hooks/useCommandPalette';
 import styles from './AppShell.module.css';
 
 function AppShellInner() {
@@ -15,6 +17,7 @@ function AppShellInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const navigate = useNavigate();
+  const commandPalette = useCommandPalette();
 
   function handleReplayTour() {
     resetTour();
@@ -123,6 +126,9 @@ function AppShellInner() {
       </div>
       {showTour && <GuidedTour onComplete={() => setShowTour(false)} />}
       <ShortcutsDialog open={shortcutsOpen} onClose={closeShortcuts} />
+      {commandPalette.isOpen && (
+        <CommandPalette isOpen={commandPalette.isOpen} onClose={commandPalette.close} />
+      )}
     </div>
   );
 }

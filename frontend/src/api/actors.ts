@@ -95,3 +95,23 @@ export function getActorDetections(
 export function getActorLocations(login: string): Promise<ActorLocationsResponse> {
   return api.get<ActorLocationsResponse>(`/actors/${encodeURIComponent(login)}/locations`);
 }
+
+interface ActorSearchResponse {
+  readonly actors: readonly string[];
+}
+
+let cachedActors: readonly string[] | null = null;
+
+export async function searchActors(query: string, limit = 8): Promise<readonly string[]> {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return [];
+
+  if (cachedActors == null) {
+    const response = await api.get<ActorSearchResponse>('/suggestions/actors');
+    cachedActors = response.actors;
+  }
+
+  return cachedActors
+    .filter((actor) => actor.toLowerCase().includes(normalizedQuery))
+    .slice(0, limit);
+}
