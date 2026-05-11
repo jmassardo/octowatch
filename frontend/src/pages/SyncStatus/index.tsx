@@ -264,9 +264,7 @@ function ScheduleCard({ schedule }: { schedule: SyncScheduleType | undefined }) 
         </div>
         <div className={styles.scheduleRow}>
           <span>Next run</span>
-          <strong>
-            {schedule.next_run_at ? formatShortDateTime(schedule.next_run_at) : '—'}
-          </strong>
+          <strong>{schedule.next_run_at ? formatShortDateTime(schedule.next_run_at) : '—'}</strong>
         </div>
         <div className={styles.scheduleRow}>
           <span>Last completed</span>

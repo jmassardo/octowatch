@@ -339,9 +339,7 @@ describe('SyncStatusPage', () => {
 
     renderPage();
 
-    expect(
-      screen.getByText(/you do not have permission to view sync status/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/you do not have permission to view sync status/i)).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
