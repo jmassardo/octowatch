@@ -15,10 +15,10 @@ export function Card({ children, className, style, onClick, ...props }: CardProp
       tabIndex={onClick ? 0 : props.tabIndex}
       onKeyDown={
         onClick
-          ? (e) => {
+          ? (e: React.KeyboardEvent<HTMLDivElement>) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                onClick();
+                onClick(e as unknown as React.MouseEvent<HTMLDivElement>);
               }
             }
           : props.onKeyDown
