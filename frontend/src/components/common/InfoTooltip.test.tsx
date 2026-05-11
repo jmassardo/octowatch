@@ -28,7 +28,9 @@ describe('InfoTooltip', () => {
   it('chooses bottom placement when there is not enough room above', async () => {
     const user = userEvent.setup();
 
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
       const testId = this.getAttribute('data-testid');
       if (testId === 'info-tooltip-trigger') {
         return {

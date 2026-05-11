@@ -43,12 +43,7 @@ function renderFormattedText(content: string) {
     }
 
     parts.push(
-      <a
-        key={`link-${linkMatch.index}`}
-        href={linkMatch[2]}
-        target="_blank"
-        rel="noreferrer"
-      >
+      <a key={`link-${linkMatch.index}`} href={linkMatch[2]} target="_blank" rel="noreferrer">
         {linkMatch[1]}
       </a>,
     );
@@ -78,8 +73,7 @@ export function InfoTooltip({ content, label = 'More information', className }: 
     const gap = 12;
 
     const fitsTop = triggerRect.top >= tooltipRect.height + gap;
-    const fitsBottom =
-      window.innerHeight - triggerRect.bottom >= tooltipRect.height + gap;
+    const fitsBottom = window.innerHeight - triggerRect.bottom >= tooltipRect.height + gap;
     const fitsRight = window.innerWidth - triggerRect.right >= tooltipRect.width + gap;
 
     let nextPlacement = 'left';

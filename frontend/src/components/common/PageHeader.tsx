@@ -54,7 +54,13 @@ function PageHeaderHelp() {
  * PageHeader — consistent page header with title, description,
  * optional breadcrumbs, and action buttons.
  */
-export function PageHeader({ title, description, actions, breadcrumbs, showHelp }: PageHeaderProps) {
+export function PageHeader({
+  title,
+  description,
+  actions,
+  breadcrumbs,
+  showHelp,
+}: PageHeaderProps) {
   const hasRightContent = showHelp || (actions && actions.length > 0);
 
   return (
