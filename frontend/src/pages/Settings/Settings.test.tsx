@@ -174,6 +174,9 @@ vi.mock('../../api/slack', () => ({
     ok: true,
     channel: '#security-alerts',
     message: 'Test message sent successfully',
+  }),
+}));
+
 vi.mock('../../api/pagerduty', () => ({
   getPagerDutyConfig: vi.fn().mockResolvedValue({
     routing_key_configured: true,
