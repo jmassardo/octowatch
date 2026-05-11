@@ -61,6 +61,33 @@ class NotificationConfigResponse(BaseModel):
     created_at: datetime
 
 
+class SlackConfigUpdate(BaseModel):
+    bot_token: str | None = Field(default=None, max_length=500)
+    signing_secret: str | None = Field(default=None, max_length=255)
+    default_channel: str = Field(default="", max_length=255)
+    channel_mappings: dict[str, str] = Field(default_factory=dict)
+    notification_settings: dict[str, bool] = Field(default_factory=dict)
+
+
+class SlackConfigResponse(BaseModel):
+    bot_token_configured: bool
+    signing_secret_configured: bool
+    bot_token_masked: str | None = None
+    signing_secret_masked: str | None = None
+    default_channel: str = ""
+    channel_mappings: dict[str, str] = Field(default_factory=dict)
+    notification_settings: dict[str, bool] = Field(default_factory=dict)
+    installation_url: str
+    installation_instructions: list[str] = Field(default_factory=list)
+    commands: list[str] = Field(default_factory=list)
+
+
+class SlackTestResponse(BaseModel):
+    ok: bool
+    channel: str
+    message: str
+
+
 class IdpConfigCreate(BaseModel):
     provider: str = Field(..., pattern=r"^(okta|entra|google_workspace)$")
     display_name: str = Field(..., min_length=1, max_length=255)
