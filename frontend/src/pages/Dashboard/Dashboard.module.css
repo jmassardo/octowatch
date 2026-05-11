@@ -391,6 +391,10 @@
   background: rgba(177, 186, 196, 0.12);
 }
 
+.widgetSection {
+  margin-top: 8px;
+}
+
 /* Responsive: tablet (768–1024px) — 2-column grid */
 @media (max-width: 1024px) {
   .grid {
