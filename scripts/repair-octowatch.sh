@@ -26,10 +26,16 @@ set -euo pipefail
 # ── Config ────────────────────────────────────────────────────────────────────
 RG="rg-octowatch-dev"
 CLUSTER="aks-octowatch-dev"
+MC_RG="MC_rg-octowatch-dev_aks-octowatch-dev_eastus2"
 NAMESPACE="octowatch"
 EXTERNAL_HOST="octowatch.jmassardo.azure.csa-github.com"
 HELM_TAG_FILE="helm/values-image-tag.yaml"
 GHCR_PREFIX="ghcr.io/jmassardo"
+VMSS_POOLS=(
+  aks-pool3-30701372-vmss
+  aks-system3-14937370-vmss
+  aks-system4-11952119-vmss
+)
 DEPLOYMENTS=(
   octowatch-api
   octowatch-beat
@@ -163,7 +169,32 @@ NOT_READY=$(kubectl get nodes --no-headers 2>/dev/null | grep -v " Ready " || tr
 if [[ -n "$NOT_READY" ]]; then
   fail "Some nodes are not Ready:"
   echo "$NOT_READY"
-  warn "Node issues may require Azure portal intervention or nodepool scaling"
+
+  # Restart all VMSS pools to recover NotReady nodes
+  run_fix "Restarting VMSS pools to recover NotReady nodes" "
+    for vmss in ${VMSS_POOLS[*]}; do
+      echo \"  Restarting \$vmss...\"
+      az vmss restart --resource-group $MC_RG --name \$vmss --no-wait 2>/dev/null || true
+    done
+  "
+
+  if ! $DRY_RUN; then
+    info "Waiting up to 120s for nodes to recover..."
+    for attempt in $(seq 1 12); do
+      sleep 10
+      STILL_BAD=$(kubectl get nodes --no-headers 2>/dev/null | grep -v " Ready " || true)
+      if [[ -z "$STILL_BAD" ]]; then
+        NODE_COUNT=$(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' ')
+        ok "All $NODE_COUNT nodes are Ready (recovered after ~$((attempt * 10))s)"
+        break
+      fi
+      info "  Still waiting... ($attempt/12)"
+    done
+    if [[ -n "$STILL_BAD" ]]; then
+      fail "Some nodes still not Ready after 120s. Manual intervention may be needed."
+      echo "$STILL_BAD"
+    fi
+  fi
 else
   NODE_COUNT=$(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' ')
   ok "All $NODE_COUNT nodes are Ready"
@@ -200,10 +231,27 @@ if [[ -n "$PROBLEM_PODS" ]]; then
   # Check for Pending pods
   PENDING=$(echo "$PROBLEM_PODS" | grep "Pending" || true)
   if [[ -n "$PENDING" ]]; then
-    warn "Pending pods — usually a resource constraint. Checking events:"
-    while read -r pod _; do
-      kubectl describe pod -n "$NAMESPACE" "$pod" 2>/dev/null | grep -A5 "Events:" | sed 's/^/    /'
-    done <<< "$PENDING"
+    warn "Pending pods detected — waiting 60s for scheduling after node recovery..."
+    if ! $DRY_RUN; then
+      sleep 60
+      STILL_PENDING=$(kubectl get pods -n "$NAMESPACE" --no-headers 2>/dev/null \
+        | grep "Pending" || true)
+      if [[ -n "$STILL_PENDING" ]]; then
+        warn "Pods still Pending — force-restarting stuck deployments..."
+        for deploy in "${DEPLOYMENTS[@]}"; do
+          kubectl rollout restart deployment/"$deploy" -n "$NAMESPACE" 2>/dev/null || true
+        done
+        # Also restart statefulsets (postgresql, valkey)
+        kubectl rollout restart statefulset -n "$NAMESPACE" --all 2>/dev/null || true
+        info "Waiting for rollouts to complete..."
+        sleep 30
+        kubectl get pods -n "$NAMESPACE" --no-headers 2>/dev/null | grep -Ev "Running|Completed" && \
+          warn "Some pods still not Running — check manually" || \
+          ok "All pods recovered after restart"
+      else
+        ok "All pods scheduled successfully after node recovery"
+      fi
+    fi
   fi
 else
   POD_COUNT=$(kubectl get pods -n "$NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d ' ')
@@ -320,7 +368,7 @@ echo ""
 info "Step 7: Internal API health check..."
 
 HEALTH=$(kubectl exec -n "$NAMESPACE" deploy/octowatch-api -- \
-  curl -sf http://localhost:8000/health 2>/dev/null || echo "FAIL")
+  python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').read().decode())" 2>/dev/null || echo "FAIL")
 
 if echo "$HEALTH" | grep -q '"ok"'; then
   ok "Internal health: $HEALTH"
