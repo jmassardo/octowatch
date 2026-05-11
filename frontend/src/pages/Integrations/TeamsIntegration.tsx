@@ -71,7 +71,10 @@ export function TeamsIntegration() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [draft, setDraft] = useState<TeamsConfigUpdate | null>(null);
-  const [testStatus, setTestStatus] = useState<{ state: 'success' | 'error'; message: string } | null>(null);
+  const [testStatus, setTestStatus] = useState<{
+    state: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['teams-config'],
@@ -100,7 +103,10 @@ export function TeamsIntegration() {
       showToast('Teams test sent', 'success');
     },
     onError: () => {
-      setTestStatus({ state: 'error', message: 'Teams test failed. Check the configured webhook URLs.' });
+      setTestStatus({
+        state: 'error',
+        message: 'Teams test failed. Check the configured webhook URLs.',
+      });
       showToast('Teams test failed', 'error');
     },
   });
@@ -117,7 +123,11 @@ export function TeamsIntegration() {
   }
 
   if (isError) {
-    return <ErrorBanner message={error instanceof Error ? error.message : 'Failed to load Teams integration'} />;
+    return (
+      <ErrorBanner
+        message={error instanceof Error ? error.message : 'Failed to load Teams integration'}
+      />
+    );
   }
 
   if (!data || !form) {
@@ -133,7 +143,8 @@ export function TeamsIntegration() {
           <div className={styles.titleGroup}>
             <h2 className={styles.title}>Microsoft Teams integration</h2>
             <p className={styles.description}>
-              Deliver OctoWatch alerts to Teams channels with Adaptive Cards and source-specific routing.
+              Deliver OctoWatch alerts to Teams channels with Adaptive Cards and source-specific
+              routing.
             </p>
           </div>
           <div className={styles.statusRow}>
@@ -157,7 +168,10 @@ export function TeamsIntegration() {
                   type="password"
                   aria-label={`${CHANNEL_LABELS[channel]} webhook`}
                   value={form.channel_webhooks[channel]}
-                  placeholder={data.channel_webhooks_masked[channel] ?? 'https://outlook.office.com/webhook/...'}
+                  placeholder={
+                    data.channel_webhooks_masked[channel] ??
+                    'https://outlook.office.com/webhook/...'
+                  }
                   onChange={(event) =>
                     setDraft({
                       ...form,
@@ -237,7 +251,11 @@ export function TeamsIntegration() {
         </div>
 
         <div className={styles.actions}>
-          <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <Button
+            variant="primary"
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending}
+          >
             {saveMutation.isPending ? 'Saving…' : 'Save Teams settings'}
           </Button>
           <Button onClick={() => testMutation.mutate()} disabled={testMutation.isPending}>
@@ -248,7 +266,9 @@ export function TeamsIntegration() {
               {testStatus.message}
             </span>
           )}
-          {saveMutation.isError && <span className={styles.error}>Unable to save Teams settings.</span>}
+          {saveMutation.isError && (
+            <span className={styles.error}>Unable to save Teams settings.</span>
+          )}
         </div>
       </div>
     </Card>

@@ -1377,12 +1377,16 @@ function IntegrationsPane() {
       }
       case 'pagerduty': {
         const configured = Boolean(pagerDutyConfig?.routing_key_configured);
-        const enabled = configured && Object.values(pagerDutyConfig?.notification_settings ?? {}).some(Boolean);
+        const enabled =
+          configured && Object.values(pagerDutyConfig?.notification_settings ?? {}).some(Boolean);
         return { configured, enabled };
       }
       case 'teams': {
-        const configured = Object.values(teamsConfig?.channel_webhook_configured ?? {}).some(Boolean);
-        const enabled = configured && Object.values(teamsConfig?.notification_settings ?? {}).some(Boolean);
+        const configured = Object.values(teamsConfig?.channel_webhook_configured ?? {}).some(
+          Boolean,
+        );
+        const enabled =
+          configured && Object.values(teamsConfig?.notification_settings ?? {}).some(Boolean);
         return { configured, enabled };
       }
       case 'syslog_cef': {

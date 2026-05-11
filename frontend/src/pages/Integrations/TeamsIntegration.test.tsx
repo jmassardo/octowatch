@@ -63,7 +63,9 @@ describe('TeamsIntegration', () => {
       expect(screen.getByLabelText(/detections channel mapping/i)).toHaveValue('detections');
     });
 
-    expect(screen.getByRole('heading', { name: /microsoft teams integration/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /microsoft teams integration/i }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText(/default channel webhook/i)).toHaveAttribute(
       'placeholder',
       'https://o*******1234',
@@ -78,8 +80,14 @@ describe('TeamsIntegration', () => {
       expect(screen.getByLabelText(/system health channel mapping/i)).toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText(/system health channel webhook/i), 'https://example.test/system-health');
-    await user.selectOptions(screen.getByLabelText(/system health channel mapping/i), 'system_health');
+    await user.type(
+      screen.getByLabelText(/system health channel webhook/i),
+      'https://example.test/system-health',
+    );
+    await user.selectOptions(
+      screen.getByLabelText(/system health channel mapping/i),
+      'system_health',
+    );
     await user.click(screen.getByRole('checkbox', { name: /enable system health/i }));
     await user.click(screen.getByRole('button', { name: /save teams settings/i }));
 

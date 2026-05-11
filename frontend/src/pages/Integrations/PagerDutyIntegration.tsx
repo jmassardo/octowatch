@@ -40,7 +40,10 @@ export function PagerDutyIntegration() {
   const { showToast } = useToast();
   const [routingKey, setRoutingKey] = useState('');
   const [draft, setDraft] = useState<PagerDutyConfigUpdate | null>(null);
-  const [testStatus, setTestStatus] = useState<{ state: 'success' | 'error'; message: string } | null>(null);
+  const [testStatus, setTestStatus] = useState<{
+    state: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['pagerduty-config'],
@@ -91,7 +94,11 @@ export function PagerDutyIntegration() {
   }
 
   if (isError) {
-    return <ErrorBanner message={error instanceof Error ? error.message : 'Failed to load PagerDuty integration'} />;
+    return (
+      <ErrorBanner
+        message={error instanceof Error ? error.message : 'Failed to load PagerDuty integration'}
+      />
+    );
   }
 
   if (!data || !form) {
@@ -105,11 +112,15 @@ export function PagerDutyIntegration() {
           <div className={styles.titleGroup}>
             <h2 className={styles.title}>PagerDuty integration</h2>
             <p className={styles.description}>
-              Trigger PagerDuty incidents for OctoWatch alerts and optionally auto-resolve them when detections close.
+              Trigger PagerDuty incidents for OctoWatch alerts and optionally auto-resolve them when
+              detections close.
             </p>
           </div>
           <div className={styles.statusRow}>
-            <span className={styles.badge} data-state={data.routing_key_configured ? 'ready' : 'missing'}>
+            <span
+              className={styles.badge}
+              data-state={data.routing_key_configured ? 'ready' : 'missing'}
+            >
               Routing key {data.routing_key_configured ? 'configured' : 'missing'}
             </span>
             <span className={styles.badge} data-state={form.auto_resolve ? 'ready' : 'missing'}>
@@ -131,7 +142,9 @@ export function PagerDutyIntegration() {
               onChange={(event) => setRoutingKey(event.target.value)}
               placeholder={data.routing_key_masked ?? '••••••••••••'}
             />
-            <span className={styles.help}>Leave blank to keep the existing PagerDuty integration key.</span>
+            <span className={styles.help}>
+              Leave blank to keep the existing PagerDuty integration key.
+            </span>
           </div>
 
           <label className={styles.toggle}>
@@ -199,7 +212,11 @@ export function PagerDutyIntegration() {
         </div>
 
         <div className={styles.actions}>
-          <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <Button
+            variant="primary"
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending}
+          >
             {saveMutation.isPending ? 'Saving…' : 'Save PagerDuty settings'}
           </Button>
           <Button onClick={() => testMutation.mutate()} disabled={testMutation.isPending}>
@@ -210,7 +227,9 @@ export function PagerDutyIntegration() {
               {testStatus.message}
             </span>
           )}
-          {saveMutation.isError && <span className={styles.error}>Unable to save PagerDuty settings.</span>}
+          {saveMutation.isError && (
+            <span className={styles.error}>Unable to save PagerDuty settings.</span>
+          )}
         </div>
       </div>
     </Card>

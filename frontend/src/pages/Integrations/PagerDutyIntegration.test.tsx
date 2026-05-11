@@ -38,7 +38,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockGetPagerDutyConfig.mockResolvedValue(config);
   mockUpdatePagerDutyConfig.mockResolvedValue(config);
-  mockTestPagerDutyConnection.mockResolvedValue({ ok: true, message: 'Test event sent successfully' });
+  mockTestPagerDutyConnection.mockResolvedValue({
+    ok: true,
+    message: 'Test event sent successfully',
+  });
 });
 
 describe('PagerDutyIntegration', () => {
@@ -50,7 +53,11 @@ describe('PagerDutyIntegration', () => {
     });
 
     expect(screen.getByRole('heading', { name: /pagerduty integration/i })).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: /resolve incidents when a detection is marked resolved/i })).toBeChecked();
+    expect(
+      screen.getByRole('checkbox', {
+        name: /resolve incidents when a detection is marked resolved/i,
+      }),
+    ).toBeChecked();
   });
 
   it('saves updated PagerDuty settings', async () => {

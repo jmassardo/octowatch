@@ -79,7 +79,12 @@ export type TeamsNotificationSource =
   | 'system_health'
   | 'threat_intel';
 
-export type TeamsChannelKey = 'default' | 'detections' | 'sync_errors' | 'system_health' | 'threat_intel';
+export type TeamsChannelKey =
+  | 'default'
+  | 'detections'
+  | 'sync_errors'
+  | 'system_health'
+  | 'threat_intel';
 
 export interface TeamsConfigResponse {
   channel_webhook_configured: Record<TeamsChannelKey, boolean>;
