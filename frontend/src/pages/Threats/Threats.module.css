@@ -878,3 +878,79 @@
 .chainsTab {
   padding: 20px 0;
 }
+
+@media (max-width: 1024px) {
+  .splitMain {
+    padding: 20px;
+  }
+
+  .filterRow > * {
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+
+  .ilFilters {
+    overflow-x: auto;
+  }
+
+  .chainsMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .splitPanel,
+  .splitPanel.open {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .timelineOverlay {
+    width: 100vw;
+  }
+}
+
+@media (max-width: 768px) {
+  .splitLayout {
+    flex-direction: column;
+  }
+
+  .splitMain {
+    padding: 16px;
+  }
+
+  .topActions,
+  .panelActions,
+  .chainsFilter,
+  .assignDropdown,
+  .chainActions {
+    flex-wrap: wrap;
+  }
+
+  .filterBar {
+    padding: 10px;
+  }
+
+  .filterRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filterSelect,
+  .filterInput,
+  .filterDatetime {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .keyDetails,
+  .chainsMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .evidenceTable .evidenceRow,
+  .orgDetailRow,
+  .chainMetaRow,
+  .relatedEventRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

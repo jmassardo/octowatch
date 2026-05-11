@@ -317,3 +317,59 @@
 .panelClose:hover {
   color: var(--fg);
 }
+
+@media (max-width: 1024px) {
+  .splitMain {
+    padding: 20px;
+  }
+
+  .tableHeader {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .tableActions {
+    flex-wrap: wrap;
+  }
+
+  .tableWrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tableWrap table {
+    min-width: 900px;
+  }
+
+  .splitPanel,
+  .splitPanelOpen {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .splitLayout {
+    flex-direction: column;
+  }
+
+  .splitMain {
+    padding: 16px;
+  }
+
+  .eventDetailRow,
+  .eventDataRow {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .eventDetailLabel,
+  .eventDataRow dt {
+    min-width: 0;
+  }
+
+  .pagination {
+    flex-wrap: wrap;
+  }
+}

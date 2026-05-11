@@ -542,3 +542,66 @@
     opacity: 0.6;
   }
 }
+
+@media (max-width: 1024px) {
+  .page {
+    padding: 20px;
+  }
+
+  .headerActions,
+  .backtestControls,
+  .analyticsTimeRange,
+  .bulkBar {
+    flex-wrap: wrap;
+  }
+
+  .tableWrap,
+  .versionTableWrap {
+    overflow-x: auto;
+  }
+
+  .table,
+  .versionTable {
+    min-width: 720px;
+  }
+
+  .formRowGrid,
+  .wizardTemplateGrid,
+  .analyticsMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 16px;
+  }
+
+  .pageHeader {
+    flex-direction: column;
+  }
+
+  .headerActions,
+  .bulkBar,
+  .backtestControls,
+  .wizardSummaryRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .formRowGrid,
+  .wizardTemplateGrid,
+  .analyticsMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .formActions,
+  .wizardNav {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .wizardStepLabels {
+    display: none;
+  }
+}
