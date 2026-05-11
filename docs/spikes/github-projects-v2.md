@@ -284,6 +284,14 @@ Cross-reference `github_project_items.content_repo` + `content_number` with exis
 
 ## 8. Implementation Plan
 
+### Phase 0: Audit Log Detections (No Dependencies — Ship Immediately)
+
+| Step | Description | Effort |
+|------|------------|--------|
+| 0a | Add 6 project governance rules to `rule_library.json` | Small |
+| 0b | Add posture check for public projects + external collaborators | Small |
+| 0c | Tests for new detection rules | Small |
+
 ### Phase 1: MVP — Read-Only Sync (Recommended First Iteration)
 
 | Step | Description | Effort |
@@ -333,10 +341,95 @@ Cross-reference `github_project_items.content_repo` + `content_number` with exis
 
 ---
 
-## 10. Open Questions for Team Discussion
+## 10. Audit Log Detections & Org Posture (Zero-API-Cost)
+
+Independently of the GraphQL sync, OctoWatch already ingests audit log events via HEC/webhook. GitHub emits several `project.*` events that map directly to security-relevant governance changes. These can be surfaced through the existing detection rule engine and org posture views **with no additional API calls or permissions**.
+
+### 10.1 Proposed Detection Rules
+
+Add to `rule_library.json` using the existing `logic_type: "pattern"` + `action_filters` pattern:
+
+| Rule Slug | Action Filter(s) | Category | Severity | What It Catches |
+|-----------|-----------------|----------|----------|-----------------|
+| `project-visibility-public` | `project.visibility_public` | `data_exfiltration` | critical | A project (and all its items) was made publicly visible |
+| `project-collaborator-added-external` | `project_collaborator.add` | `privilege_escalation` | high | External collaborator added to a project — potential data exposure |
+| `project-collaborator-role-escalated` | `project_collaborator.update` | `privilege_escalation` | medium | Collaborator role upgraded (e.g., read → admin) |
+| `project-base-role-elevated` | `project_base_role.update` | `privilege_escalation` | high | Default project access level raised for all org members |
+| `project-deleted` | `project.delete` | `defense_evasion` | high | Project deleted — potential evidence destruction |
+| `project-field-deleted` | `project_field.delete` | `defense_evasion` | medium | Custom field removed — could hide tracking data |
+
+### 10.2 Rule Configuration Examples
+
+```json
+{
+  "name": "Project Made Public",
+  "slug": "project-visibility-public",
+  "description": "Detects when a GitHub Project is changed from private to public visibility, potentially exposing work items, issue titles, and planning data.",
+  "category": "data_exfiltration",
+  "default_severity": "critical",
+  "default_confidence": "high",
+  "logic_type": "pattern",
+  "logic_config": {
+    "action_filters": ["project.visibility_public"],
+    "field_conditions": [],
+    "confidence": 0.9
+  }
+}
+```
+
+```json
+{
+  "name": "External Collaborator Added to Project",
+  "slug": "project-collaborator-added-external",
+  "description": "Detects when a collaborator is added to a GitHub Project. External collaborators gain visibility into issue titles, status, and planning data across all linked repos.",
+  "category": "privilege_escalation",
+  "default_severity": "high",
+  "default_confidence": "high",
+  "logic_type": "pattern",
+  "logic_config": {
+    "action_filters": ["project_collaborator.add"],
+    "field_conditions": [
+      {
+        "field": "data.collaborator_type",
+        "operator": "eq",
+        "value": "User"
+      }
+    ],
+    "confidence": 0.8
+  }
+}
+```
+
+### 10.3 Org Posture Integration
+
+Since projects are owned by orgs, project governance signals should feed into the existing `OrgPosture` model (`schemas/posture.py`). Proposed additions to `OrgPosture`:
+
+| New Field | Type | Source |
+|-----------|------|--------|
+| `public_projects_count` | `int` | Count of projects with `is_public=true` from `github_projects` table (Phase 1 sync) |
+| `project_external_collaborator_count` | `int` | Count from `project_collaborator.add` audit events or from GraphQL sync |
+| `project_detections` | `list[PostureCheckResult]` | Roll up project-related detections into org posture checks |
+
+The posture score calculation should penalize:
+- **Any public projects** in the org (critical — mirrors repo-visibility-public logic)
+- **External collaborators on projects** (high — data exposure risk)
+- **Elevated base roles** (medium — overly permissive defaults)
+
+### 10.4 Implementation Notes
+
+- **No new permissions needed**: Audit log events are already ingested — just add rule definitions
+- **No rate limit impact**: Detection rules fire on existing event data
+- **Phase 1 quick win**: The 6 detection rules can ship immediately (just `rule_library.json` entries)
+- **Phase 1+**: Posture fields (`public_projects_count`, etc.) depend on the GraphQL sync tables existing
+- **Existing pattern**: Follows exactly the same approach as `repo-visibility-public` and `branch-protection-disabled` rules
+
+---
+
+## 11. Open Questions for Team Discussion
 
 1. **Project selection**: Sync all org projects by default, or require admin opt-in per project?
 2. **Sync frequency**: 60 minutes proposed — is this fresh enough for sprint dashboards?
 3. **Rate limit budget**: Allocating 20% (1,000 pts/hour) of the GraphQL budget — acceptable?
 4. **History tracking**: Start with snapshot diffs for cycle time, or wait for webhook-based approach?
 5. **Multi-org projects**: Some projects span repos across orgs — handle in MVP or defer?
+6. **Detection rules**: Ship the 6 audit-log-based rules in advance of the GraphQL sync, or bundle them together?
