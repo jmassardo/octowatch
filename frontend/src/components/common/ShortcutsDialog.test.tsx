@@ -34,7 +34,9 @@ function ShortcutHarness({ initialRoute = '/' }: { initialRoute?: string }) {
   const closeShortcuts = useCallback(() => setShortcutsOpen(false), []);
 
   return (
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
       <ToastProvider>
         <MemoryRouter initialEntries={[initialRoute]}>
           <HotkeyProvider>
@@ -81,7 +83,9 @@ function ShortcutHarnessInner({
 
 function NavigationHarness() {
   return (
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
       <ToastProvider>
         <MemoryRouter initialEntries={['/']}>
           <HotkeyProvider>
@@ -101,7 +105,12 @@ function NavigationHarnessInner() {
 
   const bindings: HotkeyBinding[] = useMemo(
     () => [
-      { key: 'g d', handler: () => setTarget('/dashboard'), label: 'Go to Dashboard', category: 'Navigation' },
+      {
+        key: 'g d',
+        handler: () => setTarget('/dashboard'),
+        label: 'Go to Dashboard',
+        category: 'Navigation',
+      },
     ],
     [],
   );
@@ -177,16 +186,16 @@ describe('Input suppression', () => {
     const [fired, setFired] = useState(false);
 
     const bindings: HotkeyBinding[] = useMemo(
-      () => [
-        { key: '?', handler: () => setFired(true), label: 'Test', category: 'General' },
-      ],
+      () => [{ key: '?', handler: () => setFired(true), label: 'Test', category: 'General' }],
       [],
     );
 
     useHotkeys(bindings);
 
     return (
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
         <ToastProvider>
           <MemoryRouter>
             <HotkeyProvider>

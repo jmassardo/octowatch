@@ -51,7 +51,8 @@ function parseChord(chord: string): ParsedChord {
   for (const part of parts) {
     const normalized = part.toLowerCase();
     if (normalized === 'ctrl' || normalized === 'control') parsed.ctrl = true;
-    else if (normalized === 'meta' || normalized === 'cmd' || normalized === 'command') parsed.meta = true;
+    else if (normalized === 'meta' || normalized === 'cmd' || normalized === 'command')
+      parsed.meta = true;
     else if (normalized === 'alt' || normalized === 'option') parsed.alt = true;
     else if (normalized === 'shift') parsed.shift = true;
     else parsed.baseKey = normalized;
@@ -107,7 +108,10 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
 }
 
-function getActiveEntry(entries: RegistryEntry[] | undefined, inEditable: boolean): RegistryEntry | undefined {
+function getActiveEntry(
+  entries: RegistryEntry[] | undefined,
+  inEditable: boolean,
+): RegistryEntry | undefined {
   return entries?.findLast((entry) => !inEditable || entry.binding.allowInInput);
 }
 
@@ -186,7 +190,8 @@ function handleKeyDown(event: KeyboardEvent): void {
   }
 
   const hasSequenceCandidate = Array.from(registry.entries()).some(
-    ([combo, entries]) => combo.startsWith(`${chord} `) && Boolean(getActiveEntry(entries, inEditable)),
+    ([combo, entries]) =>
+      combo.startsWith(`${chord} `) && Boolean(getActiveEntry(entries, inEditable)),
   );
   if (hasSequenceCandidate) {
     pendingPrefix = chord;

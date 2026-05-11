@@ -36,15 +36,60 @@ function AppShellInner() {
   const bindings: HotkeyBinding[] = useMemo(
     () => [
       /* ── Navigation: g then <key> ─────────────────────────────── */
-      { key: 'g d', handler: () => navigate('/dashboard'), label: 'Go to Dashboard', category: 'Navigation' },
-      { key: 'g t', handler: () => navigate('/threats'), label: 'Go to Threats', category: 'Navigation' },
-      { key: 'g e', handler: () => navigate('/events'), label: 'Go to Events', category: 'Navigation' },
-      { key: 'g p', handler: () => navigate('/posture'), label: 'Go to Posture', category: 'Navigation' },
-      { key: 'g w', handler: () => navigate('/workflows'), label: 'Go to Workflows', category: 'Navigation' },
-      { key: 'g c', handler: () => navigate('/copilot'), label: 'Go to Copilot', category: 'Navigation' },
-      { key: 'g v', handler: () => navigate('/velocity'), label: 'Go to Velocity', category: 'Navigation' },
-      { key: 'g r', handler: () => navigate('/reports'), label: 'Go to Reports', category: 'Navigation' },
-      { key: 'g s', handler: () => navigate('/settings'), label: 'Go to Settings', category: 'Navigation' },
+      {
+        key: 'g d',
+        handler: () => navigate('/dashboard'),
+        label: 'Go to Dashboard',
+        category: 'Navigation',
+      },
+      {
+        key: 'g t',
+        handler: () => navigate('/threats'),
+        label: 'Go to Threats',
+        category: 'Navigation',
+      },
+      {
+        key: 'g e',
+        handler: () => navigate('/events'),
+        label: 'Go to Events',
+        category: 'Navigation',
+      },
+      {
+        key: 'g p',
+        handler: () => navigate('/posture'),
+        label: 'Go to Posture',
+        category: 'Navigation',
+      },
+      {
+        key: 'g w',
+        handler: () => navigate('/workflows'),
+        label: 'Go to Workflows',
+        category: 'Navigation',
+      },
+      {
+        key: 'g c',
+        handler: () => navigate('/copilot'),
+        label: 'Go to Copilot',
+        category: 'Navigation',
+      },
+      {
+        key: 'g v',
+        handler: () => navigate('/velocity'),
+        label: 'Go to Velocity',
+        category: 'Navigation',
+      },
+      {
+        key: 'g r',
+        handler: () => navigate('/reports'),
+        label: 'Go to Reports',
+        category: 'Navigation',
+      },
+      {
+        key: 'g s',
+        handler: () => navigate('/settings'),
+        label: 'Go to Settings',
+        category: 'Navigation',
+      },
 
       /* ── Actions ──────────────────────────────────────────────── */
       { key: 'f', handler: focusSearchInput, label: 'Focus search / filter', category: 'Actions' },

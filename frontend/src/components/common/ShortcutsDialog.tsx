@@ -62,7 +62,9 @@ export function ShortcutsDialog({ open, onClose }: ShortcutsDialogProps) {
     const registeredBindings = getAll();
     const bindings = [...registeredBindings];
     for (const staticBinding of STATIC_BINDINGS) {
-      const alreadyRegistered = registeredBindings.some((binding) => binding.key === staticBinding.key);
+      const alreadyRegistered = registeredBindings.some(
+        (binding) => binding.key === staticBinding.key,
+      );
       if (!alreadyRegistered) {
         bindings.push(staticBinding);
       }
@@ -91,7 +93,10 @@ export function ShortcutsDialog({ open, onClose }: ShortcutsDialogProps) {
               <h3 className={styles.categoryTitle}>{category}</h3>
               <ul className={styles.shortcutList}>
                 {items.map((item) => (
-                  <li key={`${item.category}-${item.key}-${item.label}`} className={styles.shortcutRow}>
+                  <li
+                    key={`${item.category}-${item.key}-${item.label}`}
+                    className={styles.shortcutRow}
+                  >
                     <span className={styles.label}>{item.label}</span>
                     <KeyCaps combo={item.key} />
                   </li>
