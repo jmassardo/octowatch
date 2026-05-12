@@ -128,7 +128,11 @@ export function ReportsPage() {
   const { selectedOrg } = useOrg();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useEnumQueryParam('tab', ['templates', 'my-reports', 'shared', 'recent'] as const, 'templates');
+  const [activeTab, setActiveTab] = useEnumQueryParam(
+    'tab',
+    ['templates', 'my-reports', 'shared', 'recent'] as const,
+    'templates',
+  );
   const [windowDaysStr, setWindowDaysStr] = useQueryParam('days', '30');
   const windowDays = ([30, 60, 90] as const).includes(Number(windowDaysStr) as 30 | 60 | 90)
     ? (Number(windowDaysStr) as 30 | 60 | 90)

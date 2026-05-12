@@ -40,18 +40,21 @@ export function CompliancePage() {
     staleTime: 120_000,
   });
 
-  const handleSelectFramework = useCallback((name: string) => {
-    const tabMap: Record<string, ComplianceTab> = {
-      soc2: 'soc2',
-      iso27001: 'iso27001',
-      nist_csf: 'nist_csf',
-      gdpr: 'gdpr',
-    };
-    const tab = tabMap[name];
-    if (tab) {
-      setActiveTab(tab);
-    }
-  }, [setActiveTab]);
+  const handleSelectFramework = useCallback(
+    (name: string) => {
+      const tabMap: Record<string, ComplianceTab> = {
+        soc2: 'soc2',
+        iso27001: 'iso27001',
+        nist_csf: 'nist_csf',
+        gdpr: 'gdpr',
+      };
+      const tab = tabMap[name];
+      if (tab) {
+        setActiveTab(tab);
+      }
+    },
+    [setActiveTab],
+  );
 
   const handleGenerateAll = useCallback(() => {
     setIsGenerating(true);

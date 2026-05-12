@@ -2,7 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { useQueryParam, useQueryParamInt, useEnumQueryParam, useSetQueryParams } from './useQueryParam';
+import {
+  useQueryParam,
+  useQueryParamInt,
+  useEnumQueryParam,
+  useSetQueryParams,
+} from './useQueryParam';
 
 function wrapper(initialEntries: string[] = ['/']) {
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -101,26 +106,23 @@ describe('useEnumQueryParam', () => {
   const validValues = ['open', 'closed', 'all'] as const;
 
   it('returns default for absent param', () => {
-    const { result } = renderHook(
-      () => useEnumQueryParam('status', validValues, 'open'),
-      { wrapper: wrapper() },
-    );
+    const { result } = renderHook(() => useEnumQueryParam('status', validValues, 'open'), {
+      wrapper: wrapper(),
+    });
     expect(result.current[0]).toBe('open');
   });
 
   it('returns valid value from URL', () => {
-    const { result } = renderHook(
-      () => useEnumQueryParam('status', validValues, 'open'),
-      { wrapper: wrapper(['/?status=closed']) },
-    );
+    const { result } = renderHook(() => useEnumQueryParam('status', validValues, 'open'), {
+      wrapper: wrapper(['/?status=closed']),
+    });
     expect(result.current[0]).toBe('closed');
   });
 
   it('returns default for invalid URL value', () => {
-    const { result } = renderHook(
-      () => useEnumQueryParam('status', validValues, 'open'),
-      { wrapper: wrapper(['/?status=invalid']) },
-    );
+    const { result } = renderHook(() => useEnumQueryParam('status', validValues, 'open'), {
+      wrapper: wrapper(['/?status=invalid']),
+    });
     expect(result.current[0]).toBe('open');
   });
 });

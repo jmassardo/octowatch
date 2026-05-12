@@ -23,7 +23,12 @@ import {
 import { listDetections } from '../../api/detections';
 import type { DetectionResponse } from '../../types/detections';
 import { formatRelativeShort } from '../../utils/dates';
-import { useEnumQueryParam, useQueryParam, useQueryParamInt, useSetQueryParams } from '../../hooks/useQueryParam';
+import {
+  useEnumQueryParam,
+  useQueryParam,
+  useQueryParamInt,
+  useSetQueryParams,
+} from '../../hooks/useQueryParam';
 import styles from './AdvancedSecurity.module.css';
 
 const PAGE_SIZE = 50;

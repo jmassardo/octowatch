@@ -46,10 +46,7 @@ export function useEnumQueryParam<T extends string>(
   const [raw, setRaw] = useQueryParam(key, defaultValue);
   const value: T = (validValues as readonly string[]).includes(raw) ? (raw as T) : defaultValue;
 
-  const setValue = useCallback(
-    (v: T, opts?: { replace?: boolean }) => setRaw(v, opts),
-    [setRaw],
-  );
+  const setValue = useCallback((v: T, opts?: { replace?: boolean }) => setRaw(v, opts), [setRaw]);
 
   return [value, setValue];
 }
@@ -63,10 +60,7 @@ export function useQueryParamInt(key: string, defaultValue: number): [number, Se
   const parsed = parseInt(raw, 10);
   const value = isNaN(parsed) || parsed < 1 ? defaultValue : parsed;
 
-  const setNum: SetNumParam = useCallback(
-    (v, opts) => setRaw(String(v), opts),
-    [setRaw],
-  );
+  const setNum: SetNumParam = useCallback((v, opts) => setRaw(String(v), opts), [setRaw]);
 
   return [value, setNum];
 }

@@ -19,7 +19,12 @@ import { ChainsPane } from './ChainsPane';
 import { formatRelativeShort } from '../../utils/dates';
 import { useOrg } from '../../hooks/useOrg';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
-import { useEnumQueryParam, useQueryParam, useQueryParamInt, useSetQueryParams } from '../../hooks/useQueryParam';
+import {
+  useEnumQueryParam,
+  useQueryParam,
+  useQueryParamInt,
+  useSetQueryParams,
+} from '../../hooks/useQueryParam';
 import styles from './Threats.module.css';
 
 /**

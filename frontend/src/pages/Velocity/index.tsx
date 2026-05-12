@@ -185,7 +185,11 @@ function BranchProtectionSection({ branchProt }: BranchProtectionProps) {
 export function VelocityPage() {
   const navigate = useNavigate();
   const { features } = useFeatures();
-  const [activeTab, setActiveTab] = useEnumQueryParam('tab', ['metrics', 'leadership'] as const, 'metrics');
+  const [activeTab, setActiveTab] = useEnumQueryParam(
+    'tab',
+    ['metrics', 'leadership'] as const,
+    'metrics',
+  );
   const [doraModalOpen, setDoraModalOpen] = useState(false);
   const [failureBucket, setFailureBucket] = useState<ActionsVolumeBucket | null>(null);
   const [drillFilter, setDrillFilter] = useState<'total' | 'succeeded' | 'failed' | null>(null);

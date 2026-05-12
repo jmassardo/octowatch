@@ -145,21 +145,24 @@ export function EventsPage() {
   const searchFilters = parseSearchFilters(debouncedSearch);
 
   // Add a chip by updating URL params
-  const addChip = useCallback((chip: string) => {
-    const idx = chip.indexOf(':');
-    if (idx === -1) return;
-    const k = chip.slice(0, idx);
-    const v = chip.slice(idx + 1);
-    const paramKey = SEARCH_KEY_MAP[k];
-    if (!paramKey || !v) return;
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set(paramKey, v);
-      return next;
-    });
-    setCursors([]);
-    setPage(1);
-  }, [setSearchParams]);
+  const addChip = useCallback(
+    (chip: string) => {
+      const idx = chip.indexOf(':');
+      if (idx === -1) return;
+      const k = chip.slice(0, idx);
+      const v = chip.slice(idx + 1);
+      const paramKey = SEARCH_KEY_MAP[k];
+      if (!paramKey || !v) return;
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set(paramKey, v);
+        return next;
+      });
+      setCursors([]);
+      setPage(1);
+    },
+    [setSearchParams],
+  );
 
   const currentCursor = cursors.length > 0 ? cursors[cursors.length - 1] : undefined;
 

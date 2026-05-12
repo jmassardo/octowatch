@@ -41,7 +41,11 @@ export function DevActivityPage() {
   const [othersModalOpen, setOthersModalOpen] = useState(false);
   const [concentrationModalOpen, setConcentrationModalOpen] = useState(false);
   const [selectedDev, setSelectedDev] = useState<ActorStats | null>(null);
-  const [activeTab, setActiveTab] = useEnumQueryParam('tab', ['activity', 'team-health'] as const, 'activity');
+  const [activeTab, setActiveTab] = useEnumQueryParam(
+    'tab',
+    ['activity', 'team-health'] as const,
+    'activity',
+  );
 
   const handleCardClick = useCallback((dev: ActorStats) => {
     setSelectedDev(dev);
