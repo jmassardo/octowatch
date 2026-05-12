@@ -39,6 +39,7 @@ import type {
   ReportTemplate,
 } from '../../types/reports';
 import { formatDateOnly } from '../../utils/dates';
+import { useEnumQueryParam, useQueryParam } from '../../hooks/useQueryParam';
 import styles from './Reports.module.css';
 
 const REPORT_TEMPLATES: ReportTemplate[] = [
@@ -127,8 +128,15 @@ export function ReportsPage() {
   const { selectedOrg } = useOrg();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<ReportTab>('templates');
-  const [windowDays, setWindowDays] = useState<30 | 60 | 90>(30);
+  const [activeTab, setActiveTab] = useEnumQueryParam('tab', ['templates', 'my-reports', 'shared', 'recent'] as const, 'templates');
+  const [windowDaysStr, setWindowDaysStr] = useQueryParam('days', '30');
+  const windowDays = ([30, 60, 90] as const).includes(Number(windowDaysStr) as 30 | 60 | 90)
+    ? (Number(windowDaysStr) as 30 | 60 | 90)
+    : 30;
+  const setWindowDays = useCallback(
+    (v: 30 | 60 | 90) => setWindowDaysStr(String(v), { replace: true }),
+    [setWindowDaysStr],
+  );
   const [filterBucket, setFilterBucket] = useState<string | null>(null);
   const [viewReport, setViewReport] = useState<string | null>(null);
   const [selectedRow, setSelectedRow] = useState<Record<string, unknown> | null>(null);

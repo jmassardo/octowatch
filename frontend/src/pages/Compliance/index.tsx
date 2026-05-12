@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '../../components/common/PageHeader';
 import { MetricCard } from '../../components/primitives/MetricCard';
@@ -9,8 +9,11 @@ import { OverviewPane } from './OverviewPane';
 import { FrameworkPane } from './FrameworkPane';
 import { GDPRPane } from './GDPRPane';
 import { PolicyChecksPane } from './PolicyChecksPane';
+import { useEnumQueryParam } from '../../hooks/useQueryParam';
 import type { ComplianceTab } from '../../types/compliance';
 import styles from './Compliance.module.css';
+
+const TAB_KEYS = ['overview', 'soc2', 'iso27001', 'nist_csf', 'gdpr', 'policy'] as const;
 
 const TABS: { key: ComplianceTab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -22,7 +25,7 @@ const TABS: { key: ComplianceTab; label: string }[] = [
 ];
 
 export function CompliancePage() {
-  const [activeTab, setActiveTab] = useState<ComplianceTab>('overview');
+  const [activeTab, setActiveTab] = useEnumQueryParam('tab', TAB_KEYS, 'overview');
   const [isGenerating, setIsGenerating] = useState(false);
   const queryClient = useQueryClient();
 
@@ -48,7 +51,7 @@ export function CompliancePage() {
     if (tab) {
       setActiveTab(tab);
     }
-  }, []);
+  }, [setActiveTab]);
 
   const handleGenerateAll = useCallback(() => {
     setIsGenerating(true);

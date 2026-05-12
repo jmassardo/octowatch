@@ -1,12 +1,14 @@
-import { useState } from 'react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { FeedsTab } from './FeedsTab';
 import { IndicatorsTab } from './IndicatorsTab';
 import { MatchesTab } from './MatchesTab';
 import { AnalyticsTab } from './AnalyticsTab';
+import { useEnumQueryParam } from '../../hooks/useQueryParam';
 import styles from './ThreatIntel.module.css';
 
 type TabId = 'feeds' | 'indicators' | 'matches' | 'analytics';
+
+const TAB_KEYS = ['feeds', 'indicators', 'matches', 'analytics'] as const;
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'feeds', label: 'Feeds' },
@@ -16,7 +18,7 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 export function ThreatIntelPage() {
-  const [activeTab, setActiveTab] = useState<TabId>('feeds');
+  const [activeTab, setActiveTab] = useEnumQueryParam('tab', TAB_KEYS, 'feeds');
 
   return (
     <div className={styles.page}>

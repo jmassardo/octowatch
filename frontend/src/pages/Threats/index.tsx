@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { listDetections } from '../../api/detections';
 import { listRules } from '../../api/rules';
@@ -19,6 +19,7 @@ import { ChainsPane } from './ChainsPane';
 import { formatRelativeShort } from '../../utils/dates';
 import { useOrg } from '../../hooks/useOrg';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { useEnumQueryParam, useQueryParam, useQueryParamInt, useSetQueryParams } from '../../hooks/useQueryParam';
 import styles from './Threats.module.css';
 
 /**
@@ -33,28 +34,23 @@ function safeText(value: unknown): string {
 
 type TabFilter = 'open' | 'investigating' | 'closed' | 'acknowledged' | 'all' | 'chains';
 
+const TAB_KEYS = ['open', 'investigating', 'closed', 'acknowledged', 'all', 'chains'] as const;
+
 export function ThreatsPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [tab, setTab] = useState<TabFilter>('open');
+  const [tab] = useEnumQueryParam('tab', TAB_KEYS, 'open');
   const [selectedOverride, setSelectedOverride] = useState<DetectionResponse | null>(null);
-  const initialSeverity = searchParams.get('severity') ?? '';
-  const initialRepo = searchParams.get('repo') ?? '';
-  const initialActor = searchParams.get('actor') ?? '';
-  const initialSince = searchParams.get('since') ?? '';
-  const initialUntil = searchParams.get('until') ?? '';
-  const initialOrg = searchParams.get('org') ?? '';
-  const initialRuleId = searchParams.get('rule_id') ?? '';
-  const selectedIdParam = searchParams.get('id') ?? '';
-  const [severityFilter, setSeverityFilter] = useState(initialSeverity);
-  const [repoFilter, setRepoFilter] = useState(initialRepo);
-  const [debouncedRepo, setDebouncedRepo] = useState(initialRepo);
-  const [actorFilter, setActorFilter] = useState(initialActor);
-  const [debouncedActor, setDebouncedActor] = useState(initialActor);
-  const [sinceFilter, setSinceFilter] = useState(initialSince);
-  const [untilFilter, setUntilFilter] = useState(initialUntil);
-  const [orgFilter, setOrgFilter] = useState(initialOrg);
-  const [ruleIdFilter, setRuleIdFilter] = useState(initialRuleId);
-  const [page, setPage] = useState(1);
+  const [severityFilter] = useQueryParam('severity', '');
+  const [sinceFilter] = useQueryParam('since', '');
+  const [untilFilter] = useQueryParam('until', '');
+  const [orgFilter] = useQueryParam('org', '');
+  const [ruleIdFilter] = useQueryParam('rule_id', '');
+  const [repoFilter] = useQueryParam('repo', '');
+  const [actorFilter] = useQueryParam('actor', '');
+  const [selectedIdParam, setSelectedIdParam] = useQueryParam('id', '');
+  const [page, setPage] = useQueryParamInt('page', 1);
+  const setParams = useSetQueryParams();
+  const [debouncedRepo, setDebouncedRepo] = useState(repoFilter);
+  const [debouncedActor, setDebouncedActor] = useState(actorFilter);
   const { selectedOrg } = useOrg();
   const { data: currentUser } = useCurrentUser();
 
@@ -106,56 +102,13 @@ export function ThreatsPage() {
 
   const PAGE_SIZE = 25;
 
-  const syncFilters = useCallback(
-    (overrides: Record<string, string> = {}) => {
-      const all: Record<string, string> = {
-        severity: severityFilter,
-        repo: repoFilter,
-        actor: actorFilter,
-        since: sinceFilter,
-        until: untilFilter,
-        org: orgFilter,
-        rule_id: ruleIdFilter,
-        ...overrides,
-      };
-      // Preserve the id param if a detection is selected
-      if (selectedIdParam) {
-        all.id = selectedIdParam;
-      }
-      const next: Record<string, string> = {};
-      for (const [k, v] of Object.entries(all)) {
-        if (v) next[k] = v;
-      }
-      setSearchParams(next, { replace: true });
-    },
-    [
-      severityFilter,
-      repoFilter,
-      actorFilter,
-      sinceFilter,
-      untilFilter,
-      orgFilter,
-      ruleIdFilter,
-      selectedIdParam,
-      setSearchParams,
-    ],
-  );
-
   // Select detection and update URL with id param
   const selectDetection = useCallback(
     (d: DetectionResponse | null) => {
       setSelectedOverride(d);
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        if (d) {
-          next.set('id', String(d.id));
-        } else {
-          next.delete('id');
-        }
-        return next;
-      });
+      setSelectedIdParam(d ? String(d.id) : '', { replace: true });
     },
-    [setSearchParams],
+    [setSelectedIdParam],
   );
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -248,9 +201,7 @@ export function ThreatsPage() {
               <select
                 value={severityFilter}
                 onChange={(e) => {
-                  setSeverityFilter(e.target.value);
-                  setPage(1);
-                  syncFilters({ severity: e.target.value });
+                  setParams({ severity: e.target.value || null, page: null });
                 }}
                 className={styles.filterSelect}
               >
@@ -270,9 +221,7 @@ export function ThreatsPage() {
                 <select
                   value={orgFilter}
                   onChange={(e) => {
-                    setOrgFilter(e.target.value);
-                    setPage(1);
-                    syncFilters({ org: e.target.value });
+                    setParams({ org: e.target.value || null, page: null });
                   }}
                   className={styles.filterSelect}
                 >
@@ -298,9 +247,7 @@ export function ThreatsPage() {
               <select
                 value={ruleIdFilter}
                 onChange={(e) => {
-                  setRuleIdFilter(e.target.value);
-                  setPage(1);
-                  syncFilters({ rule_id: e.target.value });
+                  setParams({ rule_id: e.target.value || null, page: null });
                 }}
                 className={styles.filterSelect}
               >
@@ -328,9 +275,7 @@ export function ThreatsPage() {
               <Autocomplete
                 value={repoFilter}
                 onChange={(v) => {
-                  setRepoFilter(v);
-                  setPage(1);
-                  syncFilters({ repo: v });
+                  setParams({ repo: v || null, page: null });
                 }}
                 suggestions={repoSuggestions}
                 placeholder="Filter by repo…"
@@ -348,9 +293,7 @@ export function ThreatsPage() {
               <Autocomplete
                 value={actorFilter}
                 onChange={(v) => {
-                  setActorFilter(v);
-                  setPage(1);
-                  syncFilters({ actor: v });
+                  setParams({ actor: v || null, page: null });
                 }}
                 suggestions={actorSuggestions}
                 placeholder="Filter by actor…"
@@ -379,9 +322,7 @@ export function ThreatsPage() {
                 aria-label="Since date/time"
                 value={sinceFilter}
                 onChange={(e) => {
-                  setSinceFilter(e.target.value);
-                  setPage(1);
-                  syncFilters({ since: e.target.value });
+                  setParams({ since: e.target.value || null, page: null });
                 }}
                 className={styles.filterDatetime}
               />
@@ -401,9 +342,7 @@ export function ThreatsPage() {
                 aria-label="Until date/time"
                 value={untilFilter}
                 onChange={(e) => {
-                  setUntilFilter(e.target.value);
-                  setPage(1);
-                  syncFilters({ until: e.target.value });
+                  setParams({ until: e.target.value || null, page: null });
                 }}
                 className={styles.filterDatetime}
               />
@@ -435,8 +374,7 @@ export function ThreatsPage() {
                   key={t}
                   className={[styles.ilTab, tab === t && styles.active].filter(Boolean).join(' ')}
                   onClick={() => {
-                    setTab(t);
-                    setPage(1);
+                    setParams({ tab: t === 'open' ? null : t, page: null });
                   }}
                 >
                   {tabLabel}
