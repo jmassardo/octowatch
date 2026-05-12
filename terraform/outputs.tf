@@ -126,3 +126,30 @@ output "aks_nat_egress_ip" {
   value       = azurerm_public_ip.aks_egress.ip_address
   description = "Static public IP used by all AKS node egress traffic. Add this to api_server_authorized_ip_ranges and any external service allowlists."
 }
+
+# ── Self-Managed K8s Cluster Outputs ──────────────────────────────────────────
+
+output "k8s_mgmt_public_ip" {
+  value       = azurerm_public_ip.k8s_mgmt.ip_address
+  description = "Public IP of the K8s management/bastion VM."
+}
+
+output "k8s_mgmt_ssh_command" {
+  value       = "ssh octowatch@${azurerm_public_ip.k8s_mgmt.ip_address}"
+  description = "SSH command to connect to the management VM."
+}
+
+output "k8s_lb_public_ip" {
+  value       = azurerm_public_ip.k8s_lb.ip_address
+  description = "Public IP of the K8s cluster Load Balancer (HTTP/S traffic)."
+}
+
+output "k8s_node_private_ips" {
+  value       = local.k8s_node_ips
+  description = "Private IPs of the 3 K8s cluster nodes."
+}
+
+output "k8s_ssh_jump_example" {
+  value       = "ssh -J octowatch@${azurerm_public_ip.k8s_mgmt.ip_address} octowatch@${local.k8s_node_ips[0]}"
+  description = "Example: SSH to a K8s node via the management VM jump host."
+}

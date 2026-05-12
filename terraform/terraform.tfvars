@@ -90,8 +90,11 @@ letsencrypt_email     = "jmassardo@github.com"
 
 # ── Optional Features ──────────────────────────────────────────────────────────
 
-enable_disk_encryption_set = false
-enable_defender            = false
-enable_auto_shutdown       = false
-auto_shutdown_time         = "0200"
+enable_disk_encryption_set             = false
+enable_defender                        = false
+enable_auto_shutdown                   = false
+auto_shutdown_time                     = "0200"
 secret_azure_storage_connection_string = ""
+
+# DNS cutover to self-managed K8s cluster
+k8s_cutover_complete = true

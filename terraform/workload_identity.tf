@@ -43,5 +43,4 @@ resource "azurerm_role_assignment" "kv_secrets_officer" {
 }
 
 # ── Data source for current subscription ──────────────────────────────────────
-
-data "azurerm_client_config" "current" {}
+# NOTE: data "azurerm_client_config" "current" is defined in main.tf

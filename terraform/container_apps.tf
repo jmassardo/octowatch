@@ -355,71 +355,71 @@ resource "azurerm_container_app" "api" {
 
       # ── Connection strings (secrets) ───────────────────────────────────────
       env {
-        name = "DATABASE_URL"
+        name        = "DATABASE_URL"
         secret_name = "db-url"
       }
       env {
-        name = "VALKEY_URL"
+        name        = "VALKEY_URL"
         secret_name = "valkey-url"
       }
 
       # ── Application secrets ────────────────────────────────────────────────
       env {
-        name = "SECRET_KEY"
+        name        = "SECRET_KEY"
         secret_name = "secret-key"
       }
       env {
-        name = "ENCRYPTION_KEY"
+        name        = "ENCRYPTION_KEY"
         secret_name = "encryption-key"
       }
 
       # ── GitHub OAuth ───────────────────────────────────────────────────────
       env {
-        name = "GITHUB_CLIENT_ID"
+        name        = "GITHUB_CLIENT_ID"
         secret_name = "github-client-id"
       }
       env {
-        name = "GITHUB_CLIENT_SECRET"
+        name        = "GITHUB_CLIENT_SECRET"
         secret_name = "github-client-secret"
       }
 
       # ── GitHub Detection Rules ─────────────────────────────────────────────
       env {
-        name = "GITHUB_RULES_TOKEN"
+        name        = "GITHUB_RULES_TOKEN"
         secret_name = "github-rules-token"
       }
       env {
-        name = "GITHUB_RULES_REPO"
+        name  = "GITHUB_RULES_REPO"
         value = var.secret_github_rules_repo
       }
       env {
-        name = "GITHUB_RULES_BRANCH"
+        name  = "GITHUB_RULES_BRANCH"
         value = "main"
       }
 
       # ── GitHub Enterprise Sync ─────────────────────────────────────────────
       env {
-        name = "GITHUB_APP_ID"
+        name  = "GITHUB_APP_ID"
         value = var.secret_github_app_id
       }
       env {
-        name = "GITHUB_APP_PRIVATE_KEY_PEM"
+        name        = "GITHUB_APP_PRIVATE_KEY_PEM"
         secret_name = "github-app-private-key-pem"
       }
       env {
-        name = "GITHUB_ENTERPRISE_SLUG"
+        name  = "GITHUB_ENTERPRISE_SLUG"
         value = var.secret_github_enterprise_slug
       }
       env {
-        name = "GITHUB_SYNC_ENABLED"
+        name  = "GITHUB_SYNC_ENABLED"
         value = "false"
       }
       env {
-        name = "GITHUB_SYNC_INTERVAL_DAYS"
+        name  = "GITHUB_SYNC_INTERVAL_DAYS"
         value = "60"
       }
       env {
-        name = "GITHUB_SYNC_ORGS"
+        name  = "GITHUB_SYNC_ORGS"
         value = ""
       }
 
@@ -429,61 +429,61 @@ resource "azurerm_container_app" "api" {
         value = "https://${local.custom_domain_fqdn}"
       }
       env {
-        name = "LOG_LEVEL"
+        name  = "LOG_LEVEL"
         value = "INFO"
       }
       env {
-        name = "INGESTION_MODE"
+        name  = "INGESTION_MODE"
         value = "hec"
       }
       env {
-        name = "GEOIP_DB_PATH"
+        name  = "GEOIP_DB_PATH"
         value = "/app/data/GeoLite2-City.mmdb"
       }
       env {
-        name = "DETECTION_CONFIDENCE_THRESHOLD"
+        name  = "DETECTION_CONFIDENCE_THRESHOLD"
         value = "0.7"
       }
       env {
-        name = "QUERY_MAX_ROWS"
+        name  = "QUERY_MAX_ROWS"
         value = "100000"
       }
       env {
-        name = "QUERY_TIMEOUT_SECONDS"
+        name  = "QUERY_TIMEOUT_SECONDS"
         value = "30"
       }
 
       # ── Optional integrations ──────────────────────────────────────────────
       env {
-        name = "MAXMIND_LICENSE_KEY"
+        name        = "MAXMIND_LICENSE_KEY"
         secret_name = "maxmind-license-key"
       }
       env {
-        name = "INITIAL_ADMIN_LOGINS"
+        name        = "INITIAL_ADMIN_LOGINS"
         secret_name = "initial-admin-logins"
       }
 
       # ── Azure Storage (audit/backup) ───────────────────────────────────────
       env {
-        name = "AZURE_STORAGE_CONNECTION_STRING"
+        name        = "AZURE_STORAGE_CONNECTION_STRING"
         secret_name = "storage-connection-string"
       }
       env {
-        name = "AZURE_AUDIT_CONTAINER"
+        name  = "AZURE_AUDIT_CONTAINER"
         value = "pg-backups"
       }
 
       # ── SAML (disabled by default — set values to enable) ──────────────────
       env {
-        name = "SAML_SP_CERT"
+        name  = "SAML_SP_CERT"
         value = ""
       }
       env {
-        name = "SAML_SP_KEY"
+        name  = "SAML_SP_KEY"
         value = ""
       }
       env {
-        name = "SAML_IDP_METADATA_URL"
+        name  = "SAML_IDP_METADATA_URL"
         value = ""
       }
 
@@ -523,47 +523,47 @@ resource "azurerm_container_app" "api" {
 
   # ── Secrets ────────────────────────────────────────────────────────────────
   secret {
-    name = "ghcr-password"
+    name  = "ghcr-password"
     value = var.ghcr_token
   }
   secret {
-    name = "db-url"
+    name  = "db-url"
     value = local.aca_database_url
   }
   secret {
-    name = "valkey-url"
+    name  = "valkey-url"
     value = local.aca_valkey_url
   }
   secret {
-    name = "secret-key"
+    name  = "secret-key"
     value = var.secret_secret_key
   }
   secret {
-    name = "encryption-key"
+    name  = "encryption-key"
     value = var.secret_encryption_key
   }
   secret {
-    name = "github-client-id"
+    name  = "github-client-id"
     value = var.secret_github_client_id
   }
   secret {
-    name = "github-client-secret"
+    name  = "github-client-secret"
     value = var.secret_github_client_secret
   }
   secret {
-    name = "github-rules-token"
+    name  = "github-rules-token"
     value = var.secret_github_rules_token
   }
   secret {
-    name = "github-app-private-key-pem"
+    name  = "github-app-private-key-pem"
     value = var.secret_github_app_private_key
   }
   secret {
-    name = "maxmind-license-key"
+    name  = "maxmind-license-key"
     value = var.secret_maxmind_license_key
   }
   secret {
-    name = "initial-admin-logins"
+    name  = "initial-admin-logins"
     value = var.secret_initial_admin_logins
   }
   secret {
@@ -648,7 +648,7 @@ resource "azurerm_container_app" "frontend" {
   }
 
   secret {
-    name = "ghcr-password"
+    name  = "ghcr-password"
     value = var.ghcr_token
   }
 
@@ -692,39 +692,39 @@ resource "azurerm_container_app" "beat" {
       command = ["celery", "-A", "app.celery_app", "beat", "--scheduler", "celery.beat:PersistentScheduler", "--loglevel", "INFO"]
 
       env {
-        name = "DATABASE_URL"
+        name        = "DATABASE_URL"
         secret_name = "db-url"
       }
       env {
-        name = "VALKEY_URL"
+        name        = "VALKEY_URL"
         secret_name = "valkey-url"
       }
       env {
-        name = "SECRET_KEY"
+        name        = "SECRET_KEY"
         secret_name = "secret-key"
       }
       env {
-        name = "ENCRYPTION_KEY"
+        name        = "ENCRYPTION_KEY"
         secret_name = "encryption-key"
       }
       env {
-        name = "GITHUB_CLIENT_ID"
+        name        = "GITHUB_CLIENT_ID"
         secret_name = "github-client-id"
       }
       env {
-        name = "GITHUB_CLIENT_SECRET"
+        name        = "GITHUB_CLIENT_SECRET"
         secret_name = "github-client-secret"
       }
       env {
-        name = "GITHUB_RULES_REPO"
+        name  = "GITHUB_RULES_REPO"
         value = var.secret_github_rules_repo
       }
       env {
-        name = "GITHUB_RULES_TOKEN"
+        name        = "GITHUB_RULES_TOKEN"
         secret_name = "github-rules-token"
       }
       env {
-        name = "LOG_LEVEL"
+        name  = "LOG_LEVEL"
         value = "INFO"
       }
     }
@@ -732,35 +732,35 @@ resource "azurerm_container_app" "beat" {
 
   # No ingress — beat is internal-only
   secret {
-    name = "ghcr-password"
+    name  = "ghcr-password"
     value = var.ghcr_token
   }
   secret {
-    name = "db-url"
+    name  = "db-url"
     value = local.aca_database_url
   }
   secret {
-    name = "valkey-url"
+    name  = "valkey-url"
     value = local.aca_valkey_url
   }
   secret {
-    name = "secret-key"
+    name  = "secret-key"
     value = var.secret_secret_key
   }
   secret {
-    name = "encryption-key"
+    name  = "encryption-key"
     value = var.secret_encryption_key
   }
   secret {
-    name = "github-client-id"
+    name  = "github-client-id"
     value = var.secret_github_client_id
   }
   secret {
-    name = "github-client-secret"
+    name  = "github-client-secret"
     value = var.secret_github_client_secret
   }
   secret {
-    name = "github-rules-token"
+    name  = "github-rules-token"
     value = var.secret_github_rules_token
   }
 
@@ -809,31 +809,31 @@ resource "azurerm_container_app" "worker_ingestion" {
       command = ["celery", "-A", "app.celery_app", "worker", "-Q", "ingestion", "-c", "4", "--loglevel", "INFO"]
 
       env {
-        name = "DATABASE_URL"
+        name        = "DATABASE_URL"
         secret_name = "db-url"
       }
       env {
-        name = "VALKEY_URL"
+        name        = "VALKEY_URL"
         secret_name = "valkey-url"
       }
       env {
-        name = "SECRET_KEY"
+        name        = "SECRET_KEY"
         secret_name = "secret-key"
       }
       env {
-        name = "ENCRYPTION_KEY"
+        name        = "ENCRYPTION_KEY"
         secret_name = "encryption-key"
       }
       env {
-        name = "INGESTION_MODE"
+        name  = "INGESTION_MODE"
         value = "hec"
       }
       env {
-        name = "MAXMIND_LICENSE_KEY"
+        name        = "MAXMIND_LICENSE_KEY"
         secret_name = "maxmind-license-key"
       }
       env {
-        name = "LOG_LEVEL"
+        name  = "LOG_LEVEL"
         value = "INFO"
       }
     }
@@ -856,31 +856,31 @@ resource "azurerm_container_app" "worker_ingestion" {
   }
 
   secret {
-    name = "ghcr-password"
+    name  = "ghcr-password"
     value = var.ghcr_token
   }
   secret {
-    name = "db-url"
+    name  = "db-url"
     value = local.aca_database_url
   }
   secret {
-    name = "valkey-url"
+    name  = "valkey-url"
     value = local.aca_valkey_url
   }
   secret {
-    name = "valkey-password"
+    name  = "valkey-password"
     value = var.secret_valkey_password
   }
   secret {
-    name = "secret-key"
+    name  = "secret-key"
     value = var.secret_secret_key
   }
   secret {
-    name = "encryption-key"
+    name  = "encryption-key"
     value = var.secret_encryption_key
   }
   secret {
-    name = "maxmind-license-key"
+    name  = "maxmind-license-key"
     value = var.secret_maxmind_license_key
   }
 
@@ -923,85 +923,85 @@ resource "azurerm_container_app" "worker_detection" {
       command = ["celery", "-A", "app.celery_app", "worker", "-Q", "detection", "-c", "8", "--loglevel", "INFO"]
 
       env {
-        name = "DATABASE_URL"
+        name        = "DATABASE_URL"
         secret_name = "db-url"
       }
       env {
-        name = "VALKEY_URL"
+        name        = "VALKEY_URL"
         secret_name = "valkey-url"
       }
       env {
-        name = "SECRET_KEY"
+        name        = "SECRET_KEY"
         secret_name = "secret-key"
       }
       env {
-        name = "ENCRYPTION_KEY"
+        name        = "ENCRYPTION_KEY"
         secret_name = "encryption-key"
       }
       env {
-        name = "DETECTION_CONFIDENCE_THRESHOLD"
+        name  = "DETECTION_CONFIDENCE_THRESHOLD"
         value = "0.7"
       }
       env {
-        name = "LOG_LEVEL"
+        name  = "LOG_LEVEL"
         value = "INFO"
       }
 
       # IdP enrichment — Okta
       env {
-        name = "OKTA_ORG_URL"
+        name  = "OKTA_ORG_URL"
         value = var.secret_okta_org_url
       }
       env {
-        name = "OKTA_API_TOKEN"
+        name        = "OKTA_API_TOKEN"
         secret_name = "okta-api-token"
       }
 
       # IdP enrichment — Azure AD / Entra
       env {
-        name = "AZURE_AD_TENANT_ID"
+        name  = "AZURE_AD_TENANT_ID"
         value = var.secret_azure_ad_tenant_id
       }
       env {
-        name = "AZURE_AD_CLIENT_ID"
+        name  = "AZURE_AD_CLIENT_ID"
         value = var.secret_azure_ad_client_id
       }
       env {
-        name = "AZURE_AD_CLIENT_SECRET"
+        name        = "AZURE_AD_CLIENT_SECRET"
         secret_name = "azure-ad-client-secret"
       }
 
       # Notifications — Slack
       env {
-        name = "SLACK_BOT_TOKEN"
+        name        = "SLACK_BOT_TOKEN"
         secret_name = "slack-bot-token"
       }
 
       # Notifications — SMTP
       env {
-        name = "SMTP_HOST"
+        name  = "SMTP_HOST"
         value = var.secret_smtp_host
       }
       env {
-        name = "SMTP_USERNAME"
+        name  = "SMTP_USERNAME"
         value = var.secret_smtp_username
       }
       env {
-        name = "SMTP_PASSWORD"
+        name        = "SMTP_PASSWORD"
         secret_name = "smtp-password"
       }
 
       # Ticketing — Jira
       env {
-        name = "JIRA_URL"
+        name  = "JIRA_URL"
         value = var.secret_jira_url
       }
       env {
-        name = "JIRA_USERNAME"
+        name  = "JIRA_USERNAME"
         value = var.secret_jira_username
       }
       env {
-        name = "JIRA_API_TOKEN"
+        name        = "JIRA_API_TOKEN"
         secret_name = "jira-api-token"
       }
     }
@@ -1024,47 +1024,47 @@ resource "azurerm_container_app" "worker_detection" {
   }
 
   secret {
-    name = "ghcr-password"
+    name  = "ghcr-password"
     value = var.ghcr_token
   }
   secret {
-    name = "db-url"
+    name  = "db-url"
     value = local.aca_database_url
   }
   secret {
-    name = "valkey-url"
+    name  = "valkey-url"
     value = local.aca_valkey_url
   }
   secret {
-    name = "valkey-password"
+    name  = "valkey-password"
     value = var.secret_valkey_password
   }
   secret {
-    name = "secret-key"
+    name  = "secret-key"
     value = var.secret_secret_key
   }
   secret {
-    name = "encryption-key"
+    name  = "encryption-key"
     value = var.secret_encryption_key
   }
   secret {
-    name = "okta-api-token"
+    name  = "okta-api-token"
     value = var.secret_okta_api_token
   }
   secret {
-    name = "azure-ad-client-secret"
+    name  = "azure-ad-client-secret"
     value = var.secret_azure_ad_client_secret
   }
   secret {
-    name = "slack-bot-token"
+    name  = "slack-bot-token"
     value = var.secret_slack_bot_token
   }
   secret {
-    name = "smtp-password"
+    name  = "smtp-password"
     value = var.secret_smtp_password
   }
   secret {
-    name = "jira-api-token"
+    name  = "jira-api-token"
     value = var.secret_jira_api_token
   }
 
@@ -1107,43 +1107,43 @@ resource "azurerm_container_app" "worker_notification" {
       command = ["celery", "-A", "app.celery_app", "worker", "-Q", "notification", "-c", "2", "--loglevel", "INFO"]
 
       env {
-        name = "DATABASE_URL"
+        name        = "DATABASE_URL"
         secret_name = "db-url"
       }
       env {
-        name = "VALKEY_URL"
+        name        = "VALKEY_URL"
         secret_name = "valkey-url"
       }
       env {
-        name = "SECRET_KEY"
+        name        = "SECRET_KEY"
         secret_name = "secret-key"
       }
       env {
-        name = "ENCRYPTION_KEY"
+        name        = "ENCRYPTION_KEY"
         secret_name = "encryption-key"
       }
       env {
-        name = "LOG_LEVEL"
+        name  = "LOG_LEVEL"
         value = "INFO"
       }
 
       # Notifications — Slack
       env {
-        name = "SLACK_BOT_TOKEN"
+        name        = "SLACK_BOT_TOKEN"
         secret_name = "slack-bot-token"
       }
 
       # Notifications — SMTP
       env {
-        name = "SMTP_HOST"
+        name  = "SMTP_HOST"
         value = var.secret_smtp_host
       }
       env {
-        name = "SMTP_USERNAME"
+        name  = "SMTP_USERNAME"
         value = var.secret_smtp_username
       }
       env {
-        name = "SMTP_PASSWORD"
+        name        = "SMTP_PASSWORD"
         secret_name = "smtp-password"
       }
     }
@@ -1166,35 +1166,35 @@ resource "azurerm_container_app" "worker_notification" {
   }
 
   secret {
-    name = "ghcr-password"
+    name  = "ghcr-password"
     value = var.ghcr_token
   }
   secret {
-    name = "db-url"
+    name  = "db-url"
     value = local.aca_database_url
   }
   secret {
-    name = "valkey-url"
+    name  = "valkey-url"
     value = local.aca_valkey_url
   }
   secret {
-    name = "valkey-password"
+    name  = "valkey-password"
     value = var.secret_valkey_password
   }
   secret {
-    name = "secret-key"
+    name  = "secret-key"
     value = var.secret_secret_key
   }
   secret {
-    name = "encryption-key"
+    name  = "encryption-key"
     value = var.secret_encryption_key
   }
   secret {
-    name = "slack-bot-token"
+    name  = "slack-bot-token"
     value = var.secret_slack_bot_token
   }
   secret {
-    name = "smtp-password"
+    name  = "smtp-password"
     value = var.secret_smtp_password
   }
 
@@ -1237,23 +1237,23 @@ resource "azurerm_container_app" "worker_baseline" {
       command = ["celery", "-A", "app.celery_app", "worker", "-Q", "baseline", "-c", "2", "--loglevel", "INFO"]
 
       env {
-        name = "DATABASE_URL"
+        name        = "DATABASE_URL"
         secret_name = "db-url"
       }
       env {
-        name = "VALKEY_URL"
+        name        = "VALKEY_URL"
         secret_name = "valkey-url"
       }
       env {
-        name = "SECRET_KEY"
+        name        = "SECRET_KEY"
         secret_name = "secret-key"
       }
       env {
-        name = "ENCRYPTION_KEY"
+        name        = "ENCRYPTION_KEY"
         secret_name = "encryption-key"
       }
       env {
-        name = "LOG_LEVEL"
+        name  = "LOG_LEVEL"
         value = "INFO"
       }
     }
@@ -1276,27 +1276,27 @@ resource "azurerm_container_app" "worker_baseline" {
   }
 
   secret {
-    name = "ghcr-password"
+    name  = "ghcr-password"
     value = var.ghcr_token
   }
   secret {
-    name = "db-url"
+    name  = "db-url"
     value = local.aca_database_url
   }
   secret {
-    name = "valkey-url"
+    name  = "valkey-url"
     value = local.aca_valkey_url
   }
   secret {
-    name = "valkey-password"
+    name  = "valkey-password"
     value = var.secret_valkey_password
   }
   secret {
-    name = "secret-key"
+    name  = "secret-key"
     value = var.secret_secret_key
   }
   secret {
-    name = "encryption-key"
+    name  = "encryption-key"
     value = var.secret_encryption_key
   }
 
@@ -1332,58 +1332,58 @@ resource "azurerm_container_app" "worker_sync" {
     max_replicas = var.worker_max_replicas.sync
 
     container {
-      name    = "worker-sync"
-      image   = local.image_worker
-      cpu     = 0.5
-      memory  = "1Gi"
+      name   = "worker-sync"
+      image  = local.image_worker
+      cpu    = 0.5
+      memory = "1Gi"
       # --pool=solo is required: GitHub App API calls are not safe with
       # pre-fork concurrency; solo pool runs tasks sequentially in one process.
       command = ["celery", "-A", "app.celery_app", "worker", "-Q", "github_sync", "--pool=solo", "--loglevel", "INFO"]
 
       env {
-        name = "DATABASE_URL"
+        name        = "DATABASE_URL"
         secret_name = "db-url"
       }
       env {
-        name = "VALKEY_URL"
+        name        = "VALKEY_URL"
         secret_name = "valkey-url"
       }
       env {
-        name = "SECRET_KEY"
+        name        = "SECRET_KEY"
         secret_name = "secret-key"
       }
       env {
-        name = "ENCRYPTION_KEY"
+        name        = "ENCRYPTION_KEY"
         secret_name = "encryption-key"
       }
       env {
-        name = "LOG_LEVEL"
+        name  = "LOG_LEVEL"
         value = "INFO"
       }
 
       # GitHub Enterprise Sync
       env {
-        name = "GITHUB_APP_PRIVATE_KEY_PEM"
+        name        = "GITHUB_APP_PRIVATE_KEY_PEM"
         secret_name = "github-app-private-key-pem"
       }
       env {
-        name = "GITHUB_APP_ID"
+        name  = "GITHUB_APP_ID"
         value = var.secret_github_app_id
       }
       env {
-        name = "GITHUB_ENTERPRISE_SLUG"
+        name  = "GITHUB_ENTERPRISE_SLUG"
         value = var.secret_github_enterprise_slug
       }
       env {
-        name = "GITHUB_SYNC_ENABLED"
+        name  = "GITHUB_SYNC_ENABLED"
         value = "false"
       }
       env {
-        name = "GITHUB_SYNC_INTERVAL_DAYS"
+        name  = "GITHUB_SYNC_INTERVAL_DAYS"
         value = "60"
       }
       env {
-        name = "GITHUB_SYNC_ORGS"
+        name  = "GITHUB_SYNC_ORGS"
         value = ""
       }
     }
@@ -1406,31 +1406,31 @@ resource "azurerm_container_app" "worker_sync" {
   }
 
   secret {
-    name = "ghcr-password"
+    name  = "ghcr-password"
     value = var.ghcr_token
   }
   secret {
-    name = "db-url"
+    name  = "db-url"
     value = local.aca_database_url
   }
   secret {
-    name = "valkey-url"
+    name  = "valkey-url"
     value = local.aca_valkey_url
   }
   secret {
-    name = "valkey-password"
+    name  = "valkey-password"
     value = var.secret_valkey_password
   }
   secret {
-    name = "secret-key"
+    name  = "secret-key"
     value = var.secret_secret_key
   }
   secret {
-    name = "encryption-key"
+    name  = "encryption-key"
     value = var.secret_encryption_key
   }
   secret {
-    name = "github-app-private-key-pem"
+    name  = "github-app-private-key-pem"
     value = var.secret_github_app_private_key
   }
 
@@ -1484,7 +1484,7 @@ resource "azurerm_container_app_job" "migrate" {
       command = ["alembic", "upgrade", "head"]
 
       env {
-        name = "DATABASE_URL"
+        name        = "DATABASE_URL"
         secret_name = "db-url"
       }
     }
@@ -1497,11 +1497,11 @@ resource "azurerm_container_app_job" "migrate" {
   }
 
   secret {
-    name = "ghcr-password"
+    name  = "ghcr-password"
     value = var.ghcr_token
   }
   secret {
-    name = "db-url"
+    name  = "db-url"
     value = local.aca_database_url
   }
 

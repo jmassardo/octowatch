@@ -10,7 +10,7 @@ resource "kubernetes_manifest" "octowatch_argocd_app" {
       name      = "octowatch"
       namespace = "argocd"
       annotations = {
-        "argocd-image-updater.argoproj.io/image-list"                = "api=ghcr.io/jmassardo/octowatch/api,worker=ghcr.io/jmassardo/octowatch/worker,beat=ghcr.io/jmassardo/octowatch/beat,frontend=ghcr.io/jmassardo/octowatch/frontend"
+        "argocd-image-updater.argoproj.io/image-list"               = "api=ghcr.io/jmassardo/octowatch/api,worker=ghcr.io/jmassardo/octowatch/worker,beat=ghcr.io/jmassardo/octowatch/beat,frontend=ghcr.io/jmassardo/octowatch/frontend"
         "argocd-image-updater.argoproj.io/api.update-strategy"      = "semver"
         "argocd-image-updater.argoproj.io/worker.update-strategy"   = "semver"
         "argocd-image-updater.argoproj.io/beat.update-strategy"     = "semver"
