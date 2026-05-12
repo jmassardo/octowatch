@@ -10,7 +10,6 @@ locals {
   common_tags = merge(
     {
       application = "octowatch"
-      environment = var.environment
       managed_by  = "terraform"
       owner       = var.owner_tag
     },
