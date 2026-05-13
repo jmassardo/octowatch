@@ -578,8 +578,8 @@ variable "alert_email_address" {
 
 variable "k8s_node_vm_size" {
   type        = string
-  default     = "Standard_D4as_v6"
-  description = "VM SKU for K8s cluster nodes (1 CP + 2 workers). D4s_v5 = 4 vCPU / 16 GiB."
+  default     = "Standard_D4as_v7"
+  description = "VM SKU for K8s cluster nodes (1 CP + 2 workers). D4as_v7 = 4 vCPU / 16 GiB AMD."
 }
 
 variable "k8s_mgmt_vm_size" {
