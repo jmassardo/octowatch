@@ -3844,7 +3844,7 @@ async def get_mttr_trends(
                   AND state = 'resolved'
                   AND resolved_at IS NOT NULL
                   AND resolved_at >= NOW() - (:window_days * INTERVAL '1 day')
-                  AND :severity IS NULL
+                  AND CAST(:severity AS TEXT) IS NULL
 
                 UNION ALL
 
@@ -3861,8 +3861,8 @@ async def get_mttr_trends(
                   AND COALESCE(fixed_at, dismissed_at)
                       >= NOW() - (:window_days * INTERVAL '1 day')
                   AND (
-                      :severity IS NULL
-                      OR COALESCE(security_severity, severity) = :severity
+                      CAST(:severity AS TEXT) IS NULL
+                      OR COALESCE(security_severity, severity) = CAST(:severity AS TEXT)
                   )
 
                 UNION ALL
@@ -3879,7 +3879,7 @@ async def get_mttr_trends(
                   AND COALESCE(fixed_at, auto_dismissed_at) IS NOT NULL
                   AND COALESCE(fixed_at, auto_dismissed_at)
                       >= NOW() - (:window_days * INTERVAL '1 day')
-                  AND (:severity IS NULL OR severity = :severity)
+                  AND (CAST(:severity AS TEXT) IS NULL OR severity = CAST(:severity AS TEXT))
             )
             SELECT
                 ROUND(
@@ -3927,8 +3927,8 @@ async def get_mttr_trends(
                   AND COALESCE(fixed_at, dismissed_at)
                       >= NOW() - (:days * INTERVAL '1 day')
                   AND (
-                      :severity IS NULL
-                      OR COALESCE(security_severity, severity) = :severity
+                      CAST(:severity AS TEXT) IS NULL
+                      OR COALESCE(security_severity, severity) = CAST(:severity AS TEXT)
                   )
 
                 UNION ALL
@@ -3944,7 +3944,7 @@ async def get_mttr_trends(
                   AND COALESCE(fixed_at, auto_dismissed_at) IS NOT NULL
                   AND COALESCE(fixed_at, auto_dismissed_at)
                       >= NOW() - (:days * INTERVAL '1 day')
-                  AND (:severity IS NULL OR severity = :severity)
+                  AND (CAST(:severity AS TEXT) IS NULL OR severity = CAST(:severity AS TEXT))
             )
             SELECT
                 severity,
@@ -3972,7 +3972,7 @@ async def get_mttr_trends(
                   AND state = 'resolved'
                   AND resolved_at IS NOT NULL
                   AND resolved_at >= NOW() - (:days * INTERVAL '1 day')
-                  AND :severity IS NULL
+                  AND CAST(:severity AS TEXT) IS NULL
 
                 UNION ALL
 
@@ -3988,8 +3988,8 @@ async def get_mttr_trends(
                   AND COALESCE(fixed_at, dismissed_at)
                       >= NOW() - (:days * INTERVAL '1 day')
                   AND (
-                      :severity IS NULL
-                      OR COALESCE(security_severity, severity) = :severity
+                      CAST(:severity AS TEXT) IS NULL
+                      OR COALESCE(security_severity, severity) = CAST(:severity AS TEXT)
                   )
 
                 UNION ALL
@@ -4005,7 +4005,7 @@ async def get_mttr_trends(
                   AND COALESCE(fixed_at, auto_dismissed_at) IS NOT NULL
                   AND COALESCE(fixed_at, auto_dismissed_at)
                       >= NOW() - (:days * INTERVAL '1 day')
-                  AND (:severity IS NULL OR severity = :severity)
+                  AND (CAST(:severity AS TEXT) IS NULL OR severity = CAST(:severity AS TEXT))
             )
             SELECT
                 tool,
@@ -4046,7 +4046,7 @@ async def get_mttr_trends(
                   AND state = 'resolved'
                   AND resolved_at IS NOT NULL
                   AND resolved_at >= NOW() - (:days * INTERVAL '1 day')
-                  AND :severity IS NULL
+                  AND CAST(:severity AS TEXT) IS NULL
 
                 UNION ALL
 
@@ -4061,8 +4061,8 @@ async def get_mttr_trends(
                   AND COALESCE(fixed_at, dismissed_at)
                       >= NOW() - (:days * INTERVAL '1 day')
                   AND (
-                      :severity IS NULL
-                      OR COALESCE(security_severity, severity) = :severity
+                      CAST(:severity AS TEXT) IS NULL
+                      OR COALESCE(security_severity, severity) = CAST(:severity AS TEXT)
                   )
 
                 UNION ALL
@@ -4077,7 +4077,7 @@ async def get_mttr_trends(
                   AND COALESCE(fixed_at, auto_dismissed_at) IS NOT NULL
                   AND COALESCE(fixed_at, auto_dismissed_at)
                       >= NOW() - (:days * INTERVAL '1 day')
-                  AND (:severity IS NULL OR severity = :severity)
+                  AND (CAST(:severity AS TEXT) IS NULL OR severity = CAST(:severity AS TEXT))
             ),
             daily AS (
                 SELECT
