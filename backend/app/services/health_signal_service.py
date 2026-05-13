@@ -2984,7 +2984,6 @@ async def get_unified_security_summary(
                 SELECT created_at::DATE AS day, COUNT(*) AS cnt
                 FROM secret_scanning_alerts
                 WHERE org_slug = ANY(:scoped_orgs)
-                  AND state = 'open'
                   AND created_at >= CURRENT_DATE - INTERVAL '29 days'
                 GROUP BY 1
             ),
@@ -2992,7 +2991,6 @@ async def get_unified_security_summary(
                 SELECT created_at::DATE AS day, COUNT(*) AS cnt
                 FROM code_scanning_alerts
                 WHERE org_slug = ANY(:scoped_orgs)
-                  AND state = 'open'
                   AND created_at >= CURRENT_DATE - INTERVAL '29 days'
                 GROUP BY 1
             ),
@@ -3000,7 +2998,6 @@ async def get_unified_security_summary(
                 SELECT created_at::DATE AS day, COUNT(*) AS cnt
                 FROM dependabot_alerts
                 WHERE org_slug = ANY(:scoped_orgs)
-                  AND state = 'open'
                   AND created_at >= CURRENT_DATE - INTERVAL '29 days'
                 GROUP BY 1
             )
