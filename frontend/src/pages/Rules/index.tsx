@@ -29,6 +29,7 @@ import { RuleWizard } from './RuleWizard';
 import { BacktestPanel } from './BacktestPanel';
 import { RuleAnalytics } from './RuleAnalytics';
 import { formatAbsolute } from '../../utils/dates';
+import { useQueryParamInt } from '../../hooks/useQueryParam';
 import styles from './Rules.module.css';
 
 const CATEGORIES: RuleCategory[] = [
@@ -429,7 +430,7 @@ export function RulesPage() {
   const [analyticsRule, setAnalyticsRule] = useState<RuleResponse | null>(null);
   const [backtestRuleTarget, setBacktestRuleTarget] = useState<RuleResponse | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useQueryParamInt('page', 1);
   const [selectedRuleIds, setSelectedRuleIds] = useState<Set<number>>(new Set());
   const navigate = useNavigate();
 

@@ -8,6 +8,7 @@ import { ContributionCalendar } from '../../components/charts/ContributionCalend
 import { LineAreaChart } from '../../components/charts/LineAreaChart';
 import { BarChart } from '../../components/charts/BarChart';
 import { MetricCard } from '../../components/primitives/MetricCard';
+import { useEnumQueryParam } from '../../hooks/useQueryParam';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
 import { DataTable } from '../../components/primitives/DataTable';
@@ -184,7 +185,11 @@ function BranchProtectionSection({ branchProt }: BranchProtectionProps) {
 export function VelocityPage() {
   const navigate = useNavigate();
   const { features } = useFeatures();
-  const [activeTab, setActiveTab] = useState<'metrics' | 'leadership'>('metrics');
+  const [activeTab, setActiveTab] = useEnumQueryParam(
+    'tab',
+    ['metrics', 'leadership'] as const,
+    'metrics',
+  );
   const [doraModalOpen, setDoraModalOpen] = useState(false);
   const [failureBucket, setFailureBucket] = useState<ActionsVolumeBucket | null>(null);
   const [drillFilter, setDrillFilter] = useState<'total' | 'succeeded' | 'failed' | null>(null);

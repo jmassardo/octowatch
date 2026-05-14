@@ -47,12 +47,12 @@ resource "azurerm_application_insights_standard_web_test" "availability" {
     "emea-nl-ams-azr", # West Europe
     "apac-sg-sin-azr", # Southeast Asia
   ]
-  frequency   = 300  # Every 5 minutes
-  timeout     = 30
-  enabled     = true
+  frequency     = 300 # Every 5 minutes
+  timeout       = 30
+  enabled       = true
   retry_enabled = true
-  description = "OctoWatch HTTPS availability check — alerts ops when site is unreachable."
-  tags        = local.common_tags
+  description   = "OctoWatch HTTPS availability check — alerts ops when site is unreachable."
+  tags          = local.common_tags
 
   request {
     url                              = "https://${local.tls_domain}/"
@@ -62,9 +62,9 @@ resource "azurerm_application_insights_standard_web_test" "availability" {
   }
 
   validation_rules {
-    expected_status_code          = 200
-    ssl_check_enabled             = true
-    ssl_cert_remaining_lifetime   = 14  # Alert 14 days before cert expiry
+    expected_status_code        = 200
+    ssl_check_enabled           = true
+    ssl_cert_remaining_lifetime = 14 # Alert 14 days before cert expiry
   }
 }
 
@@ -95,7 +95,7 @@ resource "azurerm_monitor_metric_alert" "availability" {
   resource_group_name = azurerm_resource_group.main.name
   scopes              = [azurerm_application_insights.main.id]
   description         = "OctoWatch site unreachable from multiple Azure edge locations."
-  severity            = 0  # Critical
+  severity            = 0 # Critical
   frequency           = "PT5M"
   window_size         = "PT15M"
   auto_mitigate       = true
@@ -106,7 +106,7 @@ resource "azurerm_monitor_metric_alert" "availability" {
     metric_name      = "availabilityResults/availabilityPercentage"
     aggregation      = "Average"
     operator         = "LessThan"
-    threshold        = 50  # < 50% availability across test locations
+    threshold        = 50 # < 50% availability across test locations
   }
 
   action {
@@ -121,7 +121,7 @@ resource "azurerm_monitor_metric_alert" "node_not_ready" {
   resource_group_name = azurerm_resource_group.main.name
   scopes              = [azurerm_kubernetes_cluster.main.id]
   description         = "One or more AKS nodes are in NotReady state."
-  severity            = 1  # Error
+  severity            = 1 # Error
   frequency           = "PT5M"
   window_size         = "PT15M"
   auto_mitigate       = true
@@ -155,7 +155,7 @@ resource "azurerm_monitor_metric_alert" "pod_restarts" {
   resource_group_name = azurerm_resource_group.main.name
   scopes              = [azurerm_kubernetes_cluster.main.id]
   description         = "OctoWatch pod is crash-looping (>5 restarts in 15 min)."
-  severity            = 1  # Error
+  severity            = 1 # Error
   frequency           = "PT5M"
   window_size         = "PT15M"
   auto_mitigate       = true

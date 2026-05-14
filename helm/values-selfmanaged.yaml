@@ -1,0 +1,122 @@
+# helm/values-selfmanaged.yaml
+# Overlay for self-managed kubeadm K8s cluster (replaces values-azure.yaml).
+# Usage: helm install octowatch ./helm -f values.yaml -f values-selfmanaged.yaml
+
+global:
+  image:
+    registry: ghcr.io/jmassardo
+
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
+# ── API ────────────────────────────────────────────────────────────────────────
+api:
+  image:
+    repository: api
+  replicaCount: 2
+
+# ── Workers — static replica counts (no KEDA on self-managed) ────────────────
+worker:
+  image:
+    repository: worker
+  ingestion:
+    replicaCount: 4
+  detection:
+    replicaCount: 4
+  notification:
+    replicaCount: 2
+  baseline:
+    replicaCount: 2
+  sync:
+    replicaCount: 0
+
+beat:
+  image:
+    repository: beat
+
+# ── Frontend ───────────────────────────────────────────────────────────────────
+frontend:
+  image:
+    repository: frontend
+
+# ── Ingress — nginx class with cert-manager TLS ──────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  host: octowatch.jmassardo.azure.csa-github.com
+  tls:
+    enabled: true
+    secretName: octowatch-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "2m"
+  rateLimits:
+    default:
+      rps: "30"
+      connections: "30"
+      burstMultiplier: "3"
+    hec:
+      rps: "50"
+      connections: "20"
+      burstMultiplier: "5"
+      proxyBodySize: "5m"
+    webhook:
+      rps: "30"
+      connections: "10"
+      burstMultiplier: "3"
+      proxyBodySize: "2m"
+
+# ── KEDA disabled — fixed 3-node cluster uses static replicas ────────────────
+keda:
+  enabled: false
+
+# ── Backup — disabled (CronJob only supports S3; pg_dump handled by mgmt VM) ─
+backup:
+  enabled: false
+
+# ── TimescaleDB — local-path storage (self-managed cluster) ─────────────────
+# postgresql.enabled=false uses the custom TimescaleDB StatefulSet template.
+postgresql:
+  enabled: false
+
+timescaledb:
+  storageClass: "local-path"
+  storageSize: "50Gi"
+
+# ── Valkey — local-path storage ──────────────────────────────────────────────
+valkey:
+  replica:
+    replicaCount: 1
+  primary:
+    resourcesPreset: "none"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "384Mi"
+      limits:
+        cpu: "500m"
+        memory: "768Mi"
+    persistence:
+      storageClass: "local-path"
+      size: 2Gi
+  master:
+    persistence:
+      storageClass: "local-path"
+      size: 2Gi
+
+# ── Observability ────────────────────────────────────────────────────────────
+observability:
+  metrics:
+    serviceMonitor:
+      enabled: false
+
+useExternalSecrets: true
+
+# ── No workload identity or Key Vault on self-managed cluster ────────────────
+workloadIdentity:
+  enabled: false
+
+keyVault:
+  name: ""
+  uri: ""
