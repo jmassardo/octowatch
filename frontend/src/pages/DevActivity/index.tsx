@@ -5,6 +5,7 @@ import { listDetections } from '../../api/detections';
 import { getTeams } from '../../api/healthSignals';
 import { getUsageStats, getDevelopers, type UsageStatsResponse } from '../../api/devActivity';
 import { useFeatures } from '../../hooks/useFeatures';
+import { useEnumQueryParam } from '../../hooks/useQueryParam';
 import { PageHeader } from '../../components/common/PageHeader';
 import { SkeletonChart } from '../../components/common/SkeletonChart';
 import { SkeletonCard } from '../../components/common/SkeletonCard';
@@ -40,7 +41,11 @@ export function DevActivityPage() {
   const [othersModalOpen, setOthersModalOpen] = useState(false);
   const [concentrationModalOpen, setConcentrationModalOpen] = useState(false);
   const [selectedDev, setSelectedDev] = useState<ActorStats | null>(null);
-  const [activeTab, setActiveTab] = useState<'activity' | 'team-health'>('activity');
+  const [activeTab, setActiveTab] = useEnumQueryParam(
+    'tab',
+    ['activity', 'team-health'] as const,
+    'activity',
+  );
 
   const handleCardClick = useCallback((dev: ActorStats) => {
     setSelectedDev(dev);

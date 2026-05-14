@@ -57,6 +57,7 @@ from app.routers import (
     reports,
     rule_library,
     rules,
+    secret_scanning,
     setup,
     slack,
     suggestions,
@@ -715,6 +716,7 @@ def create_app() -> FastAPI:
     app.include_router(features.router, prefix=API_PREFIX)
     app.include_router(org_config.router, prefix=API_PREFIX)
     app.include_router(sync.router, prefix=API_PREFIX + "/admin")
+    app.include_router(secret_scanning.router, prefix=API_PREFIX)
     app.include_router(setup.router, prefix=API_PREFIX)
     app.include_router(suggestions.router, prefix=API_PREFIX)
     app.include_router(supply_chain.router, prefix=API_PREFIX)

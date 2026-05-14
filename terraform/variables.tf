@@ -36,8 +36,8 @@ variable "extra_tags" {
 
 variable "vm_size" {
   type        = string
-  default     = "Standard_D4s_v5"
-  description = "Azure VM SKU. Standard_D4s_v5 provides 4 vCPUs / 16 GiB RAM."
+  default     = "Standard_D4as_v6"
+  description = "Azure VM SKU. Standard_D4as_v6 provides 4 vCPUs / 16 GiB RAM."
 }
 
 variable "data_disk_size_gb" {
@@ -481,7 +481,7 @@ variable "aks_api_server_authorized_ip_ranges" {
     Applied live on 2026-04-23.
   EOT
   default = [
-    "66.116.122.0/24",  # Platform-team admin range
+    "66.116.122.0/24", # Platform-team admin range
     "4.148.0.0/16",    # GitHub Actions
     "4.149.0.0/18",    # GitHub Actions
     "4.149.64.0/19",   # GitHub Actions
@@ -572,4 +572,36 @@ variable "alert_email_address" {
   type        = string
   default     = ""
   description = "Email address for ops alert notifications. Leave empty to disable email alerts."
+}
+
+# ── Self-Managed K8s Cluster ──────────────────────────────────────────────────
+
+variable "k8s_node_vm_size" {
+  type        = string
+  default     = "Standard_D4as_v7"
+  description = "VM SKU for K8s cluster nodes (1 CP + 2 workers). D4as_v7 = 4 vCPU / 16 GiB AMD."
+}
+
+variable "k8s_mgmt_vm_size" {
+  type        = string
+  default     = "Standard_B2s"
+  description = "VM SKU for the management/bastion VM. B2s = 2 vCPU / 4 GiB — sufficient for kubectl, helm, CI runner."
+}
+
+variable "k8s_data_disk_size_gb" {
+  type        = number
+  default     = 128
+  description = "Size in GiB of the Premium SSD data disk on each K8s node (for local-path-provisioner PVs)."
+}
+
+variable "k8s_version" {
+  type        = string
+  default     = "1.31"
+  description = "Kubernetes minor version for kubeadm (e.g., '1.31'). Packages are pinned to this version."
+}
+
+variable "k8s_cutover_complete" {
+  type        = bool
+  default     = false
+  description = "Set to true at DNS cutover to self-managed K8s. Creates A record pointing to the K8s LB IP."
 }

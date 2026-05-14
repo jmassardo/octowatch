@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { listEvents } from '../../api/events';
@@ -46,46 +46,47 @@ function formatResultCount(total: number, isEstimated: boolean): string {
   return isEstimated ? `≈ ${formatted}` : formatted;
 }
 
+// Reverse map: API param name → user-friendly chip key
+const API_TO_CHIP_KEY: Record<string, string> = {
+  source_ip: 'ip',
+  geo_country_code: 'country',
+  actor_is_bot: 'bot',
+};
+
+const SUPPORTED_FILTER_PARAMS = [
+  'repo',
+  'actor',
+  'action',
+  'org',
+  'since',
+  'until',
+  'namespace',
+  'source_ip',
+  'geo_country_code',
+  'actor_is_bot',
+];
+
 export function EventsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [chips, setChips] = useState<string[]>(() => {
-    // Initialize chips from URL query params on first render
-    const urlChips: string[] = [];
-    const supportedParams = [
-      'repo',
-      'actor',
-      'action',
-      'org',
-      'since',
-      'until',
-      'namespace',
-      'source_ip',
-      'geo_country_code',
-      'actor_is_bot',
-    ];
-    for (const param of supportedParams) {
+
+  // Derive chips from URL query params (URL is source of truth)
+  const chips = useMemo(() => {
+    const result: string[] = [];
+    for (const param of SUPPORTED_FILTER_PARAMS) {
       const val = searchParams.get(param);
       if (val) {
-        // Reverse-map API param names to user-friendly chip keys
-        const chipKey =
-          param === 'source_ip'
-            ? 'ip'
-            : param === 'geo_country_code'
-              ? 'country'
-              : param === 'actor_is_bot'
-                ? 'bot'
-                : param;
-        urlChips.push(`${chipKey}:${val}`);
+        const chipKey = API_TO_CHIP_KEY[param] ?? param;
+        result.push(`${chipKey}:${val}`);
       }
     }
-    return urlChips;
-  });
+    return result;
+  }, [searchParams]);
+
   const [page, setPage] = useState(1);
   const [cursors, setCursors] = useState<string[]>([]);
   const [sortKey] = useState<NonNullable<EventListParams['sort']>>('created_at_desc');
   const [detailEvent, setDetailEvent] = useState<EventResponse | null>(null);
-  const clearedUrlParams = useRef(false);
 
   const { data: actionsData } = useQuery({
     queryKey: ['suggestions', 'actions'],
@@ -123,28 +124,6 @@ export function EventsPage() {
   const orgSuggestions = orgsData?.orgs ?? [];
   const namespaceSuggestions = namespacesData?.namespaces ?? [];
 
-  // Clear URL params after they have been applied as initial chips
-  useEffect(() => {
-    if (clearedUrlParams.current) return;
-    clearedUrlParams.current = true;
-    const supportedParams = [
-      'repo',
-      'actor',
-      'action',
-      'org',
-      'since',
-      'until',
-      'namespace',
-      'source_ip',
-      'geo_country_code',
-      'actor_is_bot',
-    ];
-    const hasParams = supportedParams.some((p) => searchParams.has(p));
-    if (hasParams) {
-      setSearchParams({}, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
-
   const debouncedSearch = useDebounce(search, 400);
 
   // Parse chips into params (split only on first colon to preserve values like timestamps)
@@ -165,12 +144,25 @@ export function EventsPage() {
   // Parse real-time search input for key:value filters
   const searchFilters = parseSearchFilters(debouncedSearch);
 
-  // Wrap chip additions to reset cursors on filter changes
-  const addChip = useCallback((chip: string) => {
-    setChips((prev) => [...prev, chip]);
-    setCursors([]);
-    setPage(1);
-  }, []);
+  // Add a chip by updating URL params
+  const addChip = useCallback(
+    (chip: string) => {
+      const idx = chip.indexOf(':');
+      if (idx === -1) return;
+      const k = chip.slice(0, idx);
+      const v = chip.slice(idx + 1);
+      const paramKey = SEARCH_KEY_MAP[k];
+      if (!paramKey || !v) return;
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set(paramKey, v);
+        return next;
+      });
+      setCursors([]);
+      setPage(1);
+    },
+    [setSearchParams],
+  );
 
   const currentCursor = cursors.length > 0 ? cursors[cursors.length - 1] : undefined;
 
@@ -191,7 +183,16 @@ export function EventsPage() {
   const countIsEstimated = data?.count_is_estimated ?? false;
 
   function removeChip(chip: string) {
-    setChips((prev) => prev.filter((c) => c !== chip));
+    const idx = chip.indexOf(':');
+    if (idx === -1) return;
+    const k = chip.slice(0, idx);
+    const paramKey = SEARCH_KEY_MAP[k];
+    if (!paramKey) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete(paramKey);
+      return next;
+    });
     setPage(1);
     setCursors([]);
   }

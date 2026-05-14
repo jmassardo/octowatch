@@ -901,7 +901,7 @@ const SCHEDULE_PRESETS: { label: string; cron: string }[] = [
 ];
 
 export function QueryPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const [sql, setSql] = useState(() => searchParams.get('sql') ?? DEFAULT_SQL);
   const [results, setResults] = useState<QueryRunResponse | null>(null);
@@ -937,6 +937,25 @@ export function QueryPage() {
   const [scheduleEnabled, setScheduleEnabled] = useState(true);
 
   type QueryResultRow = Record<string, unknown>;
+
+  // Keep ?sql= param synced with the editor content (debounced, replace to avoid polluting history)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (sql === DEFAULT_SQL || !sql.trim()) {
+            next.delete('sql');
+          } else {
+            next.set('sql', sql);
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [sql, setSearchParams]);
 
   const queryResultColumns: ColumnDef<QueryResultRow>[] = useMemo(() => {
     if (!results) return [];

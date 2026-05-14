@@ -174,8 +174,8 @@ spec:
         name: data
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: "managed-csi"
+        storageClassName: {{ .Values.timescaledb.storageClass | default "managed-csi" | quote }}
         resources:
           requests:
-            storage: 50Gi
+            storage: {{ .Values.timescaledb.storageSize | default "50Gi" }}
 {{- end }}

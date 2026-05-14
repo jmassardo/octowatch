@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
@@ -23,6 +23,12 @@ import {
 import { listDetections } from '../../api/detections';
 import type { DetectionResponse } from '../../types/detections';
 import { formatRelativeShort } from '../../utils/dates';
+import {
+  useEnumQueryParam,
+  useQueryParam,
+  useQueryParamInt,
+  useSetQueryParams,
+} from '../../hooks/useQueryParam';
 import styles from './AdvancedSecurity.module.css';
 
 const PAGE_SIZE = 50;
@@ -331,9 +337,10 @@ function OverviewTab({ onSwitchTab }: { onSwitchTab: (tab: TabKey) => void }) {
 
 /* ── Code Scanning Tab ── */
 function CodeScanningTab() {
-  const [page, setPage] = useState(1);
-  const [stateFilter, setStateFilter] = useState('');
-  const [sevFilter, setSevFilter] = useState('');
+  const [page, setPage] = useQueryParamInt('page', 1);
+  const [stateFilter] = useQueryParam('state', '');
+  const [sevFilter] = useQueryParam('severity', '');
+  const setParams = useSetQueryParams();
   const [selected, setSelected] = useState<CodeScanningAlertItem | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -394,8 +401,7 @@ function CodeScanningTab() {
             <Label
               variant={sevVariant(r.security_severity)}
               onClick={() => {
-                setSevFilter(r.security_severity!);
-                setPage(1);
+                setParams({ severity: r.security_severity!, page: null });
               }}
             >
               {r.security_severity}
@@ -436,8 +442,7 @@ function CodeScanningTab() {
           <Label
             variant={stateVariant(r.state)}
             onClick={() => {
-              setStateFilter(r.state);
-              setPage(1);
+              setParams({ state: r.state, page: null });
             }}
           >
             {r.state}
@@ -457,7 +462,7 @@ function CodeScanningTab() {
         filterValue: (r) => r.created_at,
       },
     ],
-    [setSevFilter, setStateFilter],
+    [setParams],
   );
 
   return (
@@ -472,9 +477,7 @@ function CodeScanningTab() {
               label="Open Alerts"
               helpText="Total open code scanning alerts"
               onClick={() => {
-                setStateFilter('open');
-                setSevFilter('');
-                setPage(1);
+                setParams({ state: 'open', severity: null, page: null });
                 scrollToTable();
               }}
             />
@@ -484,9 +487,7 @@ function CodeScanningTab() {
               helpText="Critical severity open alerts"
               accent
               onClick={() => {
-                setSevFilter('critical');
-                setStateFilter('');
-                setPage(1);
+                setParams({ severity: 'critical', state: null, page: null });
                 scrollToTable();
               }}
             />
@@ -495,9 +496,7 @@ function CodeScanningTab() {
               label="High"
               helpText="High severity open alerts"
               onClick={() => {
-                setSevFilter('high');
-                setStateFilter('');
-                setPage(1);
+                setParams({ severity: 'high', state: null, page: null });
                 scrollToTable();
               }}
             />
@@ -511,9 +510,7 @@ function CodeScanningTab() {
               label="Fixed"
               helpText="Total code scanning alerts that have been fixed"
               onClick={() => {
-                setStateFilter('fixed');
-                setSevFilter('');
-                setPage(1);
+                setParams({ state: 'fixed', severity: null, page: null });
                 scrollToTable();
               }}
             />
@@ -526,8 +523,7 @@ function CodeScanningTab() {
           className={styles.filterSelect}
           value={stateFilter}
           onChange={(e) => {
-            setStateFilter(e.target.value);
-            setPage(1);
+            setParams({ state: e.target.value || null, page: null });
           }}
         >
           <option value="">All states</option>
@@ -539,8 +535,7 @@ function CodeScanningTab() {
           className={styles.filterSelect}
           value={sevFilter}
           onChange={(e) => {
-            setSevFilter(e.target.value);
-            setPage(1);
+            setParams({ severity: e.target.value || null, page: null });
           }}
         >
           <option value="">All severities</option>
@@ -654,9 +649,10 @@ function CodeScanningTab() {
 
 /* ── Dependabot Tab ── */
 function DependabotTab() {
-  const [page, setPage] = useState(1);
-  const [stateFilter, setStateFilter] = useState('');
-  const [sevFilter, setSevFilter] = useState('');
+  const [page, setPage] = useQueryParamInt('page', 1);
+  const [stateFilter] = useQueryParam('state', '');
+  const [sevFilter] = useQueryParam('severity', '');
+  const setParams = useSetQueryParams();
   const [selected, setSelected] = useState<DependabotAlertItem | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -727,8 +723,7 @@ function DependabotTab() {
             <Label
               variant={sevVariant(r.severity)}
               onClick={() => {
-                setSevFilter(r.severity!);
-                setPage(1);
+                setParams({ severity: r.severity!, page: null });
               }}
             >
               {r.severity}
@@ -769,8 +764,7 @@ function DependabotTab() {
           <Label
             variant={stateVariant(r.state)}
             onClick={() => {
-              setStateFilter(r.state);
-              setPage(1);
+              setParams({ state: r.state, page: null });
             }}
           >
             {r.state}
@@ -790,7 +784,7 @@ function DependabotTab() {
         filterValue: (r) => r.created_at,
       },
     ],
-    [setSevFilter, setStateFilter],
+    [setParams],
   );
 
   return (
@@ -805,9 +799,7 @@ function DependabotTab() {
               label="Total Open"
               helpText="Total open Dependabot alerts"
               onClick={() => {
-                setStateFilter('open');
-                setSevFilter('');
-                setPage(1);
+                setParams({ state: 'open', severity: null, page: null });
                 scrollToTable();
               }}
             />
@@ -817,9 +809,7 @@ function DependabotTab() {
               helpText="Critical severity open vulnerability alerts"
               accent
               onClick={() => {
-                setSevFilter('critical');
-                setStateFilter('');
-                setPage(1);
+                setParams({ severity: 'critical', state: null, page: null });
                 scrollToTable();
               }}
             />
@@ -828,9 +818,7 @@ function DependabotTab() {
               label="High Open"
               helpText="High severity open vulnerability alerts"
               onClick={() => {
-                setSevFilter('high');
-                setStateFilter('');
-                setPage(1);
+                setParams({ severity: 'high', state: null, page: null });
                 scrollToTable();
               }}
             />
@@ -845,9 +833,7 @@ function DependabotTab() {
               helpText="Critical alerts that have been open for more than 90 days"
               accent
               onClick={() => {
-                setSevFilter('critical');
-                setStateFilter('open');
-                setPage(1);
+                setParams({ severity: 'critical', state: 'open', page: null });
                 scrollToTable();
               }}
             />
@@ -860,8 +846,7 @@ function DependabotTab() {
           className={styles.filterSelect}
           value={stateFilter}
           onChange={(e) => {
-            setStateFilter(e.target.value);
-            setPage(1);
+            setParams({ state: e.target.value || null, page: null });
           }}
         >
           <option value="">All states</option>
@@ -873,8 +858,7 @@ function DependabotTab() {
           className={styles.filterSelect}
           value={sevFilter}
           onChange={(e) => {
-            setSevFilter(e.target.value);
-            setPage(1);
+            setParams({ severity: e.target.value || null, page: null });
           }}
         >
           <option value="">All severities</option>
@@ -1002,7 +986,7 @@ const GHAS_KEYWORDS = ['ghas', 'secret', 'codeql', 'push-protection', 'security-
 
 function ActivityLogTab() {
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useQueryParamInt('page', 1);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['ghas-activity-detections', page],
@@ -1110,13 +1094,8 @@ function ActivityLogTab() {
 
 /* ── Main Page ── */
 export function AdvancedSecurityPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const rawTab = searchParams.get('tab') ?? 'overview';
-  const activeTab: TabKey = TABS.some((t) => t.key === rawTab) ? (rawTab as TabKey) : 'overview';
-
-  function setTab(tab: TabKey) {
-    setSearchParams({ tab });
-  }
+  const TAB_KEYS = ['overview', 'secrets', 'code', 'dependabot', 'activity', 'strategic'] as const;
+  const [activeTab, setTab] = useEnumQueryParam('tab', TAB_KEYS, 'overview');
 
   return (
     <div className={styles.splitLayout}>
