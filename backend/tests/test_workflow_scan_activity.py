@@ -164,6 +164,54 @@ class TestAnalyzeFunctions:
         assert findings == []
 
 
+class TestScanStatusEndpoint:
+    """Test the /scan-status endpoint response schema."""
+
+    def test_scan_status_response_schema(self) -> None:
+        """ScanStatusResponse should accept valid data."""
+        from app.routers.workflow_scanner import ScanStatusResponse
+
+        resp = ScanStatusResponse(
+            last_scan_at=datetime.now(UTC),
+            last_scan_status="completed",
+            total_scans=42,
+            total_findings=5,
+            repos_scanned=3,
+            next_scheduled_scan="Runs every 6 hours and on new audit-log events",
+            is_automated=True,
+        )
+        assert resp.total_scans == 42
+        assert resp.total_findings == 5
+        assert resp.repos_scanned == 3
+        assert resp.is_automated is True
+
+    def test_scan_status_response_defaults(self) -> None:
+        """ScanStatusResponse should have sensible defaults."""
+        from app.routers.workflow_scanner import ScanStatusResponse
+
+        resp = ScanStatusResponse()
+        assert resp.last_scan_at is None
+        assert resp.last_scan_status is None
+        assert resp.total_scans == 0
+        assert resp.total_findings == 0
+        assert resp.repos_scanned == 0
+        assert resp.is_automated is True
+
+    def test_scan_status_response_without_last_scan(self) -> None:
+        """ScanStatusResponse should work when no scan has run yet."""
+        from app.routers.workflow_scanner import ScanStatusResponse
+
+        resp = ScanStatusResponse(
+            last_scan_at=None,
+            last_scan_status=None,
+            total_scans=0,
+            total_findings=0,
+            repos_scanned=0,
+        )
+        assert resp.last_scan_at is None
+        assert resp.last_scan_status is None
+
+
 class TestActivityEndpoint:
     """Test the /activity endpoint response schemas."""
 
@@ -224,3 +272,21 @@ class TestDetectionWorkerChain:
             scan_workflow_events_task.name
             == "app.workers.workflow_scan_worker.scan_workflow_events"
         )
+
+
+class TestCeleryBeatSchedule:
+    """Test that workflow scanning is scheduled at the correct frequency."""
+
+    def test_scan_scheduled_every_six_hours(self) -> None:
+        """Workflow security scan should run every 6 hours."""
+        from app.celery_app import celery_app
+
+        schedule = celery_app.conf.beat_schedule
+        assert "scan-workflow-security" in schedule
+
+        scan_config = schedule["scan-workflow-security"]
+        assert scan_config["task"] == "app.workers.workflow_scan_worker.scan_all_workflows"
+        # Verify the schedule is every 6 hours (hour="*/6", minute=0)
+        cron = scan_config["schedule"]
+        assert {0, 6, 12, 18} == set(cron.hour)
+        assert {0} == set(cron.minute)

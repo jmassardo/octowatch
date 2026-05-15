@@ -8,12 +8,12 @@ import { WorkflowsPage } from './index';
 
 const mockListFindings = vi.fn();
 const mockGetScores = vi.fn();
-const mockTriggerRepoScan = vi.fn();
+const mockGetScanStatus = vi.fn();
 
 vi.mock('../../api/workflowScanner', () => ({
   listWorkflowFindings: (...args: unknown[]) => mockListFindings(...args),
   getRepoSecurityScores: (...args: unknown[]) => mockGetScores(...args),
-  triggerRepoScan: (...args: unknown[]) => mockTriggerRepoScan(...args),
+  getScanStatus: (...args: unknown[]) => mockGetScanStatus(...args),
 }));
 
 vi.mock('../../api/workflowMetrics', () => ({
@@ -79,14 +79,26 @@ const SCORES_RESPONSE = [
   },
 ];
 
+const SCAN_STATUS_RESPONSE = {
+  last_scan_at: '2024-06-07T04:00:00Z',
+  last_scan_status: 'completed',
+  total_scans: 42,
+  total_findings: 5,
+  repos_scanned: 3,
+  next_scheduled_scan: 'Runs every 6 hours and on new audit-log events',
+  is_automated: true,
+};
+
 /* ── Tests ─────────────────────────────────────────────────────────── */
 
 describe('WorkflowsPage — Findings Tab', () => {
   beforeEach(() => {
     mockListFindings.mockClear();
     mockGetScores.mockClear();
+    mockGetScanStatus.mockClear();
     mockListFindings.mockResolvedValue(FINDINGS_RESPONSE);
     mockGetScores.mockResolvedValue(SCORES_RESPONSE);
+    mockGetScanStatus.mockResolvedValue(SCAN_STATUS_RESPONSE);
   });
 
   it('renders page title', async () => {
@@ -133,8 +145,10 @@ describe('WorkflowsPage — Scores Tab', () => {
   beforeEach(() => {
     mockListFindings.mockClear();
     mockGetScores.mockClear();
+    mockGetScanStatus.mockClear();
     mockListFindings.mockResolvedValue(FINDINGS_RESPONSE);
     mockGetScores.mockResolvedValue(SCORES_RESPONSE);
+    mockGetScanStatus.mockResolvedValue(SCAN_STATUS_RESPONSE);
   });
 
   it('switches to scores tab and shows repo scores', async () => {
@@ -167,11 +181,49 @@ describe('WorkflowsPage — Error Handling', () => {
   beforeEach(() => {
     mockListFindings.mockClear();
     mockGetScores.mockClear();
+    mockGetScanStatus.mockClear();
+    mockGetScanStatus.mockResolvedValue(SCAN_STATUS_RESPONSE);
   });
 
   it('shows error banner on findings failure', async () => {
     mockListFindings.mockRejectedValue(new Error('Network error'));
     renderWithProviders(<WorkflowsPage />);
     expect(await screen.findByText('Failed to load findings')).toBeInTheDocument();
+  });
+});
+
+describe('WorkflowsPage — Scan Status', () => {
+  beforeEach(() => {
+    mockListFindings.mockClear();
+    mockGetScores.mockClear();
+    mockGetScanStatus.mockClear();
+    mockListFindings.mockResolvedValue(FINDINGS_RESPONSE);
+    mockGetScores.mockResolvedValue(SCORES_RESPONSE);
+  });
+
+  it('displays scan status with last scan time', async () => {
+    mockGetScanStatus.mockResolvedValue(SCAN_STATUS_RESPONSE);
+    renderWithProviders(<WorkflowsPage />);
+    expect(await screen.findByText(/3 repos/)).toBeInTheDocument();
+    expect(await screen.findByText(/5 findings/)).toBeInTheDocument();
+  });
+
+  it('shows awaiting message when no scans have run', async () => {
+    mockGetScanStatus.mockResolvedValue({
+      ...SCAN_STATUS_RESPONSE,
+      last_scan_at: null,
+      last_scan_status: null,
+    });
+    renderWithProviders(<WorkflowsPage />);
+    expect(
+      await screen.findByText('Awaiting first scan — data will appear automatically'),
+    ).toBeInTheDocument();
+  });
+
+  it('renders guidance box with automated scanning description', async () => {
+    mockGetScanStatus.mockResolvedValue(SCAN_STATUS_RESPONSE);
+    renderWithProviders(<WorkflowsPage />);
+    expect(await screen.findByText(/Fully automated/)).toBeInTheDocument();
+    expect(await screen.findByText(/every 6 hours/)).toBeInTheDocument();
   });
 });
