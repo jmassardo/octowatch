@@ -24,23 +24,23 @@
 }
 
 .primary {
-  background: #238636;
-  border-color: rgba(240, 246, 252, 0.1);
+  background: var(--success);
+  border-color: var(--success);
   color: #fff;
 }
 
 .primary:hover {
-  background: #2ea043;
+  background: color-mix(in srgb, var(--success) 85%, #fff);
 }
 
 .danger {
   background: var(--danger);
-  border-color: rgba(240, 246, 252, 0.1);
+  border-color: var(--danger);
   color: #fff;
 }
 
 .danger:hover {
-  background: #da3633;
+  background: color-mix(in srgb, var(--danger) 85%, #fff);
 }
 
 .sm {

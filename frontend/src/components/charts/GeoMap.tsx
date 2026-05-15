@@ -97,8 +97,8 @@ export function GeoMap({ locations, height = 300 }: GeoMapProps) {
         data: scatterData,
         symbolSize: 14,
         itemStyle: {
-          color: '#f85149',
-          borderColor: '#fff',
+          color: colors.danger,
+          borderColor: colors.canvas,
           borderWidth: 2,
         },
         label: {
@@ -114,7 +114,7 @@ export function GeoMap({ locations, height = 300 }: GeoMapProps) {
         coordinateSystem: 'cartesian2d',
         data: lineData,
         lineStyle: {
-          color: '#f85149',
+          color: colors.danger,
           width: 2,
           type: 'dashed',
           curveness: 0.2,
@@ -125,7 +125,7 @@ export function GeoMap({ locations, height = 300 }: GeoMapProps) {
           trailLength: 0.3,
           symbol: 'arrow',
           symbolSize: 6,
-          color: '#f85149',
+          color: colors.danger,
         },
       },
     ],

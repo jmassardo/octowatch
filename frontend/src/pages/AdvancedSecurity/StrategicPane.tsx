@@ -21,6 +21,7 @@ import {
   type MttrTrendsResponse,
 } from '../../api/healthSignals';
 import { formatRelativeShort } from '../../utils/dates';
+import { useChartColors } from '../../hooks/useChartColors';
 import styles from './AdvancedSecurity.module.css';
 
 /* ── Helpers ── */
@@ -268,7 +269,7 @@ function SecurityScoreSection({ score }: { score: SecurityScoreResponse }) {
                 <span
                   style={{
                     background: 'var(--danger)',
-                    color: '#fff',
+                    color: 'var(--canvas)',
                     borderRadius: 4,
                     padding: '1px 6px',
                     fontSize: 10,
@@ -303,6 +304,7 @@ interface MttrSectionProps {
 function MttrSection({ mttr, period, setPeriod, severity, setSeverity }: MttrSectionProps) {
   const arrow = trendArrow(mttr.trend_pct);
   const periods: PeriodKey[] = ['7d', '30d', '90d'];
+  const chartColors = useChartColors();
 
   const timeSeriesData = useMemo(
     () => ({
@@ -356,7 +358,7 @@ function MttrSection({ mttr, period, setPeriod, severity, setSeverity }: MttrSec
           {
             name: 'MTTR (hours)',
             data: timeSeriesData.values,
-            color: '#58a6ff',
+            color: chartColors.accent,
             areaOpacity: 0.15,
           },
         ]}
@@ -372,7 +374,7 @@ function MttrSection({ mttr, period, setPeriod, severity, setSeverity }: MttrSec
             {
               name: 'MTTR (hours)',
               data: mttr.by_tool.map((t) => Number(t.mttr_hours)),
-              color: '#79c0ff',
+              color: chartColors.accent,
             },
           ]}
           height={160}
@@ -388,7 +390,7 @@ function MttrSection({ mttr, period, setPeriod, severity, setSeverity }: MttrSec
               {
                 name: 'MTTR (hours)',
                 data: mttr.by_severity.map((s) => Number(s.mttr_hours)),
-                color: '#d29922',
+                color: chartColors.attention,
               },
             ]}
             height={140}
@@ -402,6 +404,7 @@ function MttrSection({ mttr, period, setPeriod, severity, setSeverity }: MttrSec
 /* ── Coverage Section ── */
 
 function CoverageSection({ coverage }: { coverage: CoverageGrowthResponse }) {
+  const chartColors = useChartColors();
   const featureEntries = useMemo(() => {
     const fc = coverage.feature_coverage ?? {};
     return FEATURE_NAMES.filter((f) => fc[f]).map((f) => ({
@@ -462,7 +465,7 @@ function CoverageSection({ coverage }: { coverage: CoverageGrowthResponse }) {
             {
               name: 'Avg Coverage %',
               data: timeSeriesData.values,
-              color: '#3fb950',
+              color: chartColors.success,
               areaOpacity: 0.2,
             },
           ]}
@@ -480,7 +483,7 @@ function CoverageSection({ coverage }: { coverage: CoverageGrowthResponse }) {
               {
                 name: 'Coverage %',
                 data: featureEntries.map((f) => Number(f.pct)),
-                color: '#3fb950',
+                color: chartColors.success,
               },
             ]}
             height={160}
@@ -508,6 +511,7 @@ function CoverageSection({ coverage }: { coverage: CoverageGrowthResponse }) {
 
 function AgingSection({ aging }: { aging: AlertAgingResponse }) {
   const bucketLabels = aging.age_buckets.map((b) => b.bucket);
+  const chartColors = useChartColors();
 
   const oldestCols: ColumnDef<OldestAlert>[] = useMemo(
     () => [
@@ -539,19 +543,19 @@ function AgingSection({ aging }: { aging: AlertAgingResponse }) {
           {
             name: 'Critical',
             data: aging.age_buckets.map((b) => b.critical_count),
-            color: '#f85149',
+            color: chartColors.danger,
           },
           {
             name: 'High',
             data: aging.age_buckets.map((b) => b.high_count),
-            color: '#db6d28',
+            color: chartColors.severe,
           },
           {
             name: 'Other',
             data: aging.age_buckets.map((b) =>
               Math.max(0, b.total_count - b.critical_count - b.high_count),
             ),
-            color: '#8b949e',
+            color: chartColors.chartText,
           },
         ]}
         height={200}
@@ -566,7 +570,7 @@ function AgingSection({ aging }: { aging: AlertAgingResponse }) {
               {
                 name: 'Projected Open',
                 data: burndown.time_series.map((p) => p.projected_open),
-                color: '#d29922',
+                color: chartColors.attention,
                 dashed: true,
               },
             ]}

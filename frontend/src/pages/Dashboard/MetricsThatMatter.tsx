@@ -11,6 +11,7 @@ import type {
 import { Card } from '../../components/primitives/Card';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { LineAreaChart } from '../../components/charts/LineAreaChart';
+import { useChartColors } from '../../hooks/useChartColors';
 import styles from './MetricsThatMatter.module.css';
 
 type Period = 7 | 30 | 90;
@@ -64,6 +65,7 @@ function ColumnSkeleton() {
 // ── Shipping Faster column ────────────────────────────────────────────────────
 
 function ShippingFasterColumn({ data }: { data: ShippingFasterMetrics }) {
+  const chartColors = useChartColors();
   const trendLabels = data.trend.map((p: FasterTrendPoint) => p.date.slice(0, 10));
   const trendHours = data.trend.map((p: FasterTrendPoint) => p.avg_pr_hours ?? 0);
   const hasTrend = trendLabels.length > 0;
@@ -162,7 +164,7 @@ function ShippingFasterColumn({ data }: { data: ShippingFasterMetrics }) {
               {
                 name: 'Avg PR hours',
                 data: trendHours,
-                color: '#58a6ff',
+                color: chartColors.accent,
                 areaOpacity: 0.12,
               },
             ]}
@@ -178,6 +180,7 @@ function ShippingFasterColumn({ data }: { data: ShippingFasterMetrics }) {
 // ── Shipping Safer column ─────────────────────────────────────────────────────
 
 function ShippingSaferColumn({ data }: { data: ShippingSaferMetrics }) {
+  const chartColors = useChartColors();
   const trendLabels = data.trend.map((p: SaferTrendPoint) => p.date.slice(0, 10));
   const trendSuccess = data.trend.map((p: SaferTrendPoint) => p.success_rate ?? 0);
   const hasTrend = trendLabels.length > 0;
@@ -292,7 +295,7 @@ function ShippingSaferColumn({ data }: { data: ShippingSaferMetrics }) {
               {
                 name: 'Success rate %',
                 data: trendSuccess,
-                color: '#3fb950',
+                color: chartColors.success,
                 areaOpacity: 0.12,
               },
             ]}
@@ -308,6 +311,7 @@ function ShippingSaferColumn({ data }: { data: ShippingSaferMetrics }) {
 // ── Shipping Cheaper column ───────────────────────────────────────────────────
 
 function ShippingCheaperColumn({ data }: { data: ShippingCheaperMetrics }) {
+  const chartColors = useChartColors();
   const trendLabels = data.trend.map((p: CheaperTrendPoint) => p.date.slice(0, 10));
   const trendWaste = data.trend.map((p: CheaperTrendPoint) => p.failed_waste_pct ?? 0);
   const hasTrend = trendLabels.length > 0;
@@ -410,7 +414,7 @@ function ShippingCheaperColumn({ data }: { data: ShippingCheaperMetrics }) {
               {
                 name: 'Failed waste %',
                 data: trendWaste,
-                color: '#f85149',
+                color: chartColors.danger,
                 areaOpacity: 0.12,
               },
             ]}

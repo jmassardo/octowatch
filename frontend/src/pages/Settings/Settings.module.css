@@ -396,7 +396,7 @@
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  color: var(--text-secondary, #8b949e);
+  color: var(--text-secondary, var(--fg-muted));
   cursor: pointer;
   transition:
     color 0.15s,
@@ -404,11 +404,11 @@
 }
 
 .methodTab:hover {
-  color: var(--text-primary, #e6edf3);
+  color: var(--text-primary, var(--fg));
 }
 
 .methodTabActive {
-  color: var(--text-primary, #e6edf3);
+  color: var(--text-primary, var(--fg));
   border-bottom-color: var(--accent, #58a6ff);
 }
 
@@ -467,7 +467,7 @@
 
 .copyBtn:hover {
   background: var(--accent);
-  color: #fff;
+  color: var(--canvas);
 }
 
 .configSectionTitle {

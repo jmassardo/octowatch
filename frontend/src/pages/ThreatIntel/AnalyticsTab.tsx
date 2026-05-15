@@ -5,6 +5,7 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { LineAreaChart } from '../../components/charts/LineAreaChart';
 import { BarChart } from '../../components/charts/BarChart';
+import { useChartColors } from '../../hooks/useChartColors';
 import styles from './ThreatIntel.module.css';
 
 /** Simple donut chart using ECharts via the same pattern as other charts. */
@@ -15,10 +16,12 @@ function DonutChart({
   title: string;
   data: readonly { type: string; count: number }[];
 }) {
+  const chartColors = useChartColors();
+
   // Re-use BarChart as a horizontal representation since we already have it
   // For a donut, we show the data as a bar chart with type names on x-axis
   const xAxisData = data.map((d) => d.type);
-  const series = [{ name: 'Count', data: data.map((d) => d.count), color: '#bc8cff' }];
+  const series = [{ name: 'Count', data: data.map((d) => d.count), color: chartColors.done }];
 
   if (data.length === 0) {
     return (
@@ -48,6 +51,7 @@ export function AnalyticsTab() {
     queryFn: getAnalytics,
     staleTime: 30_000,
   });
+  const chartColors = useChartColors();
 
   if (isLoading) {
     return (
@@ -91,7 +95,7 @@ export function AnalyticsTab() {
                 {
                   name: 'Matches',
                   data: matchCounts,
-                  color: '#f85149',
+                  color: chartColors.danger,
                   areaOpacity: 0.15,
                 },
               ]}
@@ -107,7 +111,7 @@ export function AnalyticsTab() {
           {feedNames.length > 0 ? (
             <BarChart
               xAxisData={feedNames}
-              series={[{ name: 'Indicators', data: feedCounts, color: '#58a6ff' }]}
+              series={[{ name: 'Indicators', data: feedCounts, color: chartColors.accent }]}
               height={200}
             />
           ) : (

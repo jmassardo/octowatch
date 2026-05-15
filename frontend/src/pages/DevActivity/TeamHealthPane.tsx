@@ -18,6 +18,7 @@ import type { ColumnDef } from '../../components/primitives/DataTable';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { SkeletonCard } from '../../components/common/SkeletonCard';
 import { Avatar } from '../../components/primitives/Avatar';
+import { useChartColors } from '../../hooks/useChartColors';
 import { formatRelativeShort } from '../../utils/dates';
 import styles from './TeamHealth.module.css';
 
@@ -36,6 +37,7 @@ const VIOLATION_TYPES = [
 
 export function TeamHealthPane() {
   const [violationFilter, setViolationFilter] = useState('all');
+  const chartColors = useChartColors();
 
   const {
     data: summary,
@@ -94,13 +96,13 @@ export function TeamHealthPane() {
         tier: 'Active',
         count: counts.active,
         pct: Math.round((counts.active / total) * 100),
-        color: '#238636',
+        color: chartColors.success,
       },
       {
         tier: 'Regular',
         count: counts.regular,
         pct: Math.round((counts.regular / total) * 100),
-        color: '#1f6feb',
+        color: chartColors.accent,
       },
       {
         tier: 'Occasional',
@@ -115,7 +117,7 @@ export function TeamHealthPane() {
         color: 'var(--danger)',
       },
     ];
-  }, [engagementData?.counts]);
+  }, [chartColors.accent, chartColors.success, engagementData?.counts]);
 
   /* ── Loading / Error ───────────────────────────────────────────────── */
 

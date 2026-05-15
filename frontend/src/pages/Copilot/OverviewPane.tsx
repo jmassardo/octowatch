@@ -11,6 +11,7 @@ import { DataTable } from '../../components/primitives/DataTable';
 import { LineAreaChart } from '../../components/charts/LineAreaChart';
 import type { SeatUtilizationBucket, CopilotSeatsBucket } from '../../types/reports';
 import { getCopilotOverview } from '../../api/copilotMetrics';
+import { useChartColors } from '../../hooks/useChartColors';
 import { useOrgConfig } from '../../hooks/useOrgConfig';
 import { formatBucketDate, formatWeekday } from '../../utils/dates';
 import styles from './Copilot.module.css';
@@ -51,6 +52,7 @@ export function OverviewPane({
   const [overviewModal, setOverviewModal] = useState<OverviewModal>(null);
   const [selectedLang, setSelectedLang] = useState<string | null>(null);
   const seatTableRef = useRef<HTMLDivElement>(null);
+  const chartColors = useChartColors();
 
   const latestSeatBucket = seatBuckets[seatBuckets.length - 1];
   const avgUtilPct =
@@ -430,13 +432,13 @@ export function OverviewPane({
                 {
                   name: 'Acceptance rate',
                   data: acceptanceRateValues,
-                  color: '#bc8cff',
+                  color: chartColors.done,
                   areaOpacity: 0.15,
                 },
                 {
                   name: `${overview?.acceptance_threshold ?? 25}% good threshold`,
                   data: acceptanceThresholdLine,
-                  color: '#3fb950',
+                  color: chartColors.success,
                   dashed: true,
                 },
               ]}
@@ -454,8 +456,13 @@ export function OverviewPane({
           <LineAreaChart
             xAxisData={seatTrendDays}
             series={[
-              { name: 'Active', data: seatTrendActive, color: '#58a6ff', areaOpacity: 0.1 },
-              { name: 'Inactive', data: seatTrendInactive, color: '#d29922' },
+              {
+                name: 'Active',
+                data: seatTrendActive,
+                color: chartColors.accent,
+                areaOpacity: 0.1,
+              },
+              { name: 'Inactive', data: seatTrendInactive, color: chartColors.attention },
             ]}
             height={200}
           />
