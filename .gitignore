@@ -67,3 +67,5 @@ tfplan
 
 # Sensitive documents — never commit
 tales from the road.md
+*.tfstate.*.backup
+*.tf.bak

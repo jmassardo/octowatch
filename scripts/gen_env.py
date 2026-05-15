@@ -75,7 +75,10 @@ lines = [
 ]
 
 output_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
-with open(output_path, "w") as f:
+
+# Write with restrictive permissions (owner-only read/write) to protect secrets
+fd = os.open(output_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, "w") as f:
     f.write("\n".join(lines) + "\n")
 
 print(f"Created {output_path}")

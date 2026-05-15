@@ -13,6 +13,7 @@ import { EmptyState } from '../../components/common/EmptyState';
 import { PageHeader } from '../../components/common/PageHeader';
 import { RadialGauge } from '../../components/charts/RadialGauge';
 import { useChartColors } from '../../hooks/useChartColors';
+import { useOrg } from '../../hooks/useOrg';
 import { formatDateOnly } from '../../utils/dates';
 import styles from './Posture.module.css';
 
@@ -379,37 +380,6 @@ function CoverageBar({ label, value }: { label: string; value: number }) {
 
 /* ── Organization Multi-Select Filter ──────────────────────────────── */
 
-function OrgMultiSelect({
-  orgs,
-  selected,
-  setSelected,
-}: {
-  orgs: OrgPosture[];
-  selected: string[];
-  setSelected: (v: string[]) => void;
-}) {
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const options = Array.from(e.target.selectedOptions).map((opt) => opt.value);
-    setSelected(options);
-  };
-
-  return (
-    <select
-      multiple
-      value={selected}
-      onChange={handleChange}
-      title="Filter by organization (hold Ctrl/Cmd to select multiple)"
-      className={styles.orgMultiSelect}
-    >
-      {orgs.map((o) => (
-        <option key={o.org_login} value={o.org_login}>
-          {o.org_login}
-        </option>
-      ))}
-    </select>
-  );
-}
-
 /* ── Enterprise View ───────────────────────────────────────────────── */
 
 function EnterpriseView({
@@ -426,25 +396,20 @@ function EnterpriseView({
   setPage: (p: number) => void;
 }) {
   const navigate = useNavigate();
+  const { selectedOrg } = useOrg();
   const [severity, setSeverity] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [selectedOrgs, setSelectedOrgs] = useState<string[]>([]);
   const [orgsExpanded, setOrgsExpanded] = useState(false);
   const orgs = useMemo(() => data.orgs ?? [], [data.orgs]);
 
   const filteredOrgsForMetrics = useMemo(() => {
-    if (selectedOrgs.length === 0) return orgs;
-    return orgs.filter((o) => selectedOrgs.includes(o.org_login));
-  }, [orgs, selectedOrgs]);
+    if (!selectedOrg) return orgs;
+    return orgs.filter((o) => o.org_login === selectedOrg);
+  }, [orgs, selectedOrg]);
 
   const metrics = useMemo(() => computeMetrics(filteredOrgsForMetrics), [filteredOrgsForMetrics]);
 
-  const orgLabel =
-    selectedOrgs.length === 1
-      ? selectedOrgs[0]
-      : selectedOrgs.length > 1
-        ? `${selectedOrgs.length} Organizations`
-        : 'All Organizations';
+  const orgLabel = selectedOrg || 'All Organizations';
 
   // Empty state
   if (orgs.length === 0) {
@@ -474,7 +439,7 @@ function EnterpriseView({
   const filteredOrgs = orgs.filter((o) => {
     if (statusFilter === 'fail' && o.score >= 80) return false;
     if (statusFilter === 'pass' && o.score < 80) return false;
-    if (selectedOrgs.length > 0 && !selectedOrgs.includes(o.org_login)) return false;
+    if (selectedOrg && o.org_login !== selectedOrg) return false;
     return true;
   });
 
@@ -522,7 +487,6 @@ function EnterpriseView({
               width: 220,
             }}
           />
-          <OrgMultiSelect orgs={orgs} selected={selectedOrgs} setSelected={setSelectedOrgs} />
         </div>
         <Filters
           severity={severity}

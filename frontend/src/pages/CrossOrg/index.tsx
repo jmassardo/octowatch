@@ -398,7 +398,7 @@ export function CrossOrgPage() {
     return correlationData.correlations.find((c) => c.actor === selectedActor) ?? null;
   }, [selectedActor, correlationData]);
 
-  // Quick Actions column needs navigate, so we define it here
+  // Quick Actions column needs state setters, so we define it here
   const correlationColumnsWithActions: ColumnDef<CrossOrgCorrelation>[] = useMemo(
     () => [
       ...correlationColumns,
@@ -414,7 +414,9 @@ export function CrossOrgPage() {
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/threats?actor=${encodeURIComponent(row.actor)}`);
+              setSelectedActor(row.actor);
+              setActor(row.actor);
+              setSearchInput(row.actor);
             }}
           >
             Investigate
@@ -422,7 +424,7 @@ export function CrossOrgPage() {
         ),
       },
     ],
-    [navigate],
+    [],
   );
 
   return (
