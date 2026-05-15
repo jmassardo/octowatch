@@ -8,7 +8,7 @@ output "vm_public_ip" {
 }
 
 output "vm_fqdn" {
-  value       = azurerm_public_ip.main.fqdn
+  value       = var.enable_aks ? azurerm_public_ip.main.fqdn : "disabled"
   description = "Azure FQDN of the OctoWatch VM"
 }
 
@@ -74,48 +74,48 @@ output "storage_account_connection_string" {
 }
 
 output "vm_id" {
-  value       = azurerm_linux_virtual_machine.main.id
+  value       = var.enable_aks ? azurerm_linux_virtual_machine.main[0].id : "disabled"
   description = "Azure resource ID of the VM"
 }
 
 # ── Azure Container Apps Outputs ───────────────────────────────────────────────
 
 output "aca_environment_default_domain" {
-  value       = azurerm_container_app_environment.main.default_domain
+  value       = var.enable_aks ? azurerm_container_app_environment.main[0].default_domain : "disabled"
   description = "Default domain for the Container Apps environment (for smoke testing before cutover)"
 }
 
 output "aca_frontend_url" {
-  value       = "https://${azurerm_container_app.frontend.ingress[0].fqdn}"
+  value       = var.enable_aks ? "https://${azurerm_container_app.frontend[0].ingress[0].fqdn}" : "disabled"
   description = "Auto-generated HTTPS URL of the frontend Container App (before custom domain)"
 }
 
 output "aca_migrate_job_run_command" {
-  value       = "az containerapp job start --name ${azurerm_container_app_job.migrate.name} --resource-group ${azurerm_resource_group.main.name}"
+  value       = "az containerapp job start --name ${var.enable_aks ? azurerm_container_app_job.migrate[0].name : "disabled"} --resource-group ${azurerm_resource_group.main.name}"
   description = "Full CLI command to trigger a database migration run"
 }
 
 output "aca_premium_storage_account" {
-  value       = azurerm_storage_account.premium.name
+  value       = var.enable_aks ? azurerm_storage_account.premium[0].name : "disabled"
   description = "Premium FileStorage account name backing pg-data and valkey-data Azure Files shares"
 }
 
 output "aks_cluster_name" {
-  value = azurerm_kubernetes_cluster.main.name
+  value = var.enable_aks ? azurerm_kubernetes_cluster.main[0].name : "disabled"
 }
 
 output "aks_cluster_fqdn" {
-  value = azurerm_kubernetes_cluster.main.fqdn
+  value = var.enable_aks ? azurerm_kubernetes_cluster.main[0].fqdn : "disabled"
 }
 
 output "aks_kube_config" {
-  value       = azurerm_kubernetes_cluster.main.kube_config_raw
+  value       = var.enable_aks ? azurerm_kubernetes_cluster.main[0].kube_config_raw : "disabled"
   sensitive   = true
   description = "Run: terraform output -raw aks_kube_config > ~/.kube/config-aks"
 }
 
 output "argocd_url" {
-  value = "https://argocd.${local.tls_domain}"
+  value = var.enable_aks ? "https://argocd.${local.tls_domain}" : "disabled"
 }
 
 output "aks_ingress_lb_ip_instruction" {
@@ -123,7 +123,7 @@ output "aks_ingress_lb_ip_instruction" {
 }
 
 output "aks_nat_egress_ip" {
-  value       = azurerm_public_ip.aks_egress.ip_address
+  value       = var.enable_aks ? azurerm_public_ip.aks_egress[0].ip_address : "disabled"
   description = "Static public IP used by all AKS node egress traffic. Add this to api_server_authorized_ip_ranges and any external service allowlists."
 }
 

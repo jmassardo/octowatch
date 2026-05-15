@@ -9,6 +9,7 @@
 # ── Automation Account ─────────────────────────────────────────────────────────
 
 resource "azurerm_automation_account" "main" {
+  count = var.enable_aks ? 1 : 0
   name                = "aa-${local.name_prefix}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
@@ -24,7 +25,8 @@ resource "azurerm_automation_account" "main" {
 
 # Give the user-assigned identity permission to start the VM.
 resource "azurerm_role_assignment" "automation_vm_contributor" {
-  scope                = azurerm_linux_virtual_machine.main.id
+  count = var.enable_aks ? 1 : 0
+  scope                = azurerm_linux_virtual_machine.main[0].id
   role_definition_name = "Virtual Machine Contributor"
   principal_id         = azurerm_user_assigned_identity.vm.principal_id
 }
@@ -32,10 +34,11 @@ resource "azurerm_role_assignment" "automation_vm_contributor" {
 # ── Runbook ────────────────────────────────────────────────────────────────────
 
 resource "azurerm_automation_runbook" "start_vm" {
+  count = var.enable_aks ? 1 : 0
   name                    = "Start-OctowatchVM"
   resource_group_name     = azurerm_resource_group.main.name
   location                = azurerm_resource_group.main.location
-  automation_account_name = azurerm_automation_account.main.name
+  automation_account_name = azurerm_automation_account.main[0].name
   log_verbose             = false
   log_progress            = false
   runbook_type            = "PowerShell"
@@ -47,7 +50,7 @@ resource "azurerm_automation_runbook" "start_vm" {
     # Authenticate using the user-assigned managed identity attached to this Automation Account.
     Connect-AzAccount -Identity -AccountId "${azurerm_user_assigned_identity.vm.client_id}" | Out-Null
 
-    $vmName   = "${azurerm_linux_virtual_machine.main.name}"
+    $vmName   = "${azurerm_linux_virtual_machine.main[0].name}"
     $rgName   = "${azurerm_resource_group.main.name}"
 
     $vm = Get-AzVM -ResourceGroupName $rgName -Name $vmName -Status
@@ -68,10 +71,11 @@ resource "azurerm_automation_runbook" "start_vm" {
 # ── Webhook (called by the Action Group) ──────────────────────────────────────
 
 resource "azurerm_automation_webhook" "start_vm" {
+  count = var.enable_aks ? 1 : 0
   name                    = "wh-start-octowatch-vm"
   resource_group_name     = azurerm_resource_group.main.name
-  automation_account_name = azurerm_automation_account.main.name
-  runbook_name            = azurerm_automation_runbook.start_vm.name
+  automation_account_name = azurerm_automation_account.main[0].name
+  runbook_name            = azurerm_automation_runbook.start_vm[0].name
   expiry_time             = "2030-01-01T00:00:00Z"
   enabled                 = true
 }
@@ -79,6 +83,7 @@ resource "azurerm_automation_webhook" "start_vm" {
 # ── Action Group ───────────────────────────────────────────────────────────────
 
 resource "azurerm_monitor_action_group" "restart_vm" {
+  count = var.enable_aks ? 1 : 0
   name                = "ag-${local.name_prefix}-restart"
   resource_group_name = azurerm_resource_group.main.name
   short_name          = "oct-restart"
@@ -86,7 +91,7 @@ resource "azurerm_monitor_action_group" "restart_vm" {
 
   webhook_receiver {
     name                    = "start-vm-runbook"
-    service_uri             = azurerm_automation_webhook.start_vm.uri
+    service_uri             = azurerm_automation_webhook.start_vm[0].uri
     use_common_alert_schema = true
   }
 }
@@ -95,10 +100,11 @@ resource "azurerm_monitor_action_group" "restart_vm" {
 # Fires when the VM transitions to Unavailable (shutdown/deallocation).
 
 resource "azurerm_monitor_activity_log_alert" "vm_unavailable" {
+  count = var.enable_aks ? 1 : 0
   name                = "ala-${local.name_prefix}-unavailable"
   resource_group_name = azurerm_resource_group.main.name
   location            = "global"
-  scopes              = [azurerm_linux_virtual_machine.main.id]
+  scopes              = [azurerm_linux_virtual_machine.main[0].id]
   description         = "Restart OctoWatch VM when Azure reports it as Unavailable."
   tags                = local.common_tags
 
@@ -113,6 +119,6 @@ resource "azurerm_monitor_activity_log_alert" "vm_unavailable" {
   }
 
   action {
-    action_group_id = azurerm_monitor_action_group.restart_vm.id
+    action_group_id = azurerm_monitor_action_group.restart_vm[0].id
   }
 }

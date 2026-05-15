@@ -11,6 +11,7 @@
 # deallocation/resize (unlike /mnt which is the Azure ephemeral temp disk).
 
 resource "azurerm_managed_disk" "data" {
+  count = var.enable_aks ? 1 : 0
   name                 = "disk-${local.name_prefix}-data"
   resource_group_name  = azurerm_resource_group.main.name
   location             = azurerm_resource_group.main.location
@@ -114,6 +115,7 @@ data "cloudinit_config" "main" {
 # ── Linux Virtual Machine ──────────────────────────────────────────────────────
 
 resource "azurerm_linux_virtual_machine" "main" {
+  count = var.enable_aks ? 1 : 0
   name                = "vm-${local.name_prefix}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
@@ -174,8 +176,9 @@ resource "azurerm_linux_virtual_machine" "main" {
 # ── Data Disk Attachment ───────────────────────────────────────────────────────
 
 resource "azurerm_virtual_machine_data_disk_attachment" "data" {
-  managed_disk_id    = azurerm_managed_disk.data.id
-  virtual_machine_id = azurerm_linux_virtual_machine.main.id
+  count = var.enable_aks ? 1 : 0
+  managed_disk_id    = azurerm_managed_disk.data[0].id
+  virtual_machine_id = azurerm_linux_virtual_machine.main[0].id
   lun                = 0
   caching            = "ReadWrite"
 }
@@ -184,9 +187,9 @@ resource "azurerm_virtual_machine_data_disk_attachment" "data" {
 # Useful in dev/staging to reduce costs. Disabled in production by default.
 
 resource "azurerm_dev_test_global_vm_shutdown_schedule" "main" {
-  count = var.enable_auto_shutdown ? 1 : 0
+  count = var.enable_aks && var.enable_auto_shutdown ? 1 : 0
 
-  virtual_machine_id = azurerm_linux_virtual_machine.main.id
+  virtual_machine_id = azurerm_linux_virtual_machine.main[0].id
   location           = azurerm_resource_group.main.location
   enabled            = true
 

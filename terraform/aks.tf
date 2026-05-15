@@ -6,23 +6,24 @@
 #   Phase 2: terraform apply
 
 provider "kubernetes" {
-  host                   = azurerm_kubernetes_cluster.main.kube_config[0].host
-  client_certificate     = base64decode(azurerm_kubernetes_cluster.main.kube_config[0].client_certificate)
-  client_key             = base64decode(azurerm_kubernetes_cluster.main.kube_config[0].client_key)
-  cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.main.kube_config[0].cluster_ca_certificate)
+  host                   = var.enable_aks ? azurerm_kubernetes_cluster.main[0].kube_config[0].host : "https://localhost"
+  client_certificate     = var.enable_aks ? base64decode(azurerm_kubernetes_cluster.main[0].kube_config[0].client_certificate) : ""
+  client_key             = var.enable_aks ? base64decode(azurerm_kubernetes_cluster.main[0].kube_config[0].client_key) : ""
+  cluster_ca_certificate = var.enable_aks ? base64decode(azurerm_kubernetes_cluster.main[0].kube_config[0].cluster_ca_certificate) : ""
 }
 
 provider "helm" {
   kubernetes {
-    host                   = azurerm_kubernetes_cluster.main.kube_config[0].host
-    client_certificate     = base64decode(azurerm_kubernetes_cluster.main.kube_config[0].client_certificate)
-    client_key             = base64decode(azurerm_kubernetes_cluster.main.kube_config[0].client_key)
-    cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.main.kube_config[0].cluster_ca_certificate)
+    host                   = var.enable_aks ? azurerm_kubernetes_cluster.main[0].kube_config[0].host : "https://localhost"
+    client_certificate     = var.enable_aks ? base64decode(azurerm_kubernetes_cluster.main[0].kube_config[0].client_certificate) : ""
+    client_key             = var.enable_aks ? base64decode(azurerm_kubernetes_cluster.main[0].kube_config[0].client_key) : ""
+    cluster_ca_certificate = var.enable_aks ? base64decode(azurerm_kubernetes_cluster.main[0].kube_config[0].cluster_ca_certificate) : ""
   }
 }
 
 # AKS Subnet — 10.0.4.0/22 (avoids VM 10.0.0.0/24 and ACA 10.0.2.0/23)
 resource "azurerm_subnet" "aks" {
+  count = var.enable_aks ? 1 : 0
   name                 = "snet-aks-${local.name_prefix}"
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
@@ -37,6 +38,7 @@ resource "azurerm_subnet" "aks" {
 
 # NSG for AKS subnet
 resource "azurerm_network_security_group" "aks" {
+  count = var.enable_aks ? 1 : 0
   name                = "nsg-aks-${local.name_prefix}"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
@@ -104,12 +106,14 @@ resource "azurerm_network_security_group" "aks" {
 }
 
 resource "azurerm_subnet_network_security_group_association" "aks" {
-  subnet_id                 = azurerm_subnet.aks.id
-  network_security_group_id = azurerm_network_security_group.aks.id
+  count = var.enable_aks ? 1 : 0
+  subnet_id                 = azurerm_subnet.aks[0].id
+  network_security_group_id = azurerm_network_security_group.aks[0].id
 }
 
 # AKS Cluster
 resource "azurerm_kubernetes_cluster" "main" {
+  count = var.enable_aks ? 1 : 0
   name                = "aks-${local.name_prefix}"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
@@ -127,7 +131,7 @@ resource "azurerm_kubernetes_cluster" "main" {
     min_count                    = 1
     max_count                    = 1
     auto_scaling_enabled         = true
-    vnet_subnet_id               = azurerm_subnet.aks.id
+    vnet_subnet_id               = azurerm_subnet.aks[0].id
     os_disk_size_gb              = 128
     os_disk_type                 = "Managed"
     only_critical_addons_enabled = false
@@ -209,10 +213,11 @@ resource "azurerm_kubernetes_cluster" "main" {
 # Primary system pool spread across availability zones 1, 2, 3 for resilience
 # against host/rack/zone failures. Replaces the non-zonal system3 default pool.
 resource "azurerm_kubernetes_cluster_node_pool" "system4" {
+  count = var.enable_aks ? 1 : 0
   name                  = "system4"
-  kubernetes_cluster_id = azurerm_kubernetes_cluster.main.id
+  kubernetes_cluster_id = azurerm_kubernetes_cluster.main[0].id
   vm_size               = var.aks_node_size
-  vnet_subnet_id        = azurerm_subnet.aks.id
+  vnet_subnet_id        = azurerm_subnet.aks[0].id
   mode                  = "System"
   zones                 = ["1", "2", "3"]
 
@@ -233,10 +238,11 @@ resource "azurerm_kubernetes_cluster_node_pool" "system4" {
 # Spread across availability zones 1, 2, 3 for resilience. Uses D4s_v4
 # (non-burstable) instead of the previous B4ms to avoid CPU credit issues.
 resource "azurerm_kubernetes_cluster_node_pool" "pool3" {
+  count = var.enable_aks ? 1 : 0
   name                  = "pool3"
-  kubernetes_cluster_id = azurerm_kubernetes_cluster.main.id
+  kubernetes_cluster_id = azurerm_kubernetes_cluster.main[0].id
   vm_size               = var.aks_node_size
-  vnet_subnet_id        = azurerm_subnet.aks.id
+  vnet_subnet_id        = azurerm_subnet.aks[0].id
   mode                  = "User"
   zones                 = ["1", "2", "3"]
 
@@ -261,6 +267,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "pool3" {
 #   3. Eliminates the "which Azure egress IP am I today?" problem.
 
 resource "azurerm_public_ip" "aks_egress" {
+  count = var.enable_aks ? 1 : 0
   name                = "pip-aks-egress-${local.name_prefix}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
@@ -271,6 +278,7 @@ resource "azurerm_public_ip" "aks_egress" {
 }
 
 resource "azurerm_nat_gateway" "aks" {
+  count = var.enable_aks ? 1 : 0
   name                    = "nat-aks-${local.name_prefix}"
   resource_group_name     = azurerm_resource_group.main.name
   location                = azurerm_resource_group.main.location
@@ -281,17 +289,20 @@ resource "azurerm_nat_gateway" "aks" {
 }
 
 resource "azurerm_nat_gateway_public_ip_association" "aks" {
-  nat_gateway_id       = azurerm_nat_gateway.aks.id
-  public_ip_address_id = azurerm_public_ip.aks_egress.id
+  count = var.enable_aks ? 1 : 0
+  nat_gateway_id       = azurerm_nat_gateway.aks[0].id
+  public_ip_address_id = azurerm_public_ip.aks_egress[0].id
 }
 
 resource "azurerm_subnet_nat_gateway_association" "aks" {
-  subnet_id      = azurerm_subnet.aks.id
-  nat_gateway_id = azurerm_nat_gateway.aks.id
+  count = var.enable_aks ? 1 : 0
+  subnet_id      = azurerm_subnet.aks[0].id
+  nat_gateway_id = azurerm_nat_gateway.aks[0].id
 }
 
 # Kubernetes namespace
 resource "kubernetes_namespace" "octowatch" {
+  count = var.enable_aks ? 1 : 0
   metadata {
     name = "octowatch"
   }
@@ -300,9 +311,10 @@ resource "kubernetes_namespace" "octowatch" {
 
 # GHCR pull secret
 resource "kubernetes_secret" "ghcr_pull_secret" {
+  count = var.enable_aks ? 1 : 0
   metadata {
     name      = "ghcr-pull-secret"
-    namespace = kubernetes_namespace.octowatch.metadata[0].name
+    namespace = kubernetes_namespace.octowatch[0].metadata[0].name
   }
   type = "kubernetes.io/dockerconfigjson"
   data = {
@@ -320,9 +332,10 @@ resource "kubernetes_secret" "ghcr_pull_secret" {
 
 # Main application secrets
 resource "kubernetes_secret" "octowatch_secrets" {
+  count = var.enable_aks ? 1 : 0
   metadata {
     name      = "octowatch-secrets"
-    namespace = kubernetes_namespace.octowatch.metadata[0].name
+    namespace = kubernetes_namespace.octowatch[0].metadata[0].name
     annotations = {
       "helm.sh/resource-policy" = "keep"
     }
@@ -356,9 +369,10 @@ resource "kubernetes_secret" "octowatch_secrets" {
 
 # PostgreSQL credentials (for Bitnami postgresql chart)
 resource "kubernetes_secret" "octowatch_db_secret" {
+  count = var.enable_aks ? 1 : 0
   metadata {
     name      = "octowatch-db-secret"
-    namespace = kubernetes_namespace.octowatch.metadata[0].name
+    namespace = kubernetes_namespace.octowatch[0].metadata[0].name
     annotations = {
       "helm.sh/resource-policy" = "keep"
     }
@@ -372,9 +386,10 @@ resource "kubernetes_secret" "octowatch_db_secret" {
 
 # Valkey credentials (for Bitnami valkey chart)
 resource "kubernetes_secret" "octowatch_valkey_secret" {
+  count = var.enable_aks ? 1 : 0
   metadata {
     name      = "octowatch-valkey-secret"
-    namespace = kubernetes_namespace.octowatch.metadata[0].name
+    namespace = kubernetes_namespace.octowatch[0].metadata[0].name
     annotations = {
       "helm.sh/resource-policy" = "keep"
     }
@@ -386,9 +401,10 @@ resource "kubernetes_secret" "octowatch_valkey_secret" {
 
 # GitHub App private key
 resource "kubernetes_secret" "octowatch_github_app_key" {
+  count = var.enable_aks ? 1 : 0
   metadata {
     name      = "octowatch-github-app-key"
-    namespace = kubernetes_namespace.octowatch.metadata[0].name
+    namespace = kubernetes_namespace.octowatch[0].metadata[0].name
     annotations = {
       "helm.sh/resource-policy" = "keep"
     }
@@ -400,6 +416,7 @@ resource "kubernetes_secret" "octowatch_github_app_key" {
 
 # ingress-nginx
 resource "helm_release" "ingress_nginx" {
+  count = var.enable_aks ? 1 : 0
   name             = "ingress-nginx"
   repository       = "https://kubernetes.github.io/ingress-nginx"
   chart            = "ingress-nginx"
@@ -427,6 +444,7 @@ resource "helm_release" "ingress_nginx" {
 
 # cert-manager
 resource "helm_release" "cert_manager" {
+  count = var.enable_aks ? 1 : 0
   name             = "cert-manager"
   repository       = "https://charts.jetstack.io"
   chart            = "cert-manager"
@@ -444,6 +462,7 @@ resource "helm_release" "cert_manager" {
 
 # KEDA
 resource "helm_release" "keda" {
+  count = var.enable_aks ? 1 : 0
   name             = "keda"
   repository       = "https://kedacore.github.io/charts"
   chart            = "keda"
@@ -456,6 +475,7 @@ resource "helm_release" "keda" {
 
 # ArgoCD
 resource "helm_release" "argocd" {
+  count = var.enable_aks ? 1 : 0
   name             = "argo-cd"
   repository       = "https://argoproj.github.io/argo-helm"
   chart            = "argo-cd"
@@ -498,6 +518,7 @@ resource "helm_release" "argocd" {
 
 # ArgoCD Image Updater
 resource "helm_release" "argocd_image_updater" {
+  count = var.enable_aks ? 1 : 0
   name       = "argocd-image-updater"
   repository = "https://argoproj.github.io/argo-helm"
   chart      = "argocd-image-updater"
@@ -529,6 +550,7 @@ resource "helm_release" "argocd_image_updater" {
 
 # ArgoCD Image Updater secret (GHCR token + git PAT for writeback)
 resource "kubernetes_secret" "argocd_image_updater_secret" {
+  count = var.enable_aks ? 1 : 0
   metadata {
     name      = "argocd-image-updater-secret"
     namespace = "argocd"
@@ -542,6 +564,7 @@ resource "kubernetes_secret" "argocd_image_updater_secret" {
 
 # Let's Encrypt ClusterIssuer
 resource "kubernetes_manifest" "letsencrypt_prod_issuer" {
+  count = var.enable_aks ? 1 : 0
   manifest = {
     apiVersion = "cert-manager.io/v1"
     kind       = "ClusterIssuer"

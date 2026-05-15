@@ -578,8 +578,8 @@ variable "alert_email_address" {
 
 variable "k8s_node_vm_size" {
   type        = string
-  default     = "Standard_D4as_v7"
-  description = "VM SKU for K8s cluster nodes (1 CP + 2 workers). D4as_v7 = 4 vCPU / 16 GiB AMD."
+  default     = "Standard_D4s_v6"
+  description = "VM SKU for K8s cluster nodes (1 CP + 2 workers). D4s_v5 = 4 vCPU / 16 GiB Intel."
 }
 
 variable "k8s_mgmt_vm_size" {
@@ -604,4 +604,10 @@ variable "k8s_cutover_complete" {
   type        = bool
   default     = false
   description = "Set to true at DNS cutover to self-managed K8s. Creates A record pointing to the K8s LB IP."
+}
+
+variable "enable_aks" {
+  type        = bool
+  default     = false
+  description = "Set to true to provision AKS cluster and associated K8s/Helm resources. Disabled after migration to self-managed K8s."
 }
