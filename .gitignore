@@ -1,71 +1,61 @@
-# Environment
+
+__pycache__/
+!.env.example
+.coverage
+.devcontainer/.env
+.DS_Store
 .env
 .env.*
-!.env.example
-.devcontainer/.env
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-dist/
-build/
-.venv/
-venv/
-.mypy_cache/
-.ruff_cache/
-.pytest_cache/
-htmlcov/
-.coverage
-
-# Node / Frontend
-node_modules/
-frontend/dist/
-
-# IDE
-.vscode/
 .idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# TLS / Secrets
-nginx/ssl/*.pem
-nginx/ssl/*.key
-nginx/ssl/*.crt
-
-# Misc
-*.log
-
-# Playwright
-test-results/
-playwright-report/
-e2e/.auth/
-
-# Exports
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
+.vscode/
+*.egg-info/
 *.json.gz
-backend/import_copilot_usage.py
+*.log
 *.ndjson
 *.pem
-*.pem
-celerybeat-schedule*
-
-# Terraform secrets
-terraform.tfvars
-*.tfstate
-*.tfstate.backup
-
-# Terraform local state / provider cache
-**/.terraform/
-*.tfplan
-tfplan
-
-# Sensitive documents — never commit
-tales from the road.md
-*.tfstate.*.backup
+*.pyc
+*.pyo
+*.swo
+*.swp
 *.tf.bak
+*.tfplan
+*.tfstate
+*.tfstate.*.backup
+*.tfstate.backup
+**/.terraform/
+*~
+# Environment
+# Exports
+# IDE
+# Misc
+# Node / Frontend
+# OS
+# Playwright
+# Python
+# Sensitive documents — never commit
+# Terraform local state / provider cache
+# Terraform secrets
+# TLS / Secrets
+backend/import_copilot_usage.py
+build/
+celerybeat-schedule*
+dist/
+e2e/.auth/
+frontend/dist/
+htmlcov/
+nginx/ssl/*.crt
+nginx/ssl/*.key
+nginx/ssl/*.pem
+node_modules/
+playwright-report/
+tales from the road.md
+terraform.tfvars
+terraform/terraform.tfvars
+test-results/
+tfplan
+Thumbs.db
+venv/
