@@ -372,16 +372,22 @@ async def execute_query(
     start = time.monotonic()
 
     try:
-        # Set statement timeout
+        # Set statement timeout — validate as int to prevent injection
+        timeout_ms = str(int(settings.QUERY_TIMEOUT_SECONDS) * 1000)
         await session.execute(
-            text(f"SET LOCAL statement_timeout = '{settings.QUERY_TIMEOUT_SECONDS}000'")
+            text("SET LOCAL statement_timeout = :timeout_ms"),
+            {"timeout_ms": timeout_ms},
         )
 
         # Defense-in-depth: execute as readonly_query_user so the DB itself
         # rejects any writes even if AST validation has a bug.
         await session.execute(text("SET LOCAL ROLE readonly_query_user"))
 
-        result = await session.execute(text(rewritten_sql), params)
+        # Security: rewritten_sql is validated through pglast AST parsing
+        # (see validate_and_prepare) which ensures it is a single SELECT
+        # with only allowed tables and functions. Bind parameters in
+        # `params` are passed separately and never interpolated.
+        result = await session.execute(text(rewritten_sql), params)  # noqa: S608
         rows = result.fetchall()
         columns = list(result.keys())
 

@@ -4735,7 +4735,11 @@ async def _upsert_audit_log_events(
             "source_ip": str(raw_event.get("@ip", raw_event.get("source_ip", ""))),
         }
         canonical = json.dumps(key_fields, sort_keys=True)
-        dedup_hash = hashlib.sha256(canonical.encode()).hexdigest()
+        # SHA-256 used for event deduplication, not for protecting secrets.
+        # The hash is a deterministic fingerprint for idempotent ingestion.
+        dedup_hash = hashlib.sha256(  # codeql[py/weak-sensitive-data-hashing]
+            canonical.encode()
+        ).hexdigest()
 
         # Use GitHub's _document_id if present, otherwise the computed hash
         document_id = raw_event.get("_document_id") or dedup_hash
