@@ -148,9 +148,9 @@ jobs:
                   "name": "alembic-migrate",
                   "image": "'"${{ env.IMAGE_PREFIX }}/octowatch-api:${TAG}"'",
                   "command": ["python", "-m", "alembic", "upgrade", "head"],
-                  "envFrom": [
-                    {"secretRef": {"name": "octowatch-secrets"}},
-                    {"secretRef": {"name": "octowatch-db-secret"}}
+                  "env": [
+                    {"name": "DATABASE_URL", "valueFrom": {"secretKeyRef": {"name": "octowatch-secrets", "key": "database-url"}}},
+                    {"name": "SECRET_KEY", "valueFrom": {"secretKeyRef": {"name": "octowatch-secrets", "key": "secret-key"}}}
                   ]
                 }]
               }
