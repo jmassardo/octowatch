@@ -16,7 +16,7 @@
   padding: 10px 14px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: var(--bg-surface, #161b22);
+  background: var(--canvas-subtle, #161b22);
   color: var(--fg);
   font-size: 13px;
   line-height: 1.5;
@@ -72,7 +72,7 @@
 }
 
 .success {
-  border-left: 3px solid #238636;
+  border-left: 3px solid var(--success, #238636);
 }
 
 .error {
@@ -80,7 +80,7 @@
 }
 
 .warning {
-  border-left: 3px solid #d29922;
+  border-left: 3px solid var(--attention, #d29922);
 }
 
 .info {

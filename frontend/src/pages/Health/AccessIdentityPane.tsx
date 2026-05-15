@@ -23,6 +23,7 @@ import type {
   CollabSummary,
 } from '../../api/healthSignals';
 import { formatDateOnly } from '../../utils/dates';
+import { useChartColors } from '../../hooks/useChartColors';
 import styles from './AccessIdentityPane.module.css';
 
 /* ---------- helpers ---------- */
@@ -735,6 +736,7 @@ function DormantMembersTable({ dormant }: { dormant: DormantCollaborator[] }) {
 
 function TokenAgeDistribution({ tokens }: { tokens: PatToken[] }) {
   const { labels, counts } = buildPatAgeBuckets(tokens);
+  const chartColors = useChartColors();
 
   return (
     <div>
@@ -746,7 +748,7 @@ function TokenAgeDistribution({ tokens }: { tokens: PatToken[] }) {
             {
               name: 'Tokens',
               data: counts,
-              color: '#58a6ff',
+              color: chartColors.accent,
             },
           ]}
           height={180}

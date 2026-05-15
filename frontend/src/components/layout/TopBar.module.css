@@ -503,8 +503,8 @@
   font-weight: 700;
   line-height: 16px;
   text-align: center;
-  color: #fff;
-  background: #f85149;
+  color: var(--canvas);
+  background: var(--danger);
   border-radius: 8px;
 }
 
