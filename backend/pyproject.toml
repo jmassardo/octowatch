@@ -169,6 +169,9 @@ ignore = [
 # supply_chain_service uses SQLAlchemy text() with bound parameters (:param syntax),
 # not raw string interpolation of user data. S608 is a false positive here.
 "app/services/supply_chain_service.py" = ["S608"]
+# package_monitoring_service uses SQLAlchemy text() with bound parameters (:param syntax),
+# not raw string interpolation of user data. S608 is a false positive here.
+"app/services/package_monitoring_service.py" = ["S608"]
 # fix_ann001.py is a one-off development helper script
 "fix_ann001.py" = ["T20"]
 
