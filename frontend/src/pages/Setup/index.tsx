@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -585,7 +585,6 @@ function ReviewStep({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const isTerminal = (s: string) => s === 'completed' || s === 'failed';
@@ -601,11 +600,11 @@ function ReviewStep({
     },
   });
 
-  useEffect(() => {
-    if (!completedSteps.sync || !syncStatusData) return;
-    if (syncStatusData.status === 'completed') setSyncStatus('completed');
-    else if (syncStatusData.status === 'failed') setSyncStatus('failed');
-    else setSyncStatus('running');
+  const syncStatus = useMemo(() => {
+    if (!completedSteps.sync || !syncStatusData) return null;
+    if (syncStatusData.status === 'completed') return 'completed';
+    if (syncStatusData.status === 'failed') return 'failed';
+    return 'running';
   }, [completedSteps.sync, syncStatusData]);
 
   useEffect(() => {
