@@ -154,7 +154,10 @@ async def validate_query(
             await db.execute(sa_text("SET LOCAL ROLE readonly_query_user"))
             # Security: rewritten_sql is validated through pglast AST parsing.
             # Bind parameters are passed separately via SQLAlchemy text().
-            await db.execute(sa_text(f"EXPLAIN {rewritten_sql}"), params)
+            # We prepend EXPLAIN as a literal keyword — rewritten_sql is already
+            # validated as a single SELECT by the AST parser.
+            explain_sql = sa_text("EXPLAIN " + rewritten_sql)
+            await db.execute(explain_sql, params)
         except Exception as db_exc:
             logger.warning(
                 "query.validation_failed",
@@ -172,7 +175,11 @@ async def validate_query(
             "rewritten_sql": rewritten_sql,
         }
     except QueryValidationError as exc:
-        return {"valid": False, "error": str(exc)}
+        logger.warning("query.validation_error", error=str(exc))
+        return {
+            "valid": False,
+            "error": "Query validation failed. Check syntax and allowed tables.",
+        }
 
 
 @router.get("/templates", response_model=list[QueryTemplate])

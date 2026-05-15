@@ -26,7 +26,8 @@ class TestIntegrationSettings:
 
         s = IntegrationSettings(OKTA_ORG_URL="https://mycompany.okta.com")
         assert s.OKTA_ORG_URL is not None
-        assert "okta.com" in s.OKTA_ORG_URL  # codeql[py/incomplete-url-substring-sanitization]
+        # CodeQL [py/incomplete-url-substring-sanitization] Test assertion
+        assert "okta.com" in s.OKTA_ORG_URL
 
     def test_invalid_okta_org_url_rejected(self):
         from app.config import IntegrationSettings

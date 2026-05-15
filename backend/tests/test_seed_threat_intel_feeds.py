@@ -47,8 +47,11 @@ class TestMigrationFileStructure:
 
     def test_upgrade_inserts_five_feeds(self) -> None:
         content = _MIGRATION_PATH.read_text()
+        # CodeQL [py/incomplete-url-substring-sanitization] Test assertion
         assert "urlhaus.abuse.ch" in content
+        # CodeQL [py/incomplete-url-substring-sanitization] Test assertion
         assert "feodotracker.abuse.ch" in content
+        # CodeQL [py/incomplete-url-substring-sanitization] Test assertion
         assert "otx.alienvault.com" in content
         assert "cisa.gov" in content
         assert "phishtank.com" in content
