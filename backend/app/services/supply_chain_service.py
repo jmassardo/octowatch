@@ -38,9 +38,9 @@ _SHA_RE = re.compile(r"^[a-f0-9]{40}$")
 _ACTION_USES_RE = re.compile(r"uses:\s*([^\s#]+)")
 _PR_TARGET_RE = re.compile(r"pull_request_target", re.IGNORECASE)
 _CHECKOUT_HEAD_RE = re.compile(r"actions/checkout")
-_PR_HEAD_REF_RE = re.compile(r"ref.*github\.event\.pull_request\.head")
+_PR_HEAD_REF_RE = re.compile(r"ref[^\\n]*?github\.event\.pull_request\.head")
 _EXPRESSION_INJECTION_RE = re.compile(
-    r"\$\{\{.*github\.event\.(issue|comment|pull_request|discussion)"
+    r"\$\{\{[^}]*?github\.event\.(issue|comment|pull_request|discussion)"
 )
 
 

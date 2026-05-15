@@ -90,12 +90,14 @@ def _build_auth_app(valkey_get_return: str | None = None) -> tuple[FastAPI, Asyn
 
 class TestGithubLogin:
     def test_redirects_to_github(self):
+        from urllib.parse import urlparse
+
         app, _, _ = _build_auth_app()
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/api/v1/auth/github/login")
         assert resp.status_code in (302, 307)
-        # CodeQL [py/incomplete-url-substring-sanitization] Test assertion
-        assert "github.com" in resp.headers["location"]
+        parsed = urlparse(resp.headers["location"])
+        assert parsed.hostname is not None and "github.com" in parsed.hostname
 
     def test_redirect_includes_client_id(self):
         app, _, _ = _build_auth_app()

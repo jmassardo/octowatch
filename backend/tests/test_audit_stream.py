@@ -196,5 +196,8 @@ class TestGetAuditStreamConfig:
         resp = client.get("/api/v1/admin/audit-stream/config")
         assert resp.status_code == 200
         data = resp.json()
-        # CodeQL [py/incomplete-url-substring-sanitization] Test assertion
-        assert data["hec_endpoint"].startswith("https://myapp.example.com")
+        from urllib.parse import urlparse
+
+        parsed_hec = urlparse(data["hec_endpoint"])
+        assert parsed_hec.scheme == "https"
+        assert parsed_hec.hostname == "myapp.example.com"
