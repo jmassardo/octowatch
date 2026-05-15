@@ -37,10 +37,8 @@ _VERIFIED_ACTION_ORGS: set[str] = {
 _SHA_RE = re.compile(r"^[a-f0-9]{40}$")
 _ACTION_USES_RE = re.compile(r"uses:\s*([^\s#]+)")
 _PR_TARGET_RE = re.compile(r"pull_request_target", re.IGNORECASE)
-_CHECKOUT_HEAD_RE = re.compile(
-    r"actions/checkout.*ref.*github\.event\.pull_request\.head",
-    re.DOTALL,
-)
+_CHECKOUT_HEAD_RE = re.compile(r"actions/checkout")
+_PR_HEAD_REF_RE = re.compile(r"ref.*github\.event\.pull_request\.head")
 _EXPRESSION_INJECTION_RE = re.compile(
     r"\$\{\{.*github\.event\.(issue|comment|pull_request|discussion)"
 )
@@ -102,7 +100,12 @@ async def analyze_workflow_file(content: str) -> list[SupplyChainFinding]:
     lines = content.splitlines()
 
     has_pr_target = bool(_PR_TARGET_RE.search(content))
-    has_checkout_head = bool(_CHECKOUT_HEAD_RE.search(content))
+    # Two-step check avoids polynomial backtracking (ReDoS) from a single
+    # regex with multiple ``.*`` quantifiers spanning newlines.
+    _checkout_match = _CHECKOUT_HEAD_RE.search(content)
+    has_checkout_head = bool(
+        _checkout_match and _PR_HEAD_REF_RE.search(content[_checkout_match.start() :])
+    )
 
     for line_no, line in enumerate(lines, start=1):
         stripped = line.strip()

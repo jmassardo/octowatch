@@ -36,7 +36,7 @@ def _trusted_networks() -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, 
         try:
             networks.append(ipaddress.ip_network(entry, strict=False))
         except ValueError:
-            logger.warning("trusted_proxies.invalid_entry: %s", entry)
+            logger.warning("trusted_proxies.invalid_entry: [REDACTED]")
     return tuple(networks)
 
 

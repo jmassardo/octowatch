@@ -90,9 +90,34 @@ for nid in nav_ids:
 print(f"✓ Nav links: all {len(nav_ids)} nav calls have matching screens")
 
 # ── 4. JS syntax spot-check: matching braces in script block ────────────────
-script_match = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
-if script_match:
-    script = script_match.group(1)
+class ScriptExtractor(HTMLParser):
+    """Extract content of <script> tags using a proper HTML parser."""
+
+    def __init__(self):
+        super().__init__()
+        self._in_script = False
+        self.scripts: list[str] = []
+        self._buf: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "script":
+            self._in_script = True
+            self._buf = []
+
+    def handle_data(self, data):
+        if self._in_script:
+            self._buf.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "script" and self._in_script:
+            self._in_script = False
+            self.scripts.append("".join(self._buf))
+
+
+extractor = ScriptExtractor()
+extractor.feed(html)
+if extractor.scripts:
+    script = "\n".join(extractor.scripts)
     opens = script.count('{')
     closes = script.count('}')
     if opens == closes:

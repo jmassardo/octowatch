@@ -27,6 +27,7 @@ function NavItem({
   return (
     <NavLink
       to={to}
+      end
       className={({ isActive }) =>
         [styles.navItem, isActive && styles.active].filter(Boolean).join(' ')
       }

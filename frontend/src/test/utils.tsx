@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactElement, ReactNode } from 'react';
 import { ToastProvider } from '../components/common/ToastProvider';
+import { OrgProvider } from '../context/OrgContext';
 
 function createTestQueryClient() {
   return new QueryClient({
@@ -23,9 +24,11 @@ export function renderWithProviders(
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <ToastProvider>
-          <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
-        </ToastProvider>
+        <OrgProvider>
+          <ToastProvider>
+            <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+          </ToastProvider>
+        </OrgProvider>
       </QueryClientProvider>
     );
   }

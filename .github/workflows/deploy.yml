@@ -110,6 +110,8 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: read
     concurrency:
       group: deploy-k8s
       cancel-in-progress: false
