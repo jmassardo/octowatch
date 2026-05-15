@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import cast
 
 import structlog
 from fastapi import FastAPI, Request, Response
@@ -17,7 +17,8 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.types import ExceptionHandler
 
 from app.config import settings
 from app.database import dispose_pool, warm_up_pool
@@ -90,7 +91,7 @@ logger = structlog.get_logger(__name__)
 class MetricsIPRestrictionMiddleware(BaseHTTPMiddleware):
     """Restrict /metrics endpoint to localhost and internal pod network in production."""
 
-    async def dispatch(self, request: Request, call_next: Any) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if request.url.path == "/metrics":
             from app.config import settings
 
@@ -114,7 +115,7 @@ class CsrfEchoMiddleware(BaseHTTPMiddleware):
     fresh CSRF token to use on state-changing requests (double-submit pattern).
     """
 
-    async def dispatch(self, request: Request, call_next: Any) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         response: Response = await call_next(request)
         csrf_token = request.cookies.get("csrf_token")
         if csrf_token:
@@ -125,7 +126,7 @@ class CsrfEchoMiddleware(BaseHTTPMiddleware):
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add OWASP-recommended security headers to every response."""
 
-    async def dispatch(self, request: Request, call_next: Any) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         response: Response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -152,7 +153,7 @@ class AuditTrailMiddleware(BaseHTTPMiddleware):
 
     _MUTATION_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
-    async def dispatch(self, request: Request, call_next: Any) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         start_time = time.perf_counter()
         response: Response = await call_next(request)
         elapsed_ms = int((time.perf_counter() - start_time) * 1000)
@@ -216,7 +217,7 @@ class AuditTrailMiddleware(BaseHTTPMiddleware):
 class RequestIdMiddleware(BaseHTTPMiddleware):
     """Attach a unique request ID to each request for correlation."""
 
-    async def dispatch(self, request: Request, call_next: Any) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         import uuid
 
         request_id = str(uuid.uuid4())
@@ -338,7 +339,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         import redis.asyncio as redis_client
 
         r = redis_client.Redis(connection_pool=pool)
-        await r.ping()
+        await cast(Awaitable[bool], r.ping())
         logger.info("app.valkey_connected")
 
         # Load GitHub IP allowlist from Valkey cache on startup
@@ -623,7 +624,10 @@ def create_app() -> FastAPI:
 
     # Rate limiting
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_exception_handler(
+        RateLimitExceeded,
+        cast(ExceptionHandler, _rate_limit_exceeded_handler),
+    )
     app.add_middleware(SlowAPIMiddleware)
 
     # ── Exception handlers ────────────────────────────────────────────────────

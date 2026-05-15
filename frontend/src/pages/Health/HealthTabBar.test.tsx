@@ -12,7 +12,7 @@ describe('HealthTabBar', () => {
 
   it('renders all 12 tabs', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <HealthTabBar {...defaultProps} />
       </MemoryRouter>,
     );
@@ -35,7 +35,7 @@ describe('HealthTabBar', () => {
 
   it('marks the active tab with aria-selected', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <HealthTabBar {...defaultProps} activeTab="access-identity" />
       </MemoryRouter>,
     );
@@ -48,7 +48,7 @@ describe('HealthTabBar', () => {
 
   it('applies active class to active tab', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <HealthTabBar {...defaultProps} activeTab="repo-health" />
       </MemoryRouter>,
     );
@@ -58,7 +58,7 @@ describe('HealthTabBar', () => {
 
   it('does not apply active class to inactive tabs', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <HealthTabBar {...defaultProps} activeTab="repo-health" />
       </MemoryRouter>,
     );
@@ -70,7 +70,7 @@ describe('HealthTabBar', () => {
     const user = userEvent.setup();
     const onTabChange = vi.fn();
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <HealthTabBar {...defaultProps} onTabChange={onTabChange} />
       </MemoryRouter>,
     );
@@ -86,7 +86,7 @@ describe('HealthTabBar', () => {
     const user = userEvent.setup();
     const onTabChange = vi.fn();
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <HealthTabBar {...defaultProps} onTabChange={onTabChange} />
       </MemoryRouter>,
     );

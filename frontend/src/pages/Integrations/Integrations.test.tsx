@@ -12,7 +12,7 @@ describe('IntegrationsPage', () => {
     let navigatedTo = '';
 
     render(
-      <MemoryRouter initialEntries={['/integrations']}>
+      <MemoryRouter initialEntries={['/integrations']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/integrations" element={<IntegrationsPage />} />
           <Route

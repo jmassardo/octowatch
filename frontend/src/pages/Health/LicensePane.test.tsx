@@ -80,7 +80,7 @@ function renderWithProviders() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <LicensePane />
       </MemoryRouter>
     </QueryClientProvider>,
