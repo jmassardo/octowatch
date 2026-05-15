@@ -1,15 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  getAlwaysFailingWorkflows,
-  getAlwaysTimingOutWorkflows,
-  getWorkflowRunHistory,
-} from '../../api/workflowMetrics';
+import { getAlwaysFailingWorkflows, getAlwaysTimingOutWorkflows } from '../../api/workflowMetrics';
 import type { WorkflowFailureSummary } from '../../api/workflowMetrics';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { DataTable } from '../../components/primitives/DataTable';
 import type { ColumnDef } from '../../components/primitives/DataTable';
+import { WorkflowDetailDrawer } from '../../components/WorkflowDetailDrawer/WorkflowDetailDrawer';
 import { formatRelativeShort } from '../../utils/dates';
 import styles from './Workflows.module.css';
 
@@ -26,119 +23,6 @@ function conclusionBadge(conclusion: string): string {
     default:
       return styles.conclusionMuted;
   }
-}
-
-function formatDuration(seconds: number | null): string {
-  if (seconds === null || seconds === undefined) return '—';
-  if (seconds < 60) return `${seconds}s`;
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return s > 0 ? `${m}m ${s}s` : `${m}m`;
-}
-
-// ── Run History Modal ─────────────────────────────────────────────────────────
-
-interface RunHistoryModalProps {
-  workflow: WorkflowFailureSummary;
-  lookbackDays: number;
-  onClose: () => void;
-}
-
-function RunHistoryModal({ workflow, lookbackDays, onClose }: RunHistoryModalProps) {
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: [
-      'workflow-metrics',
-      'run-history',
-      workflow.org,
-      workflow.repo,
-      workflow.workflow_name,
-      lookbackDays,
-    ],
-    queryFn: () =>
-      getWorkflowRunHistory({
-        org: workflow.org,
-        repo: workflow.repo,
-        workflow_name: workflow.workflow_name,
-        lookback_days: lookbackDays,
-        limit: 20,
-      }),
-    staleTime: 60_000,
-  });
-
-  return (
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.modalPanel} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.modalHeader}>
-          <div>
-            <div className={styles.modalTitle}>Run History</div>
-            <div className={styles.modalSub}>
-              {workflow.org}/{workflow.repo} — {workflow.workflow_name}
-            </div>
-          </div>
-          <button className={styles.panelClose} onClick={onClose}>
-            &#215;
-          </button>
-        </div>
-        <div className={styles.modalBody}>
-          {isLoading && <Spinner />}
-          {isError && (
-            <ErrorBanner message="Failed to load run history" onRetry={() => void refetch()} />
-          )}
-          {data && data.runs.length === 0 && (
-            <div className={styles.emptyState}>
-              <div className={styles.emptyIcon}>📭</div>
-              <div className={styles.emptyTitle}>No runs found</div>
-              <div className={styles.emptyDesc}>
-                No workflow runs found in the last {lookbackDays} days.
-              </div>
-            </div>
-          )}
-          {data && data.runs.length > 0 && (
-            <table className={styles.findingsTable}>
-              <thead>
-                <tr>
-                  <th scope="col">Run ID</th>
-                  <th scope="col">Started</th>
-                  <th scope="col">Conclusion</th>
-                  <th scope="col">Duration</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.runs.map((run, idx) => (
-                  <tr key={run.run_id ?? idx}>
-                    <td className={styles.repoPath}>
-                      {run.run_id ? (
-                        <a
-                          href={`https://github.com/${workflow.org}/${workflow.repo}/actions/runs/${run.run_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={styles.ghLink}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          #{run.run_id}
-                        </a>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className={styles.timeCell}>{formatRelativeShort(run.started_at)}</td>
-                    <td>
-                      <span
-                        className={`${styles.conclusionBadge} ${conclusionBadge(run.conclusion)}`}
-                      >
-                        {run.conclusion}
-                      </span>
-                    </td>
-                    <td className={styles.timeCell}>{formatDuration(run.duration_seconds)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ── Metrics Table ─────────────────────────────────────────────────────────────
@@ -371,14 +255,12 @@ export function WorkflowMetricsTab({ orgFilter }: WorkflowMetricsTabProps) {
         />
       </div>
 
-      {/* Run history modal */}
-      {selectedWorkflow && (
-        <RunHistoryModal
-          workflow={selectedWorkflow}
-          lookbackDays={lookbackDays}
-          onClose={() => setSelectedWorkflow(null)}
-        />
-      )}
+      {/* Workflow detail drawer */}
+      <WorkflowDetailDrawer
+        workflow={selectedWorkflow}
+        lookbackDays={lookbackDays}
+        onClose={() => setSelectedWorkflow(null)}
+      />
     </div>
   );
 }

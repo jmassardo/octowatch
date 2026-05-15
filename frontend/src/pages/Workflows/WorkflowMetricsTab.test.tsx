@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { WorkflowMetricsTab } from './WorkflowMetricsTab';
@@ -163,42 +163,45 @@ describe('WorkflowMetricsTab — With Data', () => {
     expect(await screen.findByText('3×')).toBeInTheDocument();
   });
 
-  it('opens run history modal on row click', async () => {
+  it('opens detail drawer on row click', async () => {
     const user = userEvent.setup();
     renderWithProviders(<WorkflowMetricsTab />);
 
     const row = await screen.findByText('CI Build');
     await user.click(row.closest('tr')!);
 
-    expect(await screen.findByText('Run History')).toBeInTheDocument();
+    // Drawer opens with the workflow name as title
+    expect(await screen.findByText('Failure Pattern Analysis')).toBeInTheDocument();
   });
 
-  it('shows run history data in modal', async () => {
+  it('shows run history data in drawer', async () => {
     const user = userEvent.setup();
     renderWithProviders(<WorkflowMetricsTab />);
 
     const row = await screen.findByText('CI Build');
     await user.click(row.closest('tr')!);
 
-    expect(await screen.findByText('#run-100')).toBeInTheDocument();
-    expect(await screen.findByText('#run-99')).toBeInTheDocument();
+    // Drawer shows run history and GitHub links
+    const viewLinks = await screen.findAllByText('View →');
+    expect(viewLinks.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('closes modal when close button is clicked', async () => {
+  it('closes drawer when close button is clicked', async () => {
     const user = userEvent.setup();
     renderWithProviders(<WorkflowMetricsTab />);
 
     const row = await screen.findByText('CI Build');
     await user.click(row.closest('tr')!);
 
-    // Modal is open
-    expect(await screen.findByText('Run History')).toBeInTheDocument();
+    // Drawer is open
+    expect(await screen.findByText('Failure Pattern Analysis')).toBeInTheDocument();
 
-    // Click the close button (×)
-    const closeButton = screen.getByText('×');
-    await user.click(closeButton);
+    // Click the close button
+    const panel = screen.getByTestId('drawer-panel');
+    const closeBtn = within(panel).getByRole('button', { name: /close/i });
+    await user.click(closeBtn);
 
-    expect(screen.queryByText('Run History')).not.toBeInTheDocument();
+    expect(screen.queryByText('Failure Pattern Analysis')).not.toBeInTheDocument();
   });
 });
 
