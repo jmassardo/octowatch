@@ -22,12 +22,15 @@ class TestValkeySettings:
 
 class TestIntegrationSettings:
     def test_valid_okta_org_url(self):
+        from urllib.parse import urlparse
+
         from app.config import IntegrationSettings
 
         s = IntegrationSettings(OKTA_ORG_URL="https://mycompany.okta.com")
         assert s.OKTA_ORG_URL is not None
-        # CodeQL [py/incomplete-url-substring-sanitization] Test assertion
-        assert "okta.com" in s.OKTA_ORG_URL
+        parsed = urlparse(s.OKTA_ORG_URL)
+        assert parsed.scheme == "https"
+        assert parsed.hostname is not None and parsed.hostname.endswith("okta.com")
 
     def test_invalid_okta_org_url_rejected(self):
         from app.config import IntegrationSettings
