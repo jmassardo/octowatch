@@ -95,6 +95,7 @@ class FeedResponse(BaseModel):
     created_by: str
     created_at: datetime
     updated_at: datetime
+    is_default: bool = False
 
 
 class FeedListResponse(BaseModel):

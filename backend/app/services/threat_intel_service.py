@@ -297,7 +297,7 @@ async def get_feeds(
         text("""
             SELECT id, name, url, feed_type, enabled, refresh_interval_minutes,
                    last_fetched_at, last_fetch_status, last_indicator_count,
-                   created_by, created_at, updated_at
+                   created_by, created_at, updated_at, is_default
             FROM threat_intel_feeds
             ORDER BY created_at DESC
         """)
@@ -323,7 +323,7 @@ async def create_feed(
                 (:name, :url, :feed_type, :refresh_interval_minutes, :created_by)
             RETURNING id, name, url, feed_type, enabled, refresh_interval_minutes,
                       last_fetched_at, last_fetch_status, last_indicator_count,
-                      created_by, created_at, updated_at
+                      created_by, created_at, updated_at, is_default
         """),
         {
             "name": name,
@@ -424,7 +424,7 @@ async def update_feed(
             WHERE id = :id
             RETURNING id, name, url, feed_type, enabled, refresh_interval_minutes,
                       last_fetched_at, last_fetch_status, last_indicator_count,
-                      created_by, created_at, updated_at
+                      created_by, created_at, updated_at, is_default
         """),
         params,
     )

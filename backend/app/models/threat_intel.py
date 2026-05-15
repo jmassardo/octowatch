@@ -87,3 +87,4 @@ class ThreatIntelFeed(Base):
         nullable=False,
         server_default=text("NOW()"),
     )
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("FALSE"))
