@@ -1,15 +1,30 @@
 import type { ComponentType } from 'react';
+import { AlertTrendsWidget } from './AlertTrendsWidget';
+import { ComplianceStatusWidget } from './ComplianceStatusWidget';
 import { CopilotUsageWidget } from './CopilotUsageWidget';
 import { DetectionSummaryWidget } from './DetectionSummaryWidget';
 import { EventVolumeWidget } from './EventVolumeWidget';
+import { FailureRatesWidget } from './FailureRatesWidget';
+import { MttrChartWidget } from './MttrChartWidget';
+import { PostureScoreWidget } from './PostureScoreWidget';
+import { RecentEventsWidget } from './RecentEventsWidget';
 import { SecurityOverviewWidget } from './SecurityOverviewWidget';
 import { SyncHealthWidget } from './SyncHealthWidget';
+import { TeamHealthWidget } from './TeamHealthWidget';
 import { TopActorsWidget } from './TopActorsWidget';
 import { UnifiedSecurityWidget } from './UnifiedSecurityWidget';
+import { VelocityMetricsWidget } from './VelocityMetricsWidget';
+import { WorkflowHealthWidget } from './WorkflowHealthWidget';
 
 export type WidgetSize = 'sm' | 'md' | 'lg';
 export type WidgetCategory = 'security' | 'operations' | 'activity' | 'copilot';
-export type DashboardPersona = 'security-analyst' | 'devops-engineer' | 'engineering-lead';
+export type DashboardPersona =
+  | 'security-analyst'
+  | 'engineering-manager'
+  | 'platform-engineer'
+  | 'executive'
+  | 'devops-engineer'
+  | 'engineering-lead';
 
 export interface WidgetLayoutItem {
   readonly id: string;
@@ -91,16 +106,117 @@ export const WIDGET_REGISTRY: readonly WidgetDefinition[] = [
     category: 'copilot',
     component: CopilotUsageWidget,
   },
+  {
+    id: 'alert-trends',
+    title: 'Alert Trends',
+    description: 'Security alert volume over time grouped by severity.',
+    defaultSize: 'md',
+    category: 'security',
+    component: AlertTrendsWidget,
+  },
+  {
+    id: 'mttr-chart',
+    title: 'MTTR Chart',
+    description: 'Mean time to resolve security detections by severity band.',
+    defaultSize: 'md',
+    category: 'security',
+    component: MttrChartWidget,
+  },
+  {
+    id: 'posture-score',
+    title: 'Posture Score',
+    description: 'Overall security posture score across monitored organizations.',
+    defaultSize: 'sm',
+    category: 'security',
+    component: PostureScoreWidget,
+  },
+  {
+    id: 'compliance-status',
+    title: 'Compliance Status',
+    description: 'Compliance framework adherence summary with pass/fail breakdown.',
+    defaultSize: 'sm',
+    category: 'security',
+    component: ComplianceStatusWidget,
+  },
+  {
+    id: 'workflow-health',
+    title: 'Workflow Health',
+    description: 'GitHub Actions workflow success rates and health indicators.',
+    defaultSize: 'md',
+    category: 'operations',
+    component: WorkflowHealthWidget,
+  },
+  {
+    id: 'failure-rates',
+    title: 'Failure Rates',
+    description: 'CI/CD pipeline failure rates by repository and workflow.',
+    defaultSize: 'md',
+    category: 'operations',
+    component: FailureRatesWidget,
+  },
+  {
+    id: 'recent-events',
+    title: 'Recent Events',
+    description: 'Stream of the latest audit events with action type and actor details.',
+    defaultSize: 'lg',
+    category: 'activity',
+    component: RecentEventsWidget,
+  },
+  {
+    id: 'velocity-metrics',
+    title: 'Velocity Metrics',
+    description: 'Development velocity tracking including PR throughput and cycle time.',
+    defaultSize: 'md',
+    category: 'activity',
+    component: VelocityMetricsWidget,
+  },
+  {
+    id: 'team-health',
+    title: 'Team Health',
+    description: 'Aggregated team health indicators across repositories and workflows.',
+    defaultSize: 'md',
+    category: 'activity',
+    component: TeamHealthWidget,
+  },
 ];
 
 export const PERSONA_WIDGET_PRESETS: Record<DashboardPersona, readonly string[]> = {
   'security-analyst': [
     'unified-security',
     'detection-summary',
+    'alert-trends',
+    'mttr-chart',
     'security-overview',
+    'posture-score',
     'top-actors',
-    'sync-health',
+    'recent-events',
   ],
+  'engineering-manager': [
+    'velocity-metrics',
+    'team-health',
+    'copilot-usage',
+    'event-volume',
+    'workflow-health',
+    'failure-rates',
+  ],
+  'platform-engineer': [
+    'sync-health',
+    'workflow-health',
+    'failure-rates',
+    'event-volume',
+    'top-actors',
+    'copilot-usage',
+    'recent-events',
+  ],
+  executive: [
+    'posture-score',
+    'compliance-status',
+    'unified-security',
+    'velocity-metrics',
+    'copilot-usage',
+    'team-health',
+  ],
+  // Legacy presets kept for backward compatibility
   'devops-engineer': ['sync-health', 'event-volume', 'top-actors', 'copilot-usage'],
   'engineering-lead': ['copilot-usage', 'event-volume', 'unified-security', 'sync-health'],
 };
