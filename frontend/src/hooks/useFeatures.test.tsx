@@ -58,10 +58,10 @@ describe('useFeatures', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.features.copilot_insights).toBe(true);
+      expect(result.current.features.velocity).toBe(false);
     });
 
-    expect(result.current.features.velocity).toBe(false);
+    expect(result.current.features.copilot_insights).toBe(true);
     expect(result.current.isLoading).toBe(false);
   });
 

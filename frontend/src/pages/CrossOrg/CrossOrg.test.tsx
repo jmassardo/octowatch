@@ -112,8 +112,10 @@ describe('CrossOrgPage — Correlations Tab', () => {
 
   it('shows total actors count in tab badge', async () => {
     renderWithProviders(<CrossOrgPage />);
+    // Wait for data to load first
+    await screen.findByText('jdoe');
     // Tab badge shows the total count — find it within the tab button
-    const correlationsTab = await screen.findByRole('button', { name: /correlations/i });
+    const correlationsTab = screen.getByRole('button', { name: /correlations/i });
     expect(within(correlationsTab).getByText('2')).toBeInTheDocument();
   });
 

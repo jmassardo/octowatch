@@ -27,7 +27,7 @@ def upgrade() -> None:
         sa.Column("persona", sa.String(30), nullable=False),
         sa.Column("confidence_score", sa.Float(), nullable=False),
         sa.Column("event_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("surfaces", JSONB(), nullable=False, server_default="'[]'"),
+        sa.Column("surfaces", JSONB(), nullable=False, server_default=sa.text("'[]'")),
         sa.Column("analysis_window_days", sa.Integer(), nullable=False, server_default="90"),
         sa.Column(
             "classified_at",
