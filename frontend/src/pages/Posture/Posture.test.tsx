@@ -298,7 +298,7 @@ describe('PosturePage — Enterprise View', () => {
     // Expand the collapsed org grid
     const toggle = await screen.findByRole('button', { name: /Organizations/ });
     await user.click(toggle);
-    // org names appear both in cards and multi-select; verify card elements exist
+    // org names appear in cards; verify card elements exist
     const cards = await screen.findAllByText('octowatch-org');
     expect(cards.length).toBeGreaterThanOrEqual(1);
     const dangerCards = await screen.findAllByText('danger-org');
@@ -757,7 +757,7 @@ describe('PosturePage — Coverage Gauges', () => {
   });
 });
 
-describe('PosturePage — Organization Multi-Select Filter', () => {
+describe('PosturePage — Global Org Filter', () => {
   beforeEach(() => {
     mockNavigate.mockClear();
     mockGetPosture.mockClear();
@@ -766,35 +766,29 @@ describe('PosturePage — Organization Multi-Select Filter', () => {
     mockParams.repo = undefined;
   });
 
-  it('renders org multi-select filter', async () => {
+  it('does not render a page-level org multi-select filter', async () => {
     renderWithProviders(<PosturePage />);
-    const select = await screen.findByTitle(
+    await screen.findByText('Enterprise Security Posture');
+    const select = screen.queryByTitle(
       'Filter by organization (hold Ctrl/Cmd to select multiple)',
     );
-    expect(select).toBeInTheDocument();
+    expect(select).not.toBeInTheDocument();
   });
 
-  it('lists all organizations in multi-select', async () => {
-    renderWithProviders(<PosturePage />);
-    const select = await screen.findByTitle(
-      'Filter by organization (hold Ctrl/Cmd to select multiple)',
-    );
-    const options = select.querySelectorAll('option');
-    expect(options.length).toBe(2);
-  });
-
-  it('filters org grid when an organization is selected', async () => {
+  it('shows all orgs when no global org is selected', async () => {
     const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
-    const select = await screen.findByTitle(
-      'Filter by organization (hold Ctrl/Cmd to select multiple)',
-    );
-    await user.selectOptions(select, ['octowatch-org']);
-    // danger-org card should not be visible (only in the select options)
-    const dangerCards = screen.getAllByText('danger-org');
-    // Only in the select option, not in an orgCard
-    const dangerInCard = dangerCards.find((el) => el.closest('[class*="orgCard"]'));
-    expect(dangerInCard).toBeUndefined();
+    const toggle = await screen.findByRole('button', { name: /Organizations/ });
+    await user.click(toggle);
+    const octoCards = await screen.findAllByText('octowatch-org');
+    expect(octoCards.length).toBeGreaterThanOrEqual(1);
+    const dangerCards = await screen.findAllByText('danger-org');
+    expect(dangerCards.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('shows All Organizations label when no org is selected', async () => {
+    renderWithProviders(<PosturePage />);
+    expect(await screen.findByText(/All Organizations/)).toBeInTheDocument();
   });
 });
 
