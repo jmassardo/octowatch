@@ -1,16 +1,15 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   listWorkflowFindings,
   getRepoSecurityScores,
-  triggerRepoScan,
+  getScanStatus,
 } from '../../api/workflowScanner';
 import type { WorkflowFinding, RepoSecurityScore } from '../../api/workflowScanner';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { PageHeader } from '../../components/common/PageHeader';
-import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
 import { formatRelativeShort } from '../../utils/dates';
 import { ScannerActivityTab } from './ScannerActivityTab';
@@ -52,20 +51,15 @@ function ScoreCard({ score }: { score: RepoSecurityScore }) {
 }
 
 export function WorkflowsPage() {
-  const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('findings');
   const [sevFilter, setSevFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedFinding, setSelectedFinding] = useState<WorkflowFinding | null>(null);
 
-  const scanMutation = useMutation({
-    mutationFn: triggerRepoScan,
-    onSuccess: () => {
-      // Poll for new data after a delay
-      setTimeout(() => {
-        void queryClient.invalidateQueries({ queryKey: ['workflow-scanner'] });
-      }, 5000);
-    },
+  const { data: scanStatus } = useQuery({
+    queryKey: ['workflow-scanner', 'scan-status'],
+    queryFn: () => getScanStatus(),
+    refetchInterval: 60_000,
   });
 
   const {
@@ -82,6 +76,7 @@ export function WorkflowsPage() {
         page_size: 50,
       }),
     enabled: tab === 'findings',
+    refetchInterval: 5 * 60_000,
   });
 
   const {
@@ -93,6 +88,7 @@ export function WorkflowsPage() {
     queryKey: ['workflow-scanner', 'scores'],
     queryFn: () => getRepoSecurityScores(),
     enabled: tab === 'scores',
+    refetchInterval: 5 * 60_000,
   });
 
   return (
@@ -102,23 +98,18 @@ export function WorkflowsPage() {
           <div>
             <PageHeader
               title="Workflow Security Scanner"
-              description="Event-driven workflow security scanning — findings appear automatically as audit log events are ingested"
+              description="Automated workflow security scanning — findings are continuously populated from audit log events and periodic background scans"
               showHelp
             />
           </div>
           <div className={styles.headerActions}>
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={() => scanMutation.mutate()}
-              disabled={scanMutation.isPending}
-            >
-              {scanMutation.isPending ? 'Analyzing…' : 'Analyze Events'}
-            </Button>
-            {scanMutation.isSuccess && (
-              <span className={styles.scanStatus}>Analysis queued — results appear shortly</span>
+            {scanStatus && (
+              <span className={styles.scanStatus}>
+                {scanStatus.last_scan_at
+                  ? `Last scan: ${formatRelativeShort(scanStatus.last_scan_at)} · ${scanStatus.repos_scanned} repos · ${scanStatus.total_findings} findings`
+                  : 'Awaiting first scan — data will appear automatically'}
+              </span>
             )}
-            {scanMutation.isError && <span className={styles.scanError}>Analysis failed</span>}
           </div>
         </div>
 
@@ -133,8 +124,9 @@ export function WorkflowsPage() {
           <div className={styles.guidanceTitle}>How scanning works</div>
           <ul className={styles.guidanceList}>
             <li>
-              <strong>Event-driven</strong> — Workflow audit log events are automatically scanned as
-              they arrive through the HEC ingestion pipeline. No manual action needed.
+              <strong>Fully automated</strong> — Workflow audit log events are scanned as they
+              arrive through the HEC ingestion pipeline, plus a full background scan runs every 6
+              hours.
             </li>
             <li>
               <strong>Findings</strong> — Security issues detected in workflow configurations:
@@ -147,11 +139,11 @@ export function WorkflowsPage() {
             </li>
             <li>
               <strong>Scanner Activity</strong> — View scan history, trigger sources (event-driven
-              vs manual), checks performed, and provenance.
+              vs scheduled), checks performed, and provenance.
             </li>
             <li>
-              Click <strong>Analyze Events</strong> to trigger a batch scan of existing events —
-              this is in addition to the automatic event-driven scanning.
+              <strong>New repos</strong> — Automatically detected as workflow events flow in. No
+              configuration needed.
             </li>
           </ul>
         </div>
@@ -216,9 +208,9 @@ export function WorkflowsPage() {
                 <div className={styles.emptyIcon}>🔍</div>
                 <div className={styles.emptyTitle}>No workflow findings yet</div>
                 <div className={styles.emptyDesc}>
-                  Click <strong>Analyze Events</strong> above to scan workflow audit log events. The
-                  analyzer checks for self-hosted runners, excessive secrets, PR-triggered
-                  workflows, public repo risks, and PAT-triggered automation.
+                  Findings will appear automatically as workflow audit log events are ingested and
+                  analyzed. A background scan also runs every 6 hours to ensure comprehensive
+                  coverage. No action is required.
                 </div>
               </div>
             )}
@@ -282,7 +274,8 @@ export function WorkflowsPage() {
                 <div className={styles.emptyIcon}>📊</div>
                 <div className={styles.emptyTitle}>No repository scores available</div>
                 <div className={styles.emptyDesc}>
-                  Run a scan first to generate security scores for your repositories.
+                  Security scores are computed automatically from findings. Once workflow audit log
+                  events are ingested, scores will appear here for each repository.
                 </div>
               </div>
             )}
