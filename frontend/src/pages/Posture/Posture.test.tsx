@@ -769,9 +769,7 @@ describe('PosturePage — Global Org Filter', () => {
   it('does not render a page-level org multi-select filter', async () => {
     renderWithProviders(<PosturePage />);
     await screen.findByText('Enterprise Security Posture');
-    const select = screen.queryByTitle(
-      'Filter by organization (hold Ctrl/Cmd to select multiple)',
-    );
+    const select = screen.queryByTitle('Filter by organization (hold Ctrl/Cmd to select multiple)');
     expect(select).not.toBeInTheDocument();
   });
 
