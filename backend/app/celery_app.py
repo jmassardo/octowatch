@@ -49,6 +49,7 @@ app.config_from_object(
             "app.workers.github_ip_allowlist_worker.*": {"queue": "baseline"},
             "app.workers.workflow_scan_worker.*": {"queue": "baseline"},
             "app.workers.package_sync_worker.*": {"queue": "github_sync"},
+            "app.workers.user_classification_worker.*": {"queue": "baseline"},
         },
         # ─── Soft / hard time limits ─────────────────────────────────────────
         "task_soft_time_limit": 1800,  # 30 minutes
@@ -115,6 +116,12 @@ app.config_from_object(
                 "schedule": crontab(minute=30, hour="*/6"),
                 "options": {"queue": "github_sync"},
             },
+            # User behavior classification — daily at 04:00 UTC
+            "classify-user-behavior": {
+                "task": "app.workers.user_classification_worker.classify_all_orgs",
+                "schedule": crontab(hour=4, minute=0),
+                "options": {"queue": "baseline"},
+            },
             # Threat intel feed refresh — every 30 minutes
             "refresh-threat-intel-feeds": {
                 "task": "app.workers.threat_intel_worker.refresh_threat_intel_feeds",
@@ -163,6 +170,7 @@ app.conf.include = [
     "app.workers.threat_intel_worker",
     "app.workers.workflow_scan_worker",
     "app.workers.package_sync_worker",
+    "app.workers.user_classification_worker",
 ]
 
 # Conditionally add GitHub sync heartbeat to beat schedule

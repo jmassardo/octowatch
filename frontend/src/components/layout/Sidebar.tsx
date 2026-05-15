@@ -420,6 +420,19 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Developer Activity
           </NavItem>
         )}
+        {hasPermission('events', 'view') && (
+          <NavItem
+            to="/user-behavior"
+            onClick={onMobileClose}
+            icon={
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M1.5 14.25c0 .138.112.25.25.25H7v-1.5H2.5v-2.25a.25.25 0 01.25-.25h2.5a.75.75 0 000-1.5h-2.5A1.75 1.75 0 001 10.75v2.75c0 .414.336.75.75.75zM9 14.5h4.25a.25.25 0 00.25-.25v-2.75a1.75 1.75 0 00-1.75-1.75h-2.5a.75.75 0 000 1.5h2.5a.25.25 0 01.25.25v2.25H9zM8 9a3 3 0 100-6 3 3 0 000 6zM8 4.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM3.5 6.5a2 2 0 100-4 2 2 0 000 4zm0-2.75a.75.75 0 110 1.5.75.75 0 010-1.5zM12.5 6.5a2 2 0 100-4 2 2 0 000 4zm0-2.75a.75.75 0 110 1.5.75.75 0 010-1.5z" />
+              </svg>
+            }
+          >
+            User Behavior
+          </NavItem>
+        )}
         {features.copilot_insights && hasPermission('events', 'view') && (
           <NavItem
             to="/copilot"
