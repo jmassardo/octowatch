@@ -117,8 +117,8 @@ class TestOrgFilter:
 
     def test_custom_alias(self) -> None:
         sql, _ = _org_filter(["my-org"], table_alias="pkg")
-        # CodeQL [py/incomplete-url-substring-sanitization] Test-only assertion
-        assert "pkg.org" in sql
+        assert sql.startswith("AND pkg.org IN (")
+        assert ":org_0" in sql
 
 
 # ── Service function tests ───────────────────────────────────────────────────
