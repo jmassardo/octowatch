@@ -145,14 +145,32 @@ jobs:
 
           echo ""
           echo "=== Transferring views ownership to ${APP_USER} ==="
+          # Skip continuous aggregates (TimescaleDB) which cannot be altered via ALTER VIEW
           kubectl exec -n octowatch "${DB_POD}" -- psql -U postgres -d "${DB_NAME}" -c "
             DO \$\$
             DECLARE
               r RECORD;
             BEGIN
-              FOR r IN SELECT viewname FROM pg_views WHERE schemaname = 'public' AND viewowner != '${APP_USER}'
+              FOR r IN
+                SELECT v.viewname
+                FROM pg_views v
+                WHERE v.schemaname = 'public' AND v.viewowner != '${APP_USER}'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM timescaledb_information.continuous_aggregates ca
+                    WHERE ca.view_name = v.viewname
+                  )
               LOOP
                 EXECUTE format('ALTER VIEW public.%I OWNER TO ${APP_USER}', r.viewname);
+              END LOOP;
+            EXCEPTION WHEN undefined_table THEN
+              -- timescaledb_information.continuous_aggregates may not exist
+              FOR r IN SELECT viewname FROM pg_views WHERE schemaname = 'public' AND viewowner != '${APP_USER}'
+              LOOP
+                BEGIN
+                  EXECUTE format('ALTER VIEW public.%I OWNER TO ${APP_USER}', r.viewname);
+                EXCEPTION WHEN OTHERS THEN
+                  RAISE NOTICE 'Skipping view % (likely continuous aggregate): %', r.viewname, SQLERRM;
+                END;
               END LOOP;
             END \$\$;
           "
