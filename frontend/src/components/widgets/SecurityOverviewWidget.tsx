@@ -132,12 +132,26 @@ export function SecurityOverviewWidget({ detections }: Props) {
       <CardHeader>Security Overview</CardHeader>
       <div style={{ padding: '8px 8px 12px' }}>
         {total === 0 ? (
-          <div style={{ color: 'var(--fg-muted)', fontSize: 13, padding: '12px 8px', textAlign: 'center' }}>
+          <div
+            style={{
+              color: 'var(--fg-muted)',
+              fontSize: 13,
+              padding: '12px 8px',
+              textAlign: 'center',
+            }}
+          >
             No active detections
           </div>
         ) : (
           <>
-            <div style={{ fontSize: 12, color: 'var(--fg-muted)', padding: '0 8px 8px', fontWeight: 600 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: 'var(--fg-muted)',
+                padding: '0 8px 8px',
+                fontWeight: 600,
+              }}
+            >
               Active detections by severity — {total} total
             </div>
             {SEVERITY_ORDER.map((severity) => (
