@@ -103,7 +103,7 @@
 
 .tooltipBtnPrimary {
   background: var(--accent, #bc8cff);
-  color: #000;
+  color: var(--canvas);
   border: none;
   border-radius: 6px;
   padding: 6px 16px;

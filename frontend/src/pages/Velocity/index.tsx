@@ -9,6 +9,7 @@ import { LineAreaChart } from '../../components/charts/LineAreaChart';
 import { BarChart } from '../../components/charts/BarChart';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { useEnumQueryParam } from '../../hooks/useQueryParam';
+import { useChartColors } from '../../hooks/useChartColors';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
 import { DataTable } from '../../components/primitives/DataTable';
@@ -194,6 +195,7 @@ export function VelocityPage() {
   const [failureBucket, setFailureBucket] = useState<ActionsVolumeBucket | null>(null);
   const [drillFilter, setDrillFilter] = useState<'total' | 'succeeded' | 'failed' | null>(null);
   const [defsOpen, setDefsOpen] = useState(false);
+  const chartColors = useChartColors();
   const changeFailureRef = useRef<HTMLDivElement>(null);
   const workflowSuccessRef = useRef<HTMLDivElement>(null);
   const dailyRunsRef = useRef<HTMLDivElement>(null);
@@ -662,7 +664,7 @@ export function VelocityPage() {
                     {
                       name: 'Lead time (hours)',
                       data: leadTimeChartData,
-                      color: '#d2a8ff',
+                      color: chartColors.done,
                       areaOpacity: 0.15,
                     },
                   ]}
@@ -770,8 +772,12 @@ export function VelocityPage() {
                 <BarChart
                   xAxisData={chartLabels}
                   series={[
-                    { name: 'Deployments', data: dailyRunsChartData, color: '#58a6ff' },
-                    { name: 'MTTR (hours)', data: mttrChartData, color: '#d2a8ff' },
+                    {
+                      name: 'Deployments',
+                      data: dailyRunsChartData,
+                      color: chartColors.accent,
+                    },
+                    { name: 'MTTR (hours)', data: mttrChartData, color: chartColors.done },
                   ]}
                 />
               ) : (

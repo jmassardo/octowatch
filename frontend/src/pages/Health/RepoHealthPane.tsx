@@ -11,6 +11,7 @@ import { DataTable, type ColumnDef } from '../../components/primitives/DataTable
 import { getRepoHealth } from '../../api/healthSignals';
 import type { StaleRepo, ArchivedRepo, AbandonedFork } from '../../api/healthSignals';
 import { formatDateOnly } from '../../utils/dates';
+import { useChartColors } from '../../hooks/useChartColors';
 import styles from './RepoHealthPane.module.css';
 
 /* ---------- helpers ---------- */
@@ -189,6 +190,7 @@ function RepoHealthTable({ repos }: { repos: RepoRow[] }) {
 function StaleTrendChart({ stale }: { stale: StaleRepo[] }) {
   const { labels, counts } = buildStaleTrend(stale);
   const allZero = counts.every((c) => c === 0);
+  const chartColors = useChartColors();
 
   return (
     <div>
@@ -210,7 +212,7 @@ function StaleTrendChart({ stale }: { stale: StaleRepo[] }) {
               {
                 name: 'Stale repos',
                 data: counts,
-                color: '#f85149',
+                color: chartColors.danger,
               },
             ]}
             height={180}

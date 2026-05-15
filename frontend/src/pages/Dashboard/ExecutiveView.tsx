@@ -7,6 +7,7 @@ import { Button } from '../../components/primitives/Button';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { LineAreaChart } from '../../components/charts/LineAreaChart';
+import { useChartColors } from '../../hooks/useChartColors';
 import { MetricsThatMatter } from './MetricsThatMatter';
 import styles from './ExecutiveView.module.css';
 
@@ -108,6 +109,7 @@ function MomCards({ summary }: { summary: ExecutiveSummaryType }) {
 
 export function ExecutiveView() {
   const [period, setPeriod] = useState<Period>(30);
+  const chartColors = useChartColors();
 
   const {
     data: summary,
@@ -175,7 +177,7 @@ export function ExecutiveView() {
                 {
                   name: 'Detections',
                   data: trendValues,
-                  color: '#f85149',
+                  color: chartColors.danger,
                   areaOpacity: 0.15,
                 },
               ]}

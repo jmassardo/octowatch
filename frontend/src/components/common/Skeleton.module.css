@@ -1,9 +1,9 @@
 .skeleton {
   background: linear-gradient(
     90deg,
-    var(--bg-surface, #161b22) 25%,
-    rgba(110, 118, 129, 0.12) 50%,
-    var(--bg-surface, #161b22) 75%
+    var(--canvas-subtle, #161b22) 25%,
+    color-mix(in srgb, var(--fg-subtle) 12%, transparent) 50%,
+    var(--canvas-subtle, #161b22) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
@@ -13,7 +13,7 @@
 @media (prefers-reduced-motion: reduce) {
   .skeleton {
     animation: none;
-    background: var(--bg-surface, #161b22);
+    background: var(--canvas-subtle, #161b22);
     opacity: 0.6;
   }
 }

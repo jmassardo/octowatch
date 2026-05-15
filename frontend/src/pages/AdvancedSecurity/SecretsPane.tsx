@@ -11,6 +11,7 @@ import { Label } from '../../components/primitives/Label';
 import { Pagination } from '../../components/primitives/Pagination';
 import { LineAreaChart } from '../../components/charts/LineAreaChart';
 import { BarChart } from '../../components/charts/BarChart';
+import { useChartColors } from '../../hooks/useChartColors';
 import {
   listSecretAlerts,
   getSecretAlertSummary,
@@ -78,6 +79,7 @@ function AuditTrailSection({ alertId }: { alertId: number }) {
 /* ── Main Component ── */
 
 export function SecretsPane() {
+  const chartColors = useChartColors();
   const [page, setPage] = useState(1);
   const [stateFilter, setStateFilter] = useState('');
   const [secretTypeFilter, setSecretTypeFilter] = useState('');
@@ -340,11 +342,11 @@ export function SecretsPane() {
               title="Alert Trend (30d)"
               xAxisData={trendChartData.dates}
               series={[
-                { name: 'New', data: trendChartData.newSeries, color: '#f59e0b' },
+                { name: 'New', data: trendChartData.newSeries, color: chartColors.attention },
                 {
                   name: 'Resolved',
                   data: trendChartData.resolvedSeries,
-                  color: '#3fb950',
+                  color: chartColors.success,
                   dashed: true,
                 },
               ]}
@@ -365,7 +367,7 @@ export function SecretsPane() {
                 {
                   name: 'Count',
                   data: typeDistribution.values,
-                  color: '#f59e0b',
+                  color: chartColors.attention,
                 },
               ]}
               height={180}
@@ -385,7 +387,7 @@ export function SecretsPane() {
                 {
                   name: 'Alerts',
                   data: [pushStats.blocked, pushStats.bypassed],
-                  color: '#8b5cf6',
+                  color: chartColors.done,
                 },
               ]}
               height={180}

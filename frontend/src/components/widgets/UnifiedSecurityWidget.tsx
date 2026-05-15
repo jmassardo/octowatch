@@ -5,6 +5,7 @@ import type { UnifiedSecurityResponse } from '../../api/healthSignals';
 import { Card, CardHeader } from '../primitives/Card';
 import { Spinner } from '../primitives/Spinner';
 import { ErrorBanner } from '../primitives/ErrorBanner';
+import { useChartColors } from '../../hooks/useChartColors';
 import { LineAreaChart } from '../charts/LineAreaChart';
 
 /* ---------- helpers ---------- */
@@ -48,8 +49,8 @@ function SeverityBar({
           : undefined
       }
     >
-      <span style={{ width: 60, fontSize: 11, color: '#8b949e' }}>{label}</span>
-      <div style={{ flex: 1, height: 8, background: '#21262d', borderRadius: 4 }}>
+      <span style={{ width: 60, fontSize: 11, color: 'var(--fg-muted)' }}>{label}</span>
+      <div style={{ flex: 1, height: 8, background: 'var(--border-muted)', borderRadius: 4 }}>
         <div style={{ height: '100%', background: color, borderRadius: 4, width: w }} />
       </div>
       <span style={{ width: 32, textAlign: 'right', fontSize: 12, fontWeight: 600 }}>{count}</span>
@@ -61,6 +62,7 @@ function SeverityBar({
 
 export function UnifiedSecurityWidget() {
   const navigate = useNavigate();
+  const colors = useChartColors();
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['health', 'unified-security'],
@@ -131,7 +133,7 @@ export function UnifiedSecurityWidget() {
           }}
         >
           <div style={{ fontSize: 24, fontWeight: 700 }}>{ss.open}</div>
-          <div style={{ fontSize: 11, color: '#8b949e' }}>Secret alerts</div>
+          <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>Secret alerts</div>
         </div>
 
         {/* Code scanning */}
@@ -149,7 +151,7 @@ export function UnifiedSecurityWidget() {
           }}
         >
           <div style={{ fontSize: 24, fontWeight: 700 }}>{cs.open}</div>
-          <div style={{ fontSize: 11, color: '#8b949e' }}>Code alerts</div>
+          <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>Code alerts</div>
         </div>
 
         {/* Dependabot */}
@@ -167,7 +169,7 @@ export function UnifiedSecurityWidget() {
           }}
         >
           <div style={{ fontSize: 24, fontWeight: 700 }}>{dep.open}</div>
-          <div style={{ fontSize: 11, color: '#8b949e' }}>Dependabot</div>
+          <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>Dependabot</div>
         </div>
 
         {/* Active detections */}
@@ -193,13 +195,13 @@ export function UnifiedSecurityWidget() {
           >
             {det.active}
           </div>
-          <div style={{ fontSize: 11, color: '#8b949e' }}>Detections</div>
+          <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>Detections</div>
         </div>
       </div>
 
       {/* Severity breakdown */}
       <div style={{ padding: '8px 16px' }}>
-        <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 6, fontWeight: 600 }}>
+        <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 6, fontWeight: 600 }}>
           Open alerts by severity (Code + Dependabot)
         </div>
         <SeverityBar
@@ -238,8 +240,8 @@ export function UnifiedSecurityWidget() {
           style={{
             margin: '0 16px 8px',
             padding: '8px 12px',
-            background: 'rgba(248,81,73,0.1)',
-            border: '1px solid rgba(248,81,73,0.3)',
+            background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)',
             borderRadius: 6,
             fontSize: 12,
             color: 'var(--danger)',
@@ -260,19 +262,19 @@ export function UnifiedSecurityWidget() {
               {
                 name: 'Secret scanning',
                 data: trend.map((t) => t.secret_scanning),
-                color: '#f0883e',
+                color: colors.severe,
                 areaOpacity: 0.15,
               },
               {
                 name: 'Code scanning',
                 data: trend.map((t) => t.code_scanning),
-                color: '#58a6ff',
+                color: colors.accent,
                 areaOpacity: 0.15,
               },
               {
                 name: 'Dependabot',
                 data: trend.map((t) => t.dependabot),
-                color: '#bc8cff',
+                color: colors.done,
                 areaOpacity: 0.15,
               },
             ]}

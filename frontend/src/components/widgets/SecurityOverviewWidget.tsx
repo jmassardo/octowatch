@@ -68,13 +68,13 @@ function SeverityRow({ label, count, maxCount, color, onClick }: SeverityRowProp
       >
         {label}
       </span>
-      <div style={{ flex: 1, height: 8, background: '#21262d', borderRadius: 4 }}>
+      <div style={{ flex: 1, height: 8, background: 'var(--border-muted)', borderRadius: 4 }}>
         <div style={{ height: '100%', background: color, borderRadius: 4, width }} />
       </div>
       <span style={{ width: 32, textAlign: 'right', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
         {count}
       </span>
-      <span style={{ fontSize: 10, color: '#8b949e', marginLeft: 2 }}>→</span>
+      <span style={{ fontSize: 10, color: 'var(--fg-muted)', marginLeft: 2 }}>→</span>
     </div>
   );
 }
@@ -132,12 +132,26 @@ export function SecurityOverviewWidget({ detections }: Props) {
       <CardHeader>Security Overview</CardHeader>
       <div style={{ padding: '8px 8px 12px' }}>
         {total === 0 ? (
-          <div style={{ color: '#8b949e', fontSize: 13, padding: '12px 8px', textAlign: 'center' }}>
+          <div
+            style={{
+              color: 'var(--fg-muted)',
+              fontSize: 13,
+              padding: '12px 8px',
+              textAlign: 'center',
+            }}
+          >
             No active detections
           </div>
         ) : (
           <>
-            <div style={{ fontSize: 12, color: '#8b949e', padding: '0 8px 8px', fontWeight: 600 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: 'var(--fg-muted)',
+                padding: '0 8px 8px',
+                fontWeight: 600,
+              }}
+            >
               Active detections by severity — {total} total
             </div>
             {SEVERITY_ORDER.map((severity) => (

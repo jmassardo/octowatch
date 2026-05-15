@@ -37,6 +37,13 @@ export function useChartColors() {
       chartTooltipBg: s.getPropertyValue('--chart-tooltip-bg').trim() || '#161b22',
       chartTooltipBorder: s.getPropertyValue('--chart-tooltip-border').trim() || '#30363d',
       chartTooltipFg: s.getPropertyValue('--chart-tooltip-fg').trim() || '#e6edf3',
+      canvas: s.getPropertyValue('--canvas').trim() || '#0d1117',
+      success: s.getPropertyValue('--success').trim() || '#3fb950',
+      danger: s.getPropertyValue('--danger').trim() || '#f85149',
+      accent: s.getPropertyValue('--accent').trim() || '#58a6ff',
+      done: s.getPropertyValue('--done').trim() || '#bc8cff',
+      severe: s.getPropertyValue('--severe').trim() || '#db6d28',
+      attention: s.getPropertyValue('--attention').trim() || '#d29922',
     });
   }, []);
 
@@ -49,5 +56,12 @@ export function useChartColors() {
     chartTooltipBg: string;
     chartTooltipBorder: string;
     chartTooltipFg: string;
+    canvas: string;
+    success: string;
+    danger: string;
+    accent: string;
+    done: string;
+    severe: string;
+    attention: string;
   };
 }

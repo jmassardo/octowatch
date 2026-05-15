@@ -5,6 +5,7 @@ import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { BarChart } from '../../components/charts/BarChart';
 import { getCopilotROI } from '../../api/copilotMetrics';
 import type { CopilotROISummary } from '../../api/copilotMetrics';
+import { useChartColors } from '../../hooks/useChartColors';
 import styles from './Copilot.module.css';
 
 function formatCurrency(value: number): string {
@@ -21,6 +22,7 @@ export function ROIPane() {
     queryFn: getCopilotROI,
     staleTime: 30 * 60 * 1000,
   });
+  const chartColors = useChartColors();
 
   if (isLoading) return <Spinner />;
   if (isError)
@@ -158,7 +160,7 @@ export function ROIPane() {
                 {
                   name: 'Amount',
                   data: costVsValueData,
-                  color: '#58a6ff',
+                  color: chartColors.accent,
                 },
               ]}
               height={200}
