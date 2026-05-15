@@ -122,7 +122,10 @@ function renderPage(initialTab = 'overview') {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[`/copilot/${initialTab}`]}>
+      <MemoryRouter
+        initialEntries={[`/copilot/${initialTab}`]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <Routes>
           <Route path="/copilot/:tab" element={<CopilotPage />} />
         </Routes>

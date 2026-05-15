@@ -53,11 +53,11 @@ _ROLE_PRIORITY: list[str] = [
 # ─── Role management ──────────────────────────────────────────────────────────
 
 
-@router.get("/roles", response_model=list[dict])
+@router.get("/roles", response_model=list[dict[str, Any]])
 async def list_roles(
     current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """List all available RBAC roles."""
     result = await db.execute(select(RbacRole))
     roles = result.scalars().all()
@@ -208,11 +208,11 @@ async def delete_role_assignment(
 # ─── Ingestion sources ────────────────────────────────────────────────────────
 
 
-@router.get("/ingestion-sources", response_model=list[dict])
+@router.get("/ingestion-sources", response_model=list[dict[str, Any]])
 async def list_ingestion_sources(
     current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """List configured ingestion sources (cursors)."""
     from app.models.ingestion import IngestionCursor
 
@@ -222,8 +222,8 @@ async def list_ingestion_sources(
         {
             "id": c.id,
             "source_type": c.source_type,
-            "org": c.org,
-            "cursor_value": c.cursor_value,
+            "source_name": c.source_name,
+            "last_prefix": c.last_prefix,
             "updated_at": c.updated_at.isoformat() if c.updated_at else None,
         }
         for c in cursors
@@ -232,7 +232,7 @@ async def list_ingestion_sources(
 
 @router.post(
     "/ingestion-sources",
-    response_model=dict,
+    response_model=dict[str, Any],
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(verify_csrf)],
 )
@@ -240,21 +240,20 @@ async def create_ingestion_source(
     payload: IngestionSourceCreate,
     current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> dict[str, Any]:
     """Register a new ingestion source."""
     from app.models.ingestion import IngestionCursor
 
     cursor = IngestionCursor(
         source_type=payload.source_type,
-        org=payload.org,
-        cursor_value=None,
+        source_name=payload.source_name,
     )
     db.add(cursor)
     await db.flush()
     return {
         "id": cursor.id,
         "source_type": cursor.source_type,
-        "org": cursor.org,
+        "source_name": cursor.source_name,
         "message": "Ingestion source registered",
     }
 
@@ -375,26 +374,26 @@ async def gdpr_erase(
 # ─── Analytics helpers ────────────────────────────────────────────────────────
 
 
-@router.get("/top-actors", response_model=list[dict])
+@router.get("/top-actors", response_model=list[dict[str, Any]])
 async def get_top_actors(
     window_days: int = 30,
     limit: int = 25,
     org: str | None = None,
     current_user: AuthenticatedUser = Depends(require_permission("reports", "view")),
     db: AsyncSession = Depends(get_db),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return top actors by event count in the window."""
     return await get_top_actors_report(db, window_days=window_days, limit=limit, org=org)
 
 
-@router.get("/event-trend", response_model=list[dict])
+@router.get("/event-trend", response_model=list[dict[str, Any]])
 async def get_event_trend(
     window_days: int = 30,
     granularity: str = "hourly",
     org: str | None = None,
     current_user: AuthenticatedUser = Depends(require_permission("reports", "view")),
     db: AsyncSession = Depends(get_db),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return overall event volume trend (uses pre-computed events_hourly if granularity=hourly)."""
     from app.services.report_service import get_event_trend_report
 
@@ -616,7 +615,7 @@ async def list_ingest_jobs(
     page: int = 1,
     current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> dict[str, Any]:
     """List recent file ingestion jobs from audit trail."""
     per_page = 20
     offset = (page - 1) * per_page
@@ -654,7 +653,7 @@ async def get_ingest_job(
     job_id: str,
     current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> dict[str, Any]:
     """Get a specific ingest job by audit trail ID."""
     result = await db.execute(
         text("SELECT id, timestamp, parameters, outcome FROM audit_trail WHERE id = :id"),
