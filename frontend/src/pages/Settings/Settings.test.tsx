@@ -281,7 +281,10 @@ function renderPage(initialTab = 'all') {
   return render(
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
-        <MemoryRouter initialEntries={[`/settings/${initialTab}`]}>
+        <MemoryRouter
+          initialEntries={[`/settings/${initialTab}`]}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
           <Routes>
             <Route path="/settings/:tab" element={<SettingsPage />} />
           </Routes>
