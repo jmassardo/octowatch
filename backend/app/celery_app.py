@@ -48,6 +48,7 @@ app.config_from_object(
             "app.workers.ingestion_health.*": {"queue": "baseline"},
             "app.workers.github_ip_allowlist_worker.*": {"queue": "baseline"},
             "app.workers.workflow_scan_worker.*": {"queue": "baseline"},
+            "app.workers.package_sync_worker.*": {"queue": "github_sync"},
         },
         # ─── Soft / hard time limits ─────────────────────────────────────────
         "task_soft_time_limit": 1800,  # 30 minutes
@@ -108,6 +109,12 @@ app.config_from_object(
                 "schedule": crontab(minute=0, hour="*/6"),
                 "options": {"queue": "baseline"},
             },
+            # Package monitoring sync — every 6 hours
+            "sync-packages": {
+                "task": "app.workers.package_sync_worker.sync_packages",
+                "schedule": crontab(minute=30, hour="*/6"),
+                "options": {"queue": "github_sync"},
+            },
             # Threat intel feed refresh — every 30 minutes
             "refresh-threat-intel-feeds": {
                 "task": "app.workers.threat_intel_worker.refresh_threat_intel_feeds",
@@ -155,6 +162,7 @@ app.conf.include = [
     "app.workers.ingestion_health",
     "app.workers.threat_intel_worker",
     "app.workers.workflow_scan_worker",
+    "app.workers.package_sync_worker",
 ]
 
 # Conditionally add GitHub sync heartbeat to beat schedule

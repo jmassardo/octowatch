@@ -51,6 +51,7 @@ from app.routers import (
     maintenance,
     notifications,
     org_config,
+    packages,
     pagerduty,
     playbooks,
     posture,
@@ -721,6 +722,7 @@ def create_app() -> FastAPI:
     app.include_router(setup.router, prefix=API_PREFIX)
     app.include_router(suggestions.router, prefix=API_PREFIX)
     app.include_router(supply_chain.router, prefix=API_PREFIX)
+    app.include_router(packages.router, prefix=API_PREFIX)
     app.include_router(teams.router, prefix=API_PREFIX)
     app.include_router(dev_activity.router, prefix=API_PREFIX)
     app.include_router(threat_intel.router, prefix=API_PREFIX)
