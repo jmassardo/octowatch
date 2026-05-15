@@ -125,6 +125,11 @@ export function DataTable<T>({
 
   const hasFilters = columns.some((c) => c.filterable);
 
+  function focusRow(index: number) {
+    const rows = tbodyRef.current?.querySelectorAll<HTMLElement>('tr[tabindex]');
+    rows?.[index]?.focus();
+  }
+
   /** Keyboard navigation for table rows */
   const handleRowKeyDown = useCallback(
     (e: React.KeyboardEvent, row: T, index: number) => {
@@ -152,11 +157,6 @@ export function DataTable<T>({
     },
     [onRowClick, sortedData.length],
   );
-
-  function focusRow(index: number) {
-    const rows = tbodyRef.current?.querySelectorAll<HTMLElement>('tr[tabindex]');
-    rows?.[index]?.focus();
-  }
 
   return (
     <div className={`${styles.tableWrap} ${className ?? ''}`}>
