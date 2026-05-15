@@ -50,6 +50,16 @@ export interface ScanActivityListResponse {
   total: number;
 }
 
+export interface ScanStatus {
+  last_scan_at: string | null;
+  last_scan_status: string | null;
+  total_scans: number;
+  total_findings: number;
+  repos_scanned: number;
+  next_scheduled_scan: string;
+  is_automated: boolean;
+}
+
 export function listWorkflowFindings(params?: {
   org?: string;
   repo?: string;
@@ -73,8 +83,8 @@ export function scanWorkflow(body: { content: string; path?: string }) {
   return api.post<{ findings: WorkflowFinding[] }>('/workflows/scan', body);
 }
 
-export function triggerRepoScan() {
-  return api.post<{ task_id: string; status: string }>('/workflows/scan-repos', {});
+export function getScanStatus() {
+  return api.get<ScanStatus>('/workflows/scan-status');
 }
 
 export function listScanActivity(params?: { page?: number; page_size?: number }) {

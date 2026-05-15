@@ -102,10 +102,10 @@ app.config_from_object(
                 "schedule": crontab(hour=6, minute=0),
                 "options": {"queue": "github_sync"},
             },
-            # Workflow security scan — daily at 04:00 UTC
+            # Workflow security scan — every 6 hours
             "scan-workflow-security": {
                 "task": "app.workers.workflow_scan_worker.scan_all_workflows",
-                "schedule": crontab(hour=4, minute=0),
+                "schedule": crontab(minute=0, hour="*/6"),
                 "options": {"queue": "baseline"},
             },
             # Threat intel feed refresh — every 30 minutes

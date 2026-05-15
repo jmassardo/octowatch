@@ -64,6 +64,18 @@ class FindingsListResponse(BaseModel):
     total: int
 
 
+class ScanStatusResponse(BaseModel):
+    """Status of the automated workflow security scanner."""
+
+    last_scan_at: datetime | None = None
+    last_scan_status: str | None = None
+    total_scans: int = 0
+    total_findings: int = 0
+    repos_scanned: int = 0
+    next_scheduled_scan: str = "Runs every 6 hours and on new audit-log events"
+    is_automated: bool = True
+
+
 class ScanResultResponse(BaseModel):
     """Result of a manual workflow scan."""
 
@@ -140,6 +152,47 @@ async def list_findings(
             for f in findings
         ],
         total=total,
+    )
+
+
+@router.get("/scan-status", response_model=ScanStatusResponse)
+async def get_scan_status(
+    current_user: AuthenticatedUser = Depends(require_permission("workflow_security", "view")),
+    db: AsyncSession = Depends(get_db),
+) -> ScanStatusResponse:
+    """Return the current status of the automated workflow scanner.
+
+    Reports the most recent scan time, total scan count, total findings, and
+    the number of distinct repositories with findings.  No GitHub API calls are
+    made — all data comes from the database.
+    """
+    # Latest activity record
+    latest_stmt = (
+        select(WorkflowScanActivity).order_by(WorkflowScanActivity.started_at.desc()).limit(1)
+    )
+    latest = (await db.execute(latest_stmt)).scalar_one_or_none()
+
+    # Total scans
+    total_scans = (
+        await db.execute(select(func.count()).select_from(WorkflowScanActivity))
+    ).scalar() or 0
+
+    # Total open findings
+    total_findings = (
+        await db.execute(select(func.count()).select_from(WorkflowFinding))
+    ).scalar() or 0
+
+    # Distinct repos with findings
+    repos_scanned = (
+        await db.execute(select(func.count(func.distinct(WorkflowFinding.repo))))
+    ).scalar() or 0
+
+    return ScanStatusResponse(
+        last_scan_at=latest.started_at if latest else None,
+        last_scan_status=latest.status if latest else None,
+        total_scans=total_scans,
+        total_findings=total_findings,
+        repos_scanned=repos_scanned,
     )
 
 
