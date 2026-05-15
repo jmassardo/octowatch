@@ -117,9 +117,10 @@ resource "azurerm_monitor_metric_alert" "availability" {
 # ── AKS Alert — node NotReady ─────────────────────────────────────────────────
 
 resource "azurerm_monitor_metric_alert" "node_not_ready" {
+  count = var.enable_aks ? 1 : 0
   name                = "alert-${local.name_prefix}-node-notready"
   resource_group_name = azurerm_resource_group.main.name
-  scopes              = [azurerm_kubernetes_cluster.main.id]
+  scopes              = [azurerm_kubernetes_cluster.main[0].id]
   description         = "One or more AKS nodes are in NotReady state."
   severity            = 1 # Error
   frequency           = "PT5M"
@@ -151,9 +152,10 @@ resource "azurerm_monitor_metric_alert" "node_not_ready" {
 # of a crash loop. Does not fire for the normal single restart on deploy.
 
 resource "azurerm_monitor_metric_alert" "pod_restarts" {
+  count = var.enable_aks ? 1 : 0
   name                = "alert-${local.name_prefix}-pod-restarts"
   resource_group_name = azurerm_resource_group.main.name
-  scopes              = [azurerm_kubernetes_cluster.main.id]
+  scopes              = [azurerm_kubernetes_cluster.main[0].id]
   description         = "OctoWatch pod is crash-looping (>5 restarts in 15 min)."
   severity            = 1 # Error
   frequency           = "PT5M"

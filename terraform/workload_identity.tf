@@ -23,11 +23,12 @@ resource "azurerm_user_assigned_identity" "aks_workload" {
 # managed identity via the AKS cluster's OIDC issuer URL.
 
 resource "azurerm_federated_identity_credential" "aks_workload" {
+  count = var.enable_aks ? 1 : 0
   name                = "fic-${local.name_prefix}-aks"
   resource_group_name = azurerm_resource_group.main.name
   parent_id           = azurerm_user_assigned_identity.aks_workload.id
   audience            = ["api://AzureADTokenExchange"]
-  issuer              = azurerm_kubernetes_cluster.main.oidc_issuer_url
+  issuer              = azurerm_kubernetes_cluster.main[0].oidc_issuer_url
   subject             = "system:serviceaccount:octowatch:octowatch"
 }
 
@@ -37,6 +38,7 @@ resource "azurerm_federated_identity_credential" "aks_workload" {
 # enable_rbac_authorization = true.
 
 resource "azurerm_role_assignment" "kv_secrets_officer" {
+  count = var.enable_aks ? 1 : 0
   scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${azurerm_resource_group.main.name}/providers/Microsoft.KeyVault/vaults/${local.key_vault_name}"
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = azurerm_user_assigned_identity.aks_workload.principal_id

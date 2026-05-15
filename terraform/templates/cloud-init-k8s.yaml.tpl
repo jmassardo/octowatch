@@ -116,8 +116,8 @@ runcmd:
         echo "Found data disk (SCSI): $DATA_DISK"
         break
       fi
-      # Try NVMe path (v6+ VMs) — find unpartitioned NVMe disk that isn't the OS disk
-      for dev in /dev/nvme*n1; do
+      # Try NVMe path (v6+ VMs) — find unpartitioned NVMe namespace that isn't the OS disk
+      for dev in /dev/nvme[0-9]n[0-9]; do
         # Skip if it's the OS disk (has partitions)
         if [ -e "$${dev}p1" ]; then
           continue

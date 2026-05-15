@@ -3,7 +3,7 @@
 
 # ── Core Infrastructure ────────────────────────────────────────────────────────
 
-location    = "eastus2"
+location    = "westus2"
 environment = "dev"
 owner_tag   = "jmassardo"
 
@@ -82,7 +82,7 @@ secret_jira_api_token         = ""
 # ── AKS / ArgoCD ──────────────────────────────────────────────────────────────
 
 aks_node_size         = "Standard_D4s_v4"
-aks_cutover_complete  = true
+aks_cutover_complete  = false
 aks_ingress_lb_ip     = "132.196.147.130"
 argocd_admin_password = "REDACTED_ARGOCD_PASSWORD"
 argocd_github_pat     = ""

@@ -29,6 +29,7 @@ locals {
 ################################################################################
 
 resource "azurerm_subnet" "aca" {
+  count = var.enable_aks ? 1 : 0
   name                 = "snet-aca-${local.name_prefix}"
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
@@ -52,14 +53,16 @@ resource "azurerm_subnet" "aca" {
 ################################################################################
 
 resource "random_string" "premium_storage_suffix" {
+  count = var.enable_aks ? 1 : 0
   length  = 6
   special = false
   upper   = false
 }
 
 resource "azurerm_storage_account" "premium" {
+  count = var.enable_aks ? 1 : 0
   # Name: "stoctowprem" (11) + environment (3-7) + suffix (6) ≤ 24 chars
-  name                = "stoctowprem${var.environment}${random_string.premium_storage_suffix.result}"
+  name                = "stoctowprem${var.environment}${random_string.premium_storage_suffix[0].result}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 
@@ -73,7 +76,7 @@ resource "azurerm_storage_account" "premium" {
 
   network_rules {
     default_action             = "Deny"
-    virtual_network_subnet_ids = [azurerm_subnet.aca.id]
+    virtual_network_subnet_ids = [azurerm_subnet.aca[0].id]
     bypass                     = ["AzureServices"]
   }
 
@@ -83,15 +86,17 @@ resource "azurerm_storage_account" "premium" {
 }
 
 resource "azurerm_storage_share" "pg_data" {
+  count = var.enable_aks ? 1 : 0
   name               = "pg-data"
-  storage_account_id = azurerm_storage_account.premium.id
+  storage_account_id = azurerm_storage_account.premium[0].id
   quota              = var.pg_data_share_quota_gb
   enabled_protocol   = "SMB"
 }
 
 resource "azurerm_storage_share" "valkey_data" {
+  count = var.enable_aks ? 1 : 0
   name               = "valkey-data"
-  storage_account_id = azurerm_storage_account.premium.id
+  storage_account_id = azurerm_storage_account.premium[0].id
   quota              = var.valkey_data_share_quota_gb
   enabled_protocol   = "SMB"
 }
@@ -102,10 +107,11 @@ resource "azurerm_storage_share" "valkey_data" {
 ################################################################################
 
 resource "azurerm_container_app_environment" "main" {
+  count = var.enable_aks ? 1 : 0
   name                           = "cae-${local.name_prefix}"
   resource_group_name            = azurerm_resource_group.main.name
   location                       = azurerm_resource_group.main.location
-  infrastructure_subnet_id       = azurerm_subnet.aca.id
+  infrastructure_subnet_id       = azurerm_subnet.aca[0].id
   internal_load_balancer_enabled = false
 
   workload_profile {
@@ -125,20 +131,22 @@ resource "azurerm_container_app_environment" "main" {
 ################################################################################
 
 resource "azurerm_container_app_environment_storage" "pg_data" {
+  count = var.enable_aks ? 1 : 0
   name                         = "pg-data"
-  container_app_environment_id = azurerm_container_app_environment.main.id
-  account_name                 = azurerm_storage_account.premium.name
-  share_name                   = azurerm_storage_share.pg_data.name
-  access_key                   = azurerm_storage_account.premium.primary_access_key
+  container_app_environment_id = azurerm_container_app_environment.main[0].id
+  account_name                 = azurerm_storage_account.premium[0].name
+  share_name                   = azurerm_storage_share.pg_data[0].name
+  access_key                   = azurerm_storage_account.premium[0].primary_access_key
   access_mode                  = "ReadWrite"
 }
 
 resource "azurerm_container_app_environment_storage" "valkey_data" {
+  count = var.enable_aks ? 1 : 0
   name                         = "valkey-data"
-  container_app_environment_id = azurerm_container_app_environment.main.id
-  account_name                 = azurerm_storage_account.premium.name
-  share_name                   = azurerm_storage_share.valkey_data.name
-  access_key                   = azurerm_storage_account.premium.primary_access_key
+  container_app_environment_id = azurerm_container_app_environment.main[0].id
+  account_name                 = azurerm_storage_account.premium[0].name
+  share_name                   = azurerm_storage_share.valkey_data[0].name
+  access_key                   = azurerm_storage_account.premium[0].primary_access_key
   access_mode                  = "ReadWrite"
 }
 
@@ -150,9 +158,10 @@ resource "azurerm_container_app_environment_storage" "valkey_data" {
 ################################################################################
 
 resource "azurerm_container_app" "db" {
+  count = var.enable_aks ? 1 : 0
   name                         = "db"
   resource_group_name          = azurerm_resource_group.main.name
-  container_app_environment_id = azurerm_container_app_environment.main.id
+  container_app_environment_id = azurerm_container_app_environment.main[0].id
   revision_mode                = "Single"
 
   template {
@@ -257,9 +266,10 @@ resource "azurerm_container_app" "db" {
 ################################################################################
 
 resource "azurerm_container_app" "valkey" {
+  count = var.enable_aks ? 1 : 0
   name                         = "valkey"
   resource_group_name          = azurerm_resource_group.main.name
-  container_app_environment_id = azurerm_container_app_environment.main.id
+  container_app_environment_id = azurerm_container_app_environment.main[0].id
   revision_mode                = "Single"
 
   template {
@@ -337,9 +347,10 @@ resource "azurerm_container_app" "valkey" {
 ################################################################################
 
 resource "azurerm_container_app" "api" {
+  count = var.enable_aks ? 1 : 0
   name                         = "api"
   resource_group_name          = azurerm_resource_group.main.name
-  container_app_environment_id = azurerm_container_app_environment.main.id
+  container_app_environment_id = azurerm_container_app_environment.main[0].id
   revision_mode                = "Single"
 
   template {
@@ -598,9 +609,10 @@ resource "azurerm_container_app" "api" {
 ################################################################################
 
 resource "azurerm_container_app" "frontend" {
+  count = var.enable_aks ? 1 : 0
   name                         = "frontend"
   resource_group_name          = azurerm_resource_group.main.name
-  container_app_environment_id = azurerm_container_app_environment.main.id
+  container_app_environment_id = azurerm_container_app_environment.main[0].id
   revision_mode                = "Single"
 
   template {
@@ -675,9 +687,10 @@ resource "azurerm_container_app" "frontend" {
 ################################################################################
 
 resource "azurerm_container_app" "beat" {
+  count = var.enable_aks ? 1 : 0
   name                         = "beat"
   resource_group_name          = azurerm_resource_group.main.name
-  container_app_environment_id = azurerm_container_app_environment.main.id
+  container_app_environment_id = azurerm_container_app_environment.main[0].id
   revision_mode                = "Single"
 
   template {
@@ -792,9 +805,10 @@ resource "azurerm_container_app" "beat" {
 # ── worker-ingestion ──────────────────────────────────────────────────────────
 
 resource "azurerm_container_app" "worker_ingestion" {
+  count = var.enable_aks ? 1 : 0
   name                         = "worker-ingestion"
   resource_group_name          = azurerm_resource_group.main.name
-  container_app_environment_id = azurerm_container_app_environment.main.id
+  container_app_environment_id = azurerm_container_app_environment.main[0].id
   revision_mode                = "Single"
 
   template {
@@ -906,9 +920,10 @@ resource "azurerm_container_app" "worker_ingestion" {
 # ── worker-detection ──────────────────────────────────────────────────────────
 
 resource "azurerm_container_app" "worker_detection" {
+  count = var.enable_aks ? 1 : 0
   name                         = "worker-detection"
   resource_group_name          = azurerm_resource_group.main.name
-  container_app_environment_id = azurerm_container_app_environment.main.id
+  container_app_environment_id = azurerm_container_app_environment.main[0].id
   revision_mode                = "Single"
 
   template {
@@ -1090,9 +1105,10 @@ resource "azurerm_container_app" "worker_detection" {
 # ── worker-notification ───────────────────────────────────────────────────────
 
 resource "azurerm_container_app" "worker_notification" {
+  count = var.enable_aks ? 1 : 0
   name                         = "worker-notification"
   resource_group_name          = azurerm_resource_group.main.name
-  container_app_environment_id = azurerm_container_app_environment.main.id
+  container_app_environment_id = azurerm_container_app_environment.main[0].id
   revision_mode                = "Single"
 
   template {
@@ -1220,9 +1236,10 @@ resource "azurerm_container_app" "worker_notification" {
 # ── worker-baseline ───────────────────────────────────────────────────────────
 
 resource "azurerm_container_app" "worker_baseline" {
+  count = var.enable_aks ? 1 : 0
   name                         = "worker-baseline"
   resource_group_name          = azurerm_resource_group.main.name
-  container_app_environment_id = azurerm_container_app_environment.main.id
+  container_app_environment_id = azurerm_container_app_environment.main[0].id
   revision_mode                = "Single"
 
   template {
@@ -1322,9 +1339,10 @@ resource "azurerm_container_app" "worker_baseline" {
 # ── worker-sync ───────────────────────────────────────────────────────────────
 
 resource "azurerm_container_app" "worker_sync" {
+  count = var.enable_aks ? 1 : 0
   name                         = "worker-sync"
   resource_group_name          = azurerm_resource_group.main.name
-  container_app_environment_id = azurerm_container_app_environment.main.id
+  container_app_environment_id = azurerm_container_app_environment.main[0].id
   revision_mode                = "Single"
 
   template {
@@ -1462,10 +1480,11 @@ resource "azurerm_container_app" "worker_sync" {
 ################################################################################
 
 resource "azurerm_container_app_job" "migrate" {
+  count = var.enable_aks ? 1 : 0
   name                         = "job-migrate-${local.name_prefix}"
   resource_group_name          = azurerm_resource_group.main.name
   location                     = azurerm_resource_group.main.location
-  container_app_environment_id = azurerm_container_app_environment.main.id
+  container_app_environment_id = azurerm_container_app_environment.main[0].id
 
   replica_timeout_in_seconds = 300
   replica_retry_limit        = 3
@@ -1529,26 +1548,26 @@ resource "azurerm_container_app_job" "migrate" {
 ################################################################################
 
 resource "azurerm_dns_txt_record" "aca_domain_verification" {
-  count               = var.dns_zone_name != "" ? 1 : 0
+  count               = var.enable_aks && var.dns_zone_name != "" ? 1 : 0
   name                = "asuid.${var.dns_record_name}"
   zone_name           = var.dns_zone_name
   resource_group_name = var.dns_zone_resource_group
   ttl                 = 300
 
   record {
-    value = azurerm_container_app_environment.main.custom_domain_verification_id
+    value = azurerm_container_app_environment.main[0].custom_domain_verification_id
   }
 
   tags = local.common_tags
 }
 
 resource "azurerm_dns_cname_record" "aca_frontend" {
-  count               = var.dns_zone_name != "" && var.aca_cutover_complete ? 1 : 0
+  count               = var.enable_aks && var.dns_zone_name != "" && var.aca_cutover_complete ? 1 : 0
   name                = var.dns_record_name
   zone_name           = var.dns_zone_name
   resource_group_name = var.dns_zone_resource_group
   ttl                 = 300
-  record              = azurerm_container_app.frontend.ingress[0].fqdn
+  record              = azurerm_container_app.frontend[0].ingress[0].fqdn
 
   tags = local.common_tags
 }
@@ -1558,21 +1577,21 @@ resource "azurerm_dns_cname_record" "aca_frontend" {
 ################################################################################
 
 output "aca_environment_fqdn" {
-  value       = azurerm_container_app_environment.main.default_domain
+  value       = var.enable_aks ? azurerm_container_app_environment.main[0].default_domain : "disabled"
   description = "Default domain for the Container Apps environment (for smoke testing before cutover)"
 }
 
 output "aca_frontend_fqdn" {
-  value       = azurerm_container_app.frontend.ingress[0].fqdn
+  value       = var.enable_aks ? azurerm_container_app.frontend[0].ingress[0].fqdn : "disabled"
   description = "Auto-generated FQDN of the frontend Container App (before custom domain)"
 }
 
 output "aca_migrate_job_name" {
-  value       = azurerm_container_app_job.migrate.name
+  value       = var.enable_aks ? azurerm_container_app_job.migrate[0].name : "disabled"
   description = "Run with: az containerapp job start --name <value> --resource-group rg-octowatch-dev"
 }
 
 output "premium_storage_name" {
-  value       = azurerm_storage_account.premium.name
+  value       = var.enable_aks ? azurerm_storage_account.premium[0].name : "disabled"
   description = "Premium storage account name for Azure Files shares"
 }

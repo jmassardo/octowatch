@@ -37,7 +37,7 @@ terraform {
   #   container_name       = "tfstate"
   #   key                  = "octowatch.tfstate"
   #   access_key           = <storage_account_key>  (ARM_ACCESS_KEY env var)
-  backend "azurerm" {}
+  backend "local" {}
 }
 
 provider "azurerm" {
