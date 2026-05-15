@@ -94,10 +94,8 @@ class TestGithubLogin:
         client = TestClient(app, follow_redirects=False)
         resp = client.get("/api/v1/auth/github/login")
         assert resp.status_code in (302, 307)
-        # Test assertion — not URL validation
-        assert (  # codeql[py/incomplete-url-substring-sanitization]
-            "github.com" in resp.headers["location"]
-        )
+        # CodeQL [py/incomplete-url-substring-sanitization] Test assertion
+        assert "github.com" in resp.headers["location"]
 
     def test_redirect_includes_client_id(self):
         app, _, _ = _build_auth_app()
