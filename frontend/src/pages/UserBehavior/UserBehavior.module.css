@@ -1,0 +1,133 @@
+.page {
+  padding: 24px;
+}
+
+.metricsRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.metricCard {
+  padding: 16px;
+  background: var(--bg-secondary, #161b22);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.metricValue {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--fg);
+  line-height: 1.2;
+}
+
+.metricLabel {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 4px;
+}
+
+.chartUserRow {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 900px) {
+  .chartUserRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chartCard {
+  padding: 16px;
+  background: var(--bg-secondary, #161b22);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.chartTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 12px;
+}
+
+.tableCard {
+  padding: 16px;
+  background: var(--bg-secondary, #161b22);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.filterRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filterSelect {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.filterSelect:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.surfaceList {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.surfaceTag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+}
+
+.pagination {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.paginationBtn {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.paginationBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.paginationBtn:hover:not(:disabled) {
+  background: var(--bg-secondary, #161b22);
+}

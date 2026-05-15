@@ -28,6 +28,7 @@ import { AdvancedSecurityPage } from './pages/AdvancedSecurity';
 import { PlaybooksPage } from './pages/Playbooks';
 import { SupplyChainPage } from './pages/SupplyChain';
 import { PackagesPage } from './pages/Packages';
+import { UserBehaviorPage } from './pages/UserBehavior';
 import { ThreatIntelPage } from './pages/ThreatIntel';
 import { SyncStatusPage } from './pages/SyncStatus';
 import { NotificationsPage } from './pages/Notifications';
@@ -73,6 +74,7 @@ export const router = createBrowserRouter([
       { path: '/playbooks', element: <PlaybooksPage /> },
       { path: '/velocity', element: <VelocityPage /> },
       { path: '/devactivity', element: <DevActivityPage /> },
+      { path: '/user-behavior', element: <UserBehaviorPage /> },
       { path: '/copilot', element: <Navigate to="/copilot/overview" replace /> },
       { path: '/copilot/:tab', element: <CopilotPage /> },
       { path: '/health', element: <Navigate to="/health/repos" replace /> },
