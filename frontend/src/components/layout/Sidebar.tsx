@@ -376,6 +376,19 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Supply Chain
           </NavItem>
         )}
+        {hasPermission('detections', 'view') && (
+          <NavItem
+            to="/packages"
+            onClick={onMobileClose}
+            icon={
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8.878.392a1.75 1.75 0 00-1.756 0l-5.25 3.045A1.75 1.75 0 001 4.951v6.098c0 .624.332 1.2.872 1.514l5.25 3.045a1.75 1.75 0 001.756 0l5.25-3.045A1.75 1.75 0 0015 11.049V4.951a1.75 1.75 0 00-.872-1.514zM2.5 5.677l5-2.9a.25.25 0 01.25 0l5 2.9V11.05a.25.25 0 01-.125.216l-5 2.9a.25.25 0 01-.25 0l-5-2.9a.25.25 0 01-.125-.216z" />
+              </svg>
+            }
+          >
+            Packages
+          </NavItem>
+        )}
       </div>
 
       <div className={styles.navSection}>

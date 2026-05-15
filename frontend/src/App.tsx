@@ -27,6 +27,7 @@ import { WorkflowHealthPage } from './pages/WorkflowHealth';
 import { AdvancedSecurityPage } from './pages/AdvancedSecurity';
 import { PlaybooksPage } from './pages/Playbooks';
 import { SupplyChainPage } from './pages/SupplyChain';
+import { PackagesPage } from './pages/Packages';
 import { ThreatIntelPage } from './pages/ThreatIntel';
 import { SyncStatusPage } from './pages/SyncStatus';
 import { NotificationsPage } from './pages/Notifications';
@@ -68,6 +69,7 @@ export const router = createBrowserRouter([
       { path: '/workflows/health', element: <WorkflowHealthPage /> },
       { path: '/advanced-security', element: <AdvancedSecurityPage /> },
       { path: '/supply-chain', element: <SupplyChainPage /> },
+      { path: '/packages', element: <PackagesPage /> },
       { path: '/playbooks', element: <PlaybooksPage /> },
       { path: '/velocity', element: <VelocityPage /> },
       { path: '/devactivity', element: <DevActivityPage /> },

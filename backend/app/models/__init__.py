@@ -51,6 +51,7 @@ from app.models.integration import (
 )
 from app.models.notification import Notification, NotificationPreference
 from app.models.org_config import OrgConfig
+from app.models.package import Package, PackageAlert
 from app.models.playbook import PlaybookExecution, PlaybookTemplate
 from app.models.query_template import QueryTemplate
 from app.models.report_schedule import ReportSchedule
@@ -103,6 +104,8 @@ __all__ = [
     "OrgCodeScanningAlertSummary",
     "OrgConfig",
     "OrgDependabotAlertSummary",
+    "Package",
+    "PackageAlert",
     "OrgMember",
     "OrgOutsideCollaborator",
     "OrgSecretScanningAlertSummary",
