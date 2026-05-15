@@ -44,18 +44,20 @@ jobs:
         id: db-info
         run: |
           echo "=== Finding TimescaleDB pod ==="
-          DB_POD=$(kubectl get pods -n octowatch -l app=timescaledb -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+          # The StatefulSet uses label: app.kubernetes.io/name=octowatch-postgresql
+          DB_POD=$(kubectl get pods -n octowatch -l app.kubernetes.io/name=octowatch-postgresql -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
           if [ -z "$DB_POD" ]; then
-            # Try alternative labels
-            DB_POD=$(kubectl get pods -n octowatch -l app.kubernetes.io/name=timescaledb -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+            # Fallback: try component label
+            DB_POD=$(kubectl get pods -n octowatch -l app.kubernetes.io/component=postgresql -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
           fi
           if [ -z "$DB_POD" ]; then
-            # Search for any postgres/timescale pod
-            DB_POD=$(kubectl get pods -n octowatch --no-headers | grep -i 'timescale\|postgres' | awk '{print $1}' | head -1)
+            # Fallback: grep for postgres/timescale in pod names
+            DB_POD=$(kubectl get pods -n octowatch --no-headers | grep -i 'timescale\|postgres\|postgresql' | awk '{print $1}' | head -1)
           fi
           if [ -z "$DB_POD" ]; then
             echo "❌ Could not find TimescaleDB pod!"
-            kubectl get pods -n octowatch
+            echo "Available pods:"
+            kubectl get pods -n octowatch --no-headers
             exit 1
           fi
           echo "DB_POD=${DB_POD}"
