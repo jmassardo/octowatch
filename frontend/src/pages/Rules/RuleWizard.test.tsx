@@ -39,7 +39,7 @@ describe('RuleWizard', () => {
     renderWithProviders(<RuleWizard onClose={() => {}} onCreated={() => {}} />);
 
     expect(await screen.findByLabelText(/rule wizard progress/i)).toBeInTheDocument();
-    expect(screen.getByText(/start from scratch/i)).toBeInTheDocument();
+    expect(await screen.findByText(/start from scratch/i)).toBeInTheDocument();
   });
 
   it('navigates forward and backward through steps', async () => {

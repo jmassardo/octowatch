@@ -496,7 +496,7 @@ describe('ScheduleSection', () => {
     mockGetSyncStatus.mockResolvedValue(completedRun);
     renderWithProviders(<SyncPanel />);
     await waitFor(() => {
-      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+      expect(screen.getByLabelText('Enable automatic sync schedule')).toBeInTheDocument();
     });
     expect(screen.getByLabelText('Enable automatic sync schedule')).not.toBeChecked();
     expect(screen.getByText('Not scheduled')).toBeInTheDocument();
@@ -508,7 +508,7 @@ describe('ScheduleSection', () => {
     mockGetSyncSchedule.mockResolvedValue(enabledSchedule);
     renderWithProviders(<SyncPanel />);
     await waitFor(() => {
-      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+      expect(screen.getByLabelText('Enable automatic sync schedule')).toBeInTheDocument();
     });
     expect(screen.getByLabelText('Enable automatic sync schedule')).toBeChecked();
     // Check the dropdowns have the right values
@@ -522,7 +522,7 @@ describe('ScheduleSection', () => {
     mockGetSyncStatus.mockResolvedValue(completedRun);
     renderWithProviders(<SyncPanel />);
     await waitFor(() => {
-      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+      expect(screen.getByLabelText('Enable automatic sync schedule')).toBeInTheDocument();
     });
     expect(screen.getByRole('button', { name: 'Save Schedule' })).toBeDisabled();
   });
@@ -532,7 +532,7 @@ describe('ScheduleSection', () => {
     mockGetSyncStatus.mockResolvedValue(completedRun);
     renderWithProviders(<SyncPanel />);
     await waitFor(() => {
-      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+      expect(screen.getByLabelText('Enable automatic sync schedule')).toBeInTheDocument();
     });
     await user.click(screen.getByLabelText('Enable automatic sync schedule'));
     expect(screen.getByRole('button', { name: 'Save Schedule' })).toBeEnabled();
@@ -547,7 +547,7 @@ describe('ScheduleSection', () => {
     });
     renderWithProviders(<SyncPanel />);
     await waitFor(() => {
-      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+      expect(screen.getByLabelText('Enable automatic sync schedule')).toBeInTheDocument();
     });
     await user.click(screen.getByLabelText('Enable automatic sync schedule'));
     await user.click(screen.getByRole('button', { name: 'Save Schedule' }));
@@ -563,7 +563,7 @@ describe('ScheduleSection', () => {
     });
     renderWithProviders(<SyncPanel />);
     await waitFor(() => {
-      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+      expect(screen.getByLabelText('Enable automatic sync schedule')).toBeInTheDocument();
     });
     await user.click(screen.getByLabelText('Enable automatic sync schedule'));
     await user.click(screen.getByRole('button', { name: 'Save Schedule' }));
@@ -578,7 +578,7 @@ describe('ScheduleSection', () => {
     mockUpdateSyncSchedule.mockRejectedValue(new Error('Server error'));
     renderWithProviders(<SyncPanel />);
     await waitFor(() => {
-      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+      expect(screen.getByLabelText('Enable automatic sync schedule')).toBeInTheDocument();
     });
     await user.click(screen.getByLabelText('Enable automatic sync schedule'));
     await user.click(screen.getByRole('button', { name: 'Save Schedule' }));
@@ -610,7 +610,7 @@ describe('ScheduleSection', () => {
     mockGetSyncStatus.mockResolvedValue(completedRun);
     renderWithProviders(<SyncPanel />);
     await waitFor(() => {
-      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+      expect(screen.getByLabelText('Enable automatic sync schedule')).toBeInTheDocument();
     });
     await user.selectOptions(screen.getByLabelText('Schedule interval'), '48');
     expect(screen.getByRole('button', { name: 'Save Schedule' })).toBeEnabled();
@@ -621,7 +621,7 @@ describe('ScheduleSection', () => {
     mockGetSyncStatus.mockResolvedValue(completedRun);
     renderWithProviders(<SyncPanel />);
     await waitFor(() => {
-      expect(screen.getByTestId('schedule-section')).toBeInTheDocument();
+      expect(screen.getByLabelText('Enable automatic sync schedule')).toBeInTheDocument();
     });
     await user.selectOptions(screen.getByLabelText('Sync scope'), 'teams');
     expect(screen.getByRole('button', { name: 'Save Schedule' })).toBeEnabled();

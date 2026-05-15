@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { DashboardPage } from './index';
@@ -186,7 +186,9 @@ describe('DashboardPage', () => {
     renderWithProviders(<DashboardPage />);
 
     await screen.findByText('stale repos');
-    expect(screen.getByText('1')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('1')).toBeInTheDocument();
+    });
   });
 
   /* ---------------------------------------------------------------- */

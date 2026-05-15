@@ -180,8 +180,10 @@ describe('DevActivityPage', () => {
   it('PR authorship bars are clickable with role="button" and clickableBar class', async () => {
     renderWithProviders(<DevActivityPage />);
 
-    // Wait for data to render
+    // Wait for actual data-driven content to render
     await screen.findByText('PR authorship share');
+    // Wait a tick for query data to populate the bars
+    await screen.findAllByText(/@alice/);
 
     const barRows = document.querySelectorAll('.barRow.clickableBar');
     expect(barRows.length).toBeGreaterThanOrEqual(5); // at least 5 PR authorship bars
@@ -211,7 +213,7 @@ describe('DevActivityPage', () => {
   it('activity concentration bars are clickable', async () => {
     renderWithProviders(<DevActivityPage />);
 
-    await screen.findByText('Event activity share');
+    await screen.findAllByText(/@alice/);
 
     // Concentration section also uses clickableBar rows
     const allClickableBars = document.querySelectorAll('.clickableBar[role="button"]');
@@ -238,8 +240,8 @@ describe('DevActivityPage', () => {
   it('developer card stat numbers are clickable with clickableStat class', async () => {
     renderWithProviders(<DevActivityPage />);
 
-    // Wait for dev cards to render
-    await screen.findByText('Developer cards');
+    // Wait for dev cards to render (data-driven)
+    await screen.findByLabelText('View details for alice');
 
     const clickableStats = document.querySelectorAll('.clickableStat[role="button"]');
     // Each dev card has 3 clickable stats (repos, PRs, flags/detections)
@@ -269,7 +271,7 @@ describe('DevActivityPage', () => {
     renderWithProviders(<DevActivityPage />);
 
     // Wait for dev cards to render
-    await screen.findByText('Developer cards');
+    await screen.findByLabelText('View details for alice');
 
     // Click the first dev card (alice)
     const aliceCard = screen.getByLabelText('View details for alice');
@@ -287,7 +289,7 @@ describe('DevActivityPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<DevActivityPage />);
 
-    await screen.findByText('Developer cards');
+    await screen.findByLabelText('View details for alice');
     const aliceCard = screen.getByLabelText('View details for alice');
     await user.click(aliceCard);
 
@@ -302,7 +304,7 @@ describe('DevActivityPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<DevActivityPage />);
 
-    await screen.findByText('Developer cards');
+    await screen.findByLabelText('View details for alice');
     const aliceCard = screen.getByLabelText('View details for alice');
     await user.click(aliceCard);
 
@@ -318,7 +320,7 @@ describe('DevActivityPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<DevActivityPage />);
 
-    await screen.findByText('Developer cards');
+    await screen.findByLabelText('View details for alice');
     const aliceCard = screen.getByLabelText('View details for alice');
     await user.click(aliceCard);
 
@@ -337,7 +339,7 @@ describe('DevActivityPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<DevActivityPage />);
 
-    await screen.findByText('Developer cards');
+    await screen.findByLabelText('View details for alice');
     const aliceCard = screen.getByLabelText('View details for alice');
     await user.click(aliceCard);
 
@@ -354,7 +356,7 @@ describe('DevActivityPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<DevActivityPage />);
 
-    await screen.findByText('Developer cards');
+    await screen.findByLabelText('View details for alice');
     const aliceCard = screen.getByLabelText('View details for alice');
     await user.click(aliceCard);
 
@@ -370,7 +372,7 @@ describe('DevActivityPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<DevActivityPage />);
 
-    await screen.findByText('Developer cards');
+    await screen.findByLabelText('View details for alice');
     const aliceCard = screen.getByLabelText('View details for alice');
     await user.click(aliceCard);
 
@@ -384,7 +386,7 @@ describe('DevActivityPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<DevActivityPage />);
 
-    await screen.findByText('Developer cards');
+    await screen.findByLabelText('View details for alice');
     const bobCard = screen.getByLabelText('View details for bob');
     bobCard.focus();
     await user.keyboard('{Enter}');
@@ -404,8 +406,8 @@ describe('DevActivityPage', () => {
   it('renders Git operations card with metric values', async () => {
     renderWithProviders(<DevActivityPage />);
 
-    expect(await screen.findByText('Git operations')).toBeInTheDocument();
-    expect(screen.getByText('353')).toBeInTheDocument();
+    expect(await screen.findByText('353')).toBeInTheDocument();
+    expect(screen.getByText('Git operations')).toBeInTheDocument();
     expect(screen.getByText('159')).toBeInTheDocument();
     expect(screen.getByText('5')).toBeInTheDocument();
     expect(screen.getByText('Clones')).toBeInTheDocument();
@@ -523,7 +525,7 @@ describe('DevActivityPage', () => {
   it('developer cards show last active time', async () => {
     renderWithProviders(<DevActivityPage />);
 
-    await screen.findByText('Developer cards');
+    await screen.findByLabelText('View details for alice');
 
     // Developer cards should show last active time
     const lastActiveElements = screen.getAllByText(/Last active/);
@@ -534,7 +536,7 @@ describe('DevActivityPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<DevActivityPage />);
 
-    await screen.findByText('Developer cards');
+    await screen.findByLabelText('View details for alice');
     const aliceCard = screen.getByLabelText('View details for alice');
     await user.click(aliceCard);
 
@@ -547,7 +549,7 @@ describe('DevActivityPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<DevActivityPage />);
 
-    await screen.findByText('Developer cards');
+    await screen.findByLabelText('View details for alice');
     const aliceCard = screen.getByLabelText('View details for alice');
     await user.click(aliceCard);
 

@@ -282,11 +282,7 @@ describe('AdvancedSecurityPage', () => {
   it('code scanning tab cards are clickable', async () => {
     renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=code' });
 
-    await waitFor(() => {
-      expect(screen.getByText('Critical')).toBeInTheDocument();
-    });
-
-    const criticalCard = screen.getByRole('button', { name: 'Critical' });
+    const criticalCard = await screen.findByRole('button', { name: 'Critical' });
     expect(criticalCard).toBeInTheDocument();
 
     const highCard = screen.getByRole('button', { name: 'High' });
@@ -322,11 +318,7 @@ describe('AdvancedSecurityPage', () => {
   it('clicking code scanning Critical card sets severity filter', async () => {
     renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=code' });
 
-    await waitFor(() => {
-      expect(screen.getByText('Critical')).toBeInTheDocument();
-    });
-
-    const criticalCard = screen.getByRole('button', { name: 'Critical' });
+    const criticalCard = await screen.findByRole('button', { name: 'Critical' });
     fireEvent.click(criticalCard);
 
     // The severity filter select should now show "critical"
