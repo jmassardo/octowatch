@@ -387,6 +387,7 @@ async def execute_query(
         # (see validate_and_prepare) which ensures it is a single SELECT
         # with only allowed tables and functions. Bind parameters in
         # `params` are passed separately and never interpolated.
+        # CodeQL [py/sql-injection] Validated via pglast AST; params bound separately
         result = await session.execute(text(rewritten_sql), params)  # noqa: S608
         rows = result.fetchall()
         columns = list(result.keys())

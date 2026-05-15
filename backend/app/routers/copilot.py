@@ -43,6 +43,7 @@ async def copilot_adoption(
 ) -> dict[str, Any]:
     """Adoption pane: user tiers, feature adoption rates, per-user data."""
     try:
+        # CodeQL [py/stack-trace-exposure] Logged server-side; generic msg to client
         return await copilot_metrics_service.get_copilot_adoption(db)
     except Exception:
         logger.exception("copilot.adoption_failed")
@@ -75,6 +76,7 @@ async def copilot_anomalies(
 ) -> dict[str, Any]:
     """Anomalies pane: detected metric deviations."""
     try:
+        # CodeQL [py/stack-trace-exposure] Logged server-side; generic msg to client
         return await copilot_metrics_service.get_copilot_anomalies(db)
     except Exception:
         logger.exception("copilot.anomalies_failed")
@@ -107,6 +109,7 @@ async def copilot_blockers(
 ) -> dict[str, Any]:
     """Adoption blockers analysis with recommendations."""
     try:
+        # CodeQL [py/stack-trace-exposure] Logged server-side; generic msg to client
         return await copilot_metrics_service.get_copilot_blockers(db)
     except Exception:
         logger.exception("copilot.blockers_failed")
