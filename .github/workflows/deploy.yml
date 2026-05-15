@@ -141,8 +141,20 @@ jobs:
             --restart=Never \
             --rm -i \
             --namespace=octowatch \
-            --overrides='{"spec":{"imagePullSecrets":[{"name":"ghcr-pull-secret"}]}}' \
-            -- python -m alembic upgrade head
+            --overrides='{
+              "spec": {
+                "imagePullSecrets": [{"name": "ghcr-pull-secret"}],
+                "containers": [{
+                  "name": "alembic-migrate",
+                  "image": "'"${{ env.IMAGE_PREFIX }}/octowatch-api:${TAG}"'",
+                  "command": ["python", "-m", "alembic", "upgrade", "head"],
+                  "envFrom": [
+                    {"secretRef": {"name": "octowatch-secrets"}},
+                    {"secretRef": {"name": "octowatch-db-secret"}}
+                  ]
+                }]
+              }
+            }'
 
       - name: Helm upgrade
         run: |
