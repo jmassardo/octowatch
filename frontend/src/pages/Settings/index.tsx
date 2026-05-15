@@ -1602,11 +1602,14 @@ function CategorySettingsForm({
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const handleChange = useCallback((key: string, value: string) => {
-    setValues((prev) => ({ ...prev, [key]: value }));
-    setSaveMessage(null);
-    setSaveError(null);
-  }, []);
+  const handleChange = useCallback(
+    (key: string, value: string) => {
+      setValues((prev) => ({ ...prev, [key]: value }));
+      setSaveMessage(null);
+      setSaveError(null);
+    },
+    [setSaveMessage, setSaveError],
+  );
 
   const hasChanges = fields.some(
     (f) => values[f.key] !== getSettingValue(categorySettings, f.key, f.defaultValue),

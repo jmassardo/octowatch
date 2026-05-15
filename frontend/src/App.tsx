@@ -32,6 +32,7 @@ import { SyncStatusPage } from './pages/SyncStatus';
 import { NotificationsPage } from './pages/Notifications';
 import AuthSettingsPage from './pages/admin/AuthSettings';
 import { ProfilePage } from './pages/Profile';
+import { CustomDashboardPage } from './pages/CustomDashboard';
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/dashboard" replace /> },
@@ -53,6 +54,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { path: '/dashboard', element: <DashboardPage /> },
+      { path: '/dashboard/custom', element: <CustomDashboardPage /> },
       { path: '/threats', element: <ThreatsPage /> },
       { path: '/threat-intel', element: <ThreatIntelPage /> },
       { path: '/actors/:login', element: <ActorsPage /> },

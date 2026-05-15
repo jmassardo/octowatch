@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { createRule } from '../../api/rules';
@@ -150,8 +150,17 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
   const [actionPatternInput, setActionPatternInput] = useState('');
   const [actionPatterns, setActionPatterns] = useState<string[]>([]);
   const [namespaceFilter, setNamespaceFilter] = useState('');
-  const [sampleEventJson, setSampleEventJson] = useState('');
+  const [sampleEventJson, setSampleEventJson] = useState(() =>
+    JSON.stringify(getSampleEvent(category), null, 2),
+  );
   const [stepError, setStepError] = useState<string | null>(null);
+
+  // Reset sample event JSON when category changes (setState during render).
+  const [prevCategory, setPrevCategory] = useState(category);
+  if (prevCategory !== category) {
+    setPrevCategory(category);
+    setSampleEventJson(JSON.stringify(getSampleEvent(category), null, 2));
+  }
 
   const {
     data: library,
@@ -167,10 +176,6 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
     () => library?.categories.flatMap((item) => item.rules) ?? [],
     [library],
   );
-
-  useEffect(() => {
-    setSampleEventJson(JSON.stringify(getSampleEvent(category), null, 2));
-  }, [category]);
 
   const mergedLogicConfig = useMemo(() => {
     const nextConfig = { ...logicConfig };

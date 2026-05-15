@@ -98,10 +98,12 @@ export function GuidedTour({ onComplete }: { onComplete?: () => void }) {
   // Keep target rect in state; initialized lazily and updated on layout events.
   const [targetRect, setTargetRect] = useState<DOMRect | null>(() => measureTarget());
 
-  // Re-measure when the step changes
-  useEffect(() => {
+  // Re-measure synchronously during render when the step changes.
+  const [prevMeasure, setPrevMeasure] = useState(() => measureTarget);
+  if (prevMeasure !== measureTarget) {
+    setPrevMeasure(() => measureTarget);
     setTargetRect(measureTarget());
-  }, [measureTarget]);
+  }
 
   // Subscribe to resize/scroll for live position updates
   useEffect(() => {

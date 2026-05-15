@@ -37,6 +37,7 @@ from app.routers import (
     copilot_governance,
     correlations,
     cross_org,
+    dashboard_config,
     detections,
     dev_activity,
     enterprise_pat,
@@ -732,6 +733,7 @@ def create_app() -> FastAPI:
     app.include_router(workflow_metrics.router, prefix=API_PREFIX)
     app.include_router(copilot_governance.router, prefix=API_PREFIX)
     app.include_router(user_preferences.router, prefix=API_PREFIX)
+    app.include_router(dashboard_config.router, prefix=API_PREFIX)
 
     return app
 
