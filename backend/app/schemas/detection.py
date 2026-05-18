@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ─── Detection schemas ────────────────────────────────────────────────────────
 
@@ -66,6 +66,11 @@ class DetectionResponse(BaseModel):
     resolution_note: str | None
     tickets: list[TicketSummary] = []
     chain_id: str | None = None
+
+    @field_validator("source_ip", mode="before")
+    @classmethod
+    def _coerce_ip_to_str(cls, v: Any) -> str | None:
+        return str(v) if v is not None else None
 
 
 class DetectionListResponse(BaseModel):
