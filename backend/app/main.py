@@ -67,6 +67,7 @@ from app.routers import (
     supply_chain,
     sync,
     teams,
+    telemetry,
     threat_intel,
     user_classification,
     user_preferences,
@@ -741,6 +742,7 @@ def create_app() -> FastAPI:
     app.include_router(copilot_governance.router, prefix=API_PREFIX)
     app.include_router(user_preferences.router, prefix=API_PREFIX)
     app.include_router(dashboard_config.router, prefix=API_PREFIX)
+    app.include_router(telemetry.router, prefix=API_PREFIX)
     app.include_router(user_classification.router, prefix=API_PREFIX)
 
     return app
