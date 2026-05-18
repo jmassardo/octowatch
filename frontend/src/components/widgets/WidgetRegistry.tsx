@@ -5,6 +5,7 @@ import { CopilotUsageWidget } from './CopilotUsageWidget';
 import { DetectionSummaryWidget } from './DetectionSummaryWidget';
 import { EventVolumeWidget } from './EventVolumeWidget';
 import { FailureRatesWidget } from './FailureRatesWidget';
+import { IngestionStatusWidget } from './IngestionStatusWidget';
 import { MttrChartWidget } from './MttrChartWidget';
 import { PostureScoreWidget } from './PostureScoreWidget';
 import { RecentEventsWidget } from './RecentEventsWidget';
@@ -81,6 +82,14 @@ export const WIDGET_REGISTRY: readonly WidgetDefinition[] = [
     defaultSize: 'sm',
     category: 'operations',
     component: SyncHealthWidget,
+  },
+  {
+    id: 'ingestion-status',
+    title: 'Ingestion Status',
+    description: 'Real-time ingestion pipeline health: events/sec, last event time, and worker status.',
+    defaultSize: 'sm',
+    category: 'operations',
+    component: IngestionStatusWidget,
   },
   {
     id: 'event-volume',
@@ -201,6 +210,7 @@ export const PERSONA_WIDGET_PRESETS: Record<DashboardPersona, readonly string[]>
   ],
   'platform-engineer': [
     'sync-health',
+    'ingestion-status',
     'workflow-health',
     'failure-rates',
     'event-volume',
