@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { WidgetCatalog } from './WidgetCatalog';
 import { renderWithProviders } from '../../test/utils';
@@ -63,8 +63,7 @@ describe('WidgetCatalog', () => {
     expect(screen.getByText('Copilot')).toBeInTheDocument();
   });
 
-  it('filters widgets by search term', async () => {
-    const user = userEvent.setup();
+  it('filters widgets by search term', () => {
     renderWithProviders(
       <WidgetCatalog
         open={true}
@@ -76,7 +75,8 @@ describe('WidgetCatalog', () => {
       />,
     );
 
-    await user.type(screen.getByRole('searchbox', { name: /search widgets/i }), 'copilot');
+    const searchbox = screen.getByRole('searchbox', { name: /search widgets/i });
+    fireEvent.change(searchbox, { target: { value: 'copilot' } });
 
     expect(screen.getByText('Copilot Usage')).toBeInTheDocument();
     expect(screen.queryByText('Unified Security')).not.toBeInTheDocument();
@@ -122,7 +122,6 @@ describe('WidgetCatalog', () => {
   });
 
   it('shows empty state when no widgets match search', async () => {
-    const user = userEvent.setup();
     renderWithProviders(
       <WidgetCatalog
         open={true}
@@ -134,10 +133,9 @@ describe('WidgetCatalog', () => {
       />,
     );
 
-    await user.type(screen.getByRole('searchbox', { name: /search widgets/i }), 'zzzznonexistent');
+    const searchbox = screen.getByRole('searchbox', { name: /search widgets/i });
+    fireEvent.change(searchbox, { target: { value: 'zzzznonexistent' } });
 
-    expect(
-      await screen.findByText('No widgets match your search.', {}, { timeout: 3000 }),
-    ).toBeInTheDocument();
+    expect(screen.getByText('No widgets match your search.')).toBeInTheDocument();
   });
 });
