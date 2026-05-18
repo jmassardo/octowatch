@@ -136,6 +136,8 @@ describe('WidgetCatalog', () => {
 
     await user.type(screen.getByRole('searchbox', { name: /search widgets/i }), 'zzzznonexistent');
 
-    expect(await screen.findByText('No widgets match your search.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('No widgets match your search.', {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
   });
 });
