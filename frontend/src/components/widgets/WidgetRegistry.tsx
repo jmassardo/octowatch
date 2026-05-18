@@ -86,7 +86,8 @@ export const WIDGET_REGISTRY: readonly WidgetDefinition[] = [
   {
     id: 'ingestion-status',
     title: 'Ingestion Status',
-    description: 'Real-time ingestion pipeline health: events/sec, last event time, and worker status.',
+    description:
+      'Real-time ingestion pipeline health: events/sec, last event time, and worker status.',
     defaultSize: 'sm',
     category: 'operations',
     component: IngestionStatusWidget,

@@ -36,11 +36,7 @@ export function IngestionStatusWidget() {
       ? styles.statusWarning
       : styles.statusHealthy;
 
-  const toneLabel = isCritical
-    ? 'Ingestion stalled'
-    : isStale
-      ? 'Ingestion delayed'
-      : 'Healthy';
+  const toneLabel = isCritical ? 'Ingestion stalled' : isStale ? 'Ingestion delayed' : 'Healthy';
 
   return (
     <>
@@ -77,11 +73,7 @@ export function IngestionStatusWidget() {
           <span className={styles.listValue}>{data?.queue_depth?.toLocaleString() ?? '—'}</span>
         </div>
       </div>
-      <button
-        type="button"
-        className={styles.actionLink}
-        onClick={() => navigate('/telemetry')}
-      >
+      <button type="button" className={styles.actionLink} onClick={() => navigate('/telemetry')}>
         Open telemetry
       </button>
     </>
