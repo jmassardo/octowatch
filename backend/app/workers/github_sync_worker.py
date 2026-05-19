@@ -872,6 +872,30 @@ async def _sync_entity_async(
             current_cursor = next_cursor
             page_num += 1
 
+        # Mark cursor as completed after the pagination loop finishes
+        async with _make_session_factory()() as session:
+            stmt = (
+                insert(EnterpriseSyncEntityCursor)
+                .values(
+                    run_id=run_uuid,
+                    entity_type=entity_type,
+                    org=org,
+                    last_cursor=current_cursor,
+                    items_synced=items_synced,
+                    status="completed",
+                )
+                .on_conflict_do_update(
+                    constraint="uq_sync_cursors_run_entity_org",
+                    set_={
+                        "last_cursor": current_cursor,
+                        "items_synced": items_synced,
+                        "status": "completed",
+                    },
+                )
+            )
+            await session.execute(stmt)
+            await session.commit()
+
         # Clean up stale branch protection rows for repos that lost protection
         if entity_type == "branch_protections" and items_synced == 0 and org:
             from sqlalchemy import delete as sa_delete
