@@ -26,11 +26,12 @@ _OPEN_STATUSES = ("open", "investigating")
 
 
 def _compute_score(checks: list[PostureCheckResult]) -> float:
-    """Score = passing_weight / total_weight × 100."""
-    if not checks:
+    """Score = passing_weight / evaluable_weight × 100. Unknown checks are excluded."""
+    evaluable = [c for c in checks if c.status != "unknown"]
+    if not evaluable:
         return 100.0
-    total = sum(_SEVERITY_WEIGHT.get(c.severity, 1) for c in checks)
-    passing = sum(_SEVERITY_WEIGHT.get(c.severity, 1) for c in checks if c.status == "pass")
+    total = sum(_SEVERITY_WEIGHT.get(c.severity, 1) for c in evaluable)
+    passing = sum(_SEVERITY_WEIGHT.get(c.severity, 1) for c in evaluable if c.status == "pass")
     return round((passing / total) * 100, 1) if total else 100.0
 
 
@@ -58,6 +59,19 @@ def _check_pass(rule: RuleDefinition) -> PostureCheckResult:
         status="pass",
         title=rule.name,
         description=rule.description or "",
+    )
+
+
+def _check_unknown(rule: RuleDefinition) -> PostureCheckResult:
+    """Config data not yet synced — cannot evaluate."""
+    return PostureCheckResult(
+        rule_id=rule.id,
+        rule_name=rule.name,
+        category=rule.category,
+        severity=rule.default_severity,
+        status="unknown",
+        title=rule.name,
+        description="Organization config not yet synced — cannot evaluate this check.",
     )
 
 
@@ -141,7 +155,15 @@ def _build_org_posture(
     checks: list[PostureCheckResult] = []
     for rule in org_rules:
         det = next((d for d in org_dets if d.rule_id == rule.id and not d.repo), None)
-        checks.append(_check_from_detection(rule, det) if det else _check_pass(rule))
+        if det:
+            checks.append(_check_from_detection(rule, det))
+        else:
+            # If the rule checks an org config field and it's NULL, mark unknown
+            config_field = (rule.logic_config or {}).get("field")
+            if config_field and getattr(org, config_field, "MISSING") is None:
+                checks.append(_check_unknown(rule))
+            else:
+                checks.append(_check_pass(rule))
 
     # Org-level event detections (no repo)
     event_det_ids = {r.id for r in event_rules}
@@ -221,7 +243,7 @@ async def get_posture(
     repo: str | None = Query(None, description="Filter to a specific repo"),
     search: str | None = Query(None, description="Search by name"),
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(25, ge=1, le=100, description="Items per page"),
+    page_size: int = Query(50, ge=1, le=200, description="Items per page"),
     current_user: AuthenticatedUser = Depends(require_permission("posture", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> PostureResponse:

@@ -13,7 +13,7 @@ class PostureCheckResult(BaseModel):
     rule_name: str
     category: str
     severity: str
-    status: str  # pass | fail | open | investigating | resolved | false_positive
+    status: str  # pass | fail | open | investigating | resolved | false_positive | unknown
     title: str
     description: str
     detection_id: int | None = None

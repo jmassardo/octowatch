@@ -399,7 +399,7 @@ function EnterpriseView({
   const { selectedOrg } = useOrg();
   const [severity, setSeverity] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [orgsExpanded, setOrgsExpanded] = useState(false);
+  const [orgsExpanded, setOrgsExpanded] = useState(true);
   const orgs = useMemo(() => data.orgs ?? [], [data.orgs]);
 
   const filteredOrgsForMetrics = useMemo(() => {
@@ -570,6 +570,13 @@ function EnterpriseView({
                       />
                     </div>
                     <div className={styles.orgMeta}>
+                      {org.two_factor_required == null && org.default_repo_permission == null && (
+                        <span
+                          style={{ color: 'var(--attention)', fontStyle: 'italic', fontSize: 11 }}
+                        >
+                          Config not synced
+                        </span>
+                      )}
                       {org.repo_summary && (
                         <>
                           <span>{org.repo_summary.total} repos</span>
@@ -976,7 +983,7 @@ export function PosturePage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
 
-  const PAGE_SIZE = 25;
+  const PAGE_SIZE = 50;
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['posture', org ?? '', repo ?? '', page, search],

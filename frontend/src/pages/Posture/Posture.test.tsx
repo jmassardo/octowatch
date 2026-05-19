@@ -89,7 +89,7 @@ const ENTERPRISE_RESPONSE: PostureResponse = {
   breadcrumb: [{ label: 'Posture', href: null }],
   last_sync_at: '2024-06-01T10:00:00Z',
   page: 1,
-  page_size: 25,
+  page_size: 50,
   total: 1,
   has_next: false,
 };
@@ -171,7 +171,7 @@ const ORG_RESPONSE: PostureResponse = {
   ],
   last_sync_at: '2024-06-01T10:00:00Z',
   page: 1,
-  page_size: 25,
+  page_size: 50,
   total: 1,
   has_next: false,
 };
@@ -226,7 +226,7 @@ const REPO_RESPONSE: PostureResponse = {
   ],
   last_sync_at: '2024-06-01T10:00:00Z',
   page: 1,
-  page_size: 25,
+  page_size: 50,
   total: 1,
   has_next: false,
 };
@@ -293,12 +293,8 @@ describe('PosturePage — Enterprise View', () => {
   });
 
   it('renders org cards', async () => {
-    const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
-    // Expand the collapsed org grid
-    const toggle = await screen.findByRole('button', { name: /Organizations/ });
-    await user.click(toggle);
-    // org names appear in cards; verify card elements exist
+    // Org grid is expanded by default
     const cards = await screen.findAllByText('octowatch-org');
     expect(cards.length).toBeGreaterThanOrEqual(1);
     const dangerCards = await screen.findAllByText('danger-org');
@@ -306,28 +302,19 @@ describe('PosturePage — Enterprise View', () => {
   });
 
   it('renders org scores on cards', async () => {
-    const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
-    const toggle = await screen.findByRole('button', { name: /Organizations/ });
-    await user.click(toggle);
     expect(await screen.findByText('90')).toBeInTheDocument();
     expect(await screen.findByText('40')).toBeInTheDocument();
   });
 
   it('renders repo summary on org cards', async () => {
-    const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
-    const toggle = await screen.findByRole('button', { name: /Organizations/ });
-    await user.click(toggle);
     expect(await screen.findByText('5 repos')).toBeInTheDocument();
     expect(await screen.findByText('3 repos')).toBeInTheDocument();
   });
 
   it('shows failing count on org card', async () => {
-    const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
-    const toggle = await screen.findByRole('button', { name: /Organizations/ });
-    await user.click(toggle);
     expect(await screen.findByText('2 failing')).toBeInTheDocument();
   });
 
@@ -340,9 +327,7 @@ describe('PosturePage — Enterprise View', () => {
   it('navigates to org on card click', async () => {
     const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
-    // Expand collapsed org grid first
-    const toggle = await screen.findByRole('button', { name: /Organizations/ });
-    await user.click(toggle);
+    // Org grid is expanded by default
     const cards = await screen.findAllByText('octowatch-org');
     // Find the one inside an orgCard (not the select option)
     const cardEl = cards.find((el) => el.closest('[class*="orgCard"]'));
@@ -582,7 +567,7 @@ describe('PosturePage — API calls', () => {
       repo: undefined,
       search: undefined,
       page: 1,
-      page_size: 25,
+      page_size: 50,
     });
   });
 
@@ -595,7 +580,7 @@ describe('PosturePage — API calls', () => {
       repo: undefined,
       search: undefined,
       page: 1,
-      page_size: 25,
+      page_size: 50,
     });
   });
 
@@ -609,7 +594,7 @@ describe('PosturePage — API calls', () => {
       repo: 'my-repo',
       search: undefined,
       page: 1,
-      page_size: 25,
+      page_size: 50,
     });
   });
 });
@@ -654,7 +639,7 @@ const EMPTY_ENTERPRISE_RESPONSE: PostureResponse = {
   breadcrumb: [{ label: 'Posture', href: null }],
   last_sync_at: null,
   page: 1,
-  page_size: 25,
+  page_size: 50,
   total: 0,
   has_next: false,
 };
@@ -774,10 +759,8 @@ describe('PosturePage — Global Org Filter', () => {
   });
 
   it('shows all orgs when no global org is selected', async () => {
-    const user = userEvent.setup();
     renderWithProviders(<PosturePage />);
-    const toggle = await screen.findByRole('button', { name: /Organizations/ });
-    await user.click(toggle);
+    // Orgs section is expanded by default
     const octoCards = await screen.findAllByText('octowatch-org');
     expect(octoCards.length).toBeGreaterThanOrEqual(1);
     const dangerCards = await screen.findAllByText('danger-org');
