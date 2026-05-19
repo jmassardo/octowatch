@@ -159,7 +159,7 @@
   border: none;
   border-radius: 6px;
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-emphasis);
   cursor: pointer;
   margin-top: 8px;
 }

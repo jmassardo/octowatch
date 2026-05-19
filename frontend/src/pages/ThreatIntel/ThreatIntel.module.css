@@ -89,7 +89,7 @@
 .tableWrap {
   border: 1px solid var(--border);
   border-radius: 6px;
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 /* Toolbar above table */
@@ -197,7 +197,7 @@
   border-radius: 6px;
   border: 1px solid var(--accent);
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-emphasis);
   font-size: 13px;
   font-family: inherit;
   font-weight: 500;
@@ -451,7 +451,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: white;
+  background: var(--fg-on-emphasis);
   transition: transform 0.2s;
 }
 

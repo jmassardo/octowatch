@@ -436,7 +436,7 @@
 
 .stepDotActive {
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-emphasis);
   border-color: var(--accent);
 }
 

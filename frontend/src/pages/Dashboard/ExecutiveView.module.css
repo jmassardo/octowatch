@@ -55,7 +55,7 @@
 
 .periodBtn.active {
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-emphasis);
 }
 
 .periodBtn:hover:not(.active) {

@@ -415,7 +415,7 @@
 
 .viewActive {
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-emphasis);
 }
 
 .viewBtn:hover:not(.viewActive) {
@@ -455,7 +455,7 @@
   margin-top: 8px;
   padding: 8px 20px;
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-emphasis);
   border: none;
   border-radius: 6px;
   font-size: 14px;

@@ -409,7 +409,7 @@
 
 .statusChipActive {
   background: var(--accent, #1f6feb);
-  color: #fff;
+  color: var(--fg-on-emphasis);
   border-color: var(--accent, #1f6feb);
 }
 

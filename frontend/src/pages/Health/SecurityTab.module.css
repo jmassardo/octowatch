@@ -54,7 +54,7 @@
   border-radius: 50%;
   font-size: 14px;
   font-weight: 700;
-  color: #fff;
+  color: var(--fg-on-emphasis);
 }
 
 .scoreHigh {

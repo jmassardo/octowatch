@@ -130,12 +130,12 @@
 
 .periodBtnActive {
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-emphasis);
 }
 
 .periodBtnActive:hover {
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-emphasis);
 }
 
 .trendChart {

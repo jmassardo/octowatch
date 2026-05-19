@@ -127,7 +127,7 @@
 
 .helpIcon:hover {
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-emphasis);
 }
 
 /* Chart area */
