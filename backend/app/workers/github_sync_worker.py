@@ -3939,8 +3939,8 @@ async def _enrich_org_settings(
 
     Uses org-level installation tokens (which have ``administration:read``)
     to fetch fields like ``two_factor_requirement_enabled`` that require
-    elevated permissions.  Falls back to the enterprise installation token
-    for orgs without their own installation.
+    elevated permissions.  For orgs without their own installation, falls
+    back to GraphQL which can access org settings via the enterprise token.
     Returns the number of orgs enriched.
     """
     from sqlalchemy import select, update
@@ -3959,10 +3959,18 @@ async def _enrich_org_settings(
     )
 
     enriched = 0
+    # Orgs that REST couldn't enrich — will try GraphQL batch fallback
+    unenriched_orgs: list[EnterpriseOrg] = []
+
     for org_row in org_list:
         try:
             # Use org-level installation token if available (has admin:read)
-            inst_id = org_inst_map.get(org_row.org_login, fallback_installation_id)
+            inst_id = org_inst_map.get(org_row.org_login)
+            if inst_id is None:
+                # No org-level installation — queue for GraphQL fallback
+                unenriched_orgs.append(org_row)
+                continue
+
             token = await token_manager.get_installation_token(inst_id)
             headers = {
                 "Authorization": f"token {token}",
@@ -3982,11 +3990,10 @@ async def _enrich_org_settings(
                     org=org_row.org_login,
                     status=resp.status_code,
                 )
+                unenriched_orgs.append(org_row)
                 continue
             data = resp.json()
 
-            # Always update from REST — this is the primary source for
-            # org security settings (GraphQL requires org-admin perms)
             settings_update: dict[str, object] = {}
             rest_fields = {
                 "two_factor_required": "two_factor_requirement_enabled",
@@ -3999,32 +4006,16 @@ async def _enrich_org_settings(
                 if api_val is not None:
                     settings_update[db_col] = api_val
 
-            # Log available keys for diagnostics
-            security_keys = [
-                k
-                for k in data
-                if any(
-                    x in k.lower()
-                    for x in (
-                        "member",
-                        "fork",
-                        "two_factor",
-                        "default_repo",
-                        "allow",
-                        "permission",
-                    )
-                )
-            ]
             await _write_sync_log(
                 sf,
                 run_id,
-                f"REST enrichment for {org_row.org_login}: {len(settings_update)} fields"
-                f" (status={resp.status_code}, keys={security_keys})",
+                f"REST enrichment for {org_row.org_login}: {len(settings_update)} fields",
                 entity_type="orgs",
                 org=org_row.org_login,
             )
 
             if not settings_update:
+                unenriched_orgs.append(org_row)
                 continue
 
             async with sf() as session:
@@ -4043,6 +4034,133 @@ async def _enrich_org_settings(
         except Exception as exc:
             logger.warning(
                 "github_sync.org_enrich_failed",
+                org=org_row.org_login,
+                error=str(exc),
+            )
+            unenriched_orgs.append(org_row)
+
+    # GraphQL fallback: use enterprise token to fetch org settings for orgs
+    # without org-level installations. The enterprise token has read access
+    # to org settings via the organization() query.
+    if unenriched_orgs:
+        await _write_sync_log(
+            sf,
+            run_id,
+            f"GraphQL fallback enrichment for {len(unenriched_orgs)} org(s)",
+            entity_type="orgs",
+        )
+        graphql_enriched = await _enrich_orgs_graphql(
+            sf,
+            run_id,
+            token_manager,
+            rate_limiter,
+            fallback_installation_id,
+            unenriched_orgs,
+        )
+        enriched += graphql_enriched
+
+    return enriched
+
+
+_ORG_SETTINGS_GRAPHQL_QUERY = """
+query($login: String!) {
+  organization(login: $login) {
+    login
+    requiresTwoFactorAuthentication
+    ipAllowListEnabledSetting
+    membersCanForkPrivateRepositories
+  }
+}
+"""
+
+
+async def _enrich_orgs_graphql(
+    sf: async_sessionmaker[AsyncSession],
+    run_id: str,
+    token_manager: GitHubAppTokenManager,
+    rate_limiter: GitHubRateLimiter,
+    installation_id: int,
+    orgs: list,
+) -> int:
+    """Enrich org settings via GraphQL using the enterprise installation token.
+
+    The enterprise-level token typically has broader read access to org metadata
+    through GraphQL than the REST API provides.
+    """
+    from sqlalchemy import update
+
+    from app.models.github_sync import EnterpriseOrg
+
+    token = await token_manager.get_installation_token(installation_id)
+    enriched = 0
+
+    for org_row in orgs:
+        try:
+            result = await _graphql_page(
+                token,
+                _ORG_SETTINGS_GRAPHQL_QUERY,
+                {"login": org_row.org_login},
+                rate_limiter,
+            )
+
+            data = (result.get("data") or {}).get("organization")
+            if not data:
+                # GraphQL may return errors for orgs we can't access
+                errors = result.get("errors", [])
+                if errors:
+                    logger.debug(
+                        "github_sync.org_graphql_no_access",
+                        org=org_row.org_login,
+                        errors=[e.get("message", "") for e in errors[:2]],
+                    )
+                continue
+
+            settings_update: dict[str, object] = {}
+
+            # Map GraphQL fields to DB columns
+            two_fa = data.get("requiresTwoFactorAuthentication")
+            if two_fa is not None:
+                settings_update["two_factor_required"] = two_fa
+
+            ip_allow = data.get("ipAllowListEnabledSetting")
+            if ip_allow is not None:
+                # GraphQL returns ENABLED/DISABLED enum
+                settings_update["ip_allow_list_enabled"] = (
+                    ip_allow == "ENABLED" if isinstance(ip_allow, str) else ip_allow
+                )
+
+            fork_private = data.get("membersCanForkPrivateRepositories")
+            if fork_private is not None:
+                settings_update["members_can_fork_private_repos"] = fork_private
+
+            await _write_sync_log(
+                sf,
+                run_id,
+                f"GraphQL enrichment for {org_row.org_login}: {len(settings_update)} fields",
+                entity_type="orgs",
+                org=org_row.org_login,
+            )
+
+            if not settings_update:
+                continue
+
+            async with sf() as session:
+                await session.execute(
+                    update(EnterpriseOrg)
+                    .where(EnterpriseOrg.id == org_row.id)
+                    .values(**settings_update)
+                )
+                await session.commit()
+            logger.info(
+                "github_sync.org_enriched_graphql",
+                org=org_row.org_login,
+                fields=list(settings_update.keys()),
+            )
+            enriched += 1
+
+        except Exception as exc:
+            logger.warning(
+                "github_sync.org_graphql_enrich_failed",
                 org=org_row.org_login,
                 error=str(exc),
             )
