@@ -28,7 +28,7 @@ worker:
   baseline:
     replicaCount: 2
   sync:
-    replicaCount: 0
+    replicaCount: 1
 
 beat:
   image:
