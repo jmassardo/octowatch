@@ -87,7 +87,7 @@ timescaledb:
 # ── Valkey — local-path storage ──────────────────────────────────────────────
 valkey:
   replica:
-    replicaCount: 1
+    replicaCount: 0
   primary:
     resourcesPreset: "none"
     resources:
