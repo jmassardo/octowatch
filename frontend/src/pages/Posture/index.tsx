@@ -983,7 +983,7 @@ export function PosturePage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
 
-  const PAGE_SIZE = 50;
+  const PAGE_SIZE = 100;
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['posture', org ?? '', repo ?? '', page, search],
