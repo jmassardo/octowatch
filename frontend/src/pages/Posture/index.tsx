@@ -530,7 +530,11 @@ function EnterpriseView({
               </div>
               <div className={styles.checkList}>
                 {paginatedFindings.map((c, i) => (
-                  <CheckRow key={`${c.rule_id}-${findingsOffset + i}`} check={c} navigate={navigate} />
+                  <CheckRow
+                    key={`${c.rule_id}-${findingsOffset + i}`}
+                    check={c}
+                    navigate={navigate}
+                  />
                 ))}
               </div>
               {sorted.length > FINDINGS_PAGE_SIZE && (
