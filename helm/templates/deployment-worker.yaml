@@ -635,6 +635,8 @@ spec:
                   name: {{ include "octowatch.secretName" . }}
                   key: github-enterprise-slug
                   optional: true
+            - name: GITHUB_SYNC_ENABLED
+              value: "true"
             - name: GITHUB_APP_PRIVATE_KEY_PATH
               value: /app/secrets/github-app-key.pem
             {{- if .Values.workloadIdentity.enabled }}

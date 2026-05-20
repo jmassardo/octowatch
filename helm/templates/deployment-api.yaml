@@ -139,6 +139,20 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: github-client-secret
+            - name: GITHUB_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-app-id
+                  optional: true
+            - name: GITHUB_ENTERPRISE_SLUG
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-enterprise-slug
+                  optional: true
+            - name: GITHUB_SYNC_ENABLED
+              value: "true"
             - name: GITHUB_RULES_TOKEN
               valueFrom:
                 secretKeyRef:
