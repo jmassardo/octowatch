@@ -1,0 +1,20 @@
+#!/bin/sh
+# Run ruff check + format on staged backend Python files before commit
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep "^backend/.*\.py$")
+if [ -n "$STAGED" ]; then
+  cd backend
+  echo "Running ruff check..."
+  ruff check . || exit 1
+  echo "Running ruff format check..."
+  ruff format --check . || { echo "Run 'ruff format .' to fix formatting"; exit 1; }
+  cd ..
+fi
+
+# Run prettier on staged frontend files before commit
+STAGED_FE=$(git diff --cached --name-only --diff-filter=ACM | grep "^frontend/src/.*\.\(ts\|tsx\|css\|json\)$")
+if [ -n "$STAGED_FE" ]; then
+  cd frontend
+  echo "Running prettier check..."
+  npx prettier --check $STAGED_FE || { echo "Run 'cd frontend && npx prettier --write src/' to fix formatting"; exit 1; }
+  cd ..
+fi
