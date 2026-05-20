@@ -89,7 +89,7 @@ const ENTERPRISE_RESPONSE: PostureResponse = {
   breadcrumb: [{ label: 'Posture', href: null }],
   last_sync_at: '2024-06-01T10:00:00Z',
   page: 1,
-  page_size: 100,
+  page_size: 20,
   total: 1,
   has_next: false,
 };
@@ -171,7 +171,7 @@ const ORG_RESPONSE: PostureResponse = {
   ],
   last_sync_at: '2024-06-01T10:00:00Z',
   page: 1,
-  page_size: 100,
+  page_size: 20,
   total: 1,
   has_next: false,
 };
@@ -226,7 +226,7 @@ const REPO_RESPONSE: PostureResponse = {
   ],
   last_sync_at: '2024-06-01T10:00:00Z',
   page: 1,
-  page_size: 100,
+  page_size: 20,
   total: 1,
   has_next: false,
 };
@@ -320,7 +320,7 @@ describe('PosturePage — Enterprise View', () => {
 
   it('renders top findings section', async () => {
     renderWithProviders(<PosturePage />);
-    expect(await screen.findByText('Top Findings')).toBeInTheDocument();
+    expect(await screen.findByText(/Top Findings/)).toBeInTheDocument();
     expect(await screen.findByText('2FA Not Enabled')).toBeInTheDocument();
   });
 
@@ -567,7 +567,7 @@ describe('PosturePage — API calls', () => {
       repo: undefined,
       search: undefined,
       page: 1,
-      page_size: 100,
+      page_size: 20,
     });
   });
 
@@ -580,7 +580,7 @@ describe('PosturePage — API calls', () => {
       repo: undefined,
       search: undefined,
       page: 1,
-      page_size: 100,
+      page_size: 20,
     });
   });
 
@@ -594,7 +594,7 @@ describe('PosturePage — API calls', () => {
       repo: 'my-repo',
       search: undefined,
       page: 1,
-      page_size: 100,
+      page_size: 20,
     });
   });
 });
@@ -639,7 +639,7 @@ const EMPTY_ENTERPRISE_RESPONSE: PostureResponse = {
   breadcrumb: [{ label: 'Posture', href: null }],
   last_sync_at: null,
   page: 1,
-  page_size: 100,
+  page_size: 20,
   total: 0,
   has_next: false,
 };

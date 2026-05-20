@@ -400,6 +400,8 @@ function EnterpriseView({
   const [severity, setSeverity] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [orgsExpanded, setOrgsExpanded] = useState(true);
+  const [findingsPage, setFindingsPage] = useState(1);
+  const FINDINGS_PAGE_SIZE = 20;
   const orgs = useMemo(() => data.orgs ?? [], [data.orgs]);
 
   const filteredOrgsForMetrics = useMemo(() => {
@@ -513,19 +515,33 @@ function EnterpriseView({
               return (w[a.severity] ?? 5) - (w[b.severity] ?? 5);
             });
           if (!sorted.length) return null;
+          const findingsOffset = (findingsPage - 1) * FINDINGS_PAGE_SIZE;
+          const paginatedFindings = sorted.slice(
+            findingsOffset,
+            findingsOffset + FINDINGS_PAGE_SIZE,
+          );
           return (
             <div className={styles.section}>
               <div
                 className={styles.sectionTitle}
                 title="Highest-severity failing checks across all organizations"
               >
-                Top Findings
+                Top Findings ({sorted.length})
               </div>
               <div className={styles.checkList}>
-                {sorted.slice(0, 20).map((c, i) => (
-                  <CheckRow key={`${c.rule_id}-${i}`} check={c} navigate={navigate} />
+                {paginatedFindings.map((c, i) => (
+                  <CheckRow key={`${c.rule_id}-${findingsOffset + i}`} check={c} navigate={navigate} />
                 ))}
               </div>
+              {sorted.length > FINDINGS_PAGE_SIZE && (
+                <Pagination
+                  page={findingsPage}
+                  pageSize={FINDINGS_PAGE_SIZE}
+                  total={sorted.length}
+                  hasNext={findingsOffset + FINDINGS_PAGE_SIZE < sorted.length}
+                  onPageChange={setFindingsPage}
+                />
+              )}
             </div>
           );
         })()}
@@ -983,7 +999,7 @@ export function PosturePage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
 
-  const PAGE_SIZE = 100;
+  const PAGE_SIZE = 20;
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['posture', org ?? '', repo ?? '', page, search],

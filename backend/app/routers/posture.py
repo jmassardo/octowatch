@@ -243,7 +243,7 @@ async def get_posture(
     repo: str | None = Query(None, description="Filter to a specific repo"),
     search: str | None = Query(None, description="Search by name"),
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(100, ge=1, le=200, description="Items per page"),
+    page_size: int = Query(20, ge=1, le=200, description="Items per page"),
     current_user: AuthenticatedUser = Depends(require_permission("posture", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> PostureResponse:
