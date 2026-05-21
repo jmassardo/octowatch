@@ -70,6 +70,7 @@ from app.routers import (
     teams,
     telemetry,
     threat_intel,
+    user_behavior,
     user_classification,
     user_preferences,
     workflow_metrics,
@@ -754,6 +755,7 @@ def create_app() -> FastAPI:
     app.include_router(dashboard_config.router, prefix=API_PREFIX)
     app.include_router(telemetry.router, prefix=API_PREFIX)
     app.include_router(user_classification.router, prefix=API_PREFIX)
+    app.include_router(user_behavior.router, prefix=API_PREFIX)
 
     return app
 

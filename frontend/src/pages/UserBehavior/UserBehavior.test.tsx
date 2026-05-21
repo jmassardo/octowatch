@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { UserBehaviorPage } from './index';
@@ -8,47 +8,79 @@ import { UserBehaviorPage } from './index';
 // Mocks
 // ---------------------------------------------------------------------------
 
-vi.mock('echarts-for-react', () => ({
-  __esModule: true,
-  default: () => <div data-testid="echarts-mock">Chart</div>,
-}));
-
-const mockSummary = {
-  personas: [
-    { persona: 'Power User', user_count: 10, avg_confidence: 0.85, total_events: 5000 },
-    { persona: 'Web UI Only', user_count: 20, avg_confidence: 0.8, total_events: 2000 },
-    { persona: 'Truly Dormant', user_count: 15, avg_confidence: 1.0, total_events: 0 },
-  ],
-  total_users: 45,
-  dormant_count: 15,
-  dormant_pct: 33.3,
-  power_user_count: 10,
-  power_user_pct: 22.2,
-};
-
-const mockUsers = {
-  users: [
+const mockRiskSummary = {
+  total_users_with_signals: 12,
+  high_risk_count: 2,
+  medium_risk_count: 4,
+  low_risk_count: 6,
+  anomaly_count: 3,
+  top_categories: [
     {
-      id: 1,
-      user_login: 'octocat',
-      org: 'my-org',
-      persona: 'Power User',
-      confidence_score: 0.85,
-      event_count: 500,
-      surfaces: ['web', 'git', 'api'],
-      analysis_window_days: 90,
-      classified_at: '2025-01-01T00:00:00+00:00',
+      category: 'security_bypass',
+      label: 'Security Bypasses',
+      description: 'Disabling protections, removing branch rules, bypassing 2FA',
+      event_count: 15,
     },
     {
-      id: 2,
-      user_login: 'dormant-user',
-      org: 'my-org',
-      persona: 'Truly Dormant',
-      confidence_score: 1.0,
-      event_count: 0,
-      surfaces: [],
-      analysis_window_days: 90,
-      classified_at: '2025-01-01T00:00:00+00:00',
+      category: 'permission_change',
+      label: 'Permission Changes',
+      description: 'Role escalations, team membership changes, access grants',
+      event_count: 10,
+    },
+  ],
+  lookback_days: 30,
+};
+
+const mockRiskyUsers = {
+  users: [
+    {
+      user_login: 'risky-admin',
+      risk_score: 22,
+      risk_level: 'high' as const,
+      signals: [
+        {
+          action: 'protected_branch.destroy',
+          label: 'Branch protection removed',
+          category: 'security_bypass',
+          count: 3,
+          weight: 15,
+          last_seen: '2025-01-15T10:00:00Z',
+        },
+        {
+          action: 'personal_access_token.create',
+          label: 'PAT created',
+          category: 'credential_activity',
+          count: 2,
+          weight: 6,
+          last_seen: '2025-01-14T08:00:00Z',
+        },
+      ],
+      category_breakdown: [
+        { category: 'security_bypass', label: 'Security Bypasses', count: 3 },
+        { category: 'credential_activity', label: 'Credential Activity', count: 2 },
+      ],
+      orgs: ['acme-corp'],
+      last_risky_action_at: '2025-01-15T10:00:00Z',
+    },
+    {
+      user_login: 'moderate-user',
+      risk_score: 8,
+      risk_level: 'medium' as const,
+      signals: [
+        {
+          action: 'org.update_member',
+          label: 'Org role change',
+          category: 'permission_change',
+          count: 2,
+          weight: 6,
+          last_seen: '2025-01-12T14:00:00Z',
+        },
+      ],
+      category_breakdown: [
+        { category: 'permission_change', label: 'Permission Changes', count: 2 },
+      ],
+      orgs: ['acme-corp'],
+      last_risky_action_at: '2025-01-12T14:00:00Z',
     },
   ],
   total: 2,
@@ -56,12 +88,44 @@ const mockUsers = {
   page_size: 50,
 };
 
-const mockRun = { status: 'ok', orgs_processed: 1, users_classified: 45 };
+const mockAnomalies = {
+  anomalies: [
+    {
+      user_login: 'spike-user',
+      recent_event_count: 500,
+      baseline_daily_avg: 10,
+      activity_ratio: 3.5,
+      recent_action_types: 20,
+      baseline_action_types: 8,
+      recent_ips: 5,
+      baseline_ips: 2,
+      deviation_reasons: ['Activity volume 3.5x above baseline', 'Performing unusual action types'],
+    },
+  ],
+  lookback_days: 30,
+};
 
-vi.mock('../../api/userClassification', () => ({
-  getClassificationSummary: vi.fn(() => Promise.resolve(mockSummary)),
-  getClassifiedUsers: vi.fn(() => Promise.resolve(mockUsers)),
-  triggerClassificationRun: vi.fn(() => Promise.resolve(mockRun)),
+const mockPermissionDrift = {
+  users: [
+    {
+      user_login: 'over-privileged',
+      total_events: 15,
+      admin_events: 12,
+      dev_events: 2,
+      admin_pct: 80.0,
+      last_active: '2025-01-10T09:00:00Z',
+      status: 'review_recommended' as const,
+      reason: 'High admin activity with minimal development — may have excessive permissions',
+    },
+  ],
+  lookback_days: 90,
+};
+
+vi.mock('../../api/userBehavior', () => ({
+  getRiskSummary: vi.fn(() => Promise.resolve(mockRiskSummary)),
+  getRiskyUsers: vi.fn(() => Promise.resolve(mockRiskyUsers)),
+  getAnomalies: vi.fn(() => Promise.resolve(mockAnomalies)),
+  getPermissionDrift: vi.fn(() => Promise.resolve(mockPermissionDrift)),
 }));
 
 vi.mock('../../hooks/useHelp', () => ({
@@ -74,66 +138,121 @@ vi.mock('../../hooks/useHelp', () => ({
 // ---------------------------------------------------------------------------
 
 describe('UserBehaviorPage', () => {
-  it('renders page title and description', async () => {
+  it('renders page title and security-focused description', async () => {
     renderWithProviders(<UserBehaviorPage />);
     expect(await screen.findByText('User Behavior')).toBeInTheDocument();
-    expect(screen.getByText(/Classify users by audit log activity/)).toBeInTheDocument();
+    expect(screen.getByText(/Security-focused behavioral analysis/)).toBeInTheDocument();
   });
 
-  it('displays key metrics after loading', async () => {
+  it('shows context banner explaining the page purpose', async () => {
     renderWithProviders(<UserBehaviorPage />);
-    expect(await screen.findByTestId('total-users')).toHaveTextContent('45');
-    expect(screen.getByTestId('dormant-pct')).toHaveTextContent('33.3%');
-    expect(screen.getByTestId('power-user-pct')).toHaveTextContent('22.2%');
+    expect(await screen.findByText(/What this page shows:/)).toBeInTheDocument();
+    expect(screen.getByText(/different from Developer Activity/)).toBeInTheDocument();
   });
 
-  it('renders the donut chart', async () => {
+  it('displays risk summary metrics after loading', async () => {
     renderWithProviders(<UserBehaviorPage />);
-    expect(await screen.findByTestId('echarts-mock')).toBeInTheDocument();
+    expect(await screen.findByTestId('users-with-signals')).toHaveTextContent('12');
+    expect(screen.getByTestId('high-risk-count')).toHaveTextContent('2');
+    expect(screen.getByTestId('medium-risk-count')).toHaveTextContent('4');
+    expect(screen.getByTestId('low-risk-count')).toHaveTextContent('6');
+    expect(screen.getByTestId('anomaly-count')).toHaveTextContent('3');
   });
 
-  it('renders user table with classified users', async () => {
+  it('shows risk categories breakdown', async () => {
     renderWithProviders(<UserBehaviorPage />);
-    expect(await screen.findByText('octocat')).toBeInTheDocument();
-    expect(screen.getByText('dormant-user')).toBeInTheDocument();
+    expect(await screen.findByText('Top Risk Categories')).toBeInTheDocument();
+    expect(screen.getByText('Security Bypasses')).toBeInTheDocument();
+    expect(screen.getByText('Permission Changes')).toBeInTheDocument();
+    expect(screen.getByText('15 events')).toBeInTheDocument();
   });
 
-  it('renders persona badges in table', async () => {
+  it('shows helpful context for metric thresholds', async () => {
     renderWithProviders(<UserBehaviorPage />);
-    expect(await screen.findByText('Power User')).toBeInTheDocument();
-    expect(screen.getByText('Truly Dormant')).toBeInTheDocument();
+    expect(await screen.findByText(/Score ≥ 15 — investigate promptly/)).toBeInTheDocument();
+    expect(screen.getByText(/Score 7–14 — worth monitoring/)).toBeInTheDocument();
   });
 
-  it('has a persona filter dropdown', async () => {
+  it('renders risky users table with data', async () => {
     renderWithProviders(<UserBehaviorPage />);
-    const select = await screen.findByLabelText(/Filter by persona/i);
+    expect(await screen.findByText('risky-admin')).toBeInTheDocument();
+    expect(screen.getByText('moderate-user')).toBeInTheDocument();
+  });
+
+  it('shows risk level labels in user table', async () => {
+    renderWithProviders(<UserBehaviorPage />);
+    expect(await screen.findByText('high')).toBeInTheDocument();
+    expect(screen.getByText('medium')).toBeInTheDocument();
+  });
+
+  it('shows signal tags in risky users table', async () => {
+    renderWithProviders(<UserBehaviorPage />);
+    expect(await screen.findByText(/Branch protection removed/)).toBeInTheDocument();
+    expect(screen.getByText(/PAT created/)).toBeInTheDocument();
+  });
+
+  it('has time range filter', async () => {
+    renderWithProviders(<UserBehaviorPage />);
+    const select = await screen.findByLabelText(/Time range/i);
+    expect(select).toBeInTheDocument();
+    expect(select).toHaveValue('30');
+  });
+
+  it('has risk level filter on risky users tab', async () => {
+    renderWithProviders(<UserBehaviorPage />);
+    const select = await screen.findByLabelText(/Risk level/i);
     expect(select).toBeInTheDocument();
     expect(select).toHaveValue('');
   });
 
-  it('has a Run Classification button', async () => {
-    renderWithProviders(<UserBehaviorPage />);
-    expect(await screen.findByText('Run Classification')).toBeInTheDocument();
-  });
-
-  it('renders surface tags for users', async () => {
-    renderWithProviders(<UserBehaviorPage />);
-    expect(await screen.findByText('web')).toBeInTheDocument();
-    expect(screen.getByText('git')).toBeInTheDocument();
-    expect(screen.getByText('api')).toBeInTheDocument();
-  });
-
-  it('persona filter changes trigger new query', async () => {
+  it('switches to anomaly detection tab', async () => {
     const user = userEvent.setup();
     renderWithProviders(<UserBehaviorPage />);
 
-    const select = await screen.findByLabelText(/Filter by persona/i);
-    await user.selectOptions(select, 'Power User');
-    expect(select).toHaveValue('Power User');
+    const anomalyTab = await screen.findByRole('tab', { name: /Anomaly Detection/i });
+    await user.click(anomalyTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('spike-user')).toBeInTheDocument();
+    });
+    expect(screen.getByText('3.5x')).toBeInTheDocument();
+    expect(screen.getByText(/Activity volume 3.5x above baseline/)).toBeInTheDocument();
   });
 
-  it('shows Persona Distribution chart title', async () => {
+  it('switches to permission drift tab', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<UserBehaviorPage />);
-    expect(await screen.findByText('Persona Distribution')).toBeInTheDocument();
+
+    const permTab = await screen.findByRole('tab', { name: /Permission Drift/i });
+    await user.click(permTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('over-privileged')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Review')).toBeInTheDocument();
+    expect(screen.getByText(/may have excessive permissions/)).toBeInTheDocument();
+  });
+
+  it('renders tab descriptions explaining what each tab shows', async () => {
+    renderWithProviders(<UserBehaviorPage />);
+    expect(
+      await screen.findByText(/Users ranked by risk score based on security-sensitive actions/),
+    ).toBeInTheDocument();
+  });
+
+  it('time range filter updates the lookback period', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserBehaviorPage />);
+
+    const select = await screen.findByLabelText(/Time range/i);
+    await user.selectOptions(select, '7');
+    expect(select).toHaveValue('7');
+  });
+
+  it('shows three navigation tabs', async () => {
+    renderWithProviders(<UserBehaviorPage />);
+    expect(await screen.findByRole('tab', { name: /Risky Users/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Anomaly Detection/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Permission Drift/i })).toBeInTheDocument();
   });
 });
