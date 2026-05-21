@@ -1,19 +1,35 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getSyncStatus, listSyncRuns, getSyncSchedule, getSyncConfig } from '../../api/sync';
+import {
+  getSyncStatus,
+  listSyncRuns,
+  getSyncSchedule,
+  getSyncConfig,
+  getSyncRun,
+} from '../../api/sync';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { Drawer } from '../../components/primitives/Drawer';
+import { Pagination } from '../../components/primitives/Pagination';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatRelativeShort, formatShortDateTime } from '../../utils/dates';
 import type {
+  SyncRun,
   SyncRunSummary,
   SyncRunStatus,
   SyncSchedule as SyncScheduleType,
+  EntityStatus,
 } from '../../types/sync';
 import styles from './SyncStatus.module.css';
+
+/* ------------------------------------------------------------------ */
+/*  Constants                                                          */
+/* ------------------------------------------------------------------ */
+
+const RUNS_PAGE_SIZE = 5;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -28,6 +44,14 @@ interface SyncTypeCard {
   readonly lastRun: string | null;
   readonly lastStatus: SyncRunStatus | null;
   readonly itemCount: number;
+}
+
+/** Error detail extracted from the most recent failed run. */
+interface FailureDetail {
+  readonly errorMessage: string;
+  readonly failedEntity: string | null;
+  readonly failedCursor: string | null;
+  readonly remediation: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -90,6 +114,58 @@ function healthDetail(health: HealthLevel, totalRuns: number): string {
   }
 }
 
+/**
+ * Extract actionable failure details from the most recent failed run.
+ * Returns null if there is no failure to report.
+ */
+function extractFailureDetail(
+  currentRun: SyncRun | null | undefined,
+  runs: SyncRunSummary[],
+): FailureDetail | null {
+  // Use currentRun if it's failed, otherwise look for the most recent failed run
+  if (currentRun?.status === 'failed' && currentRun.error_message) {
+    const failedCursor = currentRun.cursors?.find((c: EntityStatus) => c.status === 'failed');
+    return {
+      errorMessage: currentRun.error_message,
+      failedEntity: failedCursor?.entity_type ?? null,
+      failedCursor: failedCursor?.last_cursor ?? null,
+      remediation: deriveRemediation(currentRun.error_message),
+    };
+  }
+
+  // Check last failed run from summaries — no detail available without full run data
+  const lastFailed = runs.find((r) => r.status === 'failed');
+  if (!lastFailed) return null;
+
+  return {
+    errorMessage: 'Last sync run failed — click the run in the table below for details',
+    failedEntity: null,
+    failedCursor: null,
+    remediation: 'Review the failed run details and check GitHub App credentials and permissions',
+  };
+}
+
+/** Derive a remediation suggestion from error text. */
+function deriveRemediation(errorMessage: string): string {
+  const lower = errorMessage.toLowerCase();
+  if (lower.includes('rate limit')) {
+    return 'Wait for the rate limit window to reset, or reduce sync frequency in Settings → GitHub';
+  }
+  if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('credential')) {
+    return 'Verify GitHub App credentials in Settings → GitHub and re-authenticate if needed';
+  }
+  if (lower.includes('403') || lower.includes('forbidden') || lower.includes('permission')) {
+    return 'Check GitHub App installation permissions — ensure required scopes are granted';
+  }
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return 'The sync timed out — consider reducing scope or triggering a manual retry';
+  }
+  if (lower.includes('auto-expired') || lower.includes('no progress')) {
+    return 'The worker process may be down — check backend service health and restart if needed';
+  }
+  return 'Review the error details and check GitHub App configuration in Settings → GitHub';
+}
+
 function statusVariant(status: SyncRunStatus): 'success' | 'danger' | 'attention' | 'muted' {
   switch (status) {
     case 'completed':
@@ -121,8 +197,18 @@ function formatDuration(startIso: string | null, endIso: string | null): string 
 /*  Sub-components                                                     */
 /* ------------------------------------------------------------------ */
 
-/** Health summary banner displayed at the top of the page. */
-function HealthBanner({ health, totalRuns }: { health: HealthLevel; totalRuns: number }) {
+/** Health summary banner displayed at the top of the page with specific error details. */
+function HealthBanner({
+  health,
+  totalRuns,
+  failureDetail,
+}: {
+  health: HealthLevel;
+  totalRuns: number;
+  failureDetail: FailureDetail | null;
+}) {
+  const showErrorDetails = (health === 'unhealthy' || health === 'degraded') && failureDetail;
+
   return (
     <div
       className={`${styles.healthBanner} ${healthBannerClass(health)}`}
@@ -132,7 +218,25 @@ function HealthBanner({ health, totalRuns }: { health: HealthLevel; totalRuns: n
       <HealthIcon health={health} />
       <div className={styles.bannerText}>
         <span className={styles.bannerTitle}>{healthLabel(health)}</span>
-        <span className={styles.bannerDetail}>{healthDetail(health, totalRuns)}</span>
+        {showErrorDetails ? (
+          <div className={styles.bannerErrorDetails} data-testid="health-banner-error-details">
+            <span className={styles.bannerDetail}>{failureDetail.errorMessage}</span>
+            {failureDetail.failedEntity && (
+              <span className={styles.bannerMeta}>
+                Failed entity: <strong>{failureDetail.failedEntity}</strong>
+                {failureDetail.failedCursor && (
+                  <>
+                    {' '}
+                    — cursor: <code>{failureDetail.failedCursor}</code>
+                  </>
+                )}
+              </span>
+            )}
+            <span className={styles.bannerRemediation}>💡 {failureDetail.remediation}</span>
+          </div>
+        ) : (
+          <span className={styles.bannerDetail}>{healthDetail(health, totalRuns)}</span>
+        )}
       </div>
     </div>
   );
@@ -238,7 +342,64 @@ function SyncTypeCardComponent({ card, runs }: { card: SyncTypeCard; runs: SyncR
   );
 }
 
-/** Schedule information card. */
+/** Overall sync status summary card (left half of top row). */
+function OverallStatusCard({
+  health,
+  totalRuns,
+  currentRun,
+}: {
+  health: HealthLevel;
+  totalRuns: number;
+  currentRun: SyncRun | null | undefined;
+}) {
+  return (
+    <Card>
+      <CardHeader>Overall Status</CardHeader>
+      <div className={styles.scheduleSection}>
+        <div className={styles.scheduleRow}>
+          <span>Health</span>
+          <strong>
+            <Label
+              variant={
+                health === 'healthy'
+                  ? 'success'
+                  : health === 'unhealthy'
+                    ? 'danger'
+                    : health === 'degraded'
+                      ? 'attention'
+                      : 'muted'
+              }
+            >
+              {health}
+            </Label>
+          </strong>
+        </div>
+        <div className={styles.scheduleRow}>
+          <span>Total runs</span>
+          <strong>{totalRuns}</strong>
+        </div>
+        <div className={styles.scheduleRow}>
+          <span>Current status</span>
+          <strong>
+            {currentRun ? (
+              <Label variant={statusVariant(currentRun.status)}>{currentRun.status}</Label>
+            ) : (
+              'Idle'
+            )}
+          </strong>
+        </div>
+        {currentRun?.started_at && (
+          <div className={styles.scheduleRow}>
+            <span>Running since</span>
+            <strong>{formatRelativeShort(currentRun.started_at)}</strong>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/** Schedule information card (right half of top row). */
 function ScheduleCard({ schedule }: { schedule: SyncScheduleType | undefined }) {
   if (!schedule) return null;
 
@@ -277,9 +438,153 @@ function ScheduleCard({ schedule }: { schedule: SyncScheduleType | undefined }) 
   );
 }
 
-/** Recent runs detail table. */
-function RecentRunsTable({ runs }: { runs: SyncRunSummary[] }) {
-  if (runs.length === 0) {
+/** Run detail slide-out drawer content. */
+function RunDetailDrawer({
+  runId,
+  open,
+  onClose,
+}: {
+  runId: string | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { data: runDetail, isLoading } = useQuery({
+    queryKey: ['sync-run-detail', runId],
+    queryFn: () => getSyncRun(runId!),
+    enabled: open && runId !== null,
+  });
+
+  return (
+    <Drawer open={open} onClose={onClose} title="Sync Run Details">
+      {isLoading && (
+        <div className={styles.loadingState}>
+          <Spinner />
+          <span>Loading run details…</span>
+        </div>
+      )}
+      {!isLoading && runDetail && (
+        <div className={styles.drawerContent} data-testid="run-detail-drawer-content">
+          <div className={styles.drawerSection}>
+            <h4 className={styles.drawerSectionTitle}>Overview</h4>
+            <dl className={styles.drawerDl}>
+              <dt>Status</dt>
+              <dd>
+                <Label variant={statusVariant(runDetail.status)}>{runDetail.status}</Label>
+              </dd>
+              <dt>Trigger</dt>
+              <dd>{runDetail.triggered_by ?? runDetail.trigger_type}</dd>
+              <dt>Scope</dt>
+              <dd>{runDetail.scope}</dd>
+              <dt>Started</dt>
+              <dd>{runDetail.started_at ? formatShortDateTime(runDetail.started_at) : '—'}</dd>
+              <dt>Completed</dt>
+              <dd>{runDetail.completed_at ? formatShortDateTime(runDetail.completed_at) : '—'}</dd>
+              <dt>Duration</dt>
+              <dd>{formatDuration(runDetail.started_at, runDetail.completed_at)}</dd>
+            </dl>
+          </div>
+
+          {runDetail.error_message && (
+            <div className={styles.drawerSection}>
+              <h4 className={styles.drawerSectionTitle}>Error</h4>
+              <p className={styles.drawerError}>{runDetail.error_message}</p>
+            </div>
+          )}
+
+          {runDetail.entity_counts && Object.keys(runDetail.entity_counts).length > 0 && (
+            <div className={styles.drawerSection}>
+              <h4 className={styles.drawerSectionTitle}>Entities Synced</h4>
+              <dl className={styles.drawerDl}>
+                {Object.entries(runDetail.entity_counts).map(([entity, count]) => (
+                  <div key={entity} className={styles.drawerDlRow}>
+                    <dt>{entity}</dt>
+                    <dd>{(count as number).toLocaleString()}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+
+          {runDetail.cursors && runDetail.cursors.length > 0 && (
+            <div className={styles.drawerSection}>
+              <h4 className={styles.drawerSectionTitle}>Cursor Progress</h4>
+              <table className={styles.drawerTable}>
+                <thead>
+                  <tr>
+                    <th>Entity</th>
+                    <th>Org</th>
+                    <th>Status</th>
+                    <th>Items</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runDetail.cursors.map((cursor: EntityStatus, idx: number) => (
+                    <tr key={`${cursor.entity_type}-${cursor.org ?? 'all'}-${idx}`}>
+                      <td>{cursor.entity_type}</td>
+                      <td>{cursor.org ?? '—'}</td>
+                      <td>
+                        <Label
+                          variant={
+                            cursor.status === 'completed'
+                              ? 'success'
+                              : cursor.status === 'failed'
+                                ? 'danger'
+                                : cursor.status === 'in_progress'
+                                  ? 'attention'
+                                  : 'muted'
+                          }
+                        >
+                          {cursor.status}
+                        </Label>
+                      </td>
+                      <td>{cursor.items_synced.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {runDetail.post_processing_status && (
+            <div className={styles.drawerSection}>
+              <h4 className={styles.drawerSectionTitle}>Post-Processing</h4>
+              <Label
+                variant={
+                  runDetail.post_processing_status === 'completed'
+                    ? 'success'
+                    : runDetail.post_processing_status === 'failed'
+                      ? 'danger'
+                      : 'attention'
+                }
+              >
+                {runDetail.post_processing_status}
+              </Label>
+            </div>
+          )}
+        </div>
+      )}
+      {!isLoading && !runDetail && runId && (
+        <div className={styles.emptyState}>Run details not found.</div>
+      )}
+    </Drawer>
+  );
+}
+
+/** Recent runs detail table with pagination and row click to open drawer. */
+function RecentRunsTable({
+  runs,
+  total,
+  page,
+  onPageChange,
+  onRowClick,
+}: {
+  runs: SyncRunSummary[];
+  total: number;
+  page: number;
+  onPageChange: (p: number) => void;
+  onRowClick: (runId: string) => void;
+}) {
+  if (total === 0 && runs.length === 0) {
     return (
       <Card>
         <CardHeader>Recent Sync Runs</CardHeader>
@@ -302,7 +607,19 @@ function RecentRunsTable({ runs }: { runs: SyncRunSummary[] }) {
         </thead>
         <tbody>
           {runs.map((run) => (
-            <tr key={run.id}>
+            <tr
+              key={run.id}
+              className={styles.clickableRow}
+              onClick={() => onRowClick(run.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onRowClick(run.id);
+                }
+              }}
+            >
               <td>{run.triggered_by ?? run.trigger_type}</td>
               <td>{run.started_at ? formatShortDateTime(run.started_at) : '—'}</td>
               <td>{formatDuration(run.started_at, run.completed_at)}</td>
@@ -313,6 +630,14 @@ function RecentRunsTable({ runs }: { runs: SyncRunSummary[] }) {
           ))}
         </tbody>
       </table>
+      <div className={styles.paginationWrapper}>
+        <Pagination
+          page={page}
+          pageSize={RUNS_PAGE_SIZE}
+          total={total}
+          onPageChange={onPageChange}
+        />
+      </div>
     </Card>
   );
 }
@@ -324,6 +649,19 @@ function RecentRunsTable({ runs }: { runs: SyncRunSummary[] }) {
 export function SyncStatusPage() {
   const { hasPermission } = usePermissions();
   const canView = hasPermission('admin_settings', 'view');
+
+  const [runsPage, setRunsPage] = useState(1);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const handleRowClick = useCallback((runId: string) => {
+    setSelectedRunId(runId);
+    setDrawerOpen(true);
+  }, []);
+
+  const handleDrawerClose = useCallback(() => {
+    setDrawerOpen(false);
+  }, []);
 
   const {
     data: currentRun,
@@ -343,8 +681,8 @@ export function SyncStatusPage() {
     isError: runsError,
     refetch: refetchRuns,
   } = useQuery({
-    queryKey: ['sync-runs', 'monitoring'],
-    queryFn: () => listSyncRuns(1, 20),
+    queryKey: ['sync-runs', 'monitoring', runsPage],
+    queryFn: () => listSyncRuns(runsPage, RUNS_PAGE_SIZE),
     enabled: canView,
     refetchInterval: 30_000,
   });
@@ -406,6 +744,7 @@ export function SyncStatusPage() {
   }, [runs, currentRun, config]);
 
   const health = overallHealth(syncCards);
+  const failureDetail = extractFailureDetail(currentRun, runs);
 
   const isLoading = statusLoading || runsLoading;
   const isError = statusError || runsError;
@@ -466,7 +805,12 @@ export function SyncStatusPage() {
         breadcrumbs={[{ label: 'Monitoring' }, { label: 'Sync Status' }]}
       />
 
-      <HealthBanner health={health} totalRuns={totalRuns} />
+      <HealthBanner health={health} totalRuns={totalRuns} failureDetail={failureDetail} />
+
+      <div className={styles.statusRow}>
+        <OverallStatusCard health={health} totalRuns={totalRuns} currentRun={currentRun} />
+        <ScheduleCard schedule={schedule} />
+      </div>
 
       {syncCards.length > 0 ? (
         <div className={styles.cardsGrid}>
@@ -483,11 +827,15 @@ export function SyncStatusPage() {
         </Card>
       )}
 
-      <div className={styles.detailPanel}>
-        <ScheduleCard schedule={schedule} />
-      </div>
+      <RecentRunsTable
+        runs={runs}
+        total={totalRuns}
+        page={runsPage}
+        onPageChange={setRunsPage}
+        onRowClick={handleRowClick}
+      />
 
-      <RecentRunsTable runs={runs} />
+      <RunDetailDrawer runId={selectedRunId} open={drawerOpen} onClose={handleDrawerClose} />
     </div>
   );
 }
