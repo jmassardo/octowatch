@@ -253,6 +253,8 @@ describe('WorkflowsPage — Scan Status', () => {
 
     await screen.findByText('Unpinned third-party action');
     // The severity filter select should have the value from URL
-    expect(mockListFindings).toHaveBeenCalledWith(expect.objectContaining({ severity: 'high' }));
+    expect(mockListFindings).toHaveBeenCalledWith(
+      expect.objectContaining({ severity: 'high', page: 1, page_size: 15 }),
+    );
   });
 });

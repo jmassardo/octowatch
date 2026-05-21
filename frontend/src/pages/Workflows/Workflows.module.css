@@ -1,29 +1,8 @@
 /* ── Layout ── */
-.splitLayout {
-  display: flex;
+.page {
   flex: 1;
-  height: 100%;
-  overflow: hidden;
-}
-
-.splitMain {
-  flex: 1;
-  min-width: 0;
   overflow-y: auto;
   padding: 24px;
-}
-
-.splitPanel {
-  width: 0;
-  overflow: hidden;
-  border-left: 1px solid var(--border);
-  background: var(--bg-card);
-  transition: width 0.2s ease;
-}
-
-.splitPanelOpen {
-  width: 420px;
-  overflow-y: auto;
 }
 
 /* ── Page header ── */
@@ -567,7 +546,7 @@
 }
 
 @media (max-width: 1024px) {
-  .splitMain {
+  .page {
     padding: 20px;
     overflow: auto;
   }
@@ -600,11 +579,7 @@
 }
 
 @media (max-width: 768px) {
-  .splitLayout {
-    flex-direction: column;
-  }
-
-  .splitMain {
+  .page {
     padding: 16px;
   }
 
@@ -646,10 +621,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .splitLayout,
-  .splitMain,
-  .splitPanel,
-  .splitPanelOpen,
+  .page,
   .pageHeader,
   .pageTitle,
   .pageSub,
