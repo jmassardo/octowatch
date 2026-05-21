@@ -62,6 +62,7 @@ export const router = createBrowserRouter(
         { path: '/threats', element: <Navigate to="/threats/open" replace /> },
         { path: '/threats/:tab', element: <ThreatsPage /> },
         { path: '/threat-intel', element: <ThreatIntelPage /> },
+        { path: '/threat-intel/:feedId', element: <ThreatIntelPage /> },
         { path: '/actors/:login', element: <ActorsPage /> },
         { path: '/posture', element: <PosturePage /> },
         { path: '/posture/:org', element: <PosturePage /> },

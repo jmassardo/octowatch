@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useParams } from 'react-router-dom';
 import { listFeeds, createFeed, updateFeed, deleteFeed, refreshFeed } from '../../api/threatIntel';
 import type { ThreatIntelFeed, FeedCreateRequest, FeedUpdateRequest } from '../../api/threatIntel';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { Drawer } from '../../components/primitives/Drawer';
 import { formatAbsolute } from '../../utils/dates';
 import styles from './ThreatIntel.module.css';
 
@@ -39,6 +41,8 @@ const EMPTY_FORM: FeedFormData = {
 
 export function FeedsTab() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { feedId: feedIdParam } = useParams<{ feedId?: string }>();
   const [showModal, setShowModal] = useState(false);
   const [editingFeed, setEditingFeed] = useState<ThreatIntelFeed | null>(null);
   const [formData, setFormData] = useState<FeedFormData>(EMPTY_FORM);
@@ -126,6 +130,21 @@ export function FeedsTab() {
 
   const feeds = feedsData?.items ?? [];
 
+  const selectedFeedId = feedIdParam ? parseInt(feedIdParam, 10) : null;
+  const selectedFeed =
+    selectedFeedId !== null ? (feeds.find((f) => f.id === selectedFeedId) ?? null) : null;
+
+  const openFeedDetail = useCallback(
+    (feed: ThreatIntelFeed) => {
+      navigate(`/threat-intel/${feed.id}`, { replace: true });
+    },
+    [navigate],
+  );
+
+  const closeFeedDetail = useCallback(() => {
+    navigate('/threat-intel', { replace: true });
+  }, [navigate]);
+
   if (isLoading) {
     return (
       <div className={styles.centered}>
@@ -167,7 +186,20 @@ export function FeedsTab() {
             </thead>
             <tbody>
               {feeds.map((feed) => (
-                <tr key={feed.id}>
+                <tr
+                  key={feed.id}
+                  onClick={() => openFeedDetail(feed)}
+                  className={styles.clickableRow}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`View details for ${feed.name}`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      openFeedDetail(feed);
+                    }
+                  }}
+                >
                   <td>
                     <strong>{feed.name}</strong>
                   </td>
@@ -193,7 +225,7 @@ export function FeedsTab() {
                   <td>{feed.last_fetched_at ? formatAbsolute(feed.last_fetched_at) : '—'}</td>
                   <td>{Math.round(feed.refresh_interval_minutes / 60)}h</td>
                   <td>
-                    <div className={styles.actionsCell}>
+                    <div className={styles.actionsCell} onClick={(e) => e.stopPropagation()}>
                       <button
                         className={styles.btnSmall}
                         onClick={() => refreshMutation.mutate(feed.id)}
@@ -300,6 +332,102 @@ export function FeedsTab() {
           </div>
         </div>
       )}
+
+      <Drawer open={!!selectedFeed} onClose={closeFeedDetail} title="Feed Details">
+        {selectedFeed && (
+          <div className={styles.drawerContent}>
+            <dl className={styles.detailList}>
+              <dt>Name</dt>
+              <dd>{selectedFeed.name}</dd>
+
+              <dt>Source URL</dt>
+              <dd>
+                <a
+                  href={selectedFeed.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.matchLink}
+                >
+                  {selectedFeed.url}
+                </a>
+              </dd>
+
+              <dt>Feed Type</dt>
+              <dd>
+                <span className={styles.typeBadge}>{selectedFeed.feed_type}</span>
+              </dd>
+
+              <dt>Status</dt>
+              <dd>
+                <span className={[styles.statusBadge, feedStatusClass(selectedFeed)].join(' ')}>
+                  {feedStatusLabel(selectedFeed)}
+                </span>
+              </dd>
+
+              <dt>Enabled</dt>
+              <dd>{selectedFeed.enabled ? 'Yes' : 'No'}</dd>
+
+              <dt>Refresh Interval</dt>
+              <dd>
+                {selectedFeed.refresh_interval_minutes} minutes (
+                {Math.round(selectedFeed.refresh_interval_minutes / 60)}h)
+              </dd>
+
+              <dt>Indicator Count</dt>
+              <dd>{selectedFeed.last_indicator_count ?? '—'}</dd>
+
+              <dt>Last Fetch Status</dt>
+              <dd>{selectedFeed.last_fetch_status ?? '—'}</dd>
+
+              <dt>Last Fetched</dt>
+              <dd>
+                {selectedFeed.last_fetched_at
+                  ? formatAbsolute(selectedFeed.last_fetched_at)
+                  : 'Never'}
+              </dd>
+
+              <dt>Created By</dt>
+              <dd>{selectedFeed.created_by}</dd>
+
+              <dt>Created At</dt>
+              <dd>{formatAbsolute(selectedFeed.created_at)}</dd>
+
+              <dt>Updated At</dt>
+              <dd>{formatAbsolute(selectedFeed.updated_at)}</dd>
+            </dl>
+
+            <div className={styles.drawerActions}>
+              <button
+                className={styles.btnSmall}
+                onClick={() => {
+                  refreshMutation.mutate(selectedFeed.id);
+                }}
+                disabled={refreshMutation.isPending}
+              >
+                ↻ Refresh Now
+              </button>
+              <button
+                className={styles.btnSmall}
+                onClick={() => {
+                  closeFeedDetail();
+                  openEdit(selectedFeed);
+                }}
+              >
+                Edit
+              </button>
+              <button
+                className={styles.btnDanger}
+                onClick={() => {
+                  handleDelete(selectedFeed);
+                  closeFeedDetail();
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 }
