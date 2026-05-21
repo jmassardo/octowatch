@@ -5,13 +5,12 @@ import {
   listSettings,
   updateSetting,
   deleteSetting,
-  getSettingsAuditTrail,
   getEnterprisePATStatus,
   saveEnterprisePAT,
   deleteEnterprisePAT,
   testEnterprisePAT,
 } from '../../api/setup';
-import type { AppSetting, SettingAuditEntry } from '../../api/setup';
+import type { AppSetting } from '../../api/setup';
 import {
   listNotificationConfigs,
   listTicketingConfigs,
@@ -22,19 +21,17 @@ import {
 } from '../../api/integrations';
 import { getRetentionPolicies, updateRetentionPolicies } from '../../api/admin';
 import type { RetentionPolicyItem } from '../../api/admin';
-import { SyncPanel } from '../Integrations/SyncPanel';
+import { getSyncConfig, getSyncSchedule } from '../../api/sync';
 import { PagerDutyIntegration } from '../Integrations/PagerDutyIntegration';
 import { TeamsIntegration } from '../Integrations/TeamsIntegration';
 import { PageHeader } from '../../components/common/PageHeader';
 import { useToast } from '../../hooks/useToast';
-import { SyncRunHistory } from '../Integrations/SyncRunHistory';
-import { ManualIngestPanel } from '../Integrations/ManualIngestPanel';
 import { SlackIntegration } from '../Integrations/SlackIntegration';
 import { AuditStreamPanel } from './AuditStreamPanel';
 import { MaintenanceSettingsPanel } from './MaintenanceSettingsPanel';
 import { Button } from '../../components/primitives/Button';
+import { Card, CardHeader } from '../../components/primitives/Card';
 import { Drawer } from '../../components/primitives/Drawer';
-import { Modal } from '../../components/primitives/Modal';
 import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
@@ -48,21 +45,19 @@ import styles from './Settings.module.css';
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const CATEGORIES = ['All', 'GitHub', 'Security', 'Notifications', 'System'] as const;
+const CATEGORIES = ['Secrets', 'GitHub', 'Security', 'Notifications', 'System'] as const;
 type Category = (typeof CATEGORIES)[number];
 
-const SLUG_TO_TAB: Record<string, Category | 'Audit' | 'Features' | 'Integrations' | 'Retention'> =
-  {
-    all: 'All',
-    github: 'GitHub',
-    security: 'Security',
-    notifications: 'Notifications',
-    system: 'System',
-    audit: 'Audit',
-    features: 'Features',
-    integrations: 'Integrations',
-    retention: 'Retention',
-  };
+const SLUG_TO_TAB: Record<string, Category | 'Features' | 'Integrations' | 'Retention'> = {
+  secrets: 'Secrets',
+  github: 'GitHub',
+  security: 'Security',
+  notifications: 'Notifications',
+  system: 'System',
+  features: 'Features',
+  integrations: 'Integrations',
+  retention: 'Retention',
+};
 
 const TAB_TO_SLUG: Record<string, string> = Object.fromEntries(
   Object.entries(SLUG_TO_TAB).map(([slug, tab]) => [tab, slug]),
@@ -76,14 +71,6 @@ function sensitivityClass(sensitivity: string): string {
   if (sensitivity === 'critical') return styles.sensitivityCritical;
   if (sensitivity === 'sensitive') return styles.sensitivitySensitive;
   return styles.sensitivityNormal;
-}
-
-function auditActionClass(action: string): string {
-  const a = action.toLowerCase();
-  if (a.includes('create') || a === 'set') return styles.auditActionCreate;
-  if (a.includes('update') || a.includes('change')) return styles.auditActionUpdate;
-  if (a.includes('delete') || a.includes('revert')) return styles.auditActionDelete;
-  return '';
 }
 
 /* ------------------------------------------------------------------ */
@@ -156,63 +143,6 @@ function EditSettingForm({
         </Button>
       </div>
     </form>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Audit Trail Table                                                  */
-/* ------------------------------------------------------------------ */
-
-function AuditTrailTable() {
-  const {
-    data: entries,
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
-    queryKey: ['settings', 'audit-trail'],
-    queryFn: getSettingsAuditTrail,
-  });
-
-  if (isLoading) return <Spinner />;
-  if (isError)
-    return <ErrorBanner message="Failed to load audit trail" onRetry={() => refetch()} />;
-
-  if (!entries || entries.length === 0) {
-    return <div className={styles.empty}>No audit trail entries yet</div>;
-  }
-
-  return (
-    <div className={styles.tableWrap}>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th scope="col">Setting</th>
-            <th scope="col">Action</th>
-            <th scope="col">Changed by</th>
-            <th scope="col">Old value</th>
-            <th scope="col">New value</th>
-            <th scope="col">Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((entry: SettingAuditEntry, idx: number) => (
-            <tr key={`${entry.setting_key}-${entry.created_at}-${idx}`}>
-              <td className={styles.settingKey}>{entry.setting_key}</td>
-              <td>
-                <span className={`${styles.auditAction} ${auditActionClass(entry.action)}`}>
-                  {entry.action}
-                </span>
-              </td>
-              <td>{entry.changed_by}</td>
-              <td className={styles.settingValue}>{entry.old_value_masked ?? '—'}</td>
-              <td className={styles.settingValue}>{entry.new_value_masked ?? '—'}</td>
-              <td className={styles.settingMeta}>{formatAbsolute(entry.created_at)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   );
 }
 
@@ -465,42 +395,180 @@ function EnterprisePATSection() {
 /*  GitHub Pane                                                        */
 /* ------------------------------------------------------------------ */
 
-function GitHubPane() {
+function EnterprisePATWidget() {
   return (
-    <div className={styles.featuresPane}>
-      <p className={styles.featuresDescription}>
-        GitHub Enterprise connection and data import settings. Connection credentials are configured
-        during initial setup.
-      </p>
-
-      <div className={styles.integrationsSectionDivider}>
-        <h3 className={styles.integrationsSectionTitle}>Classic PAT for Audit Log</h3>
+    <Card>
+      <CardHeader>Classic PAT for Audit Log</CardHeader>
+      <div className={styles.auditStreamBody}>
         <p className={styles.featuresDescription}>
           The enterprise audit log API requires a classic Personal Access Token with{' '}
           <code>admin:enterprise</code> scope. GitHub App installation tokens cannot access this
           endpoint.
         </p>
+        <EnterprisePATSection />
       </div>
-      <EnterprisePATSection />
+    </Card>
+  );
+}
 
-      <div className={styles.integrationsSectionDivider}>
-        <h3 className={styles.integrationsSectionTitle}>Audit Log Streaming</h3>
-        <p className={styles.featuresDescription}>
-          Stream audit log events from GitHub Enterprise into OctoWatch via an S3-compatible
-          endpoint.
-        </p>
-      </div>
-      <AuditStreamPanel />
+function EnterpriseSyncConfigWidget() {
+  const {
+    data: config,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['sync-config'],
+    queryFn: getSyncConfig,
+  });
 
-      <div className={styles.integrationsSectionDivider}>
-        <h3 className={styles.integrationsSectionTitle}>Data Import</h3>
-        <p className={styles.featuresDescription}>
-          Sync data from GitHub Enterprise or manually import exported files for analysis.
-        </p>
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>Enterprise Sync Config</CardHeader>
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
+          <Spinner size={24} />
+        </div>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardHeader>Enterprise Sync Config</CardHeader>
+        <div style={{ padding: '1rem' }}>
+          <ErrorBanner
+            message={error instanceof Error ? error.message : 'Failed to load sync config.'}
+            onRetry={() => void refetch()}
+          />
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>Enterprise Sync Config</CardHeader>
+      <div className={styles.auditStreamBody}>
+        <div className={styles.configGrid}>
+          <div className={styles.configRow}>
+            <span className={styles.configLabel}>App ID</span>
+            <span className={styles.configValue}>
+              <code>{config?.app_id ?? '—'}</code>
+            </span>
+          </div>
+          <div className={styles.configRow}>
+            <span className={styles.configLabel}>Enterprise</span>
+            <span className={styles.configValue}>
+              <code>{config?.enterprise_slug ?? '—'}</code>
+            </span>
+          </div>
+          <div className={styles.configRow}>
+            <span className={styles.configLabel}>Sync enabled</span>
+            <span className={styles.configValue}>
+              <code>{config?.sync_enabled ? 'Yes' : 'No'}</code>
+            </span>
+          </div>
+          <div className={styles.configRow}>
+            <span className={styles.configLabel}>Orgs</span>
+            <span className={styles.configValue}>
+              <code>{config?.orgs?.length ? config.orgs.join(', ') : '—'}</code>
+            </span>
+          </div>
+        </div>
       </div>
-      <SyncPanel />
-      <SyncRunHistory />
-      <ManualIngestPanel />
+    </Card>
+  );
+}
+
+function SyncScheduleWidget() {
+  const {
+    data: schedule,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['sync-schedule'],
+    queryFn: getSyncSchedule,
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>Sync Schedule</CardHeader>
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
+          <Spinner size={24} />
+        </div>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardHeader>Sync Schedule</CardHeader>
+        <div style={{ padding: '1rem' }}>
+          <ErrorBanner
+            message={error instanceof Error ? error.message : 'Failed to load sync schedule.'}
+            onRetry={() => void refetch()}
+          />
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>Sync Schedule</CardHeader>
+      <div className={styles.auditStreamBody}>
+        <div className={styles.configGrid}>
+          <div className={styles.configRow}>
+            <span className={styles.configLabel}>Enabled</span>
+            <span className={styles.configValue}>
+              <code>{schedule?.enabled ? 'Yes' : 'No'}</code>
+            </span>
+          </div>
+          <div className={styles.configRow}>
+            <span className={styles.configLabel}>Interval</span>
+            <span className={styles.configValue}>
+              <code>
+                {schedule?.interval_hours != null ? `${schedule.interval_hours} hours` : '—'}
+              </code>
+            </span>
+          </div>
+          <div className={styles.configRow}>
+            <span className={styles.configLabel}>Scope</span>
+            <span className={styles.configValue}>
+              <code>{schedule?.scope ?? '—'}</code>
+            </span>
+          </div>
+          <div className={styles.configRow}>
+            <span className={styles.configLabel}>Next run</span>
+            <span className={styles.configValue}>
+              <code>{schedule?.next_run_at ? formatAbsolute(schedule.next_run_at) : '—'}</code>
+            </span>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function GitHubPane() {
+  return (
+    <div className={styles.featuresPane}>
+      <p className={styles.featuresDescription}>
+        GitHub Enterprise connection and data sync settings.
+      </p>
+      <div className={styles.githubGrid}>
+        <EnterprisePATWidget />
+        <AuditStreamPanel />
+        <EnterpriseSyncConfigWidget />
+        <SyncScheduleWidget />
+      </div>
     </div>
   );
 }
@@ -1630,7 +1698,6 @@ function CategorySettingsForm({
         }
       }
       queryClient.invalidateQueries({ queryKey: ['settings'] });
-      queryClient.invalidateQueries({ queryKey: ['settings', 'audit-trail'] });
       setSaveMessage('Settings saved successfully.');
       setTimeout(() => setSaveMessage(null), 3000);
     } catch {
@@ -1923,8 +1990,8 @@ export function SettingsPage() {
   const qc = useQueryClient();
   const { tab: tabSlug } = useParams<{ tab: string }>();
   const navigate = useNavigate();
-  const activeTab: Category | 'Audit' | 'Features' | 'Integrations' | 'Retention' =
-    SLUG_TO_TAB[tabSlug ?? 'all'] ?? 'All';
+  const activeTab: Category | 'Features' | 'Integrations' | 'Retention' =
+    SLUG_TO_TAB[tabSlug ?? 'secrets'] ?? 'Secrets';
   const [editTarget, setEditTarget] = useState<AppSetting | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppSetting | null>(null);
 
@@ -1950,7 +2017,6 @@ export function SettingsPage() {
     }) => updateSetting(key, value, description),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings'] });
-      qc.invalidateQueries({ queryKey: ['settings', 'audit-trail'] });
       setEditTarget(null);
     },
   });
@@ -1959,7 +2025,6 @@ export function SettingsPage() {
     mutationFn: (key: string) => deleteSetting(key),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings'] });
-      qc.invalidateQueries({ queryKey: ['settings', 'audit-trail'] });
       setDeleteTarget(null);
     },
   });
@@ -1967,14 +2032,14 @@ export function SettingsPage() {
   const filteredSettings =
     settings?.filter(
       (s: AppSetting) =>
-        activeTab === 'All' || s.category.toLowerCase() === (activeTab as string).toLowerCase(),
+        activeTab === 'Secrets' && ['sensitive', 'critical'].includes(s.sensitivity.toLowerCase()),
     ) ?? [];
 
   return (
     <div className={styles.page}>
       <PageHeader
         title="Settings"
-        description="Manage application settings and view the audit trail"
+        description="Manage application settings, secrets, and integrations"
         showHelp
       />
 
@@ -1989,12 +2054,6 @@ export function SettingsPage() {
             {cat}
           </button>
         ))}
-        <button
-          className={activeTab === 'Audit' ? styles.tabActive : styles.tab}
-          onClick={() => navigate('/settings/audit')}
-        >
-          Audit Trail
-        </button>
         <button
           className={activeTab === 'Features' ? styles.tabActive : styles.tab}
           onClick={() => navigate('/settings/features')}
@@ -2022,8 +2081,6 @@ export function SettingsPage() {
         <IntegrationsPane />
       ) : activeTab === 'Retention' ? (
         <RetentionPane />
-      ) : activeTab === 'Audit' ? (
-        <AuditTrailTable />
       ) : activeTab === 'GitHub' ? (
         <GitHubPane />
       ) : activeTab === 'Security' ? (
@@ -2081,25 +2138,21 @@ export function SettingsPage() {
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th scope="col">Key</th>
-                    <th scope="col">Value</th>
-                    <th scope="col">Sensitivity</th>
-                    <th scope="col">Description</th>
-                    <th scope="col">Updated</th>
-                    <th scope="col"></th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Last Rotated</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredSettings.map((s: AppSetting) => (
                     <tr key={s.key}>
                       <td className={styles.settingKey}>{s.key}</td>
-                      <td className={styles.settingValue}>{s.value}</td>
+                      <td className={styles.settingMeta}>{s.category}</td>
+                      <td className={styles.settingMeta}>{formatAbsolute(s.updated_at)}</td>
                       <td>
                         <span className={sensitivityClass(s.sensitivity)}>{s.sensitivity}</span>
-                      </td>
-                      <td className={styles.settingDescription}>{s.description ?? '—'}</td>
-                      <td className={styles.settingMeta}>
-                        {s.updated_by} · {formatAbsolute(s.updated_at)}
                       </td>
                       <td>
                         <div className={styles.cellActions}>
@@ -2120,8 +2173,8 @@ export function SettingsPage() {
         </>
       )}
 
-      {/* Edit modal */}
-      <Modal
+      {/* Edit drawer */}
+      <Drawer
         open={!!editTarget}
         onClose={() => setEditTarget(null)}
         title={`Edit: ${editTarget?.key ?? ''}`}
@@ -2135,7 +2188,7 @@ export function SettingsPage() {
             onCancel={() => setEditTarget(null)}
           />
         )}
-      </Modal>
+      </Drawer>
 
       {/* Delete confirmation */}
       <ConfirmDialog

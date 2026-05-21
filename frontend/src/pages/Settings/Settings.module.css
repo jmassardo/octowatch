@@ -374,6 +374,19 @@
   margin: 0 0 0.5rem;
 }
 
+/* ===== GitHub two-column grid ===== */
+.githubGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .githubGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Audit Stream Panel ─────────────────────────────────────────── */
 
 .auditStreamBody {

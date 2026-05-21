@@ -44,6 +44,15 @@ const mockListSettings = vi.fn().mockResolvedValue([
     updated_at: '2025-06-02T12:00:00Z',
   },
   {
+    key: 'db.connection_string',
+    value: 'postgres://****',
+    category: 'System',
+    sensitivity: 'critical',
+    description: 'Primary database connection string',
+    updated_by: 'system',
+    updated_at: '2025-06-03T08:00:00Z',
+  },
+  {
     key: 'system.log_level',
     value: 'info',
     category: 'System',
@@ -90,30 +99,10 @@ const mockToggleMaintenanceMode = vi.fn().mockResolvedValue({
   estimated_end: null,
 });
 
-const mockGetAuditTrail = vi.fn().mockResolvedValue([
-  {
-    setting_key: 'system.log_level',
-    action: 'update',
-    changed_by: 'admin',
-    old_value_masked: 'info',
-    new_value_masked: 'debug',
-    created_at: '2025-06-03T10:00:00Z',
-  },
-  {
-    setting_key: 'github.client_id',
-    action: 'set',
-    changed_by: 'admin',
-    old_value_masked: null,
-    new_value_masked: 'Ov23li****',
-    created_at: '2025-06-01T10:00:00Z',
-  },
-]);
-
 vi.mock('../../api/setup', () => ({
   listSettings: (...args: unknown[]) => mockListSettings(...args),
   updateSetting: (...args: unknown[]) => mockUpdateSetting(...args),
   deleteSetting: (...args: unknown[]) => mockDeleteSetting(...args),
-  getSettingsAuditTrail: (...args: unknown[]) => mockGetAuditTrail(...args),
   getSetupStatus: vi.fn().mockResolvedValue({ setup_required: false }),
   setupLogin: vi.fn().mockResolvedValue(undefined),
   setupGitHubOAuth: vi.fn().mockResolvedValue(undefined),
@@ -274,7 +263,7 @@ vi.mock('../../api/ingest', () => ({
   listIngestJobs: vi.fn().mockResolvedValue({ items: [], total: 0 }),
 }));
 
-function renderPage(initialTab = 'all') {
+function renderPage(initialTab = 'secrets') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -299,7 +288,6 @@ describe('SettingsPage', () => {
     mockListSettings.mockClear();
     mockUpdateSetting.mockClear();
     mockDeleteSetting.mockClear();
-    mockGetAuditTrail.mockClear();
     mockGetMaintenanceStatus.mockClear();
     mockUpdateMaintenanceStatus.mockClear();
     mockToggleMaintenanceMode.mockClear();
@@ -319,32 +307,38 @@ describe('SettingsPage', () => {
   it('renders category tabs', () => {
     renderPage();
 
-    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Secrets' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'GitHub' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Security' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Audit Trail' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Audit Trail' })).not.toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
   /*  Settings list                                                     */
   /* ---------------------------------------------------------------- */
 
-  it('renders all settings in the All tab', async () => {
+  it('renders secrets in the Secrets tab', async () => {
     renderPage();
 
     expect(await screen.findByText('github.client_id')).toBeInTheDocument();
-    expect(screen.getByText('github.app_id')).toBeInTheDocument();
-    expect(screen.getByText('tls.cert_path')).toBeInTheDocument();
     expect(screen.getByText('notifications.slack_webhook')).toBeInTheDocument();
-    expect(screen.getByText('system.log_level')).toBeInTheDocument();
+    expect(screen.getByText('db.connection_string')).toBeInTheDocument();
+    expect(screen.queryByText('github.app_id')).not.toBeInTheDocument();
+    expect(screen.queryByText('tls.cert_path')).not.toBeInTheDocument();
+    expect(screen.queryByText('system.log_level')).not.toBeInTheDocument();
   });
 
-  it('shows masked values for settings', async () => {
+  it('shows secret metadata columns', async () => {
     renderPage();
 
-    expect(await screen.findByText('Ov23li****')).toBeInTheDocument();
+    await screen.findByText('github.client_id');
+
+    expect(screen.getByRole('columnheader', { name: 'Name' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Type' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Last Rotated' })).toBeInTheDocument();
+    expect(screen.getAllByText('GitHub').length).toBeGreaterThan(1);
   });
 
   it('shows sensitivity badges', async () => {
@@ -353,7 +347,8 @@ describe('SettingsPage', () => {
     await screen.findByText('github.client_id');
 
     expect(screen.getAllByText('sensitive')).toHaveLength(2);
-    expect(screen.getAllByText('normal')).toHaveLength(3);
+    expect(screen.getByText('critical')).toBeInTheDocument();
+    expect(screen.queryByText('normal')).not.toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
@@ -365,14 +360,11 @@ describe('SettingsPage', () => {
     renderPage();
 
     await screen.findByText('github.client_id');
+    expect(screen.queryByText('system.log_level')).not.toBeInTheDocument();
 
-    // Click GitHub tab — shows the GitHub pane (not the table)
     await user.click(screen.getByRole('button', { name: 'GitHub' }));
 
-    // GitHub tab content visible
-    expect(screen.getByText('Data Import')).toBeInTheDocument();
-
-    // Non-GitHub settings should not be visible
+    expect(screen.getByText('Classic PAT for Audit Log')).toBeInTheDocument();
     expect(screen.queryByText('db.connection_string')).not.toBeInTheDocument();
     expect(screen.queryByText('system.log_level')).not.toBeInTheDocument();
   });
@@ -397,22 +389,21 @@ describe('SettingsPage', () => {
   /*  Edit setting                                                      */
   /* ---------------------------------------------------------------- */
 
-  it('opens edit modal when Edit is clicked', async () => {
+  it('opens edit drawer when Edit is clicked', async () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText('system.log_level');
+    await screen.findByText('github.client_id');
 
-    // Find the row with system.log_level and click its Edit button
     const rows = screen.getAllByRole('row');
-    const logLevelRow = rows.find((r) => within(r).queryByText('system.log_level'));
-    expect(logLevelRow).toBeDefined();
+    const secretRow = rows.find((r) => within(r).queryByText('github.client_id'));
+    expect(secretRow).toBeDefined();
 
-    const editBtn = within(logLevelRow!).getByRole('button', { name: /edit/i });
+    const editBtn = within(secretRow!).getByRole('button', { name: /edit/i });
     await user.click(editBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/edit: system\.log_level/i)).toBeInTheDocument();
+      expect(screen.getByText(/edit: github\.client_id/i)).toBeInTheDocument();
     });
   });
 
@@ -420,25 +411,26 @@ describe('SettingsPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText('system.log_level');
+    await screen.findByText('github.client_id');
 
     const rows = screen.getAllByRole('row');
-    const logLevelRow = rows.find((r) => within(r).queryByText('system.log_level'));
-    const editBtn = within(logLevelRow!).getByRole('button', { name: /edit/i });
+    const secretRow = rows.find((r) => within(r).queryByText('github.client_id'));
+    const editBtn = within(secretRow!).getByRole('button', { name: /edit/i });
     await user.click(editBtn);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/new value/i)).toBeInTheDocument();
-    });
+    const newValueInput = await screen.findByPlaceholderText('Enter new value');
 
-    await user.type(screen.getByLabelText(/new value/i), 'debug');
+    await user.click(newValueInput);
+    await user.type(newValueInput, 'new-secret');
+    expect(newValueInput).toHaveValue('new-secret');
+
     await user.click(screen.getByRole('button', { name: /^save$/i }));
 
     await waitFor(() => {
       expect(mockUpdateSetting).toHaveBeenCalledWith(
-        'system.log_level',
-        'debug',
-        'Application log level',
+        'github.client_id',
+        'new-secret',
+        'GitHub OAuth Client ID',
       );
     });
   });
@@ -451,36 +443,16 @@ describe('SettingsPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText('system.log_level');
+    await screen.findByText('github.client_id');
 
     const rows = screen.getAllByRole('row');
-    const logLevelRow = rows.find((r) => within(r).queryByText('system.log_level'));
-    const resetBtn = within(logLevelRow!).getByRole('button', { name: /reset/i });
+    const secretRow = rows.find((r) => within(r).queryByText('github.client_id'));
+    const resetBtn = within(secretRow!).getByRole('button', { name: /reset/i });
     await user.click(resetBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/reset "system\.log_level" to its default/i)).toBeInTheDocument();
+      expect(screen.getByText(/reset "github\.client_id" to its default/i)).toBeInTheDocument();
     });
-  });
-
-  /* ---------------------------------------------------------------- */
-  /*  Audit trail                                                       */
-  /* ---------------------------------------------------------------- */
-
-  it('renders audit trail when Audit Trail tab is clicked', async () => {
-    const user = userEvent.setup();
-    renderPage();
-
-    await screen.findByText('github.client_id');
-
-    await user.click(screen.getByRole('button', { name: 'Audit Trail' }));
-
-    // Should show the audit entries
-    await waitFor(() => {
-      expect(screen.getByText('update')).toBeInTheDocument();
-    });
-
-    expect(screen.getByText('set')).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
@@ -609,15 +581,19 @@ describe('SettingsPage', () => {
     expect(screen.getByText(/slack integration/i)).toBeInTheDocument();
   });
 
-  it('shows Data Import section on GitHub tab', async () => {
+  it('shows GitHub grid widgets on the GitHub tab', async () => {
     const user = userEvent.setup();
     renderPage();
 
     await user.click(screen.getByRole('button', { name: 'GitHub' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Data Import')).toBeInTheDocument();
+      expect(screen.getByText('Enterprise Sync Config')).toBeInTheDocument();
     });
+
+    expect(screen.getByText('Classic PAT for Audit Log')).toBeInTheDocument();
+    expect(screen.getByText('Audit Log Streaming')).toBeInTheDocument();
+    expect(screen.getByText('Sync Schedule')).toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
