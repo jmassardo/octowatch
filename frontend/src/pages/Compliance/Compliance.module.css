@@ -301,6 +301,38 @@
   margin-bottom: 1rem;
 }
 
+/* Empty state */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+  border: 1px dashed var(--border-muted, #21262d);
+  border-radius: 8px;
+}
+
+.emptyIcon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.emptyTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+  color: var(--fg-default, #e6edf3);
+}
+
+.emptyDescription {
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+  max-width: 480px;
+  margin: 0 0 0.5rem;
+  line-height: 1.5;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .compliancePage,
   .summaryStrip,
@@ -345,7 +377,11 @@
   .statValue,
   .statLabel,
   .radarPlaceholder,
-  .actionsBar {
+  .actionsBar,
+  .emptyState,
+  .emptyIcon,
+  .emptyTitle,
+  .emptyDescription {
     animation: none !important;
     transition: none !important;
   }

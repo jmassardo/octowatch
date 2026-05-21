@@ -181,7 +181,7 @@ describe('CompliancePage', () => {
     expect(screen.getAllByText('GDPR').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('shows Generate All Reports button on overview tab', async () => {
+  it('shows Generate All Reports button in header', async () => {
     renderWithProviders(<CompliancePage />, { route: '/compliance' });
     await waitFor(() => {
       expect(screen.getByText('Generate All Reports')).toBeInTheDocument();

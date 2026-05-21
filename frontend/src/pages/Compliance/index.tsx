@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '../../components/common/PageHeader';
+import type { PageAction } from '../../components/common/PageHeader';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
@@ -69,12 +70,25 @@ export function CompliancePage() {
       });
   }, [queryClient]);
 
+  const headerActions: PageAction[] = useMemo(
+    () => [
+      {
+        label: isGenerating ? 'Generating…' : 'Generate All Reports',
+        onClick: handleGenerateAll,
+        variant: 'primary',
+        disabled: isGenerating || isLoading,
+      },
+    ],
+    [isGenerating, handleGenerateAll, isLoading],
+  );
+
   if (isLoading) {
     return (
       <div className={styles.compliancePage}>
         <PageHeader
           title="Compliance Center"
           description="Track compliance posture across security frameworks"
+          actions={headerActions}
           showHelp
         />
         <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
@@ -90,9 +104,39 @@ export function CompliancePage() {
         <PageHeader
           title="Compliance Center"
           description="Track compliance posture across security frameworks"
+          actions={headerActions}
           showHelp
         />
         <ErrorBanner message="Failed to load compliance data" onRetry={() => refetch()} />
+      </div>
+    );
+  }
+
+  const isEmpty =
+    summary !== undefined && summary.controls_total === 0 && summary.frameworks.length === 0;
+
+  if (isEmpty) {
+    return (
+      <div className={styles.compliancePage}>
+        <PageHeader
+          title="Compliance Center"
+          description="Track compliance posture across security frameworks"
+          actions={headerActions}
+          showHelp
+        />
+        <div className={styles.emptyState}>
+          <div className={styles.emptyIcon}>📋</div>
+          <h2 className={styles.emptyTitle}>No Compliance Data Yet</h2>
+          <p className={styles.emptyDescription}>
+            Compliance reports are generated from your audit event data. Once you have ingested
+            GitHub audit log events, this page will display your compliance posture across SOC 2,
+            ISO 27001, NIST CSF, and GDPR frameworks.
+          </p>
+          <p className={styles.emptyDescription}>
+            To get started, configure an audit log webhook or run a manual sync from the Settings
+            page.
+          </p>
+        </div>
       </div>
     );
   }
@@ -106,6 +150,7 @@ export function CompliancePage() {
       <PageHeader
         title="Compliance Center"
         description="Track compliance posture across security frameworks"
+        actions={headerActions}
         showHelp
       />
 
@@ -164,12 +209,7 @@ export function CompliancePage() {
         aria-labelledby={`tab-${activeTab}`}
       >
         {activeTab === 'overview' && (
-          <OverviewPane
-            summary={summary}
-            onSelectFramework={handleSelectFramework}
-            onGenerateAll={handleGenerateAll}
-            isGenerating={isGenerating}
-          />
+          <OverviewPane summary={summary} onSelectFramework={handleSelectFramework} />
         )}
         {activeTab === 'soc2' && <FrameworkPane frameworkName="soc2" />}
         {activeTab === 'iso27001' && <FrameworkPane frameworkName="iso27001" />}
