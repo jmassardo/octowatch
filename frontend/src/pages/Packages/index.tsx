@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { PageHeader } from '../../components/common/PageHeader';
+import { EmptyState } from '../../components/common/EmptyState';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
@@ -328,70 +330,90 @@ export function PackagesPage() {
   }
 
   const summary = summaryQuery.data;
+  const hasData = summary != null && summary.total_packages > 0;
 
   return (
     <div className={styles.page}>
-      <h2>Packages Monitoring</h2>
+      <PageHeader
+        title="Packages"
+        description="Monitor package security posture, visibility, and container image health"
+        showHelp
+      />
+
+      {/* ── Empty state when no packages synced ──────────────────────── */}
+      {!hasData && (
+        <EmptyState
+          icon="📦"
+          title="No packages synced yet"
+          description="Package data will appear here once your GitHub organisations have been synced. Ensure at least one organisation with GitHub Packages is connected."
+        />
+      )}
 
       {/* ── Summary strip ────────────────────────────────────────────── */}
-      <div className={styles.metricGrid}>
-        <MetricCard
-          value={String(summary?.total_packages ?? 0)}
-          label="Total Packages"
-          helpText="Total number of packages across all monitored organisations."
-        />
-        <MetricCard
-          value={String(summary?.public_packages ?? 0)}
-          label="Public Packages"
-          accent={summary != null && summary.public_packages > 0}
-          helpText="Packages with public visibility — potential data exposure risk."
-        />
-        <MetricCard
-          value={String(summary?.private_packages ?? 0)}
-          label="Private Packages"
-          helpText="Packages with private visibility."
-        />
-        <MetricCard
-          value={String(summary?.stale_images ?? 0)}
-          label="Stale Images"
-          accent={summary != null && summary.stale_images > 0}
-          helpText="Container images not rebuilt in over 90 days."
-        />
-        <MetricCard
-          value={String(summary?.open_alerts ?? 0)}
-          label="Open Alerts"
-          accent={summary != null && summary.open_alerts > 0}
-          helpText="Active security alerts requiring attention."
-        />
-      </div>
+      {hasData && (
+        <div className={styles.metricGrid}>
+          <MetricCard
+            value={String(summary?.total_packages ?? 0)}
+            label="Total Packages"
+            helpText="Total number of packages across all monitored organisations."
+          />
+          <MetricCard
+            value={String(summary?.public_packages ?? 0)}
+            label="Public Packages"
+            accent={summary != null && summary.public_packages > 0}
+            helpText="Packages with public visibility — potential data exposure risk."
+          />
+          <MetricCard
+            value={String(summary?.private_packages ?? 0)}
+            label="Private Packages"
+            helpText="Packages with private visibility."
+          />
+          <MetricCard
+            value={String(summary?.stale_images ?? 0)}
+            label="Stale Images"
+            accent={summary != null && summary.stale_images > 0}
+            helpText="Container images not rebuilt in over 90 days."
+          />
+          <MetricCard
+            value={String(summary?.open_alerts ?? 0)}
+            label="Open Alerts"
+            accent={summary != null && summary.open_alerts > 0}
+            helpText="Active security alerts requiring attention."
+          />
+        </div>
+      )}
 
       {/* ── Tabs ─────────────────────────────────────────────────────── */}
-      <div className={styles.tabs} role="tablist">
-        {(
-          [
-            ['overview', 'Overview'],
-            ['inventory', 'Inventory'],
-            ['alerts', 'Alerts'],
-            ['container-health', 'Container Health'],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            role="tab"
-            aria-selected={activeTab === key}
-            className={`${styles.tab} ${activeTab === key ? styles.tabActive : ''}`}
-            onClick={() => setActiveTab(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {hasData && (
+        <div className={styles.tabs} role="tablist">
+          {(
+            [
+              ['overview', 'Overview'],
+              ['inventory', 'Inventory'],
+              ['alerts', 'Alerts'],
+              ['container-health', 'Container Health'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={activeTab === key}
+              className={`${styles.tab} ${activeTab === key ? styles.tabActive : ''}`}
+              onClick={() => setActiveTab(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Tab content ──────────────────────────────────────────────── */}
-      {activeTab === 'overview' && <OverviewTab summary={summary} alerts={alertsQuery.data} />}
-      {activeTab === 'inventory' && <InventoryTab data={inventoryQuery.data} />}
-      {activeTab === 'alerts' && <AlertsTab data={alertsQuery.data} />}
-      {activeTab === 'container-health' && <ContainerHealthTab data={staleQuery.data} />}
+      {hasData && activeTab === 'overview' && (
+        <OverviewTab summary={summary} alerts={alertsQuery.data} />
+      )}
+      {hasData && activeTab === 'inventory' && <InventoryTab data={inventoryQuery.data} />}
+      {hasData && activeTab === 'alerts' && <AlertsTab data={alertsQuery.data} />}
+      {hasData && activeTab === 'container-health' && <ContainerHealthTab data={staleQuery.data} />}
     </div>
   );
 }
