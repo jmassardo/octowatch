@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   listWorkflowFindings,
   getRepoSecurityScores,
@@ -51,10 +51,82 @@ function ScoreCard({ score }: { score: RepoSecurityScore }) {
 }
 
 export function WorkflowsPage() {
-  const [tab, setTab] = useState<Tab>('findings');
-  const [sevFilter, setSevFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Sync tab, severity, status, and selected finding with URL
+  const tabParam = searchParams.get('tab') ?? 'findings';
+  const tab: Tab = (['findings', 'scores', 'activity'] as Tab[]).includes(tabParam as Tab)
+    ? (tabParam as Tab)
+    : 'findings';
+  const sevFilter = searchParams.get('severity') ?? '';
+  const statusFilter = searchParams.get('status') ?? '';
+  const findingIdParam = searchParams.get('finding');
+
   const [selectedFinding, setSelectedFinding] = useState<WorkflowFinding | null>(null);
+
+  function setTab(newTab: Tab) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (newTab === 'findings') {
+          next.delete('tab');
+        } else {
+          next.set('tab', newTab);
+        }
+        // Clear finding selection when switching tabs
+        next.delete('finding');
+        return next;
+      },
+      { replace: true },
+    );
+    setSelectedFinding(null);
+  }
+
+  function setSevFilter(value: string) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value) {
+          next.set('severity', value);
+        } else {
+          next.delete('severity');
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function setStatusFilter(value: string) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value) {
+          next.set('status', value);
+        } else {
+          next.delete('status');
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function selectFinding(finding: WorkflowFinding | null) {
+    setSelectedFinding(finding);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (finding) {
+          next.set('finding', String(finding.id));
+        } else {
+          next.delete('finding');
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  }
 
   const { data: scanStatus } = useQuery({
     queryKey: ['workflow-scanner', 'scan-status'],
@@ -90,6 +162,16 @@ export function WorkflowsPage() {
     enabled: tab === 'scores',
     refetchInterval: 5 * 60_000,
   });
+
+  // Deep link: derive selected finding from URL param and fetched data
+  const effectiveSelectedFinding = useMemo(() => {
+    if (selectedFinding) return selectedFinding;
+    if (findingIdParam && findingsData) {
+      const id = parseInt(findingIdParam, 10);
+      return findingsData.findings.find((f) => f.id === id) ?? null;
+    }
+    return null;
+  }, [selectedFinding, findingIdParam, findingsData]);
 
   return (
     <div className={styles.splitLayout}>
@@ -230,8 +312,10 @@ export function WorkflowsPage() {
                   {findingsData.findings.map((f) => (
                     <tr
                       key={f.id}
-                      className={`${styles.findingRow} ${selectedFinding?.id === f.id ? styles.findingRowSelected : ''}`}
-                      onClick={() => setSelectedFinding(selectedFinding?.id === f.id ? null : f)}
+                      className={`${styles.findingRow} ${effectiveSelectedFinding?.id === f.id ? styles.findingRowSelected : ''}`}
+                      onClick={() =>
+                        selectFinding(effectiveSelectedFinding?.id === f.id ? null : f)
+                      }
                     >
                       <td>
                         <Label
@@ -294,29 +378,29 @@ export function WorkflowsPage() {
 
       {/* Detail slide-out panel */}
       <div
-        className={[styles.splitPanel, selectedFinding && styles.splitPanelOpen]
+        className={[styles.splitPanel, effectiveSelectedFinding && styles.splitPanelOpen]
           .filter(Boolean)
           .join(' ')}
       >
-        {selectedFinding && (
+        {effectiveSelectedFinding && (
           <>
             <div className={styles.panelHeader}>
-              <div className={styles.panelTitle}>{selectedFinding.title}</div>
-              <button className={styles.panelClose} onClick={() => setSelectedFinding(null)}>
+              <div className={styles.panelTitle}>{effectiveSelectedFinding.title}</div>
+              <button className={styles.panelClose} onClick={() => selectFinding(null)}>
                 &#215;
               </button>
             </div>
             <div className={styles.panelBody}>
               <div className={styles.panelMeta}>
-                <Label variant={sevVariant(selectedFinding.severity)}>
-                  {selectedFinding.severity}
+                <Label variant={sevVariant(effectiveSelectedFinding.severity)}>
+                  {effectiveSelectedFinding.severity}
                 </Label>
-                <Label variant="muted">{selectedFinding.rule_id}</Label>
+                <Label variant="muted">{effectiveSelectedFinding.rule_id}</Label>
               </div>
 
               <div className={styles.panelSection}>
                 <div className={styles.panelSectionTitle}>Description</div>
-                <p className={styles.panelText}>{selectedFinding.description}</p>
+                <p className={styles.panelText}>{effectiveSelectedFinding.description}</p>
               </div>
 
               <div className={styles.panelSection}>
@@ -324,26 +408,26 @@ export function WorkflowsPage() {
                 <div className={styles.panelKv}>
                   <span className={styles.panelLabel}>Repository</span>
                   <span>
-                    {selectedFinding.org}/{selectedFinding.repo}
+                    {effectiveSelectedFinding.org}/{effectiveSelectedFinding.repo}
                   </span>
                 </div>
                 <div className={styles.panelKv}>
                   <span className={styles.panelLabel}>Workflow</span>
-                  <code>{selectedFinding.workflow_path}</code>
+                  <code>{effectiveSelectedFinding.workflow_path}</code>
                 </div>
               </div>
 
-              {selectedFinding.snippet && (
+              {effectiveSelectedFinding.snippet && (
                 <div className={styles.panelSection}>
                   <div className={styles.panelSectionTitle}>Code Snippet</div>
-                  <pre className={styles.codeBlock}>{selectedFinding.snippet}</pre>
+                  <pre className={styles.codeBlock}>{effectiveSelectedFinding.snippet}</pre>
                 </div>
               )}
 
-              {selectedFinding.recommendation && (
+              {effectiveSelectedFinding.recommendation && (
                 <div className={styles.panelSection}>
                   <div className={styles.panelSectionTitle}>Recommendation</div>
-                  <p className={styles.panelText}>{selectedFinding.recommendation}</p>
+                  <p className={styles.panelText}>{effectiveSelectedFinding.recommendation}</p>
                 </div>
               )}
 

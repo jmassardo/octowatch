@@ -10,7 +10,7 @@ import structlog
 import yaml
 from github import Github, GithubException
 from redis.asyncio import Redis
-from sqlalchemy import select
+from sqlalchemy import asc, case, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -100,6 +100,12 @@ async def list_rules(
     enabled: bool | None = None,
     logic_type: str | None = None,
     status: str | None = None,
+    severity: str | None = None,
+    category: str | None = None,
+    search: str | None = None,
+    sort: str | None = None,
+    order: str | None = None,
+    mode: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[RuleDefinition], int]:
@@ -110,13 +116,48 @@ async def list_rules(
         base = base.where(RuleDefinition.logic_type == logic_type)
     if status:
         base = base.where(RuleDefinition.status == status)
-
-    from sqlalchemy import func
+    if severity:
+        base = base.where(RuleDefinition.default_severity == severity)
+    if category:
+        base = base.where(RuleDefinition.category == category)
+    if mode:
+        base = base.where(RuleDefinition.mode == mode)
+    if search:
+        search_term = f"%{search.strip()}%"
+        base = base.where(
+            or_(
+                RuleDefinition.name.ilike(search_term),
+                RuleDefinition.slug.ilike(search_term),
+                RuleDefinition.description.ilike(search_term),
+            )
+        )
 
     count_result = await session.execute(select(func.count()).select_from(base.subquery()))
     total = count_result.scalar_one()
 
-    stmt = base.order_by(RuleDefinition.created_at.desc()).limit(limit).offset(offset)
+    severity_order = case(
+        (RuleDefinition.default_severity == "info", 0),
+        (RuleDefinition.default_severity == "low", 1),
+        (RuleDefinition.default_severity == "medium", 2),
+        (RuleDefinition.default_severity == "high", 3),
+        (RuleDefinition.default_severity == "critical", 4),
+        else_=-1,
+    )
+    sort_field = (sort or "created_at").lower()
+    sort_direction = asc if (order or "desc").lower() == "asc" else desc
+    sort_column = {
+        "name": func.lower(RuleDefinition.name),
+        "severity": severity_order,
+        "logic_type": func.lower(RuleDefinition.logic_type),
+        "created_at": RuleDefinition.created_at,
+        "status": func.lower(RuleDefinition.status),
+    }.get(sort_field, RuleDefinition.created_at)
+
+    stmt = (
+        base.order_by(sort_direction(sort_column), RuleDefinition.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
     result = await session.execute(stmt)
     return list(result.scalars().all()), total
 
@@ -146,8 +187,8 @@ async def create_rule(
         logic_type=payload.logic_type,
         logic_config=payload.logic_config,
         enabled=payload.enabled,
-        status="draft",
-        mode=payload.mode,
+        status=payload.status or "draft",
+        mode=payload.mode or "active",
         version=1,
         created_by=created_by,
     )

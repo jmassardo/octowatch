@@ -705,4 +705,32 @@ describe('EventsPage', () => {
     renderWithProviders(<EventsPage />);
     expect(await screen.findByText(/Showing first 5,000 results/)).toBeInTheDocument();
   });
+
+  it('deep links to a selected event via ?event= query param', async () => {
+    const { getEvent } = await import('../../api/events');
+    vi.mocked(getEvent).mockResolvedValue(MOCK_EVENTS[0]);
+
+    renderWithProviders(<EventsPage />, { route: '/events?event=1' });
+
+    // The split panel should open with the event action displayed in the panel header
+    const actionTexts = await screen.findAllByText('repo.create');
+    // Should appear in both the table row and the panel header
+    expect(actionTexts.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('clears event selection from URL when panel is closed', async () => {
+    const user = userEvent.setup();
+    const { getEvent } = await import('../../api/events');
+    vi.mocked(getEvent).mockResolvedValue(MOCK_EVENTS[0]);
+
+    renderWithProviders(<EventsPage />, { route: '/events?event=1' });
+
+    // Wait for the panel to open
+    const closeButton = await screen.findByLabelText('Close');
+    await user.click(closeButton);
+
+    // Panel should be closed (action text no longer in panel header)
+    // The close button should be gone
+    expect(screen.queryByLabelText('Close')).not.toBeInTheDocument();
+  });
 });

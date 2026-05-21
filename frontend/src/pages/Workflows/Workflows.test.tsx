@@ -226,4 +226,33 @@ describe('WorkflowsPage — Scan Status', () => {
     expect(await screen.findByText(/Fully automated/)).toBeInTheDocument();
     expect(await screen.findByText(/every 6 hours/)).toBeInTheDocument();
   });
+
+  it('deep links to scores tab via ?tab=scores query param', async () => {
+    mockGetScanStatus.mockResolvedValue(SCAN_STATUS_RESPONSE);
+    mockGetScores.mockResolvedValue(SCORES_RESPONSE);
+    renderWithProviders(<WorkflowsPage />, { route: '/workflows?tab=scores' });
+
+    expect(await screen.findByText('myorg/myrepo')).toBeInTheDocument();
+  });
+
+  it('deep links to a specific finding via ?finding= query param', async () => {
+    mockGetScanStatus.mockResolvedValue(SCAN_STATUS_RESPONSE);
+    mockListFindings.mockResolvedValue(FINDINGS_RESPONSE);
+    renderWithProviders(<WorkflowsPage />, { route: '/workflows?finding=1' });
+
+    // The detail panel should show the finding details (title appears in both table and panel)
+    const titles = await screen.findAllByText('Unpinned third-party action');
+    expect(titles.length).toBeGreaterThanOrEqual(2); // table row + panel header
+    expect(screen.getByText('Action uses branch ref instead of SHA')).toBeInTheDocument();
+  });
+
+  it('applies severity filter from URL query param', async () => {
+    mockGetScanStatus.mockResolvedValue(SCAN_STATUS_RESPONSE);
+    mockListFindings.mockResolvedValue(FINDINGS_RESPONSE);
+    renderWithProviders(<WorkflowsPage />, { route: '/workflows?severity=high' });
+
+    await screen.findByText('Unpinned third-party action');
+    // The severity filter select should have the value from URL
+    expect(mockListFindings).toHaveBeenCalledWith(expect.objectContaining({ severity: 'high' }));
+  });
 });

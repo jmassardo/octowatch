@@ -5,8 +5,16 @@ export function listRules(params?: {
   limit?: number;
   offset?: number;
   search?: string;
+  severity?: string;
+  category?: string;
+  logic_type?: string;
+  enabled?: boolean;
+  rule_status?: string;
+  mode?: string;
+  sort?: string;
+  order?: string;
 }): Promise<RuleListResponse> {
-  return api.get<RuleListResponse>('/rules', params as Record<string, string | number>);
+  return api.get<RuleListResponse>('/rules', params as Record<string, string | number | boolean>);
 }
 
 export function createRule(r: RuleCreate): Promise<RuleResponse> {
@@ -23,6 +31,10 @@ export function updateRuleStatus(
   enabled?: boolean,
 ): Promise<RuleResponse> {
   return api.patch<RuleResponse>(`/rules/${id}/status`, { status, enabled });
+}
+
+export function getRule(id: number): Promise<RuleResponse> {
+  return api.get<RuleResponse>(`/rules/${id}`);
 }
 
 export function deleteRule(id: number): Promise<void> {

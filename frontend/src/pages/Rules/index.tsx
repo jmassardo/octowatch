@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   listRules,
-  createRule,
+  getRule,
   updateRule,
   deleteRule,
   listRuleVersions,
@@ -24,12 +24,11 @@ import { DataTable } from '../../components/primitives/DataTable';
 import { RuleConfigEditorContainer } from './editor/RuleConfigEditorContainer';
 import { JsonConfigEditor } from './editor/JsonConfigEditor';
 import { TestRuleModal } from './TestRuleModal';
-import { RuleLibrary } from './RuleLibrary';
 import { RuleWizard } from './RuleWizard';
 import { BacktestPanel } from './BacktestPanel';
 import { RuleAnalytics } from './RuleAnalytics';
 import { formatAbsolute } from '../../utils/dates';
-import { useQueryParamInt } from '../../hooks/useQueryParam';
+import { useQueryParamInt, useQueryParam } from '../../hooks/useQueryParam';
 import styles from './Rules.module.css';
 
 const CATEGORIES: RuleCategory[] = [
@@ -54,6 +53,14 @@ const CATEGORIES: RuleCategory[] = [
 const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'] as const;
 const CONFIDENCES = ['high', 'medium', 'low'] as const;
 const LOGIC_TYPES = ['threshold', 'pattern', 'sequence', 'statistical', 'posture'] as const;
+const MODES = ['active', 'monitoring', 'disabled'] as const;
+const SORT_OPTIONS = [
+  { value: 'created_at', label: 'Created' },
+  { value: 'name', label: 'Name' },
+  { value: 'severity', label: 'Severity' },
+  { value: 'logic_type', label: 'Logic type' },
+  { value: 'status', label: 'Status' },
+] as const;
 
 const SEVERITY_VARIANT: Record<string, 'danger' | 'attention' | 'success' | 'muted'> = {
   critical: 'danger',
@@ -306,17 +313,8 @@ function VersionHistory({ rule }: { rule: RuleResponse }) {
   if (viewConfig) {
     return (
       <div>
-        <div
-          style={{
-            marginBottom: 12,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span style={{ fontSize: 13, fontWeight: 500 }}>
-            Version {viewConfig.version} — Config
-          </span>
+        <div className={styles.versionHeaderRow}>
+          <span className={styles.versionHeaderLabel}>Version {viewConfig.version} — Config</span>
           <Button variant="default" size="sm" onClick={() => setViewConfig(null)}>
             ← Back
           </Button>
@@ -417,21 +415,105 @@ function VersionHistory({ rule }: { rule: RuleResponse }) {
   );
 }
 
+function RuleDetailContent({ rule }: { rule: RuleResponse }) {
+  return (
+    <div className={styles.detailPanel}>
+      <div className={styles.detailSection}>
+        <div className={styles.detailGrid}>
+          <div>
+            <div className={styles.detailLabel}>Name</div>
+            <div className={styles.detailValue}>{rule.name}</div>
+          </div>
+          <div>
+            <div className={styles.detailLabel}>Slug</div>
+            <div className={styles.detailValueMono}>{rule.slug}</div>
+          </div>
+          <div>
+            <div className={styles.detailLabel}>Category</div>
+            <div className={styles.detailValue}>{rule.category.replace(/_/g, ' ')}</div>
+          </div>
+          <div>
+            <div className={styles.detailLabel}>Logic type</div>
+            <div className={styles.detailValue}>
+              <Label variant="muted">{rule.logic_type}</Label>
+            </div>
+          </div>
+          <div>
+            <div className={styles.detailLabel}>Severity</div>
+            <div className={styles.detailValue}>
+              <Label variant={SEVERITY_VARIANT[rule.default_severity] ?? 'muted'}>
+                {rule.default_severity}
+              </Label>
+            </div>
+          </div>
+          <div>
+            <div className={styles.detailLabel}>Confidence</div>
+            <div className={styles.detailValue}>{rule.default_confidence}</div>
+          </div>
+          <div>
+            <div className={styles.detailLabel}>Status</div>
+            <div className={styles.detailValue}>{rule.status}</div>
+          </div>
+          <div>
+            <div className={styles.detailLabel}>Mode</div>
+            <div className={styles.detailValue}>{rule.mode}</div>
+          </div>
+          <div>
+            <div className={styles.detailLabel}>Enabled</div>
+            <div className={styles.detailValue}>{rule.enabled ? 'Yes' : 'No'}</div>
+          </div>
+          <div>
+            <div className={styles.detailLabel}>Version</div>
+            <div className={styles.detailValueMono}>v{rule.version}.0.0</div>
+          </div>
+          <div>
+            <div className={styles.detailLabel}>Created by</div>
+            <div className={styles.detailValue}>{rule.created_by}</div>
+          </div>
+          <div>
+            <div className={styles.detailLabel}>Updated by</div>
+            <div className={styles.detailValue}>{rule.updated_by ?? '—'}</div>
+          </div>
+          <div>
+            <div className={styles.detailLabel}>Created</div>
+            <div className={styles.detailValue}>{formatAbsolute(rule.created_at)}</div>
+          </div>
+          <div>
+            <div className={styles.detailLabel}>Updated</div>
+            <div className={styles.detailValue}>{formatAbsolute(rule.updated_at)}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.detailSection}>
+        <div className={styles.detailLabel}>Description</div>
+        <div className={styles.detailValue}>{rule.description || 'No description provided.'}</div>
+      </div>
+
+      <div className={styles.detailSection}>
+        <div className={styles.detailLabel}>Logic configuration</div>
+        <JsonConfigEditor config={rule.logic_config} onChange={() => {}} readOnly />
+      </div>
+    </div>
+  );
+}
+
 export function RulesPage() {
   const qc = useQueryClient();
   const { showToast } = useToast();
-  const [showCreate, setShowCreate] = useState(false);
+  const { ruleId: ruleIdParam } = useParams<{ ruleId?: string }>();
+  const [drawerView] = useQueryParam('view', '');
   const [showWizard, setShowWizard] = useState(false);
-  const [editRule, setEditRule] = useState<RuleResponse | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RuleResponse | null>(null);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [versionRule, setVersionRule] = useState<RuleResponse | null>(null);
-  const [testRuleTarget, setTestRuleTarget] = useState<RuleResponse | null>(null);
-  const [analyticsRule, setAnalyticsRule] = useState<RuleResponse | null>(null);
-  const [backtestRuleTarget, setBacktestRuleTarget] = useState<RuleResponse | null>(null);
-  const [showLibrary, setShowLibrary] = useState(false);
   const [page, setPage] = useQueryParamInt('page', 1);
   const [selectedRuleIds, setSelectedRuleIds] = useState<Set<number>>(new Set());
+  const [filterSeverity, setFilterSeverity] = useState<string>('');
+  const [filterLogicType, setFilterLogicType] = useState<string>('');
+  const [filterMode, setFilterMode] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [sortField, setSortField] = useState<string>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const navigate = useNavigate();
 
   const PAGE_SIZE = 25;
@@ -442,27 +524,66 @@ export function RulesPage() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ['rules', page],
-    queryFn: () => listRules({ limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
+    queryKey: [
+      'rules',
+      page,
+      filterSeverity,
+      filterLogicType,
+      filterMode,
+      searchTerm,
+      sortField,
+      sortOrder,
+    ],
+    queryFn: () =>
+      listRules({
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+        severity: filterSeverity || undefined,
+        logic_type: filterLogicType || undefined,
+        mode: filterMode || undefined,
+        search: searchTerm || undefined,
+        sort: sortField || undefined,
+        order: sortOrder || undefined,
+      }),
   });
 
-  const createMutation = useMutation({
-    mutationFn: createRule,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['rules'] });
-      setShowCreate(false);
-      showToast('Rule created successfully', 'success');
-    },
-    onError: () => {
-      showToast('Failed to create rule', 'error');
-    },
+  const deepLinkRuleId = ruleIdParam ? parseInt(ruleIdParam, 10) : null;
+  const { data: deepLinkRule } = useQuery({
+    queryKey: ['rule', deepLinkRuleId],
+    queryFn: () => getRule(deepLinkRuleId!),
+    enabled: deepLinkRuleId !== null && !isNaN(deepLinkRuleId),
   });
+
+  const routeRule = deepLinkRule ?? rules?.items.find((rule) => rule.id === deepLinkRuleId) ?? null;
+  const activeDrawerView = routeRule ? drawerView || 'detail' : '';
+  const selectedRule = activeDrawerView === 'detail' ? routeRule : null;
+  const versionRule = activeDrawerView === 'versions' ? routeRule : null;
+  const analyticsRule = activeDrawerView === 'analytics' ? routeRule : null;
+  const backtestRuleTarget = activeDrawerView === 'backtest' ? routeRule : null;
+  const testRuleTarget = activeDrawerView === 'test' ? routeRule : null;
+
+  function openRuleDrawer(rule: RuleResponse, view: string = 'detail') {
+    setIsEditing(false);
+    navigate(`/rules/${rule.id}${view !== 'detail' ? `?view=${view}` : ''}`, { replace: true });
+  }
+
+  function closeRuleDrawer() {
+    setIsEditing(false);
+    navigate('/rules' + (page > 1 ? `?page=${page}` : ''), { replace: true });
+  }
+
+  function applyFilters(update: () => void) {
+    update();
+    setPage(1);
+    setSelectedRuleIds(new Set());
+  }
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: RuleCreate }) => updateRule(id, data),
-    onSuccess: () => {
+    onSuccess: (rule) => {
       qc.invalidateQueries({ queryKey: ['rules'] });
-      setEditRule(null);
+      setIsEditing(false);
+      navigate(`/rules/${rule.id}`, { replace: true });
       showToast('Rule updated successfully', 'success');
     },
     onError: () => {
@@ -472,8 +593,11 @@ export function RulesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteRule(id),
-    onSuccess: () => {
+    onSuccess: (_, deletedId) => {
       qc.invalidateQueries({ queryKey: ['rules'] });
+      if (deepLinkRuleId === deletedId) {
+        closeRuleDrawer();
+      }
       setDeleteTarget(null);
       showToast('Rule deleted successfully', 'success');
     },
@@ -506,368 +630,405 @@ export function RulesPage() {
     bulkMutation.mutate({ rule_ids: Array.from(selectedRuleIds), action });
   }
 
+  const hasFilters =
+    searchTerm !== '' ||
+    filterSeverity !== '' ||
+    filterLogicType !== '' ||
+    filterMode !== '' ||
+    sortField !== 'created_at' ||
+    sortOrder !== 'desc';
+
   return (
     <div className={styles.page}>
-      {showLibrary ? (
-        <RuleLibrary onClose={() => setShowLibrary(false)} />
-      ) : (
-        <>
-          <div className={styles.pageHeader}>
-            <PageHeader
-              title="Detection Rules"
-              description="Configure automated threat detection patterns"
-              showHelp
-            />
-            <div className={styles.headerActions}>
-              <Button variant="default" size="sm" onClick={() => setShowLibrary(true)}>
-                Rule Library
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => {
-                  setSyncMessage('Rule sync initiated');
-                  setTimeout(() => setSyncMessage(null), 3000);
-                }}
-              >
-                Sync from GitHub
-              </Button>
-              <Button variant="default" size="sm" onClick={() => setShowWizard(true)}>
-                New Rule (Wizard)
-              </Button>
-              <Button variant="primary" size="sm" onClick={() => setShowCreate(true)}>
-                New rule
-              </Button>
-            </div>
-          </div>
+      <div className={styles.pageHeader}>
+        <PageHeader
+          title="Detection Rules"
+          description="Configure automated threat detection patterns"
+          showHelp
+        />
+        <div className={styles.headerActions}>
+          <Button variant="primary" size="sm" onClick={() => setShowWizard(true)}>
+            New Rule
+          </Button>
+        </div>
+      </div>
 
-          {syncMessage && (
-            <div
-              style={{
-                padding: '8px 12px',
-                marginBottom: 12,
-                borderRadius: 6,
-                background: 'rgba(var(--success-rgb), 0.2)',
-                color: 'var(--success)',
-                fontSize: 13,
-                fontWeight: 500,
+      <div className={styles.filterBar}>
+        <div className={styles.filterSearchRow}>
+          <input
+            className={styles.formInput}
+            value={searchTerm}
+            onChange={(event) => applyFilters(() => setSearchTerm(event.target.value))}
+            placeholder="Search by name, slug, or description"
+            aria-label="Search rules"
+          />
+        </div>
+        <div className={styles.filterControls}>
+          <select
+            className={styles.formSelect}
+            value={filterSeverity}
+            onChange={(event) => applyFilters(() => setFilterSeverity(event.target.value))}
+            aria-label="Filter by severity"
+          >
+            <option value="">All severities</option>
+            {SEVERITIES.map((severity) => (
+              <option key={severity} value={severity}>
+                {severity}
+              </option>
+            ))}
+          </select>
+          <select
+            className={styles.formSelect}
+            value={filterLogicType}
+            onChange={(event) => applyFilters(() => setFilterLogicType(event.target.value))}
+            aria-label="Filter by logic type"
+          >
+            <option value="">All logic types</option>
+            {LOGIC_TYPES.map((logicType) => (
+              <option key={logicType} value={logicType}>
+                {logicType}
+              </option>
+            ))}
+          </select>
+          <select
+            className={styles.formSelect}
+            value={filterMode}
+            onChange={(event) => applyFilters(() => setFilterMode(event.target.value))}
+            aria-label="Filter by mode"
+          >
+            <option value="">All modes</option>
+            {MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {mode}
+              </option>
+            ))}
+          </select>
+          <select
+            className={styles.formSelect}
+            value={sortField}
+            onChange={(event) => applyFilters(() => setSortField(event.target.value))}
+            aria-label="Sort field"
+          >
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                Sort by {option.label}
+              </option>
+            ))}
+          </select>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => applyFilters(() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'))}
+          >
+            {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+          </Button>
+          {hasFilters && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => {
+                setSearchTerm('');
+                setFilterSeverity('');
+                setFilterLogicType('');
+                setFilterMode('');
+                setSortField('created_at');
+                setSortOrder('desc');
+                setSelectedRuleIds(new Set());
+                setPage(1);
               }}
             >
-              {syncMessage}
-            </div>
+              Clear filters
+            </Button>
           )}
-          {isError && <ErrorBanner message="Failed to load rules" onRetry={() => refetch()} />}
+        </div>
+      </div>
 
-          {selectedRuleIds.size > 0 && (
-            <div className={styles.bulkBar}>
-              <span className={styles.bulkCount}>{selectedRuleIds.size} selected</span>
-              <Button size="sm" type="button" onClick={() => handleBulkAction('enable')}>
-                Enable
-              </Button>
-              <Button size="sm" type="button" onClick={() => handleBulkAction('disable')}>
-                Disable
-              </Button>
-              <Button size="sm" type="button" onClick={() => handleBulkAction('set_monitoring')}>
-                Set Monitoring
-              </Button>
-            </div>
-          )}
+      {isError && <ErrorBanner message="Failed to load rules" onRetry={() => refetch()} />}
 
-          {isLoading ? (
-            <Spinner />
-          ) : (
-            <div className={styles.tableWrap}>
-              <DataTable<RuleResponse>
-                columns={[
-                  {
-                    key: 'select',
-                    header: '',
-                    render: (rule) => (
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${rule.name}`}
-                        checked={selectedRuleIds.has(rule.id)}
-                        onChange={(event) => {
-                          event.stopPropagation();
-                          setSelectedRuleIds((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(rule.id)) next.delete(rule.id);
-                            else next.add(rule.id);
-                            return next;
-                          });
-                        }}
-                        onClick={(event) => event.stopPropagation()}
-                      />
-                    ),
-                  },
-                  {
-                    key: 'status',
-                    header: 'Status',
-                    helpText:
-                      'Whether the rule is actively evaluating audit events. Draft rules are not executed.',
-                    sortable: true,
-                    sortValue: (rule) => rule.status,
-                    render: (rule) => (
-                      <Label variant={rule.status === 'active' ? 'success' : 'muted'}>
-                        {rule.status === 'active' ? 'active' : 'draft'}
+      {selectedRuleIds.size > 0 && (
+        <div className={styles.bulkBar}>
+          <span className={styles.bulkCount}>{selectedRuleIds.size} selected</span>
+          <div className={styles.headerActions}>
+            <Button size="sm" type="button" onClick={() => handleBulkAction('enable')}>
+              Enable
+            </Button>
+            <Button size="sm" type="button" onClick={() => handleBulkAction('disable')}>
+              Disable
+            </Button>
+            <Button size="sm" type="button" onClick={() => handleBulkAction('set_monitoring')}>
+              Set Monitoring
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <Spinner />
+      ) : (
+        <div className={styles.tableWrap}>
+          <DataTable<RuleResponse>
+            columns={[
+              {
+                key: 'select',
+                header: '',
+                render: (rule) => (
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${rule.name}`}
+                    checked={selectedRuleIds.has(rule.id)}
+                    onChange={(event) => {
+                      event.stopPropagation();
+                      setSelectedRuleIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(rule.id)) next.delete(rule.id);
+                        else next.add(rule.id);
+                        return next;
+                      });
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                  />
+                ),
+              },
+              {
+                key: 'status',
+                header: 'Status',
+                helpText:
+                  'Whether the rule is actively evaluating audit events. Draft rules are not executed.',
+                render: (rule) => (
+                  <Label variant={rule.status === 'active' ? 'success' : 'muted'}>
+                    {rule.status}
+                  </Label>
+                ),
+              },
+              {
+                key: 'mode',
+                header: 'Mode',
+                render: (rule) => {
+                  const mode = rule.mode ?? 'active';
+                  if (mode === 'monitoring') {
+                    return (
+                      <Label variant="attention" className={styles.monitoringBadge}>
+                        monitoring
                       </Label>
-                    ),
-                  },
-                  {
-                    key: 'mode',
-                    header: 'Mode',
-                    sortable: true,
-                    sortValue: (rule) => rule.mode ?? 'active',
-                    render: (rule) => {
-                      const mode = rule.mode ?? 'active';
-                      if (mode === 'monitoring') {
-                        return (
-                          <Label variant="attention" className={styles.monitoringBadge}>
-                            monitoring
-                          </Label>
-                        );
+                    );
+                  }
+                  if (mode === 'disabled') {
+                    return <Label variant="muted">disabled</Label>;
+                  }
+                  return <Label variant="success">active</Label>;
+                },
+              },
+              {
+                key: 'name',
+                header: 'Rule name',
+                helpText: 'Human-readable name identifying this detection rule.',
+                render: (rule) => <div className={styles.ruleName}>{rule.name}</div>,
+              },
+              {
+                key: 'logic',
+                header: 'Logic',
+                helpText:
+                  'The detection logic type — threshold, anomaly, or pattern. Determines how audit events are analyzed.',
+                render: (rule) => <Label variant="muted">{rule.logic_type}</Label>,
+              },
+              {
+                key: 'severity',
+                header: 'Severity',
+                helpText:
+                  'Default severity assigned to detections created by this rule. Can be critical, high, medium, low, or info.',
+                render: (rule) => (
+                  <Label variant={SEVERITY_VARIANT[rule.default_severity] ?? 'muted'}>
+                    {rule.default_severity}
+                  </Label>
+                ),
+              },
+              {
+                key: 'detections',
+                header: 'Detections (30d)',
+                helpText:
+                  'Number of times this rule triggered a detection in the last 30 days. From audit log event analysis.',
+                render: (rule) => (
+                  <span className={styles.muted}>
+                    {rule.status === 'active'
+                      ? (() => {
+                          const count = 0;
+                          return count > 0 ? (
+                            <span
+                              className={styles.clickableCount}
+                              role="link"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/threats/open?rule_id=${rule.id}`);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  navigate(`/threats/open?rule_id=${rule.id}`);
+                                }
+                              }}
+                            >
+                              {count}
+                            </span>
+                          ) : (
+                            '0'
+                          );
+                        })()
+                      : '—'}
+                  </span>
+                ),
+              },
+              {
+                key: 'version',
+                header: 'Version',
+                helpText:
+                  'Current semantic version of the rule. Click to view full version history.',
+                render: (rule) => (
+                  <span
+                    className={`${styles.versionMono} ${styles.clickableVersion}`}
+                    role="link"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openRuleDrawer(rule, 'versions');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        openRuleDrawer(rule, 'versions');
                       }
-                      if (mode === 'disabled') {
-                        return <Label variant="muted">disabled</Label>;
-                      }
-                      return <Label variant="success">active</Label>;
-                    },
-                  },
-                  {
-                    key: 'name',
-                    header: 'Rule name',
-                    helpText: 'Human-readable name identifying this detection rule.',
-                    sortable: true,
-                    filterable: true,
-                    sortValue: (rule) => rule.name.toLowerCase(),
-                    filterValue: (rule) => rule.name,
-                    render: (rule) => <div className={styles.ruleName}>{rule.name}</div>,
-                  },
-                  {
-                    key: 'logic',
-                    header: 'Logic',
-                    helpText:
-                      'The detection logic type — threshold, anomaly, or pattern. Determines how audit events are analyzed.',
-                    sortable: true,
-                    filterable: true,
-                    sortValue: (rule) => rule.logic_type.toLowerCase(),
-                    filterValue: (rule) => rule.logic_type,
-                    render: (rule) => <Label variant="muted">{rule.logic_type}</Label>,
-                  },
-                  {
-                    key: 'severity',
-                    header: 'Severity',
-                    helpText:
-                      'Default severity assigned to detections created by this rule. Can be critical, high, medium, low, or info.',
-                    sortable: true,
-                    filterable: true,
-                    sortValue: (rule) => rule.default_severity.toLowerCase(),
-                    filterValue: (rule) => rule.default_severity,
-                    render: (rule) => (
-                      <Label variant={SEVERITY_VARIANT[rule.default_severity] ?? 'muted'}>
-                        {rule.default_severity}
-                      </Label>
-                    ),
-                  },
-                  {
-                    key: 'detections',
-                    header: 'Detections (30d)',
-                    helpText:
-                      'Number of times this rule triggered a detection in the last 30 days. From audit log event analysis.',
-                    sortable: true,
-                    sortValue: (rule) => (rule.status === 'active' ? 0 : -1),
-                    render: (rule) => (
-                      <span className={styles.muted}>
-                        {rule.status === 'active'
-                          ? (() => {
-                              const count = 0;
-                              return count > 0 ? (
-                                <span
-                                  className={styles.clickableCount}
-                                  role="link"
-                                  tabIndex={0}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate(`/threats/open?rule_id=${rule.id}`);
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter')
-                                      navigate(`/threats/open?rule_id=${rule.id}`);
-                                  }}
-                                >
-                                  {count}
-                                </span>
-                              ) : (
-                                '0'
-                              );
-                            })()
-                          : '—'}
-                      </span>
-                    ),
-                  },
-                  {
-                    key: 'version',
-                    header: 'Version',
-                    helpText:
-                      'Current semantic version of the rule. Click to view full version history.',
-                    sortable: true,
-                    sortValue: (rule) => rule.version,
-                    render: (rule) => (
-                      <span
-                        className={`${styles.versionMono} ${styles.clickableVersion}`}
-                        role="link"
-                        tabIndex={0}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setVersionRule(rule);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') setVersionRule(rule);
-                        }}
-                      >
-                        v{rule.version}.0.0
-                      </span>
-                    ),
-                  },
-                  {
-                    key: 'actions',
-                    header: '',
-                    render: (rule) => (
-                      <div className={styles.headerActions}>
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            setAnalyticsRule(rule);
-                          }}
-                        >
-                          Analytics
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            setBacktestRuleTarget(rule);
-                          }}
-                        >
-                          Backtest
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            setTestRuleTarget(rule);
-                          }}
-                        >
-                          Test
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            setEditRule(rule);
-                          }}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            setDeleteTarget(rule);
-                          }}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    ),
-                  },
-                ]}
-                data={rules?.items ? [...rules.items] : []}
-                rowKey={(rule) => rule.id}
-                onRowClick={(rule) => setEditRule(rule)}
-                emptyMessage="No rules configured"
-              />
-              {rules && (
-                <Pagination
-                  page={page}
-                  pageSize={PAGE_SIZE}
-                  total={rules.total}
-                  onPageChange={(nextPage) => {
-                    setSelectedRuleIds(new Set());
-                    setPage(nextPage);
-                  }}
-                />
-              )}
-            </div>
-          )}
-
-          <Drawer open={showCreate} onClose={() => setShowCreate(false)} title="Create rule">
-            <RuleForm
-              onSave={(v) => createMutation.mutate(v)}
-              onCancel={() => setShowCreate(false)}
-            />
-          </Drawer>
-
-          <Drawer open={showWizard} onClose={() => setShowWizard(false)} title="New Rule Wizard">
-            <RuleWizard
-              onClose={() => setShowWizard(false)}
-              onCreated={() => {
-                setShowWizard(false);
-                qc.invalidateQueries({ queryKey: ['rules'] });
-                showToast('Rule created', 'success');
+                    }}
+                  >
+                    v{rule.version}.0.0
+                  </span>
+                ),
+              },
+            ]}
+            data={rules?.items ? [...rules.items] : []}
+            rowKey={(rule) => rule.id}
+            onRowClick={(rule) => openRuleDrawer(rule)}
+            emptyMessage="No rules configured"
+          />
+          {rules && (
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={rules.total}
+              onPageChange={(nextPage) => {
+                setSelectedRuleIds(new Set());
+                setPage(nextPage);
               }}
             />
-          </Drawer>
-
-          <Drawer open={!!editRule} onClose={() => setEditRule(null)} title="Edit rule">
-            {editRule && (
-              <RuleForm
-                initial={editRule}
-                onSave={(v) => updateMutation.mutate({ id: editRule.id, data: v })}
-                onCancel={() => setEditRule(null)}
-              />
-            )}
-          </Drawer>
-
-          <Drawer open={!!versionRule} onClose={() => setVersionRule(null)} title="Version history">
-            {versionRule && <VersionHistory rule={versionRule} />}
-          </Drawer>
-
-          <Drawer
-            open={!!analyticsRule}
-            onClose={() => setAnalyticsRule(null)}
-            title={`Analytics: ${analyticsRule?.name ?? ''}`}
-          >
-            {analyticsRule && <RuleAnalytics rule={analyticsRule} />}
-          </Drawer>
-
-          <Drawer
-            open={!!backtestRuleTarget}
-            onClose={() => setBacktestRuleTarget(null)}
-            title={`Backtest: ${backtestRuleTarget?.name ?? ''}`}
-          >
-            {backtestRuleTarget && <BacktestPanel rule={backtestRuleTarget} />}
-          </Drawer>
-
-          <ConfirmDialog
-            open={!!deleteTarget}
-            onClose={() => setDeleteTarget(null)}
-            title="Delete rule"
-            message={deleteTarget ? `Delete "${deleteTarget.name}"? This cannot be undone.` : ''}
-            confirmLabel="Delete"
-            confirmVariant="danger"
-            onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
-          />
-
-          <TestRuleModal rule={testRuleTarget} onClose={() => setTestRuleTarget(null)} />
-        </>
+          )}
+        </div>
       )}
+
+      <Drawer open={showWizard} onClose={() => setShowWizard(false)} title="New Rule Wizard">
+        <RuleWizard
+          onClose={() => setShowWizard(false)}
+          onCreated={() => {
+            setShowWizard(false);
+            qc.invalidateQueries({ queryKey: ['rules'] });
+            showToast('Rule created', 'success');
+          }}
+        />
+      </Drawer>
+
+      <Drawer
+        open={!!selectedRule}
+        onClose={closeRuleDrawer}
+        title={
+          selectedRule
+            ? isEditing
+              ? `Edit rule: ${selectedRule.name}`
+              : `Rule detail: ${selectedRule.name}`
+            : 'Rule detail'
+        }
+      >
+        {selectedRule && (
+          <div className={styles.detailPanel}>
+            <div className={styles.detailActions}>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => setIsEditing((current) => !current)}
+              >
+                {isEditing ? 'Cancel edit' : 'Edit'}
+              </Button>
+              <Button size="sm" variant="danger" onClick={() => setDeleteTarget(selectedRule)}>
+                Delete
+              </Button>
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => openRuleDrawer(selectedRule, 'analytics')}
+              >
+                Analytics
+              </Button>
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => openRuleDrawer(selectedRule, 'backtest')}
+              >
+                Backtest
+              </Button>
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => openRuleDrawer(selectedRule, 'test')}
+              >
+                Test
+              </Button>
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => openRuleDrawer(selectedRule, 'versions')}
+              >
+                Version History
+              </Button>
+            </div>
+            {isEditing ? (
+              <RuleForm
+                initial={selectedRule}
+                onSave={(v) => updateMutation.mutate({ id: selectedRule.id, data: v })}
+                onCancel={() => setIsEditing(false)}
+              />
+            ) : (
+              <RuleDetailContent rule={selectedRule} />
+            )}
+          </div>
+        )}
+      </Drawer>
+
+      <Drawer open={!!versionRule} onClose={closeRuleDrawer} title="Version history">
+        {versionRule && <VersionHistory rule={versionRule} />}
+      </Drawer>
+
+      <Drawer
+        open={!!analyticsRule}
+        onClose={closeRuleDrawer}
+        title={`Analytics: ${analyticsRule?.name ?? ''}`}
+      >
+        {analyticsRule && <RuleAnalytics rule={analyticsRule} />}
+      </Drawer>
+
+      <Drawer
+        open={!!backtestRuleTarget}
+        onClose={closeRuleDrawer}
+        title={`Backtest: ${backtestRuleTarget?.name ?? ''}`}
+      >
+        {backtestRuleTarget && <BacktestPanel rule={backtestRuleTarget} />}
+      </Drawer>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete rule"
+        message={deleteTarget ? `Delete "${deleteTarget.name}"? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+      />
+
+      <TestRuleModal rule={testRuleTarget} onClose={closeRuleDrawer} />
     </div>
   );
 }

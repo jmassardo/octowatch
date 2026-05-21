@@ -91,6 +91,7 @@ export const router = createBrowserRouter(
         { path: '/compliance', element: <CompliancePage /> },
         { path: '/query', element: <QueryPage /> },
         { path: '/rules', element: <RulesPage /> },
+        { path: '/rules/:ruleId', element: <RulesPage /> },
         { path: '/users', element: <UsersPage /> },
         { path: '/notifications', element: <NotificationsPage /> },
         { path: '/integrations', element: <Navigate to="/settings/integrations" replace /> },
