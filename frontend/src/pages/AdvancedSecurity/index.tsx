@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
@@ -20,15 +20,10 @@ import {
   type CodeScanningAlertItem,
   type DependabotAlertItem,
 } from '../../api/healthSignals';
-import { listDetections } from '../../api/detections';
-import type { DetectionResponse } from '../../types/detections';
+import { listEvents } from '../../api/events';
+import type { EventResponse } from '../../types/events';
 import { formatRelativeShort } from '../../utils/dates';
-import {
-  useEnumQueryParam,
-  useQueryParam,
-  useQueryParamInt,
-  useSetQueryParams,
-} from '../../hooks/useQueryParam';
+import { useQueryParam, useQueryParamInt, useSetQueryParams } from '../../hooks/useQueryParam';
 import styles from './AdvancedSecurity.module.css';
 
 const PAGE_SIZE = 50;
@@ -982,57 +977,93 @@ function DependabotTab() {
 }
 
 /* ── Activity Log Tab ── */
-const GHAS_KEYWORDS = ['ghas', 'secret', 'codeql', 'push-protection', 'security-feature'];
+const GHAS_NAMESPACES = [
+  'secret_scanning',
+  'secret_scanning_alert',
+  'code_scanning',
+  'code_scanning_alert',
+  'dependabot_alert',
+  'dependabot_alerts',
+  'repository_vulnerability_alert',
+  'repository_vulnerability_alerts',
+] as const;
+
+type GhasNamespace = (typeof GHAS_NAMESPACES)[number];
 
 function ActivityLogTab() {
-  const navigate = useNavigate();
   const [page, setPage] = useQueryParamInt('page', 1);
+  const [nsFilter, setNsFilter] = useState<GhasNamespace | ''>('');
+
+  const since = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString();
+  }, []);
+
+  const activeNamespace = nsFilter || undefined;
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['ghas-activity-detections', page],
-    queryFn: () => listDetections({ page, page_size: PAGE_SIZE }),
+    queryKey: ['ghas-activity-events', page, nsFilter],
+    queryFn: () =>
+      listEvents({
+        namespace: activeNamespace,
+        since,
+        page,
+        page_size: PAGE_SIZE,
+        sort: 'created_at_desc',
+      }),
     staleTime: 30_000,
   });
 
   const filteredItems = useMemo(() => {
     if (!data) return [];
-    return data.items.filter((d) => {
-      const name = (d.rule_name ?? d.title ?? '').toLowerCase();
-      return GHAS_KEYWORDS.some((kw) => name.includes(kw));
-    });
-  }, [data]);
+    if (nsFilter) return [...data.items];
+    return data.items.filter((e) => GHAS_NAMESPACES.includes(e.namespace as GhasNamespace));
+  }, [data, nsFilter]);
 
-  const columns: ColumnDef<DetectionResponse>[] = useMemo(
+  const columns: ColumnDef<EventResponse>[] = useMemo(
     () => [
       {
-        key: 'title',
-        header: 'Title',
+        key: 'action',
+        header: 'Action',
         sortable: true,
         filterable: true,
-        helpText: 'Detection title describing the security event',
-        render: (r) => r.title,
-        sortValue: (r) => r.title,
-        filterValue: (r) => r.title,
+        helpText: 'The audit log action that occurred',
+        render: (r) => r.action,
+        sortValue: (r) => r.action,
+        filterValue: (r) => r.action,
       },
       {
-        key: 'severity',
-        header: 'Severity',
+        key: 'namespace',
+        header: 'Category',
         sortable: true,
         filterable: true,
-        helpText: 'Detection severity level',
-        render: (r) => <Label variant={sevVariant(r.severity)}>{r.severity}</Label>,
-        sortValue: (r) => r.severity,
-        filterValue: (r) => r.severity,
+        helpText: 'Security feature category (e.g. secret_scanning, code_scanning)',
+        render: (r) => (
+          <Label variant={nsVariant(r.namespace)}>{r.namespace.replace(/_/g, ' ')}</Label>
+        ),
+        sortValue: (r) => r.namespace,
+        filterValue: (r) => r.namespace,
       },
       {
         key: 'actor',
         header: 'Actor',
         sortable: true,
         filterable: true,
-        helpText: 'User who performed the action that triggered this detection',
+        helpText: 'User who performed the action',
         render: (r) => r.actor ?? '—',
         sortValue: (r) => r.actor ?? '',
         filterValue: (r) => r.actor ?? '',
+      },
+      {
+        key: 'repo',
+        header: 'Repo',
+        sortable: true,
+        filterable: true,
+        helpText: 'Repository where the event occurred',
+        render: (r) => r.repo ?? '—',
+        sortValue: (r) => r.repo ?? '',
+        filterValue: (r) => r.repo ?? '',
       },
       {
         key: 'org',
@@ -1045,14 +1076,14 @@ function ActivityLogTab() {
         filterValue: (r) => r.org ?? '',
       },
       {
-        key: 'triggered_at',
-        header: 'Triggered At',
+        key: 'created_at',
+        header: 'Time',
         sortable: true,
         filterable: true,
-        helpText: 'When this detection was triggered',
-        render: (r) => formatRelativeShort(r.triggered_at),
-        sortValue: (r) => r.triggered_at,
-        filterValue: (r) => r.triggered_at,
+        helpText: 'When the event occurred',
+        render: (r) => formatRelativeShort(r.created_at),
+        sortValue: (r) => r.created_at,
+        filterValue: (r) => r.created_at,
       },
     ],
     [],
@@ -1060,16 +1091,31 @@ function ActivityLogTab() {
 
   return (
     <>
+      <div className={styles.filters}>
+        <select
+          className={styles.filterSelect}
+          value={nsFilter}
+          onChange={(e) => {
+            setNsFilter(e.target.value as GhasNamespace | '');
+            setPage(1);
+          }}
+        >
+          <option value="">All GHAS categories</option>
+          {GHAS_NAMESPACES.map((ns) => (
+            <option key={ns} value={ns}>
+              {ns.replace(/_/g, ' ')}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {isLoading && (
         <div className={styles.center}>
           <Spinner />
         </div>
       )}
       {isError && (
-        <ErrorBanner
-          message="Failed to load GHAS activity detections"
-          onRetry={() => void refetch()}
-        />
+        <ErrorBanner message="Failed to load GHAS activity events" onRetry={() => void refetch()} />
       )}
       {data && (
         <div className={styles.tableSection}>
@@ -1077,13 +1123,12 @@ function ActivityLogTab() {
             columns={columns}
             data={filteredItems}
             rowKey={(r) => r.id}
-            onRowClick={(r) => navigate(`/threats?id=${r.id}`)}
-            emptyMessage="No GHAS-related detections found"
+            emptyMessage="No GHAS-related events found in the last 30 days"
           />
           <Pagination
             page={page}
             pageSize={PAGE_SIZE}
-            total={filteredItems.length}
+            total={nsFilter ? data.total : filteredItems.length}
             onPageChange={setPage}
           />
         </div>
@@ -1092,10 +1137,23 @@ function ActivityLogTab() {
   );
 }
 
+function nsVariant(ns: string) {
+  if (ns.startsWith('secret_scanning')) return 'attention' as const;
+  if (ns.startsWith('code_scanning')) return 'done' as const;
+  if (ns.startsWith('dependabot') || ns.startsWith('repository_vulnerability'))
+    return 'danger' as const;
+  return 'muted' as const;
+}
+
 /* ── Main Page ── */
 export function AdvancedSecurityPage() {
   const TAB_KEYS = ['overview', 'secrets', 'code', 'dependabot', 'activity', 'strategic'] as const;
-  const [activeTab, setTab] = useEnumQueryParam('tab', TAB_KEYS, 'overview');
+  const { tab: rawTab } = useParams<{ tab: string }>();
+  const navigate = useNavigate();
+  const activeTab: TabKey = (TAB_KEYS as readonly string[]).includes(rawTab ?? '')
+    ? (rawTab as TabKey)
+    : 'overview';
+  const setTab = (t: TabKey) => navigate(`/advanced-security/${t}`);
 
   return (
     <div className={styles.splitLayout}>

@@ -125,21 +125,39 @@ const mockDependabotAlerts = {
   total: 1,
 };
 
-const mockDetections = {
+const mockEvents = {
   items: [
     {
-      id: 'det-1',
-      title: 'Secret scanning bypass detected',
-      rule_name: 'ghas-secret-bypass',
-      severity: 'high',
+      id: 1,
+      document_id: 'doc-1',
+      created_at: '2024-01-20T00:00:00Z',
+      ingested_at: '2024-01-20T00:01:00Z',
+      action: 'secret_scanning_alert.create',
+      namespace: 'secret_scanning_alert',
       actor: 'user1',
+      actor_id: 123,
+      actor_is_bot: false,
       org: 'myorg',
-      triggered_at: '2024-01-20T00:00:00Z',
+      org_id: 456,
+      repo: 'myorg/myrepo',
+      repo_id: 789,
+      business: null,
+      source_ip: null,
+      user_agent: null,
+      geo_country_code: null,
+      geo_city: null,
+      geo_is_proxy: null,
+      data: {},
+      ingestion_source: 'webhook',
+      source_file_path: '',
     },
   ],
   total: 1,
   page: 1,
   page_size: 50,
+  has_next: false,
+  count_is_estimated: false,
+  next_cursor: null,
 };
 
 vi.mock('../../api/healthSignals', () => ({
@@ -154,8 +172,8 @@ vi.mock('../../api/healthSignals', () => ({
   getVulnerabilities: vi.fn().mockImplementation(() => Promise.resolve(mockVulnerabilities)),
 }));
 
-vi.mock('../../api/detections', () => ({
-  listDetections: vi.fn().mockImplementation(() => Promise.resolve(mockDetections)),
+vi.mock('../../api/events', () => ({
+  listEvents: vi.fn().mockImplementation(() => Promise.resolve(mockEvents)),
 }));
 
 vi.mock('./SecretsPane', () => ({
@@ -168,7 +186,10 @@ describe('AdvancedSecurityPage', () => {
   });
 
   it('renders overview tab with metric cards', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=overview' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/overview',
+    });
 
     await waitFor(() => {
       // "Alert Trend" only appears after data loads
@@ -183,7 +204,10 @@ describe('AdvancedSecurityPage', () => {
   });
 
   it('overview cards have onClick handlers that switch tabs', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=overview' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/overview',
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Alert Trend')).toBeInTheDocument();
@@ -209,7 +233,10 @@ describe('AdvancedSecurityPage', () => {
   });
 
   it('clicking Threat Detections card navigates to /threats', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=overview' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/overview',
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Alert Trend')).toBeInTheDocument();
@@ -223,7 +250,10 @@ describe('AdvancedSecurityPage', () => {
   });
 
   it('renders trend delta indicators on overview cards', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=overview' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/overview',
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Alert Trend')).toBeInTheDocument();
@@ -235,7 +265,10 @@ describe('AdvancedSecurityPage', () => {
   });
 
   it('renders period toggle on trend chart', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=overview' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/overview',
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Alert Trend')).toBeInTheDocument();
@@ -247,7 +280,10 @@ describe('AdvancedSecurityPage', () => {
   });
 
   it('period toggle buttons update chart', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=overview' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/overview',
+    });
 
     await waitFor(() => {
       expect(screen.getByText('7d')).toBeInTheDocument();
@@ -259,7 +295,10 @@ describe('AdvancedSecurityPage', () => {
   });
 
   it('renders mini sparklines on overview cards', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=overview' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/overview',
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Alert Trend')).toBeInTheDocument();
@@ -272,7 +311,10 @@ describe('AdvancedSecurityPage', () => {
   });
 
   it('secret scanning tab renders SecretsPane', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=secrets' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/secrets',
+    });
 
     await waitFor(() => {
       expect(screen.getByTestId('secrets-pane')).toBeInTheDocument();
@@ -280,7 +322,10 @@ describe('AdvancedSecurityPage', () => {
   });
 
   it('code scanning tab cards are clickable', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=code' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/code',
+    });
 
     const criticalCard = await screen.findByRole('button', { name: 'Critical' });
     expect(criticalCard).toBeInTheDocument();
@@ -296,7 +341,10 @@ describe('AdvancedSecurityPage', () => {
   });
 
   it('dependabot tab cards are clickable', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=dependabot' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/dependabot',
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Total Open')).toBeInTheDocument();
@@ -316,7 +364,10 @@ describe('AdvancedSecurityPage', () => {
   });
 
   it('clicking code scanning Critical card sets severity filter', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=code' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/code',
+    });
 
     const criticalCard = await screen.findByRole('button', { name: 'Critical' });
     fireEvent.click(criticalCard);
@@ -329,7 +380,10 @@ describe('AdvancedSecurityPage', () => {
   });
 
   it('clicking dependabot High Open card sets severity filter', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=dependabot' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/dependabot',
+    });
 
     await waitFor(() => {
       expect(screen.getByText('High Open')).toBeInTheDocument();
@@ -345,7 +399,10 @@ describe('AdvancedSecurityPage', () => {
   });
 
   it('secret scanning tab is accessible via tab navigation', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=secrets' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/secrets',
+    });
 
     await waitFor(() => {
       expect(screen.getByTestId('secrets-pane')).toBeInTheDocument();
