@@ -21,19 +21,7 @@ vi.mock('../../api/events', () => ({
   listEvents: (...args: unknown[]) => mockListEvents(...args),
 }));
 
-vi.mock('../../api/healthSignals', () => ({
-  getWorkflowHealth: vi.fn().mockResolvedValue({ workflows: [] }),
-  getBranchProtection: vi.fn().mockResolvedValue({
-    protections_removed: 0,
-    policy_overrides: 0,
-    modified: 0,
-    distinct_repos_affected: 0,
-  }),
-}));
-
 // ECharts renders canvas elements that jsdom doesn't support.
-// Stub the chart components to avoid runtime errors and enable
-// assertion on the props they receive.
 vi.mock('../../components/charts/LineAreaChart', () => ({
   LineAreaChart: (props: Record<string, unknown>) => (
     <div data-testid="line-area-chart" data-series={JSON.stringify(props.series)} />
@@ -58,32 +46,22 @@ vi.mock('./LeadershipPane', () => ({
 
 describe('VelocityPage', () => {
   /* ---------------------------------------------------------------- */
-  /*  Tab bar                                                            */
+  /*  Consolidated view (no tabs)                                       */
   /* ---------------------------------------------------------------- */
 
-  it('renders the tab bar with Metrics and Leadership tabs', () => {
+  it('does not render tab navigation (tabs have been removed)', () => {
     renderWithProviders(<VelocityPage />);
 
-    expect(screen.getByRole('tab', { name: 'Metrics' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Leadership' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
   });
 
-  it('shows Metrics tab as active by default', () => {
+  it('renders the LeadershipPane inline', () => {
     renderWithProviders(<VelocityPage />);
-
-    const metricsTab = screen.getByRole('tab', { name: 'Metrics' });
-    expect(metricsTab).toHaveAttribute('aria-selected', 'true');
-  });
-
-  it('switches to Leadership pane when Leadership tab is clicked', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<VelocityPage />);
-
-    const leadershipTab = screen.getByRole('tab', { name: 'Leadership' });
-    await user.click(leadershipTab);
 
     expect(screen.getByTestId('leadership-pane')).toBeInTheDocument();
   });
+
   /* ---------------------------------------------------------------- */
   /*  Page header & DORA badge                                         */
   /* ---------------------------------------------------------------- */
@@ -105,9 +83,7 @@ describe('VelocityPage', () => {
   it('renders the DORA tier label and pending badge when no data', () => {
     renderWithProviders(<VelocityPage />);
 
-    // "DORA tier" appears in both the header badge and the definitions panel — use getAllBy
     expect(screen.getAllByText('DORA tier').length).toBeGreaterThanOrEqual(1);
-    // With no workflow data, DORA tier shows pending state
     expect(screen.getByText('— Pending')).toBeInTheDocument();
   });
 
@@ -123,102 +99,54 @@ describe('VelocityPage', () => {
   });
 
   /* ---------------------------------------------------------------- */
-  /*  All 8 metric cards                                                */
+  /*  Removed widgets verification                                      */
   /* ---------------------------------------------------------------- */
 
-  it('renders all 8 metric card labels', () => {
+  it('does not render the Branch Protection Changes section', () => {
     renderWithProviders(<VelocityPage />);
 
-    // Labels appear in both metric cards and the definitions panel — use getAllBy where needed
-    expect(screen.getAllByText('PRs merged (30d)').length).toBeGreaterThanOrEqual(1);
-    // "Lead time for changes" also appears in chart title; verify at least one
-    expect(screen.getAllByText(/Lead time for changes/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('PR activity (30d)').length).toBeGreaterThanOrEqual(1);
-    // "Change failure rate" also appears in chart title and table header
-    expect(screen.getAllByText(/Change failure rate/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Successful workflows (30d)').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Workflow success').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('WIP (items in flight)').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Review coverage').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText(/Branch protection changes/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Protections removed')).not.toBeInTheDocument();
   });
 
-  it('shows dash for metrics that require external API integration', () => {
+  it('does not render the Workflow Health callout', () => {
     renderWithProviders(<VelocityPage />);
 
-    // Metrics without API backing show '—'
-    const dashes = screen.getAllByText('—');
-    expect(dashes.length).toBeGreaterThanOrEqual(3);
-
-    // Informational hints for unavailable metrics
-    expect(screen.getByText(/Insufficient data/)).toBeInTheDocument();
-    expect(screen.getByText(/No PR data available/)).toBeInTheDocument();
+    expect(screen.queryByText('Workflow Health')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Workflow Health/i })).not.toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */
-  /*  Contribution calendar                                             */
+  /*  Workflow Trends section                                           */
   /* ---------------------------------------------------------------- */
 
-  it('renders the contribution calendar', () => {
+  it('renders the Workflow Trends section title', () => {
     renderWithProviders(<VelocityPage />);
 
-    expect(screen.getByTestId('contribution-calendar')).toBeInTheDocument();
+    expect(screen.getByText('Workflow Trends')).toBeInTheDocument();
   });
-
-  /* ---------------------------------------------------------------- */
-  /*  2×2 Chart grid                                                    */
-  /* ---------------------------------------------------------------- */
 
   it('renders empty-state messages for all charts when no data', async () => {
     renderWithProviders(<VelocityPage />);
 
-    // Wait for queries to resolve, then all 4 charts show empty state
     const noDataMessages = await screen.findAllByText('No workflow data available');
     expect(noDataMessages).toHaveLength(4);
   });
 
-  it('renders chart titles for all 4 DORA charts', () => {
+  it('renders chart titles for all 4 workflow charts', () => {
     renderWithProviders(<VelocityPage />);
 
     expect(screen.getByText(/Workflow success rate/)).toBeInTheDocument();
     expect(screen.getByText(/Daily deployments \/ MTTR/)).toBeInTheDocument();
-    // "Lead time for changes" and "Change failure rate" also appear as metric labels
-    expect(screen.getAllByText(/Lead time for changes/).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText(/Change failure rate/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/Lead time for changes/)).toBeInTheDocument();
+    expect(screen.getByText(/Change failure rate/)).toBeInTheDocument();
   });
 
   it('renders dynamic chart period labels for all 4 charts when no data', () => {
     renderWithProviders(<VelocityPage />);
 
-    // All 4 charts show dynamic period label (empty data → '—')
     const periodLabels = screen.getAllByText('— —');
     expect(periodLabels).toHaveLength(4);
-  });
-
-  it('renders lead time empty state instead of placeholder when no data', async () => {
-    renderWithProviders(<VelocityPage />);
-
-    // Lead time now shows standard empty state instead of placeholder text
-    const noDataMessages = await screen.findAllByText('No workflow data available');
-    expect(noDataMessages.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('shows empty state for bar chart area when no data', async () => {
-    renderWithProviders(<VelocityPage />);
-
-    // With empty mock data, bar chart area shows placeholder text
-    const noDataMessages = await screen.findAllByText('No workflow data available');
-    expect(noDataMessages.length).toBeGreaterThanOrEqual(1);
-  });
-
-  /* ---------------------------------------------------------------- */
-  /*  Workflow Health callout (replaced workflow tables)                 */
-  /* ---------------------------------------------------------------- */
-
-  it('renders the workflow health callout with link to /workflows/health', () => {
-    renderWithProviders(<VelocityPage />);
-
-    const link = screen.getByRole('link', { name: /Workflow Health/i });
-    expect(link).toHaveAttribute('href', '/workflows/health');
   });
 
   /* ---------------------------------------------------------------- */
@@ -234,13 +162,10 @@ describe('VelocityPage', () => {
   it('renders the repos table with correct column headers', () => {
     renderWithProviders(<VelocityPage />);
 
-    // Find the most active repos section title
     const sectionTitle = screen.getByText('Most active repositories — last 30 days');
-    // The table is the next sibling tableWrap
     const tableWrap = sectionTitle.nextElementSibling;
     const table = tableWrap?.querySelector('table');
     expect(table).toBeTruthy();
-    // Get only the first header row (DataTable may add a filter row)
     const headerRow = table!.querySelector('thead tr');
     const headers = headerRow!.querySelectorAll('th');
     const headerTexts = Array.from(headers).map((h) =>
@@ -262,14 +187,6 @@ describe('VelocityPage', () => {
     expect(screen.getByText('No repository activity data available')).toBeInTheDocument();
   });
 
-  it('does not show sample data banner for most active repos', () => {
-    renderWithProviders(<VelocityPage />);
-
-    expect(
-      screen.queryByText(/Most active repositories display sample data/),
-    ).not.toBeInTheDocument();
-  });
-
   /* ---------------------------------------------------------------- */
   /*  Empty state                                                       */
   /* ---------------------------------------------------------------- */
@@ -277,7 +194,6 @@ describe('VelocityPage', () => {
   it('renders the empty state message when no workflow data is available', async () => {
     renderWithProviders(<VelocityPage />);
 
-    // Wait for async queries to resolve before checking empty state
     expect(
       await screen.findByText('No workflow run data for the selected period.'),
     ).toBeInTheDocument();
@@ -401,27 +317,12 @@ describe('VelocityPage with data', () => {
     });
   });
 
-  it('renders computed workflow success rate from API data', async () => {
-    renderWithProviders(<VelocityPage />);
-
-    // total: 180 runs, succeeded: 167, rate = (167/180)*100 = 92.8%
-    expect(await screen.findByText('92.8%')).toBeInTheDocument();
-  });
-
-  it('renders computed change failure rate from API data', async () => {
-    renderWithProviders(<VelocityPage />);
-
-    // total: 180 runs, failed: 13, rate = (13/180)*100 = 7.2%
-    expect(await screen.findByText('7.2%')).toBeInTheDocument();
-  });
-
   it('renders charts with real data when buckets are available', async () => {
     renderWithProviders(<VelocityPage />);
 
-    // Wait for data to load – charts render with bucket data
-    await screen.findByText('92.8%');
+    // Wait for data to load
+    await screen.findByText('★ Elite');
 
-    // Line and bar charts should render (not empty state)
     // 3 line-area-charts: Lead time, CFR, Workflow success
     const lineCharts = screen.getAllByTestId('line-area-chart');
     expect(lineCharts.length).toBeGreaterThanOrEqual(3);
@@ -433,7 +334,7 @@ describe('VelocityPage with data', () => {
   it('renders period label based on bucket count', async () => {
     renderWithProviders(<VelocityPage />);
 
-    await screen.findByText('92.8%');
+    await screen.findByText('★ Elite');
 
     // 2 buckets → "2 days" — all 4 charts show this label
     const periodLabels = screen.getAllByText('— 2 days');
@@ -443,13 +344,11 @@ describe('VelocityPage with data', () => {
   it('renders active repos derived from events with activity columns', async () => {
     renderWithProviders(<VelocityPage />);
 
-    await screen.findByText('92.8%');
+    await screen.findByText('★ Elite');
 
-    // Repos derived from mock events
     expect(screen.getByText('myorg/api-service')).toBeInTheDocument();
     expect(screen.getByText('myorg/web-app')).toBeInTheDocument();
 
-    // When real data exists, table shows activity columns
     const repoTable = screen.getByText('myorg/api-service').closest('table');
     expect(repoTable).toBeTruthy();
     const headerRow = repoTable!.querySelector('thead tr');
@@ -463,19 +362,10 @@ describe('VelocityPage with data', () => {
     expect(headerTexts).toContain('Contributors');
   });
 
-  it('does not show any sample data banners when real data exists', async () => {
-    renderWithProviders(<VelocityPage />);
-
-    await screen.findByText('92.8%');
-
-    // No sample data banners should exist at all
-    expect(screen.queryByText(/display sample data/)).not.toBeInTheDocument();
-  });
-
   it('renders dynamic DORA tier badge based on data', async () => {
     renderWithProviders(<VelocityPage />);
 
-    await screen.findByText('92.8%');
+    await screen.findByText('★ Elite');
 
     // Mock data has 167 succeeded / 30 days ≈ 5.6 deploys/day (Elite)
     // and CFR 7.2% (High), average = 3.5 → Elite
@@ -485,9 +375,8 @@ describe('VelocityPage with data', () => {
   it('renders MTTR chart with dual series when data is available', async () => {
     renderWithProviders(<VelocityPage />);
 
-    await screen.findByText('92.8%');
+    await screen.findByText('★ Elite');
 
-    // The bar chart should contain MTTR series
     const barCharts = screen.getAllByTestId('bar-chart');
     expect(barCharts).toHaveLength(1);
     const seriesData = JSON.parse(barCharts[0].getAttribute('data-series') ?? '[]');
@@ -511,7 +400,6 @@ describe('VelocityPage DORA badge interaction', () => {
   it('DORA badge is clickable with role=button', () => {
     renderWithProviders(<VelocityPage />);
 
-    // With no data, shows pending state
     const badge = screen.getByText('— Pending');
     expect(badge).toHaveAttribute('role', 'button');
     expect(badge).toHaveAttribute('tabindex', '0');
@@ -589,12 +477,11 @@ describe('VelocityPage repo row clicks', () => {
     });
   });
 
-  it('repo rows have role=button and cursor pointer styling', async () => {
+  it('repo rows have click handler', async () => {
     renderWithProviders(<VelocityPage />);
 
     const repoCell = await screen.findByText('myorg/api-service');
     const row = repoCell.closest('tr');
-    // DataTable applies a clickableRow CSS class for rows with onRowClick
     expect(row).toBeTruthy();
     expect(row!.className).toBeTruthy();
     expect(row!.onclick).toBeTruthy();
@@ -612,7 +499,7 @@ describe('VelocityPage repo row clicks', () => {
 });
 
 /* ------------------------------------------------------------------ */
-/*  Helper function tests                                              */
+/*  Active repos show real event-derived stats                         */
 /* ------------------------------------------------------------------ */
 
 describe('Active repos show real event-derived stats', () => {
@@ -705,7 +592,6 @@ describe('Active repos show real event-derived stats', () => {
   it('renders repo stats computed from events', async () => {
     renderWithProviders(<VelocityPage />);
 
-    // api-service has 2 events, 1 PR event, 1 push event, 2 contributors
     expect(await screen.findByText('myorg/api-service')).toBeInTheDocument();
     expect(screen.getByText('myorg/web-app')).toBeInTheDocument();
   });
