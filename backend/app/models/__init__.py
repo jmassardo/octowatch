@@ -9,6 +9,7 @@ from app.models.copilot_policy import CopilotPolicy, CopilotPolicyViolation
 from app.models.correlation import ChainMembership, CorrelationChain
 from app.models.custom_report import CustomReport
 from app.models.dashboard_config import UserDashboardConfig
+from app.models.delivery_timeline import DeliveryTimeline
 from app.models.detection import (
     BehavioralBaseline,
     Detection,
@@ -84,6 +85,7 @@ __all__ = [
     "CopilotSeatSnapshot",
     "CorrelationChain",
     "CustomReport",
+    "DeliveryTimeline",
     "UserDashboardConfig",
     "DependabotAlert",
     "Detection",

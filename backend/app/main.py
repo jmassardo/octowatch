@@ -40,6 +40,7 @@ from app.routers import (
     correlations,
     cross_org,
     dashboard_config,
+    delivery_timeline,
     detections,
     dev_activity,
     enterprise_pat,
@@ -753,6 +754,7 @@ def create_app() -> FastAPI:
     app.include_router(copilot_governance.router, prefix=API_PREFIX)
     app.include_router(user_preferences.router, prefix=API_PREFIX)
     app.include_router(dashboard_config.router, prefix=API_PREFIX)
+    app.include_router(delivery_timeline.router, prefix=API_PREFIX)
     app.include_router(telemetry.router, prefix=API_PREFIX)
     app.include_router(user_classification.router, prefix=API_PREFIX)
     app.include_router(user_behavior.router, prefix=API_PREFIX)
