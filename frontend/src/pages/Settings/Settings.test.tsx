@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
@@ -588,12 +588,120 @@ describe('SettingsPage', () => {
     await user.click(screen.getByRole('button', { name: 'GitHub' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Enterprise Sync Config')).toBeInTheDocument();
+      expect(screen.getByText('GitHub Enterprise Sync')).toBeInTheDocument();
     });
 
     expect(screen.getByText('Classic PAT for Audit Log')).toBeInTheDocument();
     expect(screen.getByText('Audit Log Streaming')).toBeInTheDocument();
+  });
+
+  /* ---------------------------------------------------------------- */
+  /*  GitHub Sync Setup Panel                                          */
+  /* ---------------------------------------------------------------- */
+
+  it('shows sync summary with connection and schedule info', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'GitHub' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sync-setup-summary')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Enterprise: my-corp/)).toBeInTheDocument();
+    expect(screen.getByText('Configure Sync')).toBeInTheDocument();
+    expect(screen.getByText('Trigger Sync Now')).toBeInTheDocument();
+  });
+
+  it('opens sync wizard drawer when Configure Sync is clicked', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'GitHub' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Configure Sync')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Configure Sync'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sync-wizard')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('wizard-step-connection')).toBeInTheDocument();
+    expect(screen.getByText('Connection Details')).toBeInTheDocument();
+  });
+
+  it('navigates through wizard steps with Next/Back', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'GitHub' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Configure Sync')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Configure Sync'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('wizard-step-connection')).toBeInTheDocument();
+    });
+
+    // Go to step 2 (Entities)
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByTestId('wizard-step-entities')).toBeInTheDocument();
+    expect(screen.getByText('Entity Selection')).toBeInTheDocument();
+
+    // Go to step 3 (Schedule)
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByTestId('wizard-step-schedule')).toBeInTheDocument();
     expect(screen.getByText('Sync Schedule')).toBeInTheDocument();
+
+    // Go to step 4 (Confirm)
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByTestId('wizard-step-confirm')).toBeInTheDocument();
+    expect(screen.getByText('Review & Confirm')).toBeInTheDocument();
+
+    // Go back
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('wizard-step-schedule')).toBeInTheDocument();
+  });
+
+  it('allows adding and removing orgs in entity step', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'GitHub' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Configure Sync')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Configure Sync'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('wizard-step-connection')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByTestId('wizard-step-entities')).toBeInTheDocument();
+
+    // Add an org using fireEvent (portal inputs can have focus issues with userEvent)
+    const orgInput = screen.getByPlaceholderText('Enter org slug and press Enter');
+    fireEvent.change(orgInput, { target: { value: 'acme-corp' } });
+    fireEvent.keyDown(orgInput, { key: 'Enter', code: 'Enter' });
+
+    // Wait for the tag to appear
+    await waitFor(() => {
+      expect(screen.getByLabelText('Remove acme-corp')).toBeInTheDocument();
+    });
+
+    // Remove it
+    await user.click(screen.getByRole('button', { name: 'Remove acme-corp' }));
+    expect(screen.queryByRole('button', { name: 'Remove acme-corp' })).not.toBeInTheDocument();
   });
 
   /* ---------------------------------------------------------------- */

@@ -21,7 +21,13 @@ import {
 } from '../../api/integrations';
 import { getRetentionPolicies, updateRetentionPolicies } from '../../api/admin';
 import type { RetentionPolicyItem } from '../../api/admin';
-import { getSyncConfig, getSyncSchedule } from '../../api/sync';
+import {
+  getSyncConfig,
+  getSyncSchedule,
+  updateSyncConfig,
+  updateSyncSchedule,
+  triggerSync,
+} from '../../api/sync';
 import { PagerDutyIntegration } from '../Integrations/PagerDutyIntegration';
 import { TeamsIntegration } from '../Integrations/TeamsIntegration';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -34,6 +40,7 @@ import { Card, CardHeader } from '../../components/primitives/Card';
 import { Drawer } from '../../components/primitives/Drawer';
 import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
 import { Spinner } from '../../components/primitives/Spinner';
+import { Label } from '../../components/primitives/Label';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { useFeatures } from '../../hooks/useFeatures';
 import { formatAbsolute } from '../../utils/dates';
@@ -411,94 +418,160 @@ function EnterprisePATWidget() {
   );
 }
 
-function EnterpriseSyncConfigWidget() {
+/* ------------------------------------------------------------------ */
+/*  Sync Setup Wizard Steps                                            */
+/* ------------------------------------------------------------------ */
+
+type SyncWizardStep = 'connection' | 'entities' | 'schedule' | 'confirm';
+
+const SYNC_WIZARD_STEPS: { key: SyncWizardStep; label: string }[] = [
+  { key: 'connection', label: 'Connection' },
+  { key: 'entities', label: 'Entities' },
+  { key: 'schedule', label: 'Schedule' },
+  { key: 'confirm', label: 'Confirm' },
+];
+
+const SYNC_SCOPE_OPTIONS = [
+  { value: 'full', label: 'Full sync (all entity types)' },
+  { value: 'repos', label: 'Repositories only' },
+  { value: 'users', label: 'Users only' },
+  { value: 'teams', label: 'Teams only' },
+];
+
+const INTERVAL_OPTIONS = [
+  { value: 1, label: 'Every hour' },
+  { value: 4, label: 'Every 4 hours' },
+  { value: 8, label: 'Every 8 hours' },
+  { value: 12, label: 'Every 12 hours' },
+  { value: 24, label: 'Every 24 hours' },
+];
+
+function GitHubSyncSetupPanel() {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [step, setStep] = useState<SyncWizardStep>('connection');
+
+  // Wizard draft state
+  const [draftOrgs, setDraftOrgs] = useState<string[]>([]);
+  const [draftOrgInput, setDraftOrgInput] = useState('');
+  const [draftSyncEnabled, setDraftSyncEnabled] = useState(true);
+  const [draftScheduleEnabled, setDraftScheduleEnabled] = useState(true);
+  const [draftInterval, setDraftInterval] = useState(4);
+  const [draftScope, setDraftScope] = useState('full');
+
   const {
     data: config,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ['sync-config'],
-    queryFn: getSyncConfig,
-  });
+    isLoading: configLoading,
+    isError: configError,
+    error: configErrorObj,
+    refetch: refetchConfig,
+  } = useQuery({ queryKey: ['sync-config'], queryFn: getSyncConfig });
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>Enterprise Sync Config</CardHeader>
-        <div style={{ padding: '2rem', textAlign: 'center' }}>
-          <Spinner size={24} />
-        </div>
-      </Card>
-    );
-  }
-
-  if (isError) {
-    return (
-      <Card>
-        <CardHeader>Enterprise Sync Config</CardHeader>
-        <div style={{ padding: '1rem' }}>
-          <ErrorBanner
-            message={error instanceof Error ? error.message : 'Failed to load sync config.'}
-            onRetry={() => void refetch()}
-          />
-        </div>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader>Enterprise Sync Config</CardHeader>
-      <div className={styles.auditStreamBody}>
-        <div className={styles.configGrid}>
-          <div className={styles.configRow}>
-            <span className={styles.configLabel}>App ID</span>
-            <span className={styles.configValue}>
-              <code>{config?.app_id ?? '—'}</code>
-            </span>
-          </div>
-          <div className={styles.configRow}>
-            <span className={styles.configLabel}>Enterprise</span>
-            <span className={styles.configValue}>
-              <code>{config?.enterprise_slug ?? '—'}</code>
-            </span>
-          </div>
-          <div className={styles.configRow}>
-            <span className={styles.configLabel}>Sync enabled</span>
-            <span className={styles.configValue}>
-              <code>{config?.sync_enabled ? 'Yes' : 'No'}</code>
-            </span>
-          </div>
-          <div className={styles.configRow}>
-            <span className={styles.configLabel}>Orgs</span>
-            <span className={styles.configValue}>
-              <code>{config?.orgs?.length ? config.orgs.join(', ') : '—'}</code>
-            </span>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-function SyncScheduleWidget() {
   const {
     data: schedule,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ['sync-schedule'],
-    queryFn: getSyncSchedule,
+    isLoading: scheduleLoading,
+    isError: scheduleError,
+    error: scheduleErrorObj,
+    refetch: refetchSchedule,
+  } = useQuery({ queryKey: ['sync-schedule'], queryFn: getSyncSchedule });
+
+  const configMutation = useMutation({
+    mutationFn: (updates: { sync_enabled?: boolean; orgs?: string[] }) => updateSyncConfig(updates),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['sync-config'] });
+    },
   });
+
+  const scheduleMutation = useMutation({
+    mutationFn: (updates: { enabled?: boolean; interval_hours?: number; scope?: string }) =>
+      updateSyncSchedule(updates),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['sync-schedule'] });
+    },
+  });
+
+  const triggerMutation = useMutation({
+    mutationFn: (scope: string) => triggerSync(scope),
+  });
+
+  const isLoading = configLoading || scheduleLoading;
+  const isError = configError || scheduleError;
+  const errorMessage = configError
+    ? configErrorObj instanceof Error
+      ? configErrorObj.message
+      : 'Failed to load sync config.'
+    : scheduleErrorObj instanceof Error
+      ? scheduleErrorObj.message
+      : 'Failed to load sync schedule.';
+
+  function openWizard() {
+    // Pre-populate wizard with current config
+    setDraftOrgs(config?.orgs ?? []);
+    setDraftSyncEnabled(config?.sync_enabled ?? true);
+    setDraftScheduleEnabled(schedule?.enabled ?? true);
+    setDraftInterval(schedule?.interval_hours ?? 4);
+    setDraftScope(schedule?.scope ?? 'full');
+    setDraftOrgInput('');
+    setStep('connection');
+    setWizardOpen(true);
+  }
+
+  function handleAddOrg(inputValue?: string) {
+    const org = (inputValue ?? draftOrgInput).trim().toLowerCase();
+    if (org && !draftOrgs.includes(org)) {
+      setDraftOrgs([...draftOrgs, org]);
+    }
+    setDraftOrgInput('');
+  }
+
+  function handleRemoveOrg(org: string) {
+    setDraftOrgs(draftOrgs.filter((o) => o !== org));
+  }
+
+  function handleOrgInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddOrg(e.currentTarget.value);
+    }
+  }
+
+  async function handleSaveConfig() {
+    try {
+      await configMutation.mutateAsync({
+        sync_enabled: draftSyncEnabled,
+        orgs: draftOrgs,
+      });
+      await scheduleMutation.mutateAsync({
+        enabled: draftScheduleEnabled,
+        interval_hours: draftInterval,
+        scope: draftScope,
+      });
+      setWizardOpen(false);
+      showToast('Sync configuration saved successfully', 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to save sync configuration.';
+      showToast(msg, 'error');
+    }
+  }
+
+  async function handleTriggerSync() {
+    try {
+      await triggerMutation.mutateAsync(schedule?.scope ?? 'full');
+      showToast('Sync triggered successfully', 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to trigger sync.';
+      showToast(msg, 'error');
+    }
+  }
+
+  const stepIndex = SYNC_WIZARD_STEPS.findIndex((s) => s.key === step);
+  const isSaving = configMutation.isPending || scheduleMutation.isPending;
 
   if (isLoading) {
     return (
       <Card>
-        <CardHeader>Sync Schedule</CardHeader>
+        <CardHeader>GitHub Enterprise Sync</CardHeader>
         <div style={{ padding: '2rem', textAlign: 'center' }}>
           <Spinner size={24} />
         </div>
@@ -509,11 +582,14 @@ function SyncScheduleWidget() {
   if (isError) {
     return (
       <Card>
-        <CardHeader>Sync Schedule</CardHeader>
+        <CardHeader>GitHub Enterprise Sync</CardHeader>
         <div style={{ padding: '1rem' }}>
           <ErrorBanner
-            message={error instanceof Error ? error.message : 'Failed to load sync schedule.'}
-            onRetry={() => void refetch()}
+            message={errorMessage}
+            onRetry={() => {
+              void refetchConfig();
+              void refetchSchedule();
+            }}
           />
         </div>
       </Card>
@@ -521,39 +597,325 @@ function SyncScheduleWidget() {
   }
 
   return (
-    <Card>
-      <CardHeader>Sync Schedule</CardHeader>
-      <div className={styles.auditStreamBody}>
-        <div className={styles.configGrid}>
-          <div className={styles.configRow}>
-            <span className={styles.configLabel}>Enabled</span>
-            <span className={styles.configValue}>
-              <code>{schedule?.enabled ? 'Yes' : 'No'}</code>
-            </span>
+    <>
+      <Card>
+        <CardHeader>GitHub Enterprise Sync</CardHeader>
+        <div className={styles.auditStreamBody} data-testid="sync-setup-summary">
+          <p className={styles.featuresDescription}>
+            Sync configuration determines which GitHub Enterprise data is pulled into OctoWatch and
+            how often.
+          </p>
+          <div className={styles.configGrid}>
+            <div className={styles.configRow}>
+              <span className={styles.configLabel}>Connection</span>
+              <span className={styles.configValue}>
+                <code>
+                  {config?.enterprise_slug
+                    ? `Enterprise: ${config.enterprise_slug}`
+                    : 'Not configured'}
+                </code>
+                {config?.app_id && <Label variant="success">Connected</Label>}
+              </span>
+            </div>
+            <div className={styles.configRow}>
+              <span className={styles.configLabel}>Sync status</span>
+              <span className={styles.configValue}>
+                <Label variant={config?.sync_enabled ? 'success' : 'muted'}>
+                  {config?.sync_enabled ? 'Enabled' : 'Disabled'}
+                </Label>
+              </span>
+            </div>
+            <div className={styles.configRow}>
+              <span className={styles.configLabel}>Organizations</span>
+              <span className={styles.configValue}>
+                <code>{config?.orgs?.length ? config.orgs.join(', ') : 'All (default)'}</code>
+              </span>
+            </div>
+            <div className={styles.configRow}>
+              <span className={styles.configLabel}>Schedule</span>
+              <span className={styles.configValue}>
+                <code>
+                  {schedule?.enabled
+                    ? `Every ${schedule.interval_hours}h — ${schedule.scope} scope`
+                    : 'Disabled'}
+                </code>
+              </span>
+            </div>
+            {schedule?.next_run_at && (
+              <div className={styles.configRow}>
+                <span className={styles.configLabel}>Next run</span>
+                <span className={styles.configValue}>
+                  <code>{formatAbsolute(schedule.next_run_at)}</code>
+                </span>
+              </div>
+            )}
           </div>
-          <div className={styles.configRow}>
-            <span className={styles.configLabel}>Interval</span>
-            <span className={styles.configValue}>
-              <code>
-                {schedule?.interval_hours != null ? `${schedule.interval_hours} hours` : '—'}
-              </code>
-            </span>
-          </div>
-          <div className={styles.configRow}>
-            <span className={styles.configLabel}>Scope</span>
-            <span className={styles.configValue}>
-              <code>{schedule?.scope ?? '—'}</code>
-            </span>
-          </div>
-          <div className={styles.configRow}>
-            <span className={styles.configLabel}>Next run</span>
-            <span className={styles.configValue}>
-              <code>{schedule?.next_run_at ? formatAbsolute(schedule.next_run_at) : '—'}</code>
-            </span>
+          <div className={styles.configActions}>
+            <Button variant="primary" size="sm" onClick={openWizard}>
+              Configure Sync
+            </Button>
+            <Button
+              size="sm"
+              disabled={!config?.sync_enabled || triggerMutation.isPending}
+              onClick={() => void handleTriggerSync()}
+            >
+              {triggerMutation.isPending ? 'Triggering…' : 'Trigger Sync Now'}
+            </Button>
           </div>
         </div>
-      </div>
-    </Card>
+      </Card>
+
+      {/* Wizard Drawer */}
+      <Drawer open={wizardOpen} onClose={() => setWizardOpen(false)} title="Configure GitHub Sync">
+        <div className={styles.syncWizard} data-testid="sync-wizard">
+          {/* Step indicator */}
+          <div className={styles.syncWizardSteps}>
+            {SYNC_WIZARD_STEPS.map((s, idx) => (
+              <div
+                key={s.key}
+                className={
+                  idx === stepIndex
+                    ? styles.syncWizardStepActive
+                    : idx < stepIndex
+                      ? styles.syncWizardStepDone
+                      : styles.syncWizardStepPending
+                }
+              >
+                <span className={styles.syncWizardStepNumber}>{idx + 1}</span>
+                <span className={styles.syncWizardStepLabel}>{s.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Step content */}
+          <div className={styles.syncWizardContent}>
+            {step === 'connection' && (
+              <div data-testid="wizard-step-connection">
+                <h4 className={styles.syncWizardTitle}>Connection Details</h4>
+                <p className={styles.syncWizardDescription}>
+                  Your GitHub App connection status. Connection is managed via the GitHub App
+                  installation — update it in GitHub if needed.
+                </p>
+                <div className={styles.configGrid}>
+                  <div className={styles.configRow}>
+                    <span className={styles.configLabel}>App ID</span>
+                    <span className={styles.configValue}>
+                      <code>{config?.app_id ?? 'Not configured'}</code>
+                    </span>
+                  </div>
+                  <div className={styles.configRow}>
+                    <span className={styles.configLabel}>Enterprise</span>
+                    <span className={styles.configValue}>
+                      <code>{config?.enterprise_slug ?? 'Not configured'}</code>
+                    </span>
+                  </div>
+                  <div className={styles.configRow}>
+                    <span className={styles.configLabel}>Installations</span>
+                    <span className={styles.configValue}>
+                      <code>
+                        {config?.installation_ids?.length
+                          ? `${config.installation_ids.length} org(s)`
+                          : 'None'}
+                      </code>
+                    </span>
+                  </div>
+                </div>
+                <div className={styles.syncWizardField}>
+                  <label className={styles.toggleSwitch}>
+                    <input
+                      type="checkbox"
+                      checked={draftSyncEnabled}
+                      onChange={(e) => setDraftSyncEnabled(e.target.checked)}
+                    />
+                    <span className={styles.toggleSlider} />
+                  </label>
+                  <span className={styles.syncWizardFieldLabel}>Enable data sync</span>
+                </div>
+              </div>
+            )}
+
+            {step === 'entities' && (
+              <div data-testid="wizard-step-entities">
+                <h4 className={styles.syncWizardTitle}>Entity Selection</h4>
+                <p className={styles.syncWizardDescription}>
+                  Choose which organizations to sync. Leave empty to sync all organizations
+                  accessible by the GitHub App installation.
+                </p>
+                <div className={styles.syncWizardField}>
+                  <label className={styles.configLabel} htmlFor="org-input">
+                    Organizations
+                  </label>
+                  <div className={styles.syncOrgInputRow}>
+                    <input
+                      id="org-input"
+                      className={styles.configInput}
+                      value={draftOrgInput}
+                      onChange={(e) => setDraftOrgInput(e.target.value)}
+                      onKeyDown={handleOrgInputKeyDown}
+                      placeholder="Enter org slug and press Enter"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => handleAddOrg()}
+                      disabled={!draftOrgInput.trim()}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                  {draftOrgs.length > 0 && (
+                    <div className={styles.syncOrgTags}>
+                      {draftOrgs.map((org) => (
+                        <span key={org} className={styles.syncOrgTag}>
+                          {org}
+                          <button
+                            type="button"
+                            className={styles.syncOrgTagRemove}
+                            onClick={() => handleRemoveOrg(org)}
+                            aria-label={`Remove ${org}`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {draftOrgs.length === 0 && (
+                    <span className={styles.configHelp}>
+                      No organizations specified — all accessible orgs will be synced.
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {step === 'schedule' && (
+              <div data-testid="wizard-step-schedule">
+                <h4 className={styles.syncWizardTitle}>Sync Schedule</h4>
+                <p className={styles.syncWizardDescription}>
+                  Configure how frequently OctoWatch syncs data from GitHub Enterprise.
+                </p>
+                <div className={styles.syncWizardField}>
+                  <label className={styles.toggleSwitch}>
+                    <input
+                      type="checkbox"
+                      checked={draftScheduleEnabled}
+                      onChange={(e) => setDraftScheduleEnabled(e.target.checked)}
+                    />
+                    <span className={styles.toggleSlider} />
+                  </label>
+                  <span className={styles.syncWizardFieldLabel}>Enable scheduled sync</span>
+                </div>
+                {draftScheduleEnabled && (
+                  <>
+                    <div className={styles.syncWizardField}>
+                      <label className={styles.configLabel} htmlFor="sync-interval">
+                        Interval
+                      </label>
+                      <select
+                        id="sync-interval"
+                        className={styles.configInput}
+                        value={draftInterval}
+                        onChange={(e) => setDraftInterval(Number(e.target.value))}
+                      >
+                        {INTERVAL_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className={styles.syncWizardField}>
+                      <label className={styles.configLabel} htmlFor="sync-scope">
+                        Scope
+                      </label>
+                      <select
+                        id="sync-scope"
+                        className={styles.configInput}
+                        value={draftScope}
+                        onChange={(e) => setDraftScope(e.target.value)}
+                      >
+                        {SYNC_SCOPE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {step === 'confirm' && (
+              <div data-testid="wizard-step-confirm">
+                <h4 className={styles.syncWizardTitle}>Review &amp; Confirm</h4>
+                <p className={styles.syncWizardDescription}>
+                  Review your sync configuration before saving.
+                </p>
+                <div className={styles.configGrid}>
+                  <div className={styles.configRow}>
+                    <span className={styles.configLabel}>Sync enabled</span>
+                    <span className={styles.configValue}>
+                      <Label variant={draftSyncEnabled ? 'success' : 'muted'}>
+                        {draftSyncEnabled ? 'Yes' : 'No'}
+                      </Label>
+                    </span>
+                  </div>
+                  <div className={styles.configRow}>
+                    <span className={styles.configLabel}>Organizations</span>
+                    <span className={styles.configValue}>
+                      <code>{draftOrgs.length ? draftOrgs.join(', ') : 'All (default)'}</code>
+                    </span>
+                  </div>
+                  <div className={styles.configRow}>
+                    <span className={styles.configLabel}>Schedule</span>
+                    <span className={styles.configValue}>
+                      <code>
+                        {draftScheduleEnabled
+                          ? `Every ${draftInterval}h — ${draftScope}`
+                          : 'Disabled'}
+                      </code>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Navigation buttons */}
+          <div className={styles.syncWizardNav}>
+            {stepIndex > 0 && (
+              <Button
+                size="sm"
+                onClick={() => setStep(SYNC_WIZARD_STEPS[stepIndex - 1].key)}
+                disabled={isSaving}
+              >
+                Back
+              </Button>
+            )}
+            <div style={{ flex: 1 }} />
+            {stepIndex < SYNC_WIZARD_STEPS.length - 1 ? (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setStep(SYNC_WIZARD_STEPS[stepIndex + 1].key)}
+              >
+                Next
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={isSaving}
+                onClick={() => void handleSaveConfig()}
+              >
+                {isSaving ? 'Saving…' : 'Save Configuration'}
+              </Button>
+            )}
+          </div>
+        </div>
+      </Drawer>
+    </>
   );
 }
 
@@ -566,8 +928,7 @@ function GitHubPane() {
       <div className={styles.githubGrid}>
         <EnterprisePATWidget />
         <AuditStreamPanel />
-        <EnterpriseSyncConfigWidget />
-        <SyncScheduleWidget />
+        <GitHubSyncSetupPanel />
       </div>
     </div>
   );

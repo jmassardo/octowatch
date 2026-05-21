@@ -859,6 +859,167 @@
   }
 }
 
+/* ===== Sync Wizard ===== */
+.syncWizard {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1rem 0;
+}
+
+.syncWizardSteps {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 0.25rem;
+}
+
+.syncWizardStepActive,
+.syncWizardStepDone,
+.syncWizardStepPending {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.syncWizardStepActive {
+  background: var(--accent);
+  color: #fff;
+}
+
+.syncWizardStepDone {
+  background: var(--canvas-subtle);
+  color: var(--fg);
+}
+
+.syncWizardStepPending {
+  background: transparent;
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+}
+
+.syncWizardStepNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.syncWizardStepPending .syncWizardStepNumber {
+  background: var(--canvas-subtle);
+}
+
+.syncWizardStepDone .syncWizardStepNumber {
+  background: var(--accent);
+  color: #fff;
+}
+
+.syncWizardStepLabel {
+  white-space: nowrap;
+}
+
+.syncWizardContent {
+  min-height: 200px;
+  padding: 0 0.25rem;
+}
+
+.syncWizardTitle {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+  color: var(--fg);
+}
+
+.syncWizardDescription {
+  font-size: 0.8125rem;
+  color: var(--fg-muted);
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+
+.syncWizardField {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.syncWizardFieldLabel {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.syncWizardNav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.syncOrgInputRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+}
+
+.syncOrgInputRow input {
+  flex: 1;
+}
+
+.syncOrgTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+  width: 100%;
+}
+
+.syncOrgTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+}
+
+.syncOrgTagRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: none;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 0.875rem;
+  line-height: 1;
+  padding: 0;
+  border-radius: 2px;
+}
+
+.syncOrgTagRemove:hover {
+  color: var(--danger);
+  background: var(--danger-subtle);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page,
   .pageHeader,
@@ -939,6 +1100,19 @@
   .categoryFormInput,
   .categoryFormSelect,
   .categoryFormActions {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .syncWizard,
+  .syncWizardSteps,
+  .syncWizardStepActive,
+  .syncWizardStepDone,
+  .syncWizardStepPending,
+  .syncWizardContent,
+  .syncWizardNav,
+  .syncOrgTags,
+  .syncOrgTag {
     animation: none !important;
     transition: none !important;
   }
