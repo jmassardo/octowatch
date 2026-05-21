@@ -84,6 +84,7 @@ class PermissionScopes(BaseModel):
 
     orgs: list[str] | None = None
     repos: list[str] | None = None
+    scope_type: str = "global"
 
 
 class PermissionDefinition(BaseModel):

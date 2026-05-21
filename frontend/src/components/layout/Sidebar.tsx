@@ -272,7 +272,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Threat Intel
           </NavItem>
         )}
-        {hasPermission('detections', 'view') && (
+        {hasPermission('posture', 'view') && (
           <NavItem
             to="/posture"
             onClick={onMobileClose}
@@ -298,7 +298,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Events Explorer
           </NavItem>
         )}
-        {hasPermission('events', 'view') && (
+        {hasPermission('cross_org', 'view') && (
           <NavItem
             to="/crossorg"
             onClick={onMobileClose}
@@ -311,7 +311,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Cross-Org
           </NavItem>
         )}
-        {hasPermission('detections', 'view') && (
+        {hasPermission('workflow_security', 'view') && (
           <NavItem
             to="/workflows"
             onClick={onMobileClose}
@@ -324,7 +324,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Workflow Security
           </NavItem>
         )}
-        {hasPermission('detections', 'view') && (
+        {hasPermission('workflow_health', 'view') && (
           <NavItem
             to="/workflows/health"
             onClick={onMobileClose}
@@ -345,7 +345,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Workflow Health
           </NavItem>
         )}
-        {hasPermission('detections', 'view') && (
+        {hasPermission('advanced_security', 'view') && (
           <NavItem
             to="/advanced-security"
             onClick={onMobileClose}
@@ -371,7 +371,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Playbooks
           </NavItem>
         )}
-        {hasPermission('detections', 'view') && (
+        {hasPermission('supply_chain', 'view') && (
           <NavItem
             to="/supply-chain"
             onClick={onMobileClose}
@@ -384,7 +384,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Supply Chain
           </NavItem>
         )}
-        {hasPermission('detections', 'view') && (
+        {hasPermission('packages', 'view') && (
           <NavItem
             to="/packages"
             onClick={onMobileClose}
@@ -401,7 +401,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
       <div className={styles.navSection}>
         <div className={styles.navLabel}>Platform Intelligence</div>
-        {features.velocity && hasPermission('events', 'view') && (
+        {features.velocity && hasPermission('velocity', 'view') && (
           <NavItem
             to="/velocity"
             onClick={onMobileClose}
@@ -415,7 +415,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Engineering Velocity
           </NavItem>
         )}
-        {features.dev_activity && hasPermission('events', 'view') && (
+        {features.dev_activity && hasPermission('dev_activity', 'view') && (
           <NavItem
             to="/devactivity"
             onClick={onMobileClose}
@@ -428,7 +428,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Developer Activity
           </NavItem>
         )}
-        {hasPermission('events', 'view') && (
+        {hasPermission('user_behavior', 'view') && (
           <NavItem
             to="/user-behavior"
             onClick={onMobileClose}
@@ -441,7 +441,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             User Behavior
           </NavItem>
         )}
-        {features.copilot_insights && hasPermission('events', 'view') && (
+        {features.copilot_insights && hasPermission('copilot', 'view') && (
           <NavItem
             to="/copilot"
             onClick={onMobileClose}
@@ -454,7 +454,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Copilot Insights
           </NavItem>
         )}
-        {features.org_health && hasPermission('events', 'view') && (
+        {features.org_health && hasPermission('org_health', 'view') && (
           <NavItem
             to="/health"
             badge={healthBadge}
@@ -486,7 +486,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Reports
           </NavItem>
         )}
-        {hasPermission('reports', 'view') && (
+        {hasPermission('compliance', 'view') && (
           <NavItem
             to="/compliance"
             onClick={onMobileClose}
@@ -499,7 +499,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Compliance
           </NavItem>
         )}
-        {hasPermission('events', 'view') && (
+        {hasPermission('queries', 'view') && (
           <NavItem
             to="/query"
             onClick={onMobileClose}
@@ -516,7 +516,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
       <div className={styles.navSection}>
         <div className={styles.navLabel}>Monitoring</div>
-        {hasPermission('admin_settings', 'view') && (
+        {hasPermission('telemetry', 'view') && (
           <NavItem
             to="/monitoring/telemetry"
             onClick={handleNavClick}
@@ -537,7 +537,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Telemetry
           </NavItem>
         )}
-        {hasPermission('admin_settings', 'view') && (
+        {hasPermission('sync_status', 'view') && (
           <NavItem
             to="/monitoring/sync-status"
             onClick={handleNavClick}
@@ -558,7 +558,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Sync Status
           </NavItem>
         )}
-        {hasPermission('admin_settings', 'view') && (
+        {hasPermission('platform_usage', 'view') && (
           <NavItem
             to="/monitoring/platform-usage"
             onClick={handleNavClick}
@@ -571,7 +571,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Platform Usage
           </NavItem>
         )}
-        {hasPermission('admin_settings', 'view') && (
+        {hasPermission('audit_log', 'view') && (
           <NavItem
             to="/monitoring/audit-trail"
             onClick={handleNavClick}

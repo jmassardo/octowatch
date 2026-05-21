@@ -7,6 +7,7 @@ export interface PermissionsResponse {
   scopes: {
     orgs: string[] | null;
     repos: string[] | null;
+    scope_type: string;
   };
 }
 

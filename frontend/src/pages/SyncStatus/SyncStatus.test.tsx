@@ -37,6 +37,12 @@ vi.mock('../../hooks/usePermissions', () => ({
     hasPermission: (...args: unknown[]) => mockHasPermission(...args),
     hasAnyPermission: () => true,
     hasRole: () => false,
+    scopedOrgs: [],
+    scopedRepos: [],
+    scopeType: 'global',
+    isOrgInScope: () => true,
+    isRepoInScope: () => true,
+    canEdit: () => false,
   }),
 }));
 

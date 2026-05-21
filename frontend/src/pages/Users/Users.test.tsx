@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { UsersPage } from './index';
@@ -356,10 +356,13 @@ describe('UsersPage', () => {
 
     // Type in the filter
     const filterInput = screen.getByPlaceholderText('Filter permissions…');
+    await user.clear(filterInput);
     await user.type(filterInput, 'detections');
 
     // Should show detections but not dashboard
+    await waitFor(() => {
+      expect(screen.queryByText('dashboard:view')).not.toBeInTheDocument();
+    });
     expect(screen.getAllByText('detections:view').length).toBeGreaterThanOrEqual(1);
-    expect(screen.queryByText('dashboard:view')).not.toBeInTheDocument();
   });
 });

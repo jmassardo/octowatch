@@ -2,12 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { PermissionGate } from './PermissionGate';
-
+import { OrgScopeGate } from './OrgScopeGate';
 import * as usePermissionsModule from '../../hooks/usePermissions';
 
 vi.mock('../../hooks/usePermissions');
-
 const mockedUsePermissions = vi.mocked(usePermissionsModule.usePermissions);
 
 function renderWithProviders(ui: ReactNode) {
@@ -15,17 +13,17 @@ function renderWithProviders(ui: ReactNode) {
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
 }
 
-describe('PermissionGate', () => {
+describe('OrgScopeGate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('renders children when user has permission', () => {
+  it('renders children when user has global scope', () => {
     mockedUsePermissions.mockReturnValue({
-      permissions: ['events:view'],
-      roles: ['viewer'],
+      permissions: ['*:*'],
+      roles: ['super_admin'],
       isLoading: false,
-      hasPermission: (r: string, a: string) => `${r}:${a}` === 'events:view',
+      hasPermission: () => true,
       hasAnyPermission: () => true,
       hasRole: () => true,
       scopedOrgs: [],
@@ -33,68 +31,67 @@ describe('PermissionGate', () => {
       scopeType: 'global',
       isOrgInScope: () => true,
       isRepoInScope: () => true,
-      canEdit: () => false,
+      canEdit: () => true,
     });
 
     renderWithProviders(
-      <PermissionGate resource="events" action="view">
-        <span>Visible content</span>
-      </PermissionGate>,
+      <OrgScopeGate org="my-org">
+        <span>Org content</span>
+      </OrgScopeGate>,
     );
 
-    expect(screen.getByText('Visible content')).toBeInTheDocument();
+    expect(screen.getByText('Org content')).toBeInTheDocument();
   });
 
-  it('renders fallback when user lacks permission', () => {
+  it('renders children when org is in user scope', () => {
     mockedUsePermissions.mockReturnValue({
-      permissions: ['events:view'],
-      roles: ['viewer'],
+      permissions: ['posture:view'],
+      roles: ['security_analyst'],
       isLoading: false,
-      hasPermission: (r: string, a: string) => `${r}:${a}` === 'events:view',
-      hasAnyPermission: () => false,
-      hasRole: () => false,
-      scopedOrgs: [],
+      hasPermission: () => true,
+      hasAnyPermission: () => true,
+      hasRole: () => true,
+      scopedOrgs: ['my-org', 'other-org'],
       scopedRepos: [],
-      scopeType: 'global',
-      isOrgInScope: () => true,
+      scopeType: 'org',
+      isOrgInScope: (org: string) => ['my-org', 'other-org'].includes(org),
       isRepoInScope: () => true,
       canEdit: () => false,
     });
 
     renderWithProviders(
-      <PermissionGate resource="admin_users" action="view" fallback={<span>No access</span>}>
-        <span>Admin content</span>
-      </PermissionGate>,
+      <OrgScopeGate org="my-org">
+        <span>Org content</span>
+      </OrgScopeGate>,
     );
 
-    expect(screen.queryByText('Admin content')).not.toBeInTheDocument();
+    expect(screen.getByText('Org content')).toBeInTheDocument();
+  });
+
+  it('renders fallback when org is not in user scope', () => {
+    mockedUsePermissions.mockReturnValue({
+      permissions: ['posture:view'],
+      roles: ['security_analyst'],
+      isLoading: false,
+      hasPermission: () => true,
+      hasAnyPermission: () => true,
+      hasRole: () => true,
+      scopedOrgs: ['my-org'],
+      scopedRepos: [],
+      scopeType: 'org',
+      isOrgInScope: (org: string) => org === 'my-org',
+      isRepoInScope: () => false,
+      canEdit: () => false,
+    });
+
+    renderWithProviders(
+      <OrgScopeGate org="restricted-org" fallback={<span>No access</span>}>
+        <span>Org content</span>
+      </OrgScopeGate>,
+    );
+
+    expect(screen.queryByText('Org content')).not.toBeInTheDocument();
     expect(screen.getByText('No access')).toBeInTheDocument();
-  });
-
-  it('renders nothing when no fallback and no permission', () => {
-    mockedUsePermissions.mockReturnValue({
-      permissions: [],
-      roles: [],
-      isLoading: false,
-      hasPermission: () => false,
-      hasAnyPermission: () => false,
-      hasRole: () => false,
-      scopedOrgs: [],
-      scopedRepos: [],
-      scopeType: 'global',
-      isOrgInScope: () => true,
-      isRepoInScope: () => true,
-      canEdit: () => false,
-    });
-
-    const { container } = renderWithProviders(
-      <PermissionGate resource="events" action="view">
-        <span>Content</span>
-      </PermissionGate>,
-    );
-
-    expect(screen.queryByText('Content')).not.toBeInTheDocument();
-    expect(container.innerHTML).toBe('');
   });
 
   it('renders nothing when loading', () => {
@@ -114,9 +111,9 @@ describe('PermissionGate', () => {
     });
 
     const { container } = renderWithProviders(
-      <PermissionGate resource="events" action="view">
+      <OrgScopeGate org="my-org">
         <span>Content</span>
-      </PermissionGate>,
+      </OrgScopeGate>,
     );
 
     expect(container.innerHTML).toBe('');

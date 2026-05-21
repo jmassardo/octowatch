@@ -444,6 +444,14 @@ class TestSystemRoleDefinitions:
         # Engineer should cover all non-playbook analyst permissions
         assert base_analyst_perms.issubset(engineer_perms) or "playbooks:*" in engineer_perms
 
+    def test_new_resource_permissions_added_to_system_roles(self) -> None:
+        """Updated system roles should include the new page-level permissions."""
+        assert "supply_chain:view" in SYSTEM_ROLE_PERMISSIONS["security_analyst"]
+        assert "packages:*" in SYSTEM_ROLE_PERMISSIONS["security_engineer"]
+        assert "compliance:*" in SYSTEM_ROLE_PERMISSIONS["compliance_officer"]
+        assert "org_health:view" in SYSTEM_ROLE_PERMISSIONS["engineering_leader"]
+        assert "threat_intel:view" in SYSTEM_ROLE_PERMISSIONS["report_admin"]
+
     def test_valid_resources_in_permissions(self) -> None:
         """All permissions reference valid resources."""
         for role, perms in SYSTEM_ROLE_PERMISSIONS.items():
@@ -597,12 +605,13 @@ class TestRbacSchemas:
             user_id="testuser",
             roles=["security_analyst"],
             permissions=["detections:*", "events:*"],
-            scopes=PermissionScopes(orgs=["my-org"], repos=None),
+            scopes=PermissionScopes(orgs=["my-org"], repos=None, scope_type="org"),
         )
         data = resp.model_dump()
         assert data["user_id"] == "testuser"
         assert data["scopes"]["orgs"] == ["my-org"]
         assert data["scopes"]["repos"] is None
+        assert data["scopes"]["scope_type"] == "org"
 
 
 class TestAvailablePermissionsSchema:
@@ -637,47 +646,56 @@ class TestAvailablePermissionsSchema:
                 action="view",
                 resource_label="Dashboard",
                 action_label="View",
-                description="View dashboard data and dashboards",
-                category="Pages",
+                description="View the main dashboard overview",
+                category="Core",
             ),
         ]
         resp = AvailablePermissionsResponse(
             permissions=perms,
-            categories=["Pages"],
+            categories=["Core"],
         )
         data = resp.model_dump()
         assert len(data["permissions"]) == 1
         assert data["permissions"][0]["permission"] == "dashboard:view"
-        assert data["categories"] == ["Pages"]
+        assert data["categories"] == ["Core"]
 
 
 class TestListAvailablePermissionsEndpoint:
-    """Test the /admin/roles/permissions endpoint logic."""
+    """Test the /admin/roles/permissions catalog logic."""
 
-    def test_resource_labels_defined_for_all_valid_resources(self) -> None:
-        """Every valid resource has a human-readable label."""
-        from app.routers.admin_roles import _RESOURCE_LABELS
+    def test_catalog_covers_all_valid_resources(self) -> None:
+        """Every valid resource should appear in the permission catalog."""
+        from app.services.permission_catalog import get_catalog
 
+        catalog_resources = {permission.resource for permission in get_catalog()}
+        assert VALID_RESOURCES.issubset(catalog_resources)
+
+    def test_catalog_includes_view_and_edit_for_every_resource(self) -> None:
+        """Every resource should expose at least view and edit in the catalog."""
+        from app.services.permission_catalog import get_catalog
+
+        catalog_permissions = {permission.permission for permission in get_catalog()}
         for resource in VALID_RESOURCES:
-            assert resource in _RESOURCE_LABELS, f"Missing label for resource: {resource}"
+            assert f"{resource}:view" in catalog_permissions
+            assert f"{resource}:edit" in catalog_permissions
 
-    def test_action_labels_defined_for_all_valid_actions(self) -> None:
-        """Every valid action has a human-readable label."""
-        from app.routers.admin_roles import _ACTION_LABELS
+    def test_catalog_only_contains_valid_resources_and_actions(self) -> None:
+        """Catalog permissions should only reference valid RBAC resources/actions."""
+        from app.services.permission_catalog import get_catalog
 
-        for action in VALID_ACTIONS:
-            assert action in _ACTION_LABELS, f"Missing label for action: {action}"
+        for permission in get_catalog():
+            assert permission.resource in VALID_RESOURCES
+            assert permission.action in VALID_ACTIONS
 
-    def test_resource_categories_defined_for_all_valid_resources(self) -> None:
-        """Every valid resource has a category assignment."""
-        from app.routers.admin_roles import _RESOURCE_CATEGORIES
+    def test_catalog_categories_match_expected_order(self) -> None:
+        """Catalog categories should be stable for the admin UI."""
+        from app.services.permission_catalog import get_categories
 
-        for resource in VALID_RESOURCES:
-            assert resource in _RESOURCE_CATEGORIES, f"Missing category for resource: {resource}"
-
-    def test_permission_descriptions_defined_for_all_valid_actions(self) -> None:
-        """Every valid action has a description template."""
-        from app.routers.admin_roles import _PERMISSION_DESCRIPTIONS
-
-        for action in VALID_ACTIONS:
-            assert action in _PERMISSION_DESCRIPTIONS, f"Missing description for action: {action}"
+        assert get_categories() == [
+            "Core",
+            "Security",
+            "Platform Intelligence",
+            "Analytics",
+            "Monitoring",
+            "Administration",
+        ]
