@@ -2,10 +2,6 @@
   padding: 0;
 }
 
-.pageHeader {
-  padding: 16px 24px 0;
-}
-
 /* ── Breadcrumb ────────────────────────────────────────────────────── */
 .breadcrumb {
   display: flex;

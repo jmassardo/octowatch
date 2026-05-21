@@ -1018,13 +1018,11 @@ export function PosturePage() {
   };
 
   const pageHeader = (
-    <div className={styles.pageHeader}>
-      <PageHeader
-        title="Security Posture"
-        description="Review enterprise, organization, and repository security posture"
-        showHelp
-      />
-    </div>
+    <PageHeader
+      title="Security Posture"
+      description="Review enterprise, organization, and repository security posture"
+      showHelp
+    />
   );
 
   if (isLoading)
