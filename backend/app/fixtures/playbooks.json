@@ -3,7 +3,9 @@
     "name": "Account Compromise Response",
     "slug": "account-compromise-response",
     "description": "Step-by-step response to a suspected account compromise. Guides through disabling the user, reviewing activity, checking for data access, resetting credentials, and documenting findings.",
-    "detection_categories": ["account_compromise"],
+    "detection_categories": [
+      "account_compromise"
+    ],
     "steps": [
       {
         "title": "Disable Compromised Account",
@@ -37,17 +39,23 @@
         "action_type": "manual",
         "required": true
       }
+    ],
+    "rule_slugs": [
+      "account-takeover-sequence"
     ]
   },
   {
     "name": "Leaked Secret Response",
     "slug": "leaked-secret-response",
     "description": "Response playbook for when a secret (API key, token, credential) is detected in source code or logs.",
-    "detection_categories": ["data_exfiltration", "supply_chain"],
+    "detection_categories": [
+      "data_exfiltration",
+      "supply_chain"
+    ],
     "steps": [
       {
         "title": "Identify Secret Scope",
-        "description": "Determine what the leaked secret provides access to — which systems, APIs, or data stores are at risk.",
+        "description": "Determine what the leaked secret provides access to \u2014 which systems, APIs, or data stores are at risk.",
         "action_type": "manual",
         "required": true
       },
@@ -77,13 +85,18 @@
         "action_url": "https://github.com/organizations/{org}/settings/security_analysis",
         "required": true
       }
+    ],
+    "rule_slugs": [
+      "cross-org-secret-alert-trigger"
     ]
   },
   {
     "name": "Privilege Escalation Response",
     "slug": "privilege-escalation-response",
     "description": "Response playbook for unauthorized privilege escalation events such as admin role grants or team maintainer self-promotion.",
-    "detection_categories": ["privilege_escalation"],
+    "detection_categories": [
+      "privilege_escalation"
+    ],
     "steps": [
       {
         "title": "Verify Authorization",
@@ -93,7 +106,7 @@
       },
       {
         "title": "Review the Change",
-        "description": "Examine the specific permission change — what role was granted, to which org/team, and what access it provides.",
+        "description": "Examine the specific permission change \u2014 what role was granted, to which org/team, and what access it provides.",
         "action_type": "manual",
         "required": true
       },
@@ -110,13 +123,22 @@
         "action_type": "manual",
         "required": true
       }
+    ],
+    "rule_slugs": [
+      "admin-role-grant",
+      "team-maintainer-self-promotion",
+      "org-owner-addition",
+      "excessive-permission-grants",
+      "cross-org-admin-escalation"
     ]
   },
   {
     "name": "CI/CD Threat Response",
     "slug": "cicd-threat-response",
     "description": "Response playbook for threats involving GitHub Actions workflows, such as workflow modifications, suspicious runner activity, or secret exfiltration attempts.",
-    "detection_categories": ["supply_chain"],
+    "detection_categories": [
+      "supply_chain"
+    ],
     "steps": [
       {
         "title": "Disable Affected Workflow",
@@ -133,7 +155,7 @@
       },
       {
         "title": "Check for Data Exfiltration",
-        "description": "Review workflow run logs for signs of data exfiltration — outbound network calls, artifact uploads, or secret exposure.",
+        "description": "Review workflow run logs for signs of data exfiltration \u2014 outbound network calls, artifact uploads, or secret exposure.",
         "action_type": "manual",
         "required": true
       },
@@ -149,14 +171,25 @@
         "action_type": "manual",
         "required": true
       }
+    ],
+    "rule_slugs": [
+      "workflow-file-modification",
+      "suspicious-runner-registration",
+      "actions-secret-access-spike",
+      "workflow-injection"
     ]
   },
   {
     "name": "Runaway Workflow Queue Response",
     "slug": "runaway-workflow-queue-response",
     "description": "Response playbook for runaway GitHub Actions workflow queue alerts. Guides through identifying the source, stopping the runaway automation, and preventing recurrence. GitHub enterprises have a 50,000 pending workflow run queue limit.",
-    "detection_categories": ["supply_chain"],
-    "rule_slugs": ["runaway-workflow-queue-anomaly", "runaway-workflow-queue-actor-spike"],
+    "detection_categories": [
+      "supply_chain"
+    ],
+    "rule_slugs": [
+      "runaway-workflow-queue-anomaly",
+      "runaway-workflow-queue-actor-spike"
+    ],
     "steps": [
       {
         "title": "Identify the Runaway Source",
@@ -199,6 +232,635 @@
       {
         "title": "Document and Monitor",
         "description": "Record the incident timeline, queue depth reached, root cause, and remediation applied. Monitor the workflow queue depth for 24 hours to confirm the issue is resolved.",
+        "action_type": "manual",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "Defense Evasion Response",
+    "slug": "defense-evasion-response",
+    "description": "Response playbook for defense evasion detections such as audit log tampering, IP allowlist changes, SSO bypass attempts, or webhook deletions that may blind security monitoring.",
+    "detection_categories": [
+      "defense_evasion"
+    ],
+    "rule_slugs": [
+      "audit-log-export-non-admin",
+      "ip-allowlist-modification",
+      "sso-bypass-attempt",
+      "webhook-deletion"
+    ],
+    "steps": [
+      {
+        "title": "Assess Monitoring Impact",
+        "description": "Determine which security monitoring capabilities were affected. Identify any gaps in visibility created by the change (e.g., webhook deletion removes SIEM feed, IP allowlist change opens network access).",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Verify Actor Authorization",
+        "description": "Confirm whether the actor had legitimate business justification for the change. Check change management tickets or approvals.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Revert Unauthorized Changes",
+        "description": "If the change was unauthorized, immediately restore the previous configuration. Re-enable webhooks, restore IP allowlist entries, or re-enforce SSO requirements.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Check for Concurrent Attacks",
+        "description": "Defense evasion often precedes other attacks. Review audit logs for suspicious activity that occurred while monitoring was degraded \u2014 look for data exfiltration, privilege escalation, or lateral movement.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Strengthen Controls",
+        "description": "Implement additional safeguards to prevent recurrence: restrict who can modify security settings, enable alerts on configuration changes, and ensure redundant monitoring paths.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Escalate if Malicious",
+        "description": "If the defense evasion appears intentional and coordinated with other suspicious activity, escalate to the security incident response team immediately.",
+        "action_type": "manual",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "Access Control Violation Response",
+    "slug": "access-control-violation-response",
+    "description": "Response playbook for access control detections including overly permissive PATs, GitHub App installations with broad access, and external collaborator grants.",
+    "detection_categories": [
+      "access_control"
+    ],
+    "rule_slugs": [
+      "pat-classic-full-repo-scope",
+      "pat-fine-grained-all-repos-write",
+      "integration-install-org-level",
+      "external-collaborator-grant",
+      "external-collaborator-elevated",
+      "emu-guest-role-grant"
+    ],
+    "steps": [
+      {
+        "title": "Identify the Access Scope",
+        "description": "Determine the exact scope of access granted \u2014 which repositories, permissions, and data are now accessible. For PATs, review the scopes. For GitHub Apps, check installation permissions. For collaborators, review repository access.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Validate Business Need",
+        "description": "Contact the actor to understand the business justification. Verify whether the broad access is genuinely needed or if a more restrictive scope would suffice.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Apply Least Privilege",
+        "description": "If the access is overly broad, work with the actor to reduce scope. Replace classic PATs with fine-grained tokens scoped to specific repos. Limit GitHub App installations to selected repositories only.",
+        "action_type": "link",
+        "action_url": "https://github.com/organizations/{org}/settings/installations",
+        "required": true
+      },
+      {
+        "title": "Revoke if Unjustified",
+        "description": "If no valid business need exists, revoke the token or remove the collaborator access immediately. Notify the actor of the policy requirement.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Document and Update Policy",
+        "description": "Record the access control finding. Update access management policies if gaps are identified. Consider implementing automated guardrails for token creation.",
+        "action_type": "manual",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "Policy Violation Response",
+    "slug": "policy-violation-response",
+    "description": "Response playbook for policy violation detections including push protection bypasses, branch protection overrides, and repeated bypass offenses.",
+    "detection_categories": [
+      "policy_violation"
+    ],
+    "rule_slugs": [
+      "push-protection-bypass",
+      "branch-protection-override",
+      "repeat-bypass-offender",
+      "admin-bypass-critical"
+    ],
+    "steps": [
+      {
+        "title": "Review the Bypass Justification",
+        "description": "Examine the reason provided for the bypass (if any). Check if the actor followed the exception process or bypassed without authorization.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Assess Risk of the Bypass",
+        "description": "Determine what protection was bypassed and what risk it introduced. For push protection bypasses, verify the secret is not actually sensitive. For branch protection overrides, review what was merged without required checks.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Remediate Exposure",
+        "description": "If the bypass exposed a real secret, follow the Leaked Secret Response playbook. If branch protection was bypassed, review the merged code for security issues.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Address Repeat Offenders",
+        "description": "If this is a repeat offense, escalate to the actor's manager. Consider restricting bypass permissions or requiring additional approval for future exceptions.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Document and Reinforce",
+        "description": "Record the violation, outcome, and any corrective actions. Reinforce the policy with the team and consider security awareness training if patterns emerge.",
+        "action_type": "manual",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "Workflow File Modification Response",
+    "slug": "workflow-file-modification-response",
+    "description": "Response playbook for detecting modifications to GitHub Actions workflow files (.github/workflows/). Workflow changes can introduce malicious CI/CD steps, exfiltrate secrets, or compromise the software supply chain.",
+    "detection_categories": [
+      "supply_chain"
+    ],
+    "rule_slugs": [
+      "workflow-file-modification",
+      "workflow-injection",
+      "action-version-pinning-violation"
+    ],
+    "steps": [
+      {
+        "title": "Identify the Change",
+        "description": "Review the git diff for the workflow file modification. Identify which repository, branch, and workflow file was changed. Note the actor and timestamp.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Analyze Workflow Content",
+        "description": "Examine the modified workflow for suspicious patterns: new external actions from unverified sources, outbound network calls (curl/wget to unknown hosts), environment variable exfiltration, or obfuscated shell commands.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Verify Actor Authorization",
+        "description": "Confirm the actor is authorized to modify CI/CD workflows. Check if CODEOWNERS requires specific reviewers for .github/workflows/ changes and whether that review occurred.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Check Action Pinning",
+        "description": "Verify that any newly added GitHub Actions are pinned to full commit SHAs rather than mutable tags. Unpinned actions are vulnerable to tag-rewriting supply chain attacks.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Review Recent Workflow Runs",
+        "description": "Check if the modified workflow has already executed. Review run logs for unexpected behavior, failed status checks, or anomalous timing.",
+        "action_type": "link",
+        "action_url": "https://github.com/{repo}/actions",
+        "required": true
+      },
+      {
+        "title": "Revert if Malicious",
+        "description": "If the workflow change is confirmed malicious, revert the commit immediately. Disable the workflow, rotate any secrets accessible to it, and investigate the actor's other recent activity.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Escalate if Supply Chain Attack",
+        "description": "If the modification appears to be part of a coordinated supply chain attack (e.g., targeting multiple repositories or involving compromised Actions), escalate to the incident response team and notify downstream consumers.",
+        "action_type": "manual",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "Suspicious Runner Registration Response",
+    "slug": "suspicious-runner-registration-response",
+    "description": "Response playbook for detecting unauthorized self-hosted runner registrations. Rogue runners can execute arbitrary code with access to repository secrets and internal networks.",
+    "detection_categories": [
+      "supply_chain"
+    ],
+    "rule_slugs": [
+      "suspicious-runner-registration"
+    ],
+    "steps": [
+      {
+        "title": "Identify the Runner",
+        "description": "Determine which runner was registered or brought online. Note the runner name, labels, operating system, and the organization or repository it was registered to.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Verify Registration Authorization",
+        "description": "Check whether the runner registration was requested through approved channels. Verify the registration token was created by an authorized administrator.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Check Runner Infrastructure",
+        "description": "Determine where the runner is hosted. Verify it matches your organization's approved runner infrastructure (e.g., corporate cloud accounts, hardened VMs). Investigate if it's running on unknown or personal infrastructure.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Review Runner Activity",
+        "description": "Check what jobs the runner has executed since registration. Look for workflows that access secrets, deploy to production, or have elevated permissions.",
+        "action_type": "link",
+        "action_url": "https://github.com/organizations/{org}/settings/actions/runners",
+        "required": true
+      },
+      {
+        "title": "Remove Unauthorized Runners",
+        "description": "If the runner is unauthorized, immediately remove it from the organization. Revoke the registration token and rotate any secrets that may have been exposed to it.",
+        "action_type": "link",
+        "action_url": "https://github.com/organizations/{org}/settings/actions/runners",
+        "required": true
+      },
+      {
+        "title": "Restrict Runner Registration",
+        "description": "Review and tighten runner registration policies. Consider limiting who can create registration tokens and enabling runner groups to restrict which repositories can use self-hosted runners.",
+        "action_type": "manual",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "Actions Secret Access Spike Response",
+    "slug": "actions-secret-access-spike-response",
+    "description": "Response playbook for detecting unusual spikes in GitHub Actions secret access. A spike may indicate secret harvesting, compromised workflows, or unauthorized automation accessing credentials.",
+    "detection_categories": [
+      "supply_chain"
+    ],
+    "rule_slugs": [
+      "actions-secret-access-spike"
+    ],
+    "steps": [
+      {
+        "title": "Identify the Source",
+        "description": "Determine which workflows and repositories are responsible for the spike in secret access. Identify the actor who triggered the workflow runs and the specific secrets being accessed.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Compare to Baseline",
+        "description": "Review historical secret access patterns for the actor and repository. Determine if the spike correlates with legitimate activity (e.g., batch deployments, CI pipeline changes) or is anomalous.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Review Workflow Logs",
+        "description": "Examine the workflow run logs for signs of secret exfiltration \u2014 look for base64 encoding of environment variables, outbound HTTP requests to unusual endpoints, or artifact uploads containing sensitive data.",
+        "action_type": "link",
+        "action_url": "https://github.com/{repo}/actions",
+        "required": true
+      },
+      {
+        "title": "Check for Workflow Modifications",
+        "description": "Verify whether the workflows accessing secrets were recently modified. A workflow change combined with a secret access spike is a strong indicator of compromise.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Rotate Exposed Secrets",
+        "description": "If secret harvesting is confirmed or suspected, immediately rotate all secrets that were accessed during the spike. Update secret values in GitHub Actions and notify dependent services.",
+        "action_type": "link",
+        "action_url": "https://github.com/organizations/{org}/settings/secrets/actions",
+        "required": true
+      },
+      {
+        "title": "Restrict Secret Access",
+        "description": "Review which workflows and environments can access organization secrets. Consider scoping secrets to specific repositories or environments and enabling required approvals for environment deployments.",
+        "action_type": "manual",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "GHAS Feature Disabled Response",
+    "slug": "ghas-feature-disabled-response",
+    "description": "Response playbook for detecting when GitHub Advanced Security features (secret scanning, code scanning, Dependabot) are disabled. Disabling these features creates blind spots in vulnerability detection.",
+    "detection_categories": [
+      "defense_evasion"
+    ],
+    "rule_slugs": [
+      "ghas-feature-disabled"
+    ],
+    "steps": [
+      {
+        "title": "Identify What Was Disabled",
+        "description": "Determine which GHAS feature was disabled, on which repository or organization, and by whom. Note whether it was secret scanning, code scanning, push protection, or Dependabot alerts.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Verify Authorization",
+        "description": "Contact the actor to confirm the change was intentional and authorized. Check if there is a valid business reason (e.g., repository being archived, license changes, false positive overload).",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Assess Security Impact",
+        "description": "Evaluate what vulnerability detection is now missing. For secret scanning, new secrets pushed to the repo will go undetected. For code scanning, new vulnerabilities in PRs will not be flagged. For Dependabot, known CVEs in dependencies will not trigger alerts.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Re-enable if Unauthorized",
+        "description": "If the change was not authorized, immediately re-enable the GHAS feature. Navigate to the repository or organization security settings.",
+        "action_type": "link",
+        "action_url": "https://github.com/organizations/{org}/settings/security_analysis",
+        "required": true
+      },
+      {
+        "title": "Check for Concurrent Suspicious Activity",
+        "description": "Defense evasion by disabling security tools often precedes an attack. Look for secrets being pushed, vulnerable dependencies being added, or malicious code being introduced while scanning was disabled.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Enforce GHAS Policies",
+        "description": "Consider enabling organization-level enforcement of GHAS features so they cannot be disabled at the repository level. Use organization security policies to require these features on all repositories.",
+        "action_type": "link",
+        "action_url": "https://github.com/organizations/{org}/settings/security_analysis",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "Data Exfiltration Response",
+    "slug": "data-exfiltration-response",
+    "description": "Response playbook for data exfiltration detections including mass repository cloning, repository visibility changes to public, forks to external orgs, and cross-org data access patterns.",
+    "detection_categories": [
+      "data_exfiltration"
+    ],
+    "rule_slugs": [
+      "mass-repo-cloning",
+      "repo-visibility-public",
+      "fork-private-repo-external",
+      "bulk-repo-harvesting",
+      "cross-org-rapid-repo-access",
+      "cross-org-secret-alert-trigger"
+    ],
+    "steps": [
+      {
+        "title": "Quantify Data Exposure",
+        "description": "Determine the scope of potential data loss. Identify which repositories were accessed, their sensitivity classification, and the volume of data potentially exfiltrated (clone operations, downloads, API access).",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Identify the Actor",
+        "description": "Determine whether the actor is an insider (employee, contractor) or external (compromised account, former employee). Check the actor's role, recent access patterns, and employment status.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Contain the Breach",
+        "description": "Immediately restrict the actor's access. Suspend the account if compromise is suspected. If a repository was made public, revert visibility immediately. Revoke any tokens or SSH keys associated with the actor.",
+        "action_type": "link",
+        "action_url": "https://github.com/organizations/{org}/people",
+        "required": true
+      },
+      {
+        "title": "Assess Sensitive Data Impact",
+        "description": "Review the accessed repositories for sensitive content: API keys, credentials, PII, proprietary algorithms, or compliance-regulated data. Determine if any regulatory notification requirements are triggered.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Preserve Evidence",
+        "description": "Capture audit logs, access records, and any available network logs. Document the timeline of access events for potential legal or HR proceedings.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Escalate to Legal/HR",
+        "description": "If intentional data theft is confirmed, escalate to legal counsel and HR. Determine if law enforcement notification is required based on data classification and regulatory requirements.",
+        "action_type": "manual",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "Branch Protection Tampering Response",
+    "slug": "branch-protection-tampering-response",
+    "description": "Response playbook for detections involving branch protection rule deletion, modification, or ruleset changes that weaken code review and merge safeguards.",
+    "detection_categories": [
+      "supply_chain"
+    ],
+    "rule_slugs": [
+      "branch-protection-disabled",
+      "required-status-check-bypass",
+      "repository-ruleset-deleted",
+      "repository-ruleset-modified"
+    ],
+    "steps": [
+      {
+        "title": "Identify the Change",
+        "description": "Determine which repository's branch protection was modified or deleted, which branch was affected (typically main/master), and what specific protections were weakened or removed.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Verify Authorization",
+        "description": "Confirm the change was made through an approved change management process. Check if the actor had a legitimate reason (e.g., emergency hotfix, migration) and whether it was approved by a repository admin or security team.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Check for Unauthorized Merges",
+        "description": "Review the branch's git history for any commits merged while protections were disabled. Look for unreviewed code, force pushes, or merges that bypassed required status checks.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Restore Protections",
+        "description": "Immediately restore branch protection rules to their previous state. Re-enable required reviews, status checks, and other safeguards.",
+        "action_type": "link",
+        "action_url": "https://github.com/{repo}/settings/branches",
+        "required": true
+      },
+      {
+        "title": "Audit Merged Code",
+        "description": "If code was merged while protections were down, conduct a thorough review of those changes. Check for backdoors, malicious dependencies, or security vulnerabilities introduced without proper review.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Restrict Branch Protection Admin",
+        "description": "Review who has permission to modify branch protection rules. Consider using organization-level rulesets that cannot be overridden by repository admins.",
+        "action_type": "manual",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "Impossible Travel and Anomalous Login Response",
+    "slug": "impossible-travel-anomalous-login-response",
+    "description": "Response playbook for impossible travel detections, Tor exit node logins, brute force attempts, and dormant account reactivations that indicate potential credential compromise.",
+    "detection_categories": [
+      "account_compromise"
+    ],
+    "rule_slugs": [
+      "impossible-travel-login",
+      "login-from-tor-exit-node",
+      "brute-force-login-attempts",
+      "dormant-account-reactivation",
+      "off-hours-activity-anomaly"
+    ],
+    "steps": [
+      {
+        "title": "Verify with the User",
+        "description": "Contact the account owner through a known-good channel (not email, which may be compromised). Ask if they are traveling, using a VPN, or recognize the login activity.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Check Login Context",
+        "description": "Review the login event details: IP addresses, geolocation, user agent, authentication method (password vs. SSO vs. token). Determine if the login used MFA or bypassed it.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Suspend if Unverified",
+        "description": "If the user cannot be reached or does not recognize the activity, immediately suspend the account and revoke all active sessions.",
+        "action_type": "link",
+        "action_url": "https://github.com/organizations/{org}/people",
+        "required": true
+      },
+      {
+        "title": "Review Post-Login Activity",
+        "description": "Examine what actions were performed after the suspicious login. Look for repository access, settings changes, token creation, or data downloads that may indicate the account was used maliciously.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Force Credential Reset",
+        "description": "Require the user to reset their password, re-enroll MFA, and rotate any PATs or SSH keys. Verify that recovery email and phone number have not been changed.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Block Suspicious IPs",
+        "description": "If the login came from a known malicious IP or Tor exit node, consider adding it to the organization's IP deny list or blocking at the network level.",
+        "action_type": "manual",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "Supply Chain Dependency Attack Response",
+    "slug": "supply-chain-dependency-attack-response",
+    "description": "Response playbook for supply chain attacks involving dependency confusion, typosquatting, malicious packages, compromised maintainers, and unusual package sources.",
+    "detection_categories": [
+      "supply_chain"
+    ],
+    "rule_slugs": [
+      "dependency-confusion",
+      "typosquatting-attempt",
+      "malicious-github-action",
+      "compromised-maintainer",
+      "unusual-package-source",
+      "mass-dependency-update",
+      "package-published-unusual-actor",
+      "new-deploy-key-added"
+    ],
+    "steps": [
+      {
+        "title": "Identify the Malicious Package",
+        "description": "Determine which package triggered the alert: its name, version, registry source, and which repository's lockfile or manifest references it. Check if it is a typosquat, dependency confusion, or known-malicious package.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Check if Package Was Installed",
+        "description": "Determine if the malicious package was actually installed in CI or on developer machines. Review workflow run logs, build artifacts, and developer environments for evidence of execution.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Remove the Package",
+        "description": "Immediately remove the malicious package from the manifest/lockfile. Pin legitimate dependencies to known-good versions. Create a PR to revert the dependency change.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Assess Compromise Scope",
+        "description": "If the package executed, determine what it had access to. Check for credential theft (env vars, .npmrc, .pypirc), data exfiltration (outbound network), or persistence mechanisms (modified scripts, cron jobs).",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Rotate Exposed Credentials",
+        "description": "Rotate any credentials that were accessible during package execution: CI secrets, registry tokens, cloud provider keys, and developer machine credentials.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Implement Preventive Controls",
+        "description": "Configure package registry scoping (e.g., npm scope to private registry), enable lockfile-only installs in CI, set up Dependabot or Socket.dev for dependency monitoring, and require review for lockfile changes.",
+        "action_type": "manual",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "Cross-Organization Threat Response",
+    "slug": "cross-org-threat-response",
+    "description": "Response playbook for detections that span multiple organizations within an enterprise, including cross-org admin escalation, cross-org secret alerts, and rapid cross-org repository access.",
+    "detection_categories": [
+      "privilege_escalation",
+      "data_exfiltration"
+    ],
+    "rule_slugs": [
+      "cross-org-admin-escalation",
+      "cross-org-secret-alert-trigger",
+      "cross-org-rapid-repo-access"
+    ],
+    "steps": [
+      {
+        "title": "Map the Cross-Org Activity",
+        "description": "Identify all organizations involved in the alert. Determine the timeline of activity across each organization and the actor performing the actions.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Verify Enterprise Context",
+        "description": "Confirm whether the actor legitimately operates across multiple organizations (e.g., platform team, enterprise admin). Check their enterprise role and responsibilities.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Assess Coordination",
+        "description": "Determine if the cross-org activity appears coordinated or automated. Check for patterns suggesting a compromised account being used to escalate access broadly across the enterprise.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Contain Across All Orgs",
+        "description": "If the activity is unauthorized, suspend the actor's access across ALL affected organizations simultaneously. Coordinate with org admins to prevent the actor from pivoting to other orgs.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Review Enterprise Audit Log",
+        "description": "Use the enterprise audit log to get a complete picture of the actor's activity across all organizations. Look for additional suspicious actions not yet detected.",
+        "action_type": "link",
+        "action_url": "https://github.com/enterprises/{enterprise}/settings/audit-log",
+        "required": true
+      },
+      {
+        "title": "Escalate to Enterprise Security",
+        "description": "Cross-org threats indicate a potentially enterprise-wide compromise. Notify the enterprise security team, consider engaging incident response, and evaluate if credential reset is needed at the enterprise level.",
         "action_type": "manual",
         "required": true
       }
