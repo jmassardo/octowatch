@@ -669,5 +669,48 @@
       "confidence": 0.6
     },
     "created_by": "system"
+  },
+  {
+    "name": "Runaway Workflow Queue — Anomaly",
+    "slug": "runaway-workflow-queue-anomaly",
+    "description": "Detects when hourly workflows.created_workflow_run event volume exceeds 3 standard deviations above the rolling 7-day baseline, indicating a potential runaway automation that could exhaust the enterprise 50,000 pending workflow run queue limit.",
+    "category": "supply_chain",
+    "default_severity": "high",
+    "default_confidence": "high",
+    "logic_type": "statistical",
+    "logic_config": {
+      "action_filters": [
+        "workflows.created_workflow_run"
+      ],
+      "x_config": {
+        "engine": "volume_anomaly",
+        "z_multiplier": 3.0,
+        "baseline_days": 7,
+        "aggregation_interval_minutes": 60
+      },
+      "time_window_minutes": 60,
+      "confidence": 0.75
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Runaway Workflow Queue — Actor Spike",
+    "slug": "runaway-workflow-queue-actor-spike",
+    "description": "Detects when a single actor or GitHub App triggers more than 500 workflow runs within one hour, indicating a misconfigured automation or infinite loop that could exhaust the enterprise 50,000 pending workflow run queue limit.",
+    "category": "supply_chain",
+    "default_severity": "high",
+    "default_confidence": "high",
+    "logic_type": "threshold",
+    "logic_config": {
+      "action_filters": [
+        "workflows.created_workflow_run"
+      ],
+      "aggregation_key": "actor",
+      "threshold": 500,
+      "time_window_minutes": 60,
+      "field_conditions": [],
+      "confidence": 0.8
+    },
+    "created_by": "system"
   }
 ]

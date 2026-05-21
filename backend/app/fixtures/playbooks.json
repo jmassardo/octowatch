@@ -150,5 +150,58 @@
         "required": true
       }
     ]
+  },
+  {
+    "name": "Runaway Workflow Queue Response",
+    "slug": "runaway-workflow-queue-response",
+    "description": "Response playbook for runaway GitHub Actions workflow queue alerts. Guides through identifying the source, stopping the runaway automation, and preventing recurrence. GitHub enterprises have a 50,000 pending workflow run queue limit.",
+    "detection_categories": ["supply_chain"],
+    "rule_slugs": ["runaway-workflow-queue-anomaly", "runaway-workflow-queue-actor-spike"],
+    "steps": [
+      {
+        "title": "Identify the Runaway Source",
+        "description": "Check the detection details for the actor (user or GitHub App) and repository triggering excessive workflow runs. Use the enterprise audit log filtered by 'workflows.created_workflow_run' to identify the specific workflow file and trigger event.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Check Current Queue Depth",
+        "description": "Query the enterprise audit log for pending workflow runs to assess how close to the 50,000 limit the queue is. Use: GET /enterprises/{enterprise}/actions/runs?status=queued",
+        "action_type": "link",
+        "action_url": "https://github.com/enterprises/{enterprise}/settings/actions",
+        "required": true
+      },
+      {
+        "title": "Disable the Offending Workflow",
+        "description": "Navigate to the repository's Actions tab and disable the runaway workflow immediately. If triggered by a GitHub App, suspend the app installation.",
+        "action_type": "link",
+        "action_url": "https://github.com/{repo}/actions",
+        "required": true
+      },
+      {
+        "title": "Cancel Queued Runs",
+        "description": "Cancel all pending/queued workflow runs from the offending workflow to free queue capacity. Use the Actions API: POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel for each queued run, or use the bulk cancel UI.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Investigate Root Cause",
+        "description": "Determine why the automation ran away: recursive workflow triggers (workflow_run events triggering more workflows), misconfigured cron schedules, infinite retry loops, or a compromised GitHub App. Check the workflow YAML for 'workflow_run' triggers that could create cycles.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Apply Preventive Controls",
+        "description": "Add concurrency controls to the workflow (concurrency group with cancel-in-progress), set appropriate rate limits on GitHub App installations, and consider adding a workflow_run filter to prevent recursive triggers.",
+        "action_type": "manual",
+        "required": true
+      },
+      {
+        "title": "Document and Monitor",
+        "description": "Record the incident timeline, queue depth reached, root cause, and remediation applied. Monitor the workflow queue depth for 24 hours to confirm the issue is resolved.",
+        "action_type": "manual",
+        "required": true
+      }
+    ]
   }
 ]
