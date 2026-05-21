@@ -16,6 +16,7 @@ import {
 import { translateNLQuery } from '../../api/nlQuery';
 import type { NLInterpretation } from '../../api/nlQuery';
 import type { QueryRunResponse, SavedQuery } from '../../types/query';
+import { ApiError } from '../../api/client';
 import { useToast } from '../../hooks/useToast';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/primitives/Button';
@@ -26,6 +27,20 @@ import { DataTable } from '../../components/primitives/DataTable';
 import type { ColumnDef } from '../../components/primitives/DataTable';
 import { formatAbsolute } from '../../utils/dates';
 import styles from './Query.module.css';
+
+/** Extract a user-friendly error message from an API error response. */
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError && typeof error.body === 'object' && error.body !== null) {
+    const body = error.body as Record<string, unknown>;
+    if (typeof body.detail === 'string') {
+      return body.detail;
+    }
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
+}
 
 const SCHEMA = [
   {
@@ -905,9 +920,7 @@ export function QueryPage() {
   const { showToast } = useToast();
   const [sql, setSql] = useState(() => searchParams.get('sql') ?? DEFAULT_SQL);
   const [results, setResults] = useState<QueryRunResponse | null>(null);
-  const [expandedTables, setExpandedTables] = useState<Set<string>>(
-    new Set(['events', 'detections', 'events_hourly', 'events_daily_actor', 'detections_daily']),
-  );
+  const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
   const [history, setHistory] = useState<HistoryEntry[]>(loadHistory);
   const [showHistory, setShowHistory] = useState(false);
   const [showExecModal, setShowExecModal] = useState(false);
@@ -1090,7 +1103,7 @@ export function QueryPage() {
   const nlMutation = useMutation({
     mutationFn: (query: string) => translateNLQuery({ query }),
     onSuccess: (data) => {
-      setNlResults(data.interpretations);
+      setNlResults(data);
     },
   });
 
@@ -1378,7 +1391,9 @@ export function QueryPage() {
           ))}
         </div>
       )}
-      {nlMutation.isError && <ErrorBanner message="Failed to translate query" />}
+      {nlMutation.isError && (
+        <ErrorBanner message={getApiErrorMessage(nlMutation.error, 'Failed to translate query')} />
+      )}
 
       <div className={styles.queryLayout}>
         {/* Schema tree */}
@@ -1634,7 +1649,10 @@ export function QueryPage() {
           )}
 
           {runMutation.isError && (
-            <ErrorBanner message="Query failed" onRetry={() => runMutation.mutate(sql)} />
+            <ErrorBanner
+              message={getApiErrorMessage(runMutation.error, 'Query execution failed')}
+              onRetry={() => runMutation.mutate(sql)}
+            />
           )}
 
           {runMutation.isPending && <Spinner />}

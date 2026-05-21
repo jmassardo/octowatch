@@ -6,11 +6,6 @@ export interface NLInterpretation {
   confidence: number;
 }
 
-export interface NLQueryResponse {
-  interpretations: NLInterpretation[];
-  raw_query: string;
-}
-
-export function translateNLQuery(body: { query: string }) {
-  return api.post<NLQueryResponse>('/query/nl', body);
+export function translateNLQuery(body: { query: string }): Promise<NLInterpretation[]> {
+  return api.post<NLInterpretation[]>('/query/nl', body);
 }
