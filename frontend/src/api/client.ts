@@ -1,5 +1,12 @@
+import { saveCurrentRoute } from '../hooks/useSessionTimeout';
+
 /** Module-level CSRF token store. Updated on every response that carries X-CSRF-Token. */
 let csrfToken: string | null = null;
+
+/** Notify session timeout hook that an API call succeeded (resets inactivity timer). */
+function notifyApiActivity(): void {
+  window.dispatchEvent(new CustomEvent('octowatch:api-activity'));
+}
 
 export class ApiError extends Error {
   readonly status: number;
@@ -42,6 +49,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   }
 
   if (response.status === 401) {
+    saveCurrentRoute();
     window.location.replace('/login');
     return Promise.reject(new Error('Unauthorized'));
   }
@@ -66,6 +74,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     );
   }
 
+  notifyApiActivity();
   return body as T;
 }
 

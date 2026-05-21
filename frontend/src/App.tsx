@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { AuthGuard } from './components/auth/AuthGuard';
+import { RedirectAfterLogin } from './components/auth/RedirectAfterLogin';
 import { LoginPage } from './pages/LoginPage';
 import { SetupPage } from './pages/Setup';
 import { DashboardPage } from './pages/Dashboard';
@@ -38,7 +39,7 @@ import { CustomDashboardPage } from './pages/CustomDashboard';
 
 export const router = createBrowserRouter(
   [
-    { path: '/', element: <Navigate to="/dashboard" replace /> },
+    { path: '/', element: <RedirectAfterLogin /> },
     { path: '/login', element: <LoginPage /> },
     { path: '/setup', element: <SetupPage /> },
     {
