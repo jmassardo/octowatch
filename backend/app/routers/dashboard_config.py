@@ -172,6 +172,14 @@ WIDGET_CATALOG: list[WidgetInfo] = [
         default_w=4,
         default_h=3,
     ),
+    WidgetInfo(
+        id="custom-query",
+        title="Custom Query",
+        description="Create widgets from saved queries with configurable visualizations.",
+        category="custom",
+        default_w=6,
+        default_h=3,
+    ),
 ]
 
 WIDGET_CATALOG_BY_ID = {w.id: w for w in WIDGET_CATALOG}

@@ -25,6 +25,7 @@ import {
 import { isOnboardingComplete } from '../../components/GuidedTour/onboardingStorage';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Button } from '../../components/primitives/Button';
+import { CreateCustomWidgetDialog } from '../../components/widgets/CreateCustomWidgetDialog';
 import { WidgetGrid } from '../../components/widgets/WidgetGrid';
 import { SecurityOverviewWidget } from '../../components/widgets/SecurityOverviewWidget';
 import { WidgetCatalog } from '../../components/widgets/WidgetCatalog';
@@ -179,6 +180,7 @@ export function DashboardPage() {
   const [pillConfigOpen, setPillConfigOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [personaSelectorOpen, setPersonaSelectorOpen] = useState(false);
+  const [customWidgetDialogOpen, setCustomWidgetDialogOpen] = useState(false);
 
   // Fetch user's dashboard config from backend
   const configQuery = useQuery({
@@ -220,6 +222,42 @@ export function DashboardPage() {
   useEffect(() => {
     saveDashboardLayout(widgetLayout);
   }, [widgetLayout]);
+
+  // Listen for the custom widget creation event dispatched by CustomQueryWidget
+  useEffect(() => {
+    function handleOpenDialog() {
+      setCustomWidgetDialogOpen(true);
+    }
+    window.addEventListener('octowatch:open-custom-widget-dialog', handleOpenDialog);
+    return () => {
+      window.removeEventListener('octowatch:open-custom-widget-dialog', handleOpenDialog);
+    };
+  }, []);
+
+  // Handler: add newly created custom widget to the dashboard
+  const handleCustomWidgetCreated = useCallback(
+    (widgetId: string) => {
+      const def = getWidgetDefinition(widgetId);
+      const newLayout = [
+        ...effectiveWidgetLayout,
+        { id: widgetId, size: def?.defaultSize ?? ('md' as const) },
+      ];
+      setWidgetLayout(newLayout);
+
+      const apiLayout: ApiLayoutItem[] = newLayout.map((item, idx) => {
+        const cw = catalogWidgets.find((w) => w.id === item.id);
+        return {
+          widget_id: item.id,
+          x: (idx * 4) % 12,
+          y: Math.floor((idx * 4) / 12) * 3,
+          w: cw?.default_w ?? 6,
+          h: cw?.default_h ?? 3,
+        };
+      });
+      saveMutation.mutate({ layout: apiLayout, persona: configQuery.data?.persona ?? '' });
+    },
+    [effectiveWidgetLayout, catalogWidgets, saveMutation, configQuery.data?.persona],
+  );
 
   const rawView =
     searchParams.get('view') ?? (effectiveWidgetLayout.length > 0 ? 'widgets' : 'operations');
@@ -429,6 +467,14 @@ export function DashboardPage() {
           <div className={styles.customizeActions}>
             <Button type="button" size="sm" variant="default" onClick={() => setCatalogOpen(true)}>
               Add widgets
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              onClick={() => setCustomWidgetDialogOpen(true)}
+            >
+              Create custom widget
             </Button>
             <Button
               type="button"
@@ -715,6 +761,12 @@ export function DashboardPage() {
         open={personaSelectorOpen}
         onSelect={handlePersonaSelect}
         onSkip={() => setPersonaSelectorOpen(false)}
+      />
+
+      <CreateCustomWidgetDialog
+        open={customWidgetDialogOpen}
+        onClose={() => setCustomWidgetDialogOpen(false)}
+        onCreated={handleCustomWidgetCreated}
       />
     </div>
   );

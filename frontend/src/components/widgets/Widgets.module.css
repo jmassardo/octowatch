@@ -397,3 +397,131 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── Custom Query Widget Form ────────────────────────────────────────────── */
+
+.customWidgetForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0.5rem 0;
+}
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.formLabel {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--fg-default, #e6edf3);
+}
+
+.formInput,
+.formSelect,
+.formTextarea {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-default, #30363d);
+  border-radius: 6px;
+  background: var(--canvas-subtle, #161b22);
+  color: var(--fg-default, #e6edf3);
+  font-size: 0.8125rem;
+  font-family: inherit;
+}
+
+.formInput:focus,
+.formSelect:focus,
+.formTextarea:focus {
+  outline: 2px solid var(--accent, #58a6ff);
+  outline-offset: -1px;
+  border-color: var(--accent, #58a6ff);
+}
+
+.formTextarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: 'SFMono-Regular', 'Menlo', monospace;
+  font-size: 0.75rem;
+}
+
+.formHint {
+  font-size: 0.75rem;
+  color: var(--fg-muted, #8b949e);
+}
+
+.formError {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--danger, #f85149) 10%, transparent);
+  border: 1px solid var(--danger, #f85149);
+  color: var(--danger, #f85149);
+  font-size: 0.8125rem;
+}
+
+.formFieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.radioGroup {
+  display: flex;
+  gap: 1.25rem;
+  margin-top: 0.25rem;
+}
+
+.radioLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  color: var(--fg-default, #e6edf3);
+  cursor: pointer;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-default, #30363d);
+}
+
+/* ─── Query Result Table ──────────────────────────────────────────────────── */
+
+.tableContainer {
+  overflow-x: auto;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.resultTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.resultTable th,
+.resultTable td {
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-default, #30363d);
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resultTable th {
+  font-weight: 600;
+  color: var(--fg-default, #e6edf3);
+  background: var(--canvas-subtle, #161b22);
+  position: sticky;
+  top: 0;
+}
+
+.resultTable td {
+  color: var(--fg-muted, #8b949e);
+}
