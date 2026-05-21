@@ -547,7 +547,7 @@ export function RulesPage() {
                 padding: '8px 12px',
                 marginBottom: 12,
                 borderRadius: 6,
-                background: 'var(--success-subtle, #2ea04333)',
+                background: 'rgba(var(--success-rgb), 0.2)',
                 color: 'var(--success)',
                 fontSize: 13,
                 fontWeight: 500,

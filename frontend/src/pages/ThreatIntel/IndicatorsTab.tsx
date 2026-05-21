@@ -271,7 +271,7 @@ export function IndicatorsTab() {
             padding: '8px 12px',
             marginBottom: 12,
             borderRadius: 6,
-            background: 'rgba(63, 185, 80, 0.1)',
+            background: 'rgba(var(--success-rgb), 0.1)',
             color: 'var(--done)',
             fontSize: 13,
           }}

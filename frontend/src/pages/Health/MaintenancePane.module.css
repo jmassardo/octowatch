@@ -45,7 +45,7 @@
 }
 
 .tableWrap tbody tr:hover td {
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
 }
 
 .tableWrap tbody tr:last-child td {
@@ -89,18 +89,18 @@
 }
 
 .webhookItemDanger {
-  background: rgba(248, 81, 73, 0.06);
-  border: 1px solid rgba(248, 81, 73, 0.2);
+  background: rgba(var(--danger-rgb), 0.06);
+  border: 1px solid rgba(var(--danger-rgb), 0.2);
 }
 
 .webhookItemWarn {
-  background: rgba(210, 153, 34, 0.06);
-  border: 1px solid rgba(210, 153, 34, 0.2);
+  background: rgba(var(--attention-rgb), 0.06);
+  border: 1px solid rgba(var(--attention-rgb), 0.2);
 }
 
 .webhookItemMuted {
-  background: rgba(110, 118, 129, 0.08);
-  border: 1px solid rgba(110, 118, 129, 0.2);
+  background: rgba(var(--fg-subtle-rgb), 0.08);
+  border: 1px solid rgba(var(--fg-subtle-rgb), 0.2);
 }
 
 .webhookName {

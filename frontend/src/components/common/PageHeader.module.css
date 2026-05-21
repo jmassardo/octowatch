@@ -22,7 +22,7 @@
 }
 
 .breadcrumbs a {
-  color: var(--accent, #58a6ff);
+  color: var(--accent);
   text-decoration: none;
 }
 

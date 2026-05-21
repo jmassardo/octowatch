@@ -168,14 +168,22 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           aria-hidden="true"
           focusable="false"
         >
-          <circle cx="12" cy="12" r="3.5" fill="#bc8cff" />
-          <ellipse cx="12" cy="12" rx="9" ry="5.5" stroke="#bc8cff" strokeWidth="1.5" fill="none" />
+          <circle cx="12" cy="12" r="3.5" fill="var(--done)" />
+          <ellipse
+            cx="12"
+            cy="12"
+            rx="9"
+            ry="5.5"
+            stroke="var(--done)"
+            strokeWidth="1.5"
+            fill="none"
+          />
           <line
             x1="12"
             y1="2"
             x2="12"
             y2="5"
-            stroke="#bc8cff"
+            stroke="var(--done)"
             strokeWidth="1.5"
             strokeLinecap="round"
           />
@@ -184,7 +192,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             y1="19"
             x2="12"
             y2="22"
-            stroke="#bc8cff"
+            stroke="var(--done)"
             strokeWidth="1.5"
             strokeLinecap="round"
           />
@@ -193,7 +201,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             y1="12"
             x2="5"
             y2="12"
-            stroke="#bc8cff"
+            stroke="var(--done)"
             strokeWidth="1.5"
             strokeLinecap="round"
           />
@@ -202,7 +210,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             y1="12"
             x2="22"
             y2="12"
-            stroke="#bc8cff"
+            stroke="var(--done)"
             strokeWidth="1.5"
             strokeLinecap="round"
           />

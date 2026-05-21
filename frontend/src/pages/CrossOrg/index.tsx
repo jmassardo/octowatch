@@ -481,7 +481,7 @@ export function CrossOrgPage() {
             <MetricCard
               value={String(riskCounts.critical)}
               label="Critical"
-              style={{ borderColor: 'var(--severity-critical, #dc2626)' }}
+              style={{ borderColor: 'var(--danger)' }}
               accent={riskFilter === 'critical'}
               onClick={() => setRiskFilter(riskFilter === 'critical' ? null : 'critical')}
               helpText="Actors with risk score ≥ 85"
@@ -489,7 +489,7 @@ export function CrossOrgPage() {
             <MetricCard
               value={String(riskCounts.high)}
               label="High"
-              style={{ borderColor: 'var(--severity-high, #e53e3e)' }}
+              style={{ borderColor: 'var(--danger)' }}
               accent={riskFilter === 'high'}
               onClick={() => setRiskFilter(riskFilter === 'high' ? null : 'high')}
               helpText="Actors with risk score ≥ 70"
@@ -497,7 +497,7 @@ export function CrossOrgPage() {
             <MetricCard
               value={String(riskCounts.medium)}
               label="Medium"
-              style={{ borderColor: 'var(--severity-medium, #dd6b20)' }}
+              style={{ borderColor: 'var(--severe)' }}
               accent={riskFilter === 'medium'}
               onClick={() => setRiskFilter(riskFilter === 'medium' ? null : 'medium')}
               helpText="Actors with risk score ≥ 40"
@@ -505,7 +505,7 @@ export function CrossOrgPage() {
             <MetricCard
               value={String(riskCounts.low)}
               label="Low"
-              style={{ borderColor: 'var(--severity-low, #38a169)' }}
+              style={{ borderColor: 'var(--success)' }}
               accent={riskFilter === 'low'}
               onClick={() => setRiskFilter(riskFilter === 'low' ? null : 'low')}
               helpText="Actors with risk score < 40"

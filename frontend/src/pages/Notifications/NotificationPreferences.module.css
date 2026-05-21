@@ -66,12 +66,12 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--canvas);
   transition: transform 0.2s;
 }
 
 .toggleOn {
-  background: var(--accent, #58a6ff);
+  background: var(--accent);
 }
 
 .toggleOn::after {
@@ -111,12 +111,12 @@
 .error {
   padding: 48px 24px;
   text-align: center;
-  color: var(--danger, #f85149);
+  color: var(--danger);
   font-size: 14px;
 }
 
 .successMsg {
   font-size: 13px;
-  color: var(--accent, #58a6ff);
+  color: var(--accent);
   padding: 8px 0;
 }

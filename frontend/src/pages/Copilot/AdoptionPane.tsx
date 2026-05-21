@@ -438,7 +438,7 @@ export function AdoptionPane() {
                           fontSize: 10,
                           fontWeight: 600,
                           color: 'var(--warning)',
-                          background: 'rgba(210, 153, 34, 0.15)',
+                          background: 'rgba(var(--attention-rgb), 0.15)',
                           padding: '1px 5px',
                           borderRadius: 3,
                           marginLeft: 4,
@@ -565,7 +565,7 @@ export function AdoptionPane() {
                       lineHeight: 1.6,
                       margin: '0 0 12px',
                       padding: '8px 12px',
-                      background: 'rgba(210, 153, 34, 0.08)',
+                      background: 'rgba(var(--attention-rgb), 0.08)',
                       borderRadius: 6,
                     }}
                   >

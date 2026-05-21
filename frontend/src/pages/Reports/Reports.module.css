@@ -118,12 +118,12 @@
 }
 
 .clickableValue:hover {
-  background: rgba(177, 186, 196, 0.12);
+  background: rgba(var(--neutral-rgb), 0.12);
   color: var(--accent);
 }
 
 .clickableValueActive {
-  background: rgba(88, 166, 255, 0.15);
+  background: rgba(var(--accent-rgb), 0.15);
   color: var(--accent);
 }
 
@@ -441,7 +441,7 @@
 }
 
 .stepDotCompleted {
-  background: rgba(88, 166, 255, 0.15);
+  background: rgba(var(--accent-rgb), 0.15);
   color: var(--accent);
   border-color: var(--accent);
 }
@@ -470,7 +470,7 @@
 
 .sourceCardSelected {
   border-color: var(--accent);
-  background: rgba(88, 166, 255, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
 .sourceLabel {

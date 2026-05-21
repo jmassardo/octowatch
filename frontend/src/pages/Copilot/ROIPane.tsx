@@ -269,10 +269,10 @@ export function ROIPane() {
                       style={{
                         background:
                           rec.priority === 'high'
-                            ? 'rgba(248, 81, 73, 0.15)'
+                            ? 'rgba(var(--danger-rgb), 0.15)'
                             : rec.priority === 'medium'
-                              ? 'rgba(210, 153, 34, 0.15)'
-                              : 'rgba(110, 118, 129, 0.15)',
+                              ? 'rgba(var(--attention-rgb), 0.15)'
+                              : 'rgba(var(--fg-subtle-rgb), 0.15)',
                         color:
                           rec.priority === 'high'
                             ? 'var(--danger)'

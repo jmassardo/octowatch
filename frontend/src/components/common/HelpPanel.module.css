@@ -11,7 +11,7 @@
   right: 0;
   bottom: 0;
   width: min(440px, 100vw);
-  background: var(--canvas-default, #0d1117);
+  background: var(--canvas);
   border-left: 1px solid var(--border);
   box-shadow: -16px 0 40px rgba(1, 4, 9, 0.3);
   display: flex;
@@ -65,7 +65,7 @@
 }
 
 .closeButton:hover {
-  background: rgba(177, 186, 196, 0.12);
+  background: rgba(var(--neutral-rgb), 0.12);
   color: var(--fg);
 }
 
@@ -106,7 +106,7 @@
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--canvas-subtle, rgba(177, 186, 196, 0.05));
+  background: var(--canvas-subtle, rgba(var(--neutral-rgb), 0.05));
 }
 
 .definitionItem dt {
@@ -131,7 +131,7 @@
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--canvas-subtle, rgba(177, 186, 196, 0.05));
+  background: var(--canvas-subtle, rgba(var(--neutral-rgb), 0.05));
 }
 
 .taskCard h4 {
@@ -153,7 +153,7 @@
 }
 
 .relatedList a {
-  color: var(--accent-fg, #58a6ff);
+  color: var(--accent);
   text-decoration: none;
 }
 

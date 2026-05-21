@@ -10,7 +10,7 @@ import styles from './Widgets.module.css';
 const SEVERITIES: readonly DetectionSeverity[] = ['critical', 'high', 'medium', 'low'];
 const SEVERITY_COLORS: Record<DetectionSeverity, string> = {
   critical: 'var(--danger)',
-  high: 'var(--severe, #db6d28)',
+  high: 'var(--severe)',
   medium: 'var(--attention)',
   low: 'var(--success)',
 };

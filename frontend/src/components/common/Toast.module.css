@@ -76,13 +76,13 @@
 }
 
 .error {
-  border-left: 3px solid var(--danger, #f85149);
+  border-left: 3px solid var(--danger);
 }
 
 .warning {
-  border-left: 3px solid var(--attention, #d29922);
+  border-left: 3px solid var(--attention);
 }
 
 .info {
-  border-left: 3px solid var(--accent, #58a6ff);
+  border-left: 3px solid var(--accent);
 }

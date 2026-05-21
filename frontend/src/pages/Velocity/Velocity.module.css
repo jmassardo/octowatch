@@ -58,8 +58,8 @@
 }
 
 .doraBadge {
-  background: rgba(63, 185, 80, 0.15);
-  border: 1px solid rgba(63, 185, 80, 0.4);
+  background: rgba(var(--success-rgb), 0.15);
+  border: 1px solid rgba(var(--success-rgb), 0.4);
   color: var(--success);
   border-radius: 6px;
   padding: 3px 10px;
@@ -74,8 +74,8 @@
 }
 
 .contextCard {
-  background: rgba(88, 166, 255, 0.08);
-  border: 1px solid rgba(88, 166, 255, 0.2);
+  background: rgba(var(--accent-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-rgb), 0.2);
   border-radius: 6px;
   padding: 10px 14px;
   margin-bottom: 20px;
@@ -225,7 +225,7 @@
 }
 
 .tableWrap tbody tr:hover td {
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
 }
 
 .tableWrap tbody tr:last-child td {
@@ -239,7 +239,7 @@
 }
 
 .clickableRow:hover td {
-  background: rgba(88, 166, 255, 0.06);
+  background: rgba(var(--accent-rgb), 0.06);
 }
 
 .clickableRow:focus-visible td {
@@ -325,12 +325,12 @@
 
 .modalMetricClickable:hover {
   border-color: var(--accent);
-  background: rgba(88, 166, 255, 0.06);
+  background: rgba(var(--accent-rgb), 0.06);
 }
 
 .modalMetricActive {
   border-color: var(--accent);
-  background: rgba(88, 166, 255, 0.1);
+  background: rgba(var(--accent-rgb), 0.1);
   box-shadow: 0 0 0 1px var(--accent);
 }
 
@@ -384,7 +384,7 @@
 }
 
 .drillTable tbody tr:hover {
-  background: rgba(88, 166, 255, 0.04);
+  background: rgba(var(--accent-rgb), 0.04);
 }
 
 /* Chart skeleton loading state */
@@ -412,26 +412,26 @@
 
 /* DORA tier badge variants */
 .doraTierElite {
-  background: rgba(63, 185, 80, 0.15);
-  border-color: rgba(63, 185, 80, 0.4);
+  background: rgba(var(--success-rgb), 0.15);
+  border-color: rgba(var(--success-rgb), 0.4);
   color: var(--success);
 }
 
 .doraTierHigh {
-  background: rgba(88, 166, 255, 0.15);
-  border-color: rgba(88, 166, 255, 0.4);
+  background: rgba(var(--accent-rgb), 0.15);
+  border-color: rgba(var(--accent-rgb), 0.4);
   color: var(--accent);
 }
 
 .doraTierMedium {
-  background: rgba(210, 153, 34, 0.15);
-  border-color: rgba(210, 153, 34, 0.4);
+  background: rgba(var(--attention-rgb), 0.15);
+  border-color: rgba(var(--attention-rgb), 0.4);
   color: var(--attention);
 }
 
 .doraTierLow {
-  background: rgba(248, 81, 73, 0.15);
-  border-color: rgba(248, 81, 73, 0.4);
+  background: rgba(var(--danger-rgb), 0.15);
+  border-color: rgba(var(--danger-rgb), 0.4);
   color: var(--danger);
 }
 

@@ -73,5 +73,5 @@
   background: var(--cal-level-4);
 }
 .cell[data-alert] {
-  background: rgba(248, 81, 73, 0.8);
+  background: rgba(var(--danger-rgb), 0.8);
 }

@@ -43,7 +43,7 @@
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
   text-align: left;
   cursor: pointer;
   font: inherit;
@@ -86,7 +86,7 @@
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
 }
 
 .checkboxRow input {

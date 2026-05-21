@@ -157,8 +157,8 @@
   color: var(--fg-muted);
   margin-bottom: 12px;
   padding: 8px;
-  background: rgba(88, 166, 255, 0.06);
-  border: 1px solid rgba(88, 166, 255, 0.15);
+  background: rgba(var(--accent-rgb), 0.06);
+  border: 1px solid rgba(var(--accent-rgb), 0.15);
   border-radius: 6px;
 }
 

@@ -7,7 +7,7 @@
 }
 
 .accented {
-  border-color: rgba(248, 81, 73, 0.4);
+  border-color: rgba(var(--danger-rgb), 0.4);
 }
 
 .clickable {

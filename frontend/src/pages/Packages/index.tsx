@@ -255,10 +255,7 @@ function ContainerHealthTab({ data }: { data: StaleImageList | undefined }) {
                   <td>
                     <span
                       style={{
-                        color:
-                          img.days_since_rebuild > 180
-                            ? 'var(--danger-fg, #f85149)'
-                            : 'var(--attention-fg, #d29922)',
+                        color: img.days_since_rebuild > 180 ? 'var(--danger)' : 'var(--attention)',
                       }}
                     >
                       {img.days_since_rebuild} days

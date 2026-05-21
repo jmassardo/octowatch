@@ -328,7 +328,7 @@ export function LeadershipPane() {
               borderRadius: 4,
               border: '1px solid var(--border)',
               background: period === opt.value ? 'var(--accent)' : 'var(--canvas-subtle)',
-              color: period === opt.value ? '#fff' : 'var(--fg-muted)',
+              color: period === opt.value ? 'var(--fg-on-emphasis)' : 'var(--fg-muted)',
               fontSize: 12,
               cursor: 'pointer',
               fontWeight: period === opt.value ? 600 : 400,
@@ -365,13 +365,13 @@ export function LeadershipPane() {
                 {
                   name: 'Deploy Freq (/day)',
                   data: doraChart.deployFreq,
-                  color: 'rgb(63, 185, 80)',
+                  color: 'var(--success)',
                   areaOpacity: 0.1,
                 },
                 {
                   name: 'Lead Time (h)',
                   data: doraChart.leadTime,
-                  color: 'rgb(88, 166, 255)',
+                  color: 'var(--accent)',
                   dashed: true,
                 },
               ]}
@@ -394,13 +394,13 @@ export function LeadershipPane() {
                 {
                   name: 'CFR (%)',
                   data: doraChart.cfr,
-                  color: 'rgb(248, 81, 73)',
+                  color: 'var(--danger)',
                   areaOpacity: 0.1,
                 },
                 {
                   name: 'MTTR (h)',
                   data: doraChart.mttrData,
-                  color: 'rgb(210, 153, 34)',
+                  color: 'var(--attention)',
                   dashed: true,
                 },
               ]}
@@ -439,7 +439,8 @@ export function LeadershipPane() {
                   border: '1px solid var(--border)',
                   background:
                     comparisonMetric === opt.value ? 'var(--accent)' : 'var(--canvas-subtle)',
-                  color: comparisonMetric === opt.value ? '#fff' : 'var(--fg-muted)',
+                  color:
+                    comparisonMetric === opt.value ? 'var(--fg-on-emphasis)' : 'var(--fg-muted)',
                   fontSize: 11,
                   cursor: 'pointer',
                   fontWeight: comparisonMetric === opt.value ? 600 : 400,

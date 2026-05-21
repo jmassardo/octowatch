@@ -70,7 +70,7 @@
   font-size: 12px;
   font-weight: 500;
   color: var(--fg-muted);
-  background: var(--canvas-default, #0d1117);
+  background: var(--canvas);
   padding: 2px 8px;
   border-radius: 10px;
 }
@@ -91,7 +91,7 @@
 }
 
 .ruleCard:hover {
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
 }
 
 .ruleInfo {

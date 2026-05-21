@@ -482,22 +482,22 @@
 }
 
 .conclusionFailure {
-  background: rgba(248, 81, 73, 0.15);
-  color: #f85149;
+  background: rgba(var(--danger-rgb), 0.15);
+  color: var(--danger);
 }
 
 .conclusionTimeout {
-  background: rgba(210, 153, 34, 0.15);
-  color: #d29922;
+  background: rgba(var(--attention-rgb), 0.15);
+  color: var(--attention);
 }
 
 .conclusionSuccess {
-  background: rgba(63, 185, 80, 0.15);
-  color: #3fb950;
+  background: rgba(var(--success-rgb), 0.15);
+  color: var(--success);
 }
 
 .conclusionMuted {
-  background: rgba(139, 148, 158, 0.1);
+  background: rgba(var(--fg-muted-rgb), 0.1);
   color: var(--fg-muted);
 }
 

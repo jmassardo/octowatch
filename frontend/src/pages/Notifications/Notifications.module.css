@@ -127,17 +127,17 @@
 
 .badgeInfo {
   background: var(--accent-subtle, #1f3a5f);
-  color: var(--accent, #58a6ff);
+  color: var(--accent);
 }
 
 .badgeWarning {
-  background: #3d2e00;
-  color: #e3b341;
+  background: rgba(var(--attention-rgb), 0.15);
+  color: var(--attention);
 }
 
 .badgeCritical {
-  background: #4a1418;
-  color: #f85149;
+  background: rgba(var(--danger-rgb), 0.15);
+  color: var(--danger);
 }
 
 /* ── Source Badge ────────────────────────────────────────────────────────── */
@@ -217,7 +217,7 @@
   align-items: center;
   justify-content: center;
   padding: 48px 24px;
-  color: var(--danger, #f85149);
+  color: var(--danger);
   font-size: 14px;
 }
 
@@ -227,7 +227,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--accent, #58a6ff);
+  background: var(--accent);
   flex-shrink: 0;
   margin-top: 6px;
 }

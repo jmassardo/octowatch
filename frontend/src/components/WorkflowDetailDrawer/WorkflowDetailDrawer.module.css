@@ -69,15 +69,15 @@
 }
 
 .statDanger {
-  color: #f85149;
+  color: var(--danger);
 }
 
 .statWarning {
-  color: #d29922;
+  color: var(--attention);
 }
 
 .statSuccess {
-  color: #3fb950;
+  color: var(--success);
 }
 
 .patternSummary {
@@ -117,15 +117,15 @@
 }
 
 .dotSuccess {
-  background: #3fb950;
+  background: var(--success);
 }
 
 .dotFailure {
-  background: #f85149;
+  background: var(--danger);
 }
 
 .dotTimeout {
-  background: #d29922;
+  background: var(--attention);
 }
 
 .dotMuted {

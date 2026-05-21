@@ -115,7 +115,7 @@
   border-color: var(--accent);
 }
 .devCard.flagged {
-  border-color: rgba(248, 81, 73, 0.4);
+  border-color: rgba(var(--danger-rgb), 0.4);
 }
 
 .devTop {
@@ -177,7 +177,7 @@
 }
 
 .clickableBar:hover {
-  background: rgba(177, 186, 196, 0.08);
+  background: rgba(var(--neutral-rgb), 0.08);
 }
 
 .clickableStat {
@@ -189,7 +189,7 @@
 }
 
 .clickableStat:hover {
-  background: rgba(177, 186, 196, 0.12);
+  background: rgba(var(--neutral-rgb), 0.12);
 }
 
 .clickableStat:hover strong {
@@ -400,7 +400,7 @@
 }
 
 .humanSegment {
-  background: #238636;
+  background: var(--success);
   height: 100%;
 }
 

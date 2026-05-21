@@ -334,7 +334,7 @@ function SeverityDistributionChart({ metrics }: { metrics: AggregateMetrics }) {
         label: { show: false },
         data: chartData,
         itemStyle: { borderRadius: 4, borderWidth: 2, borderColor: 'transparent' },
-        color: ['var(--danger)', 'var(--severe, #db6d28)', 'var(--attention)', 'var(--success)'],
+        color: ['var(--danger)', 'var(--severe)', 'var(--attention)', 'var(--success)'],
       },
     ],
   };

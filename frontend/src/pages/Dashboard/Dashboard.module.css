@@ -327,7 +327,7 @@
 }
 
 .sevRowClickable:hover {
-  background: rgba(177, 186, 196, 0.08);
+  background: rgba(var(--neutral-rgb), 0.08);
 }
 
 .sevRowClickable:hover .sevCount {
@@ -419,7 +419,7 @@
 }
 
 .viewBtn:hover:not(.viewActive) {
-  background: rgba(177, 186, 196, 0.12);
+  background: rgba(var(--neutral-rgb), 0.12);
 }
 
 .widgetSection {

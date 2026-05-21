@@ -151,11 +151,17 @@ export function DevActivityPage() {
     const othersActorCount = Math.max(0, sorted.length - 5);
     const othersPct = totalEvents > 0 ? Math.round((othersEventCount / totalEvents) * 100) : 0;
 
-    const colors = ['#1f6feb', '#1f6feb', '#238636', '#238636', '#58a6ff'];
+    const colors = [
+      'var(--accent-bg)',
+      'var(--accent-bg)',
+      'var(--success)',
+      'var(--success)',
+      'var(--accent)',
+    ];
     const prAuthorship = top5.map((actor, i) => ({
       handle: actor.handle,
       pct: Math.round((actor.eventCount / totalEvents) * 100),
-      color: colors[i] ?? '#58a6ff',
+      color: colors[i] ?? 'var(--accent)',
     }));
 
     // Review / activity concentration
@@ -171,7 +177,7 @@ export function DevActivityPage() {
     const concentration = concentrationTop.map((actor) => {
       const count = hasReviewData ? actor.reviewCount : actor.eventCount;
       const pct = Math.round((count / concentrationTotal) * 100);
-      const color = pct >= 40 ? 'var(--danger)' : pct >= 25 ? 'var(--attention)' : '#238636';
+      const color = pct >= 40 ? 'var(--danger)' : pct >= 25 ? 'var(--attention)' : 'var(--success)';
       const textColor = pct >= 40 ? 'var(--danger)' : pct >= 25 ? 'var(--attention)' : undefined;
       return { handle: actor.handle, pct, color, textColor };
     });
@@ -742,7 +748,7 @@ function GitOperationsWidget({ stats, navigate }: WidgetProps) {
                     width: 10,
                     height: h,
                     borderRadius: 2,
-                    background: '#1f6feb',
+                    background: 'var(--accent-bg)',
                   }}
                 />
               );
@@ -780,7 +786,7 @@ function GitOperationsWidget({ stats, navigate }: WidgetProps) {
                     style={{
                       width: `${barPct(c.count, cloneMax)}%`,
                       height: '100%',
-                      background: '#1f6feb',
+                      background: 'var(--accent-bg)',
                       borderRadius: 4,
                     }}
                   />
@@ -816,7 +822,7 @@ function GitOperationsWidget({ stats, navigate }: WidgetProps) {
                     style={{
                       width: `${barPct(p.count, pushMax)}%`,
                       height: '100%',
-                      background: '#238636',
+                      background: 'var(--success)',
                       borderRadius: 4,
                     }}
                   />
@@ -910,7 +916,7 @@ function ApiUsageWidget({ stats, navigate }: WidgetProps) {
                     width: 10,
                     height: h,
                     borderRadius: 2,
-                    background: '#58a6ff',
+                    background: 'var(--accent)',
                   }}
                 />
               );
@@ -943,7 +949,7 @@ function ApiUsageWidget({ stats, navigate }: WidgetProps) {
                     style={{
                       width: `${barPct(u.count, userMax)}%`,
                       height: '100%',
-                      background: '#58a6ff',
+                      background: 'var(--accent)',
                       borderRadius: 4,
                     }}
                   />
@@ -978,7 +984,7 @@ function ApiUsageWidget({ stats, navigate }: WidgetProps) {
                     style={{
                       width: `${barPct(ep.count, endpointMax)}%`,
                       height: '100%',
-                      background: '#58a6ff',
+                      background: 'var(--accent)',
                       borderRadius: 4,
                     }}
                   />

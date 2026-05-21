@@ -699,13 +699,13 @@ export function VelocityPage() {
                     {
                       name: 'CFR',
                       data: changeFailureChartData,
-                      color: 'rgb(248, 81, 73)',
+                      color: 'var(--danger)',
                       areaOpacity: 0.15,
                     },
                     {
                       name: 'Threshold (5%)',
                       data: Array.from({ length: chartLabels.length }, () => 5),
-                      color: 'rgb(248, 81, 73)',
+                      color: 'var(--danger)',
                       dashed: true,
                     },
                   ]}
@@ -740,7 +740,7 @@ export function VelocityPage() {
                     {
                       name: 'Success rate',
                       data: workflowSuccessChartData,
-                      color: 'rgb(63, 185, 80)',
+                      color: 'var(--success)',
                       areaOpacity: 0.15,
                     },
                   ]}

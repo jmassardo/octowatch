@@ -91,7 +91,7 @@
   border-bottom: none;
 }
 .table tbody tr:hover td {
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
 }
 
 .settingKey {
@@ -216,19 +216,19 @@
 
 .sensitivityCritical {
   composes: sensitivityBadge;
-  background: rgba(248, 81, 73, 0.15);
+  background: rgba(var(--danger-rgb), 0.15);
   color: var(--danger);
 }
 
 .sensitivitySensitive {
   composes: sensitivityBadge;
-  background: rgba(210, 153, 34, 0.15);
+  background: rgba(var(--attention-rgb), 0.15);
   color: var(--attention);
 }
 
 .sensitivityNormal {
   composes: sensitivityBadge;
-  background: rgba(139, 148, 158, 0.15);
+  background: rgba(var(--fg-muted-rgb), 0.15);
   color: var(--fg-muted);
 }
 
@@ -347,17 +347,17 @@
 }
 
 .integrationStatus[data-status='active'] {
-  background: rgba(63, 185, 80, 0.15);
+  background: rgba(var(--success-rgb), 0.15);
   color: var(--success);
 }
 
 .integrationStatus[data-status='configured'] {
-  background: rgba(210, 153, 34, 0.15);
+  background: rgba(var(--attention-rgb), 0.15);
   color: var(--attention);
 }
 
 .integrationStatus[data-status='inactive'] {
-  background: rgba(139, 148, 158, 0.15);
+  background: rgba(var(--fg-muted-rgb), 0.15);
   color: var(--fg-muted);
 }
 
@@ -409,7 +409,7 @@
 
 .methodTabActive {
   color: var(--text-primary, var(--fg));
-  border-bottom-color: var(--accent, #58a6ff);
+  border-bottom-color: var(--accent);
 }
 
 .configGrid {
@@ -545,8 +545,8 @@
 .successBanner {
   font-size: 0.8125rem;
   color: var(--success);
-  background: rgba(63, 185, 80, 0.1);
-  border: 1px solid rgba(63, 185, 80, 0.3);
+  background: rgba(var(--success-rgb), 0.1);
+  border: 1px solid rgba(var(--success-rgb), 0.3);
   border-radius: 6px;
   padding: 8px 12px;
 }
@@ -632,7 +632,7 @@
   color: var(--success);
   font-size: 13px;
   padding: 6px 10px;
-  background: rgba(63, 185, 80, 0.1);
+  background: rgba(var(--success-rgb), 0.1);
   border-radius: 6px;
   text-align: center;
 }
@@ -641,7 +641,7 @@
   color: var(--danger);
   font-size: 13px;
   padding: 6px 10px;
-  background: rgba(248, 81, 73, 0.1);
+  background: rgba(var(--danger-rgb), 0.1);
   border-radius: 6px;
   text-align: center;
 }

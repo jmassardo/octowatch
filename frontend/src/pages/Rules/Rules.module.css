@@ -64,7 +64,7 @@
 }
 
 .table tbody tr:hover td {
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
 }
 
 .ruleName {
@@ -168,7 +168,7 @@
 }
 
 .clickableCount:hover {
-  background: rgba(177, 186, 196, 0.12);
+  background: rgba(var(--neutral-rgb), 0.12);
   text-decoration: underline;
 }
 
@@ -419,11 +419,11 @@
 }
 .wizardTemplateCard:hover {
   border-color: var(--accent);
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
 }
 .wizardTemplateCardSelected {
   border-color: var(--accent);
-  background: rgba(177, 186, 196, 0.08);
+  background: rgba(var(--neutral-rgb), 0.08);
 }
 .wizardTemplateName {
   font-weight: 600;

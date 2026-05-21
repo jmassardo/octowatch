@@ -59,7 +59,7 @@ export function RadialGauge({ value, label, color, size = 140 }: RadialGaugeProp
         <path
           d={describeArc(cx, cy * 0.95, r, startAngle, endAngle)}
           fill="none"
-          stroke="var(--border-default, #30363d)"
+          stroke="var(--border)"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
         />
@@ -82,7 +82,7 @@ export function RadialGauge({ value, label, color, size = 140 }: RadialGaugeProp
           dominantBaseline="middle"
           fontSize={valueFontSize}
           fontWeight="700"
-          fill="var(--fg-default, #e6edf3)"
+          fill="var(--fg)"
         >
           {clampedValue.toFixed(0)}%
         </text>
@@ -90,7 +90,7 @@ export function RadialGauge({ value, label, color, size = 140 }: RadialGaugeProp
       <div
         style={{
           fontSize: labelFontSize,
-          color: 'var(--fg-muted, #8b949e)',
+          color: 'var(--fg-muted)',
           textAlign: 'center',
           lineHeight: 1.3,
           maxWidth: size,

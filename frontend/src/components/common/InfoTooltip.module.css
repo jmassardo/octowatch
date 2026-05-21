@@ -23,7 +23,7 @@
 .trigger:hover,
 .trigger:focus-visible {
   color: var(--fg);
-  border-color: var(--accent-fg, #58a6ff);
+  border-color: var(--accent);
   outline: none;
 }
 
@@ -46,5 +46,5 @@
 }
 
 .tooltip a {
-  color: var(--accent, #58a6ff);
+  color: var(--accent);
 }

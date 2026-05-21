@@ -59,7 +59,7 @@
 }
 
 .periodBtn:hover:not(.active) {
-  background: rgba(177, 186, 196, 0.12);
+  background: rgba(var(--neutral-rgb), 0.12);
 }
 
 /* Score card */

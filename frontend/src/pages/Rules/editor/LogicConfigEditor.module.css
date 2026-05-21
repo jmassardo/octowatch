@@ -12,8 +12,8 @@
   list-style: none;
   margin: 0;
   padding: 10px 14px;
-  background: rgba(248, 81, 73, 0.1);
-  border: 1px solid rgba(248, 81, 73, 0.3);
+  background: rgba(var(--danger-rgb), 0.1);
+  border: 1px solid rgba(var(--danger-rgb), 0.3);
   border-radius: 6px;
 }
 
@@ -232,8 +232,8 @@
 
 .removeBtn:hover {
   color: var(--danger);
-  border-color: rgba(248, 81, 73, 0.3);
-  background: rgba(248, 81, 73, 0.1);
+  border-color: rgba(var(--danger-rgb), 0.3);
+  background: rgba(var(--danger-rgb), 0.1);
 }
 
 /* ─── Confidence slider ─────────────────────────────────────────────── */
@@ -340,7 +340,7 @@
   height: 24px;
   border-radius: 50%;
   background: var(--accent-bg);
-  color: #fff;
+  color: var(--fg-on-emphasis);
   font-size: 12px;
   font-weight: 600;
   flex-shrink: 0;

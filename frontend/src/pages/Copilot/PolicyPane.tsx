@@ -142,7 +142,7 @@ export function PolicyPane() {
                       {event.old_value && (
                         <span
                           style={{
-                            background: 'rgba(248, 81, 73, 0.1)',
+                            background: 'rgba(var(--danger-rgb), 0.1)',
                             color: 'var(--danger)',
                             padding: '2px 6px',
                             borderRadius: 4,
@@ -156,7 +156,7 @@ export function PolicyPane() {
                       {event.new_value && (
                         <span
                           style={{
-                            background: 'rgba(63, 185, 80, 0.1)',
+                            background: 'rgba(var(--success-rgb), 0.1)',
                             color: 'var(--success)',
                             padding: '2px 6px',
                             borderRadius: 4,

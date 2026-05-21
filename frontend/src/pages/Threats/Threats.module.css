@@ -152,11 +152,11 @@
 }
 
 .ilRow:hover {
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
 }
 
 .ilRow.selected {
-  background: rgba(88, 166, 255, 0.06);
+  background: rgba(var(--accent-rgb), 0.06);
 }
 
 .ilMeta {
@@ -348,7 +348,7 @@
   border-radius: 10px;
   font-size: 11px;
   font-weight: 600;
-  background: rgba(177, 186, 196, 0.12);
+  background: rgba(var(--neutral-rgb), 0.12);
   color: var(--fg-muted);
   margin-left: 5px;
   padding: 0 5px;
@@ -356,7 +356,7 @@
 }
 
 .ilTab.active .tabBadge {
-  background: rgba(248, 81, 73, 0.12);
+  background: rgba(var(--danger-rgb), 0.12);
   color: var(--severe);
 }
 
@@ -564,7 +564,7 @@
 }
 
 .timelineEvent:hover {
-  background: rgba(177, 186, 196, 0.08);
+  background: rgba(var(--neutral-rgb), 0.08);
 }
 
 .timelineEventDot {
@@ -619,7 +619,7 @@
 }
 
 .relatedEventRow:hover {
-  background: rgba(177, 186, 196, 0.08);
+  background: rgba(var(--neutral-rgb), 0.08);
 }
 
 .relatedEventId {
@@ -653,7 +653,7 @@
   border-radius: 10px;
   font-size: 11px;
   font-weight: 600;
-  background: rgba(88, 166, 255, 0.12);
+  background: rgba(var(--accent-rgb), 0.12);
   color: var(--accent);
 }
 
@@ -688,7 +688,7 @@
 }
 
 .ticketLink:hover {
-  background: rgba(177, 186, 196, 0.08);
+  background: rgba(var(--neutral-rgb), 0.08);
   text-decoration: underline;
 }
 

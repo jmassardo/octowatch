@@ -163,33 +163,33 @@ function TrendChart({
         <polyline
           points={toPoints((d) => d.secret_scanning)}
           fill="none"
-          stroke="#f59e0b"
+          stroke="var(--attention)"
           strokeWidth="2"
         />
         <polyline
           points={toPoints((d) => d.code_scanning)}
           fill="none"
-          stroke="#8b5cf6"
+          stroke="var(--done)"
           strokeWidth="2"
         />
         <polyline
           points={toPoints((d) => d.dependabot)}
           fill="none"
-          stroke="#ef4444"
+          stroke="var(--danger)"
           strokeWidth="2"
         />
       </svg>
       <div className={styles.trendLegend}>
         <span>
-          <span className={styles.legendDot} style={{ background: '#f59e0b' }} />
+          <span className={styles.legendDot} style={{ background: 'var(--attention)' }} />
           Secret Scanning
         </span>
         <span>
-          <span className={styles.legendDot} style={{ background: '#8b5cf6' }} />
+          <span className={styles.legendDot} style={{ background: 'var(--done)' }} />
           Code Scanning
         </span>
         <span>
-          <span className={styles.legendDot} style={{ background: '#ef4444' }} />
+          <span className={styles.legendDot} style={{ background: 'var(--danger)' }} />
           Dependabot
         </span>
       </div>
@@ -251,7 +251,7 @@ function OverviewTab({ onSwitchTab }: { onSwitchTab: (tab: TabKey) => void }) {
             delta={secretDelta.delta || undefined}
             deltaDir={secretDelta.deltaDir}
           />
-          <MiniSparkline data={secretSparkData} color="#f59e0b" />
+          <MiniSparkline data={secretSparkData} color="var(--attention)" />
         </div>
         <div className={styles.cardWithSparkline}>
           <MetricCard
@@ -262,7 +262,7 @@ function OverviewTab({ onSwitchTab }: { onSwitchTab: (tab: TabKey) => void }) {
             delta={codeDelta.delta || undefined}
             deltaDir={codeDelta.deltaDir}
           />
-          <MiniSparkline data={codeSparkData} color="#8b5cf6" />
+          <MiniSparkline data={codeSparkData} color="var(--done)" />
         </div>
         <div className={styles.cardWithSparkline}>
           <MetricCard
@@ -273,7 +273,7 @@ function OverviewTab({ onSwitchTab }: { onSwitchTab: (tab: TabKey) => void }) {
             delta={dependabotDelta.delta || undefined}
             deltaDir={dependabotDelta.deltaDir}
           />
-          <MiniSparkline data={dependabotSparkData} color="#ef4444" />
+          <MiniSparkline data={dependabotSparkData} color="var(--danger)" />
         </div>
         <MetricCard
           value={String(data.detections.active)}

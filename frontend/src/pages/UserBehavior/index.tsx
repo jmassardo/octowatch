@@ -15,15 +15,15 @@ import { Label } from '../../components/primitives/Label';
 import styles from './UserBehavior.module.css';
 
 const PERSONA_COLORS: Record<string, string> = {
-  'Power User': '#bc8cff',
-  'Web UI Only': '#58a6ff',
-  'IDE Only': '#3fb950',
-  'API/CLI Only': '#d29922',
-  'Copilot Active': '#f778ba',
-  'Truly Dormant': '#484f58',
-  'Lightly Active': '#8b949e',
-  'Admin Only': '#f0883e',
-  'CI/CD Bot': '#79c0ff',
+  'Power User': 'var(--done)',
+  'Web UI Only': 'var(--accent)',
+  'IDE Only': 'var(--success)',
+  'API/CLI Only': 'var(--attention)',
+  'Copilot Active': 'var(--done)',
+  'Truly Dormant': 'var(--fg-subtle)',
+  'Lightly Active': 'var(--fg-muted)',
+  'Admin Only': 'var(--severe)',
+  'CI/CD Bot': 'var(--accent)',
 };
 
 const PERSONA_VARIANTS: Record<
@@ -99,7 +99,7 @@ export function UserBehaviorPage() {
       name: p.persona,
       value: p.user_count,
     }));
-    const colors = summary.personas.map((p) => PERSONA_COLORS[p.persona] ?? '#8b949e');
+    const colors = summary.personas.map((p) => PERSONA_COLORS[p.persona] ?? 'var(--fg-muted)');
 
     return {
       tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
@@ -107,7 +107,7 @@ export function UserBehaviorPage() {
         orient: 'vertical' as const,
         right: 10,
         top: 'center',
-        textStyle: { color: '#8b949e', fontSize: 12 },
+        textStyle: { color: 'var(--chart-text)', fontSize: 12 },
       },
       series: [
         {

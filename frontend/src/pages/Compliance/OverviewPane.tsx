@@ -10,9 +10,9 @@ function scoreColorClass(score: number): string {
 }
 
 function scoreBarColor(score: number): string {
-  if (score >= 75) return 'var(--color-success-fg, #3fb950)';
-  if (score >= 50) return 'var(--color-attention-fg, #d29922)';
-  return 'var(--color-danger-fg, #f85149)';
+  if (score >= 75) return 'var(--success)';
+  if (score >= 50) return 'var(--attention)';
+  return 'var(--danger)';
 }
 
 interface OverviewPaneProps {
