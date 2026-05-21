@@ -55,9 +55,9 @@ const PAGES: SearchableNavigationItem[] = [
   {
     id: 'dashboard',
     title: 'Dashboard',
-    subtitle: 'Overview and executive insights',
+    subtitle: 'Customizable dashboard with widgets',
     to: '/dashboard',
-    searchText: 'dashboard overview executive home',
+    searchText: 'dashboard overview widgets home customize',
   },
   {
     id: 'threats',

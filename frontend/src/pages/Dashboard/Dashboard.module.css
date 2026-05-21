@@ -389,17 +389,16 @@
 /* View toggle */
 .viewToggle {
   display: flex;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
-  width: fit-content;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 16px;
 }
 
 .viewBtn {
   padding: 6px 16px;
   font-size: 13px;
-  border: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   background: var(--canvas-subtle);
   color: var(--fg-muted);
   cursor: pointer;
@@ -410,7 +409,7 @@
 }
 
 .viewBtn:not(:last-child) {
-  border-right: 1px solid var(--border);
+  margin-right: 0;
 }
 
 .viewActive {
@@ -466,6 +465,28 @@
 
 .widgetAddBtn:hover {
   opacity: 0.85;
+}
+
+.widgetEmptyActions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.viewToggleSpacer {
+  flex: 1;
+}
+
+.customizeActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.savingIndicator {
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-style: italic;
 }
 
 /* Responsive: tablet (768–1024px) — 2-column grid */

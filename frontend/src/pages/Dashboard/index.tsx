@@ -1,9 +1,16 @@
-import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listDetections } from '../../api/detections';
 import { listEvents } from '../../api/events';
 import { getActionsVolumeReport } from '../../api/reports';
+import {
+  getDashboardConfig,
+  updateDashboardConfig,
+  getWidgetCatalog,
+  type WidgetLayoutItem as ApiLayoutItem,
+  type CatalogWidget,
+} from '../../api/dashboardConfig';
 import {
   getSystemHealth,
   getRepoHealth,
@@ -17,28 +24,31 @@ import {
 } from '../../components/GuidedTour/OnboardingWizard';
 import { isOnboardingComplete } from '../../components/GuidedTour/onboardingStorage';
 import { Card, CardHeader } from '../../components/primitives/Card';
+import { Button } from '../../components/primitives/Button';
 import { WidgetGrid } from '../../components/widgets/WidgetGrid';
 import { SecurityOverviewWidget } from '../../components/widgets/SecurityOverviewWidget';
+import { WidgetCatalog } from '../../components/widgets/WidgetCatalog';
+import { PersonaSelector } from '../../components/widgets/PersonaSelector';
 import {
   createDashboardLayout,
+  getWidgetDefinition,
   loadDashboardLayout,
   saveDashboardLayout,
+  PERSONA_WIDGET_PRESETS,
 } from '../../components/widgets/WidgetRegistry';
+import type { DashboardPersona } from '../../components/widgets/WidgetRegistry';
 import { StatPillConfigDrawer } from '../../components/widgets/StatPillConfig';
 import {
   loadStatPillConfig,
   saveStatPillConfig,
 } from '../../components/widgets/statPillConfigStorage';
-import { ExecutiveView } from './ExecutiveView';
-import { SecurityView } from './SecurityView';
-import { CiCdView } from './CiCdView';
 import { useOrg } from '../../hooks/useOrg';
 import type { ActionsVolumeBucket } from '../../types/reports';
 import { formatRelative } from '../../utils/dates';
 import styles from './Dashboard.module.css';
 
-type DashboardView = 'widgets' | 'operations' | 'executive' | 'security' | 'cicd';
-const VALID_VIEWS: DashboardView[] = ['widgets', 'operations', 'executive', 'security', 'cicd'];
+type DashboardView = 'widgets' | 'operations';
+const VALID_VIEWS: DashboardView[] = ['widgets', 'operations'];
 
 function ClickableValue({
   children,
@@ -122,23 +132,100 @@ function formatCount(value: number): string {
   return String(value);
 }
 
+/** Convert persona preset widget IDs to API layout items with proper positioning. */
+function presetToApiLayout(
+  widgetIds: readonly string[],
+  catalog: readonly CatalogWidget[],
+): ApiLayoutItem[] {
+  const catalogMap = new Map(catalog.map((w) => [w.id, w]));
+  const items: ApiLayoutItem[] = [];
+  let x = 0;
+  let y = 0;
+  let rowMaxH = 0;
+
+  for (const id of widgetIds) {
+    const cw = catalogMap.get(id);
+    const w = cw?.default_w ?? 4;
+    const h = cw?.default_h ?? 3;
+
+    if (x + w > 12) {
+      x = 0;
+      y += rowMaxH;
+      rowMaxH = 0;
+    }
+
+    items.push({ widget_id: id, x, y, w, h });
+    x += w;
+    rowMaxH = Math.max(rowMaxH, h);
+
+    if (x >= 12) {
+      x = 0;
+      y += rowMaxH;
+      rowMaxH = 0;
+    }
+  }
+
+  return items;
+}
+
 export function DashboardPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { selectedOrg, setSelectedOrg } = useOrg();
   const [searchParams, setSearchParams] = useSearchParams();
   const [widgetLayout, setWidgetLayout] = useState(() => loadDashboardLayout());
   const [showOnboarding, setShowOnboarding] = useState(() => !isOnboardingComplete());
   const [pillConfig, setPillConfig] = useState(() => loadStatPillConfig());
   const [pillConfigOpen, setPillConfigOpen] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [personaSelectorOpen, setPersonaSelectorOpen] = useState(false);
+
+  // Fetch user's dashboard config from backend
+  const configQuery = useQuery({
+    queryKey: ['dashboard-config'],
+    queryFn: getDashboardConfig,
+    staleTime: 30_000,
+  });
+
+  // Fetch the widget catalog from backend
+  const catalogQuery = useQuery({
+    queryKey: ['dashboard-widgets'],
+    queryFn: getWidgetCatalog,
+    staleTime: 300_000,
+  });
+
+  const catalogWidgets = catalogQuery.data?.widgets ?? [];
+
+  // Mutation to save layout to backend
+  const saveMutation = useMutation({
+    mutationFn: updateDashboardConfig,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['dashboard-config'], data);
+    },
+  });
+
+  // Derive widget layout: prefer backend config, fallback to local storage
+  const backendLayout = useMemo(() => {
+    if (configQuery.data && configQuery.data.layout.length > 0) {
+      return configQuery.data.layout.map((item) => ({
+        id: item.widget_id,
+        size: (getWidgetDefinition(item.widget_id)?.defaultSize ?? 'md') as 'sm' | 'md' | 'lg',
+      }));
+    }
+    return null;
+  }, [configQuery.data]);
+
+  const effectiveWidgetLayout = backendLayout ?? widgetLayout;
 
   useEffect(() => {
     saveDashboardLayout(widgetLayout);
   }, [widgetLayout]);
 
-  const rawView = searchParams.get('view') ?? (widgetLayout.length > 0 ? 'widgets' : 'operations');
+  const rawView =
+    searchParams.get('view') ?? (effectiveWidgetLayout.length > 0 ? 'widgets' : 'operations');
   const view: DashboardView = VALID_VIEWS.includes(rawView as DashboardView)
     ? (rawView as DashboardView)
-    : widgetLayout.length > 0
+    : effectiveWidgetLayout.length > 0
       ? 'widgets'
       : 'operations';
 
@@ -154,6 +241,86 @@ export function DashboardPage() {
     setShowOnboarding(false);
     setView('widgets');
   }
+
+  // Active widget IDs for the catalog
+  const activeWidgetIds = useMemo(
+    () => new Set(effectiveWidgetLayout.map((item) => item.id)),
+    [effectiveWidgetLayout],
+  );
+
+  // Add widget from catalog
+  const handleAddWidget = useCallback(
+    (widgetId: string) => {
+      if (activeWidgetIds.has(widgetId)) return;
+      const def = getWidgetDefinition(widgetId);
+      const newLayout = [
+        ...effectiveWidgetLayout,
+        { id: widgetId, size: def?.defaultSize ?? 'md' },
+      ];
+      setWidgetLayout(newLayout);
+
+      // Persist to backend
+      const apiLayout: ApiLayoutItem[] = newLayout.map((item, idx) => {
+        const cw = catalogWidgets.find((w) => w.id === item.id);
+        return {
+          widget_id: item.id,
+          x: (idx * 4) % 12,
+          y: Math.floor((idx * 4) / 12) * 3,
+          w: cw?.default_w ?? 4,
+          h: cw?.default_h ?? 3,
+        };
+      });
+      saveMutation.mutate({ layout: apiLayout, persona: configQuery.data?.persona ?? '' });
+    },
+    [
+      activeWidgetIds,
+      effectiveWidgetLayout,
+      catalogWidgets,
+      saveMutation,
+      configQuery.data?.persona,
+    ],
+  );
+
+  // Remove widget from catalog
+  const handleRemoveWidget = useCallback(
+    (widgetId: string) => {
+      const newLayout = effectiveWidgetLayout.filter((item) => item.id !== widgetId);
+      setWidgetLayout(newLayout);
+
+      // Persist to backend
+      const apiLayout: ApiLayoutItem[] = newLayout.map((item, idx) => {
+        const cw = catalogWidgets.find((w) => w.id === item.id);
+        return {
+          widget_id: item.id,
+          x: (idx * 4) % 12,
+          y: Math.floor((idx * 4) / 12) * 3,
+          w: cw?.default_w ?? 4,
+          h: cw?.default_h ?? 3,
+        };
+      });
+      saveMutation.mutate({ layout: apiLayout, persona: configQuery.data?.persona ?? '' });
+    },
+    [effectiveWidgetLayout, catalogWidgets, saveMutation, configQuery.data?.persona],
+  );
+
+  // Persona selection handler
+  const handlePersonaSelect = useCallback(
+    (personaId: string) => {
+      const presetIds = PERSONA_WIDGET_PRESETS[personaId as DashboardPersona];
+      if (!presetIds) return;
+
+      const layout = createDashboardLayout([...presetIds]);
+      setWidgetLayout(layout);
+      saveDashboardLayout(layout);
+
+      // Persist to backend
+      const apiLayout = presetToApiLayout(presetIds, catalogWidgets);
+      saveMutation.mutate({ layout: apiLayout, persona: personaId });
+      setPersonaSelectorOpen(false);
+      setView('widgets');
+    },
+    [catalogWidgets, saveMutation, setView],
+  );
 
   const orgLabel = !selectedOrg || selectedOrg === 'all' ? 'All organizations' : selectedOrg;
   const orgParam = selectedOrg && selectedOrg !== 'all' ? selectedOrg : undefined;
@@ -257,35 +424,28 @@ export function DashboardPage() {
         >
           Operations
         </button>
-        <button
-          className={[styles.viewBtn, view === 'executive' && styles.viewActive]
-            .filter(Boolean)
-            .join(' ')}
-          onClick={() => setView('executive')}
-        >
-          Executive
-        </button>
-        <button
-          className={[styles.viewBtn, view === 'security' && styles.viewActive]
-            .filter(Boolean)
-            .join(' ')}
-          onClick={() => setView('security')}
-        >
-          Security Engineering
-        </button>
-        <button
-          className={[styles.viewBtn, view === 'cicd' && styles.viewActive]
-            .filter(Boolean)
-            .join(' ')}
-          onClick={() => setView('cicd')}
-        >
-          CI/CD
-        </button>
+        <div className={styles.viewToggleSpacer} />
+        {view === 'widgets' && (
+          <div className={styles.customizeActions}>
+            <Button type="button" size="sm" variant="default" onClick={() => setCatalogOpen(true)}>
+              Add widgets
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              onClick={() => setPersonaSelectorOpen(true)}
+            >
+              Change layout
+            </Button>
+            {saveMutation.isPending && <span className={styles.savingIndicator}>Saving…</span>}
+          </div>
+        )}
       </div>
 
       {view === 'widgets' ? (
         <div className={styles.widgetSection}>
-          {widgetLayout.length === 0 ? (
+          {effectiveWidgetLayout.length === 0 ? (
             <div className={styles.widgetEmptyState}>
               <svg
                 width="48"
@@ -302,32 +462,34 @@ export function DashboardPage() {
                 />
               </svg>
               <h3>Build your custom dashboard</h3>
-              <p>Drag and drop widgets to create a personalized view of your security data.</p>
-              <button
-                className={styles.widgetAddBtn}
-                onClick={() => {
-                  const defaultLayout = createDashboardLayout([
-                    'security-overview',
-                    'detection-summary',
-                    'posture-gauge',
-                    'event-volume',
-                  ]);
-                  setWidgetLayout(defaultLayout);
-                }}
-              >
-                Add starter widgets
-              </button>
+              <p>Choose a persona for a recommended layout, or add widgets manually.</p>
+              <div className={styles.widgetEmptyActions}>
+                <button
+                  className={styles.widgetAddBtn}
+                  onClick={() => setPersonaSelectorOpen(true)}
+                >
+                  Choose a persona
+                </button>
+                <button
+                  className={styles.widgetAddBtn}
+                  onClick={() => {
+                    const defaultLayout = createDashboardLayout([
+                      'security-overview',
+                      'detection-summary',
+                      'posture-gauge',
+                      'event-volume',
+                    ]);
+                    setWidgetLayout(defaultLayout);
+                  }}
+                >
+                  Add starter widgets
+                </button>
+              </div>
             </div>
           ) : (
-            <WidgetGrid layout={widgetLayout} onChange={setWidgetLayout} />
+            <WidgetGrid layout={effectiveWidgetLayout} onChange={setWidgetLayout} />
           )}
         </div>
-      ) : view === 'executive' ? (
-        <ExecutiveView />
-      ) : view === 'security' ? (
-        <SecurityView />
-      ) : view === 'cicd' ? (
-        <CiCdView />
       ) : (
         <>
           {systemHealth != null && (
@@ -538,6 +700,21 @@ export function DashboardPage() {
         open={showOnboarding}
         onClose={() => setShowOnboarding(false)}
         onComplete={handleOnboardingComplete}
+      />
+
+      <WidgetCatalog
+        open={catalogOpen}
+        onClose={() => setCatalogOpen(false)}
+        widgets={catalogWidgets}
+        activeWidgetIds={activeWidgetIds}
+        onAdd={handleAddWidget}
+        onRemove={handleRemoveWidget}
+      />
+
+      <PersonaSelector
+        open={personaSelectorOpen}
+        onSelect={handlePersonaSelect}
+        onSkip={() => setPersonaSelectorOpen(false)}
       />
     </div>
   );

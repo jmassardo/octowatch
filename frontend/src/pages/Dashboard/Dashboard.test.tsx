@@ -30,6 +30,45 @@ vi.mock('../../components/charts/ContributionCalendar', () => ({
   ContributionCalendar: () => <div data-testid="contribution-calendar" />,
 }));
 
+vi.mock('../../api/dashboardConfig', () => ({
+  getDashboardConfig: vi.fn().mockResolvedValue({
+    id: 'test-id',
+    user_id: 'testuser',
+    layout: [],
+    persona: '',
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  }),
+  updateDashboardConfig: vi.fn().mockResolvedValue({
+    id: 'test-id',
+    user_id: 'testuser',
+    layout: [],
+    persona: '',
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  }),
+  getWidgetCatalog: vi.fn().mockResolvedValue({
+    widgets: [
+      {
+        id: 'security-overview',
+        title: 'Security Overview',
+        description: 'desc',
+        category: 'security',
+        default_w: 6,
+        default_h: 3,
+      },
+      {
+        id: 'event-volume',
+        title: 'Event Volume',
+        description: 'desc',
+        category: 'activity',
+        default_w: 4,
+        default_h: 3,
+      },
+    ],
+  }),
+}));
+
 const mockGetUnifiedSecurity = vi.fn().mockResolvedValue({
   secret_scanning: { open: 0, fixed: 0, dismissed: 0 },
   code_scanning: { open: 0, fixed: 0, dismissed: 0 },
