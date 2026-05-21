@@ -518,6 +518,27 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         <div className={styles.navLabel}>Monitoring</div>
         {hasPermission('admin_settings', 'view') && (
           <NavItem
+            to="/monitoring/telemetry"
+            onClick={handleNavClick}
+            icon={
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 16A8 8 0 108 0a8 8 0 000 16zm0-1.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13z" />
+                <path
+                  d="M2.5 8h2.3l1.2-3 2 6 1.2-3h4.3"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            }
+          >
+            Telemetry
+          </NavItem>
+        )}
+        {hasPermission('admin_settings', 'view') && (
+          <NavItem
             to="/monitoring/sync-status"
             onClick={handleNavClick}
             icon={
@@ -535,6 +556,32 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             }
           >
             Sync Status
+          </NavItem>
+        )}
+        {hasPermission('admin_settings', 'view') && (
+          <NavItem
+            to="/monitoring/platform-usage"
+            onClick={handleNavClick}
+            icon={
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M1.5 1.75V13.5h13.75a.75.75 0 010 1.5H.75a.75.75 0 01-.75-.75V1.75a.75.75 0 011.5 0zm14.28 2.53a.75.75 0 00-1.06-1.06L10 7.94 7.53 5.47a.75.75 0 00-1.06 0L3.22 8.72a.75.75 0 001.06 1.06L7 7.06l2.47 2.47a.75.75 0 001.06 0l5.25-5.25z" />
+              </svg>
+            }
+          >
+            Platform Usage
+          </NavItem>
+        )}
+        {hasPermission('admin_settings', 'view') && (
+          <NavItem
+            to="/monitoring/audit-trail"
+            onClick={handleNavClick}
+            icon={
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M2 2.75C2 1.784 2.784 1 3.75 1h8.5c.966 0 1.75.784 1.75 1.75v11.5A1.75 1.75 0 0112.25 16h-8.5A1.75 1.75 0 012 14.25zm1.75-.25a.25.25 0 00-.25.25v11.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25V2.75a.25.25 0 00-.25-.25zM4.75 4a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5zm0 3a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5zm0 3a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5z" />
+              </svg>
+            }
+          >
+            Audit Trail
           </NavItem>
         )}
       </div>
@@ -565,27 +612,6 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             }
           >
             Users & Roles
-          </NavItem>
-        )}
-        {hasPermission('admin_settings', 'view') && (
-          <NavItem
-            to="/telemetry"
-            onClick={onMobileClose}
-            icon={
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 16A8 8 0 108 0a8 8 0 000 16zm0-1.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13z" />
-                <path
-                  d="M2.5 8h2.3l1.2-3 2 6 1.2-3h4.3"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            }
-          >
-            Telemetry
           </NavItem>
         )}
         {hasPermission('admin_settings', 'view') && (

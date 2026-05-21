@@ -196,7 +196,7 @@ const PAGES: SearchableNavigationItem[] = [
     id: 'telemetry',
     title: 'Telemetry',
     subtitle: 'Platform telemetry and diagnostics',
-    to: '/telemetry',
+    to: '/monitoring/telemetry',
     searchText: 'telemetry diagnostics logging metrics',
   },
 ];
