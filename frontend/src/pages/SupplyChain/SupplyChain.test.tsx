@@ -8,6 +8,10 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }));
 
+vi.mock('../../hooks/useHelp', () => ({
+  useHelp: () => ({ helpContent: null, openHelp: vi.fn(), closeHelp: vi.fn(), isHelpOpen: false }),
+}));
+
 const mockPosture: SupplyChainPosture = {
   score: 85,
   unpinned_actions: 3,

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { PageHeader } from '../../components/common/PageHeader';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
@@ -282,7 +283,11 @@ export function SupplyChainPage() {
 
   return (
     <div className={styles.page}>
-      <h2>Supply Chain Security</h2>
+      <PageHeader
+        title="Supply Chain Security"
+        description="Monitor and analyse supply chain risks across your GitHub Actions workflows and dependencies"
+        showHelp
+      />
 
       {/* ── Summary strip ────────────────────────────────────────────── */}
       <div className={styles.metricGrid}>

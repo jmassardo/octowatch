@@ -432,6 +432,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     sys.stderr.flush()
                 else:
                     logger.info("setup.already_complete")
+
+                # Seed supply chain detection rules (idempotent — skips existing)
+                from app.services.supply_chain_service import seed_supply_chain_rules
+
+                seeded = await seed_supply_chain_rules(db_session)
+                if seeded:
+                    await db_session.commit()
+                logger.info("supply_chain.rules_seeded", new_rules=seeded)
         except Exception as exc:
             logger.warning("settings_overlay.load_failed", error=str(exc))
             # Schedule background retry for HEC token loading
