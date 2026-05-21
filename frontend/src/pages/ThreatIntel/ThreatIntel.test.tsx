@@ -265,7 +265,7 @@ describe('ThreatIntelPage', () => {
     await user.click(screen.getByRole('tab', { name: 'Matches' }));
 
     const link = await screen.findByRole('link', { name: 'Suspicious IP login' });
-    expect(link).toHaveAttribute('href', '/threats?id=101');
+    expect(link).toHaveAttribute('href', '/threats/open?id=101');
   });
 
   /* ---------------------------------------------------------------- */

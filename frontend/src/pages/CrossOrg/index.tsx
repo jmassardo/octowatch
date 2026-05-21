@@ -876,7 +876,7 @@ export function CrossOrgPage() {
                       size="sm"
                       variant="primary"
                       onClick={() =>
-                        navigate(`/threats?actor=${encodeURIComponent(selectedActor)}`)
+                        navigate(`/threats/open?actor=${encodeURIComponent(selectedActor)}`)
                       }
                     >
                       Investigate in Threats

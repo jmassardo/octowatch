@@ -59,7 +59,8 @@ export const router = createBrowserRouter(
       children: [
         { path: '/dashboard', element: <DashboardPage /> },
         { path: '/dashboard/custom', element: <CustomDashboardPage /> },
-        { path: '/threats', element: <ThreatsPage /> },
+        { path: '/threats', element: <Navigate to="/threats/open" replace /> },
+        { path: '/threats/:tab', element: <ThreatsPage /> },
         { path: '/threat-intel', element: <ThreatIntelPage /> },
         { path: '/actors/:login', element: <ActorsPage /> },
         { path: '/posture', element: <PosturePage /> },
@@ -70,7 +71,11 @@ export const router = createBrowserRouter(
         { path: '/crossorg', element: <CrossOrgPage /> },
         { path: '/workflows', element: <WorkflowsPage /> },
         { path: '/workflows/health', element: <WorkflowHealthPage /> },
-        { path: '/advanced-security', element: <AdvancedSecurityPage /> },
+        {
+          path: '/advanced-security',
+          element: <Navigate to="/advanced-security/overview" replace />,
+        },
+        { path: '/advanced-security/:tab', element: <AdvancedSecurityPage /> },
         { path: '/supply-chain', element: <SupplyChainPage /> },
         { path: '/packages', element: <PackagesPage /> },
         { path: '/playbooks', element: <PlaybooksPage /> },

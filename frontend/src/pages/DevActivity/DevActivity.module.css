@@ -27,6 +27,28 @@
   cursor: help;
 }
 
+.teamAutocomplete {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clearFilter {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+.clearFilter:hover {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
 .sectionTitle {
   font-size: 14px;
   font-weight: 600;

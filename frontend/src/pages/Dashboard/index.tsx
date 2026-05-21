@@ -410,19 +410,19 @@ export function DashboardPage() {
                 label="secret alerts"
                 variant={(unifiedSecurity?.secret_scanning.open ?? 0) > 0 ? 'danger' : undefined}
                 helpText="Open GitHub secret scanning alerts across all organizations (GHAS)."
-                onClick={() => navigate('/advanced-security?tab=secrets')}
+                onClick={() => navigate('/advanced-security/secrets')}
               />
               <StatPill
                 value={String(unifiedSecurity?.code_scanning.open ?? '—')}
                 label="code alerts"
                 helpText="Open GitHub code scanning (CodeQL) alerts across all organizations (GHAS)."
-                onClick={() => navigate('/advanced-security?tab=code')}
+                onClick={() => navigate('/advanced-security/code')}
               />
               <StatPill
                 value={String(unifiedSecurity?.dependabot.open ?? '—')}
                 label="dependabot"
                 helpText="Open Dependabot vulnerability alerts across all organizations (GHAS)."
-                onClick={() => navigate('/advanced-security?tab=dependabot')}
+                onClick={() => navigate('/advanced-security/dependabot')}
               />
             </div>
             <button

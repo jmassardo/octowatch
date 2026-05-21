@@ -8,10 +8,15 @@ vi.mock('echarts-for-react', () => ({
 }));
 
 const mockNavigate = vi.fn();
+let mockTab = 'strategic';
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
-  return { ...actual, useNavigate: () => mockNavigate };
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+    useParams: () => ({ tab: mockTab }),
+  };
 });
 
 function makeTrend30d() {
@@ -206,18 +211,26 @@ vi.mock('../../api/detections', () => ({
 
 describe('StrategicPane', () => {
   beforeEach(() => {
+    mockTab = 'strategic';
     vi.clearAllMocks();
   });
 
   it('renders the Strategic tab label in the tab bar', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=overview' });
+    mockTab = 'overview';
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/overview',
+    });
     await waitFor(() => {
       expect(screen.getByText('Strategic')).toBeInTheDocument();
     });
   });
 
   it('renders executive summary metric cards when strategic tab is active', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=strategic' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/strategic',
+    });
     await waitFor(() => {
       expect(screen.getByText('Security Score')).toBeInTheDocument();
     });
@@ -228,7 +241,10 @@ describe('StrategicPane', () => {
   });
 
   it('renders security score breakdown section', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=strategic' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/strategic',
+    });
     await waitFor(() => {
       expect(screen.getByText('Security Score Breakdown')).toBeInTheDocument();
     });
@@ -237,7 +253,10 @@ describe('StrategicPane', () => {
   });
 
   it('renders MTTR trend section with period toggle', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=strategic' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/strategic',
+    });
     await waitFor(() => {
       expect(screen.getByText(/MTTR Trend/)).toBeInTheDocument();
     });
@@ -250,7 +269,10 @@ describe('StrategicPane', () => {
   });
 
   it('renders coverage section with feature data', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=strategic' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/strategic',
+    });
     await waitFor(() => {
       expect(screen.getByText(/Security Coverage/)).toBeInTheDocument();
     });
@@ -259,7 +281,10 @@ describe('StrategicPane', () => {
   });
 
   it('renders alert aging and burndown section', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=strategic' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/strategic',
+    });
     await waitFor(() => {
       expect(screen.getByText(/Alert Aging/)).toBeInTheDocument();
     });
@@ -269,14 +294,20 @@ describe('StrategicPane', () => {
   });
 
   it('renders score value from API', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=strategic' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/strategic',
+    });
     await waitFor(() => {
       expect(screen.getByText('79')).toBeInTheDocument();
     });
   });
 
   it('renders MTTR value from API', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=strategic' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/strategic',
+    });
     await waitFor(() => {
       // 48 hours = 2d
       expect(screen.getByText('2d')).toBeInTheDocument();
@@ -284,7 +315,10 @@ describe('StrategicPane', () => {
   });
 
   it('renders critical/high count from aging data', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, { route: '/security?tab=strategic' });
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/strategic',
+    });
     await waitFor(() => {
       // Sum of critical_count + high_count: (2+3) + (1+2) + (0+1) + (1+0) = 10
       expect(screen.getByText('10')).toBeInTheDocument();

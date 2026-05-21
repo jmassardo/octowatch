@@ -80,7 +80,10 @@ export function MatchesTab() {
                 {items.map((match) => (
                   <tr key={match.detection_id}>
                     <td>
-                      <Link to={`/threats?id=${match.detection_id}`} className={styles.matchLink}>
+                      <Link
+                        to={`/threats/open?id=${match.detection_id}`}
+                        className={styles.matchLink}
+                      >
                         {match.title}
                       </Link>
                     </td>

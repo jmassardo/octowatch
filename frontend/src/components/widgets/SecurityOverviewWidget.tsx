@@ -161,7 +161,7 @@ export function SecurityOverviewWidget({ detections }: Props) {
                 count={bySeverity[severity]}
                 maxCount={maxCount}
                 color={SEVERITY_COLORS[severity]}
-                onClick={() => navigate(`/threats?severity=${severity}`)}
+                onClick={() => navigate(`/threats/open?severity=${severity}`)}
               />
             ))}
           </>

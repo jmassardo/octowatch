@@ -52,7 +52,11 @@ export function DetectionSummaryWidget() {
           <div className={styles.metricValue}>{data.total}</div>
           <div className={styles.metricLabel}>open detections</div>
         </div>
-        <button type="button" className={styles.actionLink} onClick={() => navigate('/threats')}>
+        <button
+          type="button"
+          className={styles.actionLink}
+          onClick={() => navigate('/threats/open')}
+        >
           Review queue
         </button>
       </div>
@@ -63,7 +67,7 @@ export function DetectionSummaryWidget() {
             type="button"
             className={styles.barRow}
             style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
-            onClick={() => navigate(`/threats?severity=${severity}`)}
+            onClick={() => navigate(`/threats/open?severity=${severity}`)}
           >
             <span className={styles.barLabel} style={{ textTransform: 'capitalize' }}>
               {severity}

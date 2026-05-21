@@ -375,7 +375,7 @@ function executeRoute(navigate: ReturnType<typeof useNavigate>, item: PaletteIte
   } else if (item.type === 'event') {
     navigate(`/events/${item.eventId}`);
   } else if (item.type === 'detection') {
-    navigate(`/threats?id=${item.detectionId}`);
+    navigate(`/threats/open?id=${item.detectionId}`);
   } else if (item.type === 'actor') {
     navigate(`/actors/${encodeURIComponent(item.login)}`);
   }

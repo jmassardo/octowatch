@@ -688,10 +688,11 @@ export function RulesPage() {
                                   tabIndex={0}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    navigate(`/threats?rule_id=${rule.id}`);
+                                    navigate(`/threats/open?rule_id=${rule.id}`);
                                   }}
                                   onKeyDown={(e) => {
-                                    if (e.key === 'Enter') navigate(`/threats?rule_id=${rule.id}`);
+                                    if (e.key === 'Enter')
+                                      navigate(`/threats/open?rule_id=${rule.id}`);
                                   }}
                                 >
                                   {count}
