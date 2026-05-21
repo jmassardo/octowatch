@@ -244,3 +244,116 @@
     transition: none !important;
   }
 }
+
+/* Guidance banner */
+.guidanceBanner {
+  background: var(--canvas-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 16px;
+}
+
+.guidanceTitle {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--fg);
+}
+
+.guidanceText {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.guidanceText code {
+  background: var(--canvas-inset);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Permission picker */
+.permissionPicker {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--canvas-default);
+  margin-top: 4px;
+}
+
+.permissionCategory {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.permissionCategoryHeader {
+  position: sticky;
+  top: 0;
+  background: var(--canvas-subtle);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.permissionList {
+  display: flex;
+  flex-direction: column;
+}
+
+.permissionItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 12px 6px 24px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.1s;
+}
+
+.permissionItem:hover {
+  background: rgba(var(--neutral-rgb), 0.04);
+}
+
+.permissionCheckboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.permissionCheckbox {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.permissionLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.permissionName {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.permissionDesc {
+  font-size: 11px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

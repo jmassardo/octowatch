@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.models.user import RbacRole, UserRoleAssignment
 from app.schemas.rbac import (
+    AvailablePermissionsResponse,
+    PermissionDefinition,
     RoleCreateRequest,
     RoleDetailResponse,
     RolePermissionSummary,
@@ -29,6 +31,124 @@ from app.utils.client_ip import get_client_ip
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/admin/roles", tags=["admin-roles"])
+
+# Human-readable labels for resources
+_RESOURCE_LABELS: dict[str, str] = {
+    "dashboard": "Dashboard",
+    "detections": "Detections",
+    "events": "Events",
+    "queries": "Queries",
+    "posture": "Security Posture",
+    "advanced_security": "Advanced Security",
+    "velocity": "Velocity Metrics",
+    "dev_activity": "Developer Activity",
+    "cross_org": "Cross-Organization",
+    "copilot": "GitHub Copilot",
+    "org_health": "Organization Health",
+    "workflow_security": "Workflow Security",
+    "workflow_health": "Workflow Health",
+    "reports": "Reports",
+    "rules": "Detection Rules",
+    "admin_settings": "Admin Settings",
+    "admin_users": "Admin Users",
+    "admin_roles": "Admin Roles",
+    "admin_teams": "Admin Teams",
+    "audit_log": "Audit Log",
+    "playbooks": "Playbooks",
+}
+
+# Human-readable labels for actions
+_ACTION_LABELS: dict[str, str] = {
+    "view": "View",
+    "create": "Create",
+    "edit": "Edit",
+    "delete": "Delete",
+    "export": "Export",
+    "share": "Share",
+    "assign": "Assign",
+    "dismiss": "Dismiss",
+    "execute": "Execute",
+    "admin": "Administer",
+}
+
+# Category groupings for resources
+_RESOURCE_CATEGORIES: dict[str, str] = {
+    "dashboard": "Pages",
+    "detections": "Security",
+    "events": "Security",
+    "queries": "Data",
+    "posture": "Security",
+    "advanced_security": "Security",
+    "velocity": "Engineering",
+    "dev_activity": "Engineering",
+    "cross_org": "Data",
+    "copilot": "Engineering",
+    "org_health": "Engineering",
+    "workflow_security": "Security",
+    "workflow_health": "Engineering",
+    "reports": "Data",
+    "rules": "Security",
+    "admin_settings": "Administration",
+    "admin_users": "Administration",
+    "admin_roles": "Administration",
+    "admin_teams": "Administration",
+    "audit_log": "Data",
+    "playbooks": "Actions",
+}
+
+# Description templates for resource:action combinations
+_PERMISSION_DESCRIPTIONS: dict[str, str] = {
+    "view": "View {resource} data and dashboards",
+    "create": "Create new {resource} entries",
+    "edit": "Modify existing {resource} entries",
+    "delete": "Delete {resource} entries",
+    "export": "Export {resource} data to files",
+    "share": "Share {resource} with other users",
+    "assign": "Assign {resource} to users or teams",
+    "dismiss": "Dismiss or acknowledge {resource} items",
+    "execute": "Execute {resource} operations",
+    "admin": "Full administrative control over {resource}",
+}
+
+
+@router.get("/permissions", response_model=AvailablePermissionsResponse)
+async def list_available_permissions(
+    current_user: AuthenticatedUser = Depends(require_permission("admin_roles", "view")),
+) -> AvailablePermissionsResponse:
+    """List all available permissions with descriptions for role creation UI."""
+    permissions: list[PermissionDefinition] = []
+    categories: set[str] = set()
+
+    for resource in sorted(VALID_RESOURCES):
+        category = _RESOURCE_CATEGORIES.get(resource, "Other")
+        categories.add(category)
+        resource_label = _RESOURCE_LABELS.get(resource, resource.replace("_", " ").title())
+
+        for action in sorted(VALID_ACTIONS):
+            action_label = _ACTION_LABELS.get(action, action.title())
+            description_template = _PERMISSION_DESCRIPTIONS.get(
+                action, "Perform {action} on {resource}"
+            )
+            description = description_template.format(
+                resource=resource_label.lower(), action=action_label.lower()
+            )
+
+            permissions.append(
+                PermissionDefinition(
+                    permission=f"{resource}:{action}",
+                    resource=resource,
+                    action=action,
+                    resource_label=resource_label,
+                    action_label=action_label,
+                    description=description,
+                    category=category,
+                )
+            )
+
+    return AvailablePermissionsResponse(
+        permissions=permissions,
+        categories=sorted(categories),
+    )
 
 
 def _validate_permissions(permissions: list[str]) -> list[str]:

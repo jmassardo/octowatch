@@ -37,6 +37,21 @@ export interface UpdateRoleRequest {
   permissions?: string[];
 }
 
+export interface PermissionDefinition {
+  permission: string;
+  resource: string;
+  action: string;
+  resource_label: string;
+  action_label: string;
+  description: string;
+  category: string;
+}
+
+export interface AvailablePermissionsResponse {
+  permissions: PermissionDefinition[];
+  categories: string[];
+}
+
 export function listRbacRoles(): Promise<RoleSummary[]> {
   return api.get<RoleSummary[]>('/admin/roles');
 }
@@ -55,4 +70,8 @@ export function updateRbacRole(id: number, data: UpdateRoleRequest): Promise<Rol
 
 export function deleteRbacRole(id: number): Promise<void> {
   return api.delete<void>(`/admin/roles/${id}`);
+}
+
+export function listAvailablePermissions(): Promise<AvailablePermissionsResponse> {
+  return api.get<AvailablePermissionsResponse>('/admin/roles/permissions');
 }

@@ -603,3 +603,81 @@ class TestRbacSchemas:
         assert data["user_id"] == "testuser"
         assert data["scopes"]["orgs"] == ["my-org"]
         assert data["scopes"]["repos"] is None
+
+
+class TestAvailablePermissionsSchema:
+    """Test the AvailablePermissionsResponse schema."""
+
+    def test_permission_definition_schema(self) -> None:
+        """PermissionDefinition schema accepts valid data."""
+        from app.schemas.rbac import PermissionDefinition
+
+        perm = PermissionDefinition(
+            permission="detections:view",
+            resource="detections",
+            action="view",
+            resource_label="Detections",
+            action_label="View",
+            description="View detections data and dashboards",
+            category="Security",
+        )
+        assert perm.permission == "detections:view"
+        assert perm.resource == "detections"
+        assert perm.action == "view"
+        assert perm.category == "Security"
+
+    def test_available_permissions_response_schema(self) -> None:
+        """AvailablePermissionsResponse schema works correctly."""
+        from app.schemas.rbac import AvailablePermissionsResponse, PermissionDefinition
+
+        perms = [
+            PermissionDefinition(
+                permission="dashboard:view",
+                resource="dashboard",
+                action="view",
+                resource_label="Dashboard",
+                action_label="View",
+                description="View dashboard data and dashboards",
+                category="Pages",
+            ),
+        ]
+        resp = AvailablePermissionsResponse(
+            permissions=perms,
+            categories=["Pages"],
+        )
+        data = resp.model_dump()
+        assert len(data["permissions"]) == 1
+        assert data["permissions"][0]["permission"] == "dashboard:view"
+        assert data["categories"] == ["Pages"]
+
+
+class TestListAvailablePermissionsEndpoint:
+    """Test the /admin/roles/permissions endpoint logic."""
+
+    def test_resource_labels_defined_for_all_valid_resources(self) -> None:
+        """Every valid resource has a human-readable label."""
+        from app.routers.admin_roles import _RESOURCE_LABELS
+
+        for resource in VALID_RESOURCES:
+            assert resource in _RESOURCE_LABELS, f"Missing label for resource: {resource}"
+
+    def test_action_labels_defined_for_all_valid_actions(self) -> None:
+        """Every valid action has a human-readable label."""
+        from app.routers.admin_roles import _ACTION_LABELS
+
+        for action in VALID_ACTIONS:
+            assert action in _ACTION_LABELS, f"Missing label for action: {action}"
+
+    def test_resource_categories_defined_for_all_valid_resources(self) -> None:
+        """Every valid resource has a category assignment."""
+        from app.routers.admin_roles import _RESOURCE_CATEGORIES
+
+        for resource in VALID_RESOURCES:
+            assert resource in _RESOURCE_CATEGORIES, f"Missing category for resource: {resource}"
+
+    def test_permission_descriptions_defined_for_all_valid_actions(self) -> None:
+        """Every valid action has a description template."""
+        from app.routers.admin_roles import _PERMISSION_DESCRIPTIONS
+
+        for action in VALID_ACTIONS:
+            assert action in _PERMISSION_DESCRIPTIONS, f"Missing description for action: {action}"

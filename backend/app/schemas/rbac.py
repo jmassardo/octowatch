@@ -84,3 +84,22 @@ class PermissionScopes(BaseModel):
 
     orgs: list[str] | None = None
     repos: list[str] | None = None
+
+
+class PermissionDefinition(BaseModel):
+    """A single permission definition with resource, action, and description."""
+
+    permission: str = Field(..., description="Permission string in resource:action format")
+    resource: str
+    action: str
+    resource_label: str
+    action_label: str
+    description: str
+    category: str
+
+
+class AvailablePermissionsResponse(BaseModel):
+    """Response listing all available permissions grouped by category."""
+
+    permissions: list[PermissionDefinition]
+    categories: list[str]

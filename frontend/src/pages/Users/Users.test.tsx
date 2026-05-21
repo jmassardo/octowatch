@@ -64,12 +64,74 @@ vi.mock('../../api/admin', () => ({
   listSyncedTeams: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('../../api/roles', () => ({
+  listRbacRoles: vi.fn().mockResolvedValue([
+    {
+      id: 1,
+      name: 'super_admin',
+      display_name: 'Super Admin',
+      description: 'Full access',
+      permission_count: 1,
+      is_system: true,
+      is_custom: false,
+      created_at: new Date().toISOString(),
+    },
+  ]),
+  createRbacRole: vi.fn().mockResolvedValue({}),
+  deleteRbacRole: vi.fn().mockResolvedValue(undefined),
+  listAvailablePermissions: vi.fn().mockResolvedValue({
+    permissions: [
+      {
+        permission: 'dashboard:view',
+        resource: 'dashboard',
+        action: 'view',
+        resource_label: 'Dashboard',
+        action_label: 'View',
+        description: 'View dashboard data and dashboards',
+        category: 'Pages',
+      },
+      {
+        permission: 'detections:view',
+        resource: 'detections',
+        action: 'view',
+        resource_label: 'Detections',
+        action_label: 'View',
+        description: 'View detections data and dashboards',
+        category: 'Security',
+      },
+      {
+        permission: 'detections:create',
+        resource: 'detections',
+        action: 'create',
+        resource_label: 'Detections',
+        action_label: 'Create',
+        description: 'Create new detections entries',
+        category: 'Security',
+      },
+    ],
+    categories: ['Pages', 'Security'],
+  }),
+}));
+
 describe('UsersPage', () => {
-  it('renders page title and subtitle', () => {
+  it('renders page title and guidance banner', () => {
     renderWithProviders(<UsersPage />);
 
     expect(screen.getByRole('heading', { level: 1, name: /users & roles/i })).toBeInTheDocument();
-    expect(screen.getByText(/manage role assignments and team memberships/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/manage role-based access control for users and teams/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/OctoWatch uses RBAC to control access to features and data/i),
+    ).toBeInTheDocument();
+  });
+
+  it('renders Members and Roles tabs but not Teams', () => {
+    renderWithProviders(<UsersPage />);
+
+    expect(screen.getByRole('button', { name: 'Members' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Roles' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Teams' })).not.toBeInTheDocument();
   });
 
   it('renders team mappings section', async () => {
@@ -244,5 +306,60 @@ describe('UsersPage', () => {
 
     // Should show @individual-user, not @org/individual-user
     expect(await screen.findByText('@individual-user')).toBeInTheDocument();
+  });
+
+  it('roles tab shows permission picker when creating a role', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UsersPage />);
+
+    // Switch to Roles tab
+    await user.click(screen.getByRole('button', { name: 'Roles' }));
+
+    // Click Create role button
+    await user.click(await screen.findByRole('button', { name: 'Create role' }));
+
+    // Permission picker should show categories and checkboxes
+    expect(await screen.findByText('Pages')).toBeInTheDocument();
+    expect(await screen.findByText('Security')).toBeInTheDocument();
+    expect(screen.getByText('dashboard:view')).toBeInTheDocument();
+    // detections:view appears in both name and description so use getAllByText
+    expect(screen.getAllByText('detections:view').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('permission picker allows selecting individual permissions', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UsersPage />);
+
+    await user.click(screen.getByRole('button', { name: 'Roles' }));
+    await user.click(await screen.findByRole('button', { name: 'Create role' }));
+
+    // Wait for permissions to load
+    await screen.findByText('dashboard:view');
+
+    // Find the checkbox for dashboard:view
+    const dashboardCheckbox = screen.getByText('dashboard:view').closest('label')!;
+    const checkbox = dashboardCheckbox.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    await user.click(checkbox);
+
+    // Should show "1 selected"
+    expect(screen.getByText(/1 selected/)).toBeInTheDocument();
+  });
+
+  it('permission picker filter narrows displayed permissions', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UsersPage />);
+
+    await user.click(screen.getByRole('button', { name: 'Roles' }));
+    await user.click(await screen.findByRole('button', { name: 'Create role' }));
+
+    await screen.findByText('dashboard:view');
+
+    // Type in the filter
+    const filterInput = screen.getByPlaceholderText('Filter permissions…');
+    await user.type(filterInput, 'detections');
+
+    // Should show detections but not dashboard
+    expect(screen.getAllByText('detections:view').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('dashboard:view')).not.toBeInTheDocument();
   });
 });
