@@ -9,16 +9,16 @@ description = "GitHub Enterprise Cloud audit log ingestion, detection, and repor
 requires-python = ">=3.12"
 dependencies = [
     # Web framework
-    "fastapi==0.136.1",
-    "uvicorn[standard]==0.46.0",
-    "python-multipart==0.0.28",
+    "fastapi==0.136.3",
+    "uvicorn[standard]==0.48.0",
+    "python-multipart==0.0.29",
 
     # Data validation
     "pydantic==2.13.4",
     "pydantic-settings==2.14.1",
 
     # Database
-    "sqlalchemy==2.0.49",
+    "sqlalchemy==2.0.50",
     "asyncpg==0.31.0",
     "alembic==1.18.4",
 
@@ -29,7 +29,7 @@ dependencies = [
     # Auth
     "authlib==1.7.2",
     "python3-saml==1.16.0",
-    "PyJWT==2.12.1",
+    "PyJWT==2.13.0",
 
     # Rate limiting
     "slowapi==0.1.9",
@@ -42,10 +42,10 @@ dependencies = [
     "maxminddb==3.1.1",
 
     # S3 / MinIO ingestion
-    "boto3==1.43.6",
+    "boto3==1.43.14",
 
     # Azure Blob ingestion
-    "azure-storage-blob==12.28.0",
+    "azure-storage-blob==12.29.0",
 
     # Azure Key Vault (secret provider)
     "azure-identity>=1.15.0",
@@ -58,7 +58,7 @@ dependencies = [
     "structlog==25.5.0",
 
     # Notifications
-    "slack-sdk==3.41.0",
+    "slack-sdk==3.42.0",
     "aiosmtplib==5.1.0",
     "Jinja2==3.1.6",
 
@@ -70,16 +70,16 @@ dependencies = [
     "PyGithub==2.9.1",
 
     # IdP enrichment
-    "okta==3.4.2",
+    "okta==3.4.3",
     "msal==1.36.0",
-    "google-auth==2.52.0",
+    "google-auth==2.53.0",
     "google-api-python-client==2.196.0",
 
     # Git / Rule versioning
 
     # Data processing (baselines)
-    "pandas==3.0.2",
-    "numpy==2.4.4",
+    "pandas==3.0.3",
+    "numpy==2.4.6",
 
     # Security
     "cryptography>=42.0.0",
