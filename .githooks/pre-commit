@@ -15,6 +15,7 @@ STAGED_FE=$(git diff --cached --name-only --diff-filter=ACM | grep "^frontend/sr
 if [ -n "$STAGED_FE" ]; then
   cd frontend
   echo "Running prettier check..."
-  npx prettier --check $STAGED_FE || { echo "Run 'cd frontend && npx prettier --write src/' to fix formatting"; exit 1; }
+  RELATIVE_FE=$(echo "$STAGED_FE" | sed 's|^frontend/||')
+  npx prettier --check $RELATIVE_FE || { echo "Run 'cd frontend && npx prettier --write src/' to fix formatting"; exit 1; }
   cd ..
 fi

@@ -17,6 +17,18 @@
   --done: #bc8cff;
   --sidebar-w: 240px;
 
+  /* RGB component tokens for alpha compositing */
+  --accent-rgb: 88, 166, 255;
+  --accent-bg-rgb: 31, 111, 235;
+  --success-rgb: 63, 185, 80;
+  --danger-rgb: 248, 81, 73;
+  --attention-rgb: 210, 153, 34;
+  --severe-rgb: 219, 109, 40;
+  --done-rgb: 188, 140, 255;
+  --fg-muted-rgb: 139, 148, 158;
+  --fg-subtle-rgb: 110, 118, 129;
+  --neutral-rgb: 177, 186, 196;
+
   /* Chart-specific tokens */
   --chart-bg: #0d1117;
   --chart-grid: #21262d;
@@ -51,6 +63,16 @@
     --attention: #9a6700;
     --severe: #bc4c00;
     --done: #8250df;
+    --accent-rgb: 9, 105, 218;
+    --accent-bg-rgb: 9, 105, 218;
+    --success-rgb: 26, 127, 55;
+    --danger-rgb: 207, 34, 46;
+    --attention-rgb: 154, 103, 0;
+    --severe-rgb: 188, 76, 0;
+    --done-rgb: 130, 80, 223;
+    --fg-muted-rgb: 101, 109, 118;
+    --fg-subtle-rgb: 110, 119, 129;
+    --neutral-rgb: 175, 184, 193;
     --chart-bg: #ffffff;
     --chart-grid: #d0d7de;
     --chart-text: #656d76;
@@ -112,6 +134,16 @@
   --attention: #9a6700;
   --severe: #bc4c00;
   --done: #8250df;
+  --accent-rgb: 9, 105, 218;
+  --accent-bg-rgb: 9, 105, 218;
+  --success-rgb: 26, 127, 55;
+  --danger-rgb: 207, 34, 46;
+  --attention-rgb: 154, 103, 0;
+  --severe-rgb: 188, 76, 0;
+  --done-rgb: 130, 80, 223;
+  --fg-muted-rgb: 101, 109, 118;
+  --fg-subtle-rgb: 110, 119, 129;
+  --neutral-rgb: 175, 184, 193;
   --chart-bg: #ffffff;
   --chart-grid: #d0d7de;
   --chart-text: #656d76;

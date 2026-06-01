@@ -1,6 +1,6 @@
 import { render, type RenderOptions } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ReactElement, ReactNode } from 'react';
 import { ToastProvider } from '../components/common/ToastProvider';
 import { OrgProvider } from '../context/OrgContext';
@@ -16,10 +16,10 @@ function createTestQueryClient() {
 
 export function renderWithProviders(
   ui: ReactElement,
-  options?: Omit<RenderOptions, 'wrapper'> & { route?: string },
+  options?: Omit<RenderOptions, 'wrapper'> & { route?: string; routePath?: string },
 ) {
   const queryClient = createTestQueryClient();
-  const { route = '/', ...renderOptions } = options ?? {};
+  const { route = '/', routePath, ...renderOptions } = options ?? {};
 
   function Wrapper({ children }: { children: ReactNode }) {
     return (
@@ -30,7 +30,13 @@ export function renderWithProviders(
               initialEntries={[route]}
               future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
             >
-              {children}
+              {routePath ? (
+                <Routes>
+                  <Route path={routePath} element={children} />
+                </Routes>
+              ) : (
+                children
+              )}
             </MemoryRouter>
           </ToastProvider>
         </OrgProvider>

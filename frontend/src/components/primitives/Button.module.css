@@ -15,7 +15,7 @@
 }
 
 .btn:hover {
-  background: rgba(177, 186, 196, 0.08);
+  background: rgba(var(--neutral-rgb), 0.08);
 }
 
 .btn:disabled {
@@ -26,7 +26,7 @@
 .primary {
   background: var(--success);
   border-color: var(--success);
-  color: #fff;
+  color: var(--fg-on-emphasis);
 }
 
 .primary:hover {
@@ -36,7 +36,7 @@
 .danger {
   background: var(--danger);
   border-color: var(--danger);
-  color: #fff;
+  color: var(--fg-on-emphasis);
 }
 
 .danger:hover {

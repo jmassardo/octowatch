@@ -3,10 +3,12 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { createRule } from '../../api/rules';
 import type { RuleCreate, RuleCategory } from '../../types/detections';
+import { InfoTooltip } from '../../components/common/InfoTooltip';
 import { Button } from '../../components/primitives/Button';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
+import { JsonConfigEditor } from './editor/JsonConfigEditor';
 import { RuleConfigEditorContainer } from './editor/RuleConfigEditorContainer';
 import { getSampleEvent } from './sampleEvent';
 import styles from './Rules.module.css';
@@ -131,6 +133,23 @@ function fetchTemplates(): Promise<LibraryResponse> {
   return api.get<LibraryResponse>('/rules/library');
 }
 
+function FieldLabel({
+  htmlFor,
+  label,
+  tooltip,
+}: {
+  htmlFor?: string;
+  label: string;
+  tooltip: string;
+}) {
+  return (
+    <label className={styles.formLabelWithTooltip} htmlFor={htmlFor}>
+      <span>{label}</span>
+      <InfoTooltip content={tooltip} label={`${label} help`} />
+    </label>
+  );
+}
+
 export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedTemplate, setSelectedTemplate] = useState(SCRATCH_TEMPLATE);
@@ -154,13 +173,7 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
     JSON.stringify(getSampleEvent(category), null, 2),
   );
   const [stepError, setStepError] = useState<string | null>(null);
-
-  // Reset sample event JSON when category changes (setState during render).
-  const [prevCategory, setPrevCategory] = useState(category);
-  if (prevCategory !== category) {
-    setPrevCategory(category);
-    setSampleEventJson(JSON.stringify(getSampleEvent(category), null, 2));
-  }
+  const [showAdvancedEditor, setShowAdvancedEditor] = useState(false);
 
   const {
     data: library,
@@ -189,12 +202,24 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
     } else {
       delete nextConfig.namespace_filter;
     }
+    if (mitreTags.length > 0) {
+      nextConfig.mitre_tags = mitreTags;
+    } else {
+      delete nextConfig.mitre_tags;
+    }
     return nextConfig;
-  }, [actionPatterns, logicConfig, namespaceFilter]);
+  }, [actionPatterns, logicConfig, mitreTags, namespaceFilter]);
+
+  function applyAdvancedConfig(nextConfig: Record<string, unknown>) {
+    setLogicConfig(nextConfig);
+    setActionPatterns(asStringArray(nextConfig.action_filters));
+    setNamespaceFilter(asOptionalString(nextConfig.namespace_filter));
+    setMitreTags(asStringArray(nextConfig.mitre_tags));
+  }
 
   const createMutation = useMutation({
     mutationFn: (mode: 'active' | 'monitoring') => {
-      const payload: RuleCreate & { mitre_tags?: string[] } = {
+      const payload: RuleCreate = {
         name: name.trim(),
         slug: slug.trim(),
         description: description.trim() || undefined,
@@ -206,7 +231,6 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
         enabled: true,
         status: 'active',
         mode,
-        ...(mitreTags.length > 0 ? { mitre_tags: mitreTags } : {}),
       };
       return createRule(payload);
     },
@@ -226,6 +250,7 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
       setSlugEdited(false);
       setDescription('');
       setCategory('other');
+      setSampleEventJson(JSON.stringify(getSampleEvent('other'), null, 2));
       setSeverity('medium');
       setConfidence('medium');
       setLogicType('threshold');
@@ -233,6 +258,7 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
       setMitreTags([]);
       setActionPatterns([]);
       setNamespaceFilter('');
+      setShowAdvancedEditor(false);
       setStepError(null);
       return;
     }
@@ -243,6 +269,7 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
     setSlugEdited(false);
     setDescription(template.description);
     setCategory(template.category);
+    setSampleEventJson(JSON.stringify(getSampleEvent(template.category), null, 2));
     setSeverity(
       (SEVERITIES.includes(template.default_severity as (typeof SEVERITIES)[number])
         ? template.default_severity
@@ -262,6 +289,7 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
     setActionPatterns(asStringArray(template.logic_config.action_filters));
     setNamespaceFilter(asOptionalString(template.logic_config.namespace_filter));
     setMitreTags(asStringArray(template.logic_config.mitre_tags));
+    setShowAdvancedEditor(false);
     setStepError(null);
   }
 
@@ -286,11 +314,9 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
   }
 
   function validateStep(step: number): boolean {
-    if (step === 1) {
-      if (!name.trim() || !slug.trim()) {
-        setStepError('Name and slug are required before continuing.');
-        return false;
-      }
+    if (step === 1 && (!name.trim() || !slug.trim())) {
+      setStepError('Name and slug are required before continuing.');
+      return false;
     }
     if (step === 2 && actionPatterns.length === 0 && !namespaceFilter.trim()) {
       setStepError('Add at least one action pattern or a namespace filter.');
@@ -362,9 +388,11 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
     return (
       <div className={styles.ruleForm}>
         <div className={styles.formRow}>
-          <label className={styles.formLabel} htmlFor="wizard-name">
-            Name
-          </label>
+          <FieldLabel
+            htmlFor="wizard-name"
+            label="Name"
+            tooltip="A human-readable name for this detection rule. Example: 'Impossible Travel Login'"
+          />
           <input
             id="wizard-name"
             className={styles.formInput}
@@ -380,9 +408,11 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
           />
         </div>
         <div className={styles.formRow}>
-          <label className={styles.formLabel} htmlFor="wizard-slug">
-            Slug
-          </label>
+          <FieldLabel
+            htmlFor="wizard-slug"
+            label="Slug"
+            tooltip="A unique URL-safe identifier for this rule. Auto-generated from the name. Example: 'impossible-travel-login'"
+          />
           <input
             id="wizard-slug"
             className={styles.formInput}
@@ -395,9 +425,11 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
           />
         </div>
         <div className={styles.formRow}>
-          <label className={styles.formLabel} htmlFor="wizard-description">
-            Description
-          </label>
+          <FieldLabel
+            htmlFor="wizard-description"
+            label="Description"
+            tooltip="Explain what this rule detects and why it matters. Shown in alerts and reports."
+          />
           <textarea
             id="wizard-description"
             className={styles.formTextarea}
@@ -408,14 +440,20 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
         </div>
         <div className={styles.formRowGrid}>
           <div className={styles.formRow}>
-            <label className={styles.formLabel} htmlFor="wizard-category">
-              Category
-            </label>
+            <FieldLabel
+              htmlFor="wizard-category"
+              label="Category"
+              tooltip="The threat category this rule belongs to. Helps organize rules and route alerts. Example: 'account_compromise' for credential-related detections."
+            />
             <select
               id="wizard-category"
               className={styles.formSelect}
               value={category}
-              onChange={(event) => setCategory(event.target.value as RuleCategory)}
+              onChange={(event) => {
+                const nextCategory = event.target.value as RuleCategory;
+                setCategory(nextCategory);
+                setSampleEventJson(JSON.stringify(getSampleEvent(nextCategory), null, 2));
+              }}
             >
               {CATEGORIES.map((item) => (
                 <option key={item} value={item}>
@@ -425,9 +463,11 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
             </select>
           </div>
           <div className={styles.formRow}>
-            <label className={styles.formLabel} htmlFor="wizard-severity">
-              Severity
-            </label>
+            <FieldLabel
+              htmlFor="wizard-severity"
+              label="Severity"
+              tooltip="Default severity level for detections. **critical** = immediate response, **high** = urgent, **medium** = investigate soon, **low** = informational."
+            />
             <select
               id="wizard-severity"
               className={styles.formSelect}
@@ -442,9 +482,11 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
             </select>
           </div>
           <div className={styles.formRow}>
-            <label className={styles.formLabel} htmlFor="wizard-confidence">
-              Confidence
-            </label>
+            <FieldLabel
+              htmlFor="wizard-confidence"
+              label="Confidence"
+              tooltip="How confident detections from this rule are. **high** = low false positive rate, **medium** = some tuning needed, **low** = noisy, needs validation."
+            />
             <select
               id="wizard-confidence"
               className={styles.formSelect}
@@ -462,9 +504,11 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
           </div>
         </div>
         <div className={styles.formRow}>
-          <label className={styles.formLabel} htmlFor="wizard-mitre">
-            MITRE tags
-          </label>
+          <FieldLabel
+            htmlFor="wizard-mitre"
+            label="MITRE tags"
+            tooltip="MITRE ATT&CK technique IDs relevant to this detection. Example: T1078 (Valid Accounts), T1098 (Account Manipulation)."
+          />
           <div className={styles.headerActions}>
             <input
               id="wizard-mitre"
@@ -513,9 +557,11 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
     return (
       <div className={styles.ruleForm}>
         <div className={styles.formRow}>
-          <label className={styles.formLabel} htmlFor="wizard-action-pattern">
-            Action patterns
-          </label>
+          <FieldLabel
+            htmlFor="wizard-action-pattern"
+            label="Action patterns"
+            tooltip="GitHub audit log action strings to match. Use exact action names from the audit log. Example: 'auth.login', 'repo.clone', 'org.update_member'."
+          />
           <div className={styles.headerActions}>
             <input
               id="wizard-action-pattern"
@@ -567,9 +613,11 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
           )}
         </div>
         <div className={styles.formRow}>
-          <label className={styles.formLabel} htmlFor="wizard-namespace-filter">
-            Namespace filter
-          </label>
+          <FieldLabel
+            htmlFor="wizard-namespace-filter"
+            label="Namespace filter"
+            tooltip="Limit matching to events from a specific audit log namespace. Example: 'github.enterprise.audit'."
+          />
           <input
             id="wizard-namespace-filter"
             className={styles.formInput}
@@ -590,9 +638,11 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
     return (
       <div className={styles.ruleForm}>
         <div className={styles.formRow}>
-          <label className={styles.formLabel} htmlFor="wizard-logic-type">
-            Logic type
-          </label>
+          <FieldLabel
+            htmlFor="wizard-logic-type"
+            label="Logic type"
+            tooltip="The detection engine: **threshold** = count events in window, **pattern** = match field conditions, **sequence** = ordered steps, **statistical** = anomaly detection, **posture** = config drift."
+          />
           <select
             id="wizard-logic-type"
             className={styles.formSelect}
@@ -695,8 +745,24 @@ export function RuleWizard({ onClose, onCreated }: { onClose: () => void; onCrea
           <div className={styles.wizardSummaryValue}>{logicType}</div>
         </div>
         <div className={styles.formRow}>
-          <label className={styles.formLabel}>Logic config preview</label>
-          <pre className={styles.testJsonEditor}>{JSON.stringify(mergedLogicConfig, null, 2)}</pre>
+          <div className={styles.reviewActions}>
+            <label className={styles.formLabel}>Logic config preview</label>
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={() => setShowAdvancedEditor((current) => !current)}
+            >
+              {showAdvancedEditor ? 'Hide Advanced Edit' : 'Advanced Edit'}
+            </Button>
+          </div>
+          {showAdvancedEditor ? (
+            <JsonConfigEditor config={mergedLogicConfig} onChange={applyAdvancedConfig} />
+          ) : (
+            <pre className={styles.testJsonEditor}>
+              {JSON.stringify(mergedLogicConfig, null, 2)}
+            </pre>
+          )}
         </div>
       </div>
     );

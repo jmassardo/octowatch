@@ -100,11 +100,26 @@ describe('QueryPage', () => {
     expect(schemaTree.textContent).toContain('detections_daily');
   });
 
-  it('shows columns for expanded tables', () => {
+  it('shows columns for expanded tables', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<QueryPage />);
+
+    // Tables are collapsed by default — expand 'events'
+    const eventsHeader = screen.getAllByText(/events/).find((el) => el.textContent === '▶ events');
+    expect(eventsHeader).toBeDefined();
+    await user.click(eventsHeader!);
+
     // events-specific columns
     expect(screen.getByText(/source_ip/)).toBeInTheDocument();
     expect(screen.getAllByText(/geo_country_code/).length).toBeGreaterThanOrEqual(1);
+
+    // Expand events_hourly
+    const hourlyHeader = screen
+      .getAllByText(/events_hourly/)
+      .find((el) => el.textContent === '▶ events_hourly');
+    expect(hourlyHeader).toBeDefined();
+    await user.click(hourlyHeader!);
+
     // events_hourly-specific columns
     expect(screen.getByText(/bucket_hour/)).toBeInTheDocument();
   });
@@ -113,13 +128,21 @@ describe('QueryPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<QueryPage />);
 
+    // Tables start collapsed — expand events first
+    const collapsedHeader = screen
+      .getAllByText(/events/)
+      .find((el) => el.textContent === '▶ events');
+    expect(collapsedHeader).toBeDefined();
+    await user.click(collapsedHeader!);
+
     expect(screen.getByText(/source_ip/)).toBeInTheDocument();
 
-    // Click the "events" table header (exact match to avoid events_hourly etc.)
-    const headers = screen.getAllByText(/events/);
-    const eventsHeader = headers.find((el) => el.textContent === '▼ events');
-    expect(eventsHeader).toBeDefined();
-    await user.click(eventsHeader!);
+    // Click the "events" table header to collapse it
+    const expandedHeader = screen
+      .getAllByText(/events/)
+      .find((el) => el.textContent === '▼ events');
+    expect(expandedHeader).toBeDefined();
+    await user.click(expandedHeader!);
 
     expect(screen.queryByText(/source_ip/)).not.toBeInTheDocument();
   });
@@ -128,23 +151,43 @@ describe('QueryPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<QueryPage />);
 
-    // Click to collapse events table
-    const expandedHeaders = screen.getAllByText(/events/);
-    const eventsHeader = expandedHeaders.find((el) => el.textContent === '▼ events');
-    expect(eventsHeader).toBeDefined();
-    await user.click(eventsHeader!); // collapse
+    // Tables start collapsed — verify collapsed state
+    const collapsedHeader = screen
+      .getAllByText(/events/)
+      .find((el) => el.textContent === '▶ events');
+    expect(collapsedHeader).toBeDefined();
+    expect(screen.queryByText(/source_ip/)).not.toBeInTheDocument();
+
+    // Click to expand
+    await user.click(collapsedHeader!);
+    expect(screen.getByText(/source_ip/)).toBeInTheDocument();
+
+    // Click to collapse
+    const expandedHeader = screen
+      .getAllByText(/events/)
+      .find((el) => el.textContent === '▼ events');
+    expect(expandedHeader).toBeDefined();
+    await user.click(expandedHeader!);
     expect(screen.queryByText(/source_ip/)).not.toBeInTheDocument();
 
     // Click to re-expand
-    const collapsedHeaders = screen.getAllByText(/events/);
-    const collapsedHeader = collapsedHeaders.find((el) => el.textContent === '▶ events');
-    expect(collapsedHeader).toBeDefined();
-    await user.click(collapsedHeader!); // expand
+    const reCollapsedHeader = screen
+      .getAllByText(/events/)
+      .find((el) => el.textContent === '▶ events');
+    expect(reCollapsedHeader).toBeDefined();
+    await user.click(reCollapsedHeader!);
     expect(screen.getByText(/source_ip/)).toBeInTheDocument();
   });
 
-  it('shows column types in schema tree', () => {
+  it('shows column types in schema tree', async () => {
+    const user = userEvent.setup();
     const { container } = renderWithProviders(<QueryPage />);
+
+    // Tables start collapsed — expand events to see column types
+    const eventsHeader = screen.getAllByText(/events/).find((el) => el.textContent === '▶ events');
+    expect(eventsHeader).toBeDefined();
+    await user.click(eventsHeader!);
+
     const typeSpans = container.querySelectorAll('.schemaType');
     const typeTexts = Array.from(typeSpans).map((s) => s.textContent);
     expect(typeTexts).toContain('bigint');
@@ -480,7 +523,7 @@ describe('QueryPage', () => {
 
     await user.click(screen.getByRole('button', { name: /Run/ }));
 
-    expect(await screen.findByText('Query failed')).toBeInTheDocument();
+    expect(await screen.findByText('timeout')).toBeInTheDocument();
   });
 
   it('retries failed query with current SQL when Retry is clicked', async () => {
@@ -491,7 +534,7 @@ describe('QueryPage', () => {
     renderWithProviders(<QueryPage />);
 
     await user.click(screen.getByRole('button', { name: /Run/ }));
-    await screen.findByText('Query failed');
+    await screen.findByText('timeout');
 
     // Restore successful mock for retry
     vi.mocked(runQuery).mockResolvedValueOnce({
@@ -725,13 +768,22 @@ describe('QueryPage', () => {
     // --- Schema Click-to-Insert ---
 
     it('inserts column name at cursor when schema column is clicked', async () => {
-      renderWithProviders(<QueryPage />);
+      const { container } = renderWithProviders(<QueryPage />);
+
+      // Expand the events table first (tables start collapsed).
+      // Schema table headers have class 'schemaTable' and click toggles expansion.
+      const schemaTableDivs = container.querySelectorAll('.schemaTable');
+      // First schemaTable div should be 'events' (the first table in the SCHEMA array)
+      expect(schemaTableDivs.length).toBeGreaterThan(0);
+
+      await act(async () => {
+        (schemaTableDivs[0] as HTMLElement).click();
+      });
 
       const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
 
       // Set textarea to a short query with cursor at end
       await act(async () => {
-        // Use the native setter to change the value (React's onChange won't fire from just setting .value)
         const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
           HTMLTextAreaElement.prototype,
           'value',
@@ -754,8 +806,17 @@ describe('QueryPage', () => {
       expect(textarea.value).toContain('source_ip');
     });
 
-    it('schema columns have role="button" for accessibility', () => {
+    it('schema columns have role="button" for accessibility', async () => {
       const { container } = renderWithProviders(<QueryPage />);
+
+      // Expand the events table first (tables start collapsed)
+      const schemaTableDivs = container.querySelectorAll('.schemaTable');
+      expect(schemaTableDivs.length).toBeGreaterThan(0);
+
+      await act(async () => {
+        (schemaTableDivs[0] as HTMLElement).click();
+      });
+
       const colButtons = container.querySelectorAll('.schemaColClickable[role="button"]');
       expect(colButtons.length).toBeGreaterThan(0);
     });

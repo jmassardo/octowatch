@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { listEvents } from '../../api/events';
+import { listEvents, getEvent } from '../../api/events';
 import {
   getSuggestedActions,
   getSuggestedActors,
@@ -87,6 +87,37 @@ export function EventsPage() {
   const [cursors, setCursors] = useState<string[]>([]);
   const [sortKey] = useState<NonNullable<EventListParams['sort']>>('created_at_desc');
   const [detailEvent, setDetailEvent] = useState<EventResponse | null>(null);
+
+  // Deep link: restore selected event from URL ?event=<id>
+  const selectedEventId = searchParams.get('event');
+  const { data: deepLinkEvent } = useQuery({
+    queryKey: ['event-detail', selectedEventId],
+    queryFn: () => getEvent(Number(selectedEventId)),
+    enabled: selectedEventId !== null && !isNaN(Number(selectedEventId)),
+  });
+
+  // Derive the effective detail event: local state or deep-linked
+  const effectiveDetailEvent = detailEvent ?? deepLinkEvent ?? null;
+
+  /** Select an event and update the URL */
+  const selectEvent = useCallback(
+    (event: EventResponse | null) => {
+      setDetailEvent(event);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (event) {
+            next.set('event', String(event.id));
+          } else {
+            next.delete('event');
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   const { data: actionsData } = useQuery({
     queryKey: ['suggestions', 'actions'],
@@ -433,7 +464,7 @@ export function EventsPage() {
               columns={eventColumns}
               data={items}
               rowKey={(e) => e.id}
-              onRowClick={(e) => setDetailEvent(e)}
+              onRowClick={(e) => selectEvent(e)}
               emptyMessage={
                 <EmptyState
                   variant="filtered"
@@ -482,23 +513,23 @@ export function EventsPage() {
       </div>
 
       <div
-        className={[styles.splitPanel, detailEvent && styles.splitPanelOpen]
+        className={[styles.splitPanel, effectiveDetailEvent && styles.splitPanelOpen]
           .filter(Boolean)
           .join(' ')}
       >
-        {detailEvent && (
+        {effectiveDetailEvent && (
           <>
             <div className={styles.panelHeader}>
-              <div style={{ fontWeight: 600 }}>{detailEvent.action}</div>
+              <div style={{ fontWeight: 600 }}>{effectiveDetailEvent.action}</div>
               <button
                 className={styles.panelClose}
                 aria-label="Close"
-                onClick={() => setDetailEvent(null)}
+                onClick={() => selectEvent(null)}
               >
                 &#215;
               </button>
             </div>
-            <EventDetail event={detailEvent} />
+            <EventDetail event={effectiveDetailEvent} />
           </>
         )}
       </div>

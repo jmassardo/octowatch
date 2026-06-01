@@ -10,10 +10,10 @@ import type { DetectionResponse, DetectionSeverity } from '../../types/detection
 const SEVERITY_ORDER: DetectionSeverity[] = ['critical', 'high', 'medium', 'low'];
 
 const SEVERITY_COLORS: Record<DetectionSeverity, string> = {
-  critical: 'var(--danger, #f85149)',
-  high: 'var(--severe, #db6d28)',
-  medium: 'var(--attention, #d29922)',
-  low: 'var(--fg-muted, #8b949e)',
+  critical: 'var(--danger)',
+  high: 'var(--severe)',
+  medium: 'var(--attention)',
+  low: 'var(--fg-muted)',
 };
 
 interface SeverityRowProps {
@@ -50,7 +50,7 @@ function SeverityRow({ label, count, maxCount, color, onClick }: SeverityRowProp
         }
       }}
       onMouseEnter={(event) => {
-        (event.currentTarget as HTMLDivElement).style.background = 'rgba(177, 186, 196, 0.08)';
+        (event.currentTarget as HTMLDivElement).style.background = 'rgba(var(--neutral-rgb), 0.08)';
       }}
       onMouseLeave={(event) => {
         (event.currentTarget as HTMLDivElement).style.background = 'transparent';
@@ -161,7 +161,7 @@ export function SecurityOverviewWidget({ detections }: Props) {
                 count={bySeverity[severity]}
                 maxCount={maxCount}
                 color={SEVERITY_COLORS[severity]}
-                onClick={() => navigate(`/threats?severity=${severity}`)}
+                onClick={() => navigate(`/threats/open?severity=${severity}`)}
               />
             ))}
           </>

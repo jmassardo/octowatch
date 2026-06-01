@@ -629,7 +629,7 @@ export function DetectionDetailPane({
           <>
             <span className={styles.keyDetailsLabel}>Correlated Chain</span>
             <span className={styles.keyDetailsValue}>
-              <Link to={`/threats?tab=chains&id=${selected.chain_id}`} className={styles.mention}>
+              <Link to={`/threats/chains?id=${selected.chain_id}`} className={styles.mention}>
                 {selected.chain_id.slice(0, 8)}…
               </Link>
             </span>

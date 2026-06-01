@@ -540,20 +540,20 @@ function riskColor(level: string): string {
     case 'medium':
       return 'var(--attention)';
     default:
-      return '#238636';
+      return 'var(--success)';
   }
 }
 
 function riskBadgeBg(level: string): string {
   switch (level) {
     case 'critical':
-      return 'rgba(248,81,73,0.15)';
+      return 'rgba(var(--danger-rgb),0.15)';
     case 'high':
-      return 'rgba(248,81,73,0.15)';
+      return 'rgba(var(--danger-rgb),0.15)';
     case 'medium':
-      return 'rgba(210,153,34,0.15)';
+      return 'rgba(var(--attention-rgb),0.15)';
     default:
-      return 'rgba(35,134,54,0.15)';
+      return 'rgba(var(--success-rgb), 0.15)';
   }
 }
 

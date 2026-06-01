@@ -46,7 +46,7 @@
   background: var(--success);
   border: 1px solid var(--success);
   border-radius: 6px;
-  color: #fff;
+  color: var(--fg-on-emphasis);
   font-size: 14px;
   font-weight: 500;
   text-decoration: none;
@@ -79,7 +79,7 @@
 }
 
 .samlBtn:hover {
-  background: rgba(177, 186, 196, 0.08);
+  background: rgba(var(--neutral-rgb), 0.08);
   color: var(--fg);
   text-decoration: none;
 }

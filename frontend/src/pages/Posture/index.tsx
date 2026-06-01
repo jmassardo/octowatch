@@ -72,11 +72,11 @@ function CheckRow({
       className={styles.checkRow}
       role={check.detection_id ? 'button' : undefined}
       tabIndex={check.detection_id ? 0 : undefined}
-      onClick={() => check.detection_id && navigate(`/threats?id=${check.detection_id}`)}
+      onClick={() => check.detection_id && navigate(`/threats/open?id=${check.detection_id}`)}
       onKeyDown={(e) => {
         if (check.detection_id && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
-          navigate(`/threats?id=${check.detection_id}`);
+          navigate(`/threats/open?id=${check.detection_id}`);
         }
       }}
     >
@@ -334,7 +334,7 @@ function SeverityDistributionChart({ metrics }: { metrics: AggregateMetrics }) {
         label: { show: false },
         data: chartData,
         itemStyle: { borderRadius: 4, borderWidth: 2, borderColor: 'transparent' },
-        color: ['var(--danger)', 'var(--severe, #db6d28)', 'var(--attention)', 'var(--success)'],
+        color: ['var(--danger)', 'var(--severe)', 'var(--attention)', 'var(--success)'],
       },
     ],
   };
@@ -413,8 +413,14 @@ function EnterpriseView({
 
   const orgLabel = selectedOrg || 'All Organizations';
 
-  // Empty state
+  // Empty state — distinguish "no sync yet" vs "synced but no orgs found"
   if (orgs.length === 0) {
+    const hasSynced = data.last_sync_at !== null;
+    const emptyTitle = hasSynced ? 'No organizations found' : 'No posture data available yet';
+    const emptyDescription = hasSynced
+      ? 'An enterprise sync has completed but no organizations were returned. This may indicate a permissions issue or that your enterprise has no organizations configured.'
+      : 'Security posture data will appear here after your first enterprise sync completes. Run a sync from Settings to populate organization and repository data.';
+
     return (
       <>
         <div className={styles.header}>
@@ -422,16 +428,17 @@ function EnterpriseView({
           <div className={styles.headerInfo}>
             <div className={styles.headerTitle}>Enterprise Security Posture</div>
             <div className={styles.headerSub}>
-              {data.total} org{data.total !== 1 ? 's' : ''} · Last synced{' '}
-              {formatDateOnly(data.last_sync_at)}
+              {hasSynced
+                ? `0 orgs · Last synced ${formatDateOnly(data.last_sync_at)}`
+                : 'No sync performed yet'}
             </div>
           </div>
         </div>
         <div className={styles.content}>
           <EmptyState
-            icon="🛡️"
-            title="No posture data available yet"
-            description="Security posture data will appear here once your organizations have been synced."
+            icon={hasSynced ? '🔍' : '🛡️'}
+            title={emptyTitle}
+            description={emptyDescription}
           />
         </div>
       </>
@@ -1018,13 +1025,11 @@ export function PosturePage() {
   };
 
   const pageHeader = (
-    <div className={styles.pageHeader}>
-      <PageHeader
-        title="Security Posture"
-        description="Review enterprise, organization, and repository security posture"
-        showHelp
-      />
-    </div>
+    <PageHeader
+      title="Security Posture"
+      description="Review enterprise, organization, and repository security posture"
+      showHelp
+    />
   );
 
   if (isLoading)

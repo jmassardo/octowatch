@@ -22,7 +22,7 @@
   bottom: 0;
   width: 420px;
   max-width: 100vw;
-  background: var(--canvas-default, #0d1117);
+  background: var(--canvas);
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -72,7 +72,7 @@
 
 .close:hover {
   color: var(--fg);
-  background: rgba(177, 186, 196, 0.12);
+  background: rgba(var(--neutral-rgb), 0.12);
 }
 
 .body {

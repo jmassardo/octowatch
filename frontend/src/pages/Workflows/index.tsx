@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   listWorkflowFindings,
   getRepoSecurityScores,
@@ -9,6 +9,8 @@ import {
 import type { WorkflowFinding, RepoSecurityScore } from '../../api/workflowScanner';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { Pagination } from '../../components/primitives/Pagination';
+import { Drawer } from '../../components/primitives/Drawer';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Label } from '../../components/primitives/Label';
 import { formatRelativeShort } from '../../utils/dates';
@@ -16,6 +18,9 @@ import { ScannerActivityTab } from './ScannerActivityTab';
 import styles from './Workflows.module.css';
 
 type Tab = 'findings' | 'scores' | 'activity';
+
+const FINDINGS_PAGE_SIZE = 15;
+const SCORES_PAGE_SIZE = 12;
 
 function sevVariant(sev: string) {
   if (sev === 'critical') return 'danger' as const;
@@ -50,11 +55,173 @@ function ScoreCard({ score }: { score: RepoSecurityScore }) {
   );
 }
 
+/** Content rendered inside the finding detail drawer. */
+function FindingDetailContent({ finding }: { finding: WorkflowFinding }) {
+  return (
+    <>
+      <div className={styles.panelMeta}>
+        <Label variant={sevVariant(finding.severity)}>{finding.severity}</Label>
+        <Label variant="muted">{finding.rule_id}</Label>
+      </div>
+
+      <div className={styles.panelSection}>
+        <div className={styles.panelSectionTitle}>Description</div>
+        <p className={styles.panelText}>{finding.description}</p>
+      </div>
+
+      <div className={styles.panelSection}>
+        <div className={styles.panelSectionTitle}>Location</div>
+        <div className={styles.panelKv}>
+          <span className={styles.panelLabel}>Repository</span>
+          <span>
+            {finding.org}/{finding.repo}
+          </span>
+        </div>
+        <div className={styles.panelKv}>
+          <span className={styles.panelLabel}>Workflow</span>
+          <code>{finding.workflow_path}</code>
+        </div>
+      </div>
+
+      {finding.snippet && (
+        <div className={styles.panelSection}>
+          <div className={styles.panelSectionTitle}>Code Snippet</div>
+          <pre className={styles.codeBlock}>{finding.snippet}</pre>
+        </div>
+      )}
+
+      {finding.recommendation && (
+        <div className={styles.panelSection}>
+          <div className={styles.panelSectionTitle}>Recommendation</div>
+          <p className={styles.panelText}>{finding.recommendation}</p>
+        </div>
+      )}
+
+      <div className={styles.panelSection}>
+        <div className={styles.panelSectionTitle}>What to do</div>
+        <ul className={styles.panelGuidance}>
+          <li>Review the workflow file in the repository</li>
+          <li>Apply the recommended fix or pin actions to SHA commits</li>
+          <li>Re-scan after fixing to verify the issue is resolved</li>
+        </ul>
+      </div>
+    </>
+  );
+}
+
 export function WorkflowsPage() {
-  const [tab, setTab] = useState<Tab>('findings');
-  const [sevFilter, setSevFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Sync tab, severity, status, page, and selected finding with URL
+  const tabParam = searchParams.get('tab') ?? 'findings';
+  const tab: Tab = (['findings', 'scores', 'activity'] as Tab[]).includes(tabParam as Tab)
+    ? (tabParam as Tab)
+    : 'findings';
+  const sevFilter = searchParams.get('severity') ?? '';
+  const statusFilter = searchParams.get('status') ?? '';
+  const findingIdParam = searchParams.get('finding');
+  const findingsPage = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
+  const scoresPage = Math.max(1, parseInt(searchParams.get('spage') ?? '1', 10));
+
   const [selectedFinding, setSelectedFinding] = useState<WorkflowFinding | null>(null);
+
+  function setTab(newTab: Tab) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (newTab === 'findings') {
+          next.delete('tab');
+        } else {
+          next.set('tab', newTab);
+        }
+        // Clear finding selection and pagination when switching tabs
+        next.delete('finding');
+        next.delete('page');
+        next.delete('spage');
+        return next;
+      },
+      { replace: true },
+    );
+    setSelectedFinding(null);
+  }
+
+  function setSevFilter(value: string) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value) {
+          next.set('severity', value);
+        } else {
+          next.delete('severity');
+        }
+        next.delete('page');
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function setStatusFilter(value: string) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value) {
+          next.set('status', value);
+        } else {
+          next.delete('status');
+        }
+        next.delete('page');
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function setFindingsPage(page: number) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (page > 1) {
+          next.set('page', String(page));
+        } else {
+          next.delete('page');
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function setScoresPage(page: number) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (page > 1) {
+          next.set('spage', String(page));
+        } else {
+          next.delete('spage');
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function selectFinding(finding: WorkflowFinding | null) {
+    setSelectedFinding(finding);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (finding) {
+          next.set('finding', String(finding.id));
+        } else {
+          next.delete('finding');
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  }
 
   const { data: scanStatus } = useQuery({
     queryKey: ['workflow-scanner', 'scan-status'],
@@ -68,12 +235,13 @@ export function WorkflowsPage() {
     isError: findingsError,
     refetch: refetchFindings,
   } = useQuery({
-    queryKey: ['workflow-scanner', 'findings', sevFilter, statusFilter],
+    queryKey: ['workflow-scanner', 'findings', sevFilter, statusFilter, findingsPage],
     queryFn: () =>
       listWorkflowFindings({
         severity: sevFilter || undefined,
         status: statusFilter || undefined,
-        page_size: 50,
+        page: findingsPage,
+        page_size: FINDINGS_PAGE_SIZE,
       }),
     enabled: tab === 'findings',
     refetchInterval: 5 * 60_000,
@@ -91,130 +259,143 @@ export function WorkflowsPage() {
     refetchInterval: 5 * 60_000,
   });
 
+  // Client-side pagination for scores (API returns all)
+  const paginatedScores = useMemo(() => {
+    if (!scores) return [];
+    const start = (scoresPage - 1) * SCORES_PAGE_SIZE;
+    return scores.slice(start, start + SCORES_PAGE_SIZE);
+  }, [scores, scoresPage]);
+
+  // Deep link: derive selected finding from URL param and fetched data
+  const effectiveSelectedFinding = useMemo(() => {
+    if (selectedFinding) return selectedFinding;
+    if (findingIdParam && findingsData) {
+      const id = parseInt(findingIdParam, 10);
+      return findingsData.findings.find((f) => f.id === id) ?? null;
+    }
+    return null;
+  }, [selectedFinding, findingIdParam, findingsData]);
+
   return (
-    <div className={styles.splitLayout}>
-      <div className={styles.splitMain}>
-        <div className={styles.pageHeader}>
-          <div>
-            <PageHeader
-              title="Workflow Security Scanner"
-              description="Automated workflow security scanning — findings are continuously populated from audit log events and periodic background scans"
-              showHelp
-            />
+    <div className={styles.page}>
+      <div className={styles.pageHeader}>
+        <div>
+          <PageHeader
+            title="Workflow Security Scanner"
+            description="Automated workflow security scanning — findings are continuously populated from audit log events and periodic background scans"
+            showHelp
+          />
+        </div>
+        <div className={styles.headerActions}>
+          {scanStatus && (
+            <span className={styles.scanStatus}>
+              {scanStatus.last_scan_at
+                ? `Last scan: ${formatRelativeShort(scanStatus.last_scan_at)} · ${scanStatus.repos_scanned} repos · ${scanStatus.total_findings} findings`
+                : 'Awaiting first scan — data will appear automatically'}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className={styles.crossLink}>
+        Looking for CI/CD failure metrics?{' '}
+        <Link to="/workflows/health" className={styles.crossLinkAnchor}>
+          Workflow Health →
+        </Link>
+      </div>
+
+      <div className={styles.guidanceBox}>
+        <div className={styles.guidanceTitle}>How scanning works</div>
+        <ul className={styles.guidanceList}>
+          <li>
+            <strong>Fully automated</strong> — Workflow audit log events are scanned as they arrive
+            through the HEC ingestion pipeline, plus a full background scan runs every 6 hours.
+          </li>
+          <li>
+            <strong>Findings</strong> — Security issues detected in workflow configurations:
+            unpinned actions, script injection, excessive permissions, self-hosted runners, and
+            more.
+          </li>
+          <li>
+            <strong>Repo Scores</strong> — Per-repo security scores (100 = clean, lower = more
+            issues). Scores are weighted by severity.
+          </li>
+          <li>
+            <strong>Scanner Activity</strong> — View scan history, trigger sources (event-driven vs
+            scheduled), checks performed, and provenance.
+          </li>
+          <li>
+            <strong>New repos</strong> — Automatically detected as workflow events flow in. No
+            configuration needed.
+          </li>
+        </ul>
+      </div>
+
+      <div className={styles.tabs}>
+        <button
+          className={`${styles.tab} ${tab === 'findings' ? styles.tabActive : ''}`}
+          onClick={() => setTab('findings')}
+        >
+          Findings
+          {findingsData && <span className={styles.tabBadge}>{findingsData.total}</span>}
+        </button>
+        <button
+          className={`${styles.tab} ${tab === 'scores' ? styles.tabActive : ''}`}
+          onClick={() => setTab('scores')}
+        >
+          Repo Scores
+        </button>
+        <button
+          className={`${styles.tab} ${tab === 'activity' ? styles.tabActive : ''}`}
+          onClick={() => setTab('activity')}
+        >
+          Scanner Activity
+        </button>
+      </div>
+
+      {tab === 'findings' && (
+        <>
+          <div className={styles.filters}>
+            <select
+              className={styles.filterSelect}
+              value={sevFilter}
+              onChange={(e) => setSevFilter(e.target.value)}
+            >
+              <option value="">All severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <select
+              className={styles.filterSelect}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">All statuses</option>
+              <option value="open">Open</option>
+              <option value="acknowledged">Acknowledged</option>
+              <option value="resolved">Resolved</option>
+            </select>
           </div>
-          <div className={styles.headerActions}>
-            {scanStatus && (
-              <span className={styles.scanStatus}>
-                {scanStatus.last_scan_at
-                  ? `Last scan: ${formatRelativeShort(scanStatus.last_scan_at)} · ${scanStatus.repos_scanned} repos · ${scanStatus.total_findings} findings`
-                  : 'Awaiting first scan — data will appear automatically'}
-              </span>
-            )}
-          </div>
-        </div>
 
-        <div className={styles.crossLink}>
-          Looking for CI/CD failure metrics?{' '}
-          <Link to="/workflows/health" className={styles.crossLinkAnchor}>
-            Workflow Health →
-          </Link>
-        </div>
-
-        <div className={styles.guidanceBox}>
-          <div className={styles.guidanceTitle}>How scanning works</div>
-          <ul className={styles.guidanceList}>
-            <li>
-              <strong>Fully automated</strong> — Workflow audit log events are scanned as they
-              arrive through the HEC ingestion pipeline, plus a full background scan runs every 6
-              hours.
-            </li>
-            <li>
-              <strong>Findings</strong> — Security issues detected in workflow configurations:
-              unpinned actions, script injection, excessive permissions, self-hosted runners, and
-              more.
-            </li>
-            <li>
-              <strong>Repo Scores</strong> — Per-repo security scores (100 = clean, lower = more
-              issues). Scores are weighted by severity.
-            </li>
-            <li>
-              <strong>Scanner Activity</strong> — View scan history, trigger sources (event-driven
-              vs scheduled), checks performed, and provenance.
-            </li>
-            <li>
-              <strong>New repos</strong> — Automatically detected as workflow events flow in. No
-              configuration needed.
-            </li>
-          </ul>
-        </div>
-
-        <div className={styles.tabs}>
-          <button
-            className={`${styles.tab} ${tab === 'findings' ? styles.tabActive : ''}`}
-            onClick={() => setTab('findings')}
-          >
-            Findings
-            {findingsData && <span className={styles.tabBadge}>{findingsData.total}</span>}
-          </button>
-          <button
-            className={`${styles.tab} ${tab === 'scores' ? styles.tabActive : ''}`}
-            onClick={() => setTab('scores')}
-          >
-            Repo Scores
-          </button>
-          <button
-            className={`${styles.tab} ${tab === 'activity' ? styles.tabActive : ''}`}
-            onClick={() => setTab('activity')}
-          >
-            Scanner Activity
-          </button>
-        </div>
-
-        {tab === 'findings' && (
-          <>
-            <div className={styles.filters}>
-              <select
-                className={styles.filterSelect}
-                value={sevFilter}
-                onChange={(e) => setSevFilter(e.target.value)}
-              >
-                <option value="">All severities</option>
-                <option value="critical">Critical</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-              <select
-                className={styles.filterSelect}
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="">All statuses</option>
-                <option value="open">Open</option>
-                <option value="acknowledged">Acknowledged</option>
-                <option value="resolved">Resolved</option>
-              </select>
-            </div>
-
-            {loadingFindings && <Spinner />}
-            {findingsError && (
-              <ErrorBanner
-                message="Failed to load findings"
-                onRetry={() => void refetchFindings()}
-              />
-            )}
-            {findingsData && findingsData.findings.length === 0 && (
-              <div className={styles.emptyState}>
-                <div className={styles.emptyIcon}>🔍</div>
-                <div className={styles.emptyTitle}>No workflow findings yet</div>
-                <div className={styles.emptyDesc}>
-                  Findings will appear automatically as workflow audit log events are ingested and
-                  analyzed. A background scan also runs every 6 hours to ensure comprehensive
-                  coverage. No action is required.
-                </div>
+          {loadingFindings && <Spinner />}
+          {findingsError && (
+            <ErrorBanner message="Failed to load findings" onRetry={() => void refetchFindings()} />
+          )}
+          {findingsData && findingsData.findings.length === 0 && (
+            <div className={styles.emptyState}>
+              <div className={styles.emptyIcon}>🔍</div>
+              <div className={styles.emptyTitle}>No workflow findings yet</div>
+              <div className={styles.emptyDesc}>
+                Findings will appear automatically as workflow audit log events are ingested and
+                analyzed. A background scan also runs every 6 hours to ensure comprehensive
+                coverage. No action is required.
               </div>
-            )}
-            {findingsData && findingsData.findings.length > 0 && (
+            </div>
+          )}
+          {findingsData && findingsData.findings.length > 0 && (
+            <>
               <table className={styles.findingsTable}>
                 <thead>
                   <tr>
@@ -230,8 +411,10 @@ export function WorkflowsPage() {
                   {findingsData.findings.map((f) => (
                     <tr
                       key={f.id}
-                      className={`${styles.findingRow} ${selectedFinding?.id === f.id ? styles.findingRowSelected : ''}`}
-                      onClick={() => setSelectedFinding(selectedFinding?.id === f.id ? null : f)}
+                      className={`${styles.findingRow} ${effectiveSelectedFinding?.id === f.id ? styles.findingRowSelected : ''}`}
+                      onClick={() =>
+                        selectFinding(effectiveSelectedFinding?.id === f.id ? null : f)
+                      }
                     >
                       <td>
                         <Label
@@ -259,106 +442,62 @@ export function WorkflowsPage() {
                   ))}
                 </tbody>
               </table>
-            )}
-          </>
-        )}
+              <Pagination
+                page={findingsPage}
+                pageSize={FINDINGS_PAGE_SIZE}
+                total={findingsData.total}
+                onPageChange={setFindingsPage}
+              />
+            </>
+          )}
+        </>
+      )}
 
-        {tab === 'scores' && (
-          <>
-            {loadingScores && <Spinner />}
-            {scoresError && (
-              <ErrorBanner message="Failed to load scores" onRetry={() => void refetchScores()} />
-            )}
-            {scores && scores.length === 0 && (
-              <div className={styles.emptyState}>
-                <div className={styles.emptyIcon}>📊</div>
-                <div className={styles.emptyTitle}>No repository scores available</div>
-                <div className={styles.emptyDesc}>
-                  Security scores are computed automatically from findings. Once workflow audit log
-                  events are ingested, scores will appear here for each repository.
-                </div>
+      {tab === 'scores' && (
+        <>
+          {loadingScores && <Spinner />}
+          {scoresError && (
+            <ErrorBanner message="Failed to load scores" onRetry={() => void refetchScores()} />
+          )}
+          {scores && scores.length === 0 && (
+            <div className={styles.emptyState}>
+              <div className={styles.emptyIcon}>📊</div>
+              <div className={styles.emptyTitle}>No repository scores available</div>
+              <div className={styles.emptyDesc}>
+                Security scores are computed automatically from findings. Once workflow audit log
+                events are ingested, scores will appear here for each repository.
               </div>
-            )}
-            {scores && scores.length > 0 && (
+            </div>
+          )}
+          {scores && scores.length > 0 && (
+            <>
               <div className={styles.scoreGrid}>
-                {scores.map((s) => (
+                {paginatedScores.map((s) => (
                   <ScoreCard key={`${s.org}/${s.repo}`} score={s} />
                 ))}
               </div>
-            )}
-          </>
-        )}
+              <Pagination
+                page={scoresPage}
+                pageSize={SCORES_PAGE_SIZE}
+                total={scores.length}
+                onPageChange={setScoresPage}
+              />
+            </>
+          )}
+        </>
+      )}
 
-        {tab === 'activity' && <ScannerActivityTab />}
-      </div>
+      {tab === 'activity' && <ScannerActivityTab />}
 
-      {/* Detail slide-out panel */}
-      <div
-        className={[styles.splitPanel, selectedFinding && styles.splitPanelOpen]
-          .filter(Boolean)
-          .join(' ')}
+      {/* Finding detail drawer */}
+      <Drawer
+        open={effectiveSelectedFinding !== null}
+        onClose={() => selectFinding(null)}
+        title={effectiveSelectedFinding?.title ?? 'Finding Detail'}
+        titleId="finding-detail-title"
       >
-        {selectedFinding && (
-          <>
-            <div className={styles.panelHeader}>
-              <div className={styles.panelTitle}>{selectedFinding.title}</div>
-              <button className={styles.panelClose} onClick={() => setSelectedFinding(null)}>
-                &#215;
-              </button>
-            </div>
-            <div className={styles.panelBody}>
-              <div className={styles.panelMeta}>
-                <Label variant={sevVariant(selectedFinding.severity)}>
-                  {selectedFinding.severity}
-                </Label>
-                <Label variant="muted">{selectedFinding.rule_id}</Label>
-              </div>
-
-              <div className={styles.panelSection}>
-                <div className={styles.panelSectionTitle}>Description</div>
-                <p className={styles.panelText}>{selectedFinding.description}</p>
-              </div>
-
-              <div className={styles.panelSection}>
-                <div className={styles.panelSectionTitle}>Location</div>
-                <div className={styles.panelKv}>
-                  <span className={styles.panelLabel}>Repository</span>
-                  <span>
-                    {selectedFinding.org}/{selectedFinding.repo}
-                  </span>
-                </div>
-                <div className={styles.panelKv}>
-                  <span className={styles.panelLabel}>Workflow</span>
-                  <code>{selectedFinding.workflow_path}</code>
-                </div>
-              </div>
-
-              {selectedFinding.snippet && (
-                <div className={styles.panelSection}>
-                  <div className={styles.panelSectionTitle}>Code Snippet</div>
-                  <pre className={styles.codeBlock}>{selectedFinding.snippet}</pre>
-                </div>
-              )}
-
-              {selectedFinding.recommendation && (
-                <div className={styles.panelSection}>
-                  <div className={styles.panelSectionTitle}>Recommendation</div>
-                  <p className={styles.panelText}>{selectedFinding.recommendation}</p>
-                </div>
-              )}
-
-              <div className={styles.panelSection}>
-                <div className={styles.panelSectionTitle}>What to do</div>
-                <ul className={styles.panelGuidance}>
-                  <li>Review the workflow file in the repository</li>
-                  <li>Apply the recommended fix or pin actions to SHA commits</li>
-                  <li>Re-scan after fixing to verify the issue is resolved</li>
-                </ul>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
+        {effectiveSelectedFinding && <FindingDetailContent finding={effectiveSelectedFinding} />}
+      </Drawer>
     </div>
   );
 }

@@ -8,6 +8,12 @@ interface UsePermissionsReturn {
   hasPermission: (resource: string, action: string) => boolean;
   hasAnyPermission: (checks: Array<[string, string]>) => boolean;
   hasRole: (role: string) => boolean;
+  scopedOrgs: string[];
+  scopedRepos: string[];
+  scopeType: string;
+  isOrgInScope: (org: string) => boolean;
+  isRepoInScope: (repo: string) => boolean;
+  canEdit: (resource: string) => boolean;
 }
 
 /**
@@ -26,6 +32,9 @@ export function usePermissions(): UsePermissionsReturn {
 
   const permissions = data?.permissions ?? [];
   const roles = data?.roles ?? [];
+  const scopedOrgs = data?.scopes?.orgs ?? [];
+  const scopedRepos = data?.scopes?.repos ?? [];
+  const scopeType = data?.scopes?.scope_type ?? 'global';
 
   const hasPermission = (resource: string, action: string): boolean => {
     if (permissions.includes('*:*')) return true;
@@ -40,5 +49,36 @@ export function usePermissions(): UsePermissionsReturn {
 
   const hasRole = (role: string): boolean => roles.includes(role);
 
-  return { permissions, roles, isLoading, hasPermission, hasAnyPermission, hasRole };
+  const isOrgInScope = (org: string): boolean => {
+    if (scopeType === 'global') return true;
+    return scopedOrgs.includes(org);
+  };
+
+  const isRepoInScope = (repo: string): boolean => {
+    if (scopeType === 'global') return true;
+    if (scopeType === 'org') {
+      const orgPart = repo.split('/')[0];
+      return orgPart ? scopedOrgs.includes(orgPart) : false;
+    }
+    return scopedRepos.includes(repo);
+  };
+
+  const canEdit = (resource: string): boolean => {
+    return hasPermission(resource, 'edit');
+  };
+
+  return {
+    permissions,
+    roles,
+    isLoading,
+    hasPermission,
+    hasAnyPermission,
+    hasRole,
+    scopedOrgs,
+    scopedRepos,
+    scopeType,
+    isOrgInScope,
+    isRepoInScope,
+    canEdit,
+  };
 }

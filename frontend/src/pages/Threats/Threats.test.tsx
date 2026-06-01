@@ -86,8 +86,7 @@ describe('ThreatsPage', () => {
     const closedTab = screen.getByText('Closed');
     await user.click(closedTab);
 
-    // Tab should be clickable — the API is called with the new status
-    expect(mockListDetections).toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith('/threats/closed');
   });
 
   /* ---------------------------------------------------------------- */
@@ -100,11 +99,10 @@ describe('ThreatsPage', () => {
   });
 
   it('renders contextual empty state for closed tab', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<ThreatsPage />);
-
-    const closedTab = screen.getByText('Closed');
-    await user.click(closedTab);
+    renderWithProviders(<ThreatsPage />, {
+      route: '/threats/closed',
+      routePath: '/threats/:tab',
+    });
 
     expect(await screen.findByText('No closed detections')).toBeInTheDocument();
   });
@@ -287,7 +285,7 @@ describe('ThreatsPage severity URL param', () => {
   });
 
   it('initializes severity filter from URL search params', async () => {
-    renderWithProviders(<ThreatsPage />, { route: '/threats?severity=critical' });
+    renderWithProviders(<ThreatsPage />, { route: '/threats/open?severity=critical' });
 
     // Filter panel should be visible since severity was provided via URL
     expect(screen.getByDisplayValue('Critical')).toBeInTheDocument();
@@ -299,7 +297,7 @@ describe('ThreatsPage severity URL param', () => {
   });
 
   it('auto-opens filter panel when severity is provided via URL', () => {
-    renderWithProviders(<ThreatsPage />, { route: '/threats?severity=high' });
+    renderWithProviders(<ThreatsPage />, { route: '/threats/open?severity=high' });
 
     // The severity dropdown should be visible without clicking the Filter button
     expect(screen.getByDisplayValue('High')).toBeInTheDocument();
@@ -313,7 +311,7 @@ describe('ThreatsPage severity URL param', () => {
   });
 
   it('passes severity from URL to the detections API query', async () => {
-    renderWithProviders(<ThreatsPage />, { route: '/threats?severity=medium' });
+    renderWithProviders(<ThreatsPage />, { route: '/threats/open?severity=medium' });
 
     // Wait for queries to fire
     await screen.findByText(/no open threats|Threat Detections/i);

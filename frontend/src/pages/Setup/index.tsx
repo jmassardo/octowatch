@@ -806,13 +806,13 @@ export function SetupPage() {
         <div className={styles.header}>
           <div className={styles.logo}>
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="3.5" fill="#bc8cff" />
+              <circle cx="12" cy="12" r="3.5" fill="var(--done)" />
               <ellipse
                 cx="12"
                 cy="12"
                 rx="9"
                 ry="5.5"
-                stroke="#bc8cff"
+                stroke="var(--done)"
                 strokeWidth="1.5"
                 fill="none"
               />
@@ -821,7 +821,7 @@ export function SetupPage() {
                 y1="2"
                 x2="12"
                 y2="5"
-                stroke="#bc8cff"
+                stroke="var(--done)"
                 strokeWidth="1.5"
                 strokeLinecap="round"
               />
@@ -830,7 +830,7 @@ export function SetupPage() {
                 y1="19"
                 x2="12"
                 y2="22"
-                stroke="#bc8cff"
+                stroke="var(--done)"
                 strokeWidth="1.5"
                 strokeLinecap="round"
               />
@@ -839,7 +839,7 @@ export function SetupPage() {
                 y1="12"
                 x2="5"
                 y2="12"
-                stroke="#bc8cff"
+                stroke="var(--done)"
                 strokeWidth="1.5"
                 strokeLinecap="round"
               />
@@ -848,7 +848,7 @@ export function SetupPage() {
                 y1="12"
                 x2="22"
                 y2="12"
-                stroke="#bc8cff"
+                stroke="var(--done)"
                 strokeWidth="1.5"
                 strokeLinecap="round"
               />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { listDetections } from '../../api/detections';
 import { listRules } from '../../api/rules';
@@ -19,12 +19,7 @@ import { ChainsPane } from './ChainsPane';
 import { formatRelativeShort } from '../../utils/dates';
 import { useOrg } from '../../hooks/useOrg';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
-import {
-  useEnumQueryParam,
-  useQueryParam,
-  useQueryParamInt,
-  useSetQueryParams,
-} from '../../hooks/useQueryParam';
+import { useQueryParam, useQueryParamInt, useSetQueryParams } from '../../hooks/useQueryParam';
 import styles from './Threats.module.css';
 
 /**
@@ -42,7 +37,11 @@ type TabFilter = 'open' | 'investigating' | 'closed' | 'acknowledged' | 'all' | 
 const TAB_KEYS = ['open', 'investigating', 'closed', 'acknowledged', 'all', 'chains'] as const;
 
 export function ThreatsPage() {
-  const [tab] = useEnumQueryParam('tab', TAB_KEYS, 'open');
+  const { tab: rawTab } = useParams<{ tab: string }>();
+  const navigate = useNavigate();
+  const tab: TabFilter = (TAB_KEYS as readonly string[]).includes(rawTab ?? '')
+    ? (rawTab as TabFilter)
+    : 'open';
   const [selectedOverride, setSelectedOverride] = useState<DetectionResponse | null>(null);
   const [severityFilter] = useQueryParam('severity', '');
   const [sinceFilter] = useQueryParam('since', '');
@@ -379,7 +378,7 @@ export function ThreatsPage() {
                   key={t}
                   className={[styles.ilTab, tab === t && styles.active].filter(Boolean).join(' ')}
                   onClick={() => {
-                    setParams({ tab: t === 'open' ? null : t, page: null });
+                    navigate(`/threats/${t}`);
                   }}
                 >
                   {tabLabel}

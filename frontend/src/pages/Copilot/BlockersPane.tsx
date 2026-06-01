@@ -104,7 +104,7 @@ export function BlockersPane() {
                 </div>
                 <div
                   style={{
-                    background: 'rgba(63, 185, 80, 0.15)',
+                    background: 'rgba(var(--success-rgb), 0.15)',
                     color: 'var(--success)',
                     padding: '2px 8px',
                     borderRadius: 12,

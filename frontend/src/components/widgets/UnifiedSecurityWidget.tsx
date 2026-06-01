@@ -215,21 +215,21 @@ export function UnifiedSecurityWidget() {
           label="High"
           count={cs.high + dep.high}
           maxCount={maxSev}
-          color="var(--severe, #db6d28)"
+          color="var(--severe)"
           onClick={() => navigate('/health/governance')}
         />
         <SeverityBar
           label="Medium"
           count={cs.medium + dep.medium}
           maxCount={maxSev}
-          color="var(--attention, #d29922)"
+          color="var(--attention)"
           onClick={() => navigate('/health/governance')}
         />
         <SeverityBar
           label="Low"
           count={cs.low + dep.low}
           maxCount={maxSev}
-          color="var(--success, #3fb950)"
+          color="var(--success)"
           onClick={() => navigate('/health/governance')}
         />
       </div>

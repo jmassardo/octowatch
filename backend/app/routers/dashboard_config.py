@@ -99,6 +99,16 @@ WIDGET_CATALOG: list[WidgetInfo] = [
         default_h=3,
     ),
     WidgetInfo(
+        id="ingestion-status",
+        title="Ingestion Status",
+        description=(
+            "Real-time ingestion pipeline health: events/sec, last event time, and worker status."
+        ),
+        category="operations",
+        default_w=4,
+        default_h=3,
+    ),
+    WidgetInfo(
         id="workflow-health",
         title="Workflow Health",
         description="GitHub Actions workflow success rates and health indicators.",
@@ -160,6 +170,14 @@ WIDGET_CATALOG: list[WidgetInfo] = [
         description="Adoption snapshot showing overall usage and power-user concentration.",
         category="copilot",
         default_w=4,
+        default_h=3,
+    ),
+    WidgetInfo(
+        id="custom-query",
+        title="Custom Query",
+        description="Create widgets from saved queries with configurable visualizations.",
+        category="custom",
+        default_w=6,
         default_h=3,
     ),
 ]
@@ -231,6 +249,7 @@ PERSONAS: list[PersonaInfo] = [
         default_layout=_layout_from_ids(
             [
                 "sync-health",
+                "ingestion-status",
                 "workflow-health",
                 "failure-rates",
                 "event-volume",

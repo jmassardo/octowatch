@@ -56,13 +56,13 @@
 
 .badgeEnabled {
   composes: badge;
-  background: rgba(35, 134, 54, 0.15);
-  color: #3fb950;
+  background: rgba(var(--success-rgb), 0.15);
+  color: var(--success);
 }
 
 .badgeDisabled {
   composes: badge;
-  background: rgba(110, 118, 129, 0.15);
+  background: rgba(var(--fg-subtle-rgb), 0.15);
   color: var(--fg-muted);
 }
 
@@ -112,7 +112,7 @@
 
 .input:focus {
   outline: none;
-  border-color: var(--accent, #58a6ff);
+  border-color: var(--accent);
 }
 
 .formActions {

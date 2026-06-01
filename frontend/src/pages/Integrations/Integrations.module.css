@@ -244,7 +244,7 @@
 }
 
 .recentTable tbody tr:hover {
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
 }
 
 .statusBadge {
@@ -258,7 +258,7 @@
 }
 
 .badgeSuccess {
-  background: rgba(63, 185, 80, 0.15);
+  background: rgba(var(--success-rgb), 0.15);
   color: var(--success);
 }
 
@@ -321,7 +321,7 @@
 }
 
 .clickableRecord:hover {
-  background: rgba(177, 186, 196, 0.12);
+  background: rgba(var(--neutral-rgb), 0.12);
   text-decoration: underline;
 }
 
@@ -538,7 +538,7 @@
 }
 
 .historyTable tbody tr:hover {
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
 }
 
 .clickableRow {
@@ -547,7 +547,7 @@
 }
 
 .clickableRow:hover {
-  background: rgba(177, 186, 196, 0.08);
+  background: rgba(var(--neutral-rgb), 0.08);
 }
 
 .expandedRow {
@@ -836,7 +836,7 @@
   color: var(--success);
   font-size: 13px;
   padding: 6px 10px;
-  background: rgba(63, 185, 80, 0.1);
+  background: rgba(var(--success-rgb), 0.1);
   border-radius: 6px;
   text-align: center;
 }
@@ -845,7 +845,7 @@
   color: var(--danger);
   font-size: 13px;
   padding: 6px 10px;
-  background: rgba(248, 81, 73, 0.1);
+  background: rgba(var(--danger-rgb), 0.1);
   border-radius: 6px;
   text-align: center;
 }
@@ -914,7 +914,7 @@
   background: linear-gradient(
     90deg,
     var(--accent) 0%,
-    rgba(88, 166, 255, 0.6) 50%,
+    rgba(var(--accent-rgb), 0.6) 50%,
     var(--accent) 100%
   );
 }
@@ -991,7 +991,7 @@
 }
 
 .logViewerContainer {
-  background: #1a1a2e;
+  background: var(--canvas-subtle);
   border-radius: 6px;
   padding: 12px;
   margin-top: 8px;
@@ -1003,7 +1003,7 @@
 }
 
 .logEmpty {
-  color: #666;
+  color: var(--fg-muted);
   font-style: italic;
   padding: 8px 0;
 }
@@ -1013,7 +1013,7 @@
   flex-direction: column;
   gap: 2px;
   padding: 3px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(var(--neutral-rgb), 0.04);
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -1026,13 +1026,13 @@
 }
 
 .logTimestamp {
-  color: #666;
+  color: var(--fg-muted);
   flex-shrink: 0;
   white-space: nowrap;
 }
 
 .logContext {
-  color: #888;
+  color: var(--fg-subtle);
   flex-shrink: 0;
   font-style: italic;
   white-space: nowrap;
@@ -1075,27 +1075,27 @@
 }
 
 .logInfo {
-  color: #a0a0a0;
+  color: var(--fg-muted);
 }
 
 .logInfo .logLevel {
-  color: #888;
+  color: var(--fg-subtle);
 }
 
 .logWarn {
-  color: #f0ad4e;
+  color: var(--attention);
 }
 
 .logWarn .logLevel {
-  color: #f0ad4e;
+  color: var(--attention);
 }
 
 .logError {
-  color: #d9534f;
+  color: var(--danger);
 }
 
 .logError .logLevel {
-  color: #d9534f;
+  color: var(--danger);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from app.services.github_etag_cache import GitHubETagCache
     from app.services.github_token_service import GitHubAppTokenManager
+    from app.services.sync_api_metrics import SyncAPICallCounter
 
 import httpx
 import structlog
@@ -768,6 +769,11 @@ async def _sync_entity_async(
 
     etag_cache = GitHubETagCache(valkey_client=valkey)
 
+    # API call counter for metrics/observability
+    from app.services.sync_api_metrics import SyncAPICallCounter
+
+    api_counter = SyncAPICallCounter(run_id=run_id, entity_type=entity_type)
+
     # ── Resolve enterprise PAT for audit_log entity ───────────────────────
     # The audit log API requires a classic PAT with admin:enterprise scope;
     # GitHub App installation tokens get 403.  Retrieve the stored PAT from
@@ -811,6 +817,7 @@ async def _sync_entity_async(
                 rate_limiter=rate_limiter,
                 delta_since=delta_since,
                 etag_cache=etag_cache,
+                api_counter=api_counter,
             )
             if not items:
                 break
@@ -1007,12 +1014,22 @@ async def _sync_entity_async(
     finally:
         await valkey.aclose()
 
+    # Log API call metrics for this entity sync
+    api_counter.log_summary()
+    metrics = api_counter.summary()
+
     await _write_sync_log(
         sf,
         run_id,
-        f"Completed {entity_type}: {items_synced} items synced",
+        (
+            f"Completed {entity_type}: {items_synced} items synced"
+            f" ({metrics['total_api_calls']} API calls,"
+            f" {metrics['cache_hits_304']} cache hits,"
+            f" {metrics['cache_hit_rate_pct']}% hit rate)"
+        ),
         entity_type=entity_type,
         org=org,
+        details={"api_metrics": metrics},
     )
 
     # ── Check if this is the last entity to finish; if so, finalize the run ──
@@ -1459,13 +1476,19 @@ async def _github_get(
     *,
     max_retries: int = 3,
     etag_cache: GitHubETagCache | None = None,
+    api_counter: SyncAPICallCounter | None = None,
+    entity_type: str | None = None,
 ) -> httpx.Response:
     """Rate-limited GET with automatic retry on 429/403 rate limit responses.
 
     When *etag_cache* is provided, the function:
     1. Sends ``If-None-Match`` with any cached ETag for the URL.
-    2. On ``304 Not Modified``, returns a synthetic 200 response with cached body.
-    3. On ``200 OK`` with an ETag header, stores the ETag + body for next time.
+    2. Sends ``If-Modified-Since`` with any cached Last-Modified value.
+    3. On ``304 Not Modified``, returns a synthetic 200 response with cached body.
+    4. On ``200 OK`` with an ETag/Last-Modified header, stores for next time.
+
+    When *api_counter* is provided, each API call and cache hit is recorded
+    for metrics/observability.
     """
     from app.services.github_etag_cache import CachedResponse
 
@@ -1474,13 +1497,18 @@ async def _github_get(
         str(httpx.URL(url, params={k: str(v) for k, v in params.items()})) if params else url
     )
 
-    # Inject If-None-Match header when we have a cached ETag
+    # Inject conditional request headers when we have cached values
     req_headers = dict(headers)
     cached_etag: str | None = None
+    cached_last_modified: str | None = None
     if etag_cache is not None:
         cached_etag = await etag_cache.get_etag(request_url)
         if cached_etag is not None:
             req_headers["If-None-Match"] = cached_etag
+        # Also try If-Modified-Since for endpoints that support it
+        cached_last_modified = await etag_cache.get_last_modified(request_url)
+        if cached_last_modified is not None and cached_etag is None:
+            req_headers["If-Modified-Since"] = cached_last_modified
 
     resp: httpx.Response | None = None
     for _attempt in range(max_retries):
@@ -1493,30 +1521,49 @@ async def _github_get(
             rate_limiter.release()
 
         # Handle 304 Not Modified — return cached body as a synthetic response
-        if resp.status_code == 304 and etag_cache is not None and cached_etag is not None:
-            cached: CachedResponse | None = await etag_cache.handle_304(request_url, cached_etag)
+        if resp.status_code == 304 and etag_cache is not None:
+            etag_for_lookup = cached_etag or cached_last_modified or ""
+            cached: CachedResponse | None = await etag_cache.handle_304(
+                request_url, etag_for_lookup
+            )
             if cached is not None:
                 import json as _json
 
+                if api_counter is not None:
+                    api_counter.record_api_call(cache_hit=True)
                 return httpx.Response(
                     status_code=200,
                     headers=resp.headers,
                     content=_json.dumps(cached.body).encode(),
                     request=resp.request,
                 )
-            # Cache body missing — fall through to a normal request without ETag
+            # Cache body missing — fall through to a normal request without conditionals
             req_headers.pop("If-None-Match", None)
+            req_headers.pop("If-Modified-Since", None)
             continue
 
         if resp.status_code in (429, 403) and "rate limit" in resp.text.lower():
             await rate_limiter.handle_rate_limit_response(resp)
             continue
 
-        # On success, cache the ETag and response body for future requests
+        # Record a non-cached API call
+        if api_counter is not None:
+            api_counter.record_api_call(cache_hit=False)
+
+        # On success, cache the ETag/Last-Modified and response body
         if resp.status_code == 200 and etag_cache is not None:
             response_etag = resp.headers.get("etag")
             if response_etag:
-                await etag_cache.store(request_url, response_etag, resp.json())
+                await etag_cache.store(
+                    request_url, response_etag, resp.json(), entity_type=entity_type
+                )
+            else:
+                # Fall back to Last-Modified caching for endpoints without ETags
+                last_modified = resp.headers.get("last-modified")
+                if last_modified:
+                    await etag_cache.store_last_modified(
+                        request_url, last_modified, resp.json(), entity_type=entity_type
+                    )
 
         return resp
 
@@ -1626,6 +1673,7 @@ async def _fetch_page(
     page_size: int = 100,
     delta_since: datetime | None = None,
     etag_cache: GitHubETagCache | None = None,
+    api_counter: SyncAPICallCounter | None = None,
 ) -> tuple[list[dict], str | None]:
     """Fetch one page of *entity_type* from the GitHub API.
 
@@ -1638,6 +1686,9 @@ async def _fetch_page(
         When set (for scheduled delta syncs), fetch_page handlers may apply
         time-based filters to skip data that hasn't changed since the given
         timestamp.
+
+    api_counter
+        Optional :class:`SyncAPICallCounter` for tracking API call metrics.
 
     Pagination
     ----------
@@ -1674,7 +1725,15 @@ async def _fetch_page(
                 params["type"] = "all"
                 params["sort"] = "full_name"
 
-        resp = await _github_get(url, headers, params, rate_limiter, etag_cache=etag_cache)
+        resp = await _github_get(
+            url,
+            headers,
+            params,
+            rate_limiter,
+            etag_cache=etag_cache,
+            api_counter=api_counter,
+            entity_type=entity_type,
+        )
         if resp.status_code == 403:
             logger.warning(
                 "github_sync.permission_denied",
@@ -1708,33 +1767,51 @@ async def _fetch_page(
     # ── Team members (nested: teams → members per team) ───────────────────
     if entity_type == "team_members":
         if cursor is None:
-            # First call — list all teams to build the traversal order
+            # Optimization: try to read team slugs from the database (populated
+            # by the "teams" entity sync) to eliminate redundant API calls.
             all_slugs: list[str] = []
-            teams_url = f"{_GITHUB_API_BASE}/orgs/{org}/teams"
-            tp = 1
-            while True:
-                resp = await _github_get(
-                    teams_url,
-                    headers,
-                    {"per_page": 100, "page": tp},
-                    rate_limiter,
-                    etag_cache=etag_cache,
-                )
-                if resp.status_code == 403:
-                    logger.warning(
-                        "github_sync.permission_denied",
-                        entity_type="team_members",
-                        org=org,
-                        hint="GitHub App needs 'members:read' permission",
+            try:
+                from sqlalchemy import select as sa_select
+
+                from app.models.github_sync import Team
+
+                sf = _make_session_factory()
+                async with sf() as db_session:
+                    result = await db_session.execute(sa_select(Team.slug).where(Team.org == org))
+                    all_slugs = sorted(row[0] for row in result.fetchall() if row[0])
+            except Exception:
+                all_slugs = []
+
+            # Fall back to API if no teams in DB (first sync, or teams not synced yet)
+            if not all_slugs:
+                teams_url = f"{_GITHUB_API_BASE}/orgs/{org}/teams"
+                tp = 1
+                while True:
+                    resp = await _github_get(
+                        teams_url,
+                        headers,
+                        {"per_page": 100, "page": tp},
+                        rate_limiter,
+                        etag_cache=etag_cache,
+                        api_counter=api_counter,
+                        entity_type=entity_type,
                     )
-                    return [], None
-                resp.raise_for_status()
-                batch = resp.json()
-                all_slugs.extend(t["slug"] for t in batch)
-                if not batch or not _has_next_page(resp.headers):
-                    break
-                tp += 1
-            all_slugs.sort()
+                    if resp.status_code == 403:
+                        logger.warning(
+                            "github_sync.permission_denied",
+                            entity_type="team_members",
+                            org=org,
+                            hint="GitHub App needs 'members:read' permission",
+                        )
+                        return [], None
+                    resp.raise_for_status()
+                    batch = resp.json()
+                    all_slugs.extend(t["slug"] for t in batch)
+                    if not batch or not _has_next_page(resp.headers):
+                        break
+                    tp += 1
+                all_slugs.sort()
+
             if not all_slugs:
                 return [], None
             state = {"teams": all_slugs, "current": all_slugs[0], "page": 1}
@@ -1752,6 +1829,8 @@ async def _fetch_page(
             {"per_page": page_size, "page": page},
             rate_limiter,
             etag_cache=etag_cache,
+            api_counter=api_counter,
+            entity_type=entity_type,
         )
         resp.raise_for_status()
         items = resp.json()
@@ -1797,6 +1876,8 @@ async def _fetch_page(
             repo_params,
             rate_limiter,
             etag_cache=etag_cache,
+            api_counter=api_counter,
+            entity_type=entity_type,
         )
         resp.raise_for_status()
         repos = resp.json()
@@ -1821,6 +1902,8 @@ async def _fetch_page(
                 {},
                 rate_limiter,
                 etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
             )
             if prot_resp.status_code == 200:
                 prot = prot_resp.json()
@@ -1896,6 +1979,8 @@ async def _fetch_page(
                 params,
                 rate_limiter,
                 etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
             )
 
             if resp.status_code == 404:
@@ -2016,7 +2101,15 @@ async def _fetch_page(
                 "page": page,
             }
 
-            resp = await _github_get(prs_url, headers, params, rate_limiter, etag_cache=etag_cache)
+            resp = await _github_get(
+                prs_url,
+                headers,
+                params,
+                rate_limiter,
+                etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
+            )
 
             if resp.status_code == 404:
                 logger.debug("github_sync.pull_requests_404", org=org, repo=repo_name)
@@ -2232,6 +2325,8 @@ async def _fetch_page(
                 params,
                 rate_limiter,
                 etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
             )
 
             if resp.status_code in (404, 403):
@@ -2381,6 +2476,8 @@ async def _fetch_page(
                 params,
                 rate_limiter,
                 etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
             )
 
             if resp.status_code in (404, 403):
@@ -2460,6 +2557,8 @@ async def _fetch_page(
                             status_params,
                             rate_limiter,
                             etag_cache=etag_cache,
+                            api_counter=api_counter,
+                            entity_type=entity_type,
                         )
                     except Exception:
                         logger.debug("github_sync.deploy_status_fetch_failed", deploy_id=deploy_id)
@@ -2588,7 +2687,15 @@ async def _fetch_page(
                 "created": f">{since_dt.strftime('%Y-%m-%dT%H:%M:%SZ')}",
             }
 
-            resp = await _github_get(runs_url, headers, params, rate_limiter, etag_cache=etag_cache)
+            resp = await _github_get(
+                runs_url,
+                headers,
+                params,
+                rate_limiter,
+                etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
+            )
 
             if resp.status_code == 404:
                 logger.debug("github_sync.workflow_runs_404", org=org, repo=repo_name)
@@ -2714,6 +2821,8 @@ async def _fetch_page(
             {"per_page": page_size, "page": page},
             rate_limiter,
             etag_cache=etag_cache,
+            api_counter=api_counter,
+            entity_type=entity_type,
         )
         resp.raise_for_status()
         items = resp.json()
@@ -2820,6 +2929,8 @@ async def _fetch_page(
                 alert_params,
                 rate_limiter,
                 etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
             )
             if resp.status_code in (403, 404):
                 logger.warning(
@@ -2853,6 +2964,8 @@ async def _fetch_page(
                 resolved_params,
                 rate_limiter,
                 etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
             )
             if resp.status_code in (403, 404):
                 break
@@ -2899,7 +3012,15 @@ async def _fetch_page(
         page = 1
         while True:
             dep_params["page"] = page
-            resp = await _github_get(url, headers, dep_params, rate_limiter, etag_cache=etag_cache)
+            resp = await _github_get(
+                url,
+                headers,
+                dep_params,
+                rate_limiter,
+                etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
+            )
             if resp.status_code in (400, 403, 404):
                 logger.warning(
                     "github_sync.dependabot_unavailable",
@@ -2959,7 +3080,15 @@ async def _fetch_page(
             return [], None
         url = f"{_GITHUB_API_BASE}/enterprises/{enterprise_slug}/consumed-licenses"
         lic_params: dict[str, object] = {"per_page": page_size}
-        resp = await _github_get(url, headers, lic_params, rate_limiter, etag_cache=etag_cache)
+        resp = await _github_get(
+            url,
+            headers,
+            lic_params,
+            rate_limiter,
+            etag_cache=etag_cache,
+            api_counter=api_counter,
+            entity_type=entity_type,
+        )
         if resp.status_code in (403, 404):
             logger.warning(
                 "github_sync.license_consumption_unavailable",
@@ -2997,7 +3126,15 @@ async def _fetch_page(
         page = 1
         while True:
             cs_params["page"] = page
-            resp = await _github_get(url, headers, cs_params, rate_limiter, etag_cache=etag_cache)
+            resp = await _github_get(
+                url,
+                headers,
+                cs_params,
+                rate_limiter,
+                etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
+            )
             if resp.status_code in (403, 404):
                 logger.warning(
                     "github_sync.code_scanning_unavailable",
@@ -3063,6 +3200,8 @@ async def _fetch_page(
                 {"per_page": page_size, "page": repos_page, "type": "all"},
                 rate_limiter,
                 etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
             )
             if repos_resp.status_code in (403, 404):
                 logger.warning(
@@ -3087,6 +3226,8 @@ async def _fetch_page(
                     {"per_page": 100},
                     rate_limiter,
                     etag_cache=etag_cache,
+                    api_counter=api_counter,
+                    entity_type=entity_type,
                 )
                 if wf_resp.status_code == 200:
                     wf_data = wf_resp.json()
@@ -3112,6 +3253,8 @@ async def _fetch_page(
                     runs_params,
                     rate_limiter,
                     etag_cache=etag_cache,
+                    api_counter=api_counter,
+                    entity_type=entity_type,
                 )
                 if runs_resp.status_code == 200:
                     runs_data = runs_resp.json()
@@ -3161,6 +3304,8 @@ async def _fetch_page(
                 no_mfa_params,
                 rate_limiter,
                 etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
             )
             if resp.status_code in (403, 404):
                 logger.warning(
@@ -3222,7 +3367,15 @@ async def _fetch_page(
             lookback = datetime.now(UTC) - timedelta(days=90)
             audit_params["phrase"] = f"created:>={lookback.strftime('%Y-%m-%dT%H:%M:%SZ')}"
 
-        resp = await _github_get(url, headers, audit_params, rate_limiter, etag_cache=etag_cache)
+        resp = await _github_get(
+            url,
+            headers,
+            audit_params,
+            rate_limiter,
+            etag_cache=etag_cache,
+            api_counter=api_counter,
+            entity_type=entity_type,
+        )
         if resp.status_code in (403, 404):
             logger.warning(
                 "github_sync.audit_log_unavailable",
@@ -3277,6 +3430,8 @@ async def _fetch_page(
                     {"per_page": 100, "page": tp},
                     rate_limiter,
                     etag_cache=etag_cache,
+                    api_counter=api_counter,
+                    entity_type=entity_type,
                 )
                 if resp.status_code == 403:
                     return [], None
@@ -3304,6 +3459,8 @@ async def _fetch_page(
             {"per_page": page_size, "page": page},
             rate_limiter,
             etag_cache=etag_cache,
+            api_counter=api_counter,
+            entity_type=entity_type,
         )
         if resp.status_code == 403:
             # Skip this team, advance
@@ -3376,6 +3533,8 @@ async def _fetch_page(
                 {"per_page": page_size, "page": page, "affiliation": "direct"},
                 rate_limiter,
                 etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
             )
             if resp.status_code in (403, 404):
                 repo_idx += 1
@@ -3448,6 +3607,8 @@ async def _fetch_page(
                 {"per_page": page_size, "page": page},
                 rate_limiter,
                 etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
             )
             if resp.status_code in (403, 404):
                 repo_idx += 1
@@ -3490,7 +3651,15 @@ async def _fetch_page(
         if cursor is not None:
             return [], None  # Single-page entity
         perm_url = f"{_GITHUB_API_BASE}/orgs/{org}/actions/permissions"
-        resp = await _github_get(perm_url, headers, {}, rate_limiter, etag_cache=etag_cache)
+        resp = await _github_get(
+            perm_url,
+            headers,
+            {},
+            rate_limiter,
+            etag_cache=etag_cache,
+            api_counter=api_counter,
+            entity_type=entity_type,
+        )
         if resp.status_code == 403:
             return [], None
         resp.raise_for_status()
@@ -3503,7 +3672,15 @@ async def _fetch_page(
         patterns: list[str] = []
         if allowed_actions == "selected":
             sel_url = f"{_GITHUB_API_BASE}/orgs/{org}/actions/permissions/selected-actions"
-            sel_resp = await _github_get(sel_url, headers, {}, rate_limiter, etag_cache=etag_cache)
+            sel_resp = await _github_get(
+                sel_url,
+                headers,
+                {},
+                rate_limiter,
+                etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
+            )
             if sel_resp.status_code == 200:
                 sel_data = sel_resp.json()
                 github_owned = sel_data.get("github_owned_allowed", True)
@@ -3531,6 +3708,8 @@ async def _fetch_page(
             {"per_page": page_size, "page": page},
             rate_limiter,
             etag_cache=etag_cache,
+            api_counter=api_counter,
+            entity_type=entity_type,
         )
         if resp.status_code == 403:
             return [], None
@@ -3593,6 +3772,8 @@ async def _fetch_page(
                 {"per_page": page_size, "page": page},
                 rate_limiter,
                 etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
             )
             if resp.status_code in (403, 404):
                 repo_idx += 1

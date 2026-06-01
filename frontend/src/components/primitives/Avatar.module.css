@@ -4,7 +4,7 @@
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  color: #fff;
+  color: var(--fg-on-emphasis);
   flex-shrink: 0;
   user-select: none;
 }

@@ -34,11 +34,13 @@ from app.routers import (
     admin_settings,
     admin_teams,
     auth,
+    compliance,
     copilot,
     copilot_governance,
     correlations,
     cross_org,
     dashboard_config,
+    delivery_timeline,
     detections,
     dev_activity,
     enterprise_pat,
@@ -69,6 +71,7 @@ from app.routers import (
     teams,
     telemetry,
     threat_intel,
+    user_behavior,
     user_classification,
     user_preferences,
     workflow_metrics,
@@ -432,6 +435,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     sys.stderr.flush()
                 else:
                     logger.info("setup.already_complete")
+
+                # Seed supply chain detection rules (idempotent — skips existing)
+                from app.services.supply_chain_service import seed_supply_chain_rules
+
+                seeded = await seed_supply_chain_rules(db_session)
+                if seeded:
+                    await db_session.commit()
+                logger.info("supply_chain.rules_seeded", new_rules=seeded)
         except Exception as exc:
             logger.warning("settings_overlay.load_failed", error=str(exc))
             # Schedule background retry for HEC token loading
@@ -703,6 +714,7 @@ def create_app() -> FastAPI:
     app.include_router(correlations.router, prefix=API_PREFIX)
     app.include_router(posture.router, prefix=API_PREFIX)
     app.include_router(reports.router, prefix=API_PREFIX)
+    app.include_router(compliance.router, prefix=API_PREFIX)
     app.include_router(query.router, prefix=API_PREFIX)
     app.include_router(rules.router, prefix=API_PREFIX)
     app.include_router(rule_library.router, prefix=API_PREFIX)
@@ -742,8 +754,10 @@ def create_app() -> FastAPI:
     app.include_router(copilot_governance.router, prefix=API_PREFIX)
     app.include_router(user_preferences.router, prefix=API_PREFIX)
     app.include_router(dashboard_config.router, prefix=API_PREFIX)
+    app.include_router(delivery_timeline.router, prefix=API_PREFIX)
     app.include_router(telemetry.router, prefix=API_PREFIX)
     app.include_router(user_classification.router, prefix=API_PREFIX)
+    app.include_router(user_behavior.router, prefix=API_PREFIX)
 
     return app
 

@@ -143,11 +143,11 @@ describe('CopilotPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the tab bar with 10 tabs', () => {
+  it('renders the tab bar with 5 tabs', () => {
     renderPage();
     const tablist = screen.getByRole('tablist');
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs).toHaveLength(10);
+    expect(tabs).toHaveLength(5);
   });
 
   it('shows the anomaly badge with count 3', async () => {

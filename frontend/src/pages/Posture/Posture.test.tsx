@@ -773,7 +773,7 @@ describe('PosturePage — Global Org Filter', () => {
   });
 });
 
-describe('PosturePage — Empty State', () => {
+describe('PosturePage — Empty State (no sync)', () => {
   beforeEach(() => {
     mockNavigate.mockClear();
     mockGetPosture.mockClear();
@@ -782,23 +782,68 @@ describe('PosturePage — Empty State', () => {
     mockParams.repo = undefined;
   });
 
-  it('shows empty state title when no orgs', async () => {
+  it('shows empty state title when no sync has occurred', async () => {
     renderWithProviders(<PosturePage />);
     expect(await screen.findByText('No posture data available yet')).toBeInTheDocument();
   });
 
-  it('shows empty state description when no orgs', async () => {
+  it('shows empty state description explaining sync is needed', async () => {
     renderWithProviders(<PosturePage />);
     expect(
       await screen.findByText(
-        'Security posture data will appear here once your organizations have been synced.',
+        /Security posture data will appear here after your first enterprise sync completes/,
       ),
     ).toBeInTheDocument();
+  });
+
+  it('shows "No sync performed yet" in subtitle', async () => {
+    renderWithProviders(<PosturePage />);
+    expect(await screen.findByText('No sync performed yet')).toBeInTheDocument();
   });
 
   it('does not show metrics summary in empty state', async () => {
     renderWithProviders(<PosturePage />);
     await screen.findByText('No posture data available yet');
+    expect(screen.queryByTestId('metrics-summary')).not.toBeInTheDocument();
+  });
+});
+
+describe('PosturePage — Empty State (synced but no orgs)', () => {
+  const SYNCED_NO_ORGS_RESPONSE: PostureResponse = {
+    ...EMPTY_ENTERPRISE_RESPONSE,
+    last_sync_at: '2024-06-01T10:00:00Z',
+  };
+
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockGetPosture.mockClear();
+    mockGetPosture.mockResolvedValue(SYNCED_NO_ORGS_RESPONSE);
+    mockParams.org = undefined;
+    mockParams.repo = undefined;
+  });
+
+  it('shows "No organizations found" title when synced but empty', async () => {
+    renderWithProviders(<PosturePage />);
+    expect(await screen.findByText('No organizations found')).toBeInTheDocument();
+  });
+
+  it('shows description about permissions issue', async () => {
+    renderWithProviders(<PosturePage />);
+    expect(
+      await screen.findByText(
+        /An enterprise sync has completed but no organizations were returned/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('shows last sync date in subtitle', async () => {
+    renderWithProviders(<PosturePage />);
+    expect(await screen.findByText(/0 orgs · Last synced/)).toBeInTheDocument();
+  });
+
+  it('does not show metrics summary in synced empty state', async () => {
+    renderWithProviders(<PosturePage />);
+    await screen.findByText('No organizations found');
     expect(screen.queryByTestId('metrics-summary')).not.toBeInTheDocument();
   });
 });

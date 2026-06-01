@@ -170,7 +170,7 @@ export function LicensePane() {
           </div>
         </Card>
 
-        <Card style={{ borderColor: 'rgba(248, 81, 73, 0.3)' }}>
+        <Card style={{ borderColor: 'rgba(var(--danger-rgb), 0.3)' }}>
           <div className={styles.cardTitle} style={{ color: 'var(--danger)' }}>
             Ghost members
           </div>

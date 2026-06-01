@@ -20,10 +20,10 @@ const PILLAR_CLASS: Record<WafPillar, string> = {
 
 /** Pillar color for card borders. */
 const PILLAR_BORDER_COLOR: Record<WafPillar, string> = {
-  governance: 'rgba(210, 153, 34, 0.4)',
-  appsec: 'rgba(248, 81, 73, 0.4)',
-  architecture: 'rgba(219, 109, 40, 0.4)',
-  collaboration: 'rgba(188, 140, 255, 0.35)',
+  governance: 'rgba(var(--attention-rgb), 0.4)',
+  appsec: 'rgba(var(--danger-rgb), 0.4)',
+  architecture: 'rgba(var(--danger-rgb), 0.4)',
+  collaboration: 'rgba(var(--done-rgb), 0.35)',
   productivity: 'transparent',
 };
 

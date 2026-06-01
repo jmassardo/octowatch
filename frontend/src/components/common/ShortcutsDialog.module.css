@@ -55,7 +55,7 @@
   font-weight: 500;
   line-height: 1;
   color: var(--fg);
-  background: var(--canvas-default, #161b22);
+  background: var(--canvas-subtle);
   border: 1px solid var(--border);
   border-radius: 4px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);

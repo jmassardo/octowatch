@@ -17,18 +17,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.models.user import RbacRole, UserRoleAssignment
 from app.schemas.rbac import (
+    AvailablePermissionsResponse,
     RoleCreateRequest,
     RoleDetailResponse,
     RolePermissionSummary,
     RoleUpdateRequest,
 )
 from app.services.audit_service import log_action
+from app.services.permission_catalog import get_catalog, get_categories
 from app.services.rbac_service import SYSTEM_ROLES, VALID_ACTIONS, VALID_RESOURCES
 from app.utils.client_ip import get_client_ip
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/admin/roles", tags=["admin-roles"])
+
+
+@router.get("/permissions", response_model=AvailablePermissionsResponse)
+@router.get("/permissions/catalog", response_model=AvailablePermissionsResponse)
+async def list_available_permissions(
+    current_user: AuthenticatedUser = Depends(require_permission("admin_roles", "view")),
+) -> AvailablePermissionsResponse:
+    """List the full permission catalog for role creation and editing."""
+    return AvailablePermissionsResponse(
+        permissions=get_catalog(),
+        categories=get_categories(),
+    )
 
 
 def _validate_permissions(permissions: list[str]) -> list[str]:

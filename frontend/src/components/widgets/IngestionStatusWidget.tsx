@@ -73,7 +73,11 @@ export function IngestionStatusWidget() {
           <span className={styles.listValue}>{data?.queue_depth?.toLocaleString() ?? '—'}</span>
         </div>
       </div>
-      <button type="button" className={styles.actionLink} onClick={() => navigate('/telemetry')}>
+      <button
+        type="button"
+        className={styles.actionLink}
+        onClick={() => navigate('/monitoring/telemetry')}
+      >
         Open telemetry
       </button>
     </>

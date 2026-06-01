@@ -43,7 +43,7 @@ export function BarChart({ title, xAxisData, series, height = 160 }: BarChartPro
       name: s.name,
       type: 'bar' as const,
       data: s.data,
-      itemStyle: { color: s.color ?? '#58a6ff', borderRadius: [2, 2, 0, 0] },
+      itemStyle: { color: s.color ?? 'var(--accent)', borderRadius: [2, 2, 0, 0] },
       barMaxWidth: 28,
     })),
     ...(title

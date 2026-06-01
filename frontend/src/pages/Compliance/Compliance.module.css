@@ -24,7 +24,7 @@
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  color: var(--fg-muted, #8b949e);
+  color: var(--fg-muted);
   cursor: pointer;
   font-size: 0.875rem;
   white-space: nowrap;
@@ -82,7 +82,7 @@
 
 .frameworkMeta {
   font-size: 0.8rem;
-  color: var(--fg-muted, #8b949e);
+  color: var(--fg-muted);
   margin-top: 0.5rem;
 }
 
@@ -143,7 +143,7 @@
 
 .controlPassRate {
   font-size: 0.8rem;
-  color: var(--fg-muted, #8b949e);
+  color: var(--fg-muted);
 }
 
 .controlList {
@@ -173,7 +173,7 @@
 .controlItemId {
   font-family: var(--font-mono, 'SFMono-Regular', monospace);
   font-size: 0.8rem;
-  color: var(--fg-muted, #8b949e);
+  color: var(--fg-muted);
 }
 
 .controlItemTitle {
@@ -182,12 +182,12 @@
 
 .controlItemDesc {
   font-size: 0.8rem;
-  color: var(--fg-muted, #8b949e);
+  color: var(--fg-muted);
 }
 
 .controlItemEvidence {
   font-size: 0.75rem;
-  color: var(--fg-muted, #8b949e);
+  color: var(--fg-muted);
   margin-top: 0.25rem;
 }
 
@@ -231,7 +231,7 @@
 
 .activityMeta {
   font-size: 0.8rem;
-  color: var(--fg-muted, #8b949e);
+  color: var(--fg-muted);
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
@@ -250,7 +250,7 @@
 }
 
 .checkIncomplete {
-  color: var(--fg-muted, #8b949e);
+  color: var(--fg-muted);
 }
 
 /* Stats row */
@@ -277,7 +277,7 @@
 
 .statLabel {
   font-size: 0.8rem;
-  color: var(--fg-muted, #8b949e);
+  color: var(--fg-muted);
 }
 
 /* Radar placeholder */
@@ -288,7 +288,7 @@
   height: 200px;
   border: 1px dashed var(--border-muted, #21262d);
   border-radius: 8px;
-  color: var(--fg-muted, #8b949e);
+  color: var(--fg-muted);
   font-size: 0.875rem;
   margin-bottom: 1rem;
 }
@@ -299,6 +299,38 @@
   justify-content: flex-end;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+
+/* Empty state */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+  border: 1px dashed var(--border-muted, #21262d);
+  border-radius: 8px;
+}
+
+.emptyIcon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.emptyTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+  color: var(--fg-default, #e6edf3);
+}
+
+.emptyDescription {
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+  max-width: 480px;
+  margin: 0 0 0.5rem;
+  line-height: 1.5;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -345,7 +377,11 @@
   .statValue,
   .statLabel,
   .radarPlaceholder,
-  .actionsBar {
+  .actionsBar,
+  .emptyState,
+  .emptyIcon,
+  .emptyTitle,
+  .emptyDescription {
     animation: none !important;
     transition: none !important;
   }

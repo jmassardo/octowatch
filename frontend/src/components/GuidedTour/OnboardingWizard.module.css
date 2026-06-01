@@ -43,7 +43,7 @@
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
   text-align: left;
   cursor: pointer;
   font: inherit;
@@ -86,7 +86,7 @@
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
 }
 
 .checkboxRow input {
@@ -130,6 +130,61 @@
   border-radius: 10px;
   text-align: center;
   color: var(--fg-muted);
+}
+
+.paginatedList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.searchInput {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface, #fff);
+  font: inherit;
+  font-size: 14px;
+  color: inherit;
+  outline: none;
+}
+
+.searchInput:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.resultCount {
+  color: var(--fg-subtle);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.bulkActions {
+  display: flex;
+  gap: 8px;
+}
+
+.linkButton {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.linkButton:hover {
+  opacity: 0.8;
 }
 
 @media (max-width: 640px) {

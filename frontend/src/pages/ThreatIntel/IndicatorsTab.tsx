@@ -15,7 +15,9 @@ import type {
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Pagination } from '../../components/primitives/Pagination';
+import { Drawer } from '../../components/primitives/Drawer';
 import { formatAbsolute } from '../../utils/dates';
+import { useQueryParam } from '../../hooks/useQueryParam';
 import styles from './ThreatIntel.module.css';
 
 const PAGE_SIZE = 50;
@@ -72,6 +74,7 @@ export function IndicatorsTab() {
   const [bulkResult, setBulkResult] = useState<{ created: number; duplicates: number } | null>(
     null,
   );
+  const [selectedIndicatorParam, setSelectedIndicatorParam] = useQueryParam('indicator', '');
 
   // Debounce search
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -196,6 +199,23 @@ export function IndicatorsTab() {
   // Filter by feed if selected
   const filteredItems = feedFilter ? items.filter((i) => String(i.feed_id) === feedFilter) : items;
 
+  const selectedIndicatorId = selectedIndicatorParam ? parseInt(selectedIndicatorParam, 10) : null;
+  const selectedIndicator =
+    selectedIndicatorId !== null
+      ? (filteredItems.find((i) => i.id === selectedIndicatorId) ?? null)
+      : null;
+
+  const openIndicatorDetail = useCallback(
+    (ind: ThreatIntelIndicator) => {
+      setSelectedIndicatorParam(String(ind.id), { replace: true });
+    },
+    [setSelectedIndicatorParam],
+  );
+
+  const closeIndicatorDetail = useCallback(() => {
+    setSelectedIndicatorParam('', { replace: true });
+  }, [setSelectedIndicatorParam]);
+
   if (isLoading) {
     return (
       <div className={styles.centered}>
@@ -271,7 +291,7 @@ export function IndicatorsTab() {
             padding: '8px 12px',
             marginBottom: 12,
             borderRadius: 6,
-            background: 'rgba(63, 185, 80, 0.1)',
+            background: 'rgba(var(--success-rgb), 0.1)',
             color: 'var(--done)',
             fontSize: 13,
           }}
@@ -301,7 +321,20 @@ export function IndicatorsTab() {
               </thead>
               <tbody>
                 {filteredItems.map((ind) => (
-                  <tr key={ind.id}>
+                  <tr
+                    key={ind.id}
+                    onClick={() => openIndicatorDetail(ind)}
+                    className={styles.clickableRow}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`View details for ${ind.value}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openIndicatorDetail(ind);
+                      }
+                    }}
+                  >
                     <td>
                       <code>{ind.value}</code>
                     </td>
@@ -324,7 +357,7 @@ export function IndicatorsTab() {
                     <td>
                       <span className={styles.truncate}>{ind.notes ?? '—'}</span>
                     </td>
-                    <td>
+                    <td onClick={(e) => e.stopPropagation()}>
                       <button className={styles.btnDanger} onClick={() => handleDelete(ind)}>
                         Remove
                       </button>
@@ -421,6 +454,75 @@ export function IndicatorsTab() {
           </div>
         </div>
       )}
+
+      <Drawer open={!!selectedIndicator} onClose={closeIndicatorDetail} title="Indicator Details">
+        {selectedIndicator && (
+          <div className={styles.drawerContent}>
+            <dl className={styles.detailList}>
+              <dt>Value</dt>
+              <dd>
+                <code>{selectedIndicator.value}</code>
+              </dd>
+
+              <dt>Type</dt>
+              <dd>
+                <span className={styles.typeBadge}>{selectedIndicator.indicator_type}</span>
+              </dd>
+
+              <dt>Source</dt>
+              <dd>{selectedIndicator.source}</dd>
+
+              <dt>Confidence</dt>
+              <dd>{Math.round(selectedIndicator.confidence * 100)}%</dd>
+
+              <dt>Active</dt>
+              <dd>{selectedIndicator.active ? 'Yes' : 'No'}</dd>
+
+              <dt>First Seen</dt>
+              <dd>{formatAbsolute(selectedIndicator.added_at)}</dd>
+
+              <dt>Added By</dt>
+              <dd>{selectedIndicator.added_by}</dd>
+
+              <dt>Expires</dt>
+              <dd>
+                {selectedIndicator.expires_at
+                  ? formatAbsolute(selectedIndicator.expires_at)
+                  : 'Never'}
+              </dd>
+
+              <dt>Feed ID</dt>
+              <dd>{selectedIndicator.feed_id ?? 'Manual'}</dd>
+
+              <dt>Notes</dt>
+              <dd>{selectedIndicator.notes ?? '—'}</dd>
+
+              {selectedIndicator.metadata_json && (
+                <>
+                  <dt>Metadata</dt>
+                  <dd>
+                    <pre style={{ fontSize: 11, margin: 0, whiteSpace: 'pre-wrap' }}>
+                      {JSON.stringify(selectedIndicator.metadata_json, null, 2)}
+                    </pre>
+                  </dd>
+                </>
+              )}
+            </dl>
+
+            <div className={styles.drawerActions}>
+              <button
+                className={styles.btnDanger}
+                onClick={() => {
+                  handleDelete(selectedIndicator);
+                  closeIndicatorDetail();
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 }

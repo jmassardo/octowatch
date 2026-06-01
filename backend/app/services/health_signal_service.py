@@ -740,7 +740,7 @@ async def get_secret_scanning_alert_health(
             mttr AS (
                 SELECT
                     org,
-                    AVG(EXTRACT(HOURS FROM resolved_at - created_at))
+                    AVG(EXTRACT(EPOCH FROM resolved_at - created_at) / 3600.0)
                         AS avg_hours_to_resolve,
                     COUNT(*) AS resolved_count
                 FROM alert_data
@@ -945,9 +945,9 @@ async def get_code_scanning_health(
                     COUNT(*) FILTER (
                         WHERE COALESCE(security_severity, severity) = 'low'
                     ) AS low_count,
-                    AVG(EXTRACT(HOURS FROM
+                    AVG(EXTRACT(EPOCH FROM
                         COALESCE(fixed_at, dismissed_at) - created_at
-                    )) FILTER (
+                    ) / 3600.0) FILTER (
                         WHERE state IN ('fixed', 'dismissed')
                           AND COALESCE(fixed_at, dismissed_at) IS NOT NULL
                     ) AS avg_hours_to_close

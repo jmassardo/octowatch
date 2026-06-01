@@ -13,8 +13,8 @@
 }
 
 .wasteAlert {
-  background: rgba(248, 81, 73, 0.08);
-  border: 1px solid rgba(248, 81, 73, 0.3);
+  background: rgba(var(--danger-rgb), 0.08);
+  border: 1px solid rgba(var(--danger-rgb), 0.3);
   border-radius: 6px;
   padding: 14px 16px;
   margin-bottom: 20px;
@@ -141,8 +141,8 @@
   align-items: flex-start;
   gap: 10px;
   padding: 10px;
-  background: rgba(63, 185, 80, 0.08);
-  border: 1px solid rgba(63, 185, 80, 0.2);
+  background: rgba(var(--success-rgb), 0.08);
+  border: 1px solid rgba(var(--success-rgb), 0.2);
   border-radius: 6px;
 }
 
@@ -151,8 +151,8 @@
   align-items: flex-start;
   gap: 10px;
   padding: 10px;
-  background: rgba(210, 153, 34, 0.08);
-  border: 1px solid rgba(210, 153, 34, 0.2);
+  background: rgba(var(--attention-rgb), 0.08);
+  border: 1px solid rgba(var(--attention-rgb), 0.2);
   border-radius: 6px;
 }
 
@@ -206,7 +206,7 @@
 }
 
 .tableWrap tbody tr:hover td {
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
 }
 
 .tableWrap tbody tr:last-child td {
@@ -437,7 +437,7 @@
 }
 
 .costRowHighlight {
-  background: rgba(63, 185, 80, 0.06);
+  background: rgba(var(--success-rgb), 0.06);
   border-radius: 4px;
   padding: 10px 8px;
   margin-top: 4px;
@@ -571,7 +571,7 @@
 }
 
 .langRowClickable:hover {
-  background: rgba(177, 186, 196, 0.08);
+  background: rgba(var(--neutral-rgb), 0.08);
 }
 
 .langRowClickable:focus-visible {
@@ -623,7 +623,7 @@
 }
 
 .ccrClickable:hover {
-  background: rgba(177, 186, 196, 0.06);
+  background: rgba(var(--neutral-rgb), 0.06);
 }
 
 .ccrClickable:focus-visible {

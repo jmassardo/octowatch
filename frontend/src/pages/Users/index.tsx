@@ -9,10 +9,13 @@ import {
   getActiveSessions,
   listSyncedTeams,
 } from '../../api/admin';
-import { listRbacRoles, createRbacRole, deleteRbacRole } from '../../api/roles';
-import type { CreateRoleRequest, RoleSummary } from '../../api/roles';
-import { listTeams, createTeam, deleteTeam } from '../../api/teams';
-import type { Team, CreateTeamRequest } from '../../api/teams';
+import {
+  listRbacRoles,
+  createRbacRole,
+  deleteRbacRole,
+  listAvailablePermissions,
+} from '../../api/roles';
+import type { CreateRoleRequest, RoleSummary, PermissionDefinition } from '../../api/roles';
 import type { RoleAssignment, RoleAssignmentCreate, ActiveSession } from '../../types/admin';
 import { useToast } from '../../hooks/useToast';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -639,19 +642,73 @@ function CreateRoleForm({
   const [name, setName] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
-  const [permissions, setPermissions] = useState('');
+  const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(new Set());
+  const [filterText, setFilterText] = useState('');
+
+  const { data: permissionsData, isLoading: permissionsLoading } = useQuery({
+    queryKey: ['available-permissions'],
+    queryFn: listAvailablePermissions,
+  });
+
+  const filteredPermissions = useMemo(() => {
+    if (!permissionsData) return [];
+    if (!filterText) return permissionsData.permissions;
+    const lower = filterText.toLowerCase();
+    return permissionsData.permissions.filter(
+      (p) =>
+        p.permission.toLowerCase().includes(lower) ||
+        p.resource_label.toLowerCase().includes(lower) ||
+        p.action_label.toLowerCase().includes(lower) ||
+        p.description.toLowerCase().includes(lower) ||
+        p.category.toLowerCase().includes(lower),
+    );
+  }, [permissionsData, filterText]);
+
+  const groupedPermissions = useMemo(() => {
+    const groups: Record<string, PermissionDefinition[]> = {};
+    for (const p of filteredPermissions) {
+      if (!groups[p.category]) groups[p.category] = [];
+      groups[p.category].push(p);
+    }
+    return groups;
+  }, [filteredPermissions]);
+
+  function togglePermission(perm: string) {
+    setSelectedPermissions((prev) => {
+      const next = new Set(prev);
+      if (next.has(perm)) {
+        next.delete(perm);
+      } else {
+        next.add(perm);
+      }
+      return next;
+    });
+  }
+
+  function toggleCategory(category: string) {
+    const categoryPerms = groupedPermissions[category] ?? [];
+    const allSelected = categoryPerms.every((p) => selectedPermissions.has(p.permission));
+    setSelectedPermissions((prev) => {
+      const next = new Set(prev);
+      for (const p of categoryPerms) {
+        if (allSelected) {
+          next.delete(p.permission);
+        } else {
+          next.add(p.permission);
+        }
+      }
+      return next;
+    });
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const permList = permissions
-      .split(',')
-      .map((p) => p.trim())
-      .filter(Boolean);
+    if (selectedPermissions.size === 0) return;
     onSave({
       name,
       display_name: displayName,
       description: description || undefined,
-      permissions: permList,
+      permissions: Array.from(selectedPermissions).sort(),
     });
   }
 
@@ -688,225 +745,71 @@ function CreateRoleForm({
         />
       </div>
       <div className={styles.formRow}>
-        <label className={styles.formLabel}>Permissions (comma-separated)</label>
+        <label className={styles.formLabel}>
+          Permissions ({selectedPermissions.size} selected)
+        </label>
         <input
           className={styles.formInput}
-          value={permissions}
-          onChange={(e) => setPermissions(e.target.value)}
-          required
-          placeholder="events:view, detections:view, reports:view"
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+          placeholder="Filter permissions…"
         />
-      </div>
-      <div className={styles.formActions}>
-        <Button variant="default" onClick={onCancel} type="button">
-          Cancel
-        </Button>
-        <Button variant="primary" type="submit">
-          Create role
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Teams Tab                                                          */
-/* ------------------------------------------------------------------ */
-
-function TeamsTab() {
-  const qc = useQueryClient();
-  const { showToast } = useToast();
-  const [showCreateTeam, setShowCreateTeam] = useState(false);
-  const [deleteTeamTarget, setDeleteTeamTarget] = useState<Team | null>(null);
-
-  const {
-    data: teams,
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
-    queryKey: ['rbac-teams'],
-    queryFn: listTeams,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: createTeam,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['rbac-teams'] });
-      setShowCreateTeam(false);
-      showToast('Team created successfully', 'success');
-    },
-    onError: () => {
-      showToast('Failed to create team', 'error');
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteTeam(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['rbac-teams'] });
-      setDeleteTeamTarget(null);
-      showToast('Team deleted', 'success');
-    },
-    onError: () => {
-      showToast('Failed to delete team', 'error');
-    },
-  });
-
-  const columns: ColumnDef<Team>[] = useMemo(
-    () => [
-      {
-        key: 'name',
-        header: 'Name',
-        sortable: true,
-        filterable: true,
-        sortValue: (t) => t.name.toLowerCase(),
-        filterValue: (t) => `${t.name} ${t.slug}`,
-        render: (t) => (
-          <div>
-            <span style={{ fontWeight: 500 }}>{t.name}</span>
-            <span className={styles.muted} style={{ marginLeft: 8 }}>
-              {t.slug}
-            </span>
+        {permissionsLoading ? (
+          <Spinner />
+        ) : (
+          <div className={styles.permissionPicker}>
+            {Object.entries(groupedPermissions).map(([category, perms]) => {
+              const allSelected = perms.every((p) => selectedPermissions.has(p.permission));
+              const someSelected =
+                !allSelected && perms.some((p) => selectedPermissions.has(p.permission));
+              return (
+                <fieldset key={category} className={styles.permissionCategory}>
+                  <legend className={styles.permissionCategoryHeader}>
+                    <label className={styles.permissionCheckboxLabel}>
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        ref={(el) => {
+                          if (el) el.indeterminate = someSelected;
+                        }}
+                        onChange={() => toggleCategory(category)}
+                        className={styles.permissionCheckbox}
+                      />
+                      {category}
+                    </label>
+                  </legend>
+                  <div className={styles.permissionList}>
+                    {perms.map((p) => (
+                      <label
+                        key={p.permission}
+                        className={styles.permissionItem}
+                        title={p.description}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedPermissions.has(p.permission)}
+                          onChange={() => togglePermission(p.permission)}
+                          className={styles.permissionCheckbox}
+                        />
+                        <span className={styles.permissionLabel}>
+                          <span className={styles.permissionName}>{p.permission}</span>
+                          <span className={styles.permissionDesc}>{p.description}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              );
+            })}
           </div>
-        ),
-      },
-      {
-        key: 'members',
-        header: 'Members',
-        sortable: true,
-        sortValue: (t) => t.member_count,
-        render: (t) => <span>{t.member_count}</span>,
-      },
-      {
-        key: 'roles',
-        header: 'Roles',
-        sortable: true,
-        sortValue: (t) => t.role_count,
-        render: (t) => <span>{t.role_count}</span>,
-      },
-      {
-        key: 'created',
-        header: 'Created',
-        sortable: true,
-        sortValue: (t) => t.created_at,
-        render: (t) => <span className={styles.muted}>{formatRelative(t.created_at)}</span>,
-      },
-      {
-        key: 'actions',
-        header: '',
-        render: (t) => (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setDeleteTeamTarget(t);
-            }}
-            aria-label={`Delete team ${t.name}`}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'var(--fg-muted)',
-              fontSize: 16,
-              padding: '2px 6px',
-              borderRadius: 4,
-            }}
-          >
-            ×
-          </button>
-        ),
-      },
-    ],
-    [],
-  );
-
-  return (
-    <>
-      <div className={styles.pageHeader} style={{ paddingTop: 0 }}>
-        <div>
-          <p className={styles.pageSub}>Manage teams and their role assignments</p>
-        </div>
-        <Button variant="primary" onClick={() => setShowCreateTeam(true)}>
-          Create team
-        </Button>
-      </div>
-
-      {isError && <ErrorBanner message="Failed to load teams" onRetry={() => refetch()} />}
-
-      {isLoading ? (
-        <Spinner />
-      ) : (
-        <DataTable<Team>
-          columns={columns}
-          data={teams ?? []}
-          rowKey={(t) => t.id}
-          emptyMessage="No teams found"
-        />
-      )}
-
-      <Drawer open={showCreateTeam} onClose={() => setShowCreateTeam(false)} title="Create team">
-        <CreateTeamForm
-          onSave={(v) => createMutation.mutate(v)}
-          onCancel={() => setShowCreateTeam(false)}
-        />
-      </Drawer>
-
-      <ConfirmDialog
-        open={!!deleteTeamTarget}
-        onClose={() => setDeleteTeamTarget(null)}
-        title="Delete team"
-        message={deleteTeamTarget ? `Delete team "${deleteTeamTarget.name}"?` : ''}
-        confirmLabel="Delete"
-        confirmVariant="danger"
-        onConfirm={() => deleteTeamTarget && deleteMutation.mutate(deleteTeamTarget.id)}
-      />
-    </>
-  );
-}
-
-function CreateTeamForm({
-  onSave,
-  onCancel,
-}: {
-  onSave: (v: CreateTeamRequest) => void;
-  onCancel: () => void;
-}) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    onSave({ name, description: description || undefined });
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className={styles.addForm}>
-      <div className={styles.formRow}>
-        <label className={styles.formLabel}>Team name</label>
-        <input
-          className={styles.formInput}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          placeholder="Platform Engineering"
-          autoFocus
-        />
-      </div>
-      <div className={styles.formRow}>
-        <label className={styles.formLabel}>Description</label>
-        <input
-          className={styles.formInput}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Optional description"
-        />
+        )}
       </div>
       <div className={styles.formActions}>
         <Button variant="default" onClick={onCancel} type="button">
           Cancel
         </Button>
-        <Button variant="primary" type="submit">
-          Create team
+        <Button variant="primary" type="submit" disabled={selectedPermissions.size === 0}>
+          Create role
         </Button>
       </div>
     </form>
@@ -917,7 +820,7 @@ function CreateTeamForm({
 /*  Tab type                                                           */
 /* ------------------------------------------------------------------ */
 
-type UsersTab = 'users' | 'roles' | 'teams';
+type UsersTab = 'users' | 'roles';
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                              */
@@ -1000,7 +903,7 @@ export function UsersPage() {
       <div className={styles.pageHeader}>
         <PageHeader
           title="Users & Roles"
-          description="Manage role assignments and team memberships"
+          description="Manage role-based access control for users and teams"
         />
         {activeTab === 'users' && (
           <Button variant="primary" onClick={() => setShowAdd(true)}>
@@ -1009,24 +912,29 @@ export function UsersPage() {
         )}
       </div>
 
+      <div className={styles.guidanceBanner}>
+        <h3 className={styles.guidanceTitle}>Role-Based Access Control (RBAC)</h3>
+        <p className={styles.guidanceText}>
+          OctoWatch uses RBAC to control access to features and data. Assign roles to GitHub users
+          or teams to grant permissions. Each role includes a set of permissions in{' '}
+          <code>resource:action</code> format (e.g., <code>detections:view</code>,{' '}
+          <code>rules:edit</code>). System roles are predefined; custom roles can be created with
+          specific permission sets.
+        </p>
+      </div>
+
       <div className={styles.tabBar}>
         <button
           className={`${styles.tab} ${activeTab === 'users' ? styles.tabActive : ''}`}
           onClick={() => setActiveTab('users')}
         >
-          Users
+          Members
         </button>
         <button
           className={`${styles.tab} ${activeTab === 'roles' ? styles.tabActive : ''}`}
           onClick={() => setActiveTab('roles')}
         >
           Roles
-        </button>
-        <button
-          className={`${styles.tab} ${activeTab === 'teams' ? styles.tabActive : ''}`}
-          onClick={() => setActiveTab('teams')}
-        >
-          Teams
         </button>
       </div>
 
@@ -1076,7 +984,6 @@ export function UsersPage() {
       )}
 
       {activeTab === 'roles' && <RolesTab />}
-      {activeTab === 'teams' && <TeamsTab />}
 
       <Drawer open={showAdd} onClose={() => setShowAdd(false)} title="Add role mapping">
         <AddMappingForm

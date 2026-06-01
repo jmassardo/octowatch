@@ -140,7 +140,7 @@ function DetectionsTab({ login }: { login: string }) {
             <tr key={d.id}>
               <td className={styles.mono}>{formatCompact(d.triggered_at)}</td>
               <td>
-                <Link to={`/threats?id=${d.id}`} className={styles.link}>
+                <Link to={`/threats/open?id=${d.id}`} className={styles.link}>
                   {d.title}
                 </Link>
               </td>

@@ -55,9 +55,9 @@ const PAGES: SearchableNavigationItem[] = [
   {
     id: 'dashboard',
     title: 'Dashboard',
-    subtitle: 'Overview and executive insights',
+    subtitle: 'Customizable dashboard with widgets',
     to: '/dashboard',
-    searchText: 'dashboard overview executive home',
+    searchText: 'dashboard overview widgets home customize',
   },
   {
     id: 'threats',
@@ -196,7 +196,7 @@ const PAGES: SearchableNavigationItem[] = [
     id: 'telemetry',
     title: 'Telemetry',
     subtitle: 'Platform telemetry and diagnostics',
-    to: '/telemetry',
+    to: '/monitoring/telemetry',
     searchText: 'telemetry diagnostics logging metrics',
   },
 ];
@@ -375,7 +375,7 @@ function executeRoute(navigate: ReturnType<typeof useNavigate>, item: PaletteIte
   } else if (item.type === 'event') {
     navigate(`/events/${item.eventId}`);
   } else if (item.type === 'detection') {
-    navigate(`/threats?id=${item.detectionId}`);
+    navigate(`/threats/open?id=${item.detectionId}`);
   } else if (item.type === 'actor') {
     navigate(`/actors/${encodeURIComponent(item.login)}`);
   }

@@ -17,7 +17,7 @@
   position: fixed;
   border: 2px solid var(--accent, #bc8cff);
   border-radius: 8px;
-  box-shadow: 0 0 0 4px rgba(188, 140, 255, 0.25);
+  box-shadow: 0 0 0 4px rgba(var(--done-rgb), 0.25);
   pointer-events: none;
   transition:
     top 0.3s ease,
@@ -29,7 +29,7 @@
 .tooltip {
   position: fixed;
   width: 340px;
-  background: var(--canvas-default, #0d1117);
+  background: var(--canvas);
   border: 1px solid var(--border, #30363d);
   border-radius: 12px;
   padding: 20px;
@@ -68,7 +68,7 @@
 .tooltipClose {
   background: none;
   border: none;
-  color: var(--fg-muted, #8b949e);
+  color: var(--fg-muted);
   font-size: 20px;
   cursor: pointer;
   padding: 0 4px;
@@ -91,7 +91,7 @@
 .tooltipDescription {
   font-size: 13px;
   line-height: 1.5;
-  color: var(--fg-muted, #8b949e);
+  color: var(--fg-muted);
   margin: 0 0 16px;
 }
 
@@ -125,7 +125,7 @@
 
 .tooltipBtnSecondary {
   background: transparent;
-  color: var(--fg-muted, #8b949e);
+  color: var(--fg-muted);
   border: 1px solid var(--border, #30363d);
   border-radius: 6px;
   padding: 6px 16px;

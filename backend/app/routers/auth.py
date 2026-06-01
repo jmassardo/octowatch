@@ -219,6 +219,7 @@ async def get_my_permissions(
     scopes = PermissionScopes(
         orgs=scope.scoped_orgs if scope.scoped_orgs else None,
         repos=scope.scoped_repos if scope.scoped_repos else None,
+        scope_type=scope.scope_type,
     )
 
     response = UserPermissionsResponse(

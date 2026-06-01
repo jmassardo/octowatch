@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getAlwaysFailingWorkflows, getAlwaysTimingOutWorkflows } from '../../api/workflowMetrics';
 import type { WorkflowFailureSummary } from '../../api/workflowMetrics';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { Pagination } from '../../components/primitives/Pagination';
 import { DataTable } from '../../components/primitives/DataTable';
 import type { ColumnDef } from '../../components/primitives/DataTable';
 import { WorkflowDetailDrawer } from '../../components/WorkflowDetailDrawer/WorkflowDetailDrawer';
@@ -11,6 +12,8 @@ import { formatRelativeShort } from '../../utils/dates';
 import styles from './Workflows.module.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+const METRICS_PAGE_SIZE = 10;
 
 function conclusionBadge(conclusion: string): string {
   switch (conclusion) {
@@ -105,6 +108,14 @@ function MetricsTable({
   onViewRuns,
   emptyMessage,
 }: MetricsTableProps) {
+  const [page, setPage] = useState(1);
+
+  const paginatedItems = useMemo(() => {
+    if (!items) return [];
+    const start = (page - 1) * METRICS_PAGE_SIZE;
+    return items.slice(start, start + METRICS_PAGE_SIZE);
+  }, [items, page]);
+
   return (
     <div className={styles.metricsSection}>
       <div className={styles.metricsSectionTitle}>{title}</div>
@@ -119,13 +130,21 @@ function MetricsTable({
         </div>
       )}
       {!isLoading && !isError && items && items.length > 0 && (
-        <DataTable
-          columns={metricsColumns}
-          data={items}
-          rowKey={(row) => `${row.org}/${row.repo}/${row.workflow_name}`}
-          onRowClick={(row) => onViewRuns(row)}
-          emptyMessage={emptyMessage}
-        />
+        <>
+          <DataTable
+            columns={metricsColumns}
+            data={paginatedItems}
+            rowKey={(row) => `${row.org}/${row.repo}/${row.workflow_name}`}
+            onRowClick={(row) => onViewRuns(row)}
+            emptyMessage={emptyMessage}
+          />
+          <Pagination
+            page={page}
+            pageSize={METRICS_PAGE_SIZE}
+            total={items.length}
+            onPageChange={setPage}
+          />
+        </>
       )}
     </div>
   );

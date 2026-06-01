@@ -2,10 +2,6 @@
   padding: 0;
 }
 
-.pageHeader {
-  padding: 16px 24px 0;
-}
-
 /* ── Breadcrumb ────────────────────────────────────────────────────── */
 .breadcrumb {
   display: flex;
@@ -327,7 +323,7 @@
   color: var(--danger);
 }
 .metricHigh {
-  color: var(--severe, #db6d28);
+  color: var(--severe);
 }
 .metricClickable {
   cursor: pointer;

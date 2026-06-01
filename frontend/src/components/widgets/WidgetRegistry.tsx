@@ -2,6 +2,9 @@ import type { ComponentType } from 'react';
 import { AlertTrendsWidget } from './AlertTrendsWidget';
 import { ComplianceStatusWidget } from './ComplianceStatusWidget';
 import { CopilotUsageWidget } from './CopilotUsageWidget';
+import { CustomQueryWidget } from './CustomQueryWidget';
+import { createCustomQueryWidgetComponent } from './customQueryWidgetFactory';
+import { getCustomWidgetConfig } from './customWidgetConfigStorage';
 import { DetectionSummaryWidget } from './DetectionSummaryWidget';
 import { EventVolumeWidget } from './EventVolumeWidget';
 import { FailureRatesWidget } from './FailureRatesWidget';
@@ -18,7 +21,7 @@ import { VelocityMetricsWidget } from './VelocityMetricsWidget';
 import { WorkflowHealthWidget } from './WorkflowHealthWidget';
 
 export type WidgetSize = 'sm' | 'md' | 'lg';
-export type WidgetCategory = 'security' | 'operations' | 'activity' | 'copilot';
+export type WidgetCategory = 'security' | 'operations' | 'activity' | 'copilot' | 'custom';
 export type DashboardPersona =
   | 'security-analyst'
   | 'engineering-manager'
@@ -48,6 +51,7 @@ export const WIDGET_CATEGORY_LABELS: Record<WidgetCategory, string> = {
   operations: 'Operations',
   activity: 'Activity',
   copilot: 'Copilot',
+  custom: 'Custom Queries',
 };
 
 export const WIDGET_REGISTRY: readonly WidgetDefinition[] = [
@@ -188,6 +192,14 @@ export const WIDGET_REGISTRY: readonly WidgetDefinition[] = [
     category: 'activity',
     component: TeamHealthWidget,
   },
+  {
+    id: 'custom-query',
+    title: 'Custom Query',
+    description: 'Create widgets from saved queries with configurable visualizations.',
+    defaultSize: 'md',
+    category: 'custom',
+    component: CustomQueryWidget,
+  },
 ];
 
 export const PERSONA_WIDGET_PRESETS: Record<DashboardPersona, readonly string[]> = {
@@ -241,7 +253,25 @@ function isWidgetSize(value: unknown): value is WidgetSize {
 }
 
 export function getWidgetDefinition(id: string): WidgetDefinition | null {
-  return WIDGET_REGISTRY_BY_ID[id] ?? null;
+  const staticDef = WIDGET_REGISTRY_BY_ID[id] ?? null;
+  if (staticDef) return staticDef;
+
+  // Support dynamically-created custom query widget instances
+  if (id.startsWith('custom-query-')) {
+    const config = getCustomWidgetConfig(id);
+    if (config) {
+      return {
+        id,
+        title: config.title,
+        description: config.description || 'Custom query widget',
+        defaultSize: 'md',
+        category: 'custom',
+        component: createCustomQueryWidgetComponent(id),
+      };
+    }
+  }
+
+  return null;
 }
 
 export function createDashboardLayout(widgetIds: readonly string[]): WidgetLayoutItem[] {

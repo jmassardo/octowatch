@@ -1,4 +1,3 @@
-import { Button } from '../../components/primitives/Button';
 import { Card } from '../../components/primitives/Card';
 import type { FrameworkScore, ComplianceSummary } from '../../types/compliance';
 import styles from './Compliance.module.css';
@@ -10,36 +9,23 @@ function scoreColorClass(score: number): string {
 }
 
 function scoreBarColor(score: number): string {
-  if (score >= 75) return 'var(--color-success-fg, #3fb950)';
-  if (score >= 50) return 'var(--color-attention-fg, #d29922)';
-  return 'var(--color-danger-fg, #f85149)';
+  if (score >= 75) return 'var(--success)';
+  if (score >= 50) return 'var(--attention)';
+  return 'var(--danger)';
 }
 
 interface OverviewPaneProps {
   summary: ComplianceSummary | undefined;
   onSelectFramework: (name: string) => void;
-  onGenerateAll: () => void;
-  isGenerating: boolean;
 }
 
-export function OverviewPane({
-  summary,
-  onSelectFramework,
-  onGenerateAll,
-  isGenerating,
-}: OverviewPaneProps) {
+export function OverviewPane({ summary, onSelectFramework }: OverviewPaneProps) {
   if (!summary) return null;
 
   const frameworks = summary.frameworks;
 
   return (
     <div>
-      <div className={styles.actionsBar}>
-        <Button variant="primary" onClick={onGenerateAll} disabled={isGenerating}>
-          {isGenerating ? 'Generating…' : 'Generate All Reports'}
-        </Button>
-      </div>
-
       {/* Radar chart placeholder */}
       <div className={styles.radarPlaceholder} aria-label="Compliance radar chart">
         <div style={{ textAlign: 'center' }}>

@@ -1,29 +1,8 @@
 /* ── Layout ── */
-.splitLayout {
-  display: flex;
+.page {
   flex: 1;
-  height: 100%;
-  overflow: hidden;
-}
-
-.splitMain {
-  flex: 1;
-  min-width: 0;
   overflow-y: auto;
   padding: 24px;
-}
-
-.splitPanel {
-  width: 0;
-  overflow: hidden;
-  border-left: 1px solid var(--border);
-  background: var(--bg-card);
-  transition: width 0.2s ease;
-}
-
-.splitPanelOpen {
-  width: 420px;
-  overflow-y: auto;
 }
 
 /* ── Page header ── */
@@ -482,22 +461,22 @@
 }
 
 .conclusionFailure {
-  background: rgba(248, 81, 73, 0.15);
-  color: #f85149;
+  background: rgba(var(--danger-rgb), 0.15);
+  color: var(--danger);
 }
 
 .conclusionTimeout {
-  background: rgba(210, 153, 34, 0.15);
-  color: #d29922;
+  background: rgba(var(--attention-rgb), 0.15);
+  color: var(--attention);
 }
 
 .conclusionSuccess {
-  background: rgba(63, 185, 80, 0.15);
-  color: #3fb950;
+  background: rgba(var(--success-rgb), 0.15);
+  color: var(--success);
 }
 
 .conclusionMuted {
-  background: rgba(139, 148, 158, 0.1);
+  background: rgba(var(--fg-muted-rgb), 0.1);
   color: var(--fg-muted);
 }
 
@@ -567,7 +546,7 @@
 }
 
 @media (max-width: 1024px) {
-  .splitMain {
+  .page {
     padding: 20px;
     overflow: auto;
   }
@@ -600,11 +579,7 @@
 }
 
 @media (max-width: 768px) {
-  .splitLayout {
-    flex-direction: column;
-  }
-
-  .splitMain {
+  .page {
     padding: 16px;
   }
 
@@ -646,10 +621,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .splitLayout,
-  .splitMain,
-  .splitPanel,
-  .splitPanelOpen,
+  .page,
   .pageHeader,
   .pageTitle,
   .pageSub,

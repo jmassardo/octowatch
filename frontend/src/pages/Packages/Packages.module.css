@@ -112,7 +112,7 @@
 
 .medium {
   background: var(--accent-subtle, #0d1d2d);
-  color: var(--accent-fg, #58a6ff);
+  color: var(--accent);
 }
 
 .low {

@@ -131,7 +131,7 @@
 .trendBarFill {
   width: 100%;
   max-width: 40px;
-  background: #1f6feb;
+  background: var(--accent-bg);
   border-radius: 4px 4px 0 0;
   transition: height 0.3s ease;
 }
@@ -171,7 +171,7 @@
 .filterBtnActive {
   border-color: var(--accent);
   color: var(--accent);
-  background: rgba(31, 111, 235, 0.08);
+  background: rgba(var(--accent-bg-rgb), 0.08);
 }
 
 /* ── Tab bar (used in parent DevActivity page) ───────────────────────── */

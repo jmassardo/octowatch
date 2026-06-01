@@ -46,7 +46,7 @@
 }
 
 .tableWrap tbody tr:hover td {
-  background: rgba(177, 186, 196, 0.04);
+  background: rgba(var(--neutral-rgb), 0.04);
 }
 
 .tableWrap tbody tr:last-child td {

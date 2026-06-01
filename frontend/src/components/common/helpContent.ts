@@ -44,7 +44,7 @@ export const HELP_CONTENT_REGISTRY: Record<string, HelpContent> = {
         steps: [
           'Review the subtitle under the page title for the last sync timestamp.',
           'Scan the summary cards for sudden drops or spikes in activity.',
-          'Switch views if you need a security, executive, or CI/CD specific perspective.',
+          'Use the "Add widgets" or "Change layout" buttons to customize your dashboard view.',
         ],
       },
       {

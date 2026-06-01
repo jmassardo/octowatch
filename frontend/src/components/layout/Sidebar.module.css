@@ -35,7 +35,7 @@
 .closeMobile:hover,
 .closeMobile:focus-visible {
   color: var(--fg);
-  background: rgba(177, 186, 196, 0.12);
+  background: rgba(var(--neutral-rgb), 0.12);
 }
 
 .navSection {
@@ -66,13 +66,13 @@
 
 .navItem:hover,
 .navItem:focus-visible {
-  background: rgba(177, 186, 196, 0.08);
+  background: rgba(var(--neutral-rgb), 0.08);
   color: var(--fg);
   text-decoration: none;
 }
 
 .navItem.active {
-  background: rgba(177, 186, 196, 0.12);
+  background: rgba(var(--neutral-rgb), 0.12);
   color: var(--fg);
 }
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import structlog
 from sqlalchemy import select, text
@@ -69,6 +69,16 @@ VALID_RESOURCES = frozenset(
         "admin_teams",
         "audit_log",
         "playbooks",
+        "supply_chain",
+        "packages",
+        "user_behavior",
+        "notifications",
+        "compliance",
+        "telemetry",
+        "platform_usage",
+        "sync_status",
+        "threat_intel",
+        "profile",
     }
 )
 
@@ -105,6 +115,11 @@ SYSTEM_ROLE_PERMISSIONS: dict[str, list[str]] = {
         "org_health:view",
         "playbooks:view",
         "playbooks:execute",
+        "supply_chain:view",
+        "packages:view",
+        "user_behavior:view",
+        "threat_intel:view",
+        "compliance:view",
     ],
     "security_engineer": [
         "detections:*",
@@ -119,6 +134,11 @@ SYSTEM_ROLE_PERMISSIONS: dict[str, list[str]] = {
         "workflow_security:view",
         "copilot:view",
         "org_health:view",
+        "supply_chain:*",
+        "packages:*",
+        "user_behavior:view",
+        "threat_intel:*",
+        "compliance:view",
     ],
     "compliance_officer": [
         "posture:*",
@@ -134,11 +154,17 @@ SYSTEM_ROLE_PERMISSIONS: dict[str, list[str]] = {
         "copilot:view",
         "org_health:view",
         "playbooks:view",
+        "compliance:*",
+        "supply_chain:view",
+        "packages:view",
+        "user_behavior:view",
+        "threat_intel:view",
     ],
     "engineering_leader": [
         "velocity:*",
         "dev_activity:*",
         "workflow_health:*",
+        "org_health:view",
         "copilot:view",
         "dashboard:view",
     ],
@@ -167,6 +193,11 @@ SYSTEM_ROLE_PERMISSIONS: dict[str, list[str]] = {
         "org_health:view",
         "playbooks:view",
         "playbooks:execute",
+        "supply_chain:view",
+        "packages:view",
+        "user_behavior:view",
+        "threat_intel:view",
+        "compliance:view",
     ],
     "rule_author": [
         "detections:*",
@@ -181,6 +212,11 @@ SYSTEM_ROLE_PERMISSIONS: dict[str, list[str]] = {
         "workflow_security:view",
         "copilot:view",
         "org_health:view",
+        "supply_chain:*",
+        "packages:*",
+        "user_behavior:view",
+        "threat_intel:*",
+        "compliance:view",
     ],
     "report_admin": [
         "posture:*",
@@ -196,6 +232,11 @@ SYSTEM_ROLE_PERMISSIONS: dict[str, list[str]] = {
         "copilot:view",
         "org_health:view",
         "playbooks:view",
+        "compliance:*",
+        "supply_chain:view",
+        "packages:view",
+        "user_behavior:view",
+        "threat_intel:view",
     ],
 }
 
@@ -494,11 +535,11 @@ async def get_user_scope(
 
 
 def inject_scope_predicate(
-    stmt: object,
+    stmt: Any,
     scope: OrgRepoScope,
-    org_col: object,
-    repo_col: object | None = None,
-) -> object:
+    org_col: Any,
+    repo_col: Any | None = None,
+) -> Any:
     """Append mandatory RBAC scope WHERE clauses to a SQLAlchemy SELECT.
 
     Parameters
@@ -529,14 +570,12 @@ def inject_scope_predicate(
 
     # When repo scopes exist, they take precedence (narrower wins)
     if repo_col is not None and scope.scoped_repos:
-        stmt = stmt.where(  # type: ignore[union-attr]
-            or_(repo_col.is_(None), repo_col.in_(scope.scoped_repos))
-        )
+        stmt = stmt.where(or_(repo_col.is_(None), repo_col.in_(scope.scoped_repos)))
         return stmt
 
     # Narrow by permitted orgs
     if scope.scoped_orgs:
-        stmt = stmt.where(org_col.in_(scope.scoped_orgs))  # type: ignore[union-attr]
+        stmt = stmt.where(org_col.in_(scope.scoped_orgs))
 
     return stmt
 
@@ -608,13 +647,13 @@ async def get_scoped_orgs(
 
 
 def apply_client_filters(
-    stmt: object,
+    stmt: Any,
     scope: OrgRepoScope,
     client_org: str | None,
     client_repo: str | None,
-    org_col: object,
-    repo_col: object | None = None,
-) -> object:
+    org_col: Any,
+    repo_col: Any | None = None,
+) -> Any:
     """Apply client-supplied org/repo as additional narrowing filters.
 
     These can only narrow the RBAC scope, never expand it. Silently ignored if
@@ -623,10 +662,10 @@ def apply_client_filters(
     if client_org:
         # Only allow if within RBAC scope
         if scope.is_global or client_org in scope.scoped_orgs:
-            stmt = stmt.where(org_col == client_org)  # type: ignore[union-attr]
+            stmt = stmt.where(org_col == client_org)
 
     if repo_col is not None and client_repo:
         if scope.is_global or client_repo in scope.scoped_repos or scope.scoped_orgs:
-            stmt = stmt.where(repo_col == client_repo)  # type: ignore[union-attr]
+            stmt = stmt.where(repo_col == client_repo)
 
     return stmt

@@ -48,7 +48,7 @@ describe('RuleWizard', () => {
 
     await user.click(await screen.findByRole('button', { name: /next/i }));
 
-    expect(screen.getByLabelText(/^name$/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Impossible Travel Login')).toBeInTheDocument();
     expect(screen.getByText(/2\. basic info/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /back/i }));

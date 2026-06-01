@@ -153,12 +153,201 @@ describe('ReportsPage', () => {
     expect(screen.getByText('Organization activity and usage analytics')).toBeInTheDocument();
   });
 
-  it('shows empty state when no reports in catalog', async () => {
+  it('renders window selector with 30d, 60d, 90d buttons', () => {
     renderWithProviders(<ReportsPage />);
-    expect(await screen.findByText(/No reports available yet/)).toBeInTheDocument();
+    expect(screen.getByText('Window:')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '30d' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '60d' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '90d' })).toBeInTheDocument();
   });
 
-  it('renders report cards from catalog API data', async () => {
+  it('updates window days when selector buttons are clicked', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+
+    expect(screen.getByText(/last 30 days/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '60d' }));
+    expect(screen.getByText(/last 60 days/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '90d' }));
+    expect(screen.getByText(/last 90 days/)).toBeInTheDocument();
+  });
+
+  it('renders summary card with data bucket counts', async () => {
+    renderWithProviders(<ReportsPage />);
+    expect(screen.getByText(/Data summary/)).toBeInTheDocument();
+    expect(screen.getByText('Total MAU buckets')).toBeInTheDocument();
+    expect(screen.getByText('Actions buckets')).toBeInTheDocument();
+    expect(screen.getByText('Platform seat util buckets')).toBeInTheDocument();
+    expect(screen.getByText('Copilot seat buckets')).toBeInTheDocument();
+  });
+
+  it('renders summary cards for all 8 report types', async () => {
+    renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Repo creation buckets')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Total MAU buckets')).toBeInTheDocument();
+    expect(screen.getByText('Actions buckets')).toBeInTheDocument();
+    expect(screen.getByText('Platform seat util buckets')).toBeInTheDocument();
+    expect(screen.getByText('Copilot seat buckets')).toBeInTheDocument();
+    expect(screen.getByText('Repo creation buckets')).toBeInTheDocument();
+    expect(screen.getByText('PAT event buckets')).toBeInTheDocument();
+    expect(screen.getByText('Webhook event buckets')).toBeInTheDocument();
+    expect(screen.getByText('Codespace hours buckets')).toBeInTheDocument();
+  });
+
+  it('shows Platform seat util instead of Seat util for seat-utilization summary', () => {
+    renderWithProviders(<ReportsPage />);
+    expect(screen.getByText('Platform seat util buckets')).toBeInTheDocument();
+  });
+
+  it('summary values are clickable when numeric', async () => {
+    const { container } = renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      const grid = container.querySelector('.summaryGrid')!;
+      const clickableValues = grid.querySelectorAll('.clickableValue');
+      expect(clickableValues.length).toBeGreaterThan(0);
+    });
+    const grid = container.querySelector('.summaryGrid')!;
+    const clickableValues = grid.querySelectorAll('.clickableValue');
+    clickableValues.forEach((el) => {
+      expect(el.getAttribute('role')).toBe('button');
+    });
+  });
+
+  it('clicking bucket value opens the detail drawer', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(container.querySelector('.clickableValue')).not.toBeNull();
+    });
+    const clickable = container.querySelector('.clickableValue')!;
+    await user.click(clickable);
+    // Drawer opens with report-detail-tray content
+    expect(screen.getByTestId('report-detail-tray')).toBeInTheDocument();
+  });
+
+  it('renders data source labels on summary cards', async () => {
+    renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      const sources = screen.getAllByText(/Source: Audit Events/);
+      expect(sources.length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  it('renders data source in drawer when report is opened', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(container.querySelector('.clickableValue')).not.toBeNull();
+    });
+    const clickable = container.querySelector('.clickableValue')!;
+    await user.click(clickable);
+    const modalSources = document.querySelectorAll('.modalDataSource');
+    expect(modalSources.length).toBeGreaterThanOrEqual(1);
+  });
+
+  // ── Tab navigation tests ──────────────────────────────────────────────
+
+  it('renders tab navigation with Templates, My Reports, Shared with Me, and Recent tabs', () => {
+    renderWithProviders(<ReportsPage />);
+    expect(screen.getByRole('tab', { name: /Templates/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /My Reports/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Shared with Me/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Recent/i })).toBeInTheDocument();
+  });
+
+  it('Templates tab is active by default', () => {
+    renderWithProviders(<ReportsPage />);
+    const templatesTab = screen.getByRole('tab', { name: /Templates/i });
+    expect(templatesTab.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('renders 8 pre-built report template rows in Templates tab table', async () => {
+    renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Compliance Report')).toBeInTheDocument();
+    expect(screen.getByText('Detection Summary Report')).toBeInTheDocument();
+    expect(screen.getByText('User Activity Report')).toBeInTheDocument();
+    expect(screen.getByText('Copilot Usage Report')).toBeInTheDocument();
+    expect(screen.getByText('Workflow Health Report')).toBeInTheDocument();
+    expect(screen.getByText('Access Review Report')).toBeInTheDocument();
+    expect(screen.getByText('Org Comparison Report')).toBeInTheDocument();
+  });
+
+  it('templates are displayed in a DataTable', async () => {
+    renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
+    });
+    // Table should be rendered with proper column headers
+    expect(screen.getByText('Report Name')).toBeInTheDocument();
+    expect(screen.getByText('Description')).toBeInTheDocument();
+    expect(screen.getByText('Type')).toBeInTheDocument();
+    expect(screen.getByText('Last Run')).toBeInTheDocument();
+    expect(screen.getByText('Status')).toBeInTheDocument();
+  });
+
+  it('clicking a template row opens the detail drawer with config panel', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('User Activity Report')).toBeInTheDocument();
+    });
+
+    const row = screen.getByText('User Activity Report');
+    await user.click(row);
+
+    // Drawer should be open with the config panel
+    expect(screen.getByTestId('report-config-panel')).toBeInTheDocument();
+  });
+
+  it('clicking a template row opens drawer with export buttons', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Security Posture Report'));
+
+    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Export PDF' })).toBeInTheDocument();
+  });
+
+  it('calls exportReport when Export CSV is clicked in drawer', async () => {
+    const { exportReport } = await import('../../api/reports');
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Security Posture Report'));
+    await user.click(screen.getByRole('button', { name: 'Export CSV' }));
+
+    expect(exportReport).toHaveBeenCalledWith('soc2', 'csv');
+  });
+
+  it('calls exportReport when Export PDF is clicked in drawer', async () => {
+    const { exportReport } = await import('../../api/reports');
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Security Posture Report'));
+    await user.click(screen.getByRole('button', { name: 'Export PDF' }));
+
+    expect(exportReport).toHaveBeenCalledWith('soc2', 'pdf');
+  });
+
+  it('renders catalog items in the templates table', async () => {
     const { getReportCatalog } = await import('../../api/reports');
     vi.mocked(getReportCatalog).mockResolvedValueOnce([
       {
@@ -185,248 +374,6 @@ describe('ReportsPage', () => {
     expect(screen.getByText('DORA Metrics Report')).toBeInTheDocument();
   });
 
-  it('renders PDF and CSV buttons for catalog report cards', async () => {
-    const { getReportCatalog } = await import('../../api/reports');
-    vi.mocked(getReportCatalog).mockResolvedValueOnce([
-      {
-        id: 'report-1',
-        type: 'security_posture',
-        title: 'Custom Posture Report',
-        generated_at: '2024-06-15T10:00:00Z',
-        status: 'completed',
-        tags: [],
-      },
-    ]);
-
-    renderWithProviders(<ReportsPage />);
-
-    await screen.findByText('Custom Posture Report');
-    const pdfButtons = screen.getAllByRole('button', { name: 'PDF' });
-    const csvButtons = screen.getAllByRole('button', { name: 'CSV' });
-    expect(pdfButtons.length).toBeGreaterThanOrEqual(1);
-    expect(csvButtons.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('renders window selector with 30d, 60d, 90d buttons', () => {
-    renderWithProviders(<ReportsPage />);
-    expect(screen.getByText('Window:')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '30d' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '60d' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '90d' })).toBeInTheDocument();
-  });
-
-  it('calls exportReport with pdf format when PDF button is clicked', async () => {
-    const { exportReport, getReportCatalog } = await import('../../api/reports');
-    vi.mocked(getReportCatalog).mockResolvedValueOnce([
-      {
-        id: 'report-1',
-        type: 'security_posture',
-        title: 'Custom Posture Export',
-        generated_at: '2024-06-15T10:00:00Z',
-        status: 'completed',
-        tags: [],
-      },
-    ]);
-    const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
-
-    await screen.findByText('Custom Posture Export');
-    const pdfButtons = screen.getAllByRole('button', { name: 'PDF' });
-    await user.click(pdfButtons[0]);
-    expect(exportReport).toHaveBeenCalledWith('security_posture', 'pdf');
-  });
-
-  it('calls exportReport with csv format when CSV button is clicked', async () => {
-    const { exportReport, getReportCatalog } = await import('../../api/reports');
-    vi.mocked(getReportCatalog).mockResolvedValueOnce([
-      {
-        id: 'report-1',
-        type: 'security_posture',
-        title: 'Custom Posture CSV',
-        generated_at: '2024-06-15T10:00:00Z',
-        status: 'completed',
-        tags: [],
-      },
-    ]);
-    const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
-
-    await screen.findByText('Custom Posture CSV');
-    const csvButtons = screen.getAllByRole('button', { name: 'CSV' });
-    await user.click(csvButtons[0]);
-    expect(exportReport).toHaveBeenCalledWith('security_posture', 'csv');
-  });
-
-  it('updates window days when selector buttons are clicked', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
-
-    expect(screen.getByText(/last 30 days/)).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: '60d' }));
-    expect(screen.getByText(/last 60 days/)).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: '90d' }));
-    expect(screen.getByText(/last 90 days/)).toBeInTheDocument();
-  });
-
-  it('renders summary card with data bucket counts', async () => {
-    renderWithProviders(<ReportsPage />);
-    expect(screen.getByText(/Data summary/)).toBeInTheDocument();
-    expect(screen.getByText('Total MAU buckets')).toBeInTheDocument();
-    expect(screen.getByText('Actions buckets')).toBeInTheDocument();
-    expect(screen.getByText('Platform seat util buckets')).toBeInTheDocument();
-    expect(screen.getByText('Copilot seat buckets')).toBeInTheDocument();
-  });
-
-  it('renders org-scoped tags showing "All orgs" when no org is selected and catalog has items', async () => {
-    const { getReportCatalog } = await import('../../api/reports');
-    vi.mocked(getReportCatalog).mockResolvedValueOnce([
-      {
-        id: 'report-1',
-        type: 'security_posture',
-        title: 'Test Report',
-        generated_at: '2024-06-15T10:00:00Z',
-        status: 'completed',
-        tags: [],
-      },
-    ]);
-    renderWithProviders(<ReportsPage />);
-    await screen.findByText('Test Report');
-    const allOrgLabels = screen.getAllByText('All orgs');
-    expect(allOrgLabels).toHaveLength(1);
-  });
-
-  it('renders org-scoped tags showing selected org name when catalog has items', async () => {
-    mockUseOrg.mockReturnValue({ selectedOrg: 'my-org', setSelectedOrg: vi.fn() });
-    const { getReportCatalog } = await import('../../api/reports');
-    vi.mocked(getReportCatalog).mockResolvedValueOnce([
-      {
-        id: 'report-1',
-        type: 'security_posture',
-        title: 'Test Report',
-        generated_at: '2024-06-15T10:00:00Z',
-        status: 'completed',
-        tags: [],
-      },
-    ]);
-    renderWithProviders(<ReportsPage />);
-    await screen.findByText('Test Report');
-    const orgLabels = screen.getAllByText('my-org');
-    expect(orgLabels).toHaveLength(1);
-  });
-
-  it('summary values are clickable when numeric', async () => {
-    const { container } = renderWithProviders(<ReportsPage />);
-    await waitFor(() => {
-      const grid = container.querySelector('.summaryGrid')!;
-      const clickableValues = grid.querySelectorAll('.clickableValue');
-      expect(clickableValues.length).toBeGreaterThan(0);
-    });
-    const grid = container.querySelector('.summaryGrid')!;
-    const clickableValues = grid.querySelectorAll('.clickableValue');
-    clickableValues.forEach((el) => {
-      expect(el.getAttribute('role')).toBe('button');
-    });
-  });
-
-  it('clicking bucket value opens modal', async () => {
-    const user = userEvent.setup();
-    const { container } = renderWithProviders(<ReportsPage />);
-    await waitFor(() => {
-      expect(container.querySelector('.clickableValue')).not.toBeNull();
-    });
-    const clickable = container.querySelector('.clickableValue')!;
-    await user.click(clickable);
-    // Modal renders a table with bucket data columns
-    expect(screen.getByRole('table')).toBeInTheDocument();
-  });
-
-  it('report titles have clickable styling when catalog has items', async () => {
-    const { getReportCatalog } = await import('../../api/reports');
-    vi.mocked(getReportCatalog).mockResolvedValueOnce([
-      {
-        id: 'report-1',
-        type: 'security_posture',
-        title: 'Test Report',
-        generated_at: '2024-06-15T10:00:00Z',
-        status: 'completed',
-        tags: [],
-      },
-    ]);
-    const { container } = renderWithProviders(<ReportsPage />);
-    await screen.findByText('Test Report');
-    const clickableTitles = container.querySelectorAll('.reportTitleClickable');
-    expect(clickableTitles).toHaveLength(1);
-    clickableTitles.forEach((el) => {
-      expect(el.getAttribute('role')).toBe('button');
-    });
-  });
-
-  it('clicking a report title does not call exportReport', async () => {
-    const { exportReport, getReportCatalog } = await import('../../api/reports');
-    vi.mocked(getReportCatalog).mockResolvedValueOnce([
-      {
-        id: 'report-1',
-        type: 'mau',
-        title: 'MAU Report',
-        generated_at: '2024-06-15T10:00:00Z',
-        status: 'completed',
-        tags: [],
-      },
-    ]);
-    const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
-
-    const title = await screen.findByText('MAU Report');
-    await user.click(title);
-    expect(exportReport).not.toHaveBeenCalled();
-  });
-
-  it('clicking a report title opens a modal with report data', async () => {
-    const { getReportCatalog } = await import('../../api/reports');
-    vi.mocked(getReportCatalog).mockResolvedValueOnce([
-      {
-        id: 'report-1',
-        type: 'mau',
-        title: 'MAU Report',
-        generated_at: '2024-06-15T10:00:00Z',
-        status: 'completed',
-        tags: [],
-      },
-    ]);
-    const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
-
-    const title = await screen.findByText('MAU Report');
-    await user.click(title);
-
-    expect(screen.getByText('Monthly Active Users')).toBeInTheDocument();
-    const tables = screen.getAllByRole('table');
-    expect(tables.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('report view modal shows "no data" message for unknown report types', async () => {
-    const { getReportCatalog } = await import('../../api/reports');
-    vi.mocked(getReportCatalog).mockResolvedValueOnce([
-      {
-        id: 'report-1',
-        type: 'unknown_type',
-        title: 'Unknown Report',
-        generated_at: '2024-06-15T10:00:00Z',
-        status: 'completed',
-        tags: [],
-      },
-    ]);
-    const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
-
-    const title = await screen.findByText('Unknown Report');
-    await user.click(title);
-
-    expect(screen.getByText('No data available for this report type.')).toBeInTheDocument();
-  });
-
   it('renders without crashing when catalog entries have no tags field', async () => {
     const { getReportCatalog } = await import('../../api/reports');
     vi.mocked(getReportCatalog).mockResolvedValueOnce([
@@ -440,7 +387,6 @@ describe('ReportsPage', () => {
     ]);
     renderWithProviders(<ReportsPage />);
     expect(await screen.findByText('Report Without Tags')).toBeInTheDocument();
-    expect(screen.getByText('All orgs')).toBeInTheDocument();
   });
 
   it('renders without crashing when generated_at is null', async () => {
@@ -457,52 +403,6 @@ describe('ReportsPage', () => {
     ]);
     renderWithProviders(<ReportsPage />);
     expect(await screen.findByText('Report With Null Date')).toBeInTheDocument();
-    expect(screen.getByText('available')).toBeInTheDocument();
-    expect(screen.getByText('custom-tag-unique')).toBeInTheDocument();
-  });
-
-  it('renders tag labels from catalog entry tags', async () => {
-    const { getReportCatalog } = await import('../../api/reports');
-    vi.mocked(getReportCatalog).mockResolvedValueOnce([
-      {
-        id: 'report-with-tags',
-        type: 'mau',
-        title: 'Tagged Report',
-        generated_at: '2024-06-15T10:00:00Z',
-        status: 'completed',
-        tags: ['unique-tag-alpha', 'unique-tag-beta'],
-      },
-    ]);
-    renderWithProviders(<ReportsPage />);
-    await screen.findByText('Tagged Report');
-    expect(screen.getByText('unique-tag-alpha')).toBeInTheDocument();
-    expect(screen.getByText('unique-tag-beta')).toBeInTheDocument();
-  });
-
-  it('renders data source labels on summary cards', async () => {
-    renderWithProviders(<ReportsPage />);
-    await waitFor(() => {
-      const sources = screen.getAllByText(/Source: Audit Events/);
-      expect(sources.length).toBeGreaterThanOrEqual(3);
-    });
-  });
-
-  it('renders data source label on catalog items when data_source is present', async () => {
-    const { getReportCatalog } = await import('../../api/reports');
-    vi.mocked(getReportCatalog).mockResolvedValueOnce([
-      {
-        id: 'report-ds',
-        type: 'mau',
-        title: 'MAU With Source',
-        generated_at: '2024-06-15T10:00:00Z',
-        status: 'completed',
-        tags: [],
-        data_source: 'Audit Events',
-      },
-    ]);
-    renderWithProviders(<ReportsPage />);
-    await screen.findByText('MAU With Source');
-    expect(screen.getByText('Audit Events')).toBeInTheDocument();
   });
 
   it('renders description on catalog items when description is present', async () => {
@@ -523,26 +423,13 @@ describe('ReportsPage', () => {
     expect(screen.getByText('Unique actors per time bucket.')).toBeInTheDocument();
   });
 
-  it('renders data source in bucket modal when opened', async () => {
-    const user = userEvent.setup();
-    const { container } = renderWithProviders(<ReportsPage />);
-    await waitFor(() => {
-      expect(container.querySelector('.clickableValue')).not.toBeNull();
-    });
-    const clickable = container.querySelector('.clickableValue')!;
-    await user.click(clickable);
-    // Modal may render in a portal; check at document level
-    const modalSources = document.querySelectorAll('.modalDataSource');
-    expect(modalSources.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('renders data source in report view modal', async () => {
+  it('clicking a catalog report row opens drawer with report data', async () => {
     const { getReportCatalog } = await import('../../api/reports');
     vi.mocked(getReportCatalog).mockResolvedValueOnce([
       {
         id: 'report-1',
         type: 'mau',
-        title: 'MAU Report View',
+        title: 'MAU Report',
         generated_at: '2024-06-15T10:00:00Z',
         status: 'completed',
         tags: [],
@@ -551,36 +438,58 @@ describe('ReportsPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<ReportsPage />);
 
-    const title = await screen.findByText('MAU Report View');
+    const title = await screen.findByText('MAU Report');
     await user.click(title);
 
-    expect(screen.getByText('Monthly Active Users')).toBeInTheDocument();
-    // Modal may render in a portal; check at document level
-    const modalSources = document.querySelectorAll('.modalDataSource');
-    expect(modalSources.length).toBeGreaterThanOrEqual(1);
+    // Drawer opens with data section showing the reportDataMap title
+    expect(screen.getByTestId('report-detail-tray')).toBeInTheDocument();
+    // The report data section title comes from reportDataMap
+    const tables = screen.getAllByRole('table');
+    expect(tables.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('shows Platform seat util instead of Seat util for seat-utilization summary', () => {
+  it('clicking a report row does not call exportReport directly', async () => {
+    const { exportReport, getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-1',
+        type: 'mau',
+        title: 'MAU Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
+    const user = userEvent.setup();
     renderWithProviders(<ReportsPage />);
-    expect(screen.getByText('Platform seat util buckets')).toBeInTheDocument();
+
+    const title = await screen.findByText('MAU Report');
+    await user.click(title);
+    expect(exportReport).not.toHaveBeenCalled();
   });
 
-  it('renders summary cards for all 8 report types', async () => {
+  it('drawer shows "no data" for unknown report types', async () => {
+    const { getReportCatalog } = await import('../../api/reports');
+    vi.mocked(getReportCatalog).mockResolvedValueOnce([
+      {
+        id: 'report-1',
+        type: 'unknown_type',
+        title: 'Unknown Report',
+        generated_at: '2024-06-15T10:00:00Z',
+        status: 'completed',
+        tags: [],
+      },
+    ]);
+    const user = userEvent.setup();
     renderWithProviders(<ReportsPage />);
-    await waitFor(() => {
-      expect(screen.getByText('Repo creation buckets')).toBeInTheDocument();
-    });
-    expect(screen.getByText('Total MAU buckets')).toBeInTheDocument();
-    expect(screen.getByText('Actions buckets')).toBeInTheDocument();
-    expect(screen.getByText('Platform seat util buckets')).toBeInTheDocument();
-    expect(screen.getByText('Copilot seat buckets')).toBeInTheDocument();
-    expect(screen.getByText('Repo creation buckets')).toBeInTheDocument();
-    expect(screen.getByText('PAT event buckets')).toBeInTheDocument();
-    expect(screen.getByText('Webhook event buckets')).toBeInTheDocument();
-    expect(screen.getByText('Codespace hours buckets')).toBeInTheDocument();
+
+    const title = await screen.findByText('Unknown Report');
+    await user.click(title);
+
+    expect(screen.getByText('No data available for this report type.')).toBeInTheDocument();
   });
 
-  it('clicking repo-creation-rate report title opens modal with report data', async () => {
+  it('clicking repo-creation-rate report opens drawer with data', async () => {
     const { getReportCatalog } = await import('../../api/reports');
     vi.mocked(getReportCatalog).mockResolvedValueOnce([
       {
@@ -599,11 +508,9 @@ describe('ReportsPage', () => {
     await user.click(title);
 
     expect(screen.getByText('Repo Creation Rate')).toBeInTheDocument();
-    const tables = screen.getAllByRole('table');
-    expect(tables.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('clicking pat-counts report title opens modal with report data', async () => {
+  it('clicking pat-counts report opens drawer with data', async () => {
     const { getReportCatalog } = await import('../../api/reports');
     vi.mocked(getReportCatalog).mockResolvedValueOnce([
       {
@@ -622,11 +529,9 @@ describe('ReportsPage', () => {
     await user.click(title);
 
     expect(screen.getByText('Personal Access Token Counts')).toBeInTheDocument();
-    const tables = screen.getAllByRole('table');
-    expect(tables.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('clicking webhook-counts report title opens modal with report data', async () => {
+  it('clicking webhook-counts report opens drawer with data', async () => {
     const { getReportCatalog } = await import('../../api/reports');
     vi.mocked(getReportCatalog).mockResolvedValueOnce([
       {
@@ -645,11 +550,9 @@ describe('ReportsPage', () => {
     await user.click(title);
 
     expect(screen.getByText('Webhook Counts')).toBeInTheDocument();
-    const tables = screen.getAllByRole('table');
-    expect(tables.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('clicking codespace-hours report title opens modal with report data', async () => {
+  it('clicking codespace-hours report opens drawer with data', async () => {
     const { getReportCatalog } = await import('../../api/reports');
     vi.mocked(getReportCatalog).mockResolvedValueOnce([
       {
@@ -668,63 +571,9 @@ describe('ReportsPage', () => {
     await user.click(title);
 
     expect(screen.getByText('Codespace Hours')).toBeInTheDocument();
-    const tables = screen.getAllByRole('table');
-    expect(tables.length).toBeGreaterThanOrEqual(1);
   });
 
-  // ── New tab-based tests ──────────────────────────────────────────────
-
-  it('renders tab navigation with Templates, My Reports, Shared with Me, and Recent tabs', () => {
-    renderWithProviders(<ReportsPage />);
-    expect(screen.getByRole('tab', { name: /Templates/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /My Reports/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Shared with Me/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Recent/i })).toBeInTheDocument();
-  });
-
-  it('Templates tab is active by default', () => {
-    renderWithProviders(<ReportsPage />);
-    const templatesTab = screen.getByRole('tab', { name: /Templates/i });
-    expect(templatesTab.getAttribute('aria-selected')).toBe('true');
-  });
-
-  it('renders 8 pre-built report template cards in Templates tab', async () => {
-    renderWithProviders(<ReportsPage />);
-    await waitFor(() => {
-      expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
-    });
-    expect(screen.getByText('Compliance Report')).toBeInTheDocument();
-    expect(screen.getByText('Detection Summary Report')).toBeInTheDocument();
-    expect(screen.getByText('User Activity Report')).toBeInTheDocument();
-    expect(screen.getByText('Copilot Usage Report')).toBeInTheDocument();
-    expect(screen.getByText('Workflow Health Report')).toBeInTheDocument();
-    expect(screen.getByText('Access Review Report')).toBeInTheDocument();
-    expect(screen.getByText('Org Comparison Report')).toBeInTheDocument();
-  });
-
-  it('template cards show category tags', async () => {
-    renderWithProviders(<ReportsPage />);
-    await waitFor(() => {
-      expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
-    });
-    // Categories like Security, Compliance, Usage, DevOps
-    expect(screen.getAllByText('Security').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Usage').length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('clicking a template card opens the config panel in a drawer', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
-    await waitFor(() => {
-      expect(screen.getByText('User Activity Report')).toBeInTheDocument();
-    });
-
-    const templateCard = screen.getByText('User Activity Report');
-    await user.click(templateCard);
-
-    // Drawer should be open with the config panel - look for the config panel
-    expect(screen.getByTestId('report-config-panel')).toBeInTheDocument();
-  });
+  // ── Tab switching tests ──────────────────────────────────────────────
 
   it('switching to My Reports tab shows empty state when no custom reports', async () => {
     const user = userEvent.setup();
@@ -764,12 +613,11 @@ describe('ReportsPage', () => {
 
     await user.click(screen.getByRole('button', { name: /New Custom Report/i }));
 
-    // The builder should render inside a modal
     expect(screen.getByTestId('report-builder')).toBeInTheDocument();
     expect(screen.getByText('Step 1: Choose Data Sources')).toBeInTheDocument();
   });
 
-  it('My Reports tab renders custom report cards', async () => {
+  it('My Reports tab renders custom report rows in table', async () => {
     const { listCustomReports } = await import('../../api/reports');
     vi.mocked(listCustomReports).mockResolvedValueOnce([
       {
@@ -797,10 +645,9 @@ describe('ReportsPage', () => {
 
     expect(await screen.findByText('My Custom Events Report')).toBeInTheDocument();
     expect(screen.getByText('Custom event analysis')).toBeInTheDocument();
-    expect(screen.getByText('events')).toBeInTheDocument();
   });
 
-  it('My Reports tab shows Share and Delete buttons on custom reports', async () => {
+  it('My Reports tab shows Share and Delete buttons in drawer when row is clicked', async () => {
     const { listCustomReports } = await import('../../api/reports');
     vi.mocked(listCustomReports).mockResolvedValueOnce([
       {
@@ -827,11 +674,14 @@ describe('ReportsPage', () => {
     await user.click(screen.getByRole('tab', { name: /My Reports/i }));
     await screen.findByText('My Report');
 
+    // Click the row to open drawer
+    await user.click(screen.getByText('My Report'));
+
     expect(screen.getByRole('button', { name: 'Share' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
   });
 
-  it('Shared reports tab shows "Shared by" badge', async () => {
+  it('Shared reports tab shows "shared by" status in table', async () => {
     const { listSharedReports } = await import('../../api/reports');
     vi.mocked(listSharedReports).mockResolvedValueOnce([
       {
@@ -858,7 +708,7 @@ describe('ReportsPage', () => {
     await user.click(screen.getByRole('tab', { name: /Shared with Me/i }));
     await screen.findByText('Shared Detection Report');
 
-    expect(screen.getByText('Shared by otheruser')).toBeInTheDocument();
+    expect(screen.getByText('shared by otheruser')).toBeInTheDocument();
   });
 
   it('tab badge shows custom report count', async () => {
@@ -901,9 +751,42 @@ describe('ReportsPage', () => {
     renderWithProviders(<ReportsPage />);
 
     await waitFor(() => {
-      // The My Reports tab should show count "2"
       const myReportsTab = screen.getByRole('tab', { name: /My Reports/i });
       expect(myReportsTab.textContent).toContain('2');
     });
+  });
+
+  // ── Deep-linking tests ──────────────────────────────────────────────
+
+  it('opening page with report query param auto-opens the drawer', async () => {
+    renderWithProviders(<ReportsPage />, { route: '/?report=tmpl-user-activity' });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('report-detail-tray')).toBeInTheDocument();
+    });
+    // Drawer title and table both show the name; verify drawer is rendered
+    expect(screen.getByTestId('report-detail-tray')).toBeInTheDocument();
+  });
+
+  it('drawer shows organization when selectedOrg is set', async () => {
+    mockUseOrg.mockReturnValue({ selectedOrg: 'my-org', setSelectedOrg: vi.fn() });
+    const user = userEvent.setup();
+    renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Security Posture Report'));
+
+    expect(screen.getByText('my-org')).toBeInTheDocument();
+  });
+
+  it('table has clickable row styling on report names', async () => {
+    const { container } = renderWithProviders(<ReportsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
+    });
+    const clickableTitles = container.querySelectorAll('.reportTitleClickable');
+    expect(clickableTitles.length).toBeGreaterThan(0);
   });
 });

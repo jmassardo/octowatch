@@ -8,7 +8,7 @@ const mockPermissions = {
   user_id: 'user-1',
   roles: ['analyst', 'viewer'],
   permissions: ['events:view', 'detections:view', 'reports:view'],
-  scopes: { orgs: null, repos: null },
+  scopes: { orgs: null, repos: null, scope_type: 'global' },
 };
 
 vi.mock('../api/permissions', () => ({
@@ -16,7 +16,7 @@ vi.mock('../api/permissions', () => ({
     user_id: 'user-1',
     roles: ['analyst', 'viewer'],
     permissions: ['events:view', 'detections:view', 'reports:view'],
-    scopes: { orgs: null, repos: null },
+    scopes: { orgs: null, repos: null, scope_type: 'global' },
   }),
 }));
 
@@ -74,6 +74,34 @@ describe('usePermissions', () => {
     expect(result.current.hasRole('analyst')).toBe(true);
     expect(result.current.hasRole('super_admin')).toBe(false);
   });
+
+  it('returns scope metadata and helper checks', async () => {
+    const { getMyPermissions } = await import('../api/permissions');
+    vi.mocked(getMyPermissions).mockResolvedValueOnce({
+      user_id: 'user-3',
+      roles: ['security_analyst'],
+      permissions: ['posture:view', 'posture:edit'],
+      scopes: {
+        orgs: ['my-org'],
+        repos: ['my-org/repo-a'],
+        scope_type: 'org',
+      },
+    });
+
+    const { result } = renderHook(() => usePermissions(), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.scopedOrgs).toEqual(['my-org']);
+    expect(result.current.scopedRepos).toEqual(['my-org/repo-a']);
+    expect(result.current.scopeType).toBe('org');
+    expect(result.current.isOrgInScope('my-org')).toBe(true);
+    expect(result.current.isOrgInScope('other-org')).toBe(false);
+    expect(result.current.isRepoInScope('my-org/repo-b')).toBe(true);
+    expect(result.current.isRepoInScope('other-org/repo-b')).toBe(false);
+    expect(result.current.canEdit('posture')).toBe(true);
+    expect(result.current.canEdit('events')).toBe(false);
+  });
 });
 
 describe('usePermissions wildcard matching', () => {
@@ -83,7 +111,7 @@ describe('usePermissions wildcard matching', () => {
       user_id: 'admin-1',
       roles: ['super_admin'],
       permissions: ['*:*'],
-      scopes: { orgs: null, repos: null },
+      scopes: { orgs: null, repos: null, scope_type: 'global' },
     });
 
     const { result } = renderHook(() => usePermissions(), { wrapper: createWrapper() });
@@ -100,7 +128,7 @@ describe('usePermissions wildcard matching', () => {
       user_id: 'user-2',
       roles: ['rule_author'],
       permissions: ['rules:*', 'events:view'],
-      scopes: { orgs: null, repos: null },
+      scopes: { orgs: null, repos: null, scope_type: 'global' },
     });
 
     const { result } = renderHook(() => usePermissions(), { wrapper: createWrapper() });

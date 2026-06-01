@@ -11,6 +11,7 @@ import {
   type DashboardPersona,
 } from '../widgets/WidgetRegistry';
 import { persistOnboardingResult } from './onboardingStorage';
+import { PaginatedOrgList } from './PaginatedOrgList';
 import styles from './OnboardingWizard.module.css';
 
 export interface OnboardingNotifications {
@@ -155,34 +156,11 @@ export function OnboardingWizard({
             No scoped organizations were available for onboarding.
           </div>
         ) : (
-          <div className={styles.checklist}>
-            {organizationOptions.map((org) => {
-              const checked = organizationSelection.includes(org);
-              return (
-                <label key={org} className={styles.checkboxRow}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(event) => {
-                      const base = selectedOrganizations ?? organizationOptions;
-                      setSelectedOrganizations(
-                        event.target.checked
-                          ? [...base.filter((entry) => entry !== org), org].sort()
-                          : base.filter((entry) => entry !== org),
-                      );
-                    }}
-                  />
-                  <span className={styles.checkboxText}>
-                    <strong>{org}</strong>
-                    <span>
-                      Include activity from this organization in your default monitoring scope.
-                    </span>
-                  </span>
-                </label>
-              );
-            })}
-            <span className={styles.helper}>Select at least one organization to continue.</span>
-          </div>
+          <PaginatedOrgList
+            organizations={organizationOptions}
+            selectedOrganizations={organizationSelection}
+            onSelectionChange={(selected) => setSelectedOrganizations(selected)}
+          />
         ),
     },
     {

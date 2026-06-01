@@ -58,11 +58,11 @@ export function LineAreaChart({
       smooth: true,
       data: s.data,
       lineStyle: {
-        color: s.color ?? '#58a6ff',
+        color: s.color ?? 'var(--accent)',
         width: 2,
         type: s.dashed ? 'dashed' : 'solid',
       },
-      itemStyle: { color: s.color ?? '#58a6ff' },
+      itemStyle: { color: s.color ?? 'var(--accent)' },
       symbol: 'none',
       areaStyle:
         s.areaOpacity !== undefined
@@ -76,7 +76,7 @@ export function LineAreaChart({
                 colorStops: [
                   {
                     offset: 0,
-                    color: (s.color ?? '#58a6ff')
+                    color: (s.color ?? 'var(--accent)')
                       .replace(')', `, ${s.areaOpacity})`)
                       .replace('rgb', 'rgba'),
                   },

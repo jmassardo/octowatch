@@ -28,6 +28,12 @@ describe('PermissionGate', () => {
       hasPermission: (r: string, a: string) => `${r}:${a}` === 'events:view',
       hasAnyPermission: () => true,
       hasRole: () => true,
+      scopedOrgs: [],
+      scopedRepos: [],
+      scopeType: 'global',
+      isOrgInScope: () => true,
+      isRepoInScope: () => true,
+      canEdit: () => false,
     });
 
     renderWithProviders(
@@ -47,6 +53,12 @@ describe('PermissionGate', () => {
       hasPermission: (r: string, a: string) => `${r}:${a}` === 'events:view',
       hasAnyPermission: () => false,
       hasRole: () => false,
+      scopedOrgs: [],
+      scopedRepos: [],
+      scopeType: 'global',
+      isOrgInScope: () => true,
+      isRepoInScope: () => true,
+      canEdit: () => false,
     });
 
     renderWithProviders(
@@ -67,6 +79,12 @@ describe('PermissionGate', () => {
       hasPermission: () => false,
       hasAnyPermission: () => false,
       hasRole: () => false,
+      scopedOrgs: [],
+      scopedRepos: [],
+      scopeType: 'global',
+      isOrgInScope: () => true,
+      isRepoInScope: () => true,
+      canEdit: () => false,
     });
 
     const { container } = renderWithProviders(
@@ -87,6 +105,12 @@ describe('PermissionGate', () => {
       hasPermission: () => false,
       hasAnyPermission: () => false,
       hasRole: () => false,
+      scopedOrgs: [],
+      scopedRepos: [],
+      scopeType: 'global',
+      isOrgInScope: () => true,
+      isRepoInScope: () => true,
+      canEdit: () => false,
     });
 
     const { container } = renderWithProviders(

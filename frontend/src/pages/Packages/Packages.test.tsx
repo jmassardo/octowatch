@@ -13,6 +13,10 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }));
 
+vi.mock('../../hooks/useHelp', () => ({
+  useHelp: () => ({ helpContent: null, openHelp: vi.fn(), closeHelp: vi.fn(), isHelpOpen: false }),
+}));
+
 const mockSummary: PackageSummary = {
   total_packages: 25,
   public_packages: 3,
@@ -358,5 +362,55 @@ describe('PackagesPage', () => {
     expect(screen.getByText('⏰')).toBeDefined();
     expect(screen.getByText('⚠️')).toBeDefined();
     expect(screen.getByText('🔓')).toBeDefined();
+  });
+
+  it('renders PageHeader with correct title', () => {
+    queryResults = loadedResults();
+    renderPage();
+    expect(screen.getByText('Packages')).toBeDefined();
+    expect(
+      screen.getByText('Monitor package security posture, visibility, and container image health'),
+    ).toBeDefined();
+  });
+
+  it('shows empty state when no packages are synced', () => {
+    const emptySummary: PackageSummary = {
+      total_packages: 0,
+      public_packages: 0,
+      private_packages: 0,
+      by_type: {},
+      newly_public: 0,
+      stale_images: 0,
+      open_alerts: 0,
+    };
+    queryResults = {
+      'packages/summary': {
+        data: emptySummary,
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      },
+      'packages/alerts': {
+        data: { alerts: [], total: 0 },
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      },
+      'packages/inventory': {
+        data: { items: [], total: 0, page: 1, page_size: 50 },
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      },
+      'packages/stale-images': {
+        data: { images: [], total: 0, threshold_days: 90 },
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      },
+    };
+    renderPage();
+    expect(screen.getByText('No packages synced yet')).toBeDefined();
+    expect(screen.queryByRole('tablist')).toBeNull();
   });
 });

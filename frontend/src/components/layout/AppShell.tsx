@@ -11,6 +11,7 @@ import { HotkeyProvider } from '../../contexts/HotkeyProvider';
 import { useHotkeys, type HotkeyBinding } from '../../hooks/useHotkeys';
 import { ShortcutsDialog } from '../common/ShortcutsDialog';
 import { useCommandPalette } from '../../hooks/useCommandPalette';
+import { useSessionTimeout } from '../../hooks/useSessionTimeout';
 import styles from './AppShell.module.css';
 
 function AppShellInner() {
@@ -19,6 +20,9 @@ function AppShellInner() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const navigate = useNavigate();
   const commandPalette = useCommandPalette();
+
+  // Activity-aware session timeout — resets on user interaction and API calls
+  useSessionTimeout();
 
   function handleReplayTour() {
     resetTour();

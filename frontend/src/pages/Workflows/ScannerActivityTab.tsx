@@ -1,13 +1,18 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { listScanActivity } from '../../api/workflowScanner';
 import type { ScanActivity } from '../../api/workflowScanner';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { Pagination } from '../../components/primitives/Pagination';
+import { Drawer } from '../../components/primitives/Drawer';
 import { Label } from '../../components/primitives/Label';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { formatRelativeShort } from '../../utils/dates';
 import styles from './Workflows.module.css';
+
+const ACTIVITY_PAGE_SIZE = 15;
 
 function statusVariant(status: string) {
   if (status === 'completed') return 'success' as const;
@@ -45,81 +50,112 @@ function scanResultIcon(activity: ScanActivity): string {
   return '🟡';
 }
 
-function ActivityDetailPanel({
-  activity,
-  onClose,
-}: {
-  activity: ScanActivity;
-  onClose: () => void;
-}) {
+/** Content rendered inside the activity detail drawer. */
+function ActivityDetailContent({ activity }: { activity: ScanActivity }) {
   return (
-    <div className={styles.panelHeader}>
-      <div className={styles.panelTitle}>
-        {activity.org}/{activity.repo}
+    <>
+      <div className={styles.panelSection}>
+        <div className={styles.panelSectionTitle}>Workflow</div>
+        <code>{activity.workflow_path}</code>
       </div>
-      <button className={styles.panelClose} onClick={onClose}>
-        &#215;
-      </button>
-      <div className={styles.panelBody}>
-        <div className={styles.panelSection}>
-          <div className={styles.panelSectionTitle}>Workflow</div>
-          <code>{activity.workflow_path}</code>
-        </div>
 
-        <div className={styles.panelSection}>
-          <div className={styles.panelSectionTitle}>Trigger Event IDs</div>
-          {activity.trigger_event_ids.length > 0 ? (
-            <p className={styles.panelText}>{activity.trigger_event_ids.join(', ')}</p>
-          ) : (
-            <p className={styles.panelText}>Manual trigger</p>
-          )}
-        </div>
+      <div className={styles.panelSection}>
+        <div className={styles.panelSectionTitle}>Trigger Event IDs</div>
+        {activity.trigger_event_ids.length > 0 ? (
+          <p className={styles.panelText}>{activity.trigger_event_ids.join(', ')}</p>
+        ) : (
+          <p className={styles.panelText}>Manual trigger</p>
+        )}
+      </div>
 
-        <div className={styles.panelSection}>
-          <div className={styles.panelSectionTitle}>Checks Performed</div>
-          {activity.checks_performed.length > 0 ? (
-            <ul className={styles.panelGuidance}>
-              {activity.checks_performed.map((check) => (
-                <li key={check}>{check}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className={styles.panelText}>No checks recorded</p>
-          )}
-        </div>
+      <div className={styles.panelSection}>
+        <div className={styles.panelSectionTitle}>Checks Performed</div>
+        {activity.checks_performed.length > 0 ? (
+          <ul className={styles.panelGuidance}>
+            {activity.checks_performed.map((check) => (
+              <li key={check}>{check}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className={styles.panelText}>No checks recorded</p>
+        )}
+      </div>
 
-        <div className={styles.panelSection}>
-          <div className={styles.panelSectionTitle}>Results</div>
-          <div className={styles.panelKv}>
-            <span className={styles.panelLabel}>Status</span>
-            <Label variant={statusVariant(activity.status)}>{activity.status}</Label>
-          </div>
-          <div className={styles.panelKv}>
-            <span className={styles.panelLabel}>Findings</span>
-            <span>{activity.findings_count}</span>
-          </div>
-          <div className={styles.panelKv}>
-            <span className={styles.panelLabel}>Duration</span>
-            <span>{formatDuration(activity.duration_ms)}</span>
-          </div>
+      <div className={styles.panelSection}>
+        <div className={styles.panelSectionTitle}>Results</div>
+        <div className={styles.panelKv}>
+          <span className={styles.panelLabel}>Status</span>
+          <Label variant={statusVariant(activity.status)}>{activity.status}</Label>
+        </div>
+        <div className={styles.panelKv}>
+          <span className={styles.panelLabel}>Findings</span>
+          <span>{activity.findings_count}</span>
+        </div>
+        <div className={styles.panelKv}>
+          <span className={styles.panelLabel}>Duration</span>
+          <span>{formatDuration(activity.duration_ms)}</span>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
 export function ScannerActivityTab() {
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activityPage = Math.max(1, parseInt(searchParams.get('apage') ?? '1', 10));
+  const activityIdParam = searchParams.get('activity');
+
   const [selectedActivity, setSelectedActivity] = useState<ScanActivity | null>(null);
 
+  function setPage(page: number) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (page > 1) {
+          next.set('apage', String(page));
+        } else {
+          next.delete('apage');
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function selectActivity(activity: ScanActivity | null) {
+    setSelectedActivity(activity);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (activity) {
+          next.set('activity', String(activity.id));
+        } else {
+          next.delete('activity');
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['workflow-scanner', 'activity', page],
-    queryFn: () => listScanActivity({ page, page_size: 20 }),
+    queryKey: ['workflow-scanner', 'activity', activityPage],
+    queryFn: () => listScanActivity({ page: activityPage, page_size: ACTIVITY_PAGE_SIZE }),
     refetchInterval: (query) => {
       const items = query.state.data?.items ?? [];
       return items.some((a) => a.status === 'running') ? 5000 : false;
     },
   });
+
+  // Deep link: derive selected activity from URL param and fetched data
+  const effectiveSelectedActivity = useMemo(() => {
+    if (selectedActivity) return selectedActivity;
+    if (activityIdParam && data) {
+      const id = parseInt(activityIdParam, 10);
+      return data.items.find((a) => a.id === id) ?? null;
+    }
+    return null;
+  }, [selectedActivity, activityIdParam, data]);
 
   const stats = useMemo(() => {
     const items = data?.items ?? [];
@@ -154,8 +190,6 @@ export function ScannerActivityTab() {
       </div>
     );
   }
-
-  const totalPages = Math.ceil(data.total / 20);
 
   return (
     <div>
@@ -203,8 +237,8 @@ export function ScannerActivityTab() {
           {data.items.map((a) => (
             <tr
               key={a.id}
-              className={`${styles.findingRow} ${selectedActivity?.id === a.id ? styles.findingRowSelected : ''}`}
-              onClick={() => setSelectedActivity(selectedActivity?.id === a.id ? null : a)}
+              className={`${styles.findingRow} ${effectiveSelectedActivity?.id === a.id ? styles.findingRowSelected : ''}`}
+              onClick={() => selectActivity(effectiveSelectedActivity?.id === a.id ? null : a)}
             >
               <td
                 title={
@@ -255,26 +289,28 @@ export function ScannerActivityTab() {
         </tbody>
       </table>
 
-      {totalPages > 1 && (
-        <div className={styles.filters}>
-          <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-            Previous
-          </button>
-          <span>
-            Page {page} of {totalPages}
-          </span>
-          <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-            Next
-          </button>
-        </div>
-      )}
+      <Pagination
+        page={activityPage}
+        pageSize={ACTIVITY_PAGE_SIZE}
+        total={data.total}
+        onPageChange={setPage}
+      />
 
-      {selectedActivity && (
-        <ActivityDetailPanel
-          activity={selectedActivity}
-          onClose={() => setSelectedActivity(null)}
-        />
-      )}
+      {/* Activity detail drawer */}
+      <Drawer
+        open={effectiveSelectedActivity !== null}
+        onClose={() => selectActivity(null)}
+        title={
+          effectiveSelectedActivity
+            ? `${effectiveSelectedActivity.org}/${effectiveSelectedActivity.repo}`
+            : 'Activity Detail'
+        }
+        titleId="activity-detail-title"
+      >
+        {effectiveSelectedActivity && (
+          <ActivityDetailContent activity={effectiveSelectedActivity} />
+        )}
+      </Drawer>
     </div>
   );
 }

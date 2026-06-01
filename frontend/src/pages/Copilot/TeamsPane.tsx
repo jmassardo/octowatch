@@ -124,7 +124,7 @@ const teamColumns: ColumnDef<CopilotTeam>[] = [
       team.at_risk ? (
         <span
           style={{
-            background: 'rgba(248, 81, 73, 0.15)',
+            background: 'rgba(var(--danger-rgb), 0.15)',
             color: 'var(--danger)',
             padding: '2px 8px',
             borderRadius: 12,
@@ -137,7 +137,7 @@ const teamColumns: ColumnDef<CopilotTeam>[] = [
       ) : (
         <span
           style={{
-            background: 'rgba(63, 185, 80, 0.15)',
+            background: 'rgba(var(--success-rgb), 0.15)',
             color: 'var(--success)',
             padding: '2px 8px',
             borderRadius: 12,

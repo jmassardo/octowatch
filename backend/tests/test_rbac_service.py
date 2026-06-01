@@ -2,24 +2,26 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from app.services.rbac_service import OrgRepoScope
 
 
 class TestOrgRepoScope:
-    def test_global_scope_allows_all(self):
+    def test_global_scope_allows_all(self) -> None:
         scope = OrgRepoScope(scope_type="global")
         assert scope.is_global is True
 
-    def test_empty_org_list_is_not_global(self):
+    def test_empty_org_list_is_not_global(self) -> None:
         scope = OrgRepoScope(scoped_orgs=[], scoped_repos=[], scope_type="org")
         assert scope.is_global is False
 
-    def test_org_scoped(self):
+    def test_org_scoped(self) -> None:
         scope = OrgRepoScope(scoped_orgs=["my-org"], scope_type="org")
         assert scope.is_global is False
         assert "my-org" in scope.scoped_orgs
 
-    def test_repo_scoped(self):
+    def test_repo_scoped(self) -> None:
         scope = OrgRepoScope(
             scoped_orgs=["my-org"], scoped_repos=["my-org/repo1"], scope_type="repo"
         )
@@ -29,7 +31,7 @@ class TestOrgRepoScope:
 class TestInjectScopePredicate:
     """Tests for the SQL scope injection function using basic column mock."""
 
-    def _make_stub_stmt(self):
+    def _make_stub_stmt(self) -> Any:
         """Create a simple SQLAlchemy-like stub for testing."""
         from unittest.mock import MagicMock
 
@@ -37,7 +39,7 @@ class TestInjectScopePredicate:
         stmt.where = MagicMock(return_value=stmt)
         return stmt
 
-    def test_global_scope_no_filter_added(self):
+    def test_global_scope_no_filter_added(self) -> None:
         from app.services.rbac_service import inject_scope_predicate
 
         stmt = self._make_stub_stmt()
@@ -46,7 +48,7 @@ class TestInjectScopePredicate:
         # No .where() should be called for global scope
         stmt.where.assert_not_called()
 
-    def test_scoped_adds_org_filter(self):
+    def test_scoped_adds_org_filter(self) -> None:
         from unittest.mock import MagicMock
 
         from app.services.rbac_service import inject_scope_predicate

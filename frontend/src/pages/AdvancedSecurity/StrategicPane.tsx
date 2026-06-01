@@ -27,9 +27,9 @@ import styles from './AdvancedSecurity.module.css';
 /* ── Helpers ── */
 
 function trendArrow(pct: number): { symbol: string; color: string } {
-  if (pct < -5) return { symbol: '↓', color: 'var(--success, #3fb950)' };
-  if (pct > 5) return { symbol: '↑', color: 'var(--danger, #f85149)' };
-  return { symbol: '→', color: 'var(--fg-muted, #8b949e)' };
+  if (pct < -5) return { symbol: '↓', color: 'var(--success)' };
+  if (pct > 5) return { symbol: '↑', color: 'var(--danger)' };
+  return { symbol: '→', color: 'var(--fg-muted)' };
 }
 
 function formatHours(hours: number): string {
@@ -40,9 +40,9 @@ function formatHours(hours: number): string {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 80) return 'var(--success, #3fb950)';
-  if (score >= 60) return 'var(--attention, #d29922)';
-  return 'var(--danger, #f85149)';
+  if (score >= 80) return 'var(--success)';
+  if (score >= 60) return 'var(--attention)';
+  return 'var(--danger)';
 }
 
 const FEATURE_NAMES = ['ghas', 'code_scanning', 'secret_scanning', 'dependabot', 'push_protection'];

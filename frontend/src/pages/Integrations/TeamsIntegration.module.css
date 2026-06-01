@@ -46,8 +46,8 @@
 }
 
 .badge[data-state='ready'] {
-  background: rgba(18, 183, 106, 0.12);
-  color: #027a48;
+  background: rgba(var(--success-rgb), 0.12);
+  color: var(--success);
 }
 
 .grid {
@@ -118,11 +118,11 @@
 }
 
 .testStatus[data-state='success'] {
-  color: #027a48;
+  color: var(--success);
 }
 
 .testStatus[data-state='error'] {
-  color: #b42318;
+  color: var(--danger);
 }
 
 .instructions {
@@ -148,7 +148,7 @@
 }
 
 .error {
-  color: #b42318;
+  color: var(--danger);
   font-weight: 600;
 }
 
