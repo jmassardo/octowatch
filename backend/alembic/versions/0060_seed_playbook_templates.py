@@ -31,7 +31,7 @@ _INSERT_SQL = sa.text(
     "INSERT INTO playbook_templates"
     "    (name, slug, description, detection_categories, steps, created_by)"
     " VALUES"
-    "    (:name, :slug, :description, :detection_categories ::text[],"
+    "    (:name, :slug, :description, :detection_categories,"
     "     :steps ::jsonb, 'system')"
     " ON CONFLICT (slug) DO UPDATE SET"
     "    name = EXCLUDED.name,"
@@ -48,15 +48,13 @@ def upgrade() -> None:
     playbooks = json.loads(_FIXTURE_PATH.read_text())
 
     for pb in playbooks:
-        # PostgreSQL text array literal: {val1,val2,...}
-        categories = "{" + ",".join(pb["detection_categories"]) + "}"
         conn.execute(
             _INSERT_SQL,
             {
                 "name": pb["name"],
                 "slug": pb["slug"],
                 "description": pb["description"],
-                "detection_categories": categories,
+                "detection_categories": pb["detection_categories"],
                 "steps": json.dumps(pb["steps"]),
             },
         )
