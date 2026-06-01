@@ -225,7 +225,9 @@ async def get_delivery_timeline_stats(
     params: dict[str, object] = {f"org_{i}": org for i, org in enumerate(orgs)}
     params["days"] = days
 
-    where_clause = f"org IN ({org_placeholders}) AND created_at >= NOW() - INTERVAL '{days} days'"
+    where_clause = (
+        f"org IN ({org_placeholders}) AND created_at >= NOW() - make_interval(days => :days)"
+    )
     if repo:
         where_clause += " AND repo = :repo"
         params["repo"] = repo
