@@ -15,8 +15,8 @@ from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "0061"
-down_revision = "0060"
+revision = "0062"
+down_revision = "0061"
 branch_labels = None
 depends_on = None
 
