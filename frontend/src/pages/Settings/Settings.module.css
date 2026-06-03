@@ -1,6 +1,5 @@
 /* ===== Page layout ===== */
 .page {
-  padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 24px;

@@ -49,7 +49,7 @@
 
 .right {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   flex-shrink: 0;
 }
@@ -77,8 +77,12 @@
 }
 
 .helpButton {
-  min-width: 30px;
+  min-width: 28px;
+  height: 28px;
   padding-inline: 0;
   border-radius: 999px;
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }

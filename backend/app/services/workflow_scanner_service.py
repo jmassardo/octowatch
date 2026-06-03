@@ -319,7 +319,9 @@ class WorkflowScannerService:
         """Detect untrusted user input in run: blocks (script injection)."""
         for ctx in _DANGEROUS_CONTEXTS:
             pattern = "${{ " + ctx + " }}"
-            if pattern in run_cmd or f"${{{ctx}}}" in run_cmd.replace(" ", ""):
+            # Also match without spaces: ${{ctx}}
+            compact_pattern = "${{" + ctx + "}}"
+            if pattern in run_cmd or compact_pattern in run_cmd.replace(" ", ""):
                 result.findings.append(
                     WorkflowScanFinding(
                         rule_id="script-injection",

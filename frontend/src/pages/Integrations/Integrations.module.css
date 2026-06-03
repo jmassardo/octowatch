@@ -1,6 +1,5 @@
 /* ===== Page layout ===== */
 .page {
-  padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 28px;
@@ -640,7 +639,7 @@
 .ingestDrop {
   border: 2px dashed var(--border);
   border-radius: 6px;
-  padding: 24px;
+
   text-align: center;
   background: var(--canvas-subtle);
   cursor: pointer;

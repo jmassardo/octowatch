@@ -9,7 +9,6 @@
   gap: 6px;
   font-size: 13px;
   color: var(--fg-muted);
-  padding: 0 24px;
   margin-bottom: 12px;
 }
 .breadcrumb a {
@@ -28,7 +27,7 @@
   display: flex;
   align-items: center;
   gap: 20px;
-  padding: 12px 24px 16px;
+  padding: 12px 0 16px;
   border-bottom: 1px solid var(--border);
 }
 .headerInfo {
@@ -80,7 +79,7 @@
 
 /* ── Content area ──────────────────────────────────────────────────── */
 .content {
-  padding: 20px 24px;
+  padding: 20px 0;
 }
 
 /* ── Filters ───────────────────────────────────────────────────────── */

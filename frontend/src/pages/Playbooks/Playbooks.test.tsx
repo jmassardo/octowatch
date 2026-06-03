@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { PlaybooksPage } from './index';
@@ -142,11 +142,19 @@ describe('PlaybooksPage', () => {
     expect(screen.getByText('Leaked Secret Response')).toBeInTheDocument();
   });
 
-  it('shows step count on template cards', async () => {
+  it('shows step count in the template table', async () => {
     mockListTemplates.mockResolvedValue(sampleTemplates);
     renderWithProviders(<PlaybooksPage />);
-    expect(await screen.findByText('2 steps')).toBeInTheDocument();
-    expect(screen.getByText('1 steps')).toBeInTheDocument();
+
+    const firstTemplate = await screen.findByText('Account Compromise Response');
+    const firstRow = firstTemplate.closest('tr');
+    expect(firstRow).not.toBeNull();
+    expect(within(firstRow!).getByText('2')).toBeInTheDocument();
+
+    const secondTemplate = screen.getByText('Leaked Secret Response');
+    const secondRow = secondTemplate.closest('tr');
+    expect(secondRow).not.toBeNull();
+    expect(within(secondRow!).getByText('1')).toBeInTheDocument();
   });
 
   it('shows template description', async () => {
@@ -203,12 +211,16 @@ describe('PlaybooksPage', () => {
 
   /* ─── Edit template ──────────────────────── */
 
-  it('opens editor when edit button is clicked on a template', async () => {
+  it('opens editor when a template row is clicked', async () => {
     const user = userEvent.setup();
     mockListTemplates.mockResolvedValue(sampleTemplates);
     renderWithProviders(<PlaybooksPage />);
-    const editButtons = await screen.findAllByText('Edit');
-    await user.click(editButtons[0]!);
+
+    const templateName = await screen.findByText('Account Compromise Response');
+    const templateRow = templateName.closest('tr');
+    expect(templateRow).not.toBeNull();
+
+    await user.click(templateRow!);
     expect(screen.getByText('Edit Playbook Template')).toBeInTheDocument();
   });
 });

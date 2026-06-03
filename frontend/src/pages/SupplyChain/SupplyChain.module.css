@@ -235,3 +235,84 @@
     transition: none !important;
   }
 }
+
+/* ── Clickable rows ────────────────────────────────────────────────────── */
+
+.clickableRow {
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.clickableRow:hover {
+  background-color: var(--bg-hover, rgba(0, 0, 0, 0.04));
+}
+
+.clickableRow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* ── Drawer content ────────────────────────────────────────────────────── */
+
+.drawerContent {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.drawerMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.drawerActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ── Form fields ───────────────────────────────────────────────────────── */
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.formField label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.input,
+.textarea,
+.select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--fg);
+  font-size: 13px;
+}
+
+.textarea {
+  resize: vertical;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}

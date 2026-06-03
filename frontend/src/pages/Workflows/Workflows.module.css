@@ -2,7 +2,6 @@
 .page {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
 }
 
 /* ── Page header ── */
@@ -697,4 +696,39 @@
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ── Scan Rules tab ────────────────────────────────────────────────────── */
+
+.rulesHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.rulesDescription {
+  font-size: 13px;
+  color: var(--fg-muted);
+  max-width: 600px;
+}
+
+.drawerForm {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.formField label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
 }

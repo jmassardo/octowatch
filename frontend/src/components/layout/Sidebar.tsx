@@ -16,6 +16,7 @@ function NavItem({
   badge,
   badgeLabel,
   onClick,
+  end = true,
 }: {
   to: string;
   icon: React.ReactNode;
@@ -23,11 +24,12 @@ function NavItem({
   badge?: number;
   badgeLabel?: string;
   onClick?: () => void;
+  end?: boolean;
 }) {
   return (
     <NavLink
       to={to}
-      end
+      end={end}
       className={({ isActive }) =>
         [styles.navItem, isActive && styles.active].filter(Boolean).join(' ')
       }
@@ -276,6 +278,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           <NavItem
             to="/posture"
             onClick={onMobileClose}
+            end={false}
             icon={
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                 <path d="M8 0a8 8 0 100 16A8 8 0 008 0zM1.5 8a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0zm5.024-3.382a.75.75 0 01.476.476l.75 2.108 2.108.75a.75.75 0 010 1.416l-2.108.75-.75 2.108a.75.75 0 01-1.416 0l-.75-2.108-2.108-.75a.75.75 0 010-1.416l2.108-.75.75-2.108a.75.75 0 01.94-.476z" />
@@ -324,31 +327,11 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Workflow Security
           </NavItem>
         )}
-        {hasPermission('workflow_health', 'view') && (
-          <NavItem
-            to="/workflows/health"
-            onClick={onMobileClose}
-            icon={
-              <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M8 16A8 8 0 108 0a8 8 0 000 16zm0-1.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13z" />
-                <path
-                  d="M2.5 8h2.3l1.2-3 2 6 1.2-3h4.3"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            }
-          >
-            Workflow Health
-          </NavItem>
-        )}
         {hasPermission('advanced_security', 'view') && (
           <NavItem
             to="/advanced-security"
             onClick={onMobileClose}
+            end={false}
             icon={
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                 <path d="M8.533.133a1.75 1.75 0 00-1.066 0L2.217 1.813A1.75 1.75 0 001 3.48V7c0 1.566.32 3.182 1.303 4.682.983 1.498 2.585 2.813 5.032 3.855a1.697 1.697 0 001.33 0c2.447-1.042 4.049-2.357 5.032-3.855C14.68 10.182 15 8.566 15 7V3.48a1.75 1.75 0 00-1.217-1.667zM8 9a1 1 0 100-2 1 1 0 000 2zm0-6a.75.75 0 01.75.75v2.5a.75.75 0 01-1.5 0v-2.5A.75.75 0 018 3z" />
@@ -452,6 +435,27 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             }
           >
             Copilot Insights
+          </NavItem>
+        )}
+        {hasPermission('workflow_health', 'view') && (
+          <NavItem
+            to="/workflows/health"
+            onClick={onMobileClose}
+            icon={
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 16A8 8 0 108 0a8 8 0 000 16zm0-1.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13z" />
+                <path
+                  d="M2.5 8h2.3l1.2-3 2 6 1.2-3h4.3"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            }
+          >
+            Workflow Health
           </NavItem>
         )}
         {features.org_health && hasPermission('org_health', 'view') && (

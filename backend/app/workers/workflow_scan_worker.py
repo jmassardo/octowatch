@@ -82,7 +82,13 @@ def _analyze_prepared_job(data: dict[str, Any], repo: str, org: str) -> list[dic
     job_name = data.get("job_name", "unknown")
 
     # 1. Self-hosted runner
-    if data.get("is_hosted_runner") is False:
+    # GitHub audit log uses is_hosted_runner=false for self-hosted runners,
+    # but also check runner_type field for alternative payload formats
+    is_self_hosted = (
+        data.get("is_hosted_runner") == False  # noqa: E712 – intentional equality check
+        or str(data.get("runner_type", "")).lower() in ("self-hosted", "self_hosted")
+    )
+    if is_self_hosted:
         runner_name = data.get("runner_name", "unknown")
         runner_labels = data.get("runner_labels", [])
         findings.append(
@@ -114,7 +120,7 @@ def _analyze_prepared_job(data: dict[str, Any], repo: str, org: str) -> list[dic
 
     # 2. Secret exposure levels
     secrets_count = data.get("secrets_passed_count", 0) or 0
-    if secrets_count >= 5:
+    if secrets_count >= 3:
         findings.append(
             {
                 "repo": repo,

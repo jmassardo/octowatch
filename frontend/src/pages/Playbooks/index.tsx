@@ -14,11 +14,12 @@ import type {
   UpdateTemplatePayload,
 } from '../../api/playbooks';
 import { PageHeader } from '../../components/common/PageHeader';
-import { Card } from '../../components/primitives/Card';
 import { DataTable } from '../../components/primitives/DataTable';
 import type { ColumnDef } from '../../components/primitives/DataTable';
 import { Label } from '../../components/primitives/Label';
 import { Button } from '../../components/primitives/Button';
+import { Drawer } from '../../components/primitives/Drawer';
+import { ConfirmDialog } from '../../components/primitives/ConfirmDialog';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { EmptyState } from '../../components/common/EmptyState';
@@ -43,6 +44,7 @@ export function PlaybooksPage() {
   const [runningExecId, setRunningExecId] = useState<number | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<PlaybookTemplate | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<PlaybookTemplate | null>(null);
 
   // ── Queries ─────────────────────────────────────────────────────
   const {
@@ -100,6 +102,7 @@ export function PlaybooksPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deletePlaybookTemplate(id),
     onSuccess: () => {
+      setDeleteTarget(null);
       void queryClient.invalidateQueries({ queryKey: ['playbook-templates'] });
     },
   });
@@ -107,30 +110,6 @@ export function PlaybooksPage() {
   // ── Playbook Runner view ────────────────────────────────────────
   if (runningExecId !== null) {
     return <PlaybookRunner executionId={runningExecId} onBack={() => setRunningExecId(null)} />;
-  }
-
-  // ── Editor view ─────────────────────────────────────────────────
-  if (creatingNew) {
-    return (
-      <PlaybookEditor
-        onSave={(data) => createMutation.mutate(data as CreateTemplatePayload)}
-        onCancel={() => setCreatingNew(false)}
-        saving={createMutation.isPending}
-      />
-    );
-  }
-
-  if (editingTemplate) {
-    return (
-      <PlaybookEditor
-        template={editingTemplate}
-        onSave={(data) =>
-          updateMutation.mutate({ id: editingTemplate.id, data: data as UpdateTemplatePayload })
-        }
-        onCancel={() => setEditingTemplate(null)}
-        saving={updateMutation.isPending}
-      />
-    );
   }
 
   // ── Template name lookup for executions ─────────────────────────
@@ -144,6 +123,66 @@ export function PlaybooksPage() {
     const completed = exec.step_results.filter((s) => s.completed).length;
     return `${completed} / ${exec.step_results.length}`;
   }
+
+  // ── Template columns ────────────────────────────────────────────
+  const templateColumns: ColumnDef<PlaybookTemplate>[] = [
+    {
+      key: 'name',
+      header: 'Name',
+      render: (row) => <strong>{row.name}</strong>,
+      sortValue: (row) => row.name,
+      sortable: true,
+    },
+    {
+      key: 'description',
+      header: 'Description',
+      render: (row) => row.description ?? '—',
+    },
+    {
+      key: 'steps',
+      header: 'Steps',
+      render: (row) => row.steps.length,
+      sortValue: (row) => row.steps.length,
+      sortable: true,
+    },
+    {
+      key: 'categories',
+      header: 'Categories',
+      render: (row) =>
+        row.detection_categories.length > 0 ? (
+          row.detection_categories.map((c) => (
+            <Label key={c} variant="muted" style={{ marginRight: 4 }}>
+              {c}
+            </Label>
+          ))
+        ) : (
+          <span style={{ color: 'var(--fg-muted)' }}>All</span>
+        ),
+    },
+    {
+      key: 'created',
+      header: 'Created',
+      render: (row) => formatRelativeShort(row.created_at),
+      sortValue: (row) => row.created_at,
+      sortable: true,
+    },
+    {
+      key: 'actions',
+      header: '',
+      render: (row) => (
+        <Button
+          size="sm"
+          variant="danger"
+          onClick={(e) => {
+            e.stopPropagation();
+            setDeleteTarget(row);
+          }}
+        >
+          Delete
+        </Button>
+      ),
+    },
+  ];
 
   // ── Column definitions ──────────────────────────────────────────
   const activeColumns: ColumnDef<PlaybookExecution>[] = [
@@ -290,38 +329,12 @@ export function PlaybooksPage() {
             />
           )}
           {templates && templates.length > 0 && (
-            <div className={styles.templateGrid}>
-              {templates.map((t) => (
-                <Card key={t.id} className={styles.templateCard}>
-                  <h3 className={styles.templateName}>{t.name}</h3>
-                  <p className={styles.templateDesc}>{t.description ?? 'No description'}</p>
-                  <div className={styles.templateMeta}>
-                    <span>{t.steps.length} steps</span>
-                    <span>
-                      {t.detection_categories.length > 0
-                        ? t.detection_categories.join(', ')
-                        : 'All categories'}
-                    </span>
-                  </div>
-                  <div className={styles.templateActions}>
-                    <Button size="sm" onClick={() => setEditingTemplate(t)}>
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      onClick={() => {
-                        if (window.confirm(`Delete template "${t.name}"? This cannot be undone.`)) {
-                          deleteMutation.mutate(t.id);
-                        }
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </Card>
-              ))}
-            </div>
+            <DataTable
+              columns={templateColumns}
+              data={templates}
+              rowKey={(r) => r.id}
+              onRowClick={(r) => setEditingTemplate(r)}
+            />
           )}
         </>
       )}
@@ -369,6 +382,44 @@ export function PlaybooksPage() {
           )}
         </>
       )}
+
+      {/* Edit / Create Drawer */}
+      <Drawer
+        open={editingTemplate != null || creatingNew}
+        onClose={() => {
+          setEditingTemplate(null);
+          setCreatingNew(false);
+        }}
+        title={creatingNew ? 'New Playbook Template' : 'Edit Template'}
+      >
+        <PlaybookEditor
+          template={editingTemplate ?? undefined}
+          loading={creatingNew ? createMutation.isPending : updateMutation.isPending}
+          onSave={(data) => {
+            if (editingTemplate) {
+              updateMutation.mutate({ id: editingTemplate.id, data });
+            } else {
+              createMutation.mutate(data as CreateTemplatePayload);
+            }
+          }}
+          onCancel={() => {
+            setEditingTemplate(null);
+            setCreatingNew(false);
+          }}
+        />
+      </Drawer>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={deleteTarget != null}
+        title="Delete Template"
+        description={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        loading={deleteMutation.isPending}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

@@ -1,6 +1,5 @@
 /* ThreatIntel page layout */
 .page {
-  padding: 24px;
   overflow-y: auto;
   height: 100%;
 }
@@ -265,7 +264,7 @@
   background: var(--canvas-default);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 24px;
+
   width: min(520px, 90vw);
   max-height: 80vh;
   overflow-y: auto;

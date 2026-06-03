@@ -1,10 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import ReactECharts from 'echarts-for-react';
 import type { EChartsOption } from 'echarts';
 import { getPosture } from '../../api/posture';
 import type { PostureResponse, PostureCheckResult, OrgPosture } from '../../api/posture';
+import { getDetection } from '../../api/detections';
+import { DetectionDetailPane } from '../Threats/DetectionDetailPane';
+import { Drawer } from '../../components/primitives/Drawer';
 import { Label } from '../../components/primitives/Label';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
@@ -61,10 +64,10 @@ function Breadcrumb({ items }: { items: PostureResponse['breadcrumb'] }) {
 
 function CheckRow({
   check,
-  navigate,
+  onSelect,
 }: {
   check: PostureCheckResult;
-  navigate: (path: string) => void;
+  onSelect: (detectionId: number) => void;
 }) {
   const passing = check.status === 'pass';
   return (
@@ -72,11 +75,11 @@ function CheckRow({
       className={styles.checkRow}
       role={check.detection_id ? 'button' : undefined}
       tabIndex={check.detection_id ? 0 : undefined}
-      onClick={() => check.detection_id && navigate(`/threats/open?id=${check.detection_id}`)}
+      onClick={() => check.detection_id && onSelect(check.detection_id)}
       onKeyDown={(e) => {
         if (check.detection_id && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
-          navigate(`/threats/open?id=${check.detection_id}`);
+          onSelect(check.detection_id);
         }
       }}
     >
@@ -388,12 +391,14 @@ function EnterpriseView({
   setSearch,
   page,
   setPage,
+  onSelectDetection,
 }: {
   data: PostureResponse;
   search: string;
   setSearch: (v: string) => void;
   page: number;
   setPage: (p: number) => void;
+  onSelectDetection: (detectionId: number) => void;
 }) {
   const navigate = useNavigate();
   const { selectedOrg } = useOrg();
@@ -540,7 +545,7 @@ function EnterpriseView({
                   <CheckRow
                     key={`${c.rule_id}-${findingsOffset + i}`}
                     check={c}
-                    navigate={navigate}
+                    onSelect={onSelectDetection}
                   />
                 ))}
               </div>
@@ -660,6 +665,7 @@ function OrgView({
   page,
   setPage,
   onNavigate,
+  onSelectDetection,
 }: {
   data: PostureResponse;
   search: string;
@@ -667,6 +673,7 @@ function OrgView({
   page: number;
   setPage: (p: number) => void;
   onNavigate: () => void;
+  onSelectDetection: (detectionId: number) => void;
 }) {
   const navigate = useNavigate();
   const org = data.org!;
@@ -775,7 +782,7 @@ function OrgView({
           />
           <div className={styles.checkList}>
             {checks.map((c, i) => (
-              <CheckRow key={`${c.rule_id}-${i}`} check={c} navigate={navigate} />
+              <CheckRow key={`${c.rule_id}-${i}`} check={c} onSelect={onSelectDetection} />
             ))}
             {checks.length === 0 && <div className={styles.empty}>No checks match filters</div>}
           </div>
@@ -912,8 +919,13 @@ function OrgView({
 
 /* ── Repo View ─────────────────────────────────────────────────────── */
 
-function RepoView({ data }: { data: PostureResponse }) {
-  const navigate = useNavigate();
+function RepoView({
+  data,
+  onSelectDetection,
+}: {
+  data: PostureResponse;
+  onSelectDetection: (detectionId: number) => void;
+}) {
   const repo = data.repo!;
   const [severity, setSeverity] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -993,7 +1005,7 @@ function RepoView({ data }: { data: PostureResponse }) {
           />
           <div className={styles.checkList}>
             {checks.map((c, i) => (
-              <CheckRow key={`${c.rule_id}-${i}`} check={c} navigate={navigate} />
+              <CheckRow key={`${c.rule_id}-${i}`} check={c} onSelect={onSelectDetection} />
             ))}
             {checks.length === 0 && <div className={styles.empty}>No checks match filters</div>}
           </div>
@@ -1009,6 +1021,7 @@ export function PosturePage() {
   const { org, repo } = useParams<{ org?: string; repo?: string }>();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [selectedDetectionId, setSelectedDetectionId] = useState<number | null>(null);
 
   const PAGE_SIZE = 20;
 
@@ -1017,6 +1030,21 @@ export function PosturePage() {
     queryFn: () =>
       getPosture({ org, repo, search: search || undefined, page, page_size: PAGE_SIZE }),
   });
+
+  // Fetch detection details when a finding is selected
+  const { data: selectedDetection } = useQuery({
+    queryKey: ['detection-detail', selectedDetectionId],
+    queryFn: () => getDetection(selectedDetectionId!),
+    enabled: selectedDetectionId !== null,
+  });
+
+  const handleSelectDetection = useCallback((detectionId: number) => {
+    setSelectedDetectionId(detectionId);
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setSelectedDetectionId(null);
+  }, []);
 
   // Reset page when navigating to different level
   const resetPage = () => {
@@ -1065,6 +1093,7 @@ export function PosturePage() {
           }}
           page={page}
           setPage={setPage}
+          onSelectDetection={handleSelectDetection}
         />
       )}
       {data.level === 'org' && (
@@ -1078,9 +1107,25 @@ export function PosturePage() {
           page={page}
           setPage={setPage}
           onNavigate={resetPage}
+          onSelectDetection={handleSelectDetection}
         />
       )}
-      {data.level === 'repo' && <RepoView data={data} />}
+      {data.level === 'repo' && <RepoView data={data} onSelectDetection={handleSelectDetection} />}
+
+      <Drawer
+        open={selectedDetection != null}
+        onClose={handleCloseDetail}
+        title="Detection Details"
+      >
+        {selectedDetection && (
+          <DetectionDetailPane
+            selected={selectedDetection}
+            actorSuggestions={[]}
+            onClose={handleCloseDetail}
+            onDeleted={handleCloseDetail}
+          />
+        )}
+      </Drawer>
     </div>
   );
 }
