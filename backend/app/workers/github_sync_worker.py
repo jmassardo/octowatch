@@ -3413,7 +3413,41 @@ async def _fetch_page(
                 "or enterprise audit log permission",
             )
             return [], None
-        resp.raise_for_status()
+        if resp.status_code == 400 and "after" in audit_params:
+            # The 'after' cursor may have expired. Fall back to timestamp-based
+            # filter using the cursor's stored timestamp if available.
+            logger.warning(
+                "github_sync.audit_log_cursor_expired",
+                enterprise=enterprise_slug,
+                cursor=audit_params.get("after"),
+            )
+            fallback_params: dict[str, object] = {
+                "include": "all",
+                "per_page": page_size,
+            }
+            try:
+                cursor_data = _json.loads(cursor)  # type: ignore[arg-type]
+                ts = cursor_data.get("timestamp")
+                if ts:
+                    fallback_params["phrase"] = f"created:>={ts}"
+            except (ValueError, TypeError):
+                pass
+            if "phrase" not in fallback_params:
+                lookback = datetime.now(UTC) - timedelta(days=7)
+                fallback_params["phrase"] = f"created:>={lookback.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+            resp = await _github_get(
+                url,
+                headers,
+                fallback_params,
+                rate_limiter,
+                etag_cache=etag_cache,
+                api_counter=api_counter,
+                entity_type=entity_type,
+            )
+            if resp.status_code != 200:
+                resp.raise_for_status()
+        else:
+            resp.raise_for_status()
         events = resp.json()
 
         if not events:
