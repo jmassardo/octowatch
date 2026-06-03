@@ -95,38 +95,15 @@ jobs:
         run: |
           kubectl exec -n octowatch ${{ steps.pod.outputs.pod }} -- \
             python -c "
-          import asyncio
-          from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-          from app.config import settings
-          from app.models.github_sync import EnterpriseSyncRun
-          import uuid
-          from datetime import datetime, UTC
-
-          async def main():
-              engine = create_async_engine(settings.DATABASE_URL)
-              sf = async_sessionmaker(engine, class_=AsyncSession)
-              async with sf() as session:
-                  run = EnterpriseSyncRun(
-                      id=uuid.uuid4(),
-                      status='pending',
-                      trigger_type='manual',
-                      created_at=datetime.now(UTC),
-                  )
-                  session.add(run)
-                  await session.commit()
-                  print(f'Created sync run: {run.id}')
-
-                  # Dispatch Celery task
-                  from app.celery_app import celery_app
-                  celery_app.send_task(
-                      'app.workers.github_sync.run_enterprise_sync',
-                      kwargs={'run_id': str(run.id), 'scope': 'full'},
-                      queue='github_sync',
-                  )
-                  print('Dispatched run_enterprise_sync task')
-              await engine.dispose()
-
-          asyncio.run(main())
+          import httpx, os
+          resp = httpx.post(
+              'http://localhost:8000/api/v1/sync/trigger',
+              headers={'Authorization': f\"Bearer {os.environ.get('INTERNAL_API_KEY', 'internal')}\"},
+              json={'scope': 'full'},
+              timeout=30,
+          )
+          print(f'Status: {resp.status_code}')
+          print(resp.json())
           "
 
       - name: Wait and monitor (5 min intervals, 30 min max)
