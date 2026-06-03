@@ -379,12 +379,12 @@ export function ScanRulesTab() {
       <ConfirmDialog
         open={deleteTarget != null}
         title="Delete Custom Rule"
-        description={`Are you sure you want to delete "${deleteTarget?.name}"? This cannot be undone.`}
+        message={`Are you sure you want to delete "${deleteTarget?.name}"? This cannot be undone.`}
         confirmLabel="Delete"
         confirmVariant="danger"
         loading={false}
         onConfirm={deleteRule}
-        onCancel={() => setDeleteTarget(null)}
+        onClose={() => setDeleteTarget(null)}
       />
     </div>
   );

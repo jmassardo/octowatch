@@ -151,7 +151,7 @@ export function PlaybooksPage() {
       render: (row) =>
         row.detection_categories.length > 0 ? (
           row.detection_categories.map((c) => (
-            <Label key={c} variant="muted" style={{ marginRight: 4 }}>
+            <Label key={c} variant="muted">
               {c}
             </Label>
           ))
@@ -394,7 +394,7 @@ export function PlaybooksPage() {
       >
         <PlaybookEditor
           template={editingTemplate ?? undefined}
-          loading={creatingNew ? createMutation.isPending : updateMutation.isPending}
+          saving={creatingNew ? createMutation.isPending : updateMutation.isPending}
           onSave={(data) => {
             if (editingTemplate) {
               updateMutation.mutate({ id: editingTemplate.id, data });
@@ -413,12 +413,12 @@ export function PlaybooksPage() {
       <ConfirmDialog
         open={deleteTarget != null}
         title="Delete Template"
-        description={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+        message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
         confirmLabel="Delete"
         confirmVariant="danger"
         loading={deleteMutation.isPending}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
-        onCancel={() => setDeleteTarget(null)}
+        onClose={() => setDeleteTarget(null)}
       />
     </div>
   );
