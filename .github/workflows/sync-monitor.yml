@@ -1,0 +1,195 @@
+# Trigger and monitor GitHub enterprise sync from the management runner
+name: Sync Monitor
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform"
+        type: choice
+        options:
+          - trigger-and-monitor
+          - status-only
+        default: trigger-and-monitor
+
+jobs:
+  sync:
+    name: Sync Monitor
+    runs-on: [self-hosted, k8s-mgmt]
+    permissions:
+      contents: read
+    steps:
+      - name: Get API pod
+        id: pod
+        run: |
+          POD=$(kubectl get pods -n octowatch -l app.kubernetes.io/component=api -o jsonpath='{.items[0].metadata.name}')
+          echo "pod=${POD}" >> "$GITHUB_OUTPUT"
+          echo "API pod: ${POD}"
+
+      - name: Check current sync status
+        run: |
+          kubectl exec -n octowatch ${{ steps.pod.outputs.pod }} -- \
+            python -c "
+          import asyncio
+          from sqlalchemy import select, text
+          from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+          from app.config import settings
+          from app.models.github_sync import EnterpriseSyncRun, EnterpriseSyncEntityCursor
+
+          async def main():
+              engine = create_async_engine(settings.DATABASE_URL)
+              sf = async_sessionmaker(engine, class_=AsyncSession)
+              async with sf() as session:
+                  # Latest 3 runs
+                  result = await session.execute(
+                      select(EnterpriseSyncRun)
+                      .order_by(EnterpriseSyncRun.created_at.desc())
+                      .limit(3)
+                  )
+                  runs = result.scalars().all()
+                  print('=== Recent Sync Runs ===')
+                  for r in runs:
+                      print(f'  {r.id} | status={r.status} | started={r.started_at} | completed={r.completed_at} | error={r.error_message}')
+
+                  if runs:
+                      latest = runs[0]
+                      print(f'\n=== Latest Run Entity Status ({latest.id}) ===')
+                      cursor_result = await session.execute(
+                          select(EnterpriseSyncEntityCursor)
+                          .where(EnterpriseSyncEntityCursor.run_id == latest.id)
+                          .order_by(EnterpriseSyncEntityCursor.entity_type)
+                      )
+                      cursors = cursor_result.scalars().all()
+                      failed = []
+                      for c in cursors:
+                          status_icon = '✓' if c.status == 'completed' else '✗' if c.status == 'failed' else '…'
+                          print(f'  {status_icon} {c.entity_type:30s} org={c.org or \"enterprise\":20s} items={c.items_synced:6d} status={c.status}')
+                          if c.status == 'failed':
+                              failed.append(c)
+
+                      print(f'\nSummary: {len(cursors)} entities, {len(failed)} failed')
+                      if failed:
+                          print('\n=== Failed Entities ===')
+                          from app.models.github_sync import SyncLogEntry
+                          for f in failed:
+                              log_result = await session.execute(
+                                  select(SyncLogEntry)
+                                  .where(
+                                      SyncLogEntry.run_id == latest.id,
+                                      SyncLogEntry.entity_type == f.entity_type,
+                                      SyncLogEntry.level == 'error',
+                                  )
+                                  .order_by(SyncLogEntry.seq.desc())
+                                  .limit(2)
+                              )
+                              logs = log_result.scalars().all()
+                              for log in logs:
+                                  print(f'  [{f.entity_type}:{f.org}] {log.message}')
+              await engine.dispose()
+
+          asyncio.run(main())
+          "
+
+      - name: Trigger new sync
+        if: inputs.action == 'trigger-and-monitor'
+        run: |
+          kubectl exec -n octowatch ${{ steps.pod.outputs.pod }} -- \
+            python -c "
+          import asyncio
+          from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+          from app.config import settings
+          from app.models.github_sync import EnterpriseSyncRun
+          import uuid
+          from datetime import datetime, UTC
+
+          async def main():
+              engine = create_async_engine(settings.DATABASE_URL)
+              sf = async_sessionmaker(engine, class_=AsyncSession)
+              async with sf() as session:
+                  run = EnterpriseSyncRun(
+                      id=uuid.uuid4(),
+                      status='pending',
+                      trigger_type='manual',
+                      created_at=datetime.now(UTC),
+                  )
+                  session.add(run)
+                  await session.commit()
+                  print(f'Created sync run: {run.id}')
+
+                  # Dispatch Celery task
+                  from app.celery_app import celery_app
+                  celery_app.send_task(
+                      'app.workers.github_sync.run_enterprise_sync',
+                      kwargs={'run_id': str(run.id), 'scope': 'full'},
+                      queue='github_sync',
+                  )
+                  print('Dispatched run_enterprise_sync task')
+              await engine.dispose()
+
+          asyncio.run(main())
+          "
+
+      - name: Wait and monitor (5 min intervals, 30 min max)
+        if: inputs.action == 'trigger-and-monitor'
+        run: |
+          for i in $(seq 1 6); do
+            echo "--- Check $i ($(date)) ---"
+            sleep 300
+
+            STATUS=$(kubectl exec -n octowatch ${{ steps.pod.outputs.pod }} -- \
+              python -c "
+          import asyncio
+          from sqlalchemy import select
+          from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+          from app.config import settings
+          from app.models.github_sync import EnterpriseSyncRun, EnterpriseSyncEntityCursor
+
+          async def main():
+              engine = create_async_engine(settings.DATABASE_URL)
+              sf = async_sessionmaker(engine, class_=AsyncSession)
+              async with sf() as session:
+                  result = await session.execute(
+                      select(EnterpriseSyncRun)
+                      .order_by(EnterpriseSyncRun.created_at.desc())
+                      .limit(1)
+                  )
+                  run = result.scalar_one_or_none()
+                  if not run:
+                      print('NO_RUNS')
+                      return
+                  print(f'STATUS={run.status}')
+
+                  cursor_result = await session.execute(
+                      select(EnterpriseSyncEntityCursor)
+                      .where(EnterpriseSyncEntityCursor.run_id == run.id)
+                  )
+                  cursors = cursor_result.scalars().all()
+                  completed = sum(1 for c in cursors if c.status == 'completed')
+                  failed = sum(1 for c in cursors if c.status == 'failed')
+                  in_progress = sum(1 for c in cursors if c.status == 'in_progress')
+                  total_items = sum(c.items_synced for c in cursors)
+                  print(f'ENTITIES: {len(cursors)} total, {completed} done, {in_progress} running, {failed} failed')
+                  print(f'ITEMS: {total_items}')
+
+                  if failed:
+                      for c in cursors:
+                          if c.status == 'failed':
+                              print(f'FAILED: {c.entity_type} org={c.org}')
+              await engine.dispose()
+
+          asyncio.run(main())
+          ")
+
+            echo "$STATUS"
+
+            if echo "$STATUS" | grep -q "STATUS=completed"; then
+              echo "✅ Sync completed successfully!"
+              exit 0
+            elif echo "$STATUS" | grep -q "STATUS=failed"; then
+              echo "❌ Sync failed!"
+              exit 1
+            fi
+          done
+
+          echo "⏱️ Sync still running after 30 minutes — check manually"
+          exit 0
