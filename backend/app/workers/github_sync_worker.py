@@ -1292,7 +1292,7 @@ async def _discover_orgs_from_installation(
             }
             orgs_set: set[str] = set()
             page = 1
-            async with httpx.AsyncClient(follow_redirects=False) as client:
+            async with httpx.AsyncClient(follow_redirects=True) as client:
                 while True:
                     resp = await client.get(
                         f"{_GITHUB_API_BASE}/installation/repositories",
@@ -1379,7 +1379,7 @@ async def _graphql_page(
     if rate_limiter is not None:
         await rate_limiter.acquire()
     try:
-        async with httpx.AsyncClient(follow_redirects=False) as client:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
             resp = await client.post(_GRAPHQL_URL, json=payload, headers=headers, timeout=30)
         if rate_limiter is not None:
             rate_limiter.update_from_headers(resp.headers)
@@ -1387,7 +1387,15 @@ async def _graphql_page(
         if rate_limiter is not None:
             rate_limiter.release()
 
-    if resp.status_code in (429, 403) and rate_limiter is not None:
+    _is_rate_limited = resp.status_code == 429 or (
+        resp.status_code == 403
+        and (
+            "rate limit" in resp.text.lower()
+            or "abuse" in resp.text.lower()
+            or resp.headers.get("retry-after")
+        )
+    )
+    if _is_rate_limited and rate_limiter is not None:
         await rate_limiter.handle_rate_limit_response(resp)
         # Caller should retry
         return {"data": None, "errors": [{"message": "rate_limited"}]}
@@ -1514,7 +1522,7 @@ async def _github_get(
     for _attempt in range(max_retries):
         await rate_limiter.acquire()
         try:
-            async with httpx.AsyncClient(follow_redirects=False) as client:
+            async with httpx.AsyncClient(follow_redirects=True) as client:
                 resp = await client.get(url, headers=req_headers, params=params, timeout=30)
             rate_limiter.update_from_headers(resp.headers)
         finally:
@@ -1542,7 +1550,15 @@ async def _github_get(
             req_headers.pop("If-Modified-Since", None)
             continue
 
-        if resp.status_code in (429, 403) and "rate limit" in resp.text.lower():
+        _is_rate_limited = resp.status_code == 429 or (
+            resp.status_code == 403
+            and (
+                "rate limit" in resp.text.lower()
+                or "abuse" in resp.text.lower()
+                or resp.headers.get("retry-after")
+            )
+        )
+        if _is_rate_limited:
             await rate_limiter.handle_rate_limit_response(resp)
             continue
 
@@ -2846,6 +2862,9 @@ async def _fetch_page(
         if not data or not data.get("enterprise"):
             errors = result.get("errors", [])
             if errors:
+                error_msg = errors[0].get("message", "unknown")
+                if error_msg == "rate_limited":
+                    raise RuntimeError("GraphQL rate limited while fetching orgs — will retry")
                 logger.warning(
                     "github_sync.graphql_error",
                     entity_type="orgs",
@@ -2883,6 +2902,11 @@ async def _fetch_page(
         if not data or not data.get("enterprise"):
             errors = result.get("errors", [])
             if errors:
+                error_msg = errors[0].get("message", "unknown")
+                if error_msg == "rate_limited":
+                    raise RuntimeError(
+                        "GraphQL rate limited while fetching enterprise_members — will retry"
+                    )
                 logger.warning(
                     "github_sync.graphql_error",
                     entity_type="enterprise_members",
