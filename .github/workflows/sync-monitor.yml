@@ -30,64 +30,48 @@ jobs:
         run: |
           kubectl exec -n octowatch ${{ steps.pod.outputs.pod }} -- \
             python -c "
-          import asyncio
-          from sqlalchemy import select, text
-          from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-          from app.config import settings
-          from app.models.github_sync import EnterpriseSyncRun, EnterpriseSyncEntityCursor
+          import os, psycopg2
 
-          async def main():
-              engine = create_async_engine(settings.DATABASE_URL)
-              sf = async_sessionmaker(engine, class_=AsyncSession)
-              async with sf() as session:
-                  # Latest 3 runs
-                  result = await session.execute(
-                      select(EnterpriseSyncRun)
-                      .order_by(EnterpriseSyncRun.created_at.desc())
-                      .limit(3)
-                  )
-                  runs = result.scalars().all()
-                  print('=== Recent Sync Runs ===')
-                  for r in runs:
-                      print(f'  {r.id} | status={r.status} | started={r.started_at} | completed={r.completed_at} | error={r.error_message}')
+          db_url = os.environ['DATABASE_URL'].replace('+asyncpg', '').replace('postgresql+psycopg', 'postgresql')
+          if 'postgresql://' not in db_url:
+              db_url = db_url.replace('postgres://', 'postgresql://')
+          conn = psycopg2.connect(db_url)
+          cur = conn.cursor()
 
-                  if runs:
-                      latest = runs[0]
-                      print(f'\n=== Latest Run Entity Status ({latest.id}) ===')
-                      cursor_result = await session.execute(
-                          select(EnterpriseSyncEntityCursor)
-                          .where(EnterpriseSyncEntityCursor.run_id == latest.id)
-                          .order_by(EnterpriseSyncEntityCursor.entity_type)
-                      )
-                      cursors = cursor_result.scalars().all()
-                      failed = []
-                      for c in cursors:
-                          status_icon = '✓' if c.status == 'completed' else '✗' if c.status == 'failed' else '…'
-                          print(f'  {status_icon} {c.entity_type:30s} org={c.org or \"enterprise\":20s} items={c.items_synced:6d} status={c.status}')
-                          if c.status == 'failed':
-                              failed.append(c)
+          # Latest 3 runs
+          cur.execute('SELECT id, status, started_at, completed_at, error_message FROM enterprise_sync_runs ORDER BY created_at DESC LIMIT 3')
+          runs = cur.fetchall()
+          print('=== Recent Sync Runs ===')
+          for r in runs:
+              print(f'  {r[0]} | status={r[1]} | started={r[2]} | completed={r[3]} | error={r[4]}')
 
-                      print(f'\nSummary: {len(cursors)} entities, {len(failed)} failed')
-                      if failed:
-                          print('\n=== Failed Entities ===')
-                          from app.models.github_sync import SyncLogEntry
-                          for f in failed:
-                              log_result = await session.execute(
-                                  select(SyncLogEntry)
-                                  .where(
-                                      SyncLogEntry.run_id == latest.id,
-                                      SyncLogEntry.entity_type == f.entity_type,
-                                      SyncLogEntry.level == 'error',
-                                  )
-                                  .order_by(SyncLogEntry.seq.desc())
-                                  .limit(2)
-                              )
-                              logs = log_result.scalars().all()
-                              for log in logs:
-                                  print(f'  [{f.entity_type}:{f.org}] {log.message}')
-              await engine.dispose()
+          if runs:
+              latest_id = runs[0][0]
+              print(f'\n=== Latest Run Entity Status ({latest_id}) ===')
+              cur.execute('''SELECT entity_type, org, status, items_synced
+                  FROM enterprise_sync_entity_cursors
+                  WHERE run_id = %s ORDER BY entity_type''', (latest_id,))
+              cursors = cur.fetchall()
+              failed = []
+              for c in cursors:
+                  icon = '✓' if c[2] == 'completed' else '✗' if c[2] == 'failed' else '…'
+                  org = c[1] or 'enterprise'
+                  print(f'  {icon} {c[0]:30s} org={org:20s} items={c[3] or 0:6d} status={c[2]}')
+                  if c[2] == 'failed':
+                      failed.append(c)
 
-          asyncio.run(main())
+              print(f'\nSummary: {len(cursors)} entities, {len(failed)} failed')
+              if failed:
+                  print('\n=== Failed Entities ===')
+                  for f in failed:
+                      cur.execute('''SELECT message FROM sync_log_entries
+                          WHERE run_id = %s AND entity_type = %s AND level = 'error'
+                          ORDER BY seq DESC LIMIT 2''', (latest_id, f[0]))
+                  for log in cur.fetchall():
+                      print(f'  [{f[0]}:{f[1]}] {log[0]}')
+
+          cur.close()
+          conn.close()
           "
 
       - name: Trigger new sync
@@ -95,15 +79,35 @@ jobs:
         run: |
           kubectl exec -n octowatch ${{ steps.pod.outputs.pod }} -- \
             python -c "
-          import httpx, os
-          resp = httpx.post(
-              'http://localhost:8000/api/v1/sync/trigger',
-              headers={'Authorization': f\"Bearer {os.environ.get('INTERNAL_API_KEY', 'internal')}\"},
-              json={'scope': 'full'},
-              timeout=30,
+          import uuid, os
+          from datetime import datetime, UTC
+          from app.celery_app import celery_app
+          import psycopg2
+
+          # Create run record using sync psycopg2 (avoids async greenlet issues)
+          db_url = os.environ['DATABASE_URL'].replace('+asyncpg', '').replace('postgresql+psycopg', 'postgresql')
+          if 'postgresql://' not in db_url:
+              db_url = db_url.replace('postgres://', 'postgresql://')
+          conn = psycopg2.connect(db_url)
+          cur = conn.cursor()
+          run_id = str(uuid.uuid4())
+          cur.execute(
+              \"\"\"INSERT INTO enterprise_sync_runs (id, status, trigger_type, created_at)
+                 VALUES (%s, 'pending', 'manual', %s)\"\"\",
+              (run_id, datetime.now(UTC))
           )
-          print(f'Status: {resp.status_code}')
-          print(resp.json())
+          conn.commit()
+          cur.close()
+          conn.close()
+          print(f'Created sync run: {run_id}')
+
+          # Dispatch Celery task
+          celery_app.send_task(
+              'app.workers.github_sync.run_enterprise_sync',
+              kwargs={'run_id': run_id, 'scope': 'full'},
+              queue='github_sync',
+          )
+          print('Dispatched run_enterprise_sync task')
           "
 
       - name: Wait and monitor (5 min intervals, 30 min max)
@@ -115,46 +119,39 @@ jobs:
 
             STATUS=$(kubectl exec -n octowatch ${{ steps.pod.outputs.pod }} -- \
               python -c "
-          import asyncio
-          from sqlalchemy import select
-          from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-          from app.config import settings
-          from app.models.github_sync import EnterpriseSyncRun, EnterpriseSyncEntityCursor
+          import os, psycopg2
 
-          async def main():
-              engine = create_async_engine(settings.DATABASE_URL)
-              sf = async_sessionmaker(engine, class_=AsyncSession)
-              async with sf() as session:
-                  result = await session.execute(
-                      select(EnterpriseSyncRun)
-                      .order_by(EnterpriseSyncRun.created_at.desc())
-                      .limit(1)
-                  )
-                  run = result.scalar_one_or_none()
-                  if not run:
-                      print('NO_RUNS')
-                      return
-                  print(f'STATUS={run.status}')
+          db_url = os.environ['DATABASE_URL'].replace('+asyncpg', '').replace('postgresql+psycopg', 'postgresql')
+          if 'postgresql://' not in db_url:
+              db_url = db_url.replace('postgres://', 'postgresql://')
+          conn = psycopg2.connect(db_url)
+          cur = conn.cursor()
 
-                  cursor_result = await session.execute(
-                      select(EnterpriseSyncEntityCursor)
-                      .where(EnterpriseSyncEntityCursor.run_id == run.id)
-                  )
-                  cursors = cursor_result.scalars().all()
-                  completed = sum(1 for c in cursors if c.status == 'completed')
-                  failed = sum(1 for c in cursors if c.status == 'failed')
-                  in_progress = sum(1 for c in cursors if c.status == 'in_progress')
-                  total_items = sum(c.items_synced for c in cursors)
-                  print(f'ENTITIES: {len(cursors)} total, {completed} done, {in_progress} running, {failed} failed')
-                  print(f'ITEMS: {total_items}')
+          cur.execute('SELECT id, status, error_message FROM enterprise_sync_runs ORDER BY created_at DESC LIMIT 1')
+          row = cur.fetchone()
+          if not row:
+              print('NO_RUNS')
+          else:
+              run_id, status, error = row
+              print(f'STATUS={status}')
+              cur.execute('''SELECT entity_type, org, status, items_synced
+                  FROM enterprise_sync_entity_cursors WHERE run_id = %s''', (run_id,))
+              cursors = cur.fetchall()
+              completed = sum(1 for c in cursors if c[2] == 'completed')
+              failed = sum(1 for c in cursors if c[2] == 'failed')
+              in_progress = sum(1 for c in cursors if c[2] == 'in_progress')
+              total_items = sum(c[3] or 0 for c in cursors)
+              print(f'ENTITIES: {len(cursors)} total, {completed} done, {in_progress} running, {failed} failed')
+              print(f'ITEMS: {total_items}')
+              if failed:
+                  for c in cursors:
+                      if c[2] == 'failed':
+                          print(f'FAILED: {c[0]} org={c[1]}')
+              if error:
+                  print(f'ERROR: {error}')
 
-                  if failed:
-                      for c in cursors:
-                          if c.status == 'failed':
-                              print(f'FAILED: {c.entity_type} org={c.org}')
-              await engine.dispose()
-
-          asyncio.run(main())
+          cur.close()
+          conn.close()
           ")
 
             echo "$STATUS"
