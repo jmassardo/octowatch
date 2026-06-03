@@ -25,6 +25,8 @@ import type { EventResponse } from '../../types/events';
 import { formatRelativeShort } from '../../utils/dates';
 import { useQueryParam, useQueryParamInt, useSetQueryParams } from '../../hooks/useQueryParam';
 import styles from './AdvancedSecurity.module.css';
+import ReactECharts from 'echarts-for-react';
+import type { EChartsOption } from 'echarts';
 
 const PAGE_SIZE = 50;
 
@@ -99,7 +101,7 @@ function computeWoWDelta(values: number[]): { delta: string; deltaDir: 'up' | 'd
 /* ── Period selector type ── */
 type TrendPeriod = '7d' | '14d' | '30d';
 
-/* ── Trend SVG polyline chart ── */
+/* ── Trend ECharts line chart with axes and tooltip ── */
 function TrendChart({
   data,
 }: {
@@ -112,26 +114,70 @@ function TrendChart({
   const periodDays = period === '7d' ? 7 : period === '14d' ? 14 : 30;
   const slicedData = data.slice(-periodDays);
 
-  const width = 800;
-  const height = 120;
-  const pad = { top: 8, right: 8, bottom: 8, left: 8 };
-  const chartW = width - pad.left - pad.right;
-  const chartH = height - pad.top - pad.bottom;
-
-  const maxVal = Math.max(
-    1,
-    ...slicedData.map((d) => Math.max(d.secret_scanning, d.code_scanning, d.dependabot)),
-  );
-
-  function toPoints(accessor: (d: (typeof slicedData)[0]) => number): string {
-    return slicedData
-      .map((d, i) => {
-        const x = pad.left + (i / Math.max(1, slicedData.length - 1)) * chartW;
-        const y = pad.top + chartH - (accessor(d) / maxVal) * chartH;
-        return `${x},${y}`;
-      })
-      .join(' ');
-  }
+  const option: EChartsOption = {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'cross' },
+    },
+    legend: {
+      data: ['Secret Scanning', 'Code Scanning', 'Dependabot'],
+      bottom: 0,
+      textStyle: { color: 'var(--fg-muted)', fontSize: 11 },
+    },
+    grid: { top: 12, right: 16, bottom: 36, left: 40, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: slicedData.map((d) => d.day),
+      axisLabel: {
+        fontSize: 10,
+        color: 'var(--fg-muted)',
+        formatter: (val: string) => {
+          const date = new Date(val);
+          return `${date.getMonth() + 1}/${date.getDate()}`;
+        },
+      },
+      axisLine: { lineStyle: { color: 'var(--border)' } },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      minInterval: 1,
+      axisLabel: { fontSize: 10, color: 'var(--fg-muted)' },
+      splitLine: { lineStyle: { color: 'var(--border)', opacity: 0.5 } },
+    },
+    series: [
+      {
+        name: 'Secret Scanning',
+        type: 'line',
+        data: slicedData.map((d) => d.secret_scanning),
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 4,
+        lineStyle: { width: 2 },
+        itemStyle: { color: 'var(--attention)' },
+      },
+      {
+        name: 'Code Scanning',
+        type: 'line',
+        data: slicedData.map((d) => d.code_scanning),
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 4,
+        lineStyle: { width: 2 },
+        itemStyle: { color: 'var(--done)' },
+      },
+      {
+        name: 'Dependabot',
+        type: 'line',
+        data: slicedData.map((d) => d.dependabot),
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 4,
+        lineStyle: { width: 2 },
+        itemStyle: { color: 'var(--danger)' },
+      },
+    ],
+  };
 
   return (
     <div className={styles.trendSection}>
@@ -150,44 +196,7 @@ function TrendChart({
           ))}
         </div>
       </div>
-      <svg
-        className={styles.trendChart}
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="none"
-      >
-        <polyline
-          points={toPoints((d) => d.secret_scanning)}
-          fill="none"
-          stroke="var(--attention)"
-          strokeWidth="2"
-        />
-        <polyline
-          points={toPoints((d) => d.code_scanning)}
-          fill="none"
-          stroke="var(--done)"
-          strokeWidth="2"
-        />
-        <polyline
-          points={toPoints((d) => d.dependabot)}
-          fill="none"
-          stroke="var(--danger)"
-          strokeWidth="2"
-        />
-      </svg>
-      <div className={styles.trendLegend}>
-        <span>
-          <span className={styles.legendDot} style={{ background: 'var(--attention)' }} />
-          Secret Scanning
-        </span>
-        <span>
-          <span className={styles.legendDot} style={{ background: 'var(--done)' }} />
-          Code Scanning
-        </span>
-        <span>
-          <span className={styles.legendDot} style={{ background: 'var(--danger)' }} />
-          Dependabot
-        </span>
-      </div>
+      <ReactECharts option={option} style={{ height: 200, width: '100%' }} />
     </div>
   );
 }

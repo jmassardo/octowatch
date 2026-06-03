@@ -181,12 +181,12 @@ export function DetectionDetailPane({
     staleTime: 60_000,
   });
 
-  // Filter templates by detection category if available
-  const detectionCategory = selected.context_data?.category as string | undefined;
+  // Filter templates to those recommended for this detection's rule category
+  const ruleCategory = selected.rule_category;
   const relevantPlaybooks = (playbookTemplates ?? []).filter((t) => {
-    if (t.detection_categories.length === 0) return true;
-    if (!detectionCategory) return true;
-    return t.detection_categories.includes(detectionCategory);
+    if (t.detection_categories.length === 0) return false;
+    if (!ruleCategory) return false;
+    return t.detection_categories.includes(ruleCategory);
   });
 
   const executePlaybookMutation = useMutation({
@@ -444,27 +444,58 @@ export function DetectionDetailPane({
       {/* Playbook selection panel */}
       {showPlaybooks && (
         <div className={styles.dismissForm} data-testid="playbook-panel">
-          <strong>Select a playbook to run:</strong>
-          {relevantPlaybooks.length === 0 && (
-            <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>No matching playbooks found.</p>
-          )}
-          {relevantPlaybooks.map((pb) => (
-            <div key={pb.id} style={{ marginTop: 8 }}>
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => executePlaybookMutation.mutate(pb.id)}
-                disabled={executePlaybookMutation.isPending}
-              >
-                {pb.name}
-              </Button>
-              {pb.description && (
-                <span style={{ fontSize: 12, color: 'var(--fg-muted)', marginLeft: 8 }}>
-                  {pb.description}
-                </span>
+          {relevantPlaybooks.length > 0 ? (
+            <>
+              <strong>
+                Recommended playbook{relevantPlaybooks.length > 1 ? 's' : ''} for this rule:
+              </strong>
+              {relevantPlaybooks.map((pb) => (
+                <div key={pb.id} style={{ marginTop: 8 }}>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => executePlaybookMutation.mutate(pb.id)}
+                    disabled={executePlaybookMutation.isPending}
+                  >
+                    {pb.name}
+                  </Button>
+                  {pb.description && (
+                    <span style={{ fontSize: 12, color: 'var(--fg-muted)', marginLeft: 8 }}>
+                      {pb.description}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              <strong>No recommended playbook for this rule category.</strong>
+              {(playbookTemplates ?? []).length > 0 && (
+                <>
+                  <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '4px 0' }}>
+                    All available playbooks:
+                  </p>
+                  {(playbookTemplates ?? []).map((pb) => (
+                    <div key={pb.id} style={{ marginTop: 8 }}>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => executePlaybookMutation.mutate(pb.id)}
+                        disabled={executePlaybookMutation.isPending}
+                      >
+                        {pb.name}
+                      </Button>
+                      {pb.description && (
+                        <span style={{ fontSize: 12, color: 'var(--fg-muted)', marginLeft: 8 }}>
+                          {pb.description}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </>
               )}
-            </div>
-          ))}
+            </>
+          )}
         </div>
       )}
 

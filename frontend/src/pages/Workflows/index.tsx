@@ -15,9 +15,10 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { Label } from '../../components/primitives/Label';
 import { formatRelativeShort } from '../../utils/dates';
 import { ScannerActivityTab } from './ScannerActivityTab';
+import { ScanRulesTab } from './ScanRulesTab';
 import styles from './Workflows.module.css';
 
-type Tab = 'findings' | 'scores' | 'activity';
+type Tab = 'findings' | 'scores' | 'activity' | 'rules';
 
 const FINDINGS_PAGE_SIZE = 15;
 const SCORES_PAGE_SIZE = 12;
@@ -114,7 +115,7 @@ export function WorkflowsPage() {
 
   // Sync tab, severity, status, page, and selected finding with URL
   const tabParam = searchParams.get('tab') ?? 'findings';
-  const tab: Tab = (['findings', 'scores', 'activity'] as Tab[]).includes(tabParam as Tab)
+  const tab: Tab = (['findings', 'scores', 'activity', 'rules'] as Tab[]).includes(tabParam as Tab)
     ? (tabParam as Tab)
     : 'findings';
   const sevFilter = searchParams.get('severity') ?? '';
@@ -351,6 +352,12 @@ export function WorkflowsPage() {
         >
           Scanner Activity
         </button>
+        <button
+          className={`${styles.tab} ${tab === 'rules' ? styles.tabActive : ''}`}
+          onClick={() => setTab('rules')}
+        >
+          Scan Rules
+        </button>
       </div>
 
       {tab === 'findings' && (
@@ -488,6 +495,8 @@ export function WorkflowsPage() {
       )}
 
       {tab === 'activity' && <ScannerActivityTab />}
+
+      {tab === 'rules' && <ScanRulesTab />}
 
       {/* Finding detail drawer */}
       <Drawer

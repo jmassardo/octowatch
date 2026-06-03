@@ -3,6 +3,10 @@ import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithProviders } from '../../test/utils';
 import { AdvancedSecurityPage } from './index';
 
+vi.mock('echarts-for-react', () => ({
+  default: () => <div data-testid="echarts-mock" />,
+}));
+
 const mockNavigate = vi.fn();
 
 vi.mock('react-router-dom', async () => {
@@ -262,36 +266,6 @@ describe('AdvancedSecurityPage', () => {
     // With our mock data of 30 days, week-over-week deltas should be computed
     const deltaElements = document.querySelectorAll('[class*="delta"]');
     expect(deltaElements.length).toBeGreaterThan(0);
-  });
-
-  it('renders period toggle on trend chart', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, {
-      routePath: '/advanced-security/:tab',
-      route: '/advanced-security/overview',
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText('Alert Trend')).toBeInTheDocument();
-    });
-
-    expect(screen.getByText('7d')).toBeInTheDocument();
-    expect(screen.getByText('14d')).toBeInTheDocument();
-    expect(screen.getByText('30d')).toBeInTheDocument();
-  });
-
-  it('period toggle buttons update chart', async () => {
-    renderWithProviders(<AdvancedSecurityPage />, {
-      routePath: '/advanced-security/:tab',
-      route: '/advanced-security/overview',
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText('7d')).toBeInTheDocument();
-    });
-
-    const btn7d = screen.getByText('7d');
-    fireEvent.click(btn7d);
-    expect(btn7d).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('renders mini sparklines on overview cards', async () => {

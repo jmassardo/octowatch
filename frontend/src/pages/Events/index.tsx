@@ -87,6 +87,7 @@ export function EventsPage() {
   const [cursors, setCursors] = useState<string[]>([]);
   const [sortKey] = useState<NonNullable<EventListParams['sort']>>('created_at_desc');
   const [detailEvent, setDetailEvent] = useState<EventResponse | null>(null);
+  const [suggestionsEnabled, setSuggestionsEnabled] = useState(false);
 
   // Deep link: restore selected event from URL ?event=<id>
   const selectedEventId = searchParams.get('event');
@@ -119,34 +120,40 @@ export function EventsPage() {
     [setSearchParams],
   );
 
+  // Lazy-load suggestion data only when user interacts with search
   const { data: actionsData } = useQuery({
     queryKey: ['suggestions', 'actions'],
     queryFn: getSuggestedActions,
     staleTime: 5 * 60 * 1000,
+    enabled: suggestionsEnabled,
   });
 
   const { data: actorsData } = useQuery({
     queryKey: ['suggestions', 'actors'],
     queryFn: getSuggestedActors,
     staleTime: 5 * 60 * 1000,
+    enabled: suggestionsEnabled,
   });
 
   const { data: reposData } = useQuery({
     queryKey: ['suggestions', 'repos'],
     queryFn: getSuggestedRepos,
     staleTime: 5 * 60 * 1000,
+    enabled: suggestionsEnabled,
   });
 
   const { data: orgsData } = useQuery({
     queryKey: ['suggestions', 'orgs'],
     queryFn: getSuggestedOrgs,
     staleTime: 5 * 60 * 1000,
+    enabled: suggestionsEnabled,
   });
 
   const { data: namespacesData } = useQuery({
     queryKey: ['suggestions', 'namespaces'],
     queryFn: getSuggestedNamespaces,
     staleTime: 5 * 60 * 1000,
+    enabled: suggestionsEnabled,
   });
 
   const actionSuggestions = actionsData?.actions ?? [];
@@ -388,7 +395,7 @@ export function EventsPage() {
           showHelp
         />
 
-        <div className={styles.searchBar}>
+        <div className={styles.searchBar} onFocus={() => setSuggestionsEnabled(true)}>
           <svg width="16" height="16" fill="var(--fg-subtle)" viewBox="0 0 16 16">
             <path d="M10.68 11.74a6 6 0 01-7.922-8.982 6 6 0 018.982 7.922l3.04 3.04a.749.749 0 11-1.06 1.06zm-3.18.26a4.5 4.5 0 100-9 4.5 4.5 0 000 9z" />
           </svg>

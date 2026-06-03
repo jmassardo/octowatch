@@ -4,6 +4,8 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { Drawer } from '../../components/primitives/Drawer';
+import { Button } from '../../components/primitives/Button';
 import {
   getSupplyChainPosture,
   getSupplyChainRisks,
@@ -12,7 +14,9 @@ import {
 } from '../../api/supplyChain';
 import type {
   SupplyChainPosture,
+  SupplyChainRisk,
   RiskSummary,
+  SupplyChainRule,
   RulesListResponse,
   AnalyzeWorkflowResponse,
   WorkflowFinding,
@@ -43,9 +47,11 @@ function SeverityBadge({ severity }: { severity: string }) {
 function RisksTab({
   posture,
   risks,
+  onSelectRisk,
 }: {
   posture: SupplyChainPosture | undefined;
   risks: RiskSummary | undefined;
+  onSelectRisk: (risk: SupplyChainRisk) => void;
 }) {
   const recentRisks = posture?.recent_risks ?? [];
   const topRepos = risks?.top_repos ?? [];
@@ -71,7 +77,19 @@ function RisksTab({
               </thead>
               <tbody>
                 {recentRisks.map((risk) => (
-                  <tr key={risk.id}>
+                  <tr
+                    key={risk.id}
+                    className={styles.clickableRow}
+                    onClick={() => onSelectRisk(risk)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelectRisk(risk);
+                      }
+                    }}
+                  >
                     <td>{risk.title}</td>
                     <td>
                       <SeverityBadge severity={risk.severity} />
@@ -121,7 +139,13 @@ function RisksTab({
 
 /* ── Rules tab ──────────────────────────────────────────────────────────── */
 
-function RulesTab({ data }: { data: RulesListResponse | undefined }) {
+function RulesTab({
+  data,
+  onSelectRule,
+}: {
+  data: RulesListResponse | undefined;
+  onSelectRule: (rule: SupplyChainRule) => void;
+}) {
   const rules = data?.rules ?? [];
   if (rules.length === 0) {
     return <div className={styles.emptyState}>No supply chain rules configured.</div>;
@@ -142,7 +166,19 @@ function RulesTab({ data }: { data: RulesListResponse | undefined }) {
         </thead>
         <tbody>
           {rules.map((rule) => (
-            <tr key={rule.id}>
+            <tr
+              key={rule.id}
+              className={styles.clickableRow}
+              onClick={() => onSelectRule(rule)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelectRule(rule);
+                }
+              }}
+            >
               <td>
                 <strong>{rule.name}</strong>
                 {rule.description && (
@@ -236,10 +272,110 @@ function WorkflowAuditTab() {
   );
 }
 
+/* ── Rule editor ────────────────────────────────────────────────────────── */
+
+function RuleEditor({
+  rule,
+  isNew,
+  onClose,
+}: {
+  rule: SupplyChainRule | null;
+  isNew: boolean;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(rule?.name ?? '');
+  const [description, setDescription] = useState(rule?.description ?? '');
+  const [severity, setSeverity] = useState(rule?.severity ?? 'medium');
+  const [confidence, setConfidence] = useState(rule?.confidence ?? 'medium');
+  const [logicType, setLogicType] = useState(rule?.logic_type ?? 'regex');
+  const [enabled, setEnabled] = useState(rule?.enabled ?? true);
+
+  return (
+    <div className={styles.drawerContent}>
+      <div className={styles.formField}>
+        <label>Name</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Rule name"
+          className={styles.input}
+        />
+      </div>
+      <div className={styles.formField}>
+        <label>Description</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Describe what this rule detects"
+          className={styles.textarea}
+          rows={3}
+        />
+      </div>
+      <div className={styles.formRow}>
+        <div className={styles.formField}>
+          <label>Severity</label>
+          <select
+            value={severity}
+            onChange={(e) => setSeverity(e.target.value)}
+            className={styles.select}
+          >
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+        <div className={styles.formField}>
+          <label>Confidence</label>
+          <select
+            value={confidence}
+            onChange={(e) => setConfidence(e.target.value)}
+            className={styles.select}
+          >
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+      </div>
+      <div className={styles.formField}>
+        <label>Logic Type</label>
+        <select
+          value={logicType}
+          onChange={(e) => setLogicType(e.target.value)}
+          className={styles.select}
+        >
+          <option value="regex">Regex Pattern</option>
+          <option value="event_match">Event Match</option>
+          <option value="threshold">Threshold</option>
+        </select>
+      </div>
+      <div className={styles.formField}>
+        <label className={styles.checkboxLabel}>
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          Enabled
+        </label>
+      </div>
+      <div className={styles.drawerActions}>
+        <Button variant="primary" size="sm" onClick={onClose}>
+          {isNew ? 'Create Rule' : 'Save Changes'}
+        </Button>
+        <Button variant="default" size="sm" onClick={onClose}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main page ──────────────────────────────────────────────────────────── */
 
 export function SupplyChainPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('risks');
+  const [selectedRisk, setSelectedRisk] = useState<SupplyChainRisk | null>(null);
+  const [selectedRule, setSelectedRule] = useState<SupplyChainRule | null>(null);
+  const [creatingRule, setCreatingRule] = useState(false);
 
   const postureQuery = useQuery({
     queryKey: ['supply-chain', 'posture'],
@@ -337,9 +473,75 @@ export function SupplyChainPage() {
       </div>
 
       {/* ── Tab content ──────────────────────────────────────────────── */}
-      {activeTab === 'risks' && <RisksTab posture={posture} risks={risksQuery.data} />}
-      {activeTab === 'rules' && <RulesTab data={rulesQuery.data} />}
+      {activeTab === 'risks' && (
+        <RisksTab posture={posture} risks={risksQuery.data} onSelectRisk={setSelectedRisk} />
+      )}
+      {activeTab === 'rules' && (
+        <>
+          <div style={{ marginBottom: 12 }}>
+            <Button size="sm" variant="primary" onClick={() => setCreatingRule(true)}>
+              + New Custom Rule
+            </Button>
+          </div>
+          <RulesTab data={rulesQuery.data} onSelectRule={setSelectedRule} />
+        </>
+      )}
       {activeTab === 'workflow' && <WorkflowAuditTab />}
+
+      {/* ── Risk detail drawer ───────────────────────────────────────── */}
+      <Drawer
+        open={selectedRisk != null}
+        onClose={() => setSelectedRisk(null)}
+        title="Risk Details"
+      >
+        {selectedRisk && (
+          <div className={styles.drawerContent}>
+            <h3>{selectedRisk.title}</h3>
+            <div className={styles.drawerMeta}>
+              <div>
+                <strong>Severity:</strong> <SeverityBadge severity={selectedRisk.severity} />
+              </div>
+              <div>
+                <strong>Status:</strong> {selectedRisk.status}
+              </div>
+              <div>
+                <strong>Repository:</strong> {selectedRisk.repo ?? '—'}
+              </div>
+              <div>
+                <strong>Organization:</strong> {selectedRisk.org ?? '—'}
+              </div>
+              <div>
+                <strong>Rule:</strong> {selectedRisk.rule_slug}
+              </div>
+              <div>
+                <strong>Detected:</strong>{' '}
+                {selectedRisk.triggered_at
+                  ? new Date(selectedRisk.triggered_at).toLocaleString()
+                  : '—'}
+              </div>
+            </div>
+          </div>
+        )}
+      </Drawer>
+
+      {/* ── Rule edit drawer ─────────────────────────────────────────── */}
+      <Drawer
+        open={selectedRule != null || creatingRule}
+        onClose={() => {
+          setSelectedRule(null);
+          setCreatingRule(false);
+        }}
+        title={creatingRule ? 'New Custom Rule' : 'Edit Rule'}
+      >
+        <RuleEditor
+          rule={selectedRule}
+          isNew={creatingRule}
+          onClose={() => {
+            setSelectedRule(null);
+            setCreatingRule(false);
+          }}
+        />
+      </Drawer>
     </div>
   );
 }
