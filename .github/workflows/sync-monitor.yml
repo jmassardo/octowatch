@@ -27,10 +27,11 @@ jobs:
           echo "API pod: ${POD}"
 
       - name: Check current sync status
+        continue-on-error: true
         run: |
           kubectl exec -n octowatch ${{ steps.pod.outputs.pod }} -- \
             python -c "
-          import asyncio, os
+          import asyncio, os, uuid as _uuid
           import asyncpg
 
           async def main():
@@ -59,9 +60,12 @@ jobs:
                   if failed:
                       print('\n=== Failed Entities ===')
                       for f in failed:
-                          logs = await conn.fetch('SELECT message FROM sync_log_entries WHERE run_id = \$1 AND entity_type = \$2 AND level = \$3 ORDER BY seq DESC LIMIT 2', latest_id, f['entity_type'], 'error')
-                          for log in logs:
-                              print(f'  [{f[\"entity_type\"]}:{f[\"org\"]}] {log[\"message\"]}')
+                          try:
+                              logs = await conn.fetch('SELECT message FROM sync_log_entries WHERE run_id = \$1 AND entity_type = \$2 AND level = \$3 ORDER BY seq DESC LIMIT 2', str(latest_id), f['entity_type'], 'error')
+                              for log in logs:
+                                  print(f'  [{f[\"entity_type\"]}:{f[\"org\"]}] {log[\"message\"]}')
+                          except Exception as e:
+                              print(f'  [{f[\"entity_type\"]}:{f[\"org\"]}] (could not fetch logs: {e})')
 
               await conn.close()
 
