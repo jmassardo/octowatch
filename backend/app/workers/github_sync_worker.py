@@ -3376,10 +3376,14 @@ async def _fetch_page(
                 cursor_data = _json.loads(cursor)
                 after_cursor = cursor_data.get("after")
                 if after_cursor:
+                    # Use only the `after` cursor for pagination — GitHub's audit log
+                    # API returns 400 when both `after` and `phrase` are provided.
                     audit_params["after"] = after_cursor
-                timestamp_cursor = cursor_data.get("timestamp")
-                if timestamp_cursor:
-                    audit_params["phrase"] = f"created:>={timestamp_cursor}"
+                else:
+                    # No pagination cursor — use time-based filter
+                    timestamp_cursor = cursor_data.get("timestamp")
+                    if timestamp_cursor:
+                        audit_params["phrase"] = f"created:>={timestamp_cursor}"
             except (ValueError, TypeError):
                 # Legacy cursor format: treat as ISO timestamp
                 audit_params["phrase"] = f"created:>={cursor}"
@@ -3419,11 +3423,12 @@ async def _fetch_page(
         last_event = events[-1]
         last_ts_raw = last_event.get("@timestamp") or last_event.get("created_at")
         if isinstance(last_ts_raw, (int, float)):
-            last_ts = datetime.fromtimestamp(last_ts_raw / 1000, tz=UTC).isoformat()
+            dt = datetime.fromtimestamp(last_ts_raw / 1000, tz=UTC)
+            last_ts = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         elif last_ts_raw:
             last_ts = str(last_ts_raw)
         else:
-            last_ts = datetime.now(UTC).isoformat()
+            last_ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         # GitHub audit log uses Link header or returns `after` cursor
         # Build a composite cursor with both the after value and timestamp

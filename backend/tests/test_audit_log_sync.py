@@ -349,11 +349,12 @@ class TestFetchAuditLogPage:
                 rate_limiter=mock_rate_limiter,
             )
 
-        # Verify the after and phrase params were passed
+        # Verify only 'after' is used — GitHub's audit log API returns 400
+        # when both 'after' and 'phrase' are provided simultaneously.
         call_args = mock_get.call_args
         params = call_args.kwargs.get("params") or call_args[0][2]
         assert params.get("after") == "prev_doc_id"
-        assert params.get("phrase") == "created:>=2024-03-15T10:00:00+00:00"
+        assert "phrase" not in params
 
     @pytest.mark.asyncio
     async def test_fetch_audit_log_delta_since_uses_timestamp(self) -> None:
