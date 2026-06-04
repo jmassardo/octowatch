@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +25,18 @@ router = APIRouter(prefix="/posture", tags=["posture"])
 
 _SEVERITY_WEIGHT = {"critical": 10, "high": 7, "medium": 4, "low": 2, "info": 1}
 _OPEN_STATUSES = ("open", "investigating")
+
+# Operators for inline rule evaluation (mirrors detection_service._POSTURE_OPS)
+_OPS: dict[str, Any] = {
+    "eq": lambda a, v: a == v,
+    "ne": lambda a, v: a != v,
+    "gt": lambda a, v: a is not None and a > v,
+    "gte": lambda a, v: a is not None and a >= v,
+    "lt": lambda a, v: a is not None and a < v,
+    "lte": lambda a, v: a is not None and a <= v,
+    "in": lambda a, v: a in v if v else False,
+    "not_in": lambda a, v: a not in v if v else True,
+}
 
 
 def _compute_score(checks: list[PostureCheckResult]) -> float:
@@ -62,6 +76,18 @@ def _check_pass(rule: RuleDefinition) -> PostureCheckResult:
     )
 
 
+def _check_fail(rule: RuleDefinition) -> PostureCheckResult:
+    return PostureCheckResult(
+        rule_id=rule.id,
+        rule_name=rule.name,
+        category=rule.category,
+        severity=rule.default_severity,
+        status="open",
+        title=rule.name,
+        description=rule.description or "",
+    )
+
+
 def _check_unknown(rule: RuleDefinition) -> PostureCheckResult:
     """Config data not yet synced — cannot evaluate."""
     return PostureCheckResult(
@@ -73,6 +99,34 @@ def _check_unknown(rule: RuleDefinition) -> PostureCheckResult:
         title=rule.name,
         description="Organization config not yet synced — cannot evaluate this check.",
     )
+
+
+def _evaluate_org_rule_inline(rule: RuleDefinition, org: EnterpriseOrg) -> PostureCheckResult:
+    """Evaluate an org-level posture rule directly against org data.
+
+    The rule's logic_config describes the INSECURE condition (what triggers a fail).
+    If the condition matches → fail. If it doesn't match → pass.
+    """
+    config = rule.logic_config or {}
+    field = config.get("field", "")
+    operator = config.get("operator", "eq")
+    expected_value = config.get("value")
+
+    if not field:
+        return _check_pass(rule)
+
+    actual = getattr(org, field, None)
+    if actual is None:
+        return _check_unknown(rule)
+
+    op_fn = _OPS.get(operator)
+    if op_fn is None:
+        return _check_unknown(rule)
+
+    # The condition describes the insecure state — if it matches, the check FAILS
+    if op_fn(actual, expected_value):
+        return _check_fail(rule)
+    return _check_pass(rule)
 
 
 async def _load_rules(db: AsyncSession) -> dict[str, list[RuleDefinition]]:
@@ -111,10 +165,33 @@ def _build_repo_posture(
     checks: list[PostureCheckResult] = []
     repo_dets = [d for d in detections if d.repo == repo.repo_name and d.org == repo.org]
 
-    # Posture rules applicable to repos
+    # Posture rules applicable to repos — evaluate inline
     for rule in repo_rules:
-        det = next((d for d in repo_dets if d.rule_id == rule.id), None)
-        checks.append(_check_from_detection(rule, det) if det else _check_pass(rule))
+        config = rule.logic_config or {}
+        entity_type = config.get("entity_type", "")
+        check_type = config.get("check_type", "field_value")
+
+        if entity_type == "repo" and check_type == "field_value":
+            # Evaluate directly against repo data
+            field = config.get("field", "")
+            operator = config.get("operator", "eq")
+            expected_value = config.get("value")
+            actual = getattr(repo, field, None)
+            if actual is None:
+                checks.append(_check_unknown(rule))
+            else:
+                op_fn = _OPS.get(operator)
+                if op_fn and op_fn(actual, expected_value):
+                    checks.append(_check_fail(rule))
+                else:
+                    checks.append(_check_pass(rule))
+        elif entity_type == "branch_protection":
+            # Branch protection checks rely on detections (complex evaluation)
+            det = next((d for d in repo_dets if d.rule_id == rule.id), None)
+            checks.append(_check_from_detection(rule, det) if det else _check_pass(rule))
+        else:
+            det = next((d for d in repo_dets if d.rule_id == rule.id), None)
+            checks.append(_check_from_detection(rule, det) if det else _check_pass(rule))
 
     # Event-based detections for this repo
     event_det_ids = {r.id for r in event_rules}
@@ -151,17 +228,19 @@ def _build_org_posture(
     """Build posture for one org."""
     org_dets = [d for d in detections if d.org == org.org_login]
 
-    # Org-level posture checks
+    # Org-level posture checks — evaluate rules directly against org data
     checks: list[PostureCheckResult] = []
     for rule in org_rules:
-        det = next((d for d in org_dets if d.rule_id == rule.id and not d.repo), None)
-        if det:
-            checks.append(_check_from_detection(rule, det))
+        config = rule.logic_config or {}
+        entity_type = config.get("entity_type", "")
+        if entity_type == "org":
+            # Evaluate directly against the org row — no dependency on detections
+            checks.append(_evaluate_org_rule_inline(rule, org))
         else:
-            # If the rule checks an org config field and it's NULL, mark unknown
-            config_field = (rule.logic_config or {}).get("field")
-            if config_field and getattr(org, config_field, "MISSING") is None:
-                checks.append(_check_unknown(rule))
+            # Non-org rules (shouldn't be here, but handle gracefully)
+            det = next((d for d in org_dets if d.rule_id == rule.id and not d.repo), None)
+            if det:
+                checks.append(_check_from_detection(rule, det))
             else:
                 checks.append(_check_pass(rule))
 
