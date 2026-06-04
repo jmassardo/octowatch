@@ -448,11 +448,14 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
     # from GITHUB_SYNC_ORGS env or from the installation's accessible repos.
     sync_orgs = settings.github_app.sync_orgs_list
 
-    # Auto-discover orgs from enterprise GraphQL or accessible repos
-    if not sync_orgs and all(c.org_login is None for c in configs):
-        enterprise_slug = next((c.enterprise_slug for c in configs if c.enterprise_slug), None)
+    # Auto-discover orgs from enterprise GraphQL when an enterprise config exists.
+    # This ensures all enterprise orgs are synced, not just those with explicit
+    # org-level app installations.
+    enterprise_slug = next((c.enterprise_slug for c in configs if c.enterprise_slug), None)
+    if not sync_orgs and enterprise_slug:
+        enterprise_config = next(c for c in configs if c.enterprise_slug)
         discovered = await _discover_orgs_from_installation(
-            configs[0].installation_id, enterprise_slug
+            enterprise_config.installation_id, enterprise_slug
         )
         if discovered:
             sync_orgs = discovered
