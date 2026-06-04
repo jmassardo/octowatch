@@ -14,9 +14,11 @@ from app.config import settings
 from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.models.audit_trail import AuditTrail
 from app.models.github_sync import (
+    EnterpriseOrg,
     EnterpriseSyncEntityCursor,
     EnterpriseSyncRun,
     GitHubAppConfig,
+    GitHubAppInstallation,
     SyncLogEntry,
 )
 from app.schemas.github_sync import (
@@ -469,3 +471,48 @@ async def update_sync_schedule(
     )
 
     return await get_sync_schedule(current_user=current_user, db=db)
+
+
+@router.get("/coverage")
+async def get_sync_coverage(
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "viewer")),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return org-level app installation coverage.
+
+    Shows which enterprise orgs have the GitHub App installed (and thus
+    can be synced) vs which ones need the app installed.
+    """
+    # All enterprise orgs (discovered via enterprise GraphQL)
+    all_orgs_result = await db.execute(
+        select(EnterpriseOrg.org_login).order_by(EnterpriseOrg.org_login)
+    )
+    all_orgs = [row[0] for row in all_orgs_result.fetchall()]
+
+    # Orgs with app installations
+    installed_result = await db.execute(
+        select(GitHubAppInstallation.target_login).where(
+            GitHubAppInstallation.target_type == "Organization",
+        )
+    )
+    installed_orgs = {row[0] for row in installed_result.fetchall()}
+
+    # Also include orgs from app configs (more authoritative)
+    config_result = await db.execute(
+        select(GitHubAppConfig.org_login).where(
+            GitHubAppConfig.org_login.isnot(None),
+            GitHubAppConfig.enabled.is_(True),
+        )
+    )
+    config_orgs = {row[0] for row in config_result.fetchall()}
+    installed_orgs = installed_orgs | config_orgs
+
+    covered = sorted(o for o in all_orgs if o in installed_orgs)
+    needs_install = sorted(o for o in all_orgs if o not in installed_orgs)
+
+    return {
+        "total_orgs": len(all_orgs),
+        "installed_orgs": covered,
+        "needs_installation": needs_install,
+        "coverage_pct": round(len(covered) / max(len(all_orgs), 1) * 100, 1),
+    }

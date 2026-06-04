@@ -507,23 +507,29 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
             dispatched.append((entity_type, config.org_login))
         dispatched_orgs.add(config.org_login)
 
-    # For any discovered orgs without their own installation, use enterprise token
-    if enterprise_configs:
-        remaining_orgs = [o for o in sync_orgs if o not in dispatched_orgs]
-        for org in remaining_orgs:
-            for entity_type in org_entity_types:
-                result = sync_entity.apply_async(
-                    kwargs={
-                        "run_id": run_id,
-                        "entity_type": entity_type,
-                        "org": org,
-                        "installation_id": enterprise_configs[0].installation_id,
-                        "cursor": None,
-                    },
-                    queue="github_sync",
-                )
-                child_results.append(result)
-                dispatched.append((entity_type, org))
+    # Log orgs that exist in the enterprise but don't have the app installed.
+    # These orgs won't be synced — the user needs to install the app on them.
+    if enterprise_configs and sync_orgs:
+        uninstalled_orgs = [o for o in sync_orgs if o not in dispatched_orgs]
+        if uninstalled_orgs:
+            logger.info(
+                "github_sync.orgs_missing_installation",
+                count=len(uninstalled_orgs),
+                orgs=uninstalled_orgs[:20],
+                hint="Install the GitHub App on these orgs to enable sync",
+            )
+            msg = (
+                f"{len(uninstalled_orgs)} org(s) skipped — app not installed: "
+                f"{', '.join(uninstalled_orgs[:10])}"
+            )
+            if len(uninstalled_orgs) > 10:
+                msg += f" (and {len(uninstalled_orgs) - 10} more)"
+            await _write_sync_log(
+                sf,
+                run_id,
+                msg,
+                entity_type="orgs",
+            )
 
     logger.info(
         "github_sync.orchestrator_dispatched",
@@ -546,6 +552,26 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
             .values(expected_entity_count=len(dispatched))
         )
         await session.commit()
+
+    # If zero tasks were dispatched (no installed orgs), finalize the run now.
+    if not dispatched:
+        logger.info("github_sync.zero_dispatch", run_id=run_id)
+        async with sf() as session:
+            await session.execute(
+                update(EnterpriseSyncRun)
+                .where(EnterpriseSyncRun.id == run_uuid)
+                .values(
+                    status="completed",
+                    completed_at=datetime.now(UTC),
+                )
+            )
+            await session.commit()
+        await _write_sync_log(
+            sf,
+            run_id,
+            "No entity tasks dispatched — install the GitHub App on orgs to enable sync",
+        )
+        return {"status": "completed", "tasks": 0}
 
     # NOTE: The orchestrator does NOT wait for child tasks to complete.
     # With --pool=solo, waiting would deadlock (one thread, children queued behind us).
@@ -4235,11 +4261,10 @@ async def _enrich_org_settings(
 
     for org_row in org_list:
         try:
-            # Use org-level installation token if available (has admin:read)
+            # Only enrich orgs that have their own installation with admin:read
             inst_id = org_inst_map.get(org_row.org_login)
             if inst_id is None:
-                # No org-level installation — queue for GraphQL fallback
-                unenriched_orgs.append(org_row)
+                # No org-level installation — skip (app must be installed)
                 continue
 
             token = await token_manager.get_installation_token(inst_id)
@@ -4310,25 +4335,13 @@ async def _enrich_org_settings(
             )
             unenriched_orgs.append(org_row)
 
-    # GraphQL fallback: use enterprise token to fetch org settings for orgs
-    # without org-level installations. The enterprise token has read access
-    # to org settings via the organization() query.
+    # GraphQL fallback removed — org enrichment requires the app to be
+    # installed on each org with administration:read permission.
     if unenriched_orgs:
-        await _write_sync_log(
-            sf,
-            run_id,
-            f"GraphQL fallback enrichment for {len(unenriched_orgs)} org(s)",
-            entity_type="orgs",
+        logger.info(
+            "github_sync.enrichment_skipped_no_installation",
+            count=len(unenriched_orgs),
         )
-        graphql_enriched = await _enrich_orgs_graphql(
-            sf,
-            run_id,
-            token_manager,
-            rate_limiter,
-            fallback_installation_id,
-            unenriched_orgs,
-        )
-        enriched += graphql_enriched
 
     return enriched
 
@@ -4340,6 +4353,8 @@ query($login: String!) {
     requiresTwoFactorAuthentication
     ipAllowListEnabledSetting
     membersCanForkPrivateRepositories
+    defaultRepositoryPermissionSetting
+    membersCanCreatePublicRepositories
   }
 }
 """
@@ -4403,6 +4418,15 @@ async def _enrich_orgs_graphql(
             fork_private = data.get("membersCanForkPrivateRepositories")
             if fork_private is not None:
                 settings_update["members_can_fork_private_repos"] = fork_private
+
+            default_perm = data.get("defaultRepositoryPermissionSetting")
+            if default_perm is not None:
+                # GraphQL returns "READ"/"WRITE"/"ADMIN"/"NONE" — lowercase for DB
+                settings_update["default_repo_permission"] = default_perm.lower()
+
+            create_public = data.get("membersCanCreatePublicRepositories")
+            if create_public is not None:
+                settings_update["members_can_create_public_repos"] = create_public
 
             await _write_sync_log(
                 sf,

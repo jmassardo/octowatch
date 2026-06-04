@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import AuthenticatedUser, get_db, require_permission
 from app.models.detection import Detection, RuleDefinition
-from app.models.github_sync import EnterpriseOrg, Repository
+from app.models.github_sync import EnterpriseOrg, GitHubAppConfig, GitHubAppInstallation, Repository
 from app.schemas.posture import (
     BreadcrumbItem,
     OrgPosture,
@@ -329,8 +329,26 @@ async def get_posture(
         )
 
     # ── Enterprise-level overview ──────────────────────────────────────
+    # Only include orgs that have the GitHub App installed
+    installed_result = await db.execute(
+        select(GitHubAppInstallation.target_login).where(
+            GitHubAppInstallation.target_type == "Organization",
+        )
+    )
+    installed_orgs = {row[0] for row in installed_result.fetchall()}
+    # Also include orgs from app configs
+    config_result = await db.execute(
+        select(GitHubAppConfig.org_login).where(
+            GitHubAppConfig.org_login.isnot(None),
+            GitHubAppConfig.enabled.is_(True),
+        )
+    )
+    installed_orgs = installed_orgs | {row[0] for row in config_result.fetchall()}
+
     orgs_result = await db.execute(select(EnterpriseOrg))
     orgs = list(orgs_result.scalars().all())
+    # Filter to installed orgs only
+    orgs = [o for o in orgs if o.org_login in installed_orgs]
     if scope.scoped_orgs:
         orgs = [o for o in orgs if o.org_login in scope.scoped_orgs]
 
