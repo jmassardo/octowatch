@@ -2400,7 +2400,7 @@ async def _write_posture_detection(
 # any open posture detection whose dedup_key starts with the built prefix.
 _REMEDIATION_MAP: list[dict[str, Any]] = [
     {
-        # Repo made private/internal → resolve "Public Repository in Enterprise"
+        # Repo made private/internal → resolve "Repository Visibility Private" (now passing)
         "actions": ["repo.access"],
         "conditions": [
             {"field": "data.visibility", "values": ["private", "internal"]},
@@ -2410,13 +2410,13 @@ _REMEDIATION_MAP: list[dict[str, Any]] = [
         ),
     },
     {
-        # 2FA enabled → resolve "2FA Not Required"
+        # 2FA enabled → resolve "2FA Required" (now passing)
         "actions": ["org.enable_two_factor_requirement"],
         "conditions": [],
         "dedup_prefix_fn": lambda e: f"posture:posture-2fa-not-required:{e.org}:",
     },
     {
-        # IP allow list enabled → resolve "IP Allow List Disabled"
+        # IP allow list enabled → resolve "IP Allow List Enabled" (now passing)
         "actions": ["ip_allow_list.enable"],
         "conditions": [],
         "dedup_prefix_fn": lambda e: f"posture:posture-ip-allow-list-disabled:{e.org}:",
