@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback } from 'react';
+import { useMemo, useRef, useState, useCallback, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
 import { getActionsVolumeReport } from '../../api/reports';
@@ -12,8 +12,12 @@ import { Drawer } from '../../components/primitives/Drawer';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { PageHeader } from '../../components/common/PageHeader';
-import { LeadershipPane } from './LeadershipPane';
+import { SkeletonCard } from '../../components/common/SkeletonCard';
 import { useFeatures } from '../../hooks/useFeatures';
+
+const LeadershipPane = lazy(() =>
+  import('./LeadershipPane').then((m) => ({ default: m.LeadershipPane })),
+);
 import type { ActionsVolumeBucket } from '../../types/reports';
 import type { EventResponse } from '../../types/events';
 import { formatBucketDate } from '../../utils/dates';
@@ -296,7 +300,9 @@ export function VelocityPage() {
       {isError && <ErrorBanner message="Failed to load metrics" onRetry={refetch} />}
 
       {/* Leadership DORA metrics, team comparison, and shipping cadence */}
-      <LeadershipPane />
+      <Suspense fallback={<SkeletonCard lines={6} />}>
+        <LeadershipPane />
+      </Suspense>
 
       {isLoading && <Spinner />}
 

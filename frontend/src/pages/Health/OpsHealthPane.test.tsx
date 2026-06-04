@@ -23,7 +23,7 @@ const mockWorkflowData: WorkflowHealthResponse = {
       successes: 85,
       failures: 15,
       failure_rate_pct: 15.0,
-      last_run: '2025-03-15T10:00:00Z',
+      last_run_at: '2025-03-15T10:00:00Z',
     },
     {
       repo: 'acme/web',
@@ -32,7 +32,7 @@ const mockWorkflowData: WorkflowHealthResponse = {
       successes: 48,
       failures: 2,
       failure_rate_pct: 4.0,
-      last_run: '2025-03-14T08:00:00Z',
+      last_run_at: '2025-03-14T08:00:00Z',
     },
   ],
 };

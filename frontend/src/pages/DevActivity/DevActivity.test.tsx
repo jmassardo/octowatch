@@ -4,6 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { DevActivityPage } from './index';
 
+vi.mock('echarts-for-react', () => ({
+  default: () => null,
+}));
+
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return {
@@ -283,37 +287,71 @@ describe('DevActivityPage', () => {
     expect(actorLink.getAttribute('role')).toBe('button');
   });
 
-  it('developer card stat numbers are clickable with clickableStat class', async () => {
+  it('renders Top contributors table with developer rows', async () => {
     renderWithProviders(<DevActivityPage />);
 
-    await screen.findByLabelText('View details for alice');
-
-    const clickableStats = document.querySelectorAll('.clickableStat[role="button"]');
-    expect(clickableStats.length).toBe(18);
+    expect(await screen.findByText('Top contributors')).toBeInTheDocument();
+    // Table should have column headers - use getAllByText since "PRs" etc. may appear in multiple places
+    const prHeaders = screen.getAllByText('PRs');
+    expect(prHeaders.length).toBeGreaterThanOrEqual(1);
+    // Verify it has the Trend column which is unique to the new table
+    expect(screen.getByText('Trend')).toBeInTheDocument();
+    expect(screen.getByText('Last Active')).toBeInTheDocument();
   });
 
-  it('developer detail panel opens on card click', async () => {
+  it('developer detail panel opens on table row click', async () => {
     const user = userEvent.setup();
     renderWithProviders(<DevActivityPage />);
 
-    const card = await screen.findByLabelText('View details for alice');
-    await user.click(card);
+    // Wait for the contributors table to render
+    await screen.findByText('Top contributors');
+    // Find all @alice texts — one in work distribution bars, one in table
+    const aliceTexts = await screen.findAllByText(/@alice/);
+    // The table cell one should be inside a table row with a td
+    const tableAlice = aliceTexts.find((el) => el.closest('td'));
+    expect(tableAlice).toBeTruthy();
+    const row = tableAlice!.closest('tr')!;
+    await user.click(row);
 
     const drawerPanel = await screen.findByTestId('drawer-panel');
     expect(within(drawerPanel).getByText('@alice')).toBeInTheDocument();
   });
 
-  it('developer detail panel opens on Enter key', async () => {
+  it('developer detail panel opens on Enter key in table row', async () => {
     const user = userEvent.setup();
     renderWithProviders(<DevActivityPage />);
 
-    await screen.findByLabelText('View details for alice');
-    const bobCard = screen.getByLabelText('View details for bob');
-    bobCard.focus();
+    await screen.findByText('Top contributors');
+    const bobTexts = await screen.findAllByText(/@bob/);
+    const tableBob = bobTexts.find((el) => el.closest('td'));
+    expect(tableBob).toBeTruthy();
+    const row = tableBob!.closest('tr')!;
+    row.focus();
     await user.keyboard('{Enter}');
 
     const drawerPanel = await screen.findByTestId('drawer-panel');
     expect(within(drawerPanel).getByText('@bob')).toBeInTheDocument();
+  });
+
+  it('renders Work breakdown widget', async () => {
+    renderWithProviders(<DevActivityPage />);
+
+    expect(await screen.findByText('Work breakdown')).toBeInTheDocument();
+  });
+
+  it('renders Contribution trends widget', async () => {
+    renderWithProviders(<DevActivityPage />);
+
+    expect(await screen.findByText('Contribution trends — weekly')).toBeInTheDocument();
+  });
+
+  it('renders Activity distribution widget with buckets', async () => {
+    renderWithProviders(<DevActivityPage />);
+
+    expect(await screen.findByText('Activity distribution')).toBeInTheDocument();
+    expect(screen.getByText('Active (≤7d)')).toBeInTheDocument();
+    expect(screen.getByText('Moderate (7–30d)')).toBeInTheDocument();
+    expect(screen.getByText(/Inactive/)).toBeInTheDocument();
   });
 
   it('does not render Platform usage section', async () => {

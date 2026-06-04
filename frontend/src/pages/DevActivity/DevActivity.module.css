@@ -441,60 +441,82 @@
   margin-top: 12px;
 }
 
+/* ── Productivity Widgets ─────────────────────────────────────────────── */
+
+.widgetRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.widgetCard {
+  min-height: 200px;
+}
+
+.trendsCard {
+  margin-bottom: 24px;
+}
+
+.activityDistribution {
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.activityBucket {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.activityBucketValue {
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.activityBucketLabel {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.activityBar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  gap: 2px;
+}
+
+.activityBarSegment {
+  height: 100%;
+  border-radius: 4px;
+  transition: flex 0.3s ease;
+}
+
+.contributorsTable {
+  width: 100%;
+  font-size: 13px;
+  margin-bottom: 24px;
+}
+
+.tableDevCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .widgetRow {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .page,
-  .pageTitle,
-  .pageSub,
-  .teamFilters,
-  .teamNote,
-  .sectionTitle,
-  .workNote,
-  .workGrid,
-  .barList,
-  .barRow,
-  .barHandle,
-  .barTrack,
-  .barPct,
-  .busWarning,
-  .devGrid,
-  .devCard,
-  .devTop,
-  .devName,
-  .flagLabel,
-  .devHandle,
-  .mention,
-  .devStats,
-  .devLastActive,
-  .clickableBar,
-  .clickableStat,
-  .clickableText,
-  .othersTable,
-  .detailPanel,
-  .detailHeader,
-  .detailName,
-  .detailHandle,
-  .detailTeam,
-  .detailSection,
-  .detailSectionTitle,
-  .detailStatsGrid,
-  .detailStatsList,
-  .detailStat,
-  .detailStatValue,
-  .detailStatLabel,
-  .detailGhLink,
-  .usageGrid,
-  .metricRow,
-  .metricItem,
-  .metricValue,
-  .metricLabel,
-  .trendChart,
-  .apiDisabledNote,
-  .botBar,
-  .botSegment,
-  .humanSegment,
-  .botBarLabels,
-  .subsectionTitle {
-    animation: none !important;
+  .activityBarSegment {
     transition: none !important;
   }
 }

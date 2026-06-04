@@ -261,7 +261,7 @@ export interface WorkflowRow {
   successes: number;
   failures: number;
   failure_rate_pct: number;
-  last_run: string;
+  last_run_at: string;
 }
 
 export interface WorkflowHealthResponse {

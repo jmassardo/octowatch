@@ -2,7 +2,7 @@
 
 Fetches metrics from the GitHub Copilot NDJSON API and persists them
 to the copilot_daily_metrics table.  Also snapshots seat data for
-historical analysis.
+historical analysis.  Phase 3 fetches per-user usage data for UBB billing.
 
 Runs daily at 06:00 UTC via Celery beat.
 """
@@ -10,7 +10,7 @@ Runs daily at 06:00 UTC via Celery beat.
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import structlog
@@ -40,9 +40,10 @@ def _run_async(coro: Any) -> Any:
 def sync_copilot_metrics(self: Task) -> dict[str, Any]:
     """Fetch and persist daily Copilot metrics and seat snapshots.
 
-    Two-phase operation:
+    Three-phase operation:
     1. Fetch metrics from the NDJSON API and upsert into copilot_daily_metrics
     2. Fetch seat data from billing/seats API and snapshot into copilot_seat_snapshots
+    3. Fetch per-user usage data from the usage API and upsert into copilot_usage_reports
     """
     return _run_async(_sync_copilot_metrics_async(self))
 
@@ -53,6 +54,7 @@ async def _sync_copilot_metrics_async(task: Task) -> dict[str, Any]:
 
     metrics_count = 0
     seats_count = 0
+    usage_count = 0
 
     async with AsyncSessionLocal() as db:
         try:
@@ -80,6 +82,18 @@ async def _sync_copilot_metrics_async(task: Task) -> dict[str, Any]:
                 seats_count = await _persist_seat_snapshots(db, seats)
                 logger.info("copilot_sync.seats_persisted", count=seats_count)
 
+            # Phase 3: Fetch and persist per-user usage data (UBB)
+            usage_data = await _fetch_copilot_usage(db)
+            if isinstance(usage_data, dict) and "error" in usage_data:
+                logger.warning(
+                    "copilot_sync.usage_fetch_error",
+                    error=usage_data.get("error"),
+                    message=usage_data.get("message"),
+                )
+            elif isinstance(usage_data, list):
+                usage_count = await _persist_usage_reports(db, usage_data)
+                logger.info("copilot_sync.usage_persisted", count=usage_count)
+
             await db.commit()
 
         except Exception as exc:
@@ -91,6 +105,7 @@ async def _sync_copilot_metrics_async(task: Task) -> dict[str, Any]:
         "status": "completed",
         "metrics_persisted": metrics_count,
         "seats_persisted": seats_count,
+        "usage_persisted": usage_count,
         "timestamp": datetime.now(UTC).isoformat(),
     }
 
@@ -278,5 +293,198 @@ async def _persist_seat_snapshots(
         await db.execute(stmt)
     except Exception:
         logger.error("copilot_sync.seat_snapshots_upsert_failed", exc_info=True)
+
+    return len(rows)
+
+
+async def _fetch_copilot_usage(db: Any) -> list[dict[str, Any]] | dict[str, str]:
+    """Fetch per-user usage data from the GitHub Copilot usage API.
+
+    Tries the enterprise endpoint first, falls back to per-org if unavailable.
+    Returns a list of per-user usage records or an error dict.
+    """
+    from app.config import settings as app_settings
+    from app.services.copilot_metrics_service import _get_token_and_valkey
+
+    result = await _get_token_and_valkey(db)
+    if isinstance(result, dict):
+        return result
+
+    token, valkey, enterprise_slug = result
+
+    import httpx
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    all_usage: list[dict[str, Any]] = []
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Try enterprise-level usage endpoint first
+        enterprise_url = f"https://api.github.com/enterprises/{enterprise_slug}/copilot/usage"
+        try:
+            resp = await client.get(enterprise_url, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                usage_list = data if isinstance(data, list) else data.get("usage", [])
+                for record in usage_list:
+                    record["_source"] = "enterprise"
+                all_usage.extend(usage_list)
+                if valkey:
+                    await valkey.aclose()
+                return all_usage
+        except Exception:
+            logger.debug("copilot_sync.enterprise_usage_unavailable", exc_info=True)
+
+        # Fallback: fetch per-org usage
+        from sqlalchemy import select
+
+        from app.models.github_sync import EnterpriseOrg
+
+        orgs_result = await db.execute(
+            select(EnterpriseOrg.org_slug).where(EnterpriseOrg.enterprise_slug == enterprise_slug)
+        )
+        org_slugs = [row[0] for row in orgs_result.fetchall()]
+
+        if not org_slugs:
+            # Try from settings
+            try:
+                org_slugs = [app_settings.github_app.GITHUB_ORG or enterprise_slug]
+            except Exception:
+                org_slugs = [enterprise_slug]
+
+        for org_slug in org_slugs:
+            org_url = f"https://api.github.com/orgs/{org_slug}/copilot/usage"
+            try:
+                resp = await client.get(org_url, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    usage_list = data if isinstance(data, list) else data.get("usage", [])
+                    for record in usage_list:
+                        record["_org_slug"] = org_slug
+                        record["_source"] = "org"
+                    all_usage.extend(usage_list)
+                else:
+                    logger.debug(
+                        "copilot_sync.org_usage_fetch_skip",
+                        org=org_slug,
+                        status=resp.status_code,
+                    )
+            except Exception:
+                logger.debug(
+                    "copilot_sync.org_usage_fetch_error",
+                    org=org_slug,
+                    exc_info=True,
+                )
+
+    if valkey:
+        await valkey.aclose()
+
+    return all_usage
+
+
+async def _persist_usage_reports(
+    db: Any,
+    usage_records: list[dict[str, Any]],
+) -> int:
+    """Upsert per-user usage data into copilot_usage_reports."""
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    from app.models.copilot_usage import CopilotUsageReport
+
+    today = date.today()
+    rows: list[dict[str, Any]] = []
+
+    try:
+        from app.config import settings as app_settings
+
+        default_org = app_settings.github_app.GITHUB_ENTERPRISE_SLUG or "default"
+    except Exception:
+        default_org = "default"
+
+    for record in usage_records:
+        login = record.get("login") or record.get("github_login") or record.get("user", "")
+        if not login:
+            # Try nested assignee format
+            assignee = record.get("assignee") or {}
+            login = assignee.get("login", "")
+        if not login:
+            continue
+
+        report_date_str = record.get("date") or record.get("day")
+        if report_date_str:
+            try:
+                from datetime import date as date_type
+
+                parts = report_date_str.split("-")
+                report_date = date_type(int(parts[0]), int(parts[1]), int(parts[2]))
+            except (ValueError, IndexError):
+                report_date = today
+        else:
+            report_date = today
+
+        org_slug = record.get("_org_slug") or record.get("org", default_org)
+
+        # Extract credit breakdown
+        breakdown = record.get("breakdown") or {}
+        total_credits = float(record.get("total_credits_consumed", 0) or breakdown.get("total", 0))
+        completions_credits = float(
+            record.get("completions_credits", 0) or breakdown.get("completions", 0)
+        )
+        chat_credits = float(record.get("chat_credits", 0) or breakdown.get("chat", 0))
+        pr_credits = float(record.get("pr_credits", 0) or breakdown.get("pull_requests", 0))
+        other_credits = float(record.get("other_credits", 0) or breakdown.get("other", 0))
+
+        # If total is 0 but breakdown has values, sum them
+        if total_credits == 0 and (completions_credits or chat_credits or pr_credits):
+            total_credits = completions_credits + chat_credits + pr_credits + other_credits
+
+        # Budget data if present
+        budget_amount = record.get("budget_amount")
+        budget_consumed = record.get("budget_consumed")
+        is_blocked = bool(record.get("is_blocked", False))
+
+        rows.append(
+            {
+                "report_date": report_date,
+                "org_slug": org_slug,
+                "github_login": login,
+                "total_credits_consumed": total_credits,
+                "completions_credits": completions_credits,
+                "chat_credits": chat_credits,
+                "pr_credits": pr_credits,
+                "other_credits": other_credits,
+                "budget_amount": float(budget_amount) if budget_amount is not None else None,
+                "budget_consumed": float(budget_consumed) if budget_consumed is not None else None,
+                "is_blocked": is_blocked,
+                "synced_at": datetime.now(UTC),
+            }
+        )
+
+    if not rows:
+        return 0
+
+    try:
+        stmt = pg_insert(CopilotUsageReport).values(rows)
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_copilot_usage_composite",
+            set_={
+                "total_credits_consumed": stmt.excluded.total_credits_consumed,
+                "completions_credits": stmt.excluded.completions_credits,
+                "chat_credits": stmt.excluded.chat_credits,
+                "pr_credits": stmt.excluded.pr_credits,
+                "other_credits": stmt.excluded.other_credits,
+                "budget_amount": stmt.excluded.budget_amount,
+                "budget_consumed": stmt.excluded.budget_consumed,
+                "is_blocked": stmt.excluded.is_blocked,
+                "synced_at": stmt.excluded.synced_at,
+            },
+        )
+        await db.execute(stmt)
+    except Exception:
+        logger.error("copilot_sync.usage_reports_upsert_failed", exc_info=True)
 
     return len(rows)

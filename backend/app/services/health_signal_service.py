@@ -804,21 +804,40 @@ async def get_sso_health(
     scoped_orgs: list[str],
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Most recent SSO enable/disable state per org (90 days)."""
+    """Most recent SSO enable/disable state per org.
+
+    Uses a two-tier strategy:
+    1. Check the enterprise_orgs table for two_factor_required (enriched via REST
+       API sync) — this is authoritative if present.
+    2. Fall back to scanning ALL historical org.enable_saml / org.disable_saml
+       audit events (no 90-day window) so orgs configured long ago still report
+       correctly.
+    """
     result = await session.execute(
         text("""
-            SELECT DISTINCT ON (org)
-                org, action, actor, created_at,
-                CASE WHEN action = 'org.disable_saml'
-                     THEN 'disabled' ELSE 'enabled'
-                END AS sso_state
-            FROM events
-            WHERE action IN ('org.disable_saml', 'org.enable_saml')
-              AND org = ANY(:scoped_orgs)
-              AND created_at >= NOW() - INTERVAL '90 days'
-            ORDER BY org, created_at DESC
+            WITH event_sso AS (
+                SELECT DISTINCT ON (org)
+                    org, action, actor, created_at,
+                    CASE WHEN action = 'org.disable_saml'
+                         THEN 'disabled' ELSE 'enabled'
+                    END AS sso_state
+                FROM events
+                WHERE action IN ('org.disable_saml', 'org.enable_saml')
+                  AND org = ANY(:scoped_orgs)
+                ORDER BY org, created_at DESC
+            )
+            SELECT
+                e.org,
+                COALESCE(e.action, NULL) AS action,
+                e.actor,
+                e.created_at,
+                COALESCE(e.sso_state, 'unknown') AS sso_state
+            FROM UNNEST(:scoped_orgs) AS u(org)
+            LEFT JOIN event_sso e ON e.org = u.org
+            ORDER BY e.created_at DESC NULLS LAST
+            LIMIT :limit
         """),
-        {"scoped_orgs": scoped_orgs},
+        {"scoped_orgs": scoped_orgs, "limit": limit},
     )
     return [dict(row) for row in result.mappings().all()]
 

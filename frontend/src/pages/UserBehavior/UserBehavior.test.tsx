@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../test/utils';
 import { UserBehaviorPage } from './index';
@@ -254,5 +254,200 @@ describe('UserBehaviorPage', () => {
     expect(await screen.findByRole('tab', { name: /Risky Users/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Anomaly Detection/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Permission Drift/i })).toBeInTheDocument();
+  });
+
+  // ─── Clickable Chips ────────────────────────────────────────────────────────
+
+  it('clicking high risk chip filters to high risk and shows filter banner', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserBehaviorPage />);
+
+    // Wait for metrics to load
+    await screen.findByTestId('high-risk-count');
+
+    // Click the high risk chip
+    const highChip = screen.getByRole('button', { pressed: false, name: /High Risk/i });
+    await user.click(highChip);
+
+    // Should show filter banner
+    expect(screen.getByTestId('active-chip-filter')).toBeInTheDocument();
+    expect(screen.getByText(/high risk/i, { selector: 'strong' })).toBeInTheDocument();
+
+    // Risk level filter should be set to high
+    const select = screen.getByLabelText(/Risk level/i);
+    expect(select).toHaveValue('high');
+  });
+
+  it('clicking a risk chip again deselects it and clears filter', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserBehaviorPage />);
+
+    await screen.findByTestId('high-risk-count');
+
+    const highChip = screen.getByRole('button', { name: /High Risk/i });
+    await user.click(highChip);
+    expect(screen.getByTestId('active-chip-filter')).toBeInTheDocument();
+
+    // Click again to deselect
+    await user.click(highChip);
+    expect(screen.queryByTestId('active-chip-filter')).not.toBeInTheDocument();
+  });
+
+  it('clear filter button removes chip filter', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserBehaviorPage />);
+
+    await screen.findByTestId('high-risk-count');
+
+    const medChip = screen.getByRole('button', { name: /Medium Risk/i });
+    await user.click(medChip);
+
+    const clearBtn = screen.getByRole('button', { name: /Clear filter/i });
+    await user.click(clearBtn);
+
+    expect(screen.queryByTestId('active-chip-filter')).not.toBeInTheDocument();
+  });
+
+  it('clicking a category card shows filter banner with category name', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserBehaviorPage />);
+
+    await screen.findByText('Security Bypasses');
+
+    const categoryBtn = screen.getByRole('button', { name: /Security Bypasses/i });
+    await user.click(categoryBtn);
+
+    expect(screen.getByTestId('active-chip-filter')).toBeInTheDocument();
+    expect(screen.getByText(/security bypass/i, { selector: 'strong' })).toBeInTheDocument();
+  });
+
+  // ─── Column Filters ─────────────────────────────────────────────────────────
+
+  it('risky users table has filterable Level and Orgs columns', async () => {
+    renderWithProviders(<UserBehaviorPage />);
+
+    await screen.findByText('risky-admin');
+
+    // DataTable renders filter row when filterable columns exist
+    const filterRow = screen.getByTestId('filter-row');
+    expect(filterRow).toBeInTheDocument();
+
+    // Should have filter inputs for User, Level, and Orgs
+    expect(screen.getByLabelText('Filter Level')).toBeInTheDocument();
+    expect(screen.getByLabelText('Filter Orgs')).toBeInTheDocument();
+  });
+
+  it('anomaly table has filterable Activity Multiplier column', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserBehaviorPage />);
+
+    const anomalyTab = await screen.findByRole('tab', { name: /Anomaly Detection/i });
+    await user.click(anomalyTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('spike-user')).toBeInTheDocument();
+    });
+
+    expect(screen.getByLabelText('Filter Activity Multiplier')).toBeInTheDocument();
+    expect(screen.getByLabelText('Filter Recent IPs')).toBeInTheDocument();
+  });
+
+  it('permission drift table has filterable Status and Admin % columns', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserBehaviorPage />);
+
+    const permTab = await screen.findByRole('tab', { name: /Permission Drift/i });
+    await user.click(permTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('over-privileged')).toBeInTheDocument();
+    });
+
+    expect(screen.getByLabelText('Filter Status')).toBeInTheDocument();
+    expect(screen.getByLabelText('Filter Admin %')).toBeInTheDocument();
+  });
+
+  // ─── Row Click → Drawer ─────────────────────────────────────────────────────
+
+  it('clicking a risky user row opens the detail drawer', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserBehaviorPage />);
+
+    const row = await screen.findByText('risky-admin');
+    await user.click(row);
+
+    // Drawer should be open with user details
+    const drawer = await screen.findByTestId('drawer-panel');
+    expect(drawer).toBeInTheDocument();
+    expect(within(drawer).getByText('@risky-admin')).toBeInTheDocument();
+    expect(within(drawer).getByText('View on GitHub ↗')).toBeInTheDocument();
+    expect(within(drawer).getByText('Risk Assessment')).toBeInTheDocument();
+    expect(within(drawer).getByText('Signal Timeline')).toBeInTheDocument();
+    expect(within(drawer).getByText('Org Memberships')).toBeInTheDocument();
+    expect(within(drawer).getByText('Recommended Actions')).toBeInTheDocument();
+  });
+
+  it('clicking an anomaly row opens the detail drawer with activity comparison', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserBehaviorPage />);
+
+    const anomalyTab = await screen.findByRole('tab', { name: /Anomaly Detection/i });
+    await user.click(anomalyTab);
+
+    const row = await screen.findByText('spike-user');
+    await user.click(row);
+
+    const drawer = await screen.findByTestId('drawer-panel');
+    expect(within(drawer).getByText('@spike-user')).toBeInTheDocument();
+    expect(within(drawer).getByText('Activity Comparison')).toBeInTheDocument();
+    expect(within(drawer).getByText('Deviation Signals')).toBeInTheDocument();
+    expect(within(drawer).getByText('IP Address History')).toBeInTheDocument();
+  });
+
+  it('clicking a permission drift row opens the detail drawer with status', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserBehaviorPage />);
+
+    const permTab = await screen.findByRole('tab', { name: /Permission Drift/i });
+    await user.click(permTab);
+
+    const row = await screen.findByText('over-privileged');
+    await user.click(row);
+
+    const drawer = await screen.findByTestId('drawer-panel');
+    expect(within(drawer).getByText('@over-privileged')).toBeInTheDocument();
+    expect(within(drawer).getByText('Status Assessment')).toBeInTheDocument();
+    expect(within(drawer).getByText('Activity Breakdown')).toBeInTheDocument();
+  });
+
+  it('drawer can be closed by clicking the close button', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserBehaviorPage />);
+
+    const row = await screen.findByText('risky-admin');
+    await user.click(row);
+
+    const drawer = await screen.findByTestId('drawer-panel');
+    expect(drawer).toBeInTheDocument();
+
+    const closeBtn = within(drawer).getByRole('button', { name: /Close/i });
+    await user.click(closeBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('drawer-panel')).not.toBeInTheDocument();
+    });
+  });
+
+  it('drawer shows GitHub link with correct URL', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserBehaviorPage />);
+
+    const row = await screen.findByText('risky-admin');
+    await user.click(row);
+
+    const drawer = await screen.findByTestId('drawer-panel');
+    const ghLink = within(drawer).getByText('View on GitHub ↗');
+    expect(ghLink).toHaveAttribute('href', 'https://github.com/risky-admin');
+    expect(ghLink).toHaveAttribute('target', '_blank');
   });
 });

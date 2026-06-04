@@ -82,8 +82,9 @@ export function LicensePane() {
   const seatLimit = hasLicenseSync
     ? licenseData!.total_seats_purchased
     : Math.max(latestSeat?.provisioned_seat_count ?? 0, 1);
+  const availableSeats = hasLicenseSync ? licenseData!.seats_available : 0;
   const activeSeats = hasLicenseSync
-    ? licenseData!.seats_available
+    ? licenseData!.total_seats_consumed
     : (latestSeat?.active_seat_count ?? 0);
   const utilPct = hasLicenseSync
     ? licenseData!.utilization_pct
@@ -188,12 +189,12 @@ export function LicensePane() {
             {hasLicenseSync ? 'Available seats' : 'Active seats'}
           </div>
           <div className={styles.cardValue} style={{ color: 'var(--attention)' }}>
-            {activeSeats}
+            {hasLicenseSync ? availableSeats : activeSeats}
           </div>
           <div className={styles.cardSub}>
             {hasLicenseSync
               ? 'Seats remaining within your license'
-              : 'Members with recent activity'}
+              : 'Members with recent activity (seats in use)'}
           </div>
           {!hasLicenseSync && (
             <div style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 2 }}>

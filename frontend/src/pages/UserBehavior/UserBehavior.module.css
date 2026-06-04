@@ -289,3 +289,321 @@
 .paginationBtn:hover:not(:disabled) {
   background: var(--bg-secondary, #161b22);
 }
+
+/* ─── Clickable metric cards ──────────────────────────────────────────────── */
+
+.metricCardClickable {
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    transform 0.1s;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.metricCardClickable:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.metricCardClickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.metricCardSelected {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 2px var(--accent),
+    inset 0 0 0 1px var(--accent);
+  transform: scale(1.02);
+}
+
+/* ─── Clickable category items ────────────────────────────────────────────── */
+
+.categoryItemClickable {
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+}
+
+.categoryItemClickable:hover {
+  border-color: var(--accent);
+}
+
+.categoryItemClickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.categoryItemSelected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+}
+
+/* ─── Active chip filter banner ───────────────────────────────────────────── */
+
+.activeFilterBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-secondary, #161b22));
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.activeFilterText {
+  flex: 1;
+  color: var(--fg-muted);
+}
+
+.clearFilterBtn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.clearFilterBtn:hover {
+  background: var(--bg-secondary, #161b22);
+  border-color: var(--fg-muted);
+}
+
+/* ─── Drawer content styles ───────────────────────────────────────────────── */
+
+.drawerBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.drawerUserHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.drawerAvatar {
+  border-radius: 50%;
+  border: 2px solid var(--border);
+}
+
+.drawerUserName {
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--fg);
+}
+
+.drawerGhLink {
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+  margin-top: 2px;
+  display: inline-block;
+}
+
+.drawerGhLink:hover {
+  text-decoration: underline;
+}
+
+.drawerSection {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.drawerSection:last-child {
+  border-bottom: none;
+}
+
+.drawerSectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 10px;
+}
+
+.drawerMetricRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 12px;
+}
+
+.drawerMetric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.drawerMetricLabel {
+  font-size: 11px;
+  color: var(--fg-subtle, #6e7681);
+}
+
+.drawerMetricValue {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.drawerMetricValue[data-level='high'] {
+  color: var(--danger, #f85149);
+}
+
+.drawerMetricValue[data-level='medium'] {
+  color: var(--attention, #d29922);
+}
+
+.drawerMetricValue[data-level='low'] {
+  color: var(--success, #3fb950);
+}
+
+.drawerTimeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.drawerTimelineItem {
+  padding: 8px 10px;
+  background: var(--bg-secondary, #161b22);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.drawerTimelineHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.drawerTimelineLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.drawerTimelineCount {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--attention, #d29922);
+}
+
+.drawerTimelineMeta {
+  font-size: 11px;
+  color: var(--fg-subtle, #6e7681);
+  margin-top: 4px;
+}
+
+.drawerTagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.drawerTag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  background: var(--bg-secondary, #161b22);
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+}
+
+.drawerActionList {
+  margin: 0;
+  padding: 0 0 0 18px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--fg-muted);
+}
+
+.drawerActionList li {
+  margin-bottom: 4px;
+}
+
+.drawerBarChart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drawerBarRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawerBarLabel {
+  font-size: 11px;
+  color: var(--fg-muted);
+  min-width: 110px;
+  flex-shrink: 0;
+}
+
+.drawerBarTrack {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-secondary, #161b22);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.drawerBarFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.drawerBarFill[data-variant='baseline'] {
+  background: var(--success, #3fb950);
+}
+
+.drawerBarFill[data-variant='actual'] {
+  background: var(--attention, #d29922);
+}
+
+.drawerBarValue {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  min-width: 50px;
+  text-align: right;
+}
+
+.drawerHighlight {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--attention, #d29922) 10%, var(--bg-secondary, #161b22));
+  border: 1px solid var(--attention, #d29922);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.drawerAssessment {
+  font-size: 13px;
+  color: var(--fg-muted);
+  line-height: 1.5;
+  margin: 10px 0 0;
+}

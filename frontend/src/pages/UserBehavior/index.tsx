@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   getRiskSummary,
@@ -11,6 +11,7 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { SkeletonCard } from '../../components/common/SkeletonCard';
 import { DataTable } from '../../components/primitives/DataTable';
 import type { ColumnDef } from '../../components/primitives/DataTable';
+import { Drawer } from '../../components/primitives/Drawer';
 import { Label } from '../../components/primitives/Label';
 import styles from './UserBehavior.module.css';
 
@@ -38,6 +39,11 @@ const RISK_FILTERS = [
 
 type TabId = 'risky-users' | 'anomalies' | 'permissions';
 
+type SelectedRow =
+  | { type: 'risky'; data: RiskyUser }
+  | { type: 'anomaly'; data: AnomalousUser }
+  | { type: 'permission'; data: PermissionDriftUser };
+
 const PAGE_SIZE = 50;
 
 export function UserBehaviorPage() {
@@ -45,6 +51,8 @@ export function UserBehaviorPage() {
   const [riskFilter, setRiskFilter] = useState<string>('');
   const [activeTab, setActiveTab] = useState<TabId>('risky-users');
   const [page, setPage] = useState(1);
+  const [selectedRow, setSelectedRow] = useState<SelectedRow | null>(null);
+  const [activeChip, setActiveChip] = useState<string | null>(null);
 
   // ─── Queries ──────────────────────────────────────────────────────────────
 
@@ -126,10 +134,12 @@ export function UserBehaviorPage() {
         key: 'risk_level',
         header: 'Level',
         sortable: true,
+        filterable: true,
         render: (row) => (
           <Label variant={RISK_LEVEL_VARIANTS[row.risk_level] ?? 'muted'}>{row.risk_level}</Label>
         ),
         sortValue: (row) => row.risk_level,
+        filterValue: (row) => row.risk_level,
         width: '100px',
       },
       {
@@ -151,7 +161,9 @@ export function UserBehaviorPage() {
       {
         key: 'orgs',
         header: 'Orgs',
+        filterable: true,
         render: (row) => row.orgs.join(', '),
+        filterValue: (row) => row.orgs.join(', '),
       },
       {
         key: 'last_risky_action_at',
@@ -181,8 +193,10 @@ export function UserBehaviorPage() {
         key: 'activity_ratio',
         header: 'Activity Multiplier',
         sortable: true,
+        filterable: true,
         render: (row) => <span className={styles.anomalyRatio}>{row.activity_ratio}x</span>,
         sortValue: (row) => row.activity_ratio,
+        filterValue: (row) => `${row.activity_ratio}x`,
         width: '140px',
       },
       {
@@ -218,8 +232,10 @@ export function UserBehaviorPage() {
         key: 'recent_ips',
         header: 'Recent IPs',
         sortable: true,
+        filterable: true,
         render: (row) => <span title={`Baseline: ${row.baseline_ips} IPs`}>{row.recent_ips}</span>,
         sortValue: (row) => row.recent_ips,
+        filterValue: (row) => String(row.recent_ips),
         width: '100px',
       },
     ],
@@ -241,8 +257,10 @@ export function UserBehaviorPage() {
         key: 'admin_pct',
         header: 'Admin %',
         sortable: true,
+        filterable: true,
         render: (row) => `${row.admin_pct}%`,
         sortValue: (row) => row.admin_pct,
+        filterValue: (row) => `${row.admin_pct}%`,
         width: '100px',
       },
       {
@@ -265,6 +283,7 @@ export function UserBehaviorPage() {
         key: 'status',
         header: 'Status',
         sortable: true,
+        filterable: true,
         render: (row) => {
           const variant =
             row.status === 'review_recommended'
@@ -281,6 +300,12 @@ export function UserBehaviorPage() {
           return <Label variant={variant}>{label}</Label>;
         },
         sortValue: (row) => row.status,
+        filterValue: (row) =>
+          row.status === 'review_recommended'
+            ? 'Review'
+            : row.status === 'low_activity'
+              ? 'Low Activity'
+              : 'Normal',
         width: '120px',
       },
       {
@@ -302,7 +327,56 @@ export function UserBehaviorPage() {
   const handleRiskFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setRiskFilter(e.target.value);
     setPage(1);
+    setActiveChip(null);
   };
+
+  /** Click a metric chip to filter by risk level */
+  const handleChipClick = useCallback(
+    (level: string) => {
+      if (activeChip === level) {
+        // Deselect
+        setActiveChip(null);
+        setRiskFilter('');
+      } else {
+        setActiveChip(level);
+        setRiskFilter(level);
+        setActiveTab('risky-users');
+        setPage(1);
+      }
+    },
+    [activeChip],
+  );
+
+  /** Click a category card to filter (navigate to risky users with that category in view) */
+  const handleCategoryClick = useCallback(
+    (category: string) => {
+      if (activeChip === `cat:${category}`) {
+        setActiveChip(null);
+        setRiskFilter('');
+      } else {
+        setActiveChip(`cat:${category}`);
+        setActiveTab('risky-users');
+        setRiskFilter('');
+        setPage(1);
+      }
+    },
+    [activeChip],
+  );
+
+  /** Clear all chip-based filters */
+  const handleClearChipFilter = useCallback(() => {
+    setActiveChip(null);
+    setRiskFilter('');
+    setPage(1);
+  }, []);
+
+  /** Compute the displayed risky users: apply category filter client-side if active */
+  const displayedRiskyUsers = useMemo(() => {
+    const users = riskyUsersData?.users ?? [];
+    if (!activeChip?.startsWith('cat:')) return users;
+    const category = activeChip.slice(4);
+    return users.filter((u) => u.category_breakdown.some((cb) => cb.category === category));
+  }, [riskyUsersData?.users, activeChip]);
 
   return (
     <div className={styles.page}>
@@ -340,7 +414,7 @@ export function UserBehaviorPage() {
         </select>
       </div>
 
-      {/* Key metrics */}
+      {/* Key metrics — clickable chips */}
       {summaryLoading ? (
         <div className={styles.metricsRow}>
           <SkeletonCard lines={2} />
@@ -362,27 +436,45 @@ export function UserBehaviorPage() {
             <div className={styles.metricLabel}>Users with Risk Signals</div>
             <div className={styles.metricHelp}>Users who performed security-relevant actions</div>
           </div>
-          <div className={styles.metricCard} data-severity="high">
+          <button
+            type="button"
+            className={`${styles.metricCard} ${styles.metricCardClickable} ${activeChip === 'high' ? styles.metricCardSelected : ''}`}
+            data-severity="high"
+            onClick={() => handleChipClick('high')}
+            aria-pressed={activeChip === 'high'}
+          >
             <div className={styles.metricValue} data-testid="high-risk-count">
               {summary?.high_risk_count ?? 0}
             </div>
             <div className={styles.metricLabel}>High Risk</div>
             <div className={styles.metricHelp}>Score ≥ 15 — investigate promptly</div>
-          </div>
-          <div className={styles.metricCard} data-severity="medium">
+          </button>
+          <button
+            type="button"
+            className={`${styles.metricCard} ${styles.metricCardClickable} ${activeChip === 'medium' ? styles.metricCardSelected : ''}`}
+            data-severity="medium"
+            onClick={() => handleChipClick('medium')}
+            aria-pressed={activeChip === 'medium'}
+          >
             <div className={styles.metricValue} data-testid="medium-risk-count">
               {summary?.medium_risk_count ?? 0}
             </div>
             <div className={styles.metricLabel}>Medium Risk</div>
             <div className={styles.metricHelp}>Score 7–14 — worth monitoring</div>
-          </div>
-          <div className={styles.metricCard} data-severity="low">
+          </button>
+          <button
+            type="button"
+            className={`${styles.metricCard} ${styles.metricCardClickable} ${activeChip === 'low' ? styles.metricCardSelected : ''}`}
+            data-severity="low"
+            onClick={() => handleChipClick('low')}
+            aria-pressed={activeChip === 'low'}
+          >
             <div className={styles.metricValue} data-testid="low-risk-count">
               {summary?.low_risk_count ?? 0}
             </div>
             <div className={styles.metricLabel}>Low Risk</div>
             <div className={styles.metricHelp}>Score 3–6 — normal activity</div>
-          </div>
+          </button>
           <div className={styles.metricCard}>
             <div className={styles.metricValue} data-testid="anomaly-count">
               {summary?.anomaly_count ?? 0}
@@ -393,17 +485,45 @@ export function UserBehaviorPage() {
         </div>
       )}
 
-      {/* Risk categories breakdown */}
+      {/* Active chip filter indicator */}
+      {activeChip && (
+        <div className={styles.activeFilterBanner} data-testid="active-chip-filter">
+          <span className={styles.activeFilterText}>
+            Filtered by:{' '}
+            <strong>
+              {activeChip.startsWith('cat:')
+                ? activeChip.slice(4).replace(/_/g, ' ')
+                : `${activeChip} risk`}
+            </strong>
+          </span>
+          <button
+            type="button"
+            className={styles.clearFilterBtn}
+            onClick={handleClearChipFilter}
+            aria-label="Clear filter"
+          >
+            ✕ Clear
+          </button>
+        </div>
+      )}
+
+      {/* Risk categories breakdown — clickable */}
       {summary && summary.top_categories.length > 0 && (
         <div className={styles.categoriesCard}>
           <div className={styles.cardTitle}>Top Risk Categories</div>
           <div className={styles.categoryGrid}>
             {summary.top_categories.map((cat) => (
-              <div key={cat.category} className={styles.categoryItem}>
+              <button
+                key={cat.category}
+                type="button"
+                className={`${styles.categoryItem} ${styles.categoryItemClickable} ${activeChip === `cat:${cat.category}` ? styles.categoryItemSelected : ''}`}
+                onClick={() => handleCategoryClick(cat.category)}
+                aria-pressed={activeChip === `cat:${cat.category}`}
+              >
                 <div className={styles.categoryLabel}>{cat.label}</div>
                 <div className={styles.categoryCount}>{cat.event_count} events</div>
                 <div className={styles.categoryDesc}>{cat.description}</div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -478,8 +598,9 @@ export function UserBehaviorPage() {
               <>
                 <DataTable
                   columns={riskyUserColumns}
-                  data={riskyUsersData?.users ?? []}
+                  data={displayedRiskyUsers}
                   rowKey={(row) => row.user_login}
+                  onRowClick={(row) => setSelectedRow({ type: 'risky', data: row })}
                   emptyMessage="No users with risk signals detected in this time range. This is a good sign — or it may mean audit log data hasn't been ingested yet."
                 />
 
@@ -530,6 +651,7 @@ export function UserBehaviorPage() {
                 columns={anomalyColumns}
                 data={anomaliesData?.anomalies ?? []}
                 rowKey={(row) => row.user_login}
+                onRowClick={(row) => setSelectedRow({ type: 'anomaly', data: row })}
                 emptyMessage="No anomalous behavior detected. Users are operating within their normal baseline patterns. Requires 90+ days of data for meaningful baselines."
               />
             )}
@@ -556,12 +678,308 @@ export function UserBehaviorPage() {
                 columns={permissionColumns}
                 data={permissionData?.users ?? []}
                 rowKey={(row) => row.user_login}
+                onRowClick={(row) => setSelectedRow({ type: 'permission', data: row })}
                 emptyMessage="No permission drift detected. All users with admin access appear to be using their permissions appropriately."
               />
             )}
           </>
         )}
       </div>
+
+      {/* Detail Drawer */}
+      <Drawer
+        open={!!selectedRow}
+        onClose={() => setSelectedRow(null)}
+        title={selectedRow ? `${selectedRow.data.user_login} — Details` : ''}
+      >
+        {selectedRow && <DrawerContent selected={selectedRow} />}
+      </Drawer>
     </div>
+  );
+}
+
+// ─── Drawer Content ─────────────────────────────────────────────────────────
+
+function DrawerContent({ selected }: { selected: SelectedRow }) {
+  const userLogin = selected.data.user_login;
+  const githubUrl = `https://github.com/${userLogin}`;
+
+  return (
+    <div className={styles.drawerBody}>
+      {/* User header */}
+      <div className={styles.drawerUserHeader}>
+        <img
+          src={`https://github.com/${userLogin}.png?size=64`}
+          alt={`${userLogin} avatar`}
+          className={styles.drawerAvatar}
+          width={48}
+          height={48}
+        />
+        <div>
+          <div className={styles.drawerUserName}>@{userLogin}</div>
+          <a
+            href={githubUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.drawerGhLink}
+          >
+            View on GitHub ↗
+          </a>
+        </div>
+      </div>
+
+      {selected.type === 'risky' && <RiskyUserDetails user={selected.data} />}
+      {selected.type === 'anomaly' && <AnomalyDetails user={selected.data} />}
+      {selected.type === 'permission' && <PermissionDriftDetails user={selected.data} />}
+    </div>
+  );
+}
+
+function RiskyUserDetails({ user }: { user: RiskyUser }) {
+  return (
+    <>
+      {/* Risk score breakdown */}
+      <section className={styles.drawerSection}>
+        <h3 className={styles.drawerSectionTitle}>Risk Assessment</h3>
+        <div className={styles.drawerMetricRow}>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Score</span>
+            <span className={styles.drawerMetricValue} data-level={user.risk_level}>
+              {user.risk_score}
+            </span>
+          </div>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Level</span>
+            <Label variant={RISK_LEVEL_VARIANTS[user.risk_level] ?? 'muted'}>
+              {user.risk_level}
+            </Label>
+          </div>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Last Signal</span>
+            <span>
+              {user.last_risky_action_at
+                ? new Date(user.last_risky_action_at).toLocaleDateString()
+                : '—'}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Signal timeline */}
+      <section className={styles.drawerSection}>
+        <h3 className={styles.drawerSectionTitle}>Signal Timeline</h3>
+        <div className={styles.drawerTimeline}>
+          {user.signals.map((signal) => (
+            <div key={signal.action} className={styles.drawerTimelineItem}>
+              <div className={styles.drawerTimelineHeader}>
+                <span className={styles.drawerTimelineLabel}>{signal.label}</span>
+                <span className={styles.drawerTimelineCount}>×{signal.count}</span>
+              </div>
+              <div className={styles.drawerTimelineMeta}>
+                Weight: {signal.weight} · Category: {signal.category.replace(/_/g, ' ')}
+                {signal.last_seen && (
+                  <> · Last: {new Date(signal.last_seen).toLocaleDateString()}</>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Org memberships */}
+      <section className={styles.drawerSection}>
+        <h3 className={styles.drawerSectionTitle}>Org Memberships</h3>
+        <div className={styles.drawerTagList}>
+          {user.orgs.map((org) => (
+            <span key={org} className={styles.drawerTag}>
+              {org}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      {/* Recommended actions */}
+      <section className={styles.drawerSection}>
+        <h3 className={styles.drawerSectionTitle}>Recommended Actions</h3>
+        <ul className={styles.drawerActionList}>
+          {user.risk_level === 'high' && (
+            <>
+              <li>Review recent audit log entries for this user</li>
+              <li>Verify branch protection changes are intentional</li>
+              <li>Consider rotating any newly-created credentials</li>
+            </>
+          )}
+          {user.risk_level === 'medium' && (
+            <>
+              <li>Monitor user activity over the next few days</li>
+              <li>Verify permission changes were authorized</li>
+            </>
+          )}
+          {user.risk_level === 'low' && (
+            <li>No immediate action required — continue baseline monitoring</li>
+          )}
+        </ul>
+      </section>
+    </>
+  );
+}
+
+function AnomalyDetails({ user }: { user: AnomalousUser }) {
+  return (
+    <>
+      {/* Activity chart (baseline vs actual) */}
+      <section className={styles.drawerSection}>
+        <h3 className={styles.drawerSectionTitle}>Activity Comparison</h3>
+        <div className={styles.drawerBarChart}>
+          <div className={styles.drawerBarRow}>
+            <span className={styles.drawerBarLabel}>Baseline (daily avg)</span>
+            <div className={styles.drawerBarTrack}>
+              <div
+                className={styles.drawerBarFill}
+                data-variant="baseline"
+                style={{
+                  width: `${Math.min(100, (user.baseline_daily_avg / user.recent_event_count) * 100)}%`,
+                }}
+              />
+            </div>
+            <span className={styles.drawerBarValue}>{user.baseline_daily_avg}</span>
+          </div>
+          <div className={styles.drawerBarRow}>
+            <span className={styles.drawerBarLabel}>Recent events</span>
+            <div className={styles.drawerBarTrack}>
+              <div
+                className={styles.drawerBarFill}
+                data-variant="actual"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <span className={styles.drawerBarValue}>
+              {user.recent_event_count.toLocaleString()}
+            </span>
+          </div>
+        </div>
+        <div className={styles.drawerHighlight}>
+          Activity is <strong>{user.activity_ratio}x</strong> above baseline
+        </div>
+      </section>
+
+      {/* Deviation details */}
+      <section className={styles.drawerSection}>
+        <h3 className={styles.drawerSectionTitle}>Deviation Signals</h3>
+        <ul className={styles.drawerActionList}>
+          {user.deviation_reasons.map((reason, i) => (
+            <li key={i}>{reason}</li>
+          ))}
+        </ul>
+      </section>
+
+      {/* IP history */}
+      <section className={styles.drawerSection}>
+        <h3 className={styles.drawerSectionTitle}>IP Address History</h3>
+        <div className={styles.drawerMetricRow}>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Recent IPs</span>
+            <span className={styles.drawerMetricValue}>{user.recent_ips}</span>
+          </div>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Baseline IPs</span>
+            <span className={styles.drawerMetricValue}>{user.baseline_ips}</span>
+          </div>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Action Types (recent)</span>
+            <span className={styles.drawerMetricValue}>{user.recent_action_types}</span>
+          </div>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Action Types (baseline)</span>
+            <span className={styles.drawerMetricValue}>{user.baseline_action_types}</span>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function PermissionDriftDetails({ user }: { user: PermissionDriftUser }) {
+  const statusLabel =
+    user.status === 'review_recommended'
+      ? 'Review Recommended'
+      : user.status === 'low_activity'
+        ? 'Low Activity'
+        : 'Normal';
+  const statusVariant =
+    user.status === 'review_recommended'
+      ? 'attention'
+      : user.status === 'low_activity'
+        ? 'muted'
+        : 'success';
+
+  return (
+    <>
+      {/* Status assessment */}
+      <section className={styles.drawerSection}>
+        <h3 className={styles.drawerSectionTitle}>Status Assessment</h3>
+        <div className={styles.drawerMetricRow}>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Status</span>
+            <Label variant={statusVariant as 'attention' | 'muted' | 'success'}>
+              {statusLabel}
+            </Label>
+          </div>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Admin %</span>
+            <span className={styles.drawerMetricValue}>{user.admin_pct}%</span>
+          </div>
+        </div>
+        <p className={styles.drawerAssessment}>{user.reason}</p>
+      </section>
+
+      {/* Admin action timeline */}
+      <section className={styles.drawerSection}>
+        <h3 className={styles.drawerSectionTitle}>Activity Breakdown</h3>
+        <div className={styles.drawerBarChart}>
+          <div className={styles.drawerBarRow}>
+            <span className={styles.drawerBarLabel}>Admin actions</span>
+            <div className={styles.drawerBarTrack}>
+              <div
+                className={styles.drawerBarFill}
+                data-variant="actual"
+                style={{
+                  width: `${user.total_events > 0 ? (user.admin_events / user.total_events) * 100 : 0}%`,
+                }}
+              />
+            </div>
+            <span className={styles.drawerBarValue}>{user.admin_events}</span>
+          </div>
+          <div className={styles.drawerBarRow}>
+            <span className={styles.drawerBarLabel}>Dev actions</span>
+            <div className={styles.drawerBarTrack}>
+              <div
+                className={styles.drawerBarFill}
+                data-variant="baseline"
+                style={{
+                  width: `${user.total_events > 0 ? (user.dev_events / user.total_events) * 100 : 0}%`,
+                }}
+              />
+            </div>
+            <span className={styles.drawerBarValue}>{user.dev_events}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Permission change history */}
+      <section className={styles.drawerSection}>
+        <h3 className={styles.drawerSectionTitle}>Summary</h3>
+        <div className={styles.drawerMetricRow}>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Total Events</span>
+            <span className={styles.drawerMetricValue}>{user.total_events}</span>
+          </div>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Last Active</span>
+            <span>{user.last_active ? new Date(user.last_active).toLocaleDateString() : '—'}</span>
+          </div>
+        </div>
+      </section>
+    </>
   );
 }

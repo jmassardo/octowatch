@@ -245,3 +245,66 @@ export function getCopilotPolicyChanges(): Promise<CopilotPolicyChanges> {
 export function getCopilotROI(): Promise<CopilotROI> {
   return api.get<CopilotROI>('/copilot/roi');
 }
+
+// ── Billing / UBB types ──────────────────────────────────────────────────────
+
+export interface CopilotBillingOverview {
+  pool_total: number;
+  total_consumed: number;
+  projected_eom: number;
+  pool_remaining: number;
+  utilization_pct: number;
+  unique_users: number;
+  daily_rate: number;
+  period_start: string;
+  days_reported: number;
+  error?: string;
+  message?: string;
+}
+
+export interface CopilotUserBudget {
+  login: string;
+  org_slug: string;
+  consumed: number;
+  budget: number | null;
+  utilization_pct: number;
+  status: 'ok' | 'warning' | 'near' | 'over' | 'blocked';
+  is_blocked: boolean;
+}
+
+export interface CopilotUserBudgets {
+  users: CopilotUserBudget[];
+  total_users: number;
+  buckets: Record<string, number>;
+  error?: string;
+  message?: string;
+}
+
+export interface CopilotBillingTrendDay {
+  date: string;
+  total: number;
+  completions: number;
+  chat: number;
+  pr: number;
+  other: number;
+  active_users: number;
+}
+
+export interface CopilotBillingTrends {
+  trends: CopilotBillingTrendDay[];
+  period_days: number;
+  error?: string;
+  message?: string;
+}
+
+export function getCopilotBillingOverview(): Promise<CopilotBillingOverview> {
+  return api.get<CopilotBillingOverview>('/copilot/billing-overview');
+}
+
+export function getCopilotUserBudgets(): Promise<CopilotUserBudgets> {
+  return api.get<CopilotUserBudgets>('/copilot/user-budgets');
+}
+
+export function getCopilotBillingTrends(): Promise<CopilotBillingTrends> {
+  return api.get<CopilotBillingTrends>('/copilot/billing-trends');
+}
