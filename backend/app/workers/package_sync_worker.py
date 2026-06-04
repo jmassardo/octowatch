@@ -245,11 +245,10 @@ async def _sync_packages_for_org(session: AsyncSession, org: str) -> int:
     # Look up GitHub App installation for this org
     install_q = await session.execute(
         text(
-            "SELECT i.installation_id, c.app_id, c.private_key "
+            "SELECT i.installation_id, i.app_id "
             "FROM github_app_installations i "
-            "JOIN github_app_configs c ON i.app_config_id = c.id "
-            "WHERE i.target_type = 'Organization' AND i.account_login = :org "
-            "ORDER BY i.installed_at DESC LIMIT 1"
+            "WHERE i.target_type = 'Organization' AND i.target_login = :org "
+            "ORDER BY i.synced_at DESC LIMIT 1"
         ),
         {"org": org},
     )
@@ -259,9 +258,15 @@ async def _sync_packages_for_org(session: AsyncSession, org: str) -> int:
         return 0
 
     try:
+        from app.config import settings
+
+        private_key = settings.github_app.resolve_private_key()
+        if not private_key:
+            logger.warning("package_sync.no_private_key", org=org)
+            return 0
         token_manager = GitHubAppTokenManager(
             app_id=install_row.app_id,
-            private_key_pem=install_row.private_key,
+            private_key_pem=private_key,
         )
         token = await token_manager.get_installation_token(
             install_row.installation_id,
@@ -447,12 +452,12 @@ async def _run_sync() -> None:
         # Get all configured orgs
         orgs_q = await session.execute(
             text(
-                "SELECT DISTINCT account_login "
+                "SELECT DISTINCT target_login "
                 "FROM github_app_installations "
                 "WHERE target_type = 'Organization'"
             )
         )
-        orgs = [row.account_login for row in orgs_q.fetchall()]
+        orgs = [row.target_login for row in orgs_q.fetchall()]
 
         if not orgs:
             logger.info("package_sync.no_orgs_configured")
