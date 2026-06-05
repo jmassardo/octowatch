@@ -74,6 +74,7 @@ from app.routers import (
     user_behavior,
     user_classification,
     user_preferences,
+    velocity,
     workflow_metrics,
     workflow_scanner,
 )
@@ -758,6 +759,7 @@ def create_app() -> FastAPI:
     app.include_router(telemetry.router, prefix=API_PREFIX)
     app.include_router(user_classification.router, prefix=API_PREFIX)
     app.include_router(user_behavior.router, prefix=API_PREFIX)
+    app.include_router(velocity.router, prefix=API_PREFIX)
 
     return app
 

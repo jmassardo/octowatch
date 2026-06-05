@@ -17,6 +17,18 @@ interface BarChartProps {
 export function BarChart({ title, xAxisData, series, height = 160 }: BarChartProps) {
   const colors = useChartColors();
 
+  const resolveColor = (color: string | undefined): string => {
+    if (!color) return colors.accent || '#58a6ff';
+    const varMatch = color.match(/^var\(--(\w[\w-]*)\)$/);
+    if (varMatch) {
+      const resolved = getComputedStyle(document.documentElement)
+        .getPropertyValue(`--${varMatch[1]}`)
+        .trim();
+      return resolved || colors.accent || '#58a6ff';
+    }
+    return color;
+  };
+
   const option: EChartsOption = {
     backgroundColor: 'transparent',
     textStyle: { color: colors.chartText, fontFamily: 'inherit', fontSize: 11 },
@@ -43,7 +55,7 @@ export function BarChart({ title, xAxisData, series, height = 160 }: BarChartPro
       name: s.name,
       type: 'bar' as const,
       data: s.data,
-      itemStyle: { color: s.color ?? 'var(--accent)', borderRadius: [2, 2, 0, 0] },
+      itemStyle: { color: resolveColor(s.color), borderRadius: [2, 2, 0, 0] },
       barMaxWidth: 28,
     })),
     ...(title
