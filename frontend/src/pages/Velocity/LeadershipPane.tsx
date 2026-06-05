@@ -8,6 +8,7 @@ import { BarChart } from '../../components/charts/BarChart';
 import { ContributionCalendar } from '../../components/charts/ContributionCalendar';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { useChartColors } from '../../hooks/useChartColors';
 import styles from './Velocity.module.css';
 
 type DoraPeriod = 30 | 90 | 180;
@@ -32,11 +33,11 @@ const METRIC_OPTIONS: { value: ComparisonMetric; label: string }[] = [
   { value: 'mttr', label: 'MTTR' },
 ];
 
-const TIER_COLORS: Record<string, string> = {
-  elite: 'var(--success)',
-  high: 'var(--accent)',
-  medium: 'var(--attention)',
-  low: 'var(--danger)',
+const TIER_COLORS_FALLBACK: Record<string, string> = {
+  elite: '#3fb950',
+  high: '#58a6ff',
+  medium: '#d29922',
+  low: '#f85149',
 };
 
 function formatTrend(trend: number): string {
@@ -202,7 +203,10 @@ function buildDoraChartData(
   return { labels, deployFreq, leadTime, cfr, mttrData };
 }
 
-function buildTeamChartData(teams: TeamMetricsItem[]): {
+function buildTeamChartData(
+  teams: TeamMetricsItem[],
+  tierColors: Record<string, string>,
+): {
   labels: string[];
   values: number[];
   colors: string[];
@@ -211,7 +215,7 @@ function buildTeamChartData(teams: TeamMetricsItem[]): {
   return {
     labels: sorted.map((t) => t.team),
     values: sorted.map((t) => t.value),
-    colors: sorted.map((t) => TIER_COLORS[t.classification] ?? 'var(--accent)'),
+    colors: sorted.map((t) => tierColors[t.classification] ?? '#58a6ff'),
   };
 }
 
@@ -247,6 +251,17 @@ function metricUnit(metric: ComparisonMetric): string {
 export function LeadershipPane() {
   const [period, setPeriod] = useState<DoraPeriod>(30);
   const [comparisonMetric, setComparisonMetric] = useState<ComparisonMetric>('deploy_freq');
+  const chartColors = useChartColors();
+
+  const tierColors = useMemo<Record<string, string>>(
+    () => ({
+      elite: chartColors.success || TIER_COLORS_FALLBACK.elite,
+      high: chartColors.accent || TIER_COLORS_FALLBACK.high,
+      medium: chartColors.attention || TIER_COLORS_FALLBACK.medium,
+      low: chartColors.danger || TIER_COLORS_FALLBACK.low,
+    }),
+    [chartColors],
+  );
 
   const {
     data: summaryData,
@@ -292,8 +307,8 @@ export function LeadershipPane() {
   );
 
   const teamChart = useMemo(
-    () => (teamData?.items ? buildTeamChartData(teamData.items) : null),
-    [teamData],
+    () => (teamData?.items ? buildTeamChartData(teamData.items, tierColors) : null),
+    [teamData, tierColors],
   );
 
   const cadenceCalendar = useMemo(

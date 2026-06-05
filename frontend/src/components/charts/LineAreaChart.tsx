@@ -26,6 +26,22 @@ export function LineAreaChart({
 }: LineAreaChartProps) {
   const colors = useChartColors();
 
+  // Resolve CSS variable references to actual color values for canvas rendering
+  const resolveColor = (color: string | undefined): string => {
+    if (!color) return colors.accent || '#58a6ff';
+    const varMatch = color.match(/^var\(--(\w[\w-]*)\)$/);
+    if (varMatch) {
+      const prop = varMatch[1].replace(/-/g, '');
+      // Try common mappings from useChartColors
+      const mapped =
+        (colors as Record<string, string>)[prop] ||
+        (colors as Record<string, string>)[varMatch[1]] ||
+        getComputedStyle(document.documentElement).getPropertyValue(`--${varMatch[1]}`).trim();
+      return mapped || color;
+    }
+    return color;
+  };
+
   const option: EChartsOption = {
     backgroundColor: 'transparent',
     textStyle: { color: colors.chartText, fontFamily: 'inherit', fontSize: 11 },
@@ -52,40 +68,47 @@ export function LineAreaChart({
       borderColor: colors.chartTooltipBorder,
       textStyle: { color: colors.chartTooltipFg, fontSize: 12 },
     },
-    series: series.map((s) => ({
-      name: s.name,
-      type: 'line' as const,
-      smooth: true,
-      data: s.data,
-      lineStyle: {
-        color: s.color ?? 'var(--accent)',
-        width: 2,
-        type: s.dashed ? 'dashed' : 'solid',
-      },
-      itemStyle: { color: s.color ?? 'var(--accent)' },
-      symbol: 'none',
-      areaStyle:
-        s.areaOpacity !== undefined
-          ? {
-              color: {
-                type: 'linear' as const,
-                x: 0,
-                y: 0,
-                x2: 0,
-                y2: 1,
-                colorStops: [
-                  {
-                    offset: 0,
-                    color: (s.color ?? 'var(--accent)')
-                      .replace(')', `, ${s.areaOpacity})`)
-                      .replace('rgb', 'rgba'),
-                  },
-                  { offset: 1, color: 'transparent' },
-                ],
-              },
-            }
-          : undefined,
-    })),
+    series: series.map((s) => {
+      const resolved = resolveColor(s.color);
+      return {
+        name: s.name,
+        type: 'line' as const,
+        smooth: true,
+        data: s.data,
+        lineStyle: {
+          color: resolved,
+          width: 2,
+          type: s.dashed ? 'dashed' : 'solid',
+        },
+        itemStyle: { color: resolved },
+        symbol: 'none',
+        areaStyle:
+          s.areaOpacity !== undefined
+            ? {
+                color: {
+                  type: 'linear' as const,
+                  x: 0,
+                  y: 0,
+                  x2: 0,
+                  y2: 1,
+                  colorStops: [
+                    {
+                      offset: 0,
+                      color: resolved.startsWith('#')
+                        ? `${resolved}${Math.round(s.areaOpacity * 255)
+                            .toString(16)
+                            .padStart(2, '0')}`
+                        : resolved.startsWith('rgb(')
+                          ? resolved.replace('rgb', 'rgba').replace(')', `, ${s.areaOpacity})`)
+                          : resolved,
+                    },
+                    { offset: 1, color: 'transparent' },
+                  ],
+                },
+              }
+            : undefined,
+      };
+    }),
     ...(title
       ? {
           title: {
