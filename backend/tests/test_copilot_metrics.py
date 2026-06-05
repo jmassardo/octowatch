@@ -570,6 +570,7 @@ class TestFetchMetricsRaw:
         db = AsyncMock(spec=AsyncSession)
         mock_result = MagicMock()
         mock_result.scalars.return_value.first.return_value = None
+        mock_result.fetchall.return_value = []
         db.execute = AsyncMock(return_value=mock_result)
 
         with (
@@ -595,7 +596,12 @@ class TestFetchMetricsRaw:
             patch.object(
                 copilot_metrics_service.settings.github_app,
                 "GITHUB_APP_PRIVATE_KEY_PATH",
-                "/tmp/test-key.pem",
+                "",
+            ),
+            patch.object(
+                copilot_metrics_service.settings.github_app,
+                "GITHUB_APP_PRIVATE_KEY_PEM",
+                "fake-pem-key",
             ),
             patch("app.services.copilot_metrics_service.aioredis") as mock_aioredis,
         ):
@@ -607,7 +613,7 @@ class TestFetchMetricsRaw:
             result = await copilot_metrics_service._fetch_metrics_raw(db)
         assert isinstance(result, dict)
         assert result["error"] == "no_enterprise_config"
-        assert "No enabled enterprise" in result["message"]
+        assert "No Organization-type" in result["message"]
 
     @pytest.mark.asyncio
     async def test_returns_cached_data_when_available(self) -> None:
@@ -730,13 +736,14 @@ class TestFetchMetricsRawFullPaths:
         ):
             yield
 
-    def _build_mocks(self) -> tuple[AsyncMock, AsyncMock, MagicMock]:
-        """Build standard mocks: db, valkey, and a mock config row."""
+    def _build_mocks(
+        self,
+    ) -> tuple[AsyncMock, AsyncMock]:
+        """Build standard mocks: db (with org installations) and valkey."""
         db = AsyncMock(spec=AsyncSession)
-        mock_config = MagicMock()
-        mock_config.installation_id = 99999
+        # Mock db.execute to return org installations for _get_org_tokens
         mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = mock_config
+        mock_result.fetchall.return_value = [("test-org", 99999)]
         db.execute = AsyncMock(return_value=mock_result)
 
         mock_valkey = AsyncMock()
@@ -744,14 +751,14 @@ class TestFetchMetricsRawFullPaths:
         mock_valkey.set = AsyncMock(return_value=True)
         mock_valkey.aclose = AsyncMock()
 
-        return db, mock_valkey, mock_config
+        return db, mock_valkey
 
     @pytest.mark.asyncio
     async def test_returns_error_on_github_auth_error(self) -> None:
-        """When GitHubAppTokenManager raises GitHubAuthError."""
+        """When GitHubAppTokenManager raises GitHubAuthError for all orgs."""
         from app.services.github_token_service import GitHubAuthError
 
-        db, mock_valkey, _ = self._build_mocks()
+        db, mock_valkey = self._build_mocks()
 
         with (
             patch.object(
@@ -785,12 +792,12 @@ class TestFetchMetricsRawFullPaths:
 
         assert isinstance(result, dict)
         assert result["error"] == "copilot_not_available"
-        assert "Check App credentials" in result["message"]
+        assert "Failed to obtain tokens" in result["message"]
 
     @pytest.mark.asyncio
     async def test_returns_error_on_unexpected_token_error(self) -> None:
-        """When token exchange raises a generic exception."""
-        db, mock_valkey, _ = self._build_mocks()
+        """When token exchange raises a generic exception for all orgs."""
+        db, mock_valkey = self._build_mocks()
 
         with (
             patch.object(
@@ -824,12 +831,12 @@ class TestFetchMetricsRawFullPaths:
 
         assert isinstance(result, dict)
         assert result["error"] == "copilot_not_available"
-        assert "Check server logs" in result["message"]
+        assert "Failed to obtain tokens" in result["message"]
 
     @pytest.mark.asyncio
     async def test_returns_error_on_403_response(self) -> None:
-        """When GitHub API returns 403 (insufficient permissions)."""
-        db, mock_valkey, _ = self._build_mocks()
+        """When all orgs return 403 (insufficient permissions), returns empty list."""
+        db, mock_valkey = self._build_mocks()
 
         mock_response = MagicMock()
         mock_response.status_code = 403
@@ -869,14 +876,14 @@ class TestFetchMetricsRawFullPaths:
 
             result = await copilot_metrics_service._fetch_metrics_raw(db)
 
-        assert isinstance(result, dict)
-        assert result["error"] == "copilot_not_available"
-        assert "403" in result["message"]
+        # With org-level API, 403 on individual orgs is skipped → returns empty list
+        assert isinstance(result, list)
+        assert len(result) == 0
 
     @pytest.mark.asyncio
     async def test_returns_error_on_404_response(self) -> None:
-        """When GitHub API returns 404 (Copilot not enabled)."""
-        db, mock_valkey, _ = self._build_mocks()
+        """When all orgs return 404 (Copilot not enabled), returns empty list."""
+        db, mock_valkey = self._build_mocks()
 
         mock_response = MagicMock()
         mock_response.status_code = 404
@@ -916,20 +923,31 @@ class TestFetchMetricsRawFullPaths:
 
             result = await copilot_metrics_service._fetch_metrics_raw(db)
 
-        assert isinstance(result, dict)
-        assert result["error"] == "copilot_not_available"
-        assert "404" in result["message"]
+        # With org-level API, 404 on individual orgs is skipped → returns empty list
+        assert isinstance(result, list)
+        assert len(result) == 0
 
     @pytest.mark.asyncio
     async def test_returns_data_on_success(self) -> None:
-        """When GitHub API returns 200, data is returned and cached."""
-        db, mock_valkey, _ = self._build_mocks()
+        """When org API returns 200 with download links, data is returned and cached."""
+        db, mock_valkey = self._build_mocks()
 
         sample = _make_sample_days(2)
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = sample
-        mock_response.raise_for_status = MagicMock()
+        ndjson_text = "\n".join(json.dumps(day) for day in sample)
+
+        # First call: report endpoint returns download_links
+        # Second call: NDJSON download returns the data
+        report_response = MagicMock()
+        report_response.status_code = 200
+        report_response.json.return_value = {
+            "download_links": ["https://example.com/report.ndjson"],
+            "report_start_day": "2026-05-08",
+            "report_end_day": "2026-06-04",
+        }
+
+        ndjson_response = MagicMock()
+        ndjson_response.status_code = 200
+        ndjson_response.text = ndjson_text
 
         with (
             patch.object(
@@ -959,7 +977,8 @@ class TestFetchMetricsRawFullPaths:
             mock_token_mgr_cls.return_value = mock_token_mgr
 
             mock_client = AsyncMock()
-            mock_client.get = AsyncMock(return_value=mock_response)
+            # First get → report endpoint, second get → NDJSON download
+            mock_client.get = AsyncMock(side_effect=[report_response, ndjson_response])
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_httpx.AsyncClient.return_value = mock_client
@@ -968,16 +987,16 @@ class TestFetchMetricsRawFullPaths:
 
         assert isinstance(result, list)
         assert len(result) == 2
+        # Verify each record has _org_slug tag
+        for record in result:
+            assert record["_org_slug"] == "test-org"
         # Verify cache was written
         mock_valkey.set.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_handles_http_status_error(self) -> None:
-        """When raise_for_status throws HTTPStatusError (e.g., 500)."""
-        db, mock_valkey, _ = self._build_mocks()
-
-        mock_response = MagicMock()
-        mock_response.status_code = 500
+        """When the HTTP client raises an exception during fetch, error is returned."""
+        db, mock_valkey = self._build_mocks()
 
         with (
             patch.object(
@@ -1006,33 +1025,24 @@ class TestFetchMetricsRawFullPaths:
             mock_token_mgr.get_installation_token = AsyncMock(return_value="fake-token")
             mock_token_mgr_cls.return_value = mock_token_mgr
 
-            # Construct a real-ish HTTPStatusError
-            err_response = MagicMock()
-            err_response.status_code = 500
-            http_err = httpx.HTTPStatusError(
-                "Server Error", request=MagicMock(), response=err_response
-            )
-
             mock_client = AsyncMock()
-            mock_resp = MagicMock()
-            mock_resp.status_code = 500
-            mock_resp.raise_for_status = MagicMock(side_effect=http_err)
-            mock_client.get = AsyncMock(return_value=mock_resp)
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            # Simulate client.__aenter__ raising (catastrophic httpx failure)
+            mock_client.__aenter__ = AsyncMock(
+                side_effect=RuntimeError("Connection pool exhausted")
+            )
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_httpx.AsyncClient.return_value = mock_client
-            mock_httpx.HTTPStatusError = httpx.HTTPStatusError
 
             result = await copilot_metrics_service._fetch_metrics_raw(db)
 
         assert isinstance(result, dict)
         assert result["error"] == "copilot_not_available"
-        assert "500" in result["message"]
+        assert "Check server logs" in result["message"]
 
     @pytest.mark.asyncio
     async def test_handles_generic_fetch_exception(self) -> None:
         """When the HTTP call raises a generic exception (e.g., network error)."""
-        db, mock_valkey, _ = self._build_mocks()
+        db, mock_valkey = self._build_mocks()
 
         with (
             patch.object(
@@ -1062,8 +1072,7 @@ class TestFetchMetricsRawFullPaths:
             mock_token_mgr_cls.return_value = mock_token_mgr
 
             mock_client = AsyncMock()
-            mock_client.get = AsyncMock(side_effect=ConnectionError("Network down"))
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aenter__ = AsyncMock(side_effect=ConnectionError("Network down"))
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_httpx.AsyncClient.return_value = mock_client
             mock_httpx.HTTPStatusError = httpx.HTTPStatusError
@@ -1077,14 +1086,23 @@ class TestFetchMetricsRawFullPaths:
     @pytest.mark.asyncio
     async def test_cache_write_failure_does_not_crash(self) -> None:
         """When Valkey cache write fails, data is still returned."""
-        db, mock_valkey, _ = self._build_mocks()
+        db, mock_valkey = self._build_mocks()
         mock_valkey.set = AsyncMock(side_effect=Exception("Valkey write failed"))
 
         sample = _make_sample_days(2)
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = sample
-        mock_response.raise_for_status = MagicMock()
+        ndjson_text = "\n".join(json.dumps(day) for day in sample)
+
+        report_response = MagicMock()
+        report_response.status_code = 200
+        report_response.json.return_value = {
+            "download_links": ["https://example.com/report.ndjson"],
+            "report_start_day": "2026-05-08",
+            "report_end_day": "2026-06-04",
+        }
+
+        ndjson_response = MagicMock()
+        ndjson_response.status_code = 200
+        ndjson_response.text = ndjson_text
 
         with (
             patch.object(
@@ -1114,7 +1132,7 @@ class TestFetchMetricsRawFullPaths:
             mock_token_mgr_cls.return_value = mock_token_mgr
 
             mock_client = AsyncMock()
-            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.get = AsyncMock(side_effect=[report_response, ndjson_response])
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_httpx.AsyncClient.return_value = mock_client

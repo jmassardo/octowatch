@@ -298,90 +298,95 @@ async def _persist_seat_snapshots(
 
 
 async def _fetch_copilot_usage(db: Any) -> list[dict[str, Any]] | dict[str, str]:
-    """Fetch per-user usage data from the GitHub Copilot usage API.
+    """Fetch per-user usage data from org-level Copilot users-28-day NDJSON reports.
 
-    Tries the enterprise endpoint first, falls back to per-org if unavailable.
-    Returns a list of per-user usage records or an error dict.
+    Iterates over all Organization GitHub App installations, calls
+    ``GET /orgs/{org}/copilot/metrics/reports/users-28-day/latest`` for each,
+    downloads the NDJSON files, and returns aggregated per-user records.
     """
-    from app.config import settings as app_settings
-    from app.services.copilot_metrics_service import _get_token_and_valkey
+    from app.services.copilot_metrics_service import _get_org_tokens, _parse_ndjson
 
-    result = await _get_token_and_valkey(db)
-    if isinstance(result, dict):
-        return result
-
-    token, valkey, enterprise_slug = result
+    org_tokens_result = await _get_org_tokens(db)
+    if isinstance(org_tokens_result, dict):
+        return org_tokens_result
 
     import httpx
 
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-
     all_usage: list[dict[str, Any]] = []
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        # Try enterprise-level usage endpoint first
-        enterprise_url = f"https://api.github.com/enterprises/{enterprise_slug}/copilot/usage"
-        try:
-            resp = await client.get(enterprise_url, headers=headers)
-            if resp.status_code == 200:
-                data = resp.json()
-                usage_list = data if isinstance(data, list) else data.get("usage", [])
-                for record in usage_list:
-                    record["_source"] = "enterprise"
-                all_usage.extend(usage_list)
-                if valkey:
-                    await valkey.aclose()
-                return all_usage
-        except Exception:
-            logger.debug("copilot_sync.enterprise_usage_unavailable", exc_info=True)
+    async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
+        for org_login, token in org_tokens_result:
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            }
 
-        # Fallback: fetch per-org usage
-        from sqlalchemy import select
+            report_url = (
+                f"https://api.github.com/orgs/{org_login}"
+                f"/copilot/metrics/reports/users-28-day/latest"
+            )
 
-        from app.models.github_sync import EnterpriseOrg
-
-        orgs_result = await db.execute(
-            select(EnterpriseOrg.org_slug).where(EnterpriseOrg.enterprise_slug == enterprise_slug)
-        )
-        org_slugs = [row[0] for row in orgs_result.fetchall()]
-
-        if not org_slugs:
-            # Try from settings
             try:
-                org_slugs = [app_settings.github_app.GITHUB_ORG or enterprise_slug]
-            except Exception:
-                org_slugs = [enterprise_slug]
-
-        for org_slug in org_slugs:
-            org_url = f"https://api.github.com/orgs/{org_slug}/copilot/usage"
-            try:
-                resp = await client.get(org_url, headers=headers)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    usage_list = data if isinstance(data, list) else data.get("usage", [])
-                    for record in usage_list:
-                        record["_org_slug"] = org_slug
-                        record["_source"] = "org"
-                    all_usage.extend(usage_list)
-                else:
+                resp = await client.get(report_url, headers=headers)
+                if resp.status_code in (403, 404):
                     logger.debug(
-                        "copilot_sync.org_usage_fetch_skip",
-                        org=org_slug,
+                        "copilot_sync.org_usage_report_unavailable",
+                        org=org_login,
                         status=resp.status_code,
                     )
+                    continue
+                if resp.status_code != 200:
+                    logger.warning(
+                        "copilot_sync.org_usage_report_error",
+                        org=org_login,
+                        status=resp.status_code,
+                    )
+                    continue
+
+                report_data = resp.json()
+                download_links = report_data.get("download_links", [])
+
+                # Download each NDJSON file immediately (signed URLs are short-lived)
+                for link in download_links:
+                    try:
+                        ndjson_resp = await client.get(link)
+                        if ndjson_resp.status_code == 200:
+                            records = _parse_ndjson(ndjson_resp.text)
+                            for record in records:
+                                record["_org_slug"] = org_login
+                                record["_source"] = "org"
+                                # Normalize user field to 'login' if not present
+                                if "login" not in record:
+                                    if "github_login" in record:
+                                        record["login"] = record["github_login"]
+                                    elif "user" in record:
+                                        record["login"] = record["user"]
+                                    elif "assignee" in record and isinstance(
+                                        record["assignee"], dict
+                                    ):
+                                        record["login"] = record["assignee"].get("login", "")
+                            all_usage.extend(records)
+                        else:
+                            logger.warning(
+                                "copilot_sync.usage_ndjson_download_error",
+                                org=org_login,
+                                status=ndjson_resp.status_code,
+                            )
+                    except Exception:
+                        logger.warning(
+                            "copilot_sync.usage_ndjson_download_failed",
+                            org=org_login,
+                            exc_info=True,
+                        )
+
             except Exception:
-                logger.debug(
-                    "copilot_sync.org_usage_fetch_error",
-                    org=org_slug,
+                logger.warning(
+                    "copilot_sync.org_usage_report_fetch_failed",
+                    org=org_login,
                     exc_info=True,
                 )
-
-    if valkey:
-        await valkey.aclose()
+                continue
 
     return all_usage
 

@@ -1,14 +1,15 @@
 """Copilot Metrics service — fetches real data from the GitHub Copilot Metrics API.
 
-Migrated to the new NDJSON Metrics Reports endpoint (2026-03-10 API version).
-Calls ``GET /enterprises/{slug}/copilot/metrics/reports/enterprise-1-day`` to
-obtain download links, fetches the NDJSON files, parses line by line, then
-transforms into shaped payloads for all frontend Copilot panes.
+Uses org-level NDJSON Metrics Reports endpoints with per-org installation tokens.
+Calls ``GET /orgs/{org}/copilot/metrics/reports/organization-28-day/latest`` for
+each Organization GitHub App installation to obtain download links, fetches the
+NDJSON files, parses line by line, then transforms into shaped payloads for all
+frontend Copilot panes.
 
 Also integrates the Copilot billing/seats API for per-user adoption data,
 team-level aggregation, adoption blockers, and ROI analysis.
 
-Results are cached in Valkey (1-hour TTL) to avoid excessive API round-trips.
+Results are cached in Valkey (25-hour TTL) to avoid excessive API round-trips.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.github_sync import GitHubAppConfig, OrgTeam, OrgTeamMember
+from app.models.github_sync import GitHubAppConfig, GitHubAppInstallation, OrgTeam, OrgTeamMember
 from app.services.github_token_service import GitHubAppTokenManager, GitHubAuthError
 
 logger = structlog.get_logger(__name__)
@@ -254,11 +255,87 @@ def _parse_ndjson(text: str) -> list[dict[str, Any]]:
     return results
 
 
-async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[str, str]:
-    """Fetch raw daily metrics from the new GitHub Copilot Metrics NDJSON API.
+async def _get_org_tokens(
+    db: AsyncSession,
+) -> list[tuple[str, str]] | dict[str, str]:
+    """Get installation tokens for all Organization-type GitHub App installations.
 
-    Uses the 2026-03-10 API version endpoint that returns download links to
-    NDJSON files.  Falls back gracefully on errors.
+    Returns a list of ``(org_login, token)`` tuples on success, or an error dict
+    if credentials are not configured.  Orgs where token generation fails are
+    skipped with a warning log.
+    """
+    app_id = settings.github_app.GITHUB_APP_ID
+    key_path = settings.github_app.GITHUB_APP_PRIVATE_KEY_PATH
+    private_key_pem = settings.github_app.GITHUB_APP_PRIVATE_KEY_PEM
+    if not app_id or (not key_path and not private_key_pem):
+        return {
+            "error": "no_enterprise_config",
+            "message": "GitHub App credentials (APP_ID / private key) are not configured.",
+        }
+
+    private_key = settings.github_app.resolve_private_key()
+    if not private_key:
+        return {
+            "error": "no_enterprise_config",
+            "message": "GitHub App private key could not be resolved.",
+        }
+
+    # Query all org installations from the database
+    result = await db.execute(
+        select(GitHubAppInstallation.target_login, GitHubAppInstallation.installation_id).where(
+            GitHubAppInstallation.target_type == "Organization"
+        )
+    )
+    org_installations = result.fetchall()
+
+    if not org_installations:
+        return {
+            "error": "no_enterprise_config",
+            "message": "No Organization-type GitHub App installations found in the database.",
+        }
+
+    # Create a single token manager with a Valkey client
+    valkey_for_tokens = aioredis.Redis.from_url(
+        settings.VALKEY_URL, decode_responses=True, max_connections=5
+    )
+    try:
+        token_manager = GitHubAppTokenManager(
+            app_id=int(app_id),
+            private_key_pem=private_key,
+            valkey_client=valkey_for_tokens,
+        )
+
+        org_tokens: list[tuple[str, str]] = []
+        for org_login, installation_id in org_installations:
+            try:
+                token = await token_manager.get_installation_token(installation_id)
+                org_tokens.append((org_login, token))
+            except Exception as exc:
+                logger.warning(
+                    "copilot_metrics.org_token_failed",
+                    org=org_login,
+                    installation_id=installation_id,
+                    error=str(exc),
+                )
+                continue
+    finally:
+        await valkey_for_tokens.aclose()
+
+    if not org_tokens:
+        return {
+            "error": "copilot_not_available",
+            "message": "Failed to obtain tokens for any org installation.",
+        }
+
+    return org_tokens
+
+
+async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[str, str]:
+    """Fetch raw daily metrics from org-level Copilot Metrics NDJSON reports.
+
+    Iterates over all Organization GitHub App installations, calls
+    ``GET /orgs/{org}/copilot/metrics/reports/organization-28-day/latest``
+    for each, downloads the NDJSON files, and aggregates results.
 
     Returns either the parsed list of daily metric dicts on success, or an
     error dict.  Results are cached in Valkey for ``_CACHE_TTL_SECONDS``.
@@ -288,23 +365,12 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
             "message": "Copilot Insights is disabled. Enable it in Settings → Features.",
         }
 
-    # Prefer app_settings over env var — env var may be blank when slug was
-    # configured through the UI after initial deployment.
     enterprise_slug = (
         await get_setting(db, "github_enterprise_slug")
         or settings.github_app.GITHUB_ENTERPRISE_SLUG
     )
     if not enterprise_slug:
         return {"error": "no_enterprise_config", "message": "GITHUB_ENTERPRISE_SLUG is not set."}
-
-    app_id = settings.github_app.GITHUB_APP_ID
-    key_path = settings.github_app.GITHUB_APP_PRIVATE_KEY_PATH
-    private_key_pem = settings.github_app.GITHUB_APP_PRIVATE_KEY_PEM
-    if not app_id or (not key_path and not private_key_pem):
-        return {
-            "error": "no_enterprise_config",
-            "message": "GitHub App credentials (APP_ID / private key) are not configured.",
-        }
 
     # ── Check Valkey cache ────────────────────────────────────────────────────
     cache_key = _CACHE_KEY.format(enterprise_slug=enterprise_slug)
@@ -320,112 +386,81 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
     except Exception:
         logger.warning("copilot_metrics.cache_read_failed", exc_info=True)
 
-    # ── Resolve installation ──────────────────────────────────────────────────
-    config = await _get_enterprise_installation(db)
-    if not config:
+    # ── Get org installation tokens ───────────────────────────────────────────
+    org_tokens_result = await _get_org_tokens(db)
+    if isinstance(org_tokens_result, dict):
         if valkey:
             await valkey.aclose()
-        return {
-            "error": "no_enterprise_config",
-            "message": (
-                f"No enabled enterprise GitHub App installation found for '{enterprise_slug}'."
-            ),
-        }
+        return org_tokens_result
 
-    # ── Get token ─────────────────────────────────────────────────────────────
-    try:
-        private_key = settings.github_app.resolve_private_key()
-        if not private_key:
-            raise RuntimeError("Private key could not be resolved")
-        token_manager = GitHubAppTokenManager(
-            app_id=app_id,
-            private_key_pem=private_key,
-            valkey_client=valkey
-            if valkey
-            else aioredis.Redis.from_url(
-                settings.VALKEY_URL, decode_responses=True, max_connections=5
-            ),
-        )
-        token = await token_manager.get_installation_token(config.installation_id)
-    except GitHubAuthError as exc:
-        logger.error("copilot_metrics.token_failed", error=str(exc))
-        if valkey:
-            await valkey.aclose()
-        return {
-            "error": "copilot_not_available",
-            "message": "Failed to obtain GitHub App installation token. Check App credentials.",
-        }
-    except Exception as exc:
-        logger.error("copilot_metrics.token_unexpected", error=str(exc), exc_info=True)
-        if valkey:
-            await valkey.aclose()
-        return {
-            "error": "copilot_not_available",
-            "message": "Unexpected error obtaining GitHub App token. Check server logs.",
-        }
-
-    # ── Call the GA Copilot Metrics endpoint ──────────────────────────────────
-    # GET /enterprises/{slug}/copilot/metrics returns up to 28 days of daily
-    # usage data as a JSON array — no day parameter needed, no NDJSON.
-    url = f"{_GITHUB_API_BASE}/enterprises/{enterprise_slug}/copilot/metrics"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": _API_VERSION,
-    }
+    # ── Fetch NDJSON reports from each org ────────────────────────────────────
+    all_metrics: list[dict[str, Any]] = []
 
     try:
-        async with httpx.AsyncClient(follow_redirects=True) as client:
-            response = await client.get(url, headers=headers, timeout=30.0)
-
-            if response.status_code in (403, 404):
-                logger.warning(
-                    "copilot_metrics.api_error",
-                    status=response.status_code,
-                    enterprise=enterprise_slug,
-                )
-                if valkey:
-                    await valkey.aclose()
-                return {
-                    "error": "copilot_not_available",
-                    "message": (
-                        f"GitHub API returned {response.status_code}. "
-                        "Copilot metrics may not be enabled for this enterprise, "
-                        "or the App lacks the manage_billing:copilot permission."
-                    ),
+        async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
+            for org_login, token in org_tokens_result:
+                headers = {
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/json",
+                    "X-GitHub-Api-Version": _API_VERSION,
                 }
 
-            if response.status_code == 422:
-                logger.warning(
-                    "copilot_metrics.api_422",
-                    enterprise=enterprise_slug,
-                    body=response.text[:500],
+                report_url = (
+                    f"{_GITHUB_API_BASE}/orgs/{org_login}"
+                    f"/copilot/metrics/reports/organization-28-day/latest"
                 )
-                if valkey:
-                    await valkey.aclose()
-                return {
-                    "error": "copilot_not_available",
-                    "message": (
-                        "GitHub API returned 422. This usually means the Copilot Metrics "
-                        "API is disabled in your enterprise settings. Enable it at: "
-                        "GitHub Enterprise → Settings → Copilot → Policies → "
-                        "Copilot Metrics API access."
-                    ),
-                }
 
-            response.raise_for_status()
-            metrics: list[dict[str, Any]] = response.json()
-            if not isinstance(metrics, list):
-                metrics = []
+                try:
+                    resp = await client.get(report_url, headers=headers)
+                    if resp.status_code in (403, 404):
+                        logger.debug(
+                            "copilot_metrics.org_report_unavailable",
+                            org=org_login,
+                            status=resp.status_code,
+                        )
+                        continue
+                    if resp.status_code != 200:
+                        logger.warning(
+                            "copilot_metrics.org_report_error",
+                            org=org_login,
+                            status=resp.status_code,
+                        )
+                        continue
 
-    except httpx.HTTPStatusError as exc:
-        logger.error("copilot_metrics.http_error", status=exc.response.status_code, exc_info=True)
-        if valkey:
-            await valkey.aclose()
-        return {
-            "error": "copilot_not_available",
-            "message": f"GitHub API error: HTTP {exc.response.status_code}",
-        }
+                    report_data = resp.json()
+                    download_links = report_data.get("download_links", [])
+
+                    # Download each NDJSON file immediately (signed URLs are short-lived)
+                    for link in download_links:
+                        try:
+                            ndjson_resp = await client.get(link)
+                            if ndjson_resp.status_code == 200:
+                                records = _parse_ndjson(ndjson_resp.text)
+                                # Tag each record with the org_slug
+                                for record in records:
+                                    record["_org_slug"] = org_login
+                                all_metrics.extend(records)
+                            else:
+                                logger.warning(
+                                    "copilot_metrics.ndjson_download_error",
+                                    org=org_login,
+                                    status=ndjson_resp.status_code,
+                                )
+                        except Exception:
+                            logger.warning(
+                                "copilot_metrics.ndjson_download_failed",
+                                org=org_login,
+                                exc_info=True,
+                            )
+
+                except Exception:
+                    logger.warning(
+                        "copilot_metrics.org_report_fetch_failed",
+                        org=org_login,
+                        exc_info=True,
+                    )
+                    continue
+
     except Exception as exc:
         logger.error("copilot_metrics.fetch_failed", error=str(exc), exc_info=True)
         if valkey:
@@ -438,7 +473,7 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
     # ── Write back to cache ───────────────────────────────────────────────────
     try:
         if valkey:
-            await valkey.set(cache_key, json.dumps(metrics), ex=_CACHE_TTL_SECONDS)
+            await valkey.set(cache_key, json.dumps(all_metrics), ex=_CACHE_TTL_SECONDS)
             logger.debug("copilot_metrics.cache_write", enterprise=enterprise_slug)
     except Exception:
         logger.warning("copilot_metrics.cache_write_failed", exc_info=True)
@@ -446,23 +481,47 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
         if valkey:
             await valkey.aclose()
 
-    return metrics
+    return all_metrics
 
 
 async def _fetch_copilot_seats(db: AsyncSession) -> list[dict[str, Any]] | dict[str, str]:
     """Fetch per-user Copilot seat data from the billing/seats API.
 
-    Calls ``GET /orgs/{org}/copilot/billing/seats`` for each org under the
-    enterprise.  Results are cached in Valkey.
+    Iterates over all Organization GitHub App installations, using per-org
+    installation tokens to call ``GET /orgs/{org}/copilot/billing/seats``.
+    Results are cached in Valkey.
     """
-    auth_result = await _get_token_and_valkey(db)
-    if isinstance(auth_result, dict):
-        return auth_result
+    from app.services.config_overlay import refresh_settings
+    from app.services.settings_service import get_setting
 
-    token, valkey, enterprise_slug = auth_result
+    await refresh_settings(db)
 
+    copilot_enabled = await get_setting(db, "feature_copilot_insights")
+    if copilot_enabled is not None and copilot_enabled.lower() not in ("true", "1", "yes", "on"):
+        return {
+            "error": "feature_disabled",
+            "message": "Copilot Insights is disabled. Enable it in Settings → Features.",
+        }
+    elif copilot_enabled is None:
+        return {
+            "error": "feature_disabled",
+            "message": "Copilot Insights is disabled. Enable it in Settings → Features.",
+        }
+
+    enterprise_slug = (
+        await get_setting(db, "github_enterprise_slug")
+        or settings.github_app.GITHUB_ENTERPRISE_SLUG
+    )
+    if not enterprise_slug:
+        return {"error": "no_enterprise_config", "message": "GITHUB_ENTERPRISE_SLUG is not set."}
+
+    # ── Check Valkey cache ────────────────────────────────────────────────────
     cache_key = _CACHE_SEATS_KEY.format(org_slug=enterprise_slug)
+    valkey: aioredis.Redis | None = None
     try:
+        valkey = aioredis.Redis.from_url(
+            settings.VALKEY_URL, decode_responses=True, max_connections=5
+        )
         cached = await valkey.get(cache_key)
         if cached:
             logger.debug("copilot_seats.cache_hit", enterprise=enterprise_slug)
@@ -470,48 +529,51 @@ async def _fetch_copilot_seats(db: AsyncSession) -> list[dict[str, Any]] | dict[
     except Exception:
         logger.warning("copilot_seats.cache_read_failed", exc_info=True)
 
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": _API_VERSION,
-    }
+    # ── Get org installation tokens ───────────────────────────────────────────
+    org_tokens_result = await _get_org_tokens(db)
+    if isinstance(org_tokens_result, dict):
+        if valkey:
+            await valkey.aclose()
+        return org_tokens_result
 
+    # ── Fetch seats from each org using per-org tokens ────────────────────────
     all_seats: list[dict[str, Any]] = []
-    # Fetch seats from enterprise-level org listing
+
     try:
-        async with httpx.AsyncClient(follow_redirects=True) as client:
-            # Get orgs in the enterprise
-            orgs_url = f"{_GITHUB_API_BASE}/enterprises/{enterprise_slug}/organizations"
-            orgs_resp = await client.get(orgs_url, headers=headers, timeout=30.0)
-            if orgs_resp.status_code == 200:
-                orgs_data = orgs_resp.json()
-                org_slugs = [o.get("login", "") for o in orgs_data if o.get("login")]
-            else:
-                org_slugs = []
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            for org_login, token in org_tokens_result:
+                headers = {
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": _API_VERSION,
+                }
 
-            if not org_slugs:
-                # Fallback: use enterprise slug as single org
-                org_slugs = [enterprise_slug]
-
-            for org_slug in org_slugs:
                 page = 1
                 while True:
                     seats_url = (
-                        f"{_GITHUB_API_BASE}/orgs/{org_slug}/copilot/billing/seats"
+                        f"{_GITHUB_API_BASE}/orgs/{org_login}/copilot/billing/seats"
                         f"?per_page=100&page={page}"
                     )
-                    resp = await client.get(seats_url, headers=headers, timeout=30.0)
+                    resp = await client.get(seats_url, headers=headers)
+                    if resp.status_code in (403, 404):
+                        # Org doesn't have Copilot enabled — skip
+                        logger.debug(
+                            "copilot_seats.org_not_enabled",
+                            org=org_login,
+                            status=resp.status_code,
+                        )
+                        break
                     if resp.status_code != 200:
                         logger.warning(
                             "copilot_seats.api_error",
-                            org=org_slug,
+                            org=org_login,
                             status=resp.status_code,
                         )
                         break
                     data = resp.json()
                     seats = data.get("seats", [])
                     for seat in seats:
-                        seat["_org_slug"] = org_slug
+                        seat["_org_slug"] = org_login
                     all_seats.extend(seats)
                     if len(seats) < 100:
                         break
@@ -519,19 +581,22 @@ async def _fetch_copilot_seats(db: AsyncSession) -> list[dict[str, Any]] | dict[
 
     except Exception as exc:
         logger.error("copilot_seats.fetch_failed", error=str(exc), exc_info=True)
-        await valkey.aclose()
+        if valkey:
+            await valkey.aclose()
         return {
             "error": "copilot_not_available",
             "message": "Failed to fetch Copilot seat data from GitHub API.",
         }
 
-    # Cache the result
+    # ── Cache the result ──────────────────────────────────────────────────────
     try:
-        await valkey.set(cache_key, json.dumps(all_seats), ex=_CACHE_TTL_SECONDS)
+        if valkey:
+            await valkey.set(cache_key, json.dumps(all_seats), ex=_CACHE_TTL_SECONDS)
     except Exception:
         logger.warning("copilot_seats.cache_write_failed", exc_info=True)
     finally:
-        await valkey.aclose()
+        if valkey:
+            await valkey.aclose()
 
     return all_seats
 
