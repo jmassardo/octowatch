@@ -258,23 +258,26 @@ async def _persist_daily_metrics(
     if not rows:
         return 0
 
-    # Batch upsert (PostgreSQL ON CONFLICT)
+    # Batch upsert in chunks to stay under PostgreSQL's 32767 parameter limit
+    batch_size = 2000
     try:
-        stmt = pg_insert(CopilotDailyMetric).values(rows)
-        stmt = stmt.on_conflict_do_update(
-            constraint="uq_copilot_daily_metrics_composite",
-            set_={
-                "active_users": stmt.excluded.active_users,
-                "engaged_users": stmt.excluded.engaged_users,
-                "total_suggestions": stmt.excluded.total_suggestions,
-                "total_acceptances": stmt.excluded.total_acceptances,
-                "total_lines_suggested": stmt.excluded.total_lines_suggested,
-                "total_lines_accepted": stmt.excluded.total_lines_accepted,
-                "acceptance_rate": stmt.excluded.acceptance_rate,
-                "synced_at": datetime.now(UTC),
-            },
-        )
-        await db.execute(stmt)
+        for i in range(0, len(rows), batch_size):
+            chunk = rows[i : i + batch_size]
+            stmt = pg_insert(CopilotDailyMetric).values(chunk)
+            stmt = stmt.on_conflict_do_update(
+                constraint="uq_copilot_daily_metrics_composite",
+                set_={
+                    "active_users": stmt.excluded.active_users,
+                    "engaged_users": stmt.excluded.engaged_users,
+                    "total_suggestions": stmt.excluded.total_suggestions,
+                    "total_acceptances": stmt.excluded.total_acceptances,
+                    "total_lines_suggested": stmt.excluded.total_lines_suggested,
+                    "total_lines_accepted": stmt.excluded.total_lines_accepted,
+                    "acceptance_rate": stmt.excluded.acceptance_rate,
+                    "synced_at": datetime.now(UTC),
+                },
+            )
+            await db.execute(stmt)
     except Exception:
         logger.error("copilot_sync.daily_metrics_upsert_failed", exc_info=True)
 
@@ -526,23 +529,27 @@ async def _persist_usage_reports(
     if not rows:
         return 0
 
+    # Batch upsert in chunks to stay under PostgreSQL's 32767 parameter limit
+    batch_size = 2000
     try:
-        stmt = pg_insert(CopilotUsageReport).values(rows)
-        stmt = stmt.on_conflict_do_update(
-            constraint="uq_copilot_usage_composite",
-            set_={
-                "total_credits_consumed": stmt.excluded.total_credits_consumed,
-                "completions_credits": stmt.excluded.completions_credits,
-                "chat_credits": stmt.excluded.chat_credits,
-                "pr_credits": stmt.excluded.pr_credits,
-                "other_credits": stmt.excluded.other_credits,
-                "budget_amount": stmt.excluded.budget_amount,
-                "budget_consumed": stmt.excluded.budget_consumed,
-                "is_blocked": stmt.excluded.is_blocked,
-                "synced_at": stmt.excluded.synced_at,
-            },
-        )
-        await db.execute(stmt)
+        for i in range(0, len(rows), batch_size):
+            chunk = rows[i : i + batch_size]
+            stmt = pg_insert(CopilotUsageReport).values(chunk)
+            stmt = stmt.on_conflict_do_update(
+                constraint="uq_copilot_usage_composite",
+                set_={
+                    "total_credits_consumed": stmt.excluded.total_credits_consumed,
+                    "completions_credits": stmt.excluded.completions_credits,
+                    "chat_credits": stmt.excluded.chat_credits,
+                    "pr_credits": stmt.excluded.pr_credits,
+                    "other_credits": stmt.excluded.other_credits,
+                    "budget_amount": stmt.excluded.budget_amount,
+                    "budget_consumed": stmt.excluded.budget_consumed,
+                    "is_blocked": stmt.excluded.is_blocked,
+                    "synced_at": stmt.excluded.synced_at,
+                },
+            )
+            await db.execute(stmt)
     except Exception:
         logger.error("copilot_sync.usage_reports_upsert_failed", exc_info=True)
 
