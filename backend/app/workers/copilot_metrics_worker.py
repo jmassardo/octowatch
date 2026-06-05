@@ -139,6 +139,13 @@ async def _persist_daily_metrics(
             if not date_str:
                 continue
 
+            # Convert date string to date object for PostgreSQL
+            try:
+                parts = date_str.split("-")
+                report_date = date(int(parts[0]), int(parts[1]), int(parts[2]))
+            except (ValueError, IndexError):
+                continue
+
             active_users = day_obj.get("daily_active_users", 0) or day_obj.get(
                 "total_active_users", 0
             )
@@ -159,7 +166,7 @@ async def _persist_daily_metrics(
             # Summary row
             rows.append(
                 {
-                    "date": date_str,
+                    "date": report_date,
                     "org_slug": org_slug,
                     "metric_type": "summary",
                     "language": None,
@@ -183,7 +190,7 @@ async def _persist_daily_metrics(
                 ide_rate = round(acc / sugg * 100, 2) if sugg > 0 else None
                 rows.append(
                     {
-                        "date": date_str,
+                        "date": report_date,
                         "org_slug": org_slug,
                         "metric_type": "completions",
                         "language": None,
@@ -215,7 +222,7 @@ async def _persist_daily_metrics(
                 feat_rate = round(feat_acc / feat_sugg * 100, 2) if feat_sugg > 0 else None
                 rows.append(
                     {
-                        "date": date_str,
+                        "date": report_date,
                         "org_slug": org_slug,
                         "metric_type": metric_type,
                         "language": None,
@@ -239,7 +246,7 @@ async def _persist_daily_metrics(
                 lf_rate = round(lf_acc / lf_sugg * 100, 2) if lf_sugg > 0 else None
                 rows.append(
                     {
-                        "date": date_str,
+                        "date": report_date,
                         "org_slug": org_slug,
                         "metric_type": "completions",
                         "language": lang_name,
@@ -303,7 +310,13 @@ async def _persist_seat_snapshots(
             continue
 
         org_slug = seat.get("_org_slug", "")
-        last_activity = seat.get("last_activity_at")
+        last_activity_str = seat.get("last_activity_at")
+        last_activity = None
+        if last_activity_str:
+            try:
+                last_activity = datetime.fromisoformat(last_activity_str.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                pass
         last_editor = seat.get("last_activity_editor")
         plan_type = seat.get("plan_type", "business")
         pending_cancel = seat.get("pending_cancellation_date")
