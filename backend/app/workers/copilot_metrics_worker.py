@@ -114,103 +114,144 @@ async def _persist_daily_metrics(
     db: Any,
     days: list[dict[str, Any]],
 ) -> int:
-    """Upsert daily metric rows from raw API data.
+    """Upsert daily metric rows from raw NDJSON report data.
 
-    Extracts per-language, per-editor, per-model breakdowns and stores
-    each combination as a row in ``copilot_daily_metrics``.
+    The new org-level 28-day NDJSON reports have a single record per org
+    containing a ``day_totals`` array.  Each entry has per-IDE, per-feature,
+    and per-language breakdowns.
     """
     from sqlalchemy.dialects.postgresql import insert as pg_insert
 
     from app.models.copilot_metrics import CopilotDailyMetric
 
     rows: list[dict[str, Any]] = []
-    enterprise_slug = ""
 
-    try:
-        from app.config import settings as app_settings
+    for report in days:
+        org_slug = report.get("_org_slug", "default")
+        day_totals = report.get("day_totals", [])
 
-        enterprise_slug = app_settings.github_app.GITHUB_ENTERPRISE_SLUG or "default"
-    except Exception:
-        enterprise_slug = "default"
+        # If the record itself is a flat day (legacy format fallback)
+        if not day_totals and report.get("date"):
+            day_totals = [report]
 
-    for day_obj in days:
-        date_str = day_obj.get("date", "")
-        if not date_str:
-            continue
+        for day_obj in day_totals:
+            date_str = day_obj.get("day", "") or day_obj.get("date", "")
+            if not date_str:
+                continue
 
-        # Summary row
-        rows.append(
-            {
-                "date": date_str,
-                "org_slug": enterprise_slug,
-                "metric_type": "summary",
-                "language": None,
-                "editor": None,
-                "model": None,
-                "active_users": day_obj.get("total_active_users", 0),
-                "engaged_users": day_obj.get("total_engaged_users", 0),
-                "total_suggestions": 0,
-                "total_acceptances": 0,
-                "total_lines_suggested": 0,
-                "total_lines_accepted": 0,
-                "acceptance_rate": None,
-            }
-        )
+            active_users = day_obj.get("daily_active_users", 0) or day_obj.get(
+                "total_active_users", 0
+            )
+            # monthly_active_users as engaged proxy
+            engaged_users = day_obj.get("monthly_active_users", 0) or day_obj.get(
+                "total_engaged_users", 0
+            )
 
-        # Completions breakdown
-        completions = day_obj.get("copilot_ide_code_completions") or {}
-        for editor_obj in completions.get("editors", []):
-            editor_name = editor_obj.get("name", "Unknown")
-            for model_obj in editor_obj.get("models", []):
-                model_name = model_obj.get("name", "Unknown")
-                for lang_obj in model_obj.get("languages", []):
-                    lang_name = lang_obj.get("name", "Unknown")
-                    sugg = lang_obj.get("total_code_suggestions", 0)
-                    acc = lang_obj.get("total_code_acceptances", 0)
-                    rate = round(acc / sugg * 100, 2) if sugg > 0 else None
+            # Aggregate suggestions/acceptances from totals_by_feature
+            total_suggestions = day_obj.get("code_generation_activity_count", 0)
+            total_acceptances = day_obj.get("code_acceptance_activity_count", 0)
+            rate = (
+                round(total_acceptances / total_suggestions * 100, 2)
+                if total_suggestions > 0
+                else None
+            )
 
-                    rows.append(
-                        {
-                            "date": date_str,
-                            "org_slug": enterprise_slug,
-                            "metric_type": "completions",
-                            "language": lang_name,
-                            "editor": editor_name,
-                            "model": model_name,
-                            "active_users": 0,
-                            "engaged_users": model_obj.get("total_engaged_users", 0),
-                            "total_suggestions": sugg,
-                            "total_acceptances": acc,
-                            "total_lines_suggested": lang_obj.get("total_code_lines_suggested", 0),
-                            "total_lines_accepted": lang_obj.get("total_code_lines_accepted", 0),
-                            "acceptance_rate": rate,
-                        }
-                    )
+            # Summary row
+            rows.append(
+                {
+                    "date": date_str,
+                    "org_slug": org_slug,
+                    "metric_type": "summary",
+                    "language": None,
+                    "editor": None,
+                    "model": None,
+                    "active_users": active_users,
+                    "engaged_users": engaged_users,
+                    "total_suggestions": total_suggestions,
+                    "total_acceptances": total_acceptances,
+                    "total_lines_suggested": day_obj.get("loc_suggested_to_add_sum", 0),
+                    "total_lines_accepted": day_obj.get("loc_added_sum", 0),
+                    "acceptance_rate": rate,
+                }
+            )
 
-        # Chat / PR / Dotcom rows
-        for feature_key, metric_type in (
-            ("copilot_ide_chat", "chat"),
-            ("copilot_dotcom_chat", "dotcom_chat"),
-            ("copilot_dotcom_pull_requests", "pr"),
-        ):
-            feature = day_obj.get(feature_key) or {}
-            engaged = feature.get("total_engaged_users", 0)
-            if engaged > 0:
+            # Per-IDE breakdown
+            for ide_obj in day_obj.get("totals_by_ide", []):
+                ide_name = ide_obj.get("ide", "Unknown")
+                sugg = ide_obj.get("code_generation_activity_count", 0)
+                acc = ide_obj.get("code_acceptance_activity_count", 0)
+                ide_rate = round(acc / sugg * 100, 2) if sugg > 0 else None
                 rows.append(
                     {
                         "date": date_str,
-                        "org_slug": enterprise_slug,
+                        "org_slug": org_slug,
+                        "metric_type": "completions",
+                        "language": None,
+                        "editor": ide_name,
+                        "model": None,
+                        "active_users": 0,
+                        "engaged_users": 0,
+                        "total_suggestions": sugg,
+                        "total_acceptances": acc,
+                        "total_lines_suggested": ide_obj.get("loc_suggested_to_add_sum", 0),
+                        "total_lines_accepted": ide_obj.get("loc_added_sum", 0),
+                        "acceptance_rate": ide_rate,
+                    }
+                )
+
+            # Per-feature breakdown (chat, code_completion, copilot_cli, etc.)
+            for feat_obj in day_obj.get("totals_by_feature", []):
+                feature_name = feat_obj.get("feature", "Unknown")
+                metric_type_map = {
+                    "code_completion": "completions",
+                    "copilot_chat": "chat",
+                    "copilot_cli": "chat",
+                    "dotcom_chat": "dotcom_chat",
+                    "copilot_pull_request": "pr",
+                }
+                metric_type = metric_type_map.get(feature_name, feature_name)
+                feat_sugg = feat_obj.get("code_generation_activity_count", 0)
+                feat_acc = feat_obj.get("code_acceptance_activity_count", 0)
+                feat_rate = round(feat_acc / feat_sugg * 100, 2) if feat_sugg > 0 else None
+                rows.append(
+                    {
+                        "date": date_str,
+                        "org_slug": org_slug,
                         "metric_type": metric_type,
                         "language": None,
                         "editor": None,
                         "model": None,
                         "active_users": 0,
-                        "engaged_users": engaged,
-                        "total_suggestions": 0,
-                        "total_acceptances": 0,
-                        "total_lines_suggested": 0,
-                        "total_lines_accepted": 0,
-                        "acceptance_rate": None,
+                        "engaged_users": feat_obj.get("user_initiated_interaction_count", 0),
+                        "total_suggestions": feat_sugg,
+                        "total_acceptances": feat_acc,
+                        "total_lines_suggested": feat_obj.get("loc_suggested_to_add_sum", 0),
+                        "total_lines_accepted": feat_obj.get("loc_added_sum", 0),
+                        "acceptance_rate": feat_rate,
+                    }
+                )
+
+            # Per-language-feature breakdown
+            for lf_obj in day_obj.get("totals_by_language_feature", []):
+                lang_name = lf_obj.get("language", "Unknown")
+                lf_sugg = lf_obj.get("code_generation_activity_count", 0)
+                lf_acc = lf_obj.get("code_acceptance_activity_count", 0)
+                lf_rate = round(lf_acc / lf_sugg * 100, 2) if lf_sugg > 0 else None
+                rows.append(
+                    {
+                        "date": date_str,
+                        "org_slug": org_slug,
+                        "metric_type": "completions",
+                        "language": lang_name,
+                        "editor": None,
+                        "model": None,
+                        "active_users": 0,
+                        "engaged_users": 0,
+                        "total_suggestions": lf_sugg,
+                        "total_acceptances": lf_acc,
+                        "total_lines_suggested": lf_obj.get("loc_suggested_to_add_sum", 0),
+                        "total_lines_accepted": lf_obj.get("loc_added_sum", 0),
+                        "acceptance_rate": lf_rate,
                     }
                 )
 
@@ -395,7 +436,17 @@ async def _persist_usage_reports(
     db: Any,
     usage_records: list[dict[str, Any]],
 ) -> int:
-    """Upsert per-user usage data into copilot_usage_reports."""
+    """Upsert per-user usage data into copilot_usage_reports.
+
+    The users-28-day NDJSON report provides activity counts (interactions,
+    generations, acceptances) rather than credit data.  We map activity
+    counts into the credit fields for display purposes:
+    - total_credits_consumed = user_initiated_interaction_count
+    - completions_credits = code_generation_activity_count
+    - chat_credits = user_initiated_interaction_count - code_generation_activity_count
+    - pr_credits = 0 (not broken out in this report)
+    - other_credits = code_acceptance_activity_count
+    """
     from sqlalchemy.dialects.postgresql import insert as pg_insert
 
     from app.models.copilot_usage import CopilotUsageReport
@@ -403,23 +454,21 @@ async def _persist_usage_reports(
     today = date.today()
     rows: list[dict[str, Any]] = []
 
-    try:
-        from app.config import settings as app_settings
-
-        default_org = app_settings.github_app.GITHUB_ENTERPRISE_SLUG or "default"
-    except Exception:
-        default_org = "default"
-
     for record in usage_records:
-        login = record.get("login") or record.get("github_login") or record.get("user", "")
+        # New NDJSON format uses user_login
+        login = (
+            record.get("user_login")
+            or record.get("login")
+            or record.get("github_login")
+            or record.get("user", "")
+        )
         if not login:
-            # Try nested assignee format
             assignee = record.get("assignee") or {}
             login = assignee.get("login", "")
         if not login:
             continue
 
-        report_date_str = record.get("date") or record.get("day")
+        report_date_str = record.get("day") or record.get("date")
         if report_date_str:
             try:
                 from datetime import date as date_type
@@ -431,23 +480,28 @@ async def _persist_usage_reports(
         else:
             report_date = today
 
-        org_slug = record.get("_org_slug") or record.get("org", default_org)
+        org_slug = record.get("_org_slug") or record.get("org", "default")
 
-        # Extract credit breakdown
-        breakdown = record.get("breakdown") or {}
-        total_credits = float(record.get("total_credits_consumed", 0) or breakdown.get("total", 0))
-        completions_credits = float(
-            record.get("completions_credits", 0) or breakdown.get("completions", 0)
-        )
-        chat_credits = float(record.get("chat_credits", 0) or breakdown.get("chat", 0))
-        pr_credits = float(record.get("pr_credits", 0) or breakdown.get("pull_requests", 0))
-        other_credits = float(record.get("other_credits", 0) or breakdown.get("other", 0))
+        # Map activity counts to credit fields
+        interactions = float(record.get("user_initiated_interaction_count", 0))
+        generations = float(record.get("code_generation_activity_count", 0))
+        acceptances = float(record.get("code_acceptance_activity_count", 0))
 
-        # If total is 0 but breakdown has values, sum them
-        if total_credits == 0 and (completions_credits or chat_credits or pr_credits):
-            total_credits = completions_credits + chat_credits + pr_credits + other_credits
+        # If record has actual credit data (future API), use that
+        if record.get("total_credits_consumed"):
+            total_credits = float(record["total_credits_consumed"])
+            completions_credits = float(record.get("completions_credits", 0))
+            chat_credits = float(record.get("chat_credits", 0))
+            pr_credits = float(record.get("pr_credits", 0))
+            other_credits = float(record.get("other_credits", 0))
+        else:
+            # Map activity data into credit fields for display
+            total_credits = interactions
+            completions_credits = generations
+            chat_credits = max(0, interactions - generations)
+            pr_credits = 0.0
+            other_credits = acceptances
 
-        # Budget data if present
         budget_amount = record.get("budget_amount")
         budget_consumed = record.get("budget_consumed")
         is_blocked = bool(record.get("is_blocked", False))
