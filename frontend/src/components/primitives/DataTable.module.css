@@ -137,3 +137,36 @@
     background: var(--canvas-subtle);
   }
 }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.pageBtn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.pageBtn:hover:not(:disabled) {
+  background: var(--bg-tertiary, var(--border));
+}
+
+.pageBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pageInfo {
+  color: var(--fg-muted);
+}

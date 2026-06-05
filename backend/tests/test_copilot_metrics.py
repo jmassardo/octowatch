@@ -190,13 +190,38 @@ class TestCopilotRouterAuth:
 # ── Service tests: overview ───────────────────────────────────────────────────
 
 
+def _mock_db_empty_results() -> AsyncMock:
+    """Return an AsyncMock db session whose execute() always returns empty results."""
+    db = AsyncMock(spec=AsyncSession)
+    mock_result = MagicMock()
+    mock_result.all.return_value = []
+    mock_result.scalar_one_or_none.return_value = None
+    db.execute = AsyncMock(return_value=mock_result)
+    return db
+
+
+def _patch_store(data: Any):  # noqa: ANN201
+    """Shorthand: patch _check_feature_enabled=None + _read_metrics_from_store=data."""
+    import contextlib
+
+    @contextlib.contextmanager
+    def _ctx():
+        with (
+            patch.object(copilot_metrics_service, "_check_feature_enabled", return_value=None),
+            patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=data),
+        ):
+            yield
+
+    return _ctx()
+
+
 class TestCopilotOverview:
     @pytest.mark.asyncio
     async def test_returns_error_when_fetch_fails(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         with patch.object(
             copilot_metrics_service,
-            "_read_metrics_from_store",
+            "_check_feature_enabled",
             return_value={"error": "no_enterprise_config", "message": "test"},
         ):
             result = await copilot_metrics_service.get_copilot_overview(db)
@@ -204,8 +229,8 @@ class TestCopilotOverview:
 
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_days(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=[]):
+        db = _mock_db_empty_results()
+        with _patch_store([]):
             result = await copilot_metrics_service.get_copilot_overview(db)
         assert result["acceptance_rate_days"] == []
         assert result["acceptance_rate_values"] == []
@@ -214,9 +239,9 @@ class TestCopilotOverview:
 
     @pytest.mark.asyncio
     async def test_computes_acceptance_rates(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+        with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
         assert len(result["acceptance_rate_values"]) == 7
         assert all(isinstance(v, float) for v in result["acceptance_rate_values"])
@@ -224,9 +249,9 @@ class TestCopilotOverview:
 
     @pytest.mark.asyncio
     async def test_returns_language_breakdown(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+        with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
         assert len(result["languages"]) > 0
         lang_names = {lang["lang"] for lang in result["languages"]}
@@ -235,35 +260,35 @@ class TestCopilotOverview:
 
     @pytest.mark.asyncio
     async def test_languages_sorted_by_pct_descending(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+        with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
         pcts = [lang["pct"] for lang in result["languages"]]
         assert pcts == sorted(pcts, reverse=True)
 
     @pytest.mark.asyncio
     async def test_returns_user_counts(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+        with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
         assert result["total_active_users"] > 0
         assert result["total_engaged_users"] > 0
 
     @pytest.mark.asyncio
     async def test_acceptance_threshold_present(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+        with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
         assert result["acceptance_threshold"] == 25
 
     @pytest.mark.asyncio
     async def test_handles_fewer_than_seven_days(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         sample = _make_sample_days(3)
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+        with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
         assert len(result["acceptance_rate_values"]) == 3
 
@@ -342,10 +367,10 @@ class TestCopilotAdoption:
 class TestCopilotModels:
     @pytest.mark.asyncio
     async def test_returns_error_when_fetch_fails(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         with patch.object(
             copilot_metrics_service,
-            "_read_metrics_from_store",
+            "_check_feature_enabled",
             return_value={"error": "copilot_not_available", "message": "test"},
         ):
             result = await copilot_metrics_service.get_copilot_models(db)
@@ -353,8 +378,8 @@ class TestCopilotModels:
 
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_days(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=[]):
+        db = _mock_db_empty_results()
+        with _patch_store([]):
             result = await copilot_metrics_service.get_copilot_models(db)
         assert result["models"] == []
         assert result["features"] == []
@@ -362,9 +387,9 @@ class TestCopilotModels:
 
     @pytest.mark.asyncio
     async def test_aggregates_model_usage(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+        with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_models(db)
         assert len(result["models"]) > 0
         model_names = {m["model"] for m in result["models"]}
@@ -373,18 +398,18 @@ class TestCopilotModels:
 
     @pytest.mark.asyncio
     async def test_model_pcts_sum_to_100(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+        with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_models(db)
         total_pct = sum(m["pct"] for m in result["models"])
         assert abs(total_pct - 100) < 1  # allow rounding tolerance
 
     @pytest.mark.asyncio
     async def test_aggregates_editors(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+        with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_models(db)
         assert len(result["editors"]) > 0
         editor_names = {e["name"] for e in result["editors"]}
@@ -392,18 +417,23 @@ class TestCopilotModels:
 
     @pytest.mark.asyncio
     async def test_features_include_all_categories(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+        with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_models(db)
         feature_names = {f["feature"] for f in result["features"]}
-        assert feature_names == {"IDE completions", "IDE chat", "Dotcom chat", "PR summaries"}
+        assert feature_names == {
+            "IDE completions",
+            "IDE chat",
+            "Dotcom chat",
+            "PR summaries",
+        }
 
     @pytest.mark.asyncio
     async def test_models_sorted_descending(self) -> None:
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         sample = _make_sample_days(7)
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+        with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_models(db)
         pcts = [m["pct"] for m in result["models"]]
         assert pcts == sorted(pcts, reverse=True)
@@ -688,9 +718,9 @@ class TestMissingFields:
     @pytest.mark.asyncio
     async def test_overview_handles_missing_completions(self) -> None:
         """Days with no copilot_ide_code_completions should not crash."""
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         sample = [{"date": "2025-01-01", "total_active_users": 5, "total_engaged_users": 3}]
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+        with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
         assert result["acceptance_rate_values"] == [0.0]
         assert result["languages"] == []
@@ -698,9 +728,9 @@ class TestMissingFields:
     @pytest.mark.asyncio
     async def test_models_handles_missing_editors(self) -> None:
         """Days with no editor data should produce empty model/editor lists."""
-        db = AsyncMock(spec=AsyncSession)
+        db = _mock_db_empty_results()
         sample = [{"date": "2025-01-01", "total_active_users": 5, "total_engaged_users": 3}]
-        with patch.object(copilot_metrics_service, "_read_metrics_from_store", return_value=sample):
+        with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_models(db)
         assert result["models"] == []
         assert result["editors"] == []

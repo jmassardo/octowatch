@@ -21,7 +21,7 @@ from typing import Any
 import httpx
 import redis.asyncio as aioredis
 import structlog
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -32,8 +32,11 @@ logger = structlog.get_logger(__name__)
 
 _GITHUB_API_BASE = "https://api.github.com"
 
-# GitHub REST API version — must be 2022-11-28 for Copilot metrics GA endpoint
+# GitHub REST API version — must be 2022-11-28 for Copilot billing/seats endpoints
 _API_VERSION = "2022-11-28"
+
+# Metrics NDJSON reports use a newer API version
+_METRICS_API_VERSION = "2026-03-10"
 
 # Valkey cache key patterns
 _CACHE_KEY = "copilot:metrics:{enterprise_slug}"
@@ -402,7 +405,7 @@ async def _fetch_metrics_raw(db: AsyncSession) -> list[dict[str, Any]] | dict[st
                 headers = {
                     "Authorization": f"Bearer {token}",
                     "Accept": "application/json",
-                    "X-GitHub-Api-Version": _API_VERSION,
+                    "X-GitHub-Api-Version": _METRICS_API_VERSION,
                 }
 
                 report_url = (
@@ -700,14 +703,14 @@ async def _read_metrics_from_store(db: AsyncSession) -> list[dict[str, Any]] | d
 async def _reconstruct_metrics_from_db(
     db: AsyncSession, enterprise_slug: str
 ) -> list[dict[str, Any]]:
-    """Reconstruct the raw API response shape from ``CopilotDailyMetric`` rows."""
+    """Reconstruct the raw API response shape from ``CopilotDailyMetric`` rows.
+
+    Queries all orgs (not filtered by enterprise_slug which doesn't match
+    the stored org_slug values).
+    """
     from app.models.copilot_metrics import CopilotDailyMetric
 
-    result = await db.execute(
-        select(CopilotDailyMetric)
-        .where(CopilotDailyMetric.org_slug == enterprise_slug)
-        .order_by(CopilotDailyMetric.date)
-    )
+    result = await db.execute(select(CopilotDailyMetric).order_by(CopilotDailyMetric.date))
     rows = list(result.scalars().all())
     if not rows:
         return []
@@ -859,13 +862,39 @@ async def _reconstruct_seats_from_db(db: AsyncSession) -> list[dict[str, Any]]:
 
 
 async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
-    """Data for the Overview pane: acceptance rates, language breakdown, user counts."""
-    raw = await _read_metrics_from_store(db)
-    if isinstance(raw, dict) and "error" in raw:
-        return raw
+    """Data for the Overview pane: acceptance rates, language breakdown, user counts.
 
-    days: list[dict[str, Any]] = raw  # type: ignore[assignment]
-    if not days:
+    Queries copilot_daily_metrics directly for reliable aggregates regardless
+    of cache format.
+    """
+    from app.models.copilot_metrics import CopilotDailyMetric
+
+    err = await _check_feature_enabled(db)
+    if err is not None:
+        return err
+
+    # Query summary rows for acceptance rate (last 7 days)
+    summary_result = await db.execute(
+        select(
+            CopilotDailyMetric.date,
+            CopilotDailyMetric.active_users,
+            CopilotDailyMetric.engaged_users,
+            CopilotDailyMetric.total_suggestions,
+            CopilotDailyMetric.total_acceptances,
+        )
+        .where(CopilotDailyMetric.metric_type == "summary")
+        .order_by(CopilotDailyMetric.date.desc())
+        .limit(28)
+    )
+    summary_rows = list(summary_result.all())
+
+    if not summary_rows:
+        # Fall back to cache/API path for fresh installations
+        raw = await _read_metrics_from_store(db)
+        if isinstance(raw, dict) and "error" in raw:
+            return raw
+        if isinstance(raw, list) and raw:
+            return _build_overview_from_raw(raw)
         return {
             "acceptance_rate_days": [],
             "acceptance_rate_values": [],
@@ -875,46 +904,135 @@ async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
             "total_engaged_users": 0,
         }
 
-    # ── Acceptance rates for last 7 days ──────────────────────────────────────
-    recent = days[-7:] if len(days) >= 7 else days
+    # Reverse to chronological order and take last 7
+    summary_rows.reverse()
+    recent = summary_rows[-7:] if len(summary_rows) >= 7 else summary_rows
+
     rate_labels: list[str] = []
     rate_values: list[float] = []
+    for row in recent:
+        rate_labels.append(_DAY_LABELS[row.date.weekday()])
+        pct = (
+            (row.total_acceptances / row.total_suggestions * 100) if row.total_suggestions else 0.0
+        )
+        rate_values.append(round(pct, 1))
 
+    # Language breakdown from DB (all available days)
+    lang_result = await db.execute(
+        select(
+            CopilotDailyMetric.language,
+            text("SUM(total_suggestions) AS total_sugg"),
+            text("SUM(total_acceptances) AS total_acc"),
+        )
+        .where(
+            CopilotDailyMetric.metric_type == "completions",
+            CopilotDailyMetric.language.isnot(None),
+            CopilotDailyMetric.model.is_(None),
+        )
+        .group_by(CopilotDailyMetric.language)
+        .order_by(text("total_sugg DESC"))
+        .limit(10)
+    )
+    lang_rows = list(lang_result.all())
+    grand_total = sum(row.total_sugg for row in lang_rows) or 1
+    lang_items: list[dict[str, Any]] = [
+        {
+            "lang": row.language,
+            "pct": round(row.total_sugg / grand_total * 100, 1),
+            "color": _lang_color(row.language),
+        }
+        for row in lang_rows
+    ]
+
+    # Latest user counts
+    latest = summary_rows[-1] if summary_rows else None
+    total_active = latest.active_users if latest else 0
+    total_engaged = latest.engaged_users if latest else 0
+
+    return {
+        "acceptance_rate_days": rate_labels,
+        "acceptance_rate_values": rate_values,
+        "acceptance_threshold": 25,
+        "languages": lang_items,
+        "total_active_users": total_active,
+        "total_engaged_users": total_engaged,
+    }
+
+
+def _build_overview_from_raw(days: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build overview payload from raw NDJSON records (cache fallback).
+
+    Handles both old nested format and new day_totals format.
+    """
+    # Flatten day_totals if present (new NDJSON format)
+    flat_days: list[dict[str, Any]] = []
+    for record in days:
+        day_totals = record.get("day_totals", [])
+        if day_totals:
+            flat_days.extend(day_totals)
+        elif record.get("date") or record.get("day"):
+            flat_days.append(record)
+
+    if not flat_days:
+        return {
+            "acceptance_rate_days": [],
+            "acceptance_rate_values": [],
+            "acceptance_threshold": 25,
+            "languages": [],
+            "total_active_users": 0,
+            "total_engaged_users": 0,
+        }
+
+    # Sort by date
+    flat_days.sort(key=lambda d: d.get("day", "") or d.get("date", ""))
+    recent = flat_days[-7:] if len(flat_days) >= 7 else flat_days
+
+    rate_labels: list[str] = []
+    rate_values: list[float] = []
     for day_obj in recent:
-        date_str = day_obj.get("date", "")
+        date_str = day_obj.get("day", "") or day_obj.get("date", "")
         try:
             dt = datetime.fromisoformat(date_str)
             rate_labels.append(_DAY_LABELS[dt.weekday()])
         except (ValueError, TypeError):
             rate_labels.append("?")
 
-        completions = day_obj.get("copilot_ide_code_completions") or {}
-        total_suggestions = 0
-        total_acceptances = 0
-        for editor in completions.get("editors", []):
-            for model in editor.get("models", []):
-                for lang in model.get("languages", []):
-                    total_suggestions += lang.get("total_code_suggestions", 0)
-                    total_acceptances += lang.get("total_code_acceptances", 0)
+        # New format: top-level counts
+        total_suggestions = day_obj.get("code_generation_activity_count", 0)
+        total_acceptances = day_obj.get("code_acceptance_activity_count", 0)
+
+        # Old format fallback
+        if not total_suggestions:
+            completions = day_obj.get("copilot_ide_code_completions") or {}
+            for editor in completions.get("editors", []):
+                for model in editor.get("models", []):
+                    for lang in model.get("languages", []):
+                        total_suggestions += lang.get("total_code_suggestions", 0)
+                        total_acceptances += lang.get("total_code_acceptances", 0)
 
         pct = (total_acceptances / total_suggestions * 100) if total_suggestions else 0.0
         rate_values.append(round(pct, 1))
 
-    # ── Language breakdown (all days) ─────────────────────────────────────────
+    # Language breakdown
     lang_suggestions: dict[str, int] = {}
-    lang_acceptances: dict[str, int] = {}
-    for day_obj in days:
-        completions = day_obj.get("copilot_ide_code_completions") or {}
-        for editor in completions.get("editors", []):
-            for model in editor.get("models", []):
-                for lang in model.get("languages", []):
-                    name = lang.get("name", "Unknown")
-                    lang_suggestions[name] = lang_suggestions.get(name, 0) + lang.get(
-                        "total_code_suggestions", 0
-                    )
-                    lang_acceptances[name] = lang_acceptances.get(name, 0) + lang.get(
-                        "total_code_acceptances", 0
-                    )
+    for day_obj in flat_days:
+        # New format: totals_by_language_feature
+        for lf in day_obj.get("totals_by_language_feature", []):
+            name = lf.get("language", "Unknown")
+            lang_suggestions[name] = lang_suggestions.get(name, 0) + lf.get(
+                "code_generation_activity_count", 0
+            )
+
+        # Old format fallback
+        if not lang_suggestions:
+            completions = day_obj.get("copilot_ide_code_completions") or {}
+            for editor in completions.get("editors", []):
+                for model in editor.get("models", []):
+                    for lang_obj in model.get("languages", []):
+                        name = lang_obj.get("name", "Unknown")
+                        lang_suggestions[name] = lang_suggestions.get(name, 0) + lang_obj.get(
+                            "total_code_suggestions", 0
+                        )
 
     total_sugg = sum(lang_suggestions.values()) or 1
     lang_items: list[dict[str, Any]] = [
@@ -927,16 +1045,16 @@ async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
     ]
     lang_items.sort(key=lambda x: float(str(x["pct"])), reverse=True)
 
-    # ── Active / engaged user counts ──────────────────────────────────────────
-    latest = days[-1] if days else {}
-    total_active = latest.get("total_active_users", 0)
-    total_engaged = latest.get("total_engaged_users", 0)
+    # Active/engaged users
+    latest = flat_days[-1] if flat_days else {}
+    total_active = latest.get("daily_active_users", 0) or latest.get("total_active_users", 0)
+    total_engaged = latest.get("monthly_active_users", 0) or latest.get("total_engaged_users", 0)
 
     return {
         "acceptance_rate_days": rate_labels,
         "acceptance_rate_values": rate_values,
         "acceptance_threshold": 25,
-        "languages": lang_items[:10],  # top 10
+        "languages": lang_items[:10],
         "total_active_users": total_active,
         "total_engaged_users": total_engaged,
     }
@@ -1241,75 +1359,216 @@ def _count_features(seat: dict[str, Any]) -> int:
 
 
 async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
-    """Data for the Models pane: model usage, feature counts, editors."""
-    raw = await _read_metrics_from_store(db)
-    if isinstance(raw, dict) and "error" in raw:
-        return raw
+    """Data for the Models pane: model usage, feature counts, editors.
 
-    days: list[dict[str, Any]] = raw  # type: ignore[assignment]
-    if not days:
+    Queries copilot_daily_metrics directly for reliable aggregates.
+    """
+    from app.models.copilot_metrics import CopilotDailyMetric
+
+    err = await _check_feature_enabled(db)
+    if err is not None:
+        return err
+
+    # ── Model usage from language_model rows ──────────────────────────────────
+    model_result = await db.execute(
+        select(
+            CopilotDailyMetric.model,
+            text("SUM(total_suggestions) AS total_sugg"),
+            text("SUM(engaged_users) AS total_engaged"),
+        )
+        .where(
+            CopilotDailyMetric.model.isnot(None),
+        )
+        .group_by(CopilotDailyMetric.model)
+        .order_by(text("total_engaged DESC"))
+        .limit(10)
+    )
+    model_rows = list(model_result.all())
+    total_model = sum(row.total_engaged for row in model_rows) or 1
+    models_list: list[dict[str, Any]] = [
+        {
+            "model": row.model,
+            "pct": round(row.total_engaged / total_model * 100, 1),
+            "color": _MODEL_COLORS[i % len(_MODEL_COLORS)],
+        }
+        for i, row in enumerate(model_rows)
+    ]
+
+    # ── Editor breakdown ──────────────────────────────────────────────────────
+    editor_result = await db.execute(
+        select(
+            CopilotDailyMetric.editor,
+            text("SUM(total_suggestions) AS total_sugg"),
+            text("SUM(total_acceptances) AS total_acc"),
+        )
+        .where(
+            CopilotDailyMetric.metric_type == "completions",
+            CopilotDailyMetric.editor.isnot(None),
+        )
+        .group_by(CopilotDailyMetric.editor)
+        .order_by(text("total_sugg DESC"))
+        .limit(10)
+    )
+    editor_rows = list(editor_result.all())
+    total_editor = sum(row.total_sugg for row in editor_rows) or 1
+    editors_list: list[dict[str, Any]] = [
+        {
+            "name": row.editor,
+            "count": row.total_sugg,
+            "pct": round(row.total_sugg / total_editor * 100, 1),
+        }
+        for row in editor_rows
+    ]
+
+    # ── Feature usage counts ──────────────────────────────────────────────────
+    feature_type_map = {
+        "completions": "IDE completions",
+        "chat": "IDE chat",
+        "dotcom_chat": "Dotcom chat",
+        "pr": "PR summaries",
+    }
+    feature_result = await db.execute(
+        select(
+            CopilotDailyMetric.metric_type,
+            text("SUM(engaged_users) AS total_engaged"),
+        )
+        .where(
+            CopilotDailyMetric.metric_type.in_(list(feature_type_map.keys())),
+            CopilotDailyMetric.language.is_(None),
+            CopilotDailyMetric.editor.is_(None),
+            CopilotDailyMetric.model.is_(None),
+        )
+        .group_by(CopilotDailyMetric.metric_type)
+    )
+    feature_rows = list(feature_result.all())
+    features_list: list[dict[str, Any]] = []
+    for i, row in enumerate(feature_rows):
+        label = feature_type_map.get(row.metric_type, row.metric_type)
+        features_list.append(
+            {
+                "feature": label,
+                "count": row.total_engaged,
+                "color": _FEATURE_COLORS[i % len(_FEATURE_COLORS)],
+            }
+        )
+    features_list.sort(key=lambda x: int(str(x["count"])), reverse=True)
+
+    # If DB has no data, fall back to cache
+    if not models_list and not editors_list and not features_list:
+        raw = await _read_metrics_from_store(db)
+        if isinstance(raw, list) and raw:
+            return _build_models_from_raw(raw)
+
+    return {"models": models_list, "features": features_list, "editors": editors_list}
+
+
+def _build_models_from_raw(days: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build models payload from raw NDJSON records (cache fallback).
+
+    Handles both old nested format and new day_totals format.
+    """
+    # Flatten day_totals if present
+    flat_days: list[dict[str, Any]] = []
+    for record in days:
+        day_totals = record.get("day_totals", [])
+        if day_totals:
+            flat_days.extend(day_totals)
+        elif record.get("date") or record.get("day"):
+            flat_days.append(record)
+
+    if not flat_days:
         return {"models": [], "features": [], "editors": []}
 
-    # ── Aggregate model usage ─────────────────────────────────────────────────
     model_counts: dict[str, int] = {}
     editor_counts: dict[str, int] = {}
+    feature_counts: dict[str, int] = {}
 
-    for day_obj in days:
-        for feature_key in ("copilot_ide_code_completions", "copilot_ide_chat"):
-            feature = day_obj.get(feature_key) or {}
-            for editor in feature.get("editors", []):
-                editor_name = editor.get("name", "Unknown")
-                editor_engaged = editor.get("total_engaged_users", 0)
-                editor_counts[editor_name] = editor_counts.get(editor_name, 0) + editor_engaged
+    for day_obj in flat_days:
+        # New format: totals_by_model_feature
+        for mf in day_obj.get("totals_by_model_feature", []):
+            model_name = mf.get("model", "Unknown")
+            interactions = mf.get("user_initiated_interaction_count", 0)
+            model_counts[model_name] = model_counts.get(model_name, 0) + interactions
 
-                for model in editor.get("models", []):
-                    model_name = model.get("name", "Unknown")
-                    model_engaged = model.get("total_engaged_users", 0)
-                    model_counts[model_name] = model_counts.get(model_name, 0) + model_engaged
+        # New format: totals_by_ide
+        for ide in day_obj.get("totals_by_ide", []):
+            ide_name = ide.get("ide", "Unknown")
+            sugg = ide.get("code_generation_activity_count", 0)
+            editor_counts[ide_name] = editor_counts.get(ide_name, 0) + sugg
 
+        # New format: totals_by_feature
+        for feat in day_obj.get("totals_by_feature", []):
+            feat_name = feat.get("feature", "Unknown")
+            interactions = feat.get("user_initiated_interaction_count", 0)
+            feature_counts[feat_name] = feature_counts.get(feat_name, 0) + interactions
+
+        # Old format fallback
+        if not model_counts and not editor_counts:
+            for feature_key in ("copilot_ide_code_completions", "copilot_ide_chat"):
+                feature = day_obj.get(feature_key) or {}
+                for editor in feature.get("editors", []):
+                    editor_name = editor.get("name", "Unknown")
+                    editor_engaged = editor.get("total_engaged_users", 0)
+                    editor_counts[editor_name] = editor_counts.get(editor_name, 0) + editor_engaged
+                    for model in editor.get("models", []):
+                        model_name = model.get("name", "Unknown")
+                        model_engaged = model.get("total_engaged_users", 0)
+                        model_counts[model_name] = model_counts.get(model_name, 0) + model_engaged
+
+        # Old format feature extraction
+        if not feature_counts:
+            old_feature_keys = [
+                ("copilot_ide_code_completions", "code_completion"),
+                ("copilot_ide_chat", "copilot_chat"),
+                ("copilot_dotcom_chat", "dotcom_chat"),
+                ("copilot_dotcom_pull_requests", "copilot_pull_request"),
+            ]
+            for key, feat_name in old_feature_keys:
+                section = day_obj.get(key) or {}
+                engaged = section.get("total_engaged_users", 0)
+                if engaged:
+                    feature_counts[feat_name] = feature_counts.get(feat_name, 0) + engaged
+
+    # Build response
     total_model = sum(model_counts.values()) or 1
-    models_list: list[dict[str, Any]] = [
+    models_list = [
         {
             "model": name,
             "pct": round(count / total_model * 100, 1),
             "color": _MODEL_COLORS[i % len(_MODEL_COLORS)],
         }
-        for i, (name, count) in enumerate(model_counts.items())
+        for i, (name, count) in enumerate(
+            sorted(model_counts.items(), key=lambda x: x[1], reverse=True)
+        )
     ]
-    models_list.sort(key=lambda x: float(str(x["pct"])), reverse=True)
 
-    # ── Editor breakdown ──────────────────────────────────────────────────────
     total_editor = sum(editor_counts.values()) or 1
-    editors_list: list[dict[str, Any]] = [
+    editors_list = [
         {
             "name": name,
             "count": count,
             "pct": round(count / total_editor * 100, 1),
         }
-        for name, count in editor_counts.items()
+        for name, count in sorted(editor_counts.items(), key=lambda x: x[1], reverse=True)
     ]
-    editors_list.sort(key=lambda x: int(str(x["count"])), reverse=True)
 
-    # ── Feature usage counts ──────────────────────────────────────────────────
-    feature_keys = [
-        ("copilot_ide_code_completions", "IDE completions"),
-        ("copilot_ide_chat", "IDE chat"),
-        ("copilot_dotcom_chat", "Dotcom chat"),
-        ("copilot_dotcom_pull_requests", "PR summaries"),
-    ]
-    features_list: list[dict[str, Any]] = []
-    for i, (key, label) in enumerate(feature_keys):
-        total_engaged = 0
-        for day_obj in days:
-            section = day_obj.get(key) or {}
-            total_engaged += section.get("total_engaged_users", 0)
-        features_list.append(
-            {
-                "feature": label,
-                "count": total_engaged,
-                "color": _FEATURE_COLORS[i % len(_FEATURE_COLORS)],
-            }
+    feature_label_map = {
+        "code_completion": "IDE completions",
+        "copilot_chat": "IDE chat",
+        "copilot_cli": "CLI",
+        "dotcom_chat": "Dotcom chat",
+        "copilot_pull_request": "PR summaries",
+    }
+    features_list = [
+        {
+            "feature": feature_label_map.get(name, name),
+            "count": count,
+            "color": _FEATURE_COLORS[i % len(_FEATURE_COLORS)],
+        }
+        for i, (name, count) in enumerate(
+            sorted(feature_counts.items(), key=lambda x: x[1], reverse=True)
         )
+    ]
 
     return {"models": models_list, "features": features_list, "editors": editors_list}
 

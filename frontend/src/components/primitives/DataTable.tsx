@@ -22,6 +22,7 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   emptyMessage?: React.ReactNode;
   className?: string;
+  pageSize?: number;
 }
 
 export function DataTable<T>({
@@ -31,6 +32,7 @@ export function DataTable<T>({
   onRowClick,
   emptyMessage = 'No data',
   className,
+  pageSize,
 }: DataTableProps<T>) {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDirection>(null);
@@ -125,6 +127,20 @@ export function DataTable<T>({
 
   const hasFilters = columns.some((c) => c.filterable);
 
+  // Pagination — reset page when filtered data changes
+  const [currentPage, setCurrentPage] = useState(0);
+  const [prevFilteredLen, setPrevFilteredLen] = useState(filteredData.length);
+  if (filteredData.length !== prevFilteredLen) {
+    setPrevFilteredLen(filteredData.length);
+    setCurrentPage(0);
+  }
+
+  const totalPages = pageSize ? Math.max(1, Math.ceil(sortedData.length / pageSize)) : 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages - 1);
+  const pagedData = pageSize
+    ? sortedData.slice(safeCurrentPage * pageSize, (safeCurrentPage + 1) * pageSize)
+    : sortedData;
+
   function focusRow(index: number) {
     const rows = tbodyRef.current?.querySelectorAll<HTMLElement>('tr[tabindex]');
     rows?.[index]?.focus();
@@ -141,7 +157,7 @@ export function DataTable<T>({
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        const nextIndex = Math.min(index + 1, sortedData.length - 1);
+        const nextIndex = Math.min(index + 1, pagedData.length - 1);
         setActiveRowIndex(nextIndex);
         focusRow(nextIndex);
         return;
@@ -155,7 +171,7 @@ export function DataTable<T>({
         return;
       }
     },
-    [onRowClick, sortedData.length],
+    [onRowClick, pagedData.length],
   );
 
   return (
@@ -233,14 +249,14 @@ export function DataTable<T>({
           )}
         </thead>
         <tbody ref={tbodyRef}>
-          {sortedData.length === 0 ? (
+          {pagedData.length === 0 ? (
             <tr>
               <td colSpan={columns.length} className={styles.empty}>
                 {emptyMessage}
               </td>
             </tr>
           ) : (
-            sortedData.map((row, index) => (
+            pagedData.map((row, index) => (
               <tr
                 key={rowKey(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
@@ -258,6 +274,29 @@ export function DataTable<T>({
           )}
         </tbody>
       </table>
+      {pageSize && totalPages > 1 && (
+        <div className={styles.pagination}>
+          <button
+            className={styles.pageBtn}
+            disabled={safeCurrentPage === 0}
+            onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+            aria-label="Previous page"
+          >
+            ← Prev
+          </button>
+          <span className={styles.pageInfo}>
+            Page {safeCurrentPage + 1} of {totalPages} ({sortedData.length} rows)
+          </span>
+          <button
+            className={styles.pageBtn}
+            disabled={safeCurrentPage >= totalPages - 1}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
+            aria-label="Next page"
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
