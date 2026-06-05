@@ -6,6 +6,7 @@ from app.models.audit_trail import AuditTrail
 from app.models.auth_method import AuthMethodConfig, SessionPolicySetting
 from app.models.copilot_metrics import CopilotDailyMetric, CopilotSeatSnapshot
 from app.models.copilot_policy import CopilotPolicy, CopilotPolicyViolation
+from app.models.copilot_usage import CopilotUsageReport
 from app.models.correlation import ChainMembership, CorrelationChain
 from app.models.custom_report import CustomReport
 from app.models.dashboard_config import UserDashboardConfig
@@ -83,6 +84,7 @@ __all__ = [
     "CopilotPolicy",
     "CopilotPolicyViolation",
     "CopilotSeatSnapshot",
+    "CopilotUsageReport",
     "CorrelationChain",
     "CustomReport",
     "DeliveryTimeline",

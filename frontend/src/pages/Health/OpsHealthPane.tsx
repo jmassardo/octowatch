@@ -92,13 +92,13 @@ function WorkflowHealthTable({ workflows }: { workflows: WorkflowRow[] }) {
         'Percentage of recent workflow runs that failed. Derived from workflow_run audit events. Investigate workflows with rates above 20%.',
     },
     {
-      key: 'last_run',
+      key: 'last_run_at',
       header: 'Last run',
       sortable: true,
       render: (wf) => (
-        <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.last_run)}</span>
+        <span style={{ color: 'var(--fg-muted)' }}>{formatDateOnly(wf.last_run_at)}</span>
       ),
-      sortValue: (wf) => wf.last_run,
+      sortValue: (wf) => wf.last_run_at,
       helpText:
         'Date of the most recent workflow run. Stale workflows may indicate disabled or broken CI pipelines.',
     },

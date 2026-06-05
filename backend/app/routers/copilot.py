@@ -158,3 +158,51 @@ async def copilot_adoption_thresholds(
         "regular": 10,
         "minimal": 1,
     }
+
+
+@router.get("/billing-overview", response_model=dict[str, Any])
+async def copilot_billing_overview(
+    current_user: AuthenticatedUser = Depends(require_permission("copilot", "view")),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Pool info, enterprise budget, spend forecast, pool drawdown."""
+    try:
+        return await copilot_metrics_service.get_copilot_billing_overview(db)
+    except Exception:
+        logger.exception("copilot.billing_overview_failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        ) from None
+
+
+@router.get("/user-budgets", response_model=dict[str, Any])
+async def copilot_user_budgets(
+    current_user: AuthenticatedUser = Depends(require_permission("copilot", "view")),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Per-user budget list with consumed/budget/status/utilization %."""
+    try:
+        return await copilot_metrics_service.get_copilot_user_budgets(db)
+    except Exception:
+        logger.exception("copilot.user_budgets_failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        ) from None
+
+
+@router.get("/billing-trends", response_model=dict[str, Any])
+async def copilot_billing_trends(
+    current_user: AuthenticatedUser = Depends(require_permission("copilot", "view")),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Daily credit consumption trends over last 30 days."""
+    try:
+        return await copilot_metrics_service.get_copilot_billing_trends(db)
+    except Exception:
+        logger.exception("copilot.billing_trends_failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        ) from None

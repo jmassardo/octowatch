@@ -94,17 +94,19 @@ export function HealthPage() {
     );
   }
 
+  const evaluatedWafFindings = (wafData?.findings ?? []).filter(
+    (f) => f.evaluated && (f.severity === 'critical' || f.severity === 'warning'),
+  ).length;
+
   const totalFindings = summary
     ? summary.stale_repos +
       summary.pat_no_expiry +
       summary.pat_stale +
       summary.bypass_offenders +
-      summary.ext_collab_elevated
-    : 0;
-
-  const evaluatedWafFindings = (wafData?.findings ?? []).filter(
-    (f) => f.evaluated && (f.severity === 'critical' || f.severity === 'warning'),
-  ).length;
+      summary.ext_collab_elevated +
+      summary.ext_collab_total +
+      evaluatedWafFindings
+    : evaluatedWafFindings;
 
   const score = scoreData?.score ?? 100;
   const grade = scoreData?.grade ?? 'A';
@@ -170,7 +172,7 @@ export function HealthPage() {
       <HealthTabBar
         activeTab={activeTab}
         onTabChange={(newTab) => navigate(`/health/${TAB_TO_SLUG[newTab]}`)}
-        findingsCount={totalFindings > 0 ? totalFindings : evaluatedWafFindings}
+        findingsCount={totalFindings}
       />
 
       {activeTab === 'repo-health' && <RepoHealthPane />}

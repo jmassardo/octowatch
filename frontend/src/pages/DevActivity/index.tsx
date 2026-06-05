@@ -17,6 +17,8 @@ import type { ColumnDef } from '../../components/primitives/DataTable';
 import { Drawer } from '../../components/primitives/Drawer';
 import { Autocomplete } from '../../components/primitives/Autocomplete';
 import { MiniBarChart } from '../../components/charts/MiniBarChart';
+import { BarChart } from '../../components/charts/BarChart';
+import { LineAreaChart } from '../../components/charts/LineAreaChart';
 import { formatRelativeShort } from '../../utils/dates';
 import styles from './DevActivity.module.css';
 interface ActorStats {
@@ -196,6 +198,162 @@ export function DevActivityPage() {
     })
     .sort((a, b) => b.eventCount - a.eventCount)
     .slice(0, 12);
+
+  // ── Widget data: Work Breakdown ────────────────────────────────────────
+  const workBreakdown = useMemo(() => {
+    const actors = [...actorMap.values()];
+    const totalPRs = actors.reduce((s, a) => s + a.prCount, 0);
+    const totalReviews = actors.reduce((s, a) => s + a.reviewCount, 0);
+    const totalEvents = actors.reduce((s, a) => s + a.eventCount, 0);
+    const pushOther = Math.max(0, totalEvents - totalPRs - totalReviews);
+    return [totalPRs, totalReviews, pushOther];
+  }, [actorMap]);
+
+  // ── Widget data: Contribution Trends (weekly) ──────────────────────────
+  const { weekLabels, weeklyPrTotals, weeklyReviewTotals, weeklyActiveDevs } = useMemo(() => {
+    const actors = [...actorMap.values()];
+    const weekCount = actors.length > 0 ? actors[0].weeklyCounts.length : 0;
+    const labels: string[] = [];
+    for (let i = 0; i < weekCount; i++) {
+      labels.push(`W${i + 1}`);
+    }
+
+    const prTotals = new Array<number>(weekCount).fill(0);
+    const reviewTotals = new Array<number>(weekCount).fill(0);
+    const activeDevs = new Array<number>(weekCount).fill(0);
+
+    for (const actor of actors) {
+      const totalActivity = actor.prCount + actor.reviewCount;
+      const prRatio = totalActivity > 0 ? actor.prCount / totalActivity : 0.5;
+      const reviewRatio = totalActivity > 0 ? actor.reviewCount / totalActivity : 0;
+
+      for (let w = 0; w < weekCount; w++) {
+        const weekVal = actor.weeklyCounts[w] ?? 0;
+        prTotals[w] += Math.round(weekVal * prRatio);
+        reviewTotals[w] += Math.round(weekVal * reviewRatio);
+        if (weekVal > 0) {
+          activeDevs[w] += 1;
+        }
+      }
+    }
+
+    return {
+      weekLabels: labels,
+      weeklyPrTotals: prTotals,
+      weeklyReviewTotals: reviewTotals,
+      weeklyActiveDevs: activeDevs,
+    };
+  }, [actorMap]);
+
+  // ── Widget data: Activity Distribution ─────────────────────────────────
+  const activityBuckets = useMemo(() => {
+    let active = 0;
+    let moderate = 0;
+    let inactive = 0;
+
+    for (const actor of actorMap.values()) {
+      if (!actor.lastActive) {
+        inactive += 1;
+        continue;
+      }
+      const mostRecentWeek = actor.weeklyCounts;
+      const recentActivity = mostRecentWeek[mostRecentWeek.length - 1] ?? 0;
+      const hasRecentActivity = recentActivity > 0;
+      const hasAnyActivity = mostRecentWeek.some((w) => w > 0);
+
+      if (hasRecentActivity) {
+        active += 1;
+      } else if (hasAnyActivity) {
+        moderate += 1;
+      } else {
+        inactive += 1;
+      }
+    }
+    return { active, moderate, inactive };
+  }, [actorMap]);
+
+  // ── Widget data: Top Contributors Table Columns ────────────────────────
+  const contributorColumns: ColumnDef<ActorStats>[] = useMemo(
+    () => [
+      {
+        key: 'rank',
+        header: '#',
+        helpText: 'Rank by total event count',
+        width: '40px',
+        sortable: true,
+        sortValue: (row: ActorStats) => row.eventCount,
+        render: (row: ActorStats) => {
+          const idx = topActors.findIndex((a) => a.handle === row.handle);
+          return <>{idx >= 0 ? idx + 1 : '—'}</>;
+        },
+      },
+      {
+        key: 'handle',
+        header: 'Developer',
+        helpText: 'GitHub login of the contributor',
+        filterable: true,
+        filterValue: (row: ActorStats) => row.handle,
+        render: (row: ActorStats) => (
+          <div className={styles.tableDevCell}>
+            <Avatar username={row.handle} size={24} />
+            <span className={styles.mention}>@{row.handle}</span>
+            {(actorDetections.get(row.handle) ?? 0) > 0 && (
+              <Label variant="danger" className={styles.flagLabel}>
+                flagged
+              </Label>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'prCount',
+        header: 'PRs',
+        helpText: 'Pull requests authored in the lookback period',
+        sortable: true,
+        sortValue: (row: ActorStats) => row.prCount,
+        render: (row: ActorStats) => <>{row.prCount}</>,
+      },
+      {
+        key: 'reviewCount',
+        header: 'Reviews',
+        helpText: 'Code reviews performed in the lookback period',
+        sortable: true,
+        sortValue: (row: ActorStats) => row.reviewCount,
+        render: (row: ActorStats) => <>{row.reviewCount}</>,
+      },
+      {
+        key: 'repoCount',
+        header: 'Repos',
+        helpText: 'Number of distinct repositories touched',
+        sortable: true,
+        sortValue: (row: ActorStats) => row.repoCount,
+        render: (row: ActorStats) => <>{row.repoCount}</>,
+      },
+      {
+        key: 'lastActive',
+        header: 'Last Active',
+        helpText: 'When this developer was last seen in audit logs',
+        sortable: true,
+        sortValue: (row: ActorStats) => (row.lastActive ? new Date(row.lastActive).getTime() : 0),
+        render: (row: ActorStats) => (
+          <>{row.lastActive ? formatRelativeShort(row.lastActive) : '—'}</>
+        ),
+      },
+      {
+        key: 'trend',
+        header: 'Trend',
+        helpText: 'Weekly activity sparkline over the lookback period',
+        render: (row: ActorStats) => (
+          <MiniBarChart
+            data={row.weeklyCounts}
+            color={(actorDetections.get(row.handle) ?? 0) > 0 ? 'var(--danger)' : 'var(--success)'}
+            height={20}
+          />
+        ),
+      },
+    ],
+    [actorDetections, topActors],
+  );
 
   if (!features.dev_activity) {
     return (
@@ -436,119 +594,124 @@ export function DevActivityPage() {
         </Card>
       </div>
 
+      {/* ── Productivity Widgets ─────────────────────────────────────────── */}
+
+      <div className={styles.widgetRow}>
+        {/* Widget 1: Work Breakdown */}
+        <Card className={styles.widgetCard}>
+          <CardHeader>Work breakdown</CardHeader>
+          <BarChart
+            xAxisData={['PRs authored', 'Reviews', 'Push/Other']}
+            series={[
+              {
+                name: 'Activity',
+                data: workBreakdown,
+                color: 'var(--accent)',
+              },
+            ]}
+            height={140}
+          />
+        </Card>
+
+        {/* Widget 4: Activity Distribution */}
+        <Card className={styles.widgetCard}>
+          <CardHeader>Activity distribution</CardHeader>
+          <div className={styles.activityDistribution}>
+            <div className={styles.activityBucket}>
+              <div className={styles.activityBucketValue} style={{ color: 'var(--success)' }}>
+                {activityBuckets.active}
+              </div>
+              <div className={styles.activityBucketLabel}>Active (≤7d)</div>
+            </div>
+            <div className={styles.activityBucket}>
+              <div className={styles.activityBucketValue} style={{ color: 'var(--attention)' }}>
+                {activityBuckets.moderate}
+              </div>
+              <div className={styles.activityBucketLabel}>Moderate (7–30d)</div>
+            </div>
+            <div className={styles.activityBucket}>
+              <div className={styles.activityBucketValue} style={{ color: 'var(--fg-muted)' }}>
+                {activityBuckets.inactive}
+              </div>
+              <div className={styles.activityBucketLabel}>Inactive (&gt;30d)</div>
+            </div>
+          </div>
+          <div className={styles.activityBar}>
+            {activityBuckets.active > 0 && (
+              <div
+                className={styles.activityBarSegment}
+                style={{
+                  flex: activityBuckets.active,
+                  background: 'var(--success)',
+                }}
+                title={`${activityBuckets.active} active`}
+              />
+            )}
+            {activityBuckets.moderate > 0 && (
+              <div
+                className={styles.activityBarSegment}
+                style={{
+                  flex: activityBuckets.moderate,
+                  background: 'var(--attention)',
+                }}
+                title={`${activityBuckets.moderate} moderate`}
+              />
+            )}
+            {activityBuckets.inactive > 0 && (
+              <div
+                className={styles.activityBarSegment}
+                style={{
+                  flex: activityBuckets.inactive,
+                  background: 'var(--border)',
+                }}
+                title={`${activityBuckets.inactive} inactive`}
+              />
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Widget 2: Contribution Trends */}
+      <Card className={styles.trendsCard}>
+        <CardHeader>Contribution trends — weekly</CardHeader>
+        <LineAreaChart
+          xAxisData={weekLabels}
+          series={[
+            { name: 'PRs', data: weeklyPrTotals, color: 'var(--accent)', areaOpacity: 0.15 },
+            {
+              name: 'Reviews',
+              data: weeklyReviewTotals,
+              color: 'var(--success)',
+              areaOpacity: 0.1,
+            },
+            {
+              name: 'Active devs',
+              data: weeklyActiveDevs,
+              color: 'var(--attention)',
+              dashed: true,
+            },
+          ]}
+          height={180}
+        />
+      </Card>
+
+      {/* Widget 3: Top Contributors Table */}
       <div className={styles.sectionTitle} style={{ marginBottom: 16 }}>
-        Developer cards
+        Top contributors
       </div>
       {topActors.length === 0 && !loadingDevelopers && (
         <div style={{ color: 'var(--fg-muted)', padding: '16px 0' }}>
           No developer activity data found.
         </div>
       )}
-      <div className={styles.devGrid}>
-        {topActors.map((dev) => {
-          const detections = actorDetections.get(dev.handle) ?? 0;
-          const flagged = detections > 0;
-          return (
-            <div
-              key={dev.handle}
-              className={[styles.devCard, flagged && styles.flagged].filter(Boolean).join(' ')}
-              role="button"
-              tabIndex={0}
-              onClick={() => handleCardClick(dev)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleCardClick(dev);
-                }
-              }}
-              aria-label={`View details for ${dev.handle}`}
-            >
-              <div className={styles.devTop}>
-                <Avatar username={dev.handle} size={36} />
-                <div>
-                  <div className={styles.devName}>
-                    {dev.handle}
-                    {flagged && (
-                      <Label variant="danger" className={styles.flagLabel}>
-                        flagged
-                      </Label>
-                    )}
-                  </div>
-                  <div className={styles.devHandle}>
-                    <span className={styles.mention}>@{dev.handle}</span>
-                  </div>
-                </div>
-              </div>
-              <MiniBarChart
-                data={dev.weeklyCounts}
-                color={flagged ? 'var(--danger)' : 'var(--success)'}
-              />
-              <div className={styles.devStats}>
-                <span
-                  className={styles.clickableStat}
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/events?actor=${dev.handle}`);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      navigate(`/events?actor=${dev.handle}`);
-                    }
-                  }}
-                >
-                  <strong>{dev.repoCount}</strong> repos
-                </span>
-                <span
-                  className={styles.clickableStat}
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/events?actor=${dev.handle}`);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      navigate(`/events?actor=${dev.handle}`);
-                    }
-                  }}
-                >
-                  <strong>{dev.prCount}</strong> PRs
-                </span>
-                <span
-                  className={styles.clickableStat}
-                  role="button"
-                  tabIndex={0}
-                  style={{ color: flagged ? 'var(--danger)' : undefined }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/threats/open?actor=${dev.handle}`);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      navigate(`/threats/open?actor=${dev.handle}`);
-                    }
-                  }}
-                >
-                  <strong>{detections}</strong> {flagged ? 'detections' : 'flags'}
-                </span>
-              </div>
-              {dev.lastActive && (
-                <div className={styles.devLastActive}>
-                  Last active {formatRelativeShort(dev.lastActive)}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      <DataTable<ActorStats>
+        columns={contributorColumns}
+        data={topActors}
+        rowKey={(row) => row.handle}
+        onRowClick={handleCardClick}
+        emptyMessage="No developer activity data found."
+        className={styles.contributorsTable}
+      />
 
       <Drawer
         open={othersModalOpen}

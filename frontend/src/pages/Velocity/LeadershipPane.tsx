@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { getLeadershipSummary, getTeamComparison, getShippingCadence } from '../../api/velocity';
 import type { MetricWithTrend, TeamMetricsItem, CadenceDayItem } from '../../api/velocity';
 import { MetricCard } from '../../components/primitives/MetricCard';
@@ -257,6 +257,7 @@ export function LeadershipPane() {
     queryKey: ['velocity', 'leadership-summary', period],
     queryFn: () => getLeadershipSummary({ period }),
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
 
   const {
@@ -268,6 +269,7 @@ export function LeadershipPane() {
     queryKey: ['velocity', 'team-comparison', period, comparisonMetric],
     queryFn: () => getTeamComparison({ period, metric: comparisonMetric }),
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
 
   const {
@@ -279,6 +281,7 @@ export function LeadershipPane() {
     queryKey: ['velocity', 'shipping-cadence', period],
     queryFn: () => getShippingCadence({ period }),
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
 
   const metricCards = useMemo(() => buildMetricCards(summaryData ?? null), [summaryData]);
@@ -299,13 +302,6 @@ export function LeadershipPane() {
   );
 
   const isLoading = summaryLoading || teamLoading || cadenceLoading;
-  const isError = summaryError || teamError || cadenceError;
-
-  const handleRefetch = () => {
-    refetchSummary();
-    refetchTeams();
-    refetchCadence();
-  };
 
   return (
     <div>
@@ -340,77 +336,79 @@ export function LeadershipPane() {
         {isLoading && <Spinner size={14} />}
       </div>
 
-      {isError && (
-        <ErrorBanner message="Failed to load leadership metrics" onRetry={handleRefetch} />
+      {/* Executive Summary Strip */}
+      {summaryError ? (
+        <ErrorBanner message="Failed to load summary metrics" onRetry={() => refetchSummary()} />
+      ) : (
+        <div className={styles.metricStrip}>
+          {metricCards.map((m, i) => (
+            <MetricCard key={i} value={m.value} label={m.label} delta={m.delta} deltaDir={m.dir} />
+          ))}
+        </div>
       )}
 
-      {/* Executive Summary Strip */}
-      <div className={styles.metricStrip}>
-        {metricCards.map((m, i) => (
-          <MetricCard key={i} value={m.value} label={m.label} delta={m.delta} deltaDir={m.dir} />
-        ))}
-      </div>
-
       {/* DORA Metrics Over Time */}
-      <div className={styles.chartsGrid}>
-        <div className={styles.chartWrap}>
-          <div className={styles.chartTitle}>
-            Deployment Frequency &amp; Lead Time
-            <span className={styles.chartSub}> — {period}d</span>
+      {summaryError ? null : (
+        <div className={styles.chartsGrid}>
+          <div className={styles.chartWrap}>
+            <div className={styles.chartTitle}>
+              Deployment Frequency &amp; Lead Time
+              <span className={styles.chartSub}> — {period}d</span>
+            </div>
+            {doraChart.labels.length > 0 ? (
+              <LineAreaChart
+                xAxisData={doraChart.labels}
+                series={[
+                  {
+                    name: 'Deploy Freq (/day)',
+                    data: doraChart.deployFreq,
+                    color: 'var(--success)',
+                    areaOpacity: 0.1,
+                  },
+                  {
+                    name: 'Lead Time (h)',
+                    data: doraChart.leadTime,
+                    color: 'var(--accent)',
+                    dashed: true,
+                  },
+                ]}
+                height={200}
+              />
+            ) : (
+              <div className={styles.chartSkeleton} />
+            )}
           </div>
-          {doraChart.labels.length > 0 ? (
-            <LineAreaChart
-              xAxisData={doraChart.labels}
-              series={[
-                {
-                  name: 'Deploy Freq (/day)',
-                  data: doraChart.deployFreq,
-                  color: 'var(--success)',
-                  areaOpacity: 0.1,
-                },
-                {
-                  name: 'Lead Time (h)',
-                  data: doraChart.leadTime,
-                  color: 'var(--accent)',
-                  dashed: true,
-                },
-              ]}
-              height={200}
-            />
-          ) : (
-            <div className={styles.chartSkeleton} />
-          )}
-        </div>
 
-        <div className={styles.chartWrap}>
-          <div className={styles.chartTitle}>
-            Change Failure Rate &amp; MTTR
-            <span className={styles.chartSub}> — {period}d</span>
+          <div className={styles.chartWrap}>
+            <div className={styles.chartTitle}>
+              Change Failure Rate &amp; MTTR
+              <span className={styles.chartSub}> — {period}d</span>
+            </div>
+            {doraChart.labels.length > 0 ? (
+              <LineAreaChart
+                xAxisData={doraChart.labels}
+                series={[
+                  {
+                    name: 'CFR (%)',
+                    data: doraChart.cfr,
+                    color: 'var(--danger)',
+                    areaOpacity: 0.1,
+                  },
+                  {
+                    name: 'MTTR (h)',
+                    data: doraChart.mttrData,
+                    color: 'var(--attention)',
+                    dashed: true,
+                  },
+                ]}
+                height={200}
+              />
+            ) : (
+              <div className={styles.chartSkeleton} />
+            )}
           </div>
-          {doraChart.labels.length > 0 ? (
-            <LineAreaChart
-              xAxisData={doraChart.labels}
-              series={[
-                {
-                  name: 'CFR (%)',
-                  data: doraChart.cfr,
-                  color: 'var(--danger)',
-                  areaOpacity: 0.1,
-                },
-                {
-                  name: 'MTTR (h)',
-                  data: doraChart.mttrData,
-                  color: 'var(--attention)',
-                  dashed: true,
-                },
-              ]}
-              height={200}
-            />
-          ) : (
-            <div className={styles.chartSkeleton} />
-          )}
         </div>
-      </div>
+      )}
 
       {/* Team Comparison */}
       <div style={{ marginBottom: 20 }}>
@@ -452,7 +450,9 @@ export function LeadershipPane() {
           </div>
         </div>
         <div className={styles.chartWrap}>
-          {teamChart && teamChart.labels.length > 0 ? (
+          {teamError ? (
+            <ErrorBanner message="Failed to load team comparison" onRetry={() => refetchTeams()} />
+          ) : teamChart && teamChart.labels.length > 0 ? (
             <BarChart
               xAxisData={teamChart.labels}
               series={[
@@ -498,16 +498,7 @@ export function LeadershipPane() {
           ) : cadenceLoading ? (
             <div className={styles.chartSkeleton} />
           ) : cadenceError ? (
-            <div
-              style={{
-                padding: 20,
-                textAlign: 'center',
-                color: 'var(--fg-muted)',
-                fontSize: 13,
-              }}
-            >
-              Failed to load cadence data
-            </div>
+            <ErrorBanner message="Failed to load cadence data" onRetry={() => refetchCadence()} />
           ) : (
             <ContributionCalendar />
           )}
