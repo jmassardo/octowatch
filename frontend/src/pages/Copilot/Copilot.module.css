@@ -592,6 +592,12 @@
   outline-offset: 2px;
 }
 
+.tierCardActive {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb, 88, 166, 255), 0.15);
+}
+
 .stackedSegmentClickable {
   cursor: pointer;
   transition: opacity 0.15s ease;

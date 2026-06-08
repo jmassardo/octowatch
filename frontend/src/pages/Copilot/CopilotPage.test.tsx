@@ -173,7 +173,7 @@ describe('CopilotPage', () => {
     await user.click(screen.getByRole('tab', { name: /Adoption/ }));
     expect(await screen.findByText('Adoption tiers')).toBeInTheDocument();
     expect(await screen.findByText('Power Users')).toBeInTheDocument();
-    expect(screen.getByText('Daily power users')).toBeInTheDocument();
+    expect(screen.getByText('Copilot users')).toBeInTheDocument();
     expect(screen.queryByText(/Seat waste detected/)).not.toBeInTheDocument();
   });
 

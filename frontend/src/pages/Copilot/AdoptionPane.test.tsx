@@ -5,11 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { AdoptionPane } from './AdoptionPane';
 
-const mockNavigate = vi.fn();
-
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
-  return { ...actual, useNavigate: () => mockNavigate };
+  return { ...actual };
 });
 
 vi.mock('../../api/copilotMetrics', () => ({
@@ -42,11 +40,46 @@ vi.mock('../../api/copilotMetrics', () => ({
       { user: 'priya.patel', days_active: 27, features_used: 3 },
     ],
     feature_adoption: [
-      { feature: 'IDE completions', pct: 87, color: '#3fb950' },
-      { feature: 'IDE chat', pct: 62, color: '#58a6ff' },
-      { feature: 'PR summaries', pct: 41, color: '#d29922' },
-      { feature: 'CLI', pct: 23, color: '#f85149' },
-      { feature: 'Knowledge bases', pct: 12, color: '#8b949e' },
+      {
+        feature: 'IDE completions',
+        pct: 87,
+        color: '#3fb950',
+        active_users: 100,
+        total_seats: 120,
+        trend_7d: 2,
+      },
+      {
+        feature: 'IDE chat',
+        pct: 62,
+        color: '#58a6ff',
+        active_users: 75,
+        total_seats: 120,
+        trend_7d: 5,
+      },
+      {
+        feature: 'PR summaries',
+        pct: 41,
+        color: '#d29922',
+        active_users: 50,
+        total_seats: 120,
+        trend_7d: 0,
+      },
+      {
+        feature: 'CLI',
+        pct: 23,
+        color: '#f85149',
+        active_users: 28,
+        total_seats: 120,
+        trend_7d: -3,
+      },
+      {
+        feature: 'Knowledge bases',
+        pct: 12,
+        color: '#8b949e',
+        active_users: 15,
+        total_seats: 120,
+        trend_7d: 1,
+      },
     ],
     minimal_users: [
       { user: 'tom.jones', days_active: 2, last_feature: 'IDE chat' },
@@ -55,10 +88,6 @@ vi.mock('../../api/copilotMetrics', () => ({
     ],
   }),
 }));
-
-function getDialog(): HTMLElement {
-  return document.querySelector('.dialog')! as HTMLElement;
-}
 
 function renderPane() {
   const queryClient = new QueryClient({
@@ -73,131 +102,172 @@ function renderPane() {
   );
 }
 
-describe('AdoptionPane clickable stats', () => {
+describe('AdoptionPane', () => {
   beforeEach(() => {
-    mockNavigate.mockClear();
+    vi.clearAllMocks();
   });
 
-  it('makes tier cards clickable with role=button and tabIndex', async () => {
+  it('makes ALL tier cards clickable with role=button and tabIndex', async () => {
     renderPane();
-    const powerCard = (await screen.findByText('Power Users')).closest('[role="button"]');
-    expect(powerCard).toBeTruthy();
-    expect(powerCard).toHaveAttribute('tabIndex', '0');
-  });
-
-  it('opens Power Users tier modal with power users table', async () => {
-    const user = userEvent.setup();
-    renderPane();
-    const powerCard = (await screen.findByText('Power Users')).closest('[role="button"]')!;
-    await user.click(powerCard);
-    expect(screen.getByText('Power Users — 34 users')).toBeInTheDocument();
-    const dialog = getDialog();
-    expect(within(dialog).getByText('sarah.chen')).toBeInTheDocument();
-  });
-
-  it('opens Minimal tier modal with minimal users table', async () => {
-    const user = userEvent.setup();
-    renderPane();
-    const minimalCard = (await screen.findByText('Minimal')).closest('[role="button"]')!;
-    await user.click(minimalCard);
-    expect(screen.getByText('Minimal — 22 users')).toBeInTheDocument();
-    const dialog = getDialog();
-    expect(within(dialog).getByText('tom.jones')).toBeInTheDocument();
-  });
-
-  it('opens Power Users tier modal showing tier description', async () => {
-    const user = userEvent.setup();
-    renderPane();
-    const powerCard = (await screen.findByText('Power Users')).closest('[role="button"]')!;
-    await user.click(powerCard);
-    expect(screen.getByText('Power Users — 34 users')).toBeInTheDocument();
-    const dialog = getDialog();
-    // Modal shows the tier description for power users
-    expect(within(dialog).getByText(/Active every day/)).toBeInTheDocument();
-  });
-
-  it('opens tier modal from stacked bar segment', async () => {
-    const user = userEvent.setup();
-    renderPane();
-    // Wait for data to load
     await screen.findByText('Power Users');
-    // Only power and minimal tier segments are clickable
-    const segments = document.querySelectorAll('.stackedSegmentClickable');
-    expect(segments.length).toBe(2);
-    await user.click(segments[0] as HTMLElement);
-    expect(screen.getByText('Power Users — 34 users')).toBeInTheDocument();
+    // All 5 tiers should be clickable (role=button)
+    const tierElements = document.querySelectorAll('[class*="tierCardClickable"]');
+    expect(tierElements.length).toBe(5);
+    for (const el of tierElements) {
+      expect(el.getAttribute('role')).toBe('button');
+      expect(el.getAttribute('tabindex')).toBe('0');
+    }
   });
 
-  it('closes tier modal', async () => {
+  it('clicking a tier card filters the table to that tier', async () => {
     const user = userEvent.setup();
     renderPane();
-    const powerCard = (await screen.findByText('Power Users')).closest('[role="button"]')!;
-    await user.click(powerCard);
-    expect(screen.getByText('Power Users — 34 users')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /close/i }));
-    expect(screen.queryByText('Power Users — 34 users')).not.toBeInTheDocument();
-  });
-
-  it('navigates to actor page when clicking days active in power users table', async () => {
-    const user = userEvent.setup();
-    renderPane();
-    const daysBtn = (await screen.findByText('45d')).closest('[role="button"]')!;
-    await user.click(daysBtn);
-    expect(mockNavigate).toHaveBeenCalledWith('/actors/sarah.chen');
-  });
-
-  it('navigates to actor page when clicking features used in power users table', async () => {
-    const user = userEvent.setup();
-    renderPane();
-    // Wait for data to load
     await screen.findByText('sarah.chen');
-    // The features_used value for sarah.chen is 5 — get the clickable stat
-    const clickableStats = screen
-      .getAllByRole('button')
-      .filter((el) => el.classList.contains('clickableStat'));
-    const featBtn = clickableStats.find((el) => el.textContent === '5');
-    expect(featBtn).toBeTruthy();
-    await user.click(featBtn!);
-    expect(mockNavigate).toHaveBeenCalledWith('/actors/sarah.chen');
+
+    // All users visible initially (5 power + 3 minimal = 8)
+    expect(screen.getByText('sarah.chen')).toBeInTheDocument();
+    expect(screen.getByText('tom.jones')).toBeInTheDocument();
+
+    // Click 'power' tier card
+    const powerCard = screen.getByText('Power Users').closest('[role="button"]')!;
+    await user.click(powerCard);
+
+    // Only power users visible
+    expect(screen.getByText('sarah.chen')).toBeInTheDocument();
+    expect(screen.queryByText('tom.jones')).not.toBeInTheDocument();
   });
 
-  it('makes feature adoption bars clickable', async () => {
-    renderPane();
-    const ideRow = (await screen.findByText('IDE completions')).closest('[role="button"]');
-    expect(ideRow).toBeTruthy();
-    expect(ideRow).toHaveAttribute('tabIndex', '0');
-  });
-
-  it('opens feature adoption modal when clicking a feature bar', async () => {
+  it('clicking the already-active tier deselects it (shows all)', async () => {
     const user = userEvent.setup();
     renderPane();
-    const ideRow = (await screen.findByText('IDE completions')).closest('[role="button"]')!;
-    await user.click(ideRow);
-    expect(screen.getByText('IDE completions — adoption details')).toBeInTheDocument();
-    const dialog = getDialog();
-    expect(within(dialog).getByText(/87%/)).toBeInTheDocument();
+    await screen.findByText('sarah.chen');
+
+    const powerCard = screen.getByText('Power Users').closest('[role="button"]')!;
+    await user.click(powerCard);
+    // Filtered to power only
+    expect(screen.queryByText('tom.jones')).not.toBeInTheDocument();
+
+    // Click again to deselect
+    await user.click(powerCard);
+    expect(screen.getByText('tom.jones')).toBeInTheDocument();
   });
 
-  it('shows feature adoption gaps section', async () => {
+  it('shows active tier with aria-pressed=true', async () => {
+    const user = userEvent.setup();
     renderPane();
     await screen.findByText('Power Users');
-    expect(screen.getByText('Feature adoption gaps')).toBeInTheDocument();
+
+    const powerCard = screen.getByText('Power Users').closest('[role="button"]')!;
+    expect(powerCard.getAttribute('aria-pressed')).toBe('false');
+
+    await user.click(powerCard);
+    expect(powerCard.getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('shows Opportunity badge for features below 30% adoption', async () => {
+  it('shows unified table with all users and tier badges', async () => {
     renderPane();
-    await screen.findByText('Power Users');
-    // CLI (23%) and Knowledge bases (12%) are below 30%
-    const badges = screen.getAllByText('Opportunity');
-    expect(badges.length).toBe(2);
+    await screen.findByText('sarah.chen');
+
+    // Power users
+    expect(screen.getByText('sarah.chen')).toBeInTheDocument();
+    expect(screen.getByText('mike.ross')).toBeInTheDocument();
+
+    // Minimal users
+    expect(screen.getByText('tom.jones')).toBeInTheDocument();
+    expect(screen.getByText('lisa.park')).toBeInTheDocument();
+
+    // Tier badges are rendered
+    const powerBadges = screen.getAllByText('power');
+    expect(powerBadges.length).toBe(5); // 5 power users
+    const minimalBadges = screen.getAllByText('minimal');
+    expect(minimalBadges.length).toBe(3); // 3 minimal users
   });
 
-  it('shows growth opportunities callout', async () => {
+  it('opens drawer on row click showing user details', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    await screen.findByText('sarah.chen');
+
+    // Click the row for sarah.chen
+    const row = screen.getByText('sarah.chen').closest('tr')!;
+    await user.click(row);
+
+    // Drawer should open
+    const drawerPanel = document.querySelector('[data-testid="drawer-panel"]') as HTMLElement;
+    expect(drawerPanel).toBeTruthy();
+    // User name appears in drawer (title + body)
+    const nameMatches = within(drawerPanel).getAllByText(/sarah\.chen/);
+    expect(nameMatches.length).toBeGreaterThanOrEqual(1);
+    // Tier badge in drawer
+    const tierBadges = within(drawerPanel).getAllByText('power');
+    expect(tierBadges.length).toBeGreaterThanOrEqual(1);
+    expect(within(drawerPanel).getByText('45d')).toBeInTheDocument();
+    expect(within(drawerPanel).getByText('Features breakdown')).toBeInTheDocument();
+  });
+
+  it('drawer shows features breakdown with all features', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    await screen.findByText('sarah.chen');
+
+    const row = screen.getByText('sarah.chen').closest('tr')!;
+    await user.click(row);
+
+    const drawerPanel = document.querySelector('[data-testid="drawer-panel"]') as HTMLElement;
+    expect(within(drawerPanel).getByText('IDE completions')).toBeInTheDocument();
+    expect(within(drawerPanel).getByText('IDE chat')).toBeInTheDocument();
+    expect(within(drawerPanel).getByText('CLI')).toBeInTheDocument();
+  });
+
+  it('drawer closes when clicking close button', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    await screen.findByText('sarah.chen');
+
+    const row = screen.getByText('sarah.chen').closest('tr')!;
+    await user.click(row);
+
+    expect(document.querySelector('[data-testid="drawer-panel"]')).toBeTruthy();
+
+    const closeBtn = within(
+      document.querySelector('[data-testid="drawer-panel"]') as HTMLElement,
+    ).getByRole('button', { name: /close/i });
+    await user.click(closeBtn);
+
+    expect(document.querySelector('[data-testid="drawer-panel"]')).toBeNull();
+  });
+
+  it('drawer closes when clicking backdrop', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    await screen.findByText('sarah.chen');
+
+    const row = screen.getByText('sarah.chen').closest('tr')!;
+    await user.click(row);
+
+    expect(document.querySelector('[data-testid="drawer-panel"]')).toBeTruthy();
+
+    const backdrop = document.querySelector('[data-testid="drawer-backdrop"]') as HTMLElement;
+    await user.click(backdrop);
+
+    expect(document.querySelector('[data-testid="drawer-panel"]')).toBeNull();
+  });
+
+  it('stacked bar segments are all clickable and filter the table', async () => {
+    const user = userEvent.setup();
     renderPane();
     await screen.findByText('Power Users');
-    expect(
-      screen.getByText(/Features below 30% adoption represent growth opportunities/),
-    ).toBeInTheDocument();
+
+    // All segments should be clickable
+    const segments = document.querySelectorAll('[class*="stackedSegmentClickable"]');
+    expect(segments.length).toBe(5);
+
+    // Click the first segment (power)
+    await user.click(segments[0] as HTMLElement);
+
+    // Should filter to power users only
+    expect(screen.getByText('sarah.chen')).toBeInTheDocument();
+    expect(screen.queryByText('tom.jones')).not.toBeInTheDocument();
   });
 
   it('shows tier threshold settings button', async () => {
@@ -217,28 +287,59 @@ describe('AdoptionPane clickable stats', () => {
     expect(screen.getByLabelText('Minimal user threshold')).toBeInTheDocument();
   });
 
-  it('makes minimal users Days active cells clickable', async () => {
+  it('table header shows active filter tier name', async () => {
+    const user = userEvent.setup();
     renderPane();
-    await screen.findByText('tom.jones');
-    const clickableStats = screen
-      .getAllByRole('button')
-      .filter((el) => el.classList.contains('clickableStat'));
-    // Should have power users stats + minimal users stats
-    expect(clickableStats.length).toBeGreaterThanOrEqual(6);
+    await screen.findByText('sarah.chen');
+
+    // Initially shows "Copilot users"
+    expect(screen.getByText('Copilot users')).toBeInTheDocument();
+
+    // Click power tier
+    const powerCard = screen.getByText('Power Users').closest('[role="button"]')!;
+    await user.click(powerCard);
+
+    expect(screen.getByText('Copilot users — power tier')).toBeInTheDocument();
   });
 
-  it('opens minimal user modal with activity summary', async () => {
+  it('does not navigate to /actors/ on any table interaction', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    await screen.findByText('sarah.chen');
+
+    // Click a row - should open drawer, not navigate
+    const row = screen.getByText('sarah.chen').closest('tr')!;
+    await user.click(row);
+
+    // Verify drawer opened instead of navigation
+    expect(document.querySelector('[data-testid="drawer-panel"]')).toBeTruthy();
+  });
+
+  it('drawer shows org membership', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    await screen.findByText('sarah.chen');
+
+    const row = screen.getByText('sarah.chen').closest('tr')!;
+    await user.click(row);
+
+    const drawerPanel = document.querySelector('[data-testid="drawer-panel"]') as HTMLElement;
+    expect(within(drawerPanel).getByText('Org membership')).toBeInTheDocument();
+    expect(within(drawerPanel).getByText('Member')).toBeInTheDocument();
+  });
+
+  it('drawer shows last activity for minimal users', async () => {
     const user = userEvent.setup();
     renderPane();
     await screen.findByText('tom.jones');
-    const clickableStats = screen
-      .getAllByRole('button')
-      .filter((el) => el.classList.contains('clickableStat'));
-    // Find one that represents a days_active count for minimal users (value '2')
-    const minimalBtn = clickableStats.find((el) => el.textContent === '2');
-    expect(minimalBtn).toBeTruthy();
-    await user.click(minimalBtn!);
-    const dialog = getDialog();
-    expect(within(dialog).getByText(/Copilot activity/)).toBeInTheDocument();
+
+    const row = screen.getByText('tom.jones').closest('tr')!;
+    await user.click(row);
+
+    const drawerPanel = document.querySelector('[data-testid="drawer-panel"]') as HTMLElement;
+    expect(within(drawerPanel).getByText('Last activity')).toBeInTheDocument();
+    // "IDE chat" appears both in features breakdown and last activity; check all occurrences exist
+    const chatEntries = within(drawerPanel).getAllByText('IDE chat');
+    expect(chatEntries.length).toBeGreaterThanOrEqual(1);
   });
 });

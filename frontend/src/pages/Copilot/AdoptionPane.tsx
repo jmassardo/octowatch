@@ -1,33 +1,29 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Button } from '../../components/primitives/Button';
 import { DataTable } from '../../components/primitives/DataTable';
 import type { ColumnDef } from '../../components/primitives/DataTable';
 import { Modal } from '../../components/primitives/Modal';
+import { Drawer } from '../../components/primitives/Drawer';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { getCopilotAdoption } from '../../api/copilotMetrics';
 import styles from './Copilot.module.css';
 
-type AdoptionModal = 'tier' | 'feature' | 'minimal-user' | 'settings' | null;
+type AdoptionModal = 'settings' | null;
 
-interface PowerUser {
+interface UnifiedUser {
   user: string;
+  tier: string;
+  tier_color: string;
   days_active: number;
   features_used: number;
-}
-
-interface MinimalUser {
-  user: string;
-  days_active: number;
   last_feature: string;
 }
 
 export function AdoptionPane() {
-  const navigate = useNavigate();
   const {
     data: adoption,
     isLoading,
@@ -45,9 +41,8 @@ export function AdoptionPane() {
   const minimalUsers = adoption?.minimal_users ?? [];
 
   const [adoptionModal, setAdoptionModal] = useState<AdoptionModal>(null);
-  const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
-  const [selectedFeature, setSelectedFeature] = useState<string | null>(null);
-  const [selectedMinimalUser, setSelectedMinimalUser] = useState<string | null>(null);
+  const [activeTier, setActiveTier] = useState<string | null>(null);
+  const [drawerUser, setDrawerUser] = useState<UnifiedUser | null>(null);
 
   // Tier threshold settings (display-only for now, defaults from API)
   const [thresholds, setThresholds] = useState({
@@ -56,26 +51,59 @@ export function AdoptionPane() {
     minimal: 1,
   });
 
-  function openTierModal(tierId: string) {
-    setSelectedTierId(tierId);
-    setAdoptionModal('tier');
+  function handleTierClick(tierId: string) {
+    setActiveTier((prev) => (prev === tierId ? null : tierId));
   }
 
-  function openFeatureModal(feature: string) {
-    setSelectedFeature(feature);
-    setAdoptionModal('feature');
-  }
+  /** Build a unified user list from power_users and minimal_users */
+  const allUsers: UnifiedUser[] = useMemo(() => {
+    const tierColorMap: Record<string, string> = {};
+    for (const t of tiers) {
+      tierColorMap[t.id] = t.color;
+    }
 
-  function openMinimalUserModal(user: string) {
-    setSelectedMinimalUser(user);
-    setAdoptionModal('minimal-user');
-  }
+    const powerSet = new Set(powerUsers.map((u) => u.user));
+    const minimalSet = new Set(minimalUsers.map((u) => u.user));
 
-  const selectedTier = tiers.find((t) => t.id === selectedTierId);
-  const selectedFeatureData = featureAdoption.find((f) => f.feature === selectedFeature);
-  const selectedMinimalUserData = minimalUsers.find((u) => u.user === selectedMinimalUser);
+    const users: UnifiedUser[] = [];
 
-  const powerUserColumns: ColumnDef<PowerUser>[] = [
+    for (const u of powerUsers) {
+      users.push({
+        user: u.user,
+        tier: 'power',
+        tier_color: tierColorMap['power'] ?? '#3fb950',
+        days_active: u.days_active,
+        features_used: u.features_used,
+        last_feature: '',
+      });
+    }
+
+    for (const u of minimalUsers) {
+      if (!powerSet.has(u.user)) {
+        users.push({
+          user: u.user,
+          tier: 'minimal',
+          tier_color: tierColorMap['minimal'] ?? '#d29922',
+          days_active: u.days_active,
+          features_used: 1,
+          last_feature: u.last_feature,
+        });
+      }
+    }
+
+    // Any user not in power or minimal is regular (none in current API data, but handles future)
+    // We only have power_users and minimal_users from the API, so this covers all known users
+    void minimalSet;
+
+    return users;
+  }, [powerUsers, minimalUsers, tiers]);
+
+  const filteredUsers = useMemo(() => {
+    if (!activeTier) return allUsers;
+    return allUsers.filter((u) => u.tier === activeTier);
+  }, [allUsers, activeTier]);
+
+  const unifiedColumns: ColumnDef<UnifiedUser>[] = [
     {
       key: 'user',
       header: 'User',
@@ -85,132 +113,27 @@ export function AdoptionPane() {
       filterValue: (u) => u.user,
     },
     {
-      key: 'days_active',
-      header: 'Days active',
-      sortable: true,
-      helpText:
-        'Number of days with recorded Copilot activity in the period. From daily usage sync. Power users typically have 20+ active days per month.',
-      render: (u) => (
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-          <span
-            className={styles.clickableStat}
-            style={{ cursor: 'pointer', textDecoration: 'underline', color: 'var(--accent)' }}
-            role="button"
-            tabIndex={0}
-            onClick={() => navigate(`/actors/${encodeURIComponent(u.user)}`)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                navigate(`/actors/${encodeURIComponent(u.user)}`);
-              }
-            }}
-          >
-            {u.days_active}d
-          </span>
-        </span>
-      ),
-      sortValue: (u) => u.days_active,
-    },
-    {
-      key: 'features_used',
-      header: 'Features used',
-      sortable: true,
-      helpText:
-        'Number of distinct Copilot features used (e.g. completions, chat, CLI). From daily usage sync. More features used indicates deeper adoption.',
-      render: (u) => (
-        <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--success)' }}>
-          <span
-            className={styles.clickableStat}
-            style={{ cursor: 'pointer', textDecoration: 'underline' }}
-            role="button"
-            tabIndex={0}
-            onClick={() => navigate(`/actors/${encodeURIComponent(u.user)}`)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                navigate(`/actors/${encodeURIComponent(u.user)}`);
-              }
-            }}
-          >
-            {u.features_used}
-          </span>
-        </span>
-      ),
-      sortValue: (u) => u.features_used,
-    },
-  ];
-
-  const minimalUserColumns: ColumnDef<MinimalUser>[] = [
-    {
-      key: 'user',
-      header: 'User',
-      filterable: true,
-      helpText: 'GitHub username of the Copilot user. From daily Copilot usage API sync.',
-      render: (u) => <span style={{ fontWeight: 500 }}>{u.user}</span>,
-      filterValue: (u) => u.user,
-    },
-    {
-      key: 'days_active',
-      header: 'Days active',
-      sortable: true,
-      helpText:
-        'Number of days with recorded Copilot activity in the period. From daily usage sync. Users with 0 days may be candidates for seat reclamation.',
-      render: (u) => (
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-          <span
-            className={styles.clickableStat}
-            role="button"
-            tabIndex={0}
-            onClick={() => openMinimalUserModal(u.user)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                openMinimalUserModal(u.user);
-              }
-            }}
-          >
-            {u.days_active}
-          </span>
-        </span>
-      ),
-      sortValue: (u) => u.days_active,
-    },
-    {
-      key: 'last_feature',
-      header: 'Last feature',
+      key: 'tier',
+      header: 'Tier',
       filterable: true,
       helpText:
-        'The most recent Copilot feature used by this user. From daily usage sync. Indicates which feature the user is most familiar with.',
-      render: (u) => <span style={{ color: 'var(--fg-muted)' }}>{u.last_feature}</span>,
-      filterValue: (u) => u.last_feature,
-    },
-    {
-      key: 'action',
-      header: 'Action',
+        'Adoption tier classification based on days-active thresholds. Power: heavy daily use, Regular: moderate use, Minimal: infrequent use.',
       render: (u) => (
-        <Button
-          size="sm"
-          onClick={() => {
-            window.open(
-              `mailto:?subject=${encodeURIComponent(`Copilot Onboarding Request for ${u.user}`)}`,
-              '_blank',
-            );
+        <span
+          style={{
+            display: 'inline-block',
+            padding: '2px 8px',
+            borderRadius: 12,
+            fontSize: 11,
+            fontWeight: 600,
+            background: u.tier_color,
+            color: '#fff',
           }}
         >
-          Request Onboarding
-        </Button>
+          {u.tier}
+        </span>
       ),
-    },
-  ];
-
-  const modalPowerUserColumns: ColumnDef<PowerUser>[] = [
-    {
-      key: 'user',
-      header: 'User',
-      filterable: true,
-      helpText: 'GitHub username of the Copilot user. From daily Copilot usage API sync.',
-      render: (u) => <span style={{ fontWeight: 500 }}>{u.user}</span>,
-      filterValue: (u) => u.user,
+      filterValue: (u) => u.tier,
     },
     {
       key: 'days_active',
@@ -234,53 +157,11 @@ export function AdoptionPane() {
       ),
       sortValue: (u) => u.features_used,
     },
-  ];
-
-  const modalMinimalUserColumns: ColumnDef<MinimalUser>[] = [
-    {
-      key: 'user',
-      header: 'User',
-      filterable: true,
-      helpText: 'GitHub username of the Copilot user. From daily Copilot usage API sync.',
-      render: (u) => <span style={{ fontWeight: 500 }}>{u.user}</span>,
-      filterValue: (u) => u.user,
-    },
-    {
-      key: 'days_active',
-      header: 'Days active',
-      sortable: true,
-      helpText:
-        'Number of days with recorded Copilot activity in the period. From daily usage sync. Users with 0 days may be candidates for seat reclamation.',
-      render: (u) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{u.days_active}</span>,
-      sortValue: (u) => u.days_active,
-    },
     {
       key: 'last_feature',
-      header: 'Last feature',
-      filterable: true,
+      header: 'Last activity',
       helpText: 'The most recent Copilot feature used by this user. From daily usage sync.',
-      render: (u) => <span style={{ color: 'var(--fg-muted)' }}>{u.last_feature}</span>,
-      filterValue: (u) => u.last_feature,
-    },
-  ];
-
-  const minimalUserDetailColumns: ColumnDef<{ metric: string; value: string }>[] = [
-    {
-      key: 'metric',
-      header: 'Metric',
-      helpText: 'The name of the activity metric for this user. From daily Copilot usage API sync.',
-      render: (r) => <span style={{ color: 'var(--fg-muted)' }}>{r.metric}</span>,
-    },
-    {
-      key: 'value',
-      header: 'Value',
-      helpText: 'The value of this metric. From daily Copilot usage API sync data.',
-      render: (r) => {
-        if (r.metric === 'User') return <span style={{ fontWeight: 500 }}>{r.value}</span>;
-        if (r.metric === 'Days active')
-          return <span style={{ fontVariantNumeric: 'tabular-nums' }}>{r.value}</span>;
-        return <span>{r.value}</span>;
-      },
+      render: (u) => <span style={{ color: 'var(--fg-muted)' }}>{u.last_feature || '—'}</span>,
     },
   ];
 
@@ -316,67 +197,55 @@ export function AdoptionPane() {
             </Button>
           </div>
           <div className={styles.tierGrid}>
-            {tiers.map((tier) => {
-              const isClickable = tier.id === 'power' || tier.id === 'minimal';
-              return (
-                <div
-                  key={tier.id}
-                  className={`${styles.tierCard} ${isClickable ? styles.tierCardClickable : ''}`}
-                  style={{ borderTopColor: tier.color }}
-                  role={isClickable ? 'button' : undefined}
-                  tabIndex={isClickable ? 0 : undefined}
-                  onClick={isClickable ? () => openTierModal(tier.id) : undefined}
-                  onKeyDown={
-                    isClickable
-                      ? (e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            openTierModal(tier.id);
-                          }
-                        }
-                      : undefined
+            {tiers.map((tier) => (
+              <div
+                key={tier.id}
+                className={`${styles.tierCard} ${styles.tierCardClickable} ${activeTier === tier.id ? styles.tierCardActive : ''}`}
+                style={{ borderTopColor: tier.color }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={activeTier === tier.id}
+                onClick={() => handleTierClick(tier.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleTierClick(tier.id);
                   }
-                >
-                  <div className={styles.tierCount} style={{ color: tier.color }}>
-                    {tier.count}
-                  </div>
-                  <div className={styles.tierLabel}>{tier.label}</div>
-                  <div className={styles.tierDesc}>{tier.desc}</div>
+                }}
+              >
+                <div className={styles.tierCount} style={{ color: tier.color }}>
+                  {tier.count}
                 </div>
-              );
-            })}
+                <div className={styles.tierLabel}>{tier.label}</div>
+                <div className={styles.tierDesc}>{tier.desc}</div>
+              </div>
+            ))}
           </div>
 
           {/* Stacked progress bar */}
           <div className={styles.stackedBarContainer}>
             <div className={styles.stackedBar}>
-              {tiers.map((tier) => {
-                const isClickable = tier.id === 'power' || tier.id === 'minimal';
-                return (
-                  <div
-                    key={tier.id}
-                    className={`${styles.stackedSegment} ${isClickable ? styles.stackedSegmentClickable : ''}`}
-                    style={{
-                      width: `${totalAdoption > 0 ? (tier.count / totalAdoption) * 100 : 0}%`,
-                      background: tier.color,
-                    }}
-                    title={`${tier.label}: ${tier.count} (${totalAdoption > 0 ? Math.round((tier.count / totalAdoption) * 100) : 0}%)`}
-                    role={isClickable ? 'button' : undefined}
-                    tabIndex={isClickable ? 0 : undefined}
-                    onClick={isClickable ? () => openTierModal(tier.id) : undefined}
-                    onKeyDown={
-                      isClickable
-                        ? (e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              openTierModal(tier.id);
-                            }
-                          }
-                        : undefined
+              {tiers.map((tier) => (
+                <div
+                  key={tier.id}
+                  className={`${styles.stackedSegment} ${styles.stackedSegmentClickable}`}
+                  style={{
+                    width: `${totalAdoption > 0 ? (tier.count / totalAdoption) * 100 : 0}%`,
+                    background: tier.color,
+                    opacity: activeTier && activeTier !== tier.id ? 0.4 : 1,
+                  }}
+                  title={`${tier.label}: ${tier.count} (${totalAdoption > 0 ? Math.round((tier.count / totalAdoption) * 100) : 0}%)`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleTierClick(tier.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleTierClick(tier.id);
                     }
-                  />
-                );
-              })}
+                  }}
+                />
+              ))}
             </div>
             <div className={styles.stackedLegend}>
               {tiers.map((tier) => (
@@ -389,224 +258,173 @@ export function AdoptionPane() {
             </div>
           </div>
 
-          {/* Daily power users table */}
+          {/* Unified users table */}
           <Card style={{ marginBottom: 20 }}>
-            <CardHeader>Daily power users</CardHeader>
-            <DataTable<PowerUser>
-              columns={powerUserColumns}
-              data={powerUsers}
+            <CardHeader>
+              {activeTier ? `Copilot users — ${activeTier} tier` : 'Copilot users'}
+            </CardHeader>
+            <DataTable<UnifiedUser>
+              columns={unifiedColumns}
+              data={filteredUsers}
               rowKey={(u) => u.user}
+              onRowClick={(u) => setDrawerUser(u)}
+              pageSize={25}
             />
           </Card>
 
-          <div className={styles.grid2}>
-            {/* Feature adoption gaps */}
-            <Card>
-              <CardHeader>Feature adoption gaps</CardHeader>
-              <div className={styles.langBars}>
-                {featureAdoption.map((f) => (
+          {/* User detail drawer */}
+          <Drawer
+            open={drawerUser !== null}
+            onClose={() => setDrawerUser(null)}
+            title={drawerUser ? `@${drawerUser.user}` : 'User details'}
+          >
+            {drawerUser && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Avatar placeholder & name */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div
-                    key={f.feature}
-                    className={`${styles.langRow} ${styles.langRowClickable}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => openFeatureModal(f.feature)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        openFeatureModal(f.feature);
-                      }
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: '50%',
+                      background: 'var(--bg-secondary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 20,
+                      fontWeight: 600,
+                      color: 'var(--fg-muted)',
                     }}
                   >
-                    <span className={styles.langName} style={{ width: 120 }}>
-                      {f.feature}
-                    </span>
-                    <div className={styles.langTrack}>
-                      <div
-                        style={{
-                          width: `${f.pct}%`,
-                          height: '100%',
-                          background: f.color,
-                          borderRadius: 4,
-                        }}
-                      />
-                    </div>
-                    <span className={styles.langPct}>{f.pct}%</span>
-                    {f.pct < 30 && (
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 600,
-                          color: 'var(--warning)',
-                          background: 'rgba(var(--attention-rgb), 0.15)',
-                          padding: '1px 5px',
-                          borderRadius: 3,
-                          marginLeft: 4,
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        Opportunity
-                      </span>
-                    )}
+                    {drawerUser.user.charAt(0).toUpperCase()}
                   </div>
-                ))}
-              </div>
-              {featureAdoption.some((f) => f.pct < 30) && (
-                <div style={{ padding: '8px 0 0', fontSize: 11, color: 'var(--fg-muted)' }}>
-                  💡 Features below 30% adoption represent growth opportunities. Consider targeted
-                  enablement sessions.
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 15 }}>@{drawerUser.user}</div>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        borderRadius: 12,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: drawerUser.tier_color,
+                        color: '#fff',
+                        marginTop: 4,
+                      }}
+                    >
+                      {drawerUser.tier}
+                    </span>
+                  </div>
                 </div>
-              )}
-            </Card>
-          </div>
 
-          {/* Minimal users — onboarding candidates */}
-          <Card style={{ marginBottom: 20 }}>
-            <CardHeader>Minimal users — onboarding candidates</CardHeader>
-            <DataTable<MinimalUser>
-              columns={minimalUserColumns}
-              data={minimalUsers}
-              rowKey={(u) => u.user}
-            />
-          </Card>
-
-          {/* Tier detail modal */}
-          <Modal
-            open={adoptionModal === 'tier'}
-            onClose={() => setAdoptionModal(null)}
-            title={
-              selectedTier ? `${selectedTier.label} — ${selectedTier.count} users` : 'Tier details'
-            }
-            width={640}
-          >
-            {selectedTier && selectedTierId === 'power' && (
-              <div style={{ overflowX: 'auto' }}>
-                <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 12px' }}>
-                  {selectedTier.desc} — showing top power users by activity.
-                </p>
-                <DataTable<PowerUser>
-                  columns={modalPowerUserColumns}
-                  data={powerUsers}
-                  rowKey={(u) => u.user}
-                  className={styles.modalTable}
-                />
-              </div>
-            )}
-            {selectedTier && selectedTierId === 'minimal' && (
-              <div style={{ overflowX: 'auto' }}>
-                <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 12px' }}>
-                  {selectedTier.desc} — showing minimal users who may benefit from onboarding.
-                </p>
-                <DataTable<MinimalUser>
-                  columns={modalMinimalUserColumns}
-                  data={minimalUsers}
-                  rowKey={(u) => u.user}
-                  className={styles.modalTable}
-                />
-              </div>
-            )}
-          </Modal>
-
-          {/* Feature adoption detail modal */}
-          <Modal
-            open={adoptionModal === 'feature'}
-            onClose={() => setAdoptionModal(null)}
-            title={
-              selectedFeatureData
-                ? `${selectedFeatureData.feature} — adoption details`
-                : 'Feature details'
-            }
-            width={520}
-          >
-            {selectedFeatureData && (
-              <div>
-                <p
+                {/* Days active */}
+                <div
                   style={{
-                    fontSize: 13,
-                    color: 'var(--fg-muted)',
-                    lineHeight: 1.6,
-                    margin: '0 0 12px',
+                    padding: '12px 16px',
+                    background: 'var(--bg-secondary)',
+                    borderRadius: 8,
                   }}
                 >
-                  <strong>{selectedFeatureData.feature}</strong> has{' '}
-                  <strong>{selectedFeatureData.pct}%</strong> adoption
-                  {selectedFeatureData.active_users > 0 && (
-                    <>
-                      {' '}
-                      ({selectedFeatureData.active_users} active users
-                      {selectedFeatureData.total_seats > 0 &&
-                        ` of ${selectedFeatureData.total_seats} total seats`}
-                      )
-                    </>
-                  )}
-                  .
-                </p>
-                {selectedFeatureData.trend_7d !== 0 && (
-                  <p
-                    style={{
-                      fontSize: 13,
-                      color: selectedFeatureData.trend_7d > 0 ? 'var(--success)' : 'var(--danger)',
-                      lineHeight: 1.6,
-                      margin: '0 0 12px',
-                    }}
+                  <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 4 }}>
+                    Days active in period
+                  </div>
+                  <div
+                    style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
                   >
-                    7-day trend:{' '}
-                    {selectedFeatureData.trend_7d > 0
-                      ? `+${selectedFeatureData.trend_7d}`
-                      : selectedFeatureData.trend_7d}
-                    %
-                  </p>
-                )}
-                {selectedFeatureData.pct < 30 && (
-                  <p
-                    style={{
-                      fontSize: 13,
-                      color: 'var(--warning)',
-                      lineHeight: 1.6,
-                      margin: '0 0 12px',
-                      padding: '8px 12px',
-                      background: 'rgba(var(--attention-rgb), 0.08)',
-                      borderRadius: 6,
-                    }}
-                  >
-                    ⚠️ This feature is below 30% adoption — a growth opportunity. Consider targeted
-                    enablement sessions for teams below the org-wide average.
-                  </p>
-                )}
-                <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
-                  Teams with low adoption of this feature can be identified via the Copilot Metrics
-                  API. Consider targeted enablement sessions for teams below the org-wide average.
-                </p>
-              </div>
-            )}
-          </Modal>
+                    {drawerUser.days_active}d
+                  </div>
+                </div>
 
-          {/* Minimal user activity modal */}
-          <Modal
-            open={adoptionModal === 'minimal-user'}
-            onClose={() => setAdoptionModal(null)}
-            title={
-              selectedMinimalUserData
-                ? `@${selectedMinimalUserData.user} — Copilot activity`
-                : 'User activity'
-            }
-            width={520}
-          >
-            {selectedMinimalUserData && (
-              <div style={{ overflowX: 'auto' }}>
-                <DataTable<{ metric: string; value: string }>
-                  columns={minimalUserDetailColumns}
-                  data={[
-                    { metric: 'User', value: `@${selectedMinimalUserData.user}` },
-                    { metric: 'Days active', value: String(selectedMinimalUserData.days_active) },
-                    { metric: 'Last feature used', value: selectedMinimalUserData.last_feature },
-                  ]}
-                  rowKey={(r) => r.metric}
-                  className={styles.modalTable}
-                />
+                {/* Features breakdown */}
+                <div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: 'var(--fg-muted)',
+                      marginBottom: 8,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    Features breakdown
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                    }}
+                  >
+                    {featureAdoption.map((f) => (
+                      <div
+                        key={f.feature}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '8px 12px',
+                          borderRadius: 6,
+                          background: 'var(--bg-secondary)',
+                        }}
+                      >
+                        <span style={{ fontSize: 13 }}>{f.feature}</span>
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            fontVariantNumeric: 'tabular-nums',
+                            color: f.color,
+                          }}
+                        >
+                          {f.pct}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--fg-muted)',
+                      marginTop: 8,
+                    }}
+                  >
+                    Total features used: {drawerUser.features_used}
+                  </div>
+                </div>
+
+                {/* Last activity */}
+                {drawerUser.last_feature && (
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      background: 'var(--bg-secondary)',
+                      borderRadius: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 4 }}>
+                      Last activity
+                    </div>
+                    <div style={{ fontSize: 14 }}>{drawerUser.last_feature}</div>
+                  </div>
+                )}
+
+                {/* Org membership */}
+                <div
+                  style={{
+                    padding: '12px 16px',
+                    background: 'var(--bg-secondary)',
+                    borderRadius: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 4 }}>
+                    Org membership
+                  </div>
+                  <div style={{ fontSize: 14 }}>Member</div>
+                </div>
               </div>
             )}
-          </Modal>
+          </Drawer>
 
           {/* Tier threshold settings modal */}
           <Modal

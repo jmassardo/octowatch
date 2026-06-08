@@ -262,6 +262,57 @@ async def _persist_daily_metrics(
                     }
                 )
 
+            # Per-language-model breakdown (captures model usage per language)
+            for lm_obj in day_obj.get("totals_by_language_model", []):
+                lm_lang = lm_obj.get("language", "Unknown")
+                lm_model = lm_obj.get("model", "Unknown")
+                lm_sugg = lm_obj.get("code_generation_activity_count", 0)
+                lm_acc = lm_obj.get("code_acceptance_activity_count", 0)
+                lm_rate = round(lm_acc / lm_sugg * 100, 2) if lm_sugg > 0 else None
+                rows.append(
+                    {
+                        "date": report_date,
+                        "org_slug": org_slug,
+                        "metric_type": "completions",
+                        "language": lm_lang,
+                        "editor": None,
+                        "model": lm_model,
+                        "active_users": 0,
+                        "engaged_users": 0,
+                        "total_suggestions": lm_sugg,
+                        "total_acceptances": lm_acc,
+                        "total_lines_suggested": lm_obj.get("loc_suggested_to_add_sum", 0),
+                        "total_lines_accepted": lm_obj.get("loc_added_sum", 0),
+                        "acceptance_rate": lm_rate,
+                    }
+                )
+
+            # Per-model-feature breakdown (captures model usage per feature)
+            for mf_obj in day_obj.get("totals_by_model_feature", []):
+                mf_model = mf_obj.get("model", "Unknown")
+                mf_sugg = mf_obj.get("code_generation_activity_count", 0)
+                mf_acc = mf_obj.get("code_acceptance_activity_count", 0)
+                mf_interactions = mf_obj.get("user_initiated_interaction_count", 0)
+                rows.append(
+                    {
+                        "date": report_date,
+                        "org_slug": org_slug,
+                        "metric_type": "model_feature",
+                        "language": None,
+                        "editor": None,
+                        "model": mf_model,
+                        "active_users": 0,
+                        "engaged_users": mf_interactions,
+                        "total_suggestions": mf_sugg,
+                        "total_acceptances": mf_acc,
+                        "total_lines_suggested": mf_obj.get("loc_suggested_to_add_sum", 0),
+                        "total_lines_accepted": mf_obj.get("loc_added_sum", 0),
+                        "acceptance_rate": (
+                            round(mf_acc / mf_sugg * 100, 2) if mf_sugg > 0 else None
+                        ),
+                    }
+                )
+
     if not rows:
         return 0
 
@@ -376,7 +427,7 @@ async def _fetch_copilot_usage(db: Any) -> list[dict[str, Any]] | dict[str, str]
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Accept": "application/json",
-                "X-GitHub-Api-Version": "2022-11-28",
+                "X-GitHub-Api-Version": "2026-03-10",
             }
 
             report_url = (
