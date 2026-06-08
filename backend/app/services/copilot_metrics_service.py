@@ -21,7 +21,7 @@ from typing import Any
 import httpx
 import redis.asyncio as aioredis
 import structlog
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -918,11 +918,13 @@ async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
         rate_values.append(round(pct, 1))
 
     # Language breakdown from DB (all available days)
+    from sqlalchemy import desc, func
+
     lang_result = await db.execute(
         select(
             CopilotDailyMetric.language,
-            text("SUM(total_suggestions) AS total_sugg"),
-            text("SUM(total_acceptances) AS total_acc"),
+            func.sum(CopilotDailyMetric.total_suggestions).label("total_sugg"),
+            func.sum(CopilotDailyMetric.total_acceptances).label("total_acc"),
         )
         .where(
             CopilotDailyMetric.metric_type == "completions",
@@ -930,7 +932,7 @@ async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
             CopilotDailyMetric.model.is_(None),
         )
         .group_by(CopilotDailyMetric.language)
-        .order_by(text("total_sugg DESC"))
+        .order_by(desc("total_sugg"))
         .limit(10)
     )
     lang_rows = list(lang_result.all())
@@ -1370,17 +1372,19 @@ async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
         return err
 
     # ── Model usage from language_model rows ──────────────────────────────────
+    from sqlalchemy import desc, func
+
     model_result = await db.execute(
         select(
             CopilotDailyMetric.model,
-            text("SUM(total_suggestions) AS total_sugg"),
-            text("SUM(engaged_users) AS total_engaged"),
+            func.sum(CopilotDailyMetric.total_suggestions).label("total_sugg"),
+            func.sum(CopilotDailyMetric.engaged_users).label("total_engaged"),
         )
         .where(
             CopilotDailyMetric.model.isnot(None),
         )
         .group_by(CopilotDailyMetric.model)
-        .order_by(text("total_engaged DESC"))
+        .order_by(desc("total_engaged"))
         .limit(10)
     )
     model_rows = list(model_result.all())
@@ -1398,15 +1402,15 @@ async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
     editor_result = await db.execute(
         select(
             CopilotDailyMetric.editor,
-            text("SUM(total_suggestions) AS total_sugg"),
-            text("SUM(total_acceptances) AS total_acc"),
+            func.sum(CopilotDailyMetric.total_suggestions).label("total_sugg"),
+            func.sum(CopilotDailyMetric.total_acceptances).label("total_acc"),
         )
         .where(
             CopilotDailyMetric.metric_type == "completions",
             CopilotDailyMetric.editor.isnot(None),
         )
         .group_by(CopilotDailyMetric.editor)
-        .order_by(text("total_sugg DESC"))
+        .order_by(desc("total_sugg"))
         .limit(10)
     )
     editor_rows = list(editor_result.all())
@@ -1430,7 +1434,7 @@ async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
     feature_result = await db.execute(
         select(
             CopilotDailyMetric.metric_type,
-            text("SUM(engaged_users) AS total_engaged"),
+            func.sum(CopilotDailyMetric.engaged_users).label("total_engaged"),
         )
         .where(
             CopilotDailyMetric.metric_type.in_(list(feature_type_map.keys())),
