@@ -59,6 +59,11 @@ export interface CopilotModels {
   models: Array<{ model: string; pct: number; color: string }>;
   features: Array<{ feature: string; count: number; color: string }>;
   editors: Array<{ name: string; count: number; pct: number }>;
+  time_series?: {
+    dates: string[];
+    models: Record<string, number[]>;
+    features: Record<string, number[]>;
+  };
   error?: string;
   message?: string;
 }

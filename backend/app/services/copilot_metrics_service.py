@@ -15,7 +15,8 @@ Results are cached in Valkey (25-hour TTL) to avoid excessive API round-trips.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from datetime import date as date_type
 from typing import Any
 
 import httpx
@@ -1531,7 +1532,86 @@ async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
         if isinstance(raw, list) and raw:
             return _build_models_from_raw(raw)
 
-    return {"models": models_list, "features": features_list, "editors": editors_list}
+    # ── Time series: last 28 days of model & feature usage ────────────────────
+    end_date = date_type.today()
+    start_date = end_date - timedelta(days=27)
+
+    # Model time series (engaged users per day per model)
+    model_ts_result = await db.execute(
+        select(
+            CopilotDailyMetric.date,
+            CopilotDailyMetric.model,
+            func.sum(CopilotDailyMetric.engaged_users).label("daily_engaged"),
+        )
+        .where(
+            CopilotDailyMetric.model.isnot(None),
+            CopilotDailyMetric.date >= start_date,
+            CopilotDailyMetric.date <= end_date,
+        )
+        .group_by(CopilotDailyMetric.date, CopilotDailyMetric.model)
+        .order_by(CopilotDailyMetric.date)
+    )
+    model_ts_rows = list(model_ts_result.all())
+
+    # Feature time series (engaged users per day per metric_type)
+    feature_ts_result = await db.execute(
+        select(
+            CopilotDailyMetric.date,
+            CopilotDailyMetric.metric_type,
+            func.sum(CopilotDailyMetric.engaged_users).label("daily_engaged"),
+        )
+        .where(
+            CopilotDailyMetric.metric_type.in_(list(feature_type_map.keys())),
+            CopilotDailyMetric.language.is_(None),
+            CopilotDailyMetric.editor.is_(None),
+            CopilotDailyMetric.model.is_(None),
+            CopilotDailyMetric.date >= start_date,
+            CopilotDailyMetric.date <= end_date,
+        )
+        .group_by(CopilotDailyMetric.date, CopilotDailyMetric.metric_type)
+        .order_by(CopilotDailyMetric.date)
+    )
+    feature_ts_rows = list(feature_ts_result.all())
+
+    # Build date list
+    dates: list[str] = []
+    current = start_date
+    while current <= end_date:
+        dates.append(current.isoformat())
+        current += timedelta(days=1)
+
+    # Build model series dict
+    model_series: dict[str, list[int]] = {}
+    for mts_row in model_ts_rows:
+        model_name = mts_row.model
+        if model_name not in model_series:
+            model_series[model_name] = [0] * len(dates)
+        day_idx = (mts_row.date - start_date).days
+        if 0 <= day_idx < len(dates):
+            model_series[model_name][day_idx] = mts_row.daily_engaged
+
+    # Build feature series dict
+    feature_series: dict[str, list[int]] = {}
+    for fts_row in feature_ts_rows:
+        label = feature_type_map.get(fts_row.metric_type, fts_row.metric_type)
+        if label not in feature_series:
+            feature_series[label] = [0] * len(dates)
+        day_idx = (fts_row.date - start_date).days
+        if 0 <= day_idx < len(dates):
+            feature_series[label][day_idx] = fts_row.daily_engaged
+
+    time_series = {
+        "dates": dates,
+        "models": model_series,
+        "features": feature_series,
+    }
+
+    return {
+        "models": models_list,
+        "features": features_list,
+        "editors": editors_list,
+        "time_series": time_series,
+    }
 
 
 def _build_models_from_raw(days: list[dict[str, Any]]) -> dict[str, Any]:

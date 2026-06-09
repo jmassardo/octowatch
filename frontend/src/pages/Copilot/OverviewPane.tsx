@@ -16,7 +16,7 @@ import { useOrgConfig } from '../../hooks/useOrgConfig';
 import { formatBucketDate, formatWeekday, formatWeekdayDate } from '../../utils/dates';
 import styles from './Copilot.module.css';
 type DrillDownType = 'active-seats' | 'assigned' | 'revoked' | 'net' | null;
-type OverviewModal = 'seat-waste' | 'correlation-seats' | 'correlation-cycle' | 'language' | null;
+type OverviewModal = 'seat-waste' | 'correlation-seats' | 'correlation-cycle' | null;
 
 interface OverviewPaneProps {
   seatBuckets: SeatUtilizationBucket[];
@@ -40,7 +40,6 @@ export function OverviewPane({
     staleTime: 30 * 60 * 1000,
   });
 
-  const languages = overview?.languages ?? [];
   const acceptanceRateDays = overview?.acceptance_rate_days ?? [];
   const acceptanceRateValues = overview?.acceptance_rate_values ?? [];
   const acceptanceThresholdLine = Array.from(
@@ -50,7 +49,6 @@ export function OverviewPane({
 
   const [drillDown, setDrillDown] = useState<DrillDownType>(null);
   const [overviewModal, setOverviewModal] = useState<OverviewModal>(null);
-  const [selectedLang, setSelectedLang] = useState<string | null>(null);
   const seatTableRef = useRef<HTMLDivElement>(null);
   const chartColors = useChartColors();
 
@@ -544,59 +542,7 @@ export function OverviewPane({
         </div>
       )}
 
-      {/* Language breakdown */}
-      <div>
-        <Card>
-          <CardHeader>Acceptance rate by language</CardHeader>
-          {overviewLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-              <Spinner />
-            </div>
-          ) : languages.length > 0 ? (
-            <div className={styles.langBars}>
-              {languages.map((l) => (
-                <div
-                  key={l.lang}
-                  className={`${styles.langRow} ${styles.langRowClickable}`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    setSelectedLang(l.lang);
-                    setOverviewModal('language');
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setSelectedLang(l.lang);
-                      setOverviewModal('language');
-                    }
-                  }}
-                >
-                  <span className={styles.langName}>{l.lang}</span>
-                  <div className={styles.langTrack}>
-                    <div
-                      style={{
-                        width: `${l.pct}%`,
-                        height: '100%',
-                        background: l.color,
-                        borderRadius: 4,
-                      }}
-                    />
-                  </div>
-                  <span className={styles.langPct}>{l.pct}%</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ color: 'var(--fg-muted)', padding: '12px 0' }}>
-              No language data available.
-            </div>
-          )}
-          <div className={styles.langNote}>
-            Language data from Copilot telemetry (not available via audit log)
-          </div>
-        </Card>
-      </div>
+      {/* Language breakdown moved to Models & Features page */}
 
       {/* Correlation insights */}
       <Card style={{ marginBottom: 20 }}>
@@ -789,38 +735,7 @@ export function OverviewPane({
         </p>
       </Modal>
 
-      {/* Language drill-down modal */}
-      <Modal
-        open={overviewModal === 'language'}
-        onClose={() => setOverviewModal(null)}
-        title={selectedLang ? `${selectedLang} — Acceptance rate details` : 'Language details'}
-        width={520}
-      >
-        {selectedLang &&
-          (() => {
-            const lang = languages.find((l) => l.lang === selectedLang);
-            return lang ? (
-              <div>
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: 'var(--fg-muted)',
-                    lineHeight: 1.6,
-                    margin: '0 0 12px',
-                  }}
-                >
-                  <strong>{lang.lang}</strong> has an acceptance rate of{' '}
-                  <strong>{lang.pct}%</strong>.
-                </p>
-                <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
-                  Per-language acceptance breakdowns by team and user require the Copilot Metrics
-                  API. This would show which teams are most effective with {lang.lang} completions
-                  and where additional training may help.
-                </p>
-              </div>
-            ) : null;
-          })()}
-      </Modal>
+      {/* Language drill-down modal moved to Models & Features page */}
     </>
   );
 }

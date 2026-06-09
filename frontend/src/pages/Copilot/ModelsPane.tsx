@@ -7,7 +7,9 @@ import { Modal } from '../../components/primitives/Modal';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
-import { getCopilotModels } from '../../api/copilotMetrics';
+import { DonutChart } from '../../components/charts/DonutChart';
+import { LineAreaChart } from '../../components/charts/LineAreaChart';
+import { getCopilotModels, getCopilotOverview } from '../../api/copilotMetrics';
 import styles from './Copilot.module.css';
 
 type MetricRow = { metric: string; value: string };
@@ -29,7 +31,22 @@ const metricValueColumns: ColumnDef<MetricRow>[] = [
   },
 ];
 
-type ModelsModal = 'model' | 'feature' | 'editor' | null;
+type ModelsModal = 'model' | 'feature' | 'editor' | 'language' | null;
+
+const MODEL_LINE_COLORS = [
+  '#58a6ff',
+  '#bc8cff',
+  '#3fb950',
+  '#db6d28',
+  '#79c0ff',
+  '#f0883e',
+  '#56d364',
+  '#d2a8ff',
+  '#f85149',
+  '#d29922',
+];
+
+const FEATURE_LINE_COLORS = ['#3fb950', '#58a6ff', '#bc8cff', '#db6d28', '#79c0ff'];
 
 export function ModelsPane() {
   const {
@@ -42,15 +59,23 @@ export function ModelsPane() {
     staleTime: 30 * 60 * 1000,
   });
 
+  const { data: overview, isLoading: overviewLoading } = useQuery({
+    queryKey: ['copilot', 'overview'],
+    queryFn: getCopilotOverview,
+    staleTime: 30 * 60 * 1000,
+  });
+
   const modelUsage = models?.models ?? [];
   const featureUsage = models?.features ?? [];
   const editors = models?.editors ?? [];
-  const maxFeatureCount =
-    featureUsage.length > 0 ? Math.max(...featureUsage.map((f) => f.count)) : 1;
+  const timeSeries = models?.time_series;
+  const languages = overview?.languages ?? [];
+
   const [modelsModal, setModelsModal] = useState<ModelsModal>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<string | null>(null);
   const [selectedEditor, setSelectedEditor] = useState<string | null>(null);
+  const [selectedLang, setSelectedLang] = useState<string | null>(null);
 
   function openModelModal(model: string) {
     setSelectedModel(model);
@@ -87,6 +112,12 @@ export function ModelsPane() {
     return 'Other';
   }
 
+  /** Format date strings for chart x-axis (e.g., "Jun 01") */
+  function formatDate(dateStr: string): string {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+  }
+
   return (
     <>
       {models?.error && (
@@ -100,10 +131,10 @@ export function ModelsPane() {
 
       {!isLoading && !isError && (
         <>
+          {/* ── Donut Charts: Model & Feature Distribution ── */}
           <div className={styles.grid2}>
-            {/* Model usage spread */}
             <Card>
-              <CardHeader>Model usage spread</CardHeader>
+              <CardHeader>Model usage distribution</CardHeader>
               {modelUsage.length === 0 ? (
                 <div
                   style={{
@@ -116,44 +147,20 @@ export function ModelsPane() {
                   No model usage data — sync Copilot metrics to populate.
                 </div>
               ) : (
-                <div className={styles.langBars}>
-                  {modelUsage.map((m) => (
-                    <div
-                      key={m.model}
-                      className={`${styles.langRow} ${styles.langRowClickable}`}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => openModelModal(m.model)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          openModelModal(m.model);
-                        }
-                      }}
-                    >
-                      <span className={styles.langName} style={{ width: 100 }}>
-                        {m.model}
-                      </span>
-                      <div className={styles.langTrack}>
-                        <div
-                          style={{
-                            width: `${m.pct}%`,
-                            height: '100%',
-                            background: m.color,
-                            borderRadius: 4,
-                          }}
-                        />
-                      </div>
-                      <span className={styles.langPct}>{m.pct}%</span>
-                    </div>
-                  ))}
-                </div>
+                <DonutChart
+                  data={modelUsage.map((m) => ({
+                    name: m.model,
+                    value: m.pct,
+                    color: m.color,
+                  }))}
+                  height={260}
+                  onItemClick={openModelModal}
+                />
               )}
             </Card>
 
-            {/* Feature usage spread */}
             <Card>
-              <CardHeader>Feature usage spread</CardHeader>
+              <CardHeader>Feature usage distribution</CardHeader>
               {featureUsage.length === 0 ? (
                 <div
                   style={{
@@ -166,44 +173,115 @@ export function ModelsPane() {
                   No feature usage data — sync Copilot metrics to populate.
                 </div>
               ) : (
-                <div className={styles.langBars}>
-                  {featureUsage.map((f) => (
-                    <div
-                      key={f.feature}
-                      className={`${styles.langRow} ${styles.langRowClickable}`}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => openFeatureModal(f.feature)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          openFeatureModal(f.feature);
-                        }
-                      }}
-                    >
-                      <span className={styles.langName} style={{ width: 120 }}>
-                        {f.feature}
-                      </span>
-                      <div className={styles.langTrack}>
-                        <div
-                          style={{
-                            width: `${(f.count / maxFeatureCount) * 100}%`,
-                            height: '100%',
-                            background: f.color,
-                            borderRadius: 4,
-                          }}
-                        />
-                      </div>
-                      <span className={styles.langPct}>{f.count}</span>
-                    </div>
-                  ))}
-                </div>
+                <DonutChart
+                  data={featureUsage.map((f) => ({
+                    name: f.feature,
+                    value: f.count,
+                    color: f.color,
+                  }))}
+                  height={260}
+                  onItemClick={openFeatureModal}
+                />
               )}
             </Card>
           </div>
 
-          {/* Editor breakdown */}
-          <div className={styles.sectionTitle}>Editor breakdown</div>
+          {/* ── Time Series: Model Trends ── */}
+          {timeSeries && Object.keys(timeSeries.models).length > 0 && (
+            <Card style={{ marginTop: 20 }}>
+              <CardHeader>Model usage trends (last 28 days)</CardHeader>
+              <div style={{ padding: '8px 16px 16px' }}>
+                <LineAreaChart
+                  xAxisData={timeSeries.dates.map(formatDate)}
+                  series={Object.entries(timeSeries.models).map(([name, data], i) => ({
+                    name,
+                    data,
+                    color: MODEL_LINE_COLORS[i % MODEL_LINE_COLORS.length],
+                    areaOpacity: 0.08,
+                  }))}
+                  height={220}
+                  yAxisFormatter={(v) => String(Math.round(v))}
+                />
+              </div>
+            </Card>
+          )}
+
+          {/* ── Time Series: Feature Trends ── */}
+          {timeSeries && Object.keys(timeSeries.features).length > 0 && (
+            <Card style={{ marginTop: 20 }}>
+              <CardHeader>Feature usage trends (last 28 days)</CardHeader>
+              <div style={{ padding: '8px 16px 16px' }}>
+                <LineAreaChart
+                  xAxisData={timeSeries.dates.map(formatDate)}
+                  series={Object.entries(timeSeries.features).map(([name, data], i) => ({
+                    name,
+                    data,
+                    color: FEATURE_LINE_COLORS[i % FEATURE_LINE_COLORS.length],
+                    areaOpacity: 0.12,
+                  }))}
+                  height={220}
+                  yAxisFormatter={(v) => String(Math.round(v))}
+                />
+              </div>
+            </Card>
+          )}
+
+          {/* ── Acceptance Rate by Language (moved from Overview) ── */}
+          <Card style={{ marginTop: 20 }}>
+            <CardHeader>Acceptance rate by language</CardHeader>
+            {overviewLoading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+                <Spinner />
+              </div>
+            ) : languages.length > 0 ? (
+              <div className={styles.langBars}>
+                {languages.map((l) => (
+                  <div
+                    key={l.lang}
+                    className={`${styles.langRow} ${styles.langRowClickable}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      setSelectedLang(l.lang);
+                      setModelsModal('language');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedLang(l.lang);
+                        setModelsModal('language');
+                      }
+                    }}
+                  >
+                    <span className={styles.langName}>{l.lang}</span>
+                    <div className={styles.langTrack}>
+                      <div
+                        style={{
+                          width: `${l.pct}%`,
+                          height: '100%',
+                          background: l.color,
+                          borderRadius: 4,
+                        }}
+                      />
+                    </div>
+                    <span className={styles.langPct}>{l.pct}%</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ color: 'var(--fg-muted)', padding: '12px 0' }}>
+                No language data available.
+              </div>
+            )}
+            <div className={styles.langNote}>
+              Language data from Copilot telemetry (not available via audit log)
+            </div>
+          </Card>
+
+          {/* ── Editor Breakdown ── */}
+          <div className={styles.sectionTitle} style={{ marginTop: 24 }}>
+            Editor breakdown
+          </div>
           {editors.length === 0 ? (
             <div
               style={{
@@ -241,7 +319,7 @@ export function ModelsPane() {
             </div>
           )}
 
-          {/* Model detail modal */}
+          {/* ── Model Detail Modal ── */}
           <Modal
             open={modelsModal === 'model'}
             onClose={() => setModelsModal(null)}
@@ -273,7 +351,7 @@ export function ModelsPane() {
             )}
           </Modal>
 
-          {/* Feature usage detail modal */}
+          {/* ── Feature Usage Detail Modal ── */}
           <Modal
             open={modelsModal === 'feature'}
             onClose={() => setModelsModal(null)}
@@ -303,7 +381,7 @@ export function ModelsPane() {
             )}
           </Modal>
 
-          {/* Editor detail modal */}
+          {/* ── Editor Detail Modal ── */}
           <Modal
             open={modelsModal === 'editor'}
             onClose={() => setModelsModal(null)}
@@ -337,6 +415,46 @@ export function ModelsPane() {
                 </p>
               </div>
             )}
+          </Modal>
+
+          {/* ── Language Drill-Down Modal ── */}
+          <Modal
+            open={modelsModal === 'language'}
+            onClose={() => setModelsModal(null)}
+            title={selectedLang ? `${selectedLang} — Acceptance rate details` : 'Language details'}
+            width={520}
+          >
+            {selectedLang &&
+              (() => {
+                const lang = languages.find((l) => l.lang === selectedLang);
+                return lang ? (
+                  <div>
+                    <p
+                      style={{
+                        fontSize: 13,
+                        color: 'var(--fg-muted)',
+                        lineHeight: 1.6,
+                        margin: '0 0 12px',
+                      }}
+                    >
+                      <strong>{lang.lang}</strong> has an acceptance rate of{' '}
+                      <strong>{lang.pct}%</strong>.
+                    </p>
+                    <p
+                      style={{
+                        fontSize: 13,
+                        color: 'var(--fg-muted)',
+                        lineHeight: 1.6,
+                        margin: 0,
+                      }}
+                    >
+                      Per-language acceptance breakdowns by team and user require the Copilot
+                      Metrics API. This would show which teams are most effective with {lang.lang}{' '}
+                      completions and where additional training may help.
+                    </p>
+                  </div>
+                ) : null;
+              })()}
           </Modal>
         </>
       )}

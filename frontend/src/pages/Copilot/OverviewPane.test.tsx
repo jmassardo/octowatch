@@ -142,28 +142,4 @@ describe('OverviewPane clickable stats', () => {
     await user.click(pctBtn);
     expect(screen.getByText('Correlation: Acceptance rate vs cycle time')).toBeInTheDocument();
   });
-
-  it('makes language bar rows clickable with proper accessibility', async () => {
-    renderPane();
-    const tsRow = (await screen.findByText('TypeScript')).closest('[role="button"]');
-    expect(tsRow).toBeTruthy();
-    expect(tsRow).toHaveAttribute('tabIndex', '0');
-  });
-
-  it('opens language modal when clicking a language row', async () => {
-    const user = userEvent.setup();
-    renderPane();
-    const tsRow = (await screen.findByText('TypeScript')).closest('[role="button"]')!;
-    await user.click(tsRow);
-    expect(screen.getByText('TypeScript — Acceptance rate details')).toBeInTheDocument();
-    expect(screen.getByText(/acceptance rate of/)).toBeInTheDocument();
-  });
-
-  it('opens language modal for different languages', async () => {
-    const user = userEvent.setup();
-    renderPane();
-    const pyRow = (await screen.findByText('Python')).closest('[role="button"]')!;
-    await user.click(pyRow);
-    expect(screen.getByText('Python — Acceptance rate details')).toBeInTheDocument();
-  });
 });
