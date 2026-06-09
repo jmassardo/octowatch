@@ -1093,6 +1093,8 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
     has_usage_data = False
     usage_tiers: dict[str, str] = {}
     usage_credits: dict[str, float] = {}
+    usage_active_days: dict[str, int] = {}
+    usage_last_active: dict[str, str] = {}
 
     try:
         from sqlalchemy import func as sa_func
@@ -1108,6 +1110,7 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
                 sa_func.avg(CopilotUsageReport.total_credits_consumed).label("avg_daily"),
                 sa_func.sum(CopilotUsageReport.total_credits_consumed).label("total"),
                 sa_func.count(CopilotUsageReport.report_date).label("active_days"),
+                sa_func.max(CopilotUsageReport.report_date).label("last_active_date"),
             )
             .where(CopilotUsageReport.report_date >= period_start)
             .group_by(CopilotUsageReport.github_login)
@@ -1120,7 +1123,15 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
                 avg_daily = float(urow[1] or 0)
                 total_credits = float(urow[2] or 0)
                 active_days = int(urow[3] or 0)
+                last_active_date = urow[4]
                 usage_credits[login] = total_credits
+                usage_active_days[login] = active_days
+                if last_active_date is not None:
+                    # Handle both date objects and strings
+                    if hasattr(last_active_date, "isoformat"):
+                        usage_last_active[login] = last_active_date.isoformat()
+                    else:
+                        usage_last_active[login] = str(last_active_date)
 
                 # Classify by actual credit usage
                 if avg_daily >= 5.0 and active_days >= 15:
@@ -1154,14 +1165,16 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
         for login, tier in usage_tiers.items():
             tier_counts[tier] += 1
             credits = usage_credits.get(login, 0)
+            user_days_active = usage_active_days.get(login, 0)
+            last_active = usage_last_active.get(login, "")
 
             if tier == "power":
                 power_users.append(
                     {
                         "user": login,
-                        "days_active": 20,
+                        "days_active": user_days_active,
                         "features_used": 3,
-                        "last_activity": datetime.now(UTC).isoformat(),
+                        "last_activity": last_active,
                         "editor": "VS Code",
                         "credits_consumed": round(credits, 2),
                     }
@@ -1170,9 +1183,9 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
                 regular_users.append(
                     {
                         "user": login,
-                        "days_active": 10,
+                        "days_active": user_days_active,
                         "features_used": 2,
-                        "last_activity": datetime.now(UTC).isoformat(),
+                        "last_activity": last_active,
                         "editor": "VS Code",
                         "credits_consumed": round(credits, 2),
                     }
@@ -1181,9 +1194,9 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
                 minimal_users.append(
                     {
                         "user": login,
-                        "days_active": 2,
+                        "days_active": user_days_active,
                         "last_feature": "completions",
-                        "last_activity": datetime.now(UTC).isoformat(),
+                        "last_activity": last_active,
                         "credits_consumed": round(credits, 2),
                     }
                 )

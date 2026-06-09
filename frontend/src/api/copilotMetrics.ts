@@ -25,6 +25,7 @@ export interface PowerUser {
   features_used: number;
   last_activity?: string;
   editor?: string;
+  credits_consumed?: number;
 }
 
 export interface MinimalUser {
@@ -32,6 +33,7 @@ export interface MinimalUser {
   days_active: number;
   last_feature: string;
   last_activity?: string;
+  credits_consumed?: number;
 }
 
 export interface CopilotAdoption {
