@@ -40,6 +40,7 @@ export function AdoptionPane() {
   const regularUsers = adoption?.regular_users ?? [];
   const featureAdoption = adoption?.feature_adoption ?? [];
   const minimalUsers = adoption?.minimal_users ?? [];
+  const inactiveUsers = adoption?.inactive_users ?? [];
 
   const [adoptionModal, setAdoptionModal] = useState<AdoptionModal>(null);
   const [activeTier, setActiveTier] = useState<string | null>(null);
@@ -98,8 +99,19 @@ export function AdoptionPane() {
       });
     }
 
+    for (const u of inactiveUsers) {
+      users.push({
+        user: u.user,
+        tier: 'inactive',
+        tier_color: tierColorMap['inactive'] ?? '#8b949e',
+        days_active: 0,
+        features_used: 0,
+        last_feature: '',
+      });
+    }
+
     return users;
-  }, [powerUsers, regularUsers, minimalUsers, tiers]);
+  }, [powerUsers, regularUsers, minimalUsers, inactiveUsers, tiers]);
 
   const filteredUsers = useMemo(() => {
     if (!activeTier) return allUsers;
