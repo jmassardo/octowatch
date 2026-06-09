@@ -37,6 +37,7 @@ export function AdoptionPane() {
   const tiers = adoption?.tiers ?? [];
   const totalAdoption = adoption?.total_adoption ?? 0;
   const powerUsers = adoption?.power_users ?? [];
+  const regularUsers = adoption?.regular_users ?? [];
   const featureAdoption = adoption?.feature_adoption ?? [];
   const minimalUsers = adoption?.minimal_users ?? [];
 
@@ -55,15 +56,12 @@ export function AdoptionPane() {
     setActiveTier((prev) => (prev === tierId ? null : tierId));
   }
 
-  /** Build a unified user list from power_users and minimal_users */
+  /** Build a unified user list from power_users, regular_users, and minimal_users */
   const allUsers: UnifiedUser[] = useMemo(() => {
     const tierColorMap: Record<string, string> = {};
     for (const t of tiers) {
       tierColorMap[t.id] = t.color;
     }
-
-    const powerSet = new Set(powerUsers.map((u) => u.user));
-    const minimalSet = new Set(minimalUsers.map((u) => u.user));
 
     const users: UnifiedUser[] = [];
 
@@ -78,25 +76,30 @@ export function AdoptionPane() {
       });
     }
 
-    for (const u of minimalUsers) {
-      if (!powerSet.has(u.user)) {
-        users.push({
-          user: u.user,
-          tier: 'minimal',
-          tier_color: tierColorMap['minimal'] ?? '#d29922',
-          days_active: u.days_active,
-          features_used: 1,
-          last_feature: u.last_feature,
-        });
-      }
+    for (const u of regularUsers) {
+      users.push({
+        user: u.user,
+        tier: 'regular',
+        tier_color: tierColorMap['regular'] ?? '#58a6ff',
+        days_active: u.days_active,
+        features_used: u.features_used,
+        last_feature: '',
+      });
     }
 
-    // Any user not in power or minimal is regular (none in current API data, but handles future)
-    // We only have power_users and minimal_users from the API, so this covers all known users
-    void minimalSet;
+    for (const u of minimalUsers) {
+      users.push({
+        user: u.user,
+        tier: 'minimal',
+        tier_color: tierColorMap['minimal'] ?? '#d29922',
+        days_active: u.days_active,
+        features_used: 1,
+        last_feature: u.last_feature,
+      });
+    }
 
     return users;
-  }, [powerUsers, minimalUsers, tiers]);
+  }, [powerUsers, regularUsers, minimalUsers, tiers]);
 
   const filteredUsers = useMemo(() => {
     if (!activeTier) return allUsers;
