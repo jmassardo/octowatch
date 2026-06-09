@@ -140,3 +140,16 @@ export function formatWeekday(iso: string | null | undefined): string {
   if (isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('en-US', { weekday: 'short' });
 }
+
+/**
+ * Format as short weekday + date: "Mon 6/2", "Tue 6/3"
+ */
+export function formatWeekdayDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  return `${weekday} ${month}/${day}`;
+}
