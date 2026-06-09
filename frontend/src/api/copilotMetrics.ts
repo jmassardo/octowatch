@@ -48,6 +48,7 @@ export interface CopilotAdoption {
     color: string;
   }>;
   minimal_users: MinimalUser[];
+  inactive_users: MinimalUser[];
   error?: string;
   message?: string;
 }
