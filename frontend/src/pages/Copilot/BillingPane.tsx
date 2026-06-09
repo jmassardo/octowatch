@@ -6,12 +6,13 @@ import type { ColumnDef } from '../../components/primitives/DataTable';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
+import { LineAreaChart } from '../../components/charts/LineAreaChart';
 import {
   getCopilotBillingOverview,
   getCopilotUserBudgets,
   getCopilotBillingTrends,
 } from '../../api/copilotMetrics';
-import type { CopilotUserBudget, CopilotBillingTrendDay } from '../../api/copilotMetrics';
+import type { CopilotUserBudget } from '../../api/copilotMetrics';
 import styles from './Copilot.module.css';
 
 const tabNums: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' };
@@ -124,47 +125,6 @@ function UtilizationHistogram({ buckets }: { buckets: Record<string, number> }) 
   );
 }
 
-function SpendTrendChart({ trends }: { trends: CopilotBillingTrendDay[] }) {
-  if (trends.length === 0) {
-    return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--fg-muted)' }}>
-        No trend data available yet.
-      </div>
-    );
-  }
-
-  const maxTotal = Math.max(...trends.map((t) => t.total), 1);
-
-  return (
-    <div
-      style={{
-        position: 'relative',
-        height: '160px',
-        display: 'flex',
-        alignItems: 'flex-end',
-        gap: '2px',
-      }}
-    >
-      {trends.map((day) => {
-        const height = (day.total / maxTotal) * 100;
-        return (
-          <div
-            key={day.date}
-            title={`${day.date}: $${day.total.toFixed(2)} (${day.active_users} users)`}
-            style={{
-              flex: 1,
-              height: `${Math.max(height, 2)}%`,
-              background: 'linear-gradient(to top, var(--color-success), #58a6ff)',
-              borderRadius: '2px 2px 0 0',
-              minWidth: '3px',
-            }}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
 export function BillingPane() {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -231,11 +191,6 @@ export function BillingPane() {
         header: 'Status',
         render: (row) => <StatusBadge status={row.status} />,
       },
-      {
-        key: 'org_slug',
-        header: 'Organization',
-        render: (row) => <span>{row.org_slug}</span>,
-      },
     ],
     [],
   );
@@ -244,10 +199,16 @@ export function BillingPane() {
     const users = budgets?.users ?? [];
     if (!searchTerm) return users;
     const term = searchTerm.toLowerCase();
-    return users.filter(
-      (u) => u.login.toLowerCase().includes(term) || u.org_slug.toLowerCase().includes(term),
-    );
+    return users.filter((u) => u.login.toLowerCase().includes(term));
   }, [budgets?.users, searchTerm]);
+
+  const cumulativeSpend = useMemo(() => {
+    const trendData = trends?.trends ?? [];
+    return trendData.reduce((acc, t, i) => {
+      acc.push((acc[i - 1] ?? 0) + t.total);
+      return acc;
+    }, [] as number[]);
+  }, [trends?.trends]);
 
   if (isLoading) {
     return (
@@ -260,6 +221,8 @@ export function BillingPane() {
   if (errorOverview || overview?.error) {
     return <ErrorBanner message={overview?.message ?? 'Failed to load billing data.'} />;
   }
+
+  const trendData = trends?.trends ?? [];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -290,7 +253,7 @@ export function BillingPane() {
         />
       </div>
 
-      {/* Utilization Histogram + Spend Trend */}
+      {/* Utilization Histogram + Daily Spend Trend */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
         <Card>
           <CardHeader>Budget Utilization Distribution</CardHeader>
@@ -312,10 +275,56 @@ export function BillingPane() {
         <Card>
           <CardHeader>Daily Credit Consumption (30 days)</CardHeader>
           <div style={{ padding: '1rem' }}>
-            <SpendTrendChart trends={trends?.trends ?? []} />
+            {trendData.length === 0 ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--fg-muted)' }}>
+                No trend data available yet.
+              </div>
+            ) : (
+              <LineAreaChart
+                xAxisData={trendData.map((t) => t.date.slice(5))}
+                series={[
+                  {
+                    name: 'Credits consumed',
+                    data: trendData.map((t) => t.total),
+                    color: '#58a6ff',
+                    areaOpacity: 0.15,
+                  },
+                ]}
+                yAxisFormatter={(v) => `$${v}`}
+                height={200}
+              />
+            )}
           </div>
         </Card>
       </div>
+
+      {/* Cumulative Spend vs Budget */}
+      {trendData.length > 0 && (
+        <Card>
+          <CardHeader>Cumulative Spend vs Budget</CardHeader>
+          <div style={{ padding: '1rem' }}>
+            <LineAreaChart
+              xAxisData={trendData.map((t) => t.date.slice(5))}
+              series={[
+                {
+                  name: 'Cumulative spend',
+                  data: cumulativeSpend,
+                  color: '#58a6ff',
+                  areaOpacity: 0.1,
+                },
+                {
+                  name: 'Budget',
+                  data: Array(trendData.length).fill(overview?.pool_total ?? 0) as number[],
+                  color: '#f85149',
+                  dashed: true,
+                },
+              ]}
+              yAxisFormatter={(v) => `$${v}`}
+              height={180}
+            />
+          </div>
+        </Card>
+      )}
 
       {/* User Budget Table */}
       <Card>
@@ -338,11 +347,7 @@ export function BillingPane() {
             }}
           />
         </div>
-        <DataTable
-          columns={columns}
-          data={filteredUsers}
-          rowKey={(u) => `${u.org_slug}/${u.login}`}
-        />
+        <DataTable columns={columns} data={filteredUsers} rowKey={(u) => u.login} />
       </Card>
     </div>
   );

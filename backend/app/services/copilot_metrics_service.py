@@ -2666,18 +2666,17 @@ async def get_copilot_user_budgets(db: AsyncSession) -> dict[str, Any]:
     now = datetime.now(UTC)
     period_start = now.replace(day=1).date()
 
-    # Aggregate per-user for current billing period
+    # Aggregate per-user for current billing period (across all orgs)
     result = await db.execute(
         select(
             CopilotUsageReport.github_login,
-            CopilotUsageReport.org_slug,
             func.sum(CopilotUsageReport.total_credits_consumed).label("consumed"),
             func.max(CopilotUsageReport.budget_amount).label("budget"),
             func.max(CopilotUsageReport.budget_consumed).label("budget_consumed"),
             func.bool_or(CopilotUsageReport.is_blocked).label("is_blocked"),
         )
         .where(CopilotUsageReport.report_date >= period_start)
-        .group_by(CopilotUsageReport.github_login, CopilotUsageReport.org_slug)
+        .group_by(CopilotUsageReport.github_login)
         .order_by(func.sum(CopilotUsageReport.total_credits_consumed).desc())
     )
     rows = result.fetchall()
@@ -2687,10 +2686,9 @@ async def get_copilot_user_budgets(db: AsyncSession) -> dict[str, Any]:
 
     for row in rows:
         login = row[0]
-        org = row[1]
-        consumed = float(row[2] or 0)
-        budget = float(row[3]) if row[3] is not None else None
-        is_blocked = bool(row[5])
+        consumed = float(row[1] or 0)
+        budget = float(row[2]) if row[2] is not None else None
+        is_blocked = bool(row[4])
 
         if budget and budget > 0:
             utilization = round(consumed / budget * 100, 1)
@@ -2724,7 +2722,6 @@ async def get_copilot_user_budgets(db: AsyncSession) -> dict[str, Any]:
         users.append(
             {
                 "login": login,
-                "org_slug": org,
                 "consumed": round(consumed, 2),
                 "budget": round(budget, 2) if budget is not None else None,
                 "utilization_pct": utilization,

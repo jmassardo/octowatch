@@ -273,7 +273,6 @@ export interface CopilotBillingOverview {
 
 export interface CopilotUserBudget {
   login: string;
-  org_slug: string;
   consumed: number;
   budget: number | null;
   utilization_pct: number;

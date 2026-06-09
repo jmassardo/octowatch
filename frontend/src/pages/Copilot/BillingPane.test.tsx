@@ -4,6 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { BillingPane } from './BillingPane';
 
+vi.mock('echarts-for-react', () => ({
+  default: () => null,
+}));
+
 vi.mock('../../api/copilotMetrics', () => ({
   getCopilotBillingOverview: vi.fn().mockResolvedValue({
     pool_total: 10000,
@@ -20,7 +24,6 @@ vi.mock('../../api/copilotMetrics', () => ({
     users: [
       {
         login: 'alice',
-        org_slug: 'acme',
         consumed: 450.0,
         budget: 500.0,
         utilization_pct: 90.0,
@@ -29,7 +32,6 @@ vi.mock('../../api/copilotMetrics', () => ({
       },
       {
         login: 'bob',
-        org_slug: 'acme',
         consumed: 200.0,
         budget: 500.0,
         utilization_pct: 40.0,
@@ -132,6 +134,13 @@ describe('BillingPane', () => {
     renderBillingPane();
     await waitFor(() => {
       expect(screen.getByText('2 users across all organizations')).toBeInTheDocument();
+    });
+  });
+
+  it('renders cumulative spend vs budget chart section', async () => {
+    renderBillingPane();
+    await waitFor(() => {
+      expect(screen.getByText('Cumulative Spend vs Budget')).toBeInTheDocument();
     });
   });
 });
