@@ -1081,6 +1081,7 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
             "tiers": [],
             "total_adoption": 0,
             "power_users": [],
+            "regular_users": [],
             "feature_adoption": [],
             "minimal_users": [],
         }
@@ -1142,6 +1143,7 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
         has_seat_data = False
 
     power_users: list[dict[str, Any]] = []
+    regular_users: list[dict[str, Any]] = []
     minimal_users: list[dict[str, Any]] = []
     tier_counts = {"power": 0, "regular": 0, "minimal": 0, "inactive": 0}
 
@@ -1157,6 +1159,17 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
                         "user": login,
                         "days_active": 20,
                         "features_used": 3,
+                        "last_activity": datetime.now(UTC).isoformat(),
+                        "editor": "VS Code",
+                        "credits_consumed": round(credits, 2),
+                    }
+                )
+            elif tier == "regular":
+                regular_users.append(
+                    {
+                        "user": login,
+                        "days_active": 10,
+                        "features_used": 2,
                         "last_activity": datetime.now(UTC).isoformat(),
                         "editor": "VS Code",
                         "credits_consumed": round(credits, 2),
@@ -1195,6 +1208,16 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
 
             if tier == "power":
                 power_users.append(
+                    {
+                        "user": login,
+                        "days_active": _days_since_last_activity(last_activity),
+                        "features_used": _count_features(seat),
+                        "last_activity": last_activity,
+                        "editor": last_editor,
+                    }
+                )
+            elif tier == "regular":
+                regular_users.append(
                     {
                         "user": login,
                         "days_active": _days_since_last_activity(last_activity),
@@ -1332,6 +1355,7 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
         "tiers": tiers,
         "total_adoption": total_adoption,
         "power_users": power_users,
+        "regular_users": regular_users,
         "feature_adoption": feature_adoption,
         "minimal_users": minimal_users,
     }

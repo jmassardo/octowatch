@@ -38,6 +38,7 @@ export interface CopilotAdoption {
   tiers: AdoptionTier[];
   total_adoption: number;
   power_users: PowerUser[];
+  regular_users: PowerUser[];
   feature_adoption: Array<{
     feature: string;
     active_users: number;
