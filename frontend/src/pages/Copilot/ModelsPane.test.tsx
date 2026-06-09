@@ -4,6 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ModelsPane } from './ModelsPane';
 
+vi.mock('echarts-for-react', () => ({
+  default: () => null,
+}));
+
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }));
@@ -32,6 +36,22 @@ vi.mock('../../api/copilotMetrics', () => ({
       { name: 'Xcode', count: 3, pct: 2 },
       { name: 'Other', count: 2, pct: 1 },
     ],
+    time_series: {
+      dates: ['2026-06-01', '2026-06-02', '2026-06-03'],
+      models: { 'GPT-4o': [12, 15, 8], 'Claude 3.7': [5, 7, 9] },
+      features: { 'IDE completions': [50, 55, 48], 'IDE chat': [20, 22, 25] },
+    },
+  }),
+  getCopilotOverview: vi.fn().mockResolvedValue({
+    acceptance_rate_days: ['2026-06-01', '2026-06-02'],
+    acceptance_rate_values: [30, 32],
+    acceptance_threshold: 25,
+    languages: [
+      { lang: 'TypeScript', pct: 38, color: '#3fb950' },
+      { lang: 'Python', pct: 34, color: '#3fb950' },
+    ],
+    total_active_users: 100,
+    total_engaged_users: 80,
   }),
 }));
 
@@ -51,56 +71,33 @@ function renderPane() {
 }
 
 describe('ModelsPane clickable stats', () => {
-  it('makes model usage bar rows clickable', async () => {
+  it('renders donut charts for model and feature distribution', async () => {
     renderPane();
-    const gpt4oRow = (await screen.findByText('GPT-4o')).closest('[role="button"]');
-    expect(gpt4oRow).toBeTruthy();
-    expect(gpt4oRow).toHaveAttribute('tabIndex', '0');
+    expect(await screen.findByText('Model usage distribution')).toBeInTheDocument();
+    expect(screen.getByText('Feature usage distribution')).toBeInTheDocument();
   });
 
-  it('opens model detail modal when clicking a model row', async () => {
+  it('renders time series charts when data is available', async () => {
+    renderPane();
+    expect(await screen.findByText('Model usage trends (last 28 days)')).toBeInTheDocument();
+    expect(screen.getByText('Feature usage trends (last 28 days)')).toBeInTheDocument();
+  });
+
+  it('renders acceptance rate by language section', async () => {
+    renderPane();
+    expect(await screen.findByText('Acceptance rate by language')).toBeInTheDocument();
+    const tsRow = (await screen.findByText('TypeScript')).closest('[role="button"]');
+    expect(tsRow).toBeTruthy();
+    expect(tsRow).toHaveAttribute('tabIndex', '0');
+  });
+
+  it('opens language modal when clicking a language row', async () => {
     const user = userEvent.setup();
     renderPane();
-    const gpt4oRow = (await screen.findByText('GPT-4o')).closest('[role="button"]')!;
-    await user.click(gpt4oRow);
-    expect(screen.getByText('GPT-4o — usage details')).toBeInTheDocument();
-    const dialog = getDialog();
-    expect(within(dialog).getByText(/42%/)).toBeInTheDocument();
-    expect(within(dialog).getByText('Ranking')).toBeInTheDocument();
-  });
-
-  it('opens Claude model detail modal', async () => {
-    const user = userEvent.setup();
-    renderPane();
-    const claudeRow = (await screen.findByText('Claude 3.7')).closest('[role="button"]')!;
-    await user.click(claudeRow);
-    expect(screen.getByText('Claude 3.7 — usage details')).toBeInTheDocument();
-  });
-
-  it('closes model modal via close button', async () => {
-    const user = userEvent.setup();
-    renderPane();
-    const gpt4oRow = (await screen.findByText('GPT-4o')).closest('[role="button"]')!;
-    await user.click(gpt4oRow);
-    expect(screen.getByText('GPT-4o — usage details')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /close/i }));
-    expect(screen.queryByText('GPT-4o — usage details')).not.toBeInTheDocument();
-  });
-
-  it('makes feature usage bar rows clickable', async () => {
-    renderPane();
-    const ideRow = (await screen.findByText('IDE completions')).closest('[role="button"]');
-    expect(ideRow).toBeTruthy();
-  });
-
-  it('opens feature usage modal when clicking a feature row', async () => {
-    const user = userEvent.setup();
-    renderPane();
-    const ideRow = (await screen.findByText('IDE completions')).closest('[role="button"]')!;
-    await user.click(ideRow);
-    expect(screen.getByText('IDE completions — usage details')).toBeInTheDocument();
-    const dialog = getDialog();
-    expect(within(dialog).getByText('142')).toBeInTheDocument();
+    const tsRow = (await screen.findByText('TypeScript')).closest('[role="button"]')!;
+    await user.click(tsRow);
+    expect(screen.getByText('TypeScript — Acceptance rate details')).toBeInTheDocument();
+    expect(screen.getByText(/acceptance rate of/)).toBeInTheDocument();
   });
 
   it('makes editor cards clickable', async () => {
@@ -139,11 +136,23 @@ describe('ModelsPane clickable stats', () => {
     expect(screen.queryByText('VS Code — editor details')).not.toBeInTheDocument();
   });
 
-  it('shows model details in modal', async () => {
+  it('renders editor breakdown section', async () => {
+    renderPane();
+    expect(await screen.findByText('Editor breakdown')).toBeInTheDocument();
+  });
+
+  it('opens language modal for different languages', async () => {
     const user = userEvent.setup();
     renderPane();
-    const gpt4oRow = (await screen.findByText('GPT-4o')).closest('[role="button"]')!;
-    await user.click(gpt4oRow);
-    expect(screen.getByText(/GPT-4o — usage details/)).toBeInTheDocument();
+    const pyRow = (await screen.findByText('Python')).closest('[role="button"]')!;
+    await user.click(pyRow);
+    expect(screen.getByText('Python — Acceptance rate details')).toBeInTheDocument();
+  });
+
+  it('renders donut chart aria labels for accessibility', async () => {
+    renderPane();
+    await screen.findByText('Model usage distribution');
+    const figures = screen.getAllByRole('figure');
+    expect(figures.length).toBeGreaterThanOrEqual(2);
   });
 });

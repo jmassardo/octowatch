@@ -21,6 +21,9 @@ interface UnifiedUser {
   days_active: number;
   features_used: number;
   last_feature: string;
+  last_activity?: string;
+  editor?: string;
+  credits_consumed?: number;
 }
 
 export function AdoptionPane() {
@@ -74,6 +77,9 @@ export function AdoptionPane() {
         days_active: u.days_active,
         features_used: u.features_used,
         last_feature: '',
+        last_activity: u.last_activity,
+        editor: u.editor,
+        credits_consumed: u.credits_consumed,
       });
     }
 
@@ -85,6 +91,9 @@ export function AdoptionPane() {
         days_active: u.days_active,
         features_used: u.features_used,
         last_feature: '',
+        last_activity: u.last_activity,
+        editor: u.editor,
+        credits_consumed: u.credits_consumed,
       });
     }
 
@@ -96,6 +105,8 @@ export function AdoptionPane() {
         days_active: u.days_active,
         features_used: 1,
         last_feature: u.last_feature,
+        last_activity: u.last_activity,
+        credits_consumed: u.credits_consumed,
       });
     }
 
@@ -107,6 +118,8 @@ export function AdoptionPane() {
         days_active: 0,
         features_used: 0,
         last_feature: '',
+        last_activity: u.last_activity,
+        credits_consumed: u.credits_consumed,
       });
     }
 
@@ -273,6 +286,61 @@ export function AdoptionPane() {
             </div>
           </div>
 
+          {/* Tier guidance */}
+          <div
+            style={{
+              padding: '16px 20px',
+              background: 'var(--bg-secondary)',
+              borderRadius: 8,
+              marginBottom: 20,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: 'var(--fg-muted)',
+                marginBottom: 12,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}
+            >
+              💡 Guidance
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {(!activeTier || activeTier === 'power') && (
+                <div style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
+                  <strong style={{ color: 'var(--fg)' }}>Power Users:</strong> Recruit power users
+                  as product champions in their departments. Invite them to present at internal
+                  office hours and demo sessions. They can drive organic adoption.
+                </div>
+              )}
+              {(!activeTier || activeTier === 'regular') && (
+                <div style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
+                  <strong style={{ color: 'var(--fg)' }}>Regular Users:</strong> These users are
+                  engaged but haven&apos;t maximized Copilot&apos;s potential. Share tips, new
+                  features, and encourage chat/PR review usage to move them toward power user
+                  status.
+                </div>
+              )}
+              {(!activeTier || activeTier === 'minimal') && (
+                <div style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
+                  <strong style={{ color: 'var(--fg)' }}>Minimal Users:</strong> These users tried
+                  Copilot but aren&apos;t making it a daily habit. Consider pairing them with a
+                  power user buddy, sharing use cases relevant to their role, or offering hands-on
+                  workshops.
+                </div>
+              )}
+              {(!activeTier || activeTier === 'inactive') && (
+                <div style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
+                  <strong style={{ color: 'var(--fg)' }}>Inactive Users:</strong> These users have
+                  seats but no activity. Reach out to confirm they still need access. Consider
+                  reassigning seats or providing onboarding/training resources.
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Unified users table */}
           <Card style={{ marginBottom: 20 }}>
             <CardHeader>
@@ -350,6 +418,48 @@ export function AdoptionPane() {
                   </div>
                 </div>
 
+                {/* Credits consumed */}
+                {drawerUser.credits_consumed !== undefined && drawerUser.credits_consumed > 0 && (
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      background: 'var(--bg-secondary)',
+                      borderRadius: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 4 }}>
+                      Credits consumed (28d)
+                    </div>
+                    <div
+                      style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      {drawerUser.credits_consumed.toFixed(1)}
+                    </div>
+                  </div>
+                )}
+
+                {/* Last activity date */}
+                {drawerUser.last_activity && (
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      background: 'var(--bg-secondary)',
+                      borderRadius: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 4 }}>
+                      Last activity
+                    </div>
+                    <div style={{ fontSize: 14 }}>
+                      {new Date(drawerUser.last_activity).toLocaleDateString(undefined, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Features breakdown */}
                 <div>
                   <div
@@ -408,8 +518,8 @@ export function AdoptionPane() {
                   </div>
                 </div>
 
-                {/* Last activity */}
-                {drawerUser.last_feature && (
+                {/* Editor */}
+                {drawerUser.editor && (
                   <div
                     style={{
                       padding: '12px 16px',
@@ -418,25 +528,33 @@ export function AdoptionPane() {
                     }}
                   >
                     <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 4 }}>
-                      Last activity
+                      Editor
                     </div>
-                    <div style={{ fontSize: 14 }}>{drawerUser.last_feature}</div>
+                    <div style={{ fontSize: 14 }}>{drawerUser.editor}</div>
                   </div>
                 )}
 
-                {/* Org membership */}
-                <div
+                {/* GitHub profile link */}
+                <a
+                  href={`https://github.com/${drawerUser.user}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   style={{
-                    padding: '12px 16px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '10px 16px',
                     background: 'var(--bg-secondary)',
                     borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'var(--fg)',
+                    textDecoration: 'none',
+                    border: '1px solid var(--border)',
                   }}
                 >
-                  <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 4 }}>
-                    Org membership
-                  </div>
-                  <div style={{ fontSize: 14 }}>Member</div>
-                </div>
+                  View on GitHub ↗
+                </a>
               </div>
             )}
           </Drawer>

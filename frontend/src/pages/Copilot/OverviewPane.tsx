@@ -13,10 +13,10 @@ import type { SeatUtilizationBucket, CopilotSeatsBucket } from '../../types/repo
 import { getCopilotOverview } from '../../api/copilotMetrics';
 import { useChartColors } from '../../hooks/useChartColors';
 import { useOrgConfig } from '../../hooks/useOrgConfig';
-import { formatBucketDate, formatWeekday } from '../../utils/dates';
+import { formatBucketDate, formatWeekday, formatWeekdayDate } from '../../utils/dates';
 import styles from './Copilot.module.css';
 type DrillDownType = 'active-seats' | 'assigned' | 'revoked' | 'net' | null;
-type OverviewModal = 'seat-waste' | 'correlation-seats' | 'correlation-cycle' | 'language' | null;
+type OverviewModal = 'seat-waste' | 'correlation-seats' | 'correlation-cycle' | null;
 
 interface OverviewPaneProps {
   seatBuckets: SeatUtilizationBucket[];
@@ -40,7 +40,6 @@ export function OverviewPane({
     staleTime: 30 * 60 * 1000,
   });
 
-  const languages = overview?.languages ?? [];
   const acceptanceRateDays = overview?.acceptance_rate_days ?? [];
   const acceptanceRateValues = overview?.acceptance_rate_values ?? [];
   const acceptanceThresholdLine = Array.from(
@@ -50,7 +49,6 @@ export function OverviewPane({
 
   const [drillDown, setDrillDown] = useState<DrillDownType>(null);
   const [overviewModal, setOverviewModal] = useState<OverviewModal>(null);
-  const [selectedLang, setSelectedLang] = useState<string | null>(null);
   const seatTableRef = useRef<HTMLDivElement>(null);
   const chartColors = useChartColors();
 
@@ -66,12 +64,14 @@ export function OverviewPane({
   const totalRevoked = copilotBuckets.reduce((s, b) => s + (b.seats_revoked ?? 0), 0);
   const netSeats = copilotBuckets.reduce((s, b) => s + (b.seats_net ?? 0), 0);
 
-  const activeSeats = latestSeatBucket?.active_seat_count;
+  // Use Copilot Metrics API data (overview) for active/provisioned counts
+  // seatBuckets are event-based counts which may not match actual API seat data
+  const activeSeats = overview?.total_active_users ?? latestSeatBucket?.active_seat_count;
   const provisionedSeats = latestSeatBucket?.provisioned_seat_count;
   const seatLabel =
     activeSeats != null && provisionedSeats != null ? `${activeSeats} / ${provisionedSeats}` : '—';
 
-  // Derive waste metrics from real API data
+  // Derive waste metrics — use overview API active count for accuracy
   const inactiveSeats = (provisionedSeats ?? 0) - (activeSeats ?? 0);
   const monthlyWaste = inactiveSeats * costPerSeat;
 
@@ -427,7 +427,7 @@ export function OverviewPane({
             </div>
           ) : acceptanceRateDays.length > 0 ? (
             <LineAreaChart
-              xAxisData={acceptanceRateDays}
+              xAxisData={acceptanceRateDays.map((d) => formatWeekdayDate(d))}
               series={[
                 {
                   name: 'Acceptance rate',
@@ -528,8 +528,9 @@ export function OverviewPane({
                   sortValue: (b) => b.utilization_pct ?? 0,
                 },
               ]}
-              data={seatBuckets.slice(-10)}
+              data={seatBuckets}
               rowKey={(b) => b.bucket}
+              pageSize={5}
             />
           </Card>
         </div>
@@ -541,129 +542,7 @@ export function OverviewPane({
         </div>
       )}
 
-      {/* Bottom grid: language bars + seat change history */}
-      <div className={styles.grid2}>
-        <Card>
-          <CardHeader>Acceptance rate by language</CardHeader>
-          {overviewLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-              <Spinner />
-            </div>
-          ) : languages.length > 0 ? (
-            <div className={styles.langBars}>
-              {languages.map((l) => (
-                <div
-                  key={l.lang}
-                  className={`${styles.langRow} ${styles.langRowClickable}`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    setSelectedLang(l.lang);
-                    setOverviewModal('language');
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setSelectedLang(l.lang);
-                      setOverviewModal('language');
-                    }
-                  }}
-                >
-                  <span className={styles.langName}>{l.lang}</span>
-                  <div className={styles.langTrack}>
-                    <div
-                      style={{
-                        width: `${l.pct}%`,
-                        height: '100%',
-                        background: l.color,
-                        borderRadius: 4,
-                      }}
-                    />
-                  </div>
-                  <span className={styles.langPct}>{l.pct}%</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ color: 'var(--fg-muted)', padding: '12px 0' }}>
-              No language data available.
-            </div>
-          )}
-          <div className={styles.langNote}>
-            Language data from Copilot telemetry (not available via audit log)
-          </div>
-        </Card>
-        <Card>
-          <CardHeader>Seat change history (30d)</CardHeader>
-          {copilotBuckets.length > 0 ? (
-            <DataTable<CopilotSeatsBucket>
-              columns={[
-                {
-                  key: 'date',
-                  header: 'Date',
-                  filterable: true,
-                  helpText:
-                    'The date of this daily Copilot seat-change snapshot. Synced once per day from the GitHub Copilot API.',
-                  render: (b) => (
-                    <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>
-                  ),
-                  filterValue: (b) => formatBucketDate(b.bucket),
-                },
-                {
-                  key: 'assigned',
-                  header: 'Assigned',
-                  sortable: true,
-                  helpText:
-                    'Number of new Copilot seats assigned on this day. From daily seat-change sync.',
-                  render: (b) => (
-                    <span style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
-                      +{b.seats_assigned ?? 0}
-                    </span>
-                  ),
-                  sortValue: (b) => b.seats_assigned ?? 0,
-                },
-                {
-                  key: 'revoked',
-                  header: 'Revoked',
-                  sortable: true,
-                  helpText:
-                    'Number of Copilot seats revoked on this day. From daily seat-change sync.',
-                  render: (b) => (
-                    <span
-                      style={{
-                        color: b.seats_revoked ? 'var(--danger)' : undefined,
-                        fontVariantNumeric: 'tabular-nums',
-                      }}
-                    >
-                      {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
-                    </span>
-                  ),
-                  sortValue: (b) => b.seats_revoked ?? 0,
-                },
-                {
-                  key: 'net',
-                  header: 'Net',
-                  sortable: true,
-                  helpText:
-                    'Net seat change (assigned minus revoked) for this day. Positive values indicate fleet growth.',
-                  render: (b) => (
-                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {b.seats_net > 0 ? `+${b.seats_net}` : b.seats_net}
-                    </span>
-                  ),
-                  sortValue: (b) => b.seats_net ?? 0,
-                },
-              ]}
-              data={copilotBuckets.slice(-7)}
-              rowKey={(b) => b.bucket}
-            />
-          ) : (
-            <div style={{ color: 'var(--fg-muted)', padding: '12px 0' }}>
-              No seat change data available.
-            </div>
-          )}
-        </Card>
-      </div>
+      {/* Language breakdown moved to Models & Features page */}
 
       {/* Correlation insights */}
       <Card style={{ marginBottom: 20 }}>
@@ -856,38 +735,7 @@ export function OverviewPane({
         </p>
       </Modal>
 
-      {/* Language drill-down modal */}
-      <Modal
-        open={overviewModal === 'language'}
-        onClose={() => setOverviewModal(null)}
-        title={selectedLang ? `${selectedLang} — Acceptance rate details` : 'Language details'}
-        width={520}
-      >
-        {selectedLang &&
-          (() => {
-            const lang = languages.find((l) => l.lang === selectedLang);
-            return lang ? (
-              <div>
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: 'var(--fg-muted)',
-                    lineHeight: 1.6,
-                    margin: '0 0 12px',
-                  }}
-                >
-                  <strong>{lang.lang}</strong> has an acceptance rate of{' '}
-                  <strong>{lang.pct}%</strong>.
-                </p>
-                <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, margin: 0 }}>
-                  Per-language acceptance breakdowns by team and user require the Copilot Metrics
-                  API. This would show which teams are most effective with {lang.lang} completions
-                  and where additional training may help.
-                </p>
-              </div>
-            ) : null;
-          })()}
-      </Modal>
+      {/* Language drill-down modal moved to Models & Features page */}
     </>
   );
 }

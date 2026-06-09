@@ -25,6 +25,7 @@ export interface PowerUser {
   features_used: number;
   last_activity?: string;
   editor?: string;
+  credits_consumed?: number;
 }
 
 export interface MinimalUser {
@@ -32,6 +33,7 @@ export interface MinimalUser {
   days_active: number;
   last_feature: string;
   last_activity?: string;
+  credits_consumed?: number;
 }
 
 export interface CopilotAdoption {
@@ -57,6 +59,11 @@ export interface CopilotModels {
   models: Array<{ model: string; pct: number; color: string }>;
   features: Array<{ feature: string; count: number; color: string }>;
   editors: Array<{ name: string; count: number; pct: number }>;
+  time_series?: {
+    dates: string[];
+    models: Record<string, number[]>;
+    features: Record<string, number[]>;
+  };
   error?: string;
   message?: string;
 }
@@ -266,7 +273,6 @@ export interface CopilotBillingOverview {
 
 export interface CopilotUserBudget {
   login: string;
-  org_slug: string;
   consumed: number;
   budget: number | null;
   utilization_pct: number;

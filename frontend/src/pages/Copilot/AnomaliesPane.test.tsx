@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnomaliesPane } from './AnomaliesPane';
+import { getCopilotAnomalies } from '../../api/copilotMetrics';
 
 vi.mock('../../api/copilotMetrics', () => ({
   getCopilotAnomalies: vi.fn().mockResolvedValue({
@@ -184,5 +185,188 @@ describe('AnomaliesPane clickable stats', () => {
     const affectedLabels = screen.getAllByText('Affected:');
     // Two anomalies have affected_count (id 1 and 3)
     expect(affectedLabels.length).toBe(2);
+  });
+});
+
+describe('AnomaliesPane detection rules', () => {
+  it('shows collapsible detection rules section when anomalies exist', async () => {
+    renderPane();
+    const toggle = await screen.findByRole('button', { name: /Detection Rules \(6 active\)/ });
+    expect(toggle).toBeInTheDocument();
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('expands rules table when clicking the toggle', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    const toggle = await screen.findByRole('button', { name: /Detection Rules/ });
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Acceptance Rate Drop')).toBeInTheDocument();
+    expect(screen.getByText('Active User Count Change')).toBeInTheDocument();
+    expect(screen.getByText('Feature Usage Spike')).toBeInTheDocument();
+    expect(screen.getByText('Sudden Active User Drop')).toBeInTheDocument();
+    expect(screen.getByText('Model Switching Detection')).toBeInTheDocument();
+    expect(screen.getByText('Bulk Policy Changes')).toBeInTheDocument();
+  });
+
+  it('shows Create Custom Rule button when rules are expanded', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    const toggle = await screen.findByRole('button', { name: /Detection Rules/ });
+    await user.click(toggle);
+    expect(screen.getByRole('button', { name: /Create Custom Rule/ })).toBeInTheDocument();
+  });
+
+  it('does not show Create Custom Rule button when rules are collapsed', async () => {
+    renderPane();
+    await screen.findByRole('button', { name: /Detection Rules/ });
+    expect(screen.queryByRole('button', { name: /Create Custom Rule/ })).not.toBeInTheDocument();
+  });
+
+  it('shows enabled status labels with tooltip', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    const toggle = await screen.findByRole('button', { name: /Detection Rules/ });
+    await user.click(toggle);
+    const enabledLabels = screen.getAllByText('Enabled');
+    expect(enabledLabels.length).toBe(6);
+    // Check that the parent span has the tooltip
+    const firstLabel = enabledLabels[0].closest('[title]');
+    expect(firstLabel).toHaveAttribute('title', 'Custom rules coming soon');
+  });
+
+  it('shows detection rules section when no anomalies exist', async () => {
+    vi.mocked(getCopilotAnomalies).mockResolvedValueOnce({ anomalies: [] });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AnomaliesPane />
+      </QueryClientProvider>,
+    );
+    // Should show the no anomalies message
+    const noAnomalies = await screen.findByText(/No anomalies detected/);
+    expect(noAnomalies).toBeInTheDocument();
+    // Detection rules toggle should still be visible
+    expect(screen.getByRole('button', { name: /Detection Rules/ })).toBeInTheDocument();
+  });
+});
+
+describe('AnomaliesPane custom rule modal', () => {
+  it('opens the custom rule modal when clicking Create Custom Rule', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    const toggle = await screen.findByRole('button', { name: /Detection Rules/ });
+    await user.click(toggle);
+    await user.click(screen.getByRole('button', { name: /Create Custom Rule/ }));
+    expect(screen.getByText('Create Custom Detection Rule')).toBeInTheDocument();
+  });
+
+  it('renders all form fields in the modal', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    const toggle = await screen.findByRole('button', { name: /Detection Rules/ });
+    await user.click(toggle);
+    await user.click(screen.getByRole('button', { name: /Create Custom Rule/ }));
+
+    expect(screen.getByLabelText('Rule name')).toBeInTheDocument();
+    expect(screen.getByLabelText('Metric to monitor')).toBeInTheDocument();
+    expect(screen.getByLabelText('Condition')).toBeInTheDocument();
+    expect(screen.getByLabelText('Threshold value')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Severity/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Rule' })).toBeInTheDocument();
+  });
+
+  it('shows future release message when saving a custom rule', async () => {
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AnomaliesPane />
+      </QueryClientProvider>,
+    );
+
+    // Wait for data to load and expand rules
+    const toggle = await screen.findByRole('button', { name: /Detection Rules/ });
+    await user.click(toggle);
+
+    // Open the custom rule modal
+    const createBtn = await screen.findByRole('button', { name: /Create Custom Rule/ });
+    await user.click(createBtn);
+
+    // Verify the modal is open - use findBy to wait for portal render
+    await screen.findByText('Create Custom Detection Rule');
+
+    // Fill form fields using fireEvent to avoid focus/portal timing issues
+    const nameInput = screen.getByLabelText('Rule name');
+    fireEvent.change(nameInput, { target: { value: 'My rule' } });
+
+    const thresholdInput = screen.getByLabelText('Threshold value');
+    fireEvent.change(thresholdInput, { target: { value: '25' } });
+
+    await user.click(screen.getByRole('button', { name: 'Save Rule' }));
+
+    expect(
+      await screen.findByText(/Custom detection rules will be available in a future release/),
+    ).toBeInTheDocument();
+  });
+
+  it('has metric dropdown with expected options', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    const toggle = await screen.findByRole('button', { name: /Detection Rules/ });
+    await user.click(toggle);
+    await user.click(screen.getByRole('button', { name: /Create Custom Rule/ }));
+
+    const metricSelect = screen.getByLabelText('Metric to monitor');
+    const options = within(metricSelect).getAllByRole('option');
+    expect(options.map((o) => o.textContent)).toEqual([
+      'Acceptance rate',
+      'Active users',
+      'Feature usage',
+      'Model distribution',
+      'Custom',
+    ]);
+  });
+
+  it('has condition dropdown with expected options', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    const toggle = await screen.findByRole('button', { name: /Detection Rules/ });
+    await user.click(toggle);
+    await user.click(screen.getByRole('button', { name: /Create Custom Rule/ }));
+
+    const conditionSelect = screen.getByLabelText('Condition');
+    const options = within(conditionSelect).getAllByRole('option');
+    expect(options.map((o) => o.textContent)).toEqual(['drops below', 'rises above', 'changes by']);
+  });
+
+  it('has severity radio buttons with high, medium, low', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    const toggle = await screen.findByRole('button', { name: /Detection Rules/ });
+    await user.click(toggle);
+    await user.click(screen.getByRole('button', { name: /Create Custom Rule/ }));
+
+    expect(screen.getByRole('radio', { name: 'high' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'medium' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'low' })).toBeInTheDocument();
+    // Medium should be checked by default
+    expect(screen.getByRole('radio', { name: 'medium' })).toBeChecked();
+  });
+
+  it('closes the modal when clicking close', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    const toggle = await screen.findByRole('button', { name: /Detection Rules/ });
+    await user.click(toggle);
+    await user.click(screen.getByRole('button', { name: /Create Custom Rule/ }));
+    expect(screen.getByText('Create Custom Detection Rule')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /close/i }));
+    expect(screen.queryByText('Create Custom Detection Rule')).not.toBeInTheDocument();
   });
 });

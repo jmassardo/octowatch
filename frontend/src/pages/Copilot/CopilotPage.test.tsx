@@ -182,8 +182,8 @@ describe('CopilotPage', () => {
     renderPage();
 
     await user.click(screen.getByRole('tab', { name: /Models/ }));
-    expect(await screen.findByText('Model usage spread')).toBeInTheDocument();
-    expect(screen.getByText('Feature usage spread')).toBeInTheDocument();
+    expect(await screen.findByText('Model usage distribution')).toBeInTheDocument();
+    expect(screen.getByText('Feature usage distribution')).toBeInTheDocument();
     expect(screen.getByText('Editor breakdown')).toBeInTheDocument();
     expect(screen.queryByText(/Seat waste detected/)).not.toBeInTheDocument();
   });

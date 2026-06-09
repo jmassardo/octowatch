@@ -315,7 +315,7 @@ describe('AdoptionPane', () => {
     expect(document.querySelector('[data-testid="drawer-panel"]')).toBeTruthy();
   });
 
-  it('drawer shows org membership', async () => {
+  it('drawer shows GitHub profile link', async () => {
     const user = userEvent.setup();
     renderPane();
     await screen.findByText('sarah.chen');
@@ -324,11 +324,12 @@ describe('AdoptionPane', () => {
     await user.click(row);
 
     const drawerPanel = document.querySelector('[data-testid="drawer-panel"]') as HTMLElement;
-    expect(within(drawerPanel).getByText('Org membership')).toBeInTheDocument();
-    expect(within(drawerPanel).getByText('Member')).toBeInTheDocument();
+    const link = within(drawerPanel).getByText('View on GitHub ↗');
+    expect(link).toBeInTheDocument();
+    expect(link.closest('a')).toHaveAttribute('href', 'https://github.com/sarah.chen');
   });
 
-  it('drawer shows last activity for minimal users', async () => {
+  it('drawer shows last activity date when available', async () => {
     const user = userEvent.setup();
     renderPane();
     await screen.findByText('tom.jones');
@@ -337,9 +338,35 @@ describe('AdoptionPane', () => {
     await user.click(row);
 
     const drawerPanel = document.querySelector('[data-testid="drawer-panel"]') as HTMLElement;
-    expect(within(drawerPanel).getByText('Last activity')).toBeInTheDocument();
-    // "IDE chat" appears both in features breakdown and last activity; check all occurrences exist
-    const chatEntries = within(drawerPanel).getAllByText('IDE chat');
-    expect(chatEntries.length).toBeGreaterThanOrEqual(1);
+    // tom.jones has no last_activity in mock data, so "Last activity" section should not appear
+    expect(within(drawerPanel).queryByText('Last activity')).not.toBeInTheDocument();
+    // But "View on GitHub" link should be present
+    expect(within(drawerPanel).getByText('View on GitHub ↗')).toBeInTheDocument();
+  });
+
+  it('shows all tier guidance when no tier is selected', async () => {
+    renderPane();
+    await screen.findByText('sarah.chen');
+
+    expect(screen.getByText(/Power Users:/)).toBeInTheDocument();
+    expect(screen.getByText(/Regular Users:/)).toBeInTheDocument();
+    expect(screen.getByText(/Minimal Users:/)).toBeInTheDocument();
+    expect(screen.getByText(/Inactive Users:/)).toBeInTheDocument();
+  });
+
+  it('shows only matching guidance when a tier is selected', async () => {
+    const user = userEvent.setup();
+    renderPane();
+    await screen.findByText('sarah.chen');
+
+    // Click the "Power Users" tier card (identified by count "34")
+    const tierCount = screen.getByText('34');
+    const powerCard = tierCount.closest('[role="button"]')!;
+    await user.click(powerCard);
+
+    expect(screen.getByText(/Power Users:/)).toBeInTheDocument();
+    expect(screen.queryByText(/Regular Users:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Minimal Users:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Inactive Users:/)).not.toBeInTheDocument();
   });
 });
