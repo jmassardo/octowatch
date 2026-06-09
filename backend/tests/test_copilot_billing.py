@@ -138,10 +138,11 @@ class TestCopilotUserBudgets:
             return_value=None,
         ):
             # Mock query results - simulate 3 users with different utilization
+            # Columns: (github_login, consumed, budget, budget_consumed, is_blocked)
             mock_rows = [
-                ("user1", "org1", 450.0, 500.0, 450.0, False),  # 90% - near
-                ("user2", "org1", 200.0, 500.0, 200.0, False),  # 40% - ok
-                ("user3", "org1", 550.0, 500.0, 550.0, True),  # 110% - blocked
+                ("user1", 450.0, 500.0, 450.0, False),  # 90% - near
+                ("user2", 200.0, 500.0, 200.0, False),  # 40% - ok
+                ("user3", 550.0, 500.0, 550.0, True),  # 110% - blocked
             ]
             mock_result = MagicMock()
             mock_result.fetchall.return_value = mock_rows
