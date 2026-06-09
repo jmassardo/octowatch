@@ -7,6 +7,7 @@ export interface CopilotOverview {
   languages: Array<{ lang: string; pct: number; color: string }>;
   total_active_users: number;
   total_engaged_users: number;
+  total_provisioned_seats: number;
   error?: string;
   message?: string;
 }
@@ -233,6 +234,28 @@ export function getCopilotAdoption(): Promise<CopilotAdoption> {
 
 export function getCopilotModels(): Promise<CopilotModels> {
   return api.get<CopilotModels>('/copilot/models');
+}
+
+export interface CopilotModelUser {
+  login: string;
+  total_credits: number;
+  completions_credits: number;
+  chat_credits: number;
+  pr_credits: number;
+  other_credits: number;
+  days_active: number;
+  last_active: string | null;
+}
+
+export interface CopilotModelUsers {
+  users: CopilotModelUser[];
+  total_users: number;
+  error?: string;
+  message?: string;
+}
+
+export function getCopilotModelUsers(): Promise<CopilotModelUsers> {
+  return api.get<CopilotModelUsers>('/copilot/model-users');
 }
 
 export function getCopilotAnomalies(): Promise<CopilotAnomalies> {

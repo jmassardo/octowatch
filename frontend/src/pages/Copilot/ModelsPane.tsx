@@ -9,7 +9,12 @@ import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { DonutChart } from '../../components/charts/DonutChart';
 import { LineAreaChart } from '../../components/charts/LineAreaChart';
-import { getCopilotModels, getCopilotOverview } from '../../api/copilotMetrics';
+import {
+  getCopilotModels,
+  getCopilotOverview,
+  getCopilotModelUsers,
+} from '../../api/copilotMetrics';
+import type { CopilotModelUser } from '../../api/copilotMetrics';
 import styles from './Copilot.module.css';
 
 type MetricRow = { metric: string; value: string };
@@ -65,11 +70,18 @@ export function ModelsPane() {
     staleTime: 30 * 60 * 1000,
   });
 
+  const { data: modelUsers } = useQuery({
+    queryKey: ['copilot', 'model-users'],
+    queryFn: getCopilotModelUsers,
+    staleTime: 30 * 60 * 1000,
+  });
+
   const modelUsage = models?.models ?? [];
   const featureUsage = models?.features ?? [];
   const editors = models?.editors ?? [];
   const timeSeries = models?.time_series;
   const languages = overview?.languages ?? [];
+  const userUsageList = modelUsers?.users ?? [];
 
   const [modelsModal, setModelsModal] = useState<ModelsModal>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -318,6 +330,113 @@ export function ModelsPane() {
               ))}
             </div>
           )}
+
+          {/* ── Per-User Copilot Usage Table ── */}
+          <Card style={{ marginTop: 24 }}>
+            <CardHeader>Per-user Copilot usage (last 28 days)</CardHeader>
+            {userUsageList.length === 0 ? (
+              <div
+                style={{
+                  color: 'var(--fg-muted)',
+                  fontSize: 13,
+                  padding: '16px',
+                  textAlign: 'center',
+                }}
+              >
+                No per-user usage data available — sync Copilot usage reports to populate.
+              </div>
+            ) : (
+              <DataTable<CopilotModelUser>
+                columns={[
+                  {
+                    key: 'login',
+                    header: 'User',
+                    filterable: true,
+                    sortable: true,
+                    render: (u) => (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <img
+                          src={`https://github.com/${u.login}.png?size=24`}
+                          alt={u.login}
+                          style={{ width: 20, height: 20, borderRadius: '50%' }}
+                        />
+                        <span style={{ fontWeight: 500 }}>{u.login}</span>
+                      </span>
+                    ),
+                    filterValue: (u) => u.login,
+                    sortValue: (u) => u.login,
+                  },
+                  {
+                    key: 'total_credits',
+                    header: 'Total Credits',
+                    sortable: true,
+                    render: (u) => (
+                      <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                        {u.total_credits.toFixed(1)}
+                      </span>
+                    ),
+                    sortValue: (u) => u.total_credits,
+                  },
+                  {
+                    key: 'completions_credits',
+                    header: 'Completions',
+                    sortable: true,
+                    render: (u) => (
+                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {u.completions_credits.toFixed(1)}
+                      </span>
+                    ),
+                    sortValue: (u) => u.completions_credits,
+                  },
+                  {
+                    key: 'chat_credits',
+                    header: 'Chat',
+                    sortable: true,
+                    render: (u) => (
+                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {u.chat_credits.toFixed(1)}
+                      </span>
+                    ),
+                    sortValue: (u) => u.chat_credits,
+                  },
+                  {
+                    key: 'pr_credits',
+                    header: 'PR Review',
+                    sortable: true,
+                    render: (u) => (
+                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {u.pr_credits.toFixed(1)}
+                      </span>
+                    ),
+                    sortValue: (u) => u.pr_credits,
+                  },
+                  {
+                    key: 'days_active',
+                    header: 'Days Active',
+                    sortable: true,
+                    render: (u) => (
+                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{u.days_active}d</span>
+                    ),
+                    sortValue: (u) => u.days_active,
+                  },
+                  {
+                    key: 'last_active',
+                    header: 'Last Active',
+                    sortable: true,
+                    render: (u) => (
+                      <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>
+                        {u.last_active ?? '—'}
+                      </span>
+                    ),
+                    sortValue: (u) => u.last_active ?? '',
+                  },
+                ]}
+                data={userUsageList}
+                rowKey={(u) => u.login}
+                pageSize={15}
+              />
+            )}
+          </Card>
 
           {/* ── Model Detail Modal ── */}
           <Modal

@@ -9,30 +9,22 @@ import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { Button } from '../../components/primitives/Button';
 import { DataTable } from '../../components/primitives/DataTable';
 import { LineAreaChart } from '../../components/charts/LineAreaChart';
-import type { SeatUtilizationBucket, CopilotSeatsBucket } from '../../types/reports';
+import type { SeatUtilizationBucket } from '../../types/reports';
 import { getCopilotOverview } from '../../api/copilotMetrics';
 import { useChartColors } from '../../hooks/useChartColors';
 import { useOrgConfig } from '../../hooks/useOrgConfig';
 import { formatBucketDate, formatWeekday, formatWeekdayDate } from '../../utils/dates';
 import styles from './Copilot.module.css';
-type DrillDownType = 'active-seats' | 'assigned' | 'revoked' | 'net' | null;
 type OverviewModal = 'seat-waste' | 'correlation-seats' | 'correlation-cycle' | null;
 
 interface OverviewPaneProps {
   seatBuckets: SeatUtilizationBucket[];
-  copilotBuckets: CopilotSeatsBucket[];
   isLoading: boolean;
   isError: boolean;
   onRetry: () => void;
 }
 
-export function OverviewPane({
-  seatBuckets,
-  copilotBuckets,
-  isLoading,
-  isError,
-  onRetry,
-}: OverviewPaneProps) {
+export function OverviewPane({ seatBuckets, isLoading, isError, onRetry }: OverviewPaneProps) {
   const { costPerSeat } = useOrgConfig();
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['copilot', 'overview'],
@@ -47,7 +39,6 @@ export function OverviewPane({
     () => overview?.acceptance_threshold ?? 25,
   );
 
-  const [drillDown, setDrillDown] = useState<DrillDownType>(null);
   const [overviewModal, setOverviewModal] = useState<OverviewModal>(null);
   const seatTableRef = useRef<HTMLDivElement>(null);
   const chartColors = useChartColors();
@@ -60,14 +51,10 @@ export function OverviewPane({
         ).toFixed(1)
       : null;
 
-  const totalAssigned = copilotBuckets.reduce((s, b) => s + (b.seats_assigned ?? 0), 0);
-  const totalRevoked = copilotBuckets.reduce((s, b) => s + (b.seats_revoked ?? 0), 0);
-  const netSeats = copilotBuckets.reduce((s, b) => s + (b.seats_net ?? 0), 0);
-
   // Use Copilot Metrics API data (overview) for active/provisioned counts
-  // seatBuckets are event-based counts which may not match actual API seat data
   const activeSeats = overview?.total_active_users ?? latestSeatBucket?.active_seat_count;
-  const provisionedSeats = latestSeatBucket?.provisioned_seat_count;
+  const provisionedSeats =
+    overview?.total_provisioned_seats ?? latestSeatBucket?.provisioned_seat_count;
   const seatLabel =
     activeSeats != null && provisionedSeats != null ? `${activeSeats} / ${provisionedSeats}` : '—';
 
@@ -78,21 +65,6 @@ export function OverviewPane({
   function handleActiveSeatsClick() {
     if (seatTableRef.current) {
       seatTableRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }
-
-  function drillDownTitle(): string {
-    switch (drillDown) {
-      case 'active-seats':
-        return 'Active / total seats — all data';
-      case 'assigned':
-        return 'Seats assigned — 30-day history';
-      case 'revoked':
-        return 'Seats revoked — 30-day history';
-      case 'net':
-        return 'Net seat change — 30-day history';
-      default:
-        return '';
     }
   }
 
@@ -186,236 +158,13 @@ export function OverviewPane({
       <div className={styles.metricStrip}>
         <MetricCard
           value={seatLabel}
-          label="Active / total seats (latest)"
+          label="Active / total seats (28d)"
           delta={avgUtilPct != null ? `${avgUtilPct}% avg utilization` : '—'}
           deltaDir="neutral"
           onClick={handleActiveSeatsClick}
-          helpText="Currently active vs. total provisioned Copilot seats. Synced daily from the GitHub Copilot API. Click to scroll to the utilization table."
-        />
-        <MetricCard
-          value={totalAssigned > 0 ? String(totalAssigned) : '—'}
-          label="Seats assigned (30d)"
-          delta="cumulative"
-          deltaDir="up"
-          onClick={() => setDrillDown('assigned')}
-          helpText="Total Copilot seats assigned in the last 30 days. From daily seat-change sync. A rising trend indicates growing adoption."
-        />
-        <MetricCard
-          value={totalRevoked > 0 ? String(totalRevoked) : '—'}
-          label="Seats revoked (30d)"
-          delta="cumulative"
-          deltaDir={totalRevoked > 0 ? 'down' : 'neutral'}
-          onClick={() => setDrillDown('revoked')}
-          helpText="Total Copilot seats revoked in the last 30 days. From daily seat-change sync. Review revocations to ensure intentional offboarding."
-        />
-        <MetricCard
-          value={netSeats !== 0 ? `${netSeats > 0 ? '+' : ''}${netSeats}` : '—'}
-          label="Net seat change (30d)"
-          delta="assigned minus revoked"
-          deltaDir={netSeats > 0 ? 'up' : netSeats < 0 ? 'down' : 'neutral'}
-          onClick={() => setDrillDown('net')}
-          helpText="Net change in Copilot seats (assigned minus revoked) over 30 days. From daily sync data. Positive means fleet is growing."
+          helpText="Active users in the last 28 days vs. total provisioned Copilot seats. From the Copilot Metrics API. Click to scroll to the utilization table."
         />
       </div>
-
-      {/* Drill-down modal */}
-      <Modal
-        open={drillDown !== null}
-        onClose={() => setDrillDown(null)}
-        title={drillDownTitle()}
-        width={640}
-      >
-        {drillDown === 'active-seats' && (
-          <DataTable<SeatUtilizationBucket>
-            columns={[
-              {
-                key: 'date',
-                header: 'Date',
-                filterable: true,
-                helpText:
-                  'The date of this daily Copilot usage snapshot. Synced once per day from the GitHub Copilot API.',
-                render: (b) => (
-                  <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>
-                ),
-                filterValue: (b) => formatBucketDate(b.bucket),
-              },
-              {
-                key: 'active',
-                header: 'Active',
-                sortable: true,
-                helpText:
-                  'Number of seats with recorded Copilot activity on this day. From daily usage sync.',
-                render: (b) => (
-                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {b.active_seat_count ?? '—'}
-                  </span>
-                ),
-                sortValue: (b) => b.active_seat_count ?? 0,
-              },
-              {
-                key: 'provisioned',
-                header: 'Provisioned',
-                sortable: true,
-                helpText:
-                  'Total Copilot seats provisioned (assigned) on this day. From the GitHub Copilot seat management API.',
-                render: (b) => (
-                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {b.provisioned_seat_count ?? '—'}
-                  </span>
-                ),
-                sortValue: (b) => b.provisioned_seat_count ?? 0,
-              },
-              {
-                key: 'utilization',
-                header: 'Utilization %',
-                sortable: true,
-                helpText:
-                  'Percentage of provisioned Copilot seats that were active. Synced daily from GitHub Copilot API. Target 70%+ utilization to maximize ROI.',
-                render: (b) => (
-                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {b.utilization_pct != null ? `${Math.round(b.utilization_pct)}%` : '—'}
-                  </span>
-                ),
-                sortValue: (b) => b.utilization_pct ?? 0,
-              },
-            ]}
-            data={seatBuckets}
-            rowKey={(b) => b.bucket}
-          />
-        )}
-        {drillDown === 'assigned' && (
-          <DataTable<CopilotSeatsBucket>
-            columns={[
-              {
-                key: 'date',
-                header: 'Date',
-                filterable: true,
-                helpText:
-                  'The date of this daily Copilot seat-change snapshot. Synced once per day from the GitHub Copilot API.',
-                render: (b) => (
-                  <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>
-                ),
-                filterValue: (b) => formatBucketDate(b.bucket),
-              },
-              {
-                key: 'assigned',
-                header: 'Assigned',
-                sortable: true,
-                helpText:
-                  'Number of new Copilot seats assigned on this day. From daily seat-change sync.',
-                render: (b) => (
-                  <span style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
-                    +{b.seats_assigned ?? 0}
-                  </span>
-                ),
-                sortValue: (b) => b.seats_assigned ?? 0,
-              },
-            ]}
-            data={copilotBuckets}
-            rowKey={(b) => b.bucket}
-          />
-        )}
-        {drillDown === 'revoked' && (
-          <DataTable<CopilotSeatsBucket>
-            columns={[
-              {
-                key: 'date',
-                header: 'Date',
-                filterable: true,
-                helpText:
-                  'The date of this daily Copilot seat-change snapshot. Synced once per day from the GitHub Copilot API.',
-                render: (b) => (
-                  <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>
-                ),
-                filterValue: (b) => formatBucketDate(b.bucket),
-              },
-              {
-                key: 'revoked',
-                header: 'Revoked',
-                sortable: true,
-                helpText:
-                  'Number of Copilot seats revoked on this day. From daily seat-change sync. Spikes may indicate offboarding events.',
-                render: (b) => (
-                  <span
-                    style={{
-                      color: b.seats_revoked > 0 ? 'var(--danger)' : undefined,
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
-                  </span>
-                ),
-                sortValue: (b) => b.seats_revoked ?? 0,
-              },
-            ]}
-            data={copilotBuckets}
-            rowKey={(b) => b.bucket}
-          />
-        )}
-        {drillDown === 'net' && (
-          <DataTable<CopilotSeatsBucket>
-            columns={[
-              {
-                key: 'date',
-                header: 'Date',
-                filterable: true,
-                helpText:
-                  'The date of this daily Copilot seat-change snapshot. Synced once per day from the GitHub Copilot API.',
-                render: (b) => (
-                  <span style={{ color: 'var(--fg-muted)' }}>{formatBucketDate(b.bucket)}</span>
-                ),
-                filterValue: (b) => formatBucketDate(b.bucket),
-              },
-              {
-                key: 'assigned',
-                header: 'Assigned',
-                sortable: true,
-                helpText:
-                  'Number of new Copilot seats assigned on this day. From daily seat-change sync.',
-                render: (b) => (
-                  <span style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
-                    +{b.seats_assigned ?? 0}
-                  </span>
-                ),
-                sortValue: (b) => b.seats_assigned ?? 0,
-              },
-              {
-                key: 'revoked',
-                header: 'Revoked',
-                sortable: true,
-                helpText:
-                  'Number of Copilot seats revoked on this day. From daily seat-change sync.',
-                render: (b) => (
-                  <span
-                    style={{
-                      color: b.seats_revoked > 0 ? 'var(--danger)' : undefined,
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {b.seats_revoked > 0 ? `-${b.seats_revoked}` : '—'}
-                  </span>
-                ),
-                sortValue: (b) => b.seats_revoked ?? 0,
-              },
-              {
-                key: 'net',
-                header: 'Net',
-                sortable: true,
-                helpText:
-                  'Net seat change (assigned minus revoked) for this day. Positive values indicate fleet growth.',
-                render: (b) => (
-                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {b.seats_net > 0 ? `+${b.seats_net}` : b.seats_net}
-                  </span>
-                ),
-                sortValue: (b) => b.seats_net ?? 0,
-              },
-            ]}
-            data={copilotBuckets}
-            rowKey={(b) => b.bucket}
-          />
-        )}
-      </Modal>
 
       {/* Charts row */}
       <div className={styles.grid2}>

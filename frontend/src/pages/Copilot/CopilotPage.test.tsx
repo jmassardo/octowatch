@@ -21,7 +21,6 @@ vi.mock('../../api/reports', () => ({
       },
     ],
   }),
-  getCopilotSeatsReport: vi.fn().mockResolvedValue({ data: [] }),
 }));
 
 vi.mock('../../api/features', () => ({
@@ -50,7 +49,15 @@ vi.mock('../../hooks/useFeatures', () => ({
 
 vi.mock('../../api/copilotMetrics', () => ({
   getCopilotOverview: vi.fn().mockResolvedValue({
-    acceptance_rate_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    acceptance_rate_days: [
+      '2026-06-01',
+      '2026-06-02',
+      '2026-06-03',
+      '2026-06-04',
+      '2026-06-05',
+      '2026-06-06',
+      '2026-06-07',
+    ],
     acceptance_rate_values: [24, 26, 27, 25, 28, 31, 29],
     acceptance_threshold: 25,
     languages: [
@@ -59,6 +66,7 @@ vi.mock('../../api/copilotMetrics', () => ({
     ],
     total_active_users: 120,
     total_engaged_users: 98,
+    total_provisioned_seats: 186,
   }),
   getCopilotAnomalies: vi.fn().mockResolvedValue({
     anomalies: [
@@ -105,6 +113,10 @@ vi.mock('../../api/copilotMetrics', () => ({
     models: [{ model: 'GPT-4o', pct: 42, color: '#58a6ff' }],
     features: [{ feature: 'IDE completions', count: 142, color: '#58a6ff' }],
     editors: [{ name: 'VS Code', count: 112, pct: 79 }],
+  }),
+  getCopilotModelUsers: vi.fn().mockResolvedValue({
+    users: [],
+    total_users: 0,
   }),
   getCopilotBlockers: vi.fn().mockResolvedValue({
     blockers: [],

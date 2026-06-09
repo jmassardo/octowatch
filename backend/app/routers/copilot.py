@@ -68,6 +68,22 @@ async def copilot_models(
         ) from None
 
 
+@router.get("/model-users", response_model=dict[str, Any])
+async def copilot_model_users(
+    current_user: AuthenticatedUser = Depends(require_permission("copilot", "view")),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Per-user Copilot usage breakdown by feature category (28 days)."""
+    try:
+        return await copilot_metrics_service.get_copilot_model_users(db)
+    except Exception:
+        logger.exception("copilot.model_users_failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        ) from None
+
+
 @router.get("/anomalies", response_model=dict[str, Any])
 async def copilot_anomalies(
     current_user: AuthenticatedUser = Depends(require_permission("copilot", "view")),

@@ -1,8 +1,8 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getSeatUtilizationReport, getCopilotSeatsReport } from '../../api/reports';
+import { getSeatUtilizationReport } from '../../api/reports';
 import { getCopilotAnomalies } from '../../api/copilotMetrics';
-import type { SeatUtilizationBucket, CopilotSeatsBucket } from '../../types/reports';
+import type { SeatUtilizationBucket } from '../../types/reports';
 import { useFeatures } from '../../hooks/useFeatures';
 import { CopilotTabBar } from './CopilotTabBar';
 import type { CopilotTab } from './CopilotTabBar';
@@ -43,11 +43,6 @@ export function CopilotPage() {
     queryFn: () => getSeatUtilizationReport({ window_days: 30 }),
   });
 
-  const { data: copilotData, isLoading: loadingCopilot } = useQuery({
-    queryKey: ['reports', 'copilot-seats'],
-    queryFn: () => getCopilotSeatsReport({ window_days: 30 }),
-  });
-
   const { data: anomalyData } = useQuery({
     queryKey: ['copilot', 'anomalies'],
     queryFn: getCopilotAnomalies,
@@ -70,7 +65,6 @@ export function CopilotPage() {
   }
 
   const seatBuckets = (seatUtilData?.data ?? []) as unknown as SeatUtilizationBucket[];
-  const copilotBuckets = (copilotData?.data ?? []) as unknown as CopilotSeatsBucket[];
 
   return (
     <div className={styles.page}>
@@ -89,8 +83,7 @@ export function CopilotPage() {
       {activeTab === 'overview' && (
         <OverviewPane
           seatBuckets={seatBuckets}
-          copilotBuckets={copilotBuckets}
-          isLoading={loadingSeatUtil || loadingCopilot}
+          isLoading={loadingSeatUtil}
           isError={seatUtilError}
           onRetry={() => void refetchSeatUtil()}
         />

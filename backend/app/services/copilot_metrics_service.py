@@ -866,26 +866,31 @@ async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
     """Data for the Overview pane: acceptance rates, language breakdown, user counts.
 
     Queries copilot_daily_metrics directly for reliable aggregates regardless
-    of cache format.
+    of cache format.  Returns a proper 7-day rolling acceptance rate over 28 days
+    and accurate seat counts from the CopilotSeatSnapshot table.
     """
-    from app.models.copilot_metrics import CopilotDailyMetric
+    from app.models.copilot_metrics import CopilotDailyMetric, CopilotSeatSnapshot
 
     err = await _check_feature_enabled(db)
     if err is not None:
         return err
 
-    # Query summary rows for acceptance rate (last 7 days)
+    from sqlalchemy import desc, func
+
+    # Query 35 days of summary data (grouped by date across all orgs) to compute
+    # 7-day rolling averages over the latest 28 days.
     summary_result = await db.execute(
         select(
             CopilotDailyMetric.date,
-            CopilotDailyMetric.active_users,
-            CopilotDailyMetric.engaged_users,
-            CopilotDailyMetric.total_suggestions,
-            CopilotDailyMetric.total_acceptances,
+            func.sum(CopilotDailyMetric.active_users).label("active_users"),
+            func.sum(CopilotDailyMetric.engaged_users).label("engaged_users"),
+            func.sum(CopilotDailyMetric.total_suggestions).label("total_suggestions"),
+            func.sum(CopilotDailyMetric.total_acceptances).label("total_acceptances"),
         )
         .where(CopilotDailyMetric.metric_type == "summary")
+        .group_by(CopilotDailyMetric.date)
         .order_by(CopilotDailyMetric.date.desc())
-        .limit(28)
+        .limit(35)
     )
     summary_rows = list(summary_result.all())
 
@@ -903,24 +908,27 @@ async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
             "languages": [],
             "total_active_users": 0,
             "total_engaged_users": 0,
+            "total_provisioned_seats": 0,
         }
 
-    # Reverse to chronological order and take last 7
+    # Reverse to chronological order
     summary_rows.reverse()
-    recent = summary_rows[-7:] if len(summary_rows) >= 7 else summary_rows
 
+    # Compute 7-day rolling acceptance rate for each day that has a full window
     rate_labels: list[str] = []
     rate_values: list[float] = []
-    for row in recent:
-        rate_labels.append(_DAY_LABELS[row.date.weekday()])
-        pct = (
-            (row.total_acceptances / row.total_suggestions * 100) if row.total_suggestions else 0.0
-        )
+    for i in range(len(summary_rows)):
+        if i < 6:
+            # Need at least 7 days for a full rolling window
+            continue
+        window = summary_rows[i - 6 : i + 1]
+        total_sugg = sum(r.total_suggestions or 0 for r in window)
+        total_acc = sum(r.total_acceptances or 0 for r in window)
+        pct = (total_acc / total_sugg * 100) if total_sugg > 0 else 0.0
+        rate_labels.append(summary_rows[i].date.isoformat())
         rate_values.append(round(pct, 1))
 
     # Language breakdown from DB (all available days)
-    from sqlalchemy import desc, func
-
     lang_result = await db.execute(
         select(
             CopilotDailyMetric.language,
@@ -947,9 +955,34 @@ async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
         for row in lang_rows
     ]
 
-    # Latest user counts
+    # Active users: count distinct users with activity in last 28 days
+    # from CopilotSeatSnapshot (matches what GitHub insights tab shows)
+    cutoff_date = (datetime.now(UTC) - timedelta(days=28)).date()
+    active_result = await db.execute(
+        select(func.count(func.distinct(CopilotSeatSnapshot.github_login))).where(
+            CopilotSeatSnapshot.last_activity_at
+            >= datetime.combine(cutoff_date, datetime.min.time()).replace(tzinfo=UTC)
+        )
+    )
+    total_active = active_result.scalar() or 0
+
+    # Provisioned seats: count distinct users in the latest snapshot
+    latest_snapshot_date_result = await db.execute(
+        select(func.max(CopilotSeatSnapshot.snapshot_date))
+    )
+    latest_snapshot_date = latest_snapshot_date_result.scalar()
+
+    total_provisioned = 0
+    if latest_snapshot_date:
+        prov_result = await db.execute(
+            select(func.count(func.distinct(CopilotSeatSnapshot.github_login))).where(
+                CopilotSeatSnapshot.snapshot_date == latest_snapshot_date
+            )
+        )
+        total_provisioned = prov_result.scalar() or 0
+
+    # Engaged users from summary rows
     latest = summary_rows[-1] if summary_rows else None
-    total_active = latest.active_users if latest else 0
     total_engaged = latest.engaged_users if latest else 0
 
     return {
@@ -959,6 +992,7 @@ async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
         "languages": lang_items,
         "total_active_users": total_active,
         "total_engaged_users": total_engaged,
+        "total_provisioned_seats": total_provisioned,
     }
 
 
@@ -984,23 +1018,16 @@ def _build_overview_from_raw(days: list[dict[str, Any]]) -> dict[str, Any]:
             "languages": [],
             "total_active_users": 0,
             "total_engaged_users": 0,
+            "total_provisioned_seats": 0,
         }
 
     # Sort by date
     flat_days.sort(key=lambda d: d.get("day", "") or d.get("date", ""))
-    recent = flat_days[-7:] if len(flat_days) >= 7 else flat_days
 
-    rate_labels: list[str] = []
-    rate_values: list[float] = []
-    for day_obj in recent:
+    # Extract per-day suggestions/acceptances for rolling average calculation
+    daily_data: list[tuple[str, int, int]] = []
+    for day_obj in flat_days:
         date_str = day_obj.get("day", "") or day_obj.get("date", "")
-        try:
-            dt = datetime.fromisoformat(date_str)
-            rate_labels.append(_DAY_LABELS[dt.weekday()])
-        except (ValueError, TypeError):
-            rate_labels.append("?")
-
-        # New format: top-level counts
         total_suggestions = day_obj.get("code_generation_activity_count", 0)
         total_acceptances = day_obj.get("code_acceptance_activity_count", 0)
 
@@ -1013,7 +1040,19 @@ def _build_overview_from_raw(days: list[dict[str, Any]]) -> dict[str, Any]:
                         total_suggestions += lang.get("total_code_suggestions", 0)
                         total_acceptances += lang.get("total_code_acceptances", 0)
 
-        pct = (total_acceptances / total_suggestions * 100) if total_suggestions else 0.0
+        daily_data.append((date_str, total_suggestions, total_acceptances))
+
+    # Compute 7-day rolling acceptance rate
+    rate_labels: list[str] = []
+    rate_values: list[float] = []
+    for i in range(len(daily_data)):
+        if i < 6:
+            continue
+        window = daily_data[i - 6 : i + 1]
+        sugg_sum = sum(d[1] for d in window)
+        acc_sum = sum(d[2] for d in window)
+        pct = (acc_sum / sugg_sum * 100) if sugg_sum > 0 else 0.0
+        rate_labels.append(daily_data[i][0])
         rate_values.append(round(pct, 1))
 
     # Language breakdown
@@ -1060,6 +1099,7 @@ def _build_overview_from_raw(days: list[dict[str, Any]]) -> dict[str, Any]:
         "languages": lang_items[:10],
         "total_active_users": total_active,
         "total_engaged_users": total_engaged,
+        "total_provisioned_seats": 0,
     }
 
 
@@ -1612,6 +1652,59 @@ async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
         "editors": editors_list,
         "time_series": time_series,
     }
+
+
+async def get_copilot_model_users(db: AsyncSession) -> dict[str, Any]:
+    """Per-user Copilot usage breakdown by feature category.
+
+    Returns sortable/filterable data showing credits consumed by each user
+    across completions, chat, PR review, and other categories.
+    """
+    from sqlalchemy import func
+
+    from app.models.copilot_usage import CopilotUsageReport
+
+    err = await _check_feature_enabled(db)
+    if err is not None:
+        return err
+
+    now = datetime.now(UTC)
+    period_start = (now - timedelta(days=28)).date()
+
+    result = await db.execute(
+        select(
+            CopilotUsageReport.github_login,
+            func.sum(CopilotUsageReport.total_credits_consumed).label("total"),
+            func.sum(CopilotUsageReport.completions_credits).label("completions"),
+            func.sum(CopilotUsageReport.chat_credits).label("chat"),
+            func.sum(CopilotUsageReport.pr_credits).label("pr"),
+            func.sum(CopilotUsageReport.other_credits).label("other"),
+            func.count(CopilotUsageReport.report_date).label("days_active"),
+            func.max(CopilotUsageReport.report_date).label("last_active"),
+        )
+        .where(CopilotUsageReport.report_date >= period_start)
+        .group_by(CopilotUsageReport.github_login)
+        .order_by(func.sum(CopilotUsageReport.total_credits_consumed).desc())
+    )
+    rows = result.fetchall()
+
+    users: list[dict[str, Any]] = []
+    for row in rows:
+        total = float(row[1] or 0)
+        users.append(
+            {
+                "login": row[0],
+                "total_credits": round(total, 2),
+                "completions_credits": round(float(row[2] or 0), 2),
+                "chat_credits": round(float(row[3] or 0), 2),
+                "pr_credits": round(float(row[4] or 0), 2),
+                "other_credits": round(float(row[5] or 0), 2),
+                "days_active": int(row[6] or 0),
+                "last_active": row[7].isoformat() if row[7] else None,
+            }
+        )
+
+    return {"users": users, "total_users": len(users)}
 
 
 def _build_models_from_raw(days: list[dict[str, Any]]) -> dict[str, Any]:

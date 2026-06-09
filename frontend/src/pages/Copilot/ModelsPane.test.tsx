@@ -52,6 +52,32 @@ vi.mock('../../api/copilotMetrics', () => ({
     ],
     total_active_users: 100,
     total_engaged_users: 80,
+    total_provisioned_seats: 120,
+  }),
+  getCopilotModelUsers: vi.fn().mockResolvedValue({
+    users: [
+      {
+        login: 'user1',
+        total_credits: 45.2,
+        completions_credits: 20.1,
+        chat_credits: 15.0,
+        pr_credits: 8.1,
+        other_credits: 2.0,
+        days_active: 22,
+        last_active: '2026-06-08',
+      },
+      {
+        login: 'user2',
+        total_credits: 32.5,
+        completions_credits: 18.0,
+        chat_credits: 10.5,
+        pr_credits: 3.0,
+        other_credits: 1.0,
+        days_active: 18,
+        last_active: '2026-06-07',
+      },
+    ],
+    total_users: 2,
   }),
 }));
 
