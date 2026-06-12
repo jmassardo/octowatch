@@ -57,13 +57,19 @@ if [ -n "${KV_NAME}" ] && [ -n "${WI_CLIENT_ID}" ]; then
   )
 fi
 
+# Include selfmanaged overlay (imagePullSecrets, registry, static replicas)
+VALUES_FILES=(
+  -f "${CHART}/values.yaml"
+  -f "${CHART}/values-selfmanaged.yaml"
+  -f "${CHART}/values-${SIZE}.yaml"
+)
+
 # Deploy
 helm upgrade --install "${NS}" "${CHART}" \
   -n "${NS}" \
-  -f "${CHART}/values.yaml" \
-  -f "${CHART}/values-${SIZE}.yaml" \
+  "${VALUES_FILES[@]}" \
   "${HELM_ARGS[@]}" \
-  --timeout 5m \
+  --timeout 8m \
   --wait
 
 echo "✓ ${NS} deployed (customer=${CUSTOMER}, size=${SIZE}, tag=${TAG})"

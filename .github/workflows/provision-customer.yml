@@ -81,28 +81,39 @@ jobs:
 
           echo "✅ Labels and annotations applied"
 
-      - name: Apply NetworkPolicy (default deny)
+      - name: Copy image pull secret
+        run: |
+          # Copy ghcr-pull-secret from the octowatch namespace (source of truth)
+          if kubectl get secret ghcr-pull-secret -n octowatch >/dev/null 2>&1; then
+            kubectl get secret ghcr-pull-secret -n octowatch -o json | \
+              jq 'del(.metadata.namespace, .metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp)' | \
+              kubectl apply -n "$NAMESPACE" -f -
+            echo "✅ Image pull secret copied from octowatch namespace"
+          else
+            echo "::warning::ghcr-pull-secret not found in octowatch namespace. Pods won't be able to pull images until this is created."
+          fi
+
+      - name: Apply bootstrap NetworkPolicy (default deny until Helm deploys)
         run: |
           cat <<'EOF' | kubectl apply -n "$NAMESPACE" -f -
           apiVersion: networking.k8s.io/v1
           kind: NetworkPolicy
           metadata:
-            name: default-deny-all
+            name: bootstrap-default-deny
+            labels:
+              octowatch.dev/lifecycle: bootstrap
           spec:
             podSelector: {}
             policyTypes:
               - Ingress
               - Egress
-          EOF
-          echo "✅ Default-deny NetworkPolicy applied"
-
-      - name: Apply DNS egress policy
-        run: |
-          cat <<'EOF' | kubectl apply -n "$NAMESPACE" -f -
+          ---
           apiVersion: networking.k8s.io/v1
           kind: NetworkPolicy
           metadata:
-            name: allow-dns-egress
+            name: bootstrap-allow-dns
+            labels:
+              octowatch.dev/lifecycle: bootstrap
           spec:
             podSelector: {}
             policyTypes:
@@ -118,7 +129,7 @@ jobs:
                   - protocol: TCP
                     port: 53
           EOF
-          echo "✅ DNS egress policy applied"
+          echo "✅ Bootstrap NetworkPolicies applied (will be superseded by Helm)"
 
       - name: Verify namespace
         run: |
