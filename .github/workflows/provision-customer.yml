@@ -1,0 +1,136 @@
+################################################################################
+# OctoWatch — Provision Customer Namespace
+#
+# Creates a new customer namespace with proper labels and annotations for the
+# multi-tenant deploy pipeline to discover and deploy to.
+#
+# Usage: Trigger manually via workflow_dispatch with customer details.
+################################################################################
+name: Provision Customer
+
+on:
+  workflow_dispatch:
+    inputs:
+      customer_slug:
+        description: "Customer identifier (lowercase, alphanumeric + hyphens, e.g. 'octodemo')"
+        required: true
+        type: string
+      ring:
+        description: "Deployment ring"
+        required: true
+        type: choice
+        options:
+          - test
+          - preview
+          - prod
+      size:
+        description: "T-shirt size for resource allocation"
+        required: true
+        type: choice
+        options:
+          - small
+          - medium
+          - large
+
+jobs:
+  provision:
+    name: "Provision: ${{ inputs.customer_slug }}"
+    runs-on: [self-hosted, k8s-mgmt]
+    permissions:
+      contents: read
+
+    env:
+      NAMESPACE: "octowatch-${{ inputs.customer_slug }}"
+
+    steps:
+      - name: Validate customer slug
+        run: |
+          SLUG="${{ inputs.customer_slug }}"
+          if [[ ! "$SLUG" =~ ^[a-z][a-z0-9-]{1,20}$ ]]; then
+            echo "::error::Invalid customer_slug: must be lowercase alphanumeric with hyphens, 2-21 chars, starting with a letter."
+            exit 1
+          fi
+
+      - name: Check if namespace already exists
+        id: check
+        run: |
+          if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Namespace $NAMESPACE already exists. Will update labels/annotations."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create namespace
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          kubectl create namespace "$NAMESPACE"
+          echo "✅ Created namespace: $NAMESPACE"
+
+      - name: Apply labels and annotations
+        run: |
+          kubectl label namespace "$NAMESPACE" --overwrite \
+            "octowatch.dev/customer=${{ inputs.customer_slug }}" \
+            "octowatch.dev/ring=${{ inputs.ring }}" \
+            "octowatch.dev/size=${{ inputs.size }}" \
+            "app.kubernetes.io/part-of=octowatch"
+
+          kubectl annotate namespace "$NAMESPACE" --overwrite \
+            "octowatch.dev/provisioned-by=github-actions" \
+            "octowatch.dev/provisioned-at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          echo "✅ Labels and annotations applied"
+
+      - name: Apply NetworkPolicy (default deny)
+        run: |
+          cat <<'EOF' | kubectl apply -n "$NAMESPACE" -f -
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: default-deny-all
+          spec:
+            podSelector: {}
+            policyTypes:
+              - Ingress
+              - Egress
+          EOF
+          echo "✅ Default-deny NetworkPolicy applied"
+
+      - name: Apply DNS egress policy
+        run: |
+          cat <<'EOF' | kubectl apply -n "$NAMESPACE" -f -
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: allow-dns-egress
+          spec:
+            podSelector: {}
+            policyTypes:
+              - Egress
+            egress:
+              - to:
+                  - namespaceSelector:
+                      matchLabels:
+                        kubernetes.io/metadata.name: kube-system
+                ports:
+                  - protocol: UDP
+                    port: 53
+                  - protocol: TCP
+                    port: 53
+          EOF
+          echo "✅ DNS egress policy applied"
+
+      - name: Verify namespace
+        run: |
+          echo "=== Namespace Details ==="
+          kubectl get namespace "$NAMESPACE" -o yaml
+          echo ""
+          echo "=== NetworkPolicies ==="
+          kubectl get networkpolicies -n "$NAMESPACE"
+          echo ""
+          echo "🎉 Customer '${{ inputs.customer_slug }}' provisioned in ring '${{ inputs.ring }}' (size: ${{ inputs.size }})"
+          echo ""
+          echo "Next steps:"
+          echo "  1. Add any required secrets to the namespace"
+          echo "  2. Trigger the Deploy (Multi-Tenant) workflow to deploy the app"
+          echo "  3. Set up DNS: ${{ inputs.customer_slug }}.octowatch.dev → cluster ingress IP"
