@@ -4,6 +4,7 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { getCopilotPolicyChanges } from '../../api/copilotMetrics';
 import type { PolicyChange } from '../../api/copilotMetrics';
+import { useOrg } from '../../hooks/useOrg';
 import styles from './Copilot.module.css';
 
 function formatTimestamp(ts: string): string {
@@ -22,9 +23,11 @@ function formatTimestamp(ts: string): string {
 }
 
 export function PolicyPane() {
+  const { selectedOrg } = useOrg();
+  const orgParam = selectedOrg || undefined;
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['copilot', 'policy-changes'],
-    queryFn: getCopilotPolicyChanges,
+    queryKey: ['copilot', 'policy-changes', orgParam],
+    queryFn: () => getCopilotPolicyChanges(orgParam),
     staleTime: 30 * 60 * 1000,
   });
 

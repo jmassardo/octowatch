@@ -240,10 +240,12 @@ class TestCopilotOverview:
     @pytest.mark.asyncio
     async def test_computes_acceptance_rates(self) -> None:
         db = _mock_db_empty_results()
-        sample = _make_sample_days(7)
+        # 7-day rolling window: need 14 days to get 8 data points (i >= 6)
+        sample = _make_sample_days(14)
         with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
-        assert len(result["acceptance_rate_values"]) == 7
+        # 14 days with rolling window of 7 → 8 data points (indices 6..13)
+        assert len(result["acceptance_rate_values"]) == 8
         assert all(isinstance(v, float) for v in result["acceptance_rate_values"])
         assert all(0 <= v <= 100 for v in result["acceptance_rate_values"])
 
@@ -287,10 +289,11 @@ class TestCopilotOverview:
     @pytest.mark.asyncio
     async def test_handles_fewer_than_seven_days(self) -> None:
         db = _mock_db_empty_results()
+        # 3 days is fewer than the 7-day rolling window → 0 data points
         sample = _make_sample_days(3)
         with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
-        assert len(result["acceptance_rate_values"]) == 3
+        assert len(result["acceptance_rate_values"]) == 0
 
 
 # ── Service tests: adoption ───────────────────────────────────────────────────
@@ -719,10 +722,11 @@ class TestMissingFields:
     async def test_overview_handles_missing_completions(self) -> None:
         """Days with no copilot_ide_code_completions should not crash."""
         db = _mock_db_empty_results()
+        # Single day → fewer than 7 days → 0 rolling window data points
         sample = [{"date": "2025-01-01", "total_active_users": 5, "total_engaged_users": 3}]
         with _patch_store(sample):
             result = await copilot_metrics_service.get_copilot_overview(db)
-        assert result["acceptance_rate_values"] == [0.0]
+        assert result["acceptance_rate_values"] == []
         assert result["languages"] == []
 
     @pytest.mark.asyncio

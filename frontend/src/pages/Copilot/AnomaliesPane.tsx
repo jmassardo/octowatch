@@ -9,6 +9,7 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { getCopilotAnomalies } from '../../api/copilotMetrics';
+import { useOrg } from '../../hooks/useOrg';
 import styles from './Copilot.module.css';
 
 const SEVERITY_VARIANT = {
@@ -120,14 +121,16 @@ const detectionRuleColumns: ColumnDef<DetectionRule>[] = [
 ];
 
 export function AnomaliesPane() {
+  const { selectedOrg } = useOrg();
+  const orgParam = selectedOrg || undefined;
   const {
     data: anomalyData,
     isLoading,
     isError,
     refetch,
   } = useQuery({
-    queryKey: ['copilot', 'anomalies'],
-    queryFn: getCopilotAnomalies,
+    queryKey: ['copilot', 'anomalies', orgParam],
+    queryFn: () => getCopilotAnomalies(orgParam),
     staleTime: 30 * 60 * 1000,
   });
   const anomalies = anomalyData?.anomalies ?? [];

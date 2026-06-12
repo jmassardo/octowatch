@@ -131,6 +131,7 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch' && github.event.inputs.ring == '') ||
       (github.event_name == 'workflow_run')
+    permissions: {}
     environment: preview
 
     steps:
@@ -189,6 +190,7 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch' && github.event.inputs.ring == '') ||
       (github.event_name == 'workflow_run')
+    permissions: {}
     environment: production
 
     steps:

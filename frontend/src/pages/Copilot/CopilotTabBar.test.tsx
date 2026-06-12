@@ -10,17 +10,27 @@ describe('CopilotTabBar', () => {
     anomalyCount: 3,
   };
 
-  it('renders all 6 tabs', () => {
+  it('renders all 16 tabs', () => {
     render(<CopilotTabBar {...defaultProps} />);
     const tablist = screen.getByRole('tablist');
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs).toHaveLength(6);
+    expect(tabs).toHaveLength(16);
     expect(tabs[0]).toHaveTextContent('Overview');
-    expect(tabs[1]).toHaveTextContent('Adoption');
-    expect(tabs[2]).toHaveTextContent('Models & Features');
-    expect(tabs[3]).toHaveTextContent('License Optimization');
-    expect(tabs[4]).toHaveTextContent('Billing & UBB');
-    expect(tabs[5]).toHaveTextContent(/Anomalies/);
+    expect(tabs[1]).toHaveTextContent('Activity');
+    expect(tabs[2]).toHaveTextContent('Adoption');
+    expect(tabs[3]).toHaveTextContent('Teams');
+    expect(tabs[4]).toHaveTextContent('Chat');
+    expect(tabs[5]).toHaveTextContent('Languages');
+    expect(tabs[6]).toHaveTextContent('Models & Features');
+    expect(tabs[7]).toHaveTextContent('Pull Requests');
+    expect(tabs[8]).toHaveTextContent('Agent');
+    expect(tabs[9]).toHaveTextContent('License Optimization');
+    expect(tabs[10]).toHaveTextContent('Billing & UBB');
+    expect(tabs[11]).toHaveTextContent('ROI');
+    expect(tabs[12]).toHaveTextContent('Blockers');
+    expect(tabs[13]).toHaveTextContent('Policy');
+    expect(tabs[14]).toHaveTextContent('Governance');
+    expect(tabs[15]).toHaveTextContent(/Anomalies/);
   });
 
   it('marks the active tab with aria-selected', () => {

@@ -12,6 +12,7 @@ import { LineAreaChart } from '../../components/charts/LineAreaChart';
 import type { SeatUtilizationBucket } from '../../types/reports';
 import { getCopilotOverview } from '../../api/copilotMetrics';
 import { useChartColors } from '../../hooks/useChartColors';
+import { useOrg } from '../../hooks/useOrg';
 import { useOrgConfig } from '../../hooks/useOrgConfig';
 import { formatBucketDate, formatWeekday, formatWeekdayDate } from '../../utils/dates';
 import styles from './Copilot.module.css';
@@ -26,9 +27,11 @@ interface OverviewPaneProps {
 
 export function OverviewPane({ seatBuckets, isLoading, isError, onRetry }: OverviewPaneProps) {
   const { costPerSeat } = useOrgConfig();
+  const { selectedOrg } = useOrg();
+  const orgParam = selectedOrg || undefined;
   const { data: overview, isLoading: overviewLoading } = useQuery({
-    queryKey: ['copilot', 'overview'],
-    queryFn: getCopilotOverview,
+    queryKey: ['copilot', 'overview', orgParam],
+    queryFn: () => getCopilotOverview(orgParam),
     staleTime: 30 * 60 * 1000,
   });
 

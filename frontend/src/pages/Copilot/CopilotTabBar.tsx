@@ -1,6 +1,22 @@
 import styles from './Copilot.module.css';
 
-export type CopilotTab = 'overview' | 'adoption' | 'models' | 'license' | 'billing' | 'anomalies';
+export type CopilotTab =
+  | 'overview'
+  | 'activity'
+  | 'adoption'
+  | 'teams'
+  | 'chat'
+  | 'languages'
+  | 'models'
+  | 'license'
+  | 'billing'
+  | 'roi'
+  | 'prs'
+  | 'agent'
+  | 'blockers'
+  | 'policy'
+  | 'governance'
+  | 'anomalies';
 
 interface CopilotTabBarProps {
   activeTab: CopilotTab;
@@ -10,10 +26,20 @@ interface CopilotTabBarProps {
 
 const TABS: { id: CopilotTab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
+  { id: 'activity', label: 'Activity' },
   { id: 'adoption', label: 'Adoption' },
+  { id: 'teams', label: 'Teams' },
+  { id: 'chat', label: 'Chat' },
+  { id: 'languages', label: 'Languages' },
   { id: 'models', label: 'Models & Features' },
+  { id: 'prs', label: 'Pull Requests' },
+  { id: 'agent', label: 'Agent' },
   { id: 'license', label: 'License Optimization' },
   { id: 'billing', label: 'Billing & UBB' },
+  { id: 'roi', label: 'ROI' },
+  { id: 'blockers', label: 'Blockers' },
+  { id: 'policy', label: 'Policy' },
+  { id: 'governance', label: 'Governance' },
   { id: 'anomalies', label: 'Anomalies' },
 ];
 

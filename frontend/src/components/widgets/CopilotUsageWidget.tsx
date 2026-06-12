@@ -10,7 +10,7 @@ export function CopilotUsageWidget() {
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['widget', 'copilot-usage'],
-    queryFn: getCopilotAdoption,
+    queryFn: () => getCopilotAdoption(),
     staleTime: 60_000,
   });
 

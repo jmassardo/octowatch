@@ -13,6 +13,7 @@ import {
   getCopilotBillingTrends,
 } from '../../api/copilotMetrics';
 import type { CopilotUserBudget } from '../../api/copilotMetrics';
+import { useOrg } from '../../hooks/useOrg';
 import styles from './Copilot.module.css';
 
 const tabNums: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' };
@@ -127,26 +128,28 @@ function UtilizationHistogram({ buckets }: { buckets: Record<string, number> }) 
 
 export function BillingPane() {
   const [searchTerm, setSearchTerm] = useState('');
+  const { selectedOrg } = useOrg();
+  const orgParam = selectedOrg || undefined;
 
   const {
     data: overview,
     isLoading: loadingOverview,
     isError: errorOverview,
   } = useQuery({
-    queryKey: ['copilot', 'billing-overview'],
-    queryFn: getCopilotBillingOverview,
+    queryKey: ['copilot', 'billing-overview', orgParam],
+    queryFn: () => getCopilotBillingOverview(orgParam),
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: budgets, isLoading: loadingBudgets } = useQuery({
-    queryKey: ['copilot', 'user-budgets'],
-    queryFn: getCopilotUserBudgets,
+    queryKey: ['copilot', 'user-budgets', orgParam],
+    queryFn: () => getCopilotUserBudgets(orgParam),
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: trends, isLoading: loadingTrends } = useQuery({
-    queryKey: ['copilot', 'billing-trends'],
-    queryFn: getCopilotBillingTrends,
+    queryKey: ['copilot', 'billing-trends', orgParam],
+    queryFn: () => getCopilotBillingTrends(orgParam),
     staleTime: 5 * 60 * 1000,
   });
 
