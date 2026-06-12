@@ -15,6 +15,7 @@ import {
   getCopilotModelUsers,
 } from '../../api/copilotMetrics';
 import type { CopilotModelUser } from '../../api/copilotMetrics';
+import { useOrg } from '../../hooks/useOrg';
 import styles from './Copilot.module.css';
 
 type MetricRow = { metric: string; value: string };
@@ -54,25 +55,27 @@ const MODEL_LINE_COLORS = [
 const FEATURE_LINE_COLORS = ['#3fb950', '#58a6ff', '#bc8cff', '#db6d28', '#79c0ff'];
 
 export function ModelsPane() {
+  const { selectedOrg } = useOrg();
+  const orgParam = selectedOrg || undefined;
   const {
     data: models,
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ['copilot', 'models'],
-    queryFn: getCopilotModels,
+    queryKey: ['copilot', 'models', orgParam],
+    queryFn: () => getCopilotModels(orgParam),
     staleTime: 30 * 60 * 1000,
   });
 
   const { data: overview, isLoading: overviewLoading } = useQuery({
-    queryKey: ['copilot', 'overview'],
-    queryFn: getCopilotOverview,
+    queryKey: ['copilot', 'overview', orgParam],
+    queryFn: () => getCopilotOverview(orgParam),
     staleTime: 30 * 60 * 1000,
   });
 
   const { data: modelUsers } = useQuery({
-    queryKey: ['copilot', 'model-users'],
-    queryFn: getCopilotModelUsers,
+    queryKey: ['copilot', 'model-users', orgParam],
+    queryFn: () => getCopilotModelUsers(orgParam),
     staleTime: 30 * 60 * 1000,
   });
 

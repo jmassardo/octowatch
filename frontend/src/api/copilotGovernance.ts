@@ -31,8 +31,8 @@ export interface CopilotPolicyViolationsResponse {
   total: number;
 }
 
-export function listCopilotPolicies() {
-  return api.get<CopilotPolicy[]>('/copilot-governance/policies');
+export function listCopilotPolicies(org?: string) {
+  return api.get<CopilotPolicy[]>('/copilot-governance/policies', { org });
 }
 
 export function createCopilotPolicy(body: {
@@ -59,6 +59,7 @@ export function listCopilotViolations(params?: {
   policy_id?: number;
   severity?: string;
   status?: string;
+  org?: string;
   page?: number;
   page_size?: number;
 }) {

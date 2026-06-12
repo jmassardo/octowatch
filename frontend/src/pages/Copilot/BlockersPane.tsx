@@ -4,6 +4,7 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { getCopilotBlockers } from '../../api/copilotMetrics';
 import type { CopilotBlocker } from '../../api/copilotMetrics';
+import { useOrg } from '../../hooks/useOrg';
 import styles from './Copilot.module.css';
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -20,9 +21,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export function BlockersPane() {
+  const { selectedOrg } = useOrg();
+  const orgParam = selectedOrg || undefined;
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['copilot', 'blockers'],
-    queryFn: getCopilotBlockers,
+    queryKey: ['copilot', 'blockers', orgParam],
+    queryFn: () => getCopilotBlockers(orgParam),
     staleTime: 30 * 60 * 1000,
   });
 
