@@ -1,0 +1,58 @@
+{{- if .Values.certManager.enabled -}}
+{{- /*
+  IMPORTANT: These are cluster-scoped resources. Deploy this chart ONCE per
+  cluster with certManager.enabled=true (e.g., via a platform/bootstrap release).
+  Do NOT enable certManager in per-customer releases — it will cause ownership
+  conflicts on the shared ClusterIssuer and Certificate.
+*/ -}}
+# ═══════════════════════════════════════════════════════════════════════════════
+# ClusterIssuer — Let's Encrypt with Cloudflare DNS-01
+#
+# Issues a wildcard certificate for *.octowatch.dev using DNS-01 validation.
+# This is a cluster-wide resource — deploy once, shared by all customer
+# namespaces. The Cloudflare API token secret must exist in cert-manager's
+# namespace.
+# ═══════════════════════════════════════════════════════════════════════════════
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod-cloudflare
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: {{ .Values.certManager.acmeEmail | quote }}
+    privateKeySecretRef:
+      name: letsencrypt-prod-cloudflare-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: {{ .Values.certManager.cloudflare.apiTokenSecretName | default "cloudflare-api-token" }}
+              key: {{ .Values.certManager.cloudflare.apiTokenSecretKey | default "api-token" }}
+        {{- if .Values.certManager.cloudflare.dnsZones }}
+        selector:
+          dnsZones:
+            {{- toYaml .Values.certManager.cloudflare.dnsZones | nindent 12 }}
+        {{- end }}
+---
+# Wildcard Certificate for *.octowatch.dev
+# Created once — the ingress controller's default TLS cert serves all customers.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: octowatch-wildcard
+  namespace: {{ .Values.certManager.certificateNamespace | default "ingress-nginx" }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+spec:
+  secretName: octowatch-wildcard-tls
+  issuerRef:
+    name: letsencrypt-prod-cloudflare
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.octowatch.dev"
+    - "octowatch.dev"
+  renewBefore: 720h  # 30 days before expiry
+{{- end }}

@@ -26,6 +26,8 @@ serviceAccount:
 # ---------------------------------------------------------------------------
 networkPolicy:
   enabled: false
+  # Namespace where the ingress controller runs (for NetworkPolicy ingress rules)
+  ingressNamespace: ingress-nginx
 
 # imagePullSecrets for GHCR — populated in values-azure.yaml
 imagePullSecrets: []
@@ -446,3 +448,18 @@ workloadIdentity:
 keyVault:
   name: ""         # Key Vault name (e.g., kv-octowatch-prod)
   uri: ""          # Full vault URI (e.g., https://kv-octowatch-prod.vault.azure.net/)
+
+# ---------------------------------------------------------------------------
+# cert-manager — Wildcard TLS via Cloudflare DNS-01
+# Deploy once per cluster (platform release). Provides *.octowatch.dev wildcard
+# cert shared by all customer ingresses. Do NOT enable in per-customer releases.
+# ---------------------------------------------------------------------------
+certManager:
+  enabled: false
+  acmeEmail: ""    # Email for Let's Encrypt account notifications
+  certificateNamespace: ingress-nginx
+  cloudflare:
+    apiTokenSecretName: cloudflare-api-token
+    apiTokenSecretKey: api-token
+    dnsZones:
+      - octowatch.dev
