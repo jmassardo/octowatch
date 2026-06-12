@@ -14,7 +14,15 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('../../api/copilotMetrics', () => ({
   getCopilotOverview: vi.fn().mockResolvedValue({
-    acceptance_rate_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    acceptance_rate_days: [
+      '2026-06-01',
+      '2026-06-02',
+      '2026-06-03',
+      '2026-06-04',
+      '2026-06-05',
+      '2026-06-06',
+      '2026-06-07',
+    ],
     acceptance_rate_values: [24, 26, 27, 25, 28, 31, 29],
     acceptance_threshold: 25,
     languages: [
@@ -27,6 +35,7 @@ vi.mock('../../api/copilotMetrics', () => ({
     ],
     total_active_users: 120,
     total_engaged_users: 98,
+    total_provisioned_seats: 180,
   }),
 }));
 
@@ -45,23 +54,6 @@ const mockSeatBuckets = [
   },
 ];
 
-const mockCopilotBuckets = [
-  {
-    bucket: '2024-01-14',
-    seats_assigned: 5,
-    seats_revoked: 1,
-    seats_net: 4,
-    policy_change_count: 0,
-  },
-  {
-    bucket: '2024-01-15',
-    seats_assigned: 3,
-    seats_revoked: 2,
-    seats_net: 1,
-    policy_change_count: 0,
-  },
-];
-
 function renderPane() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -70,7 +62,6 @@ function renderPane() {
     <QueryClientProvider client={queryClient}>
       <OverviewPane
         seatBuckets={mockSeatBuckets}
-        copilotBuckets={mockCopilotBuckets}
         isLoading={false}
         isError={false}
         onRetry={() => {}}

@@ -862,31 +862,38 @@ async def _reconstruct_seats_from_db(db: AsyncSession) -> list[dict[str, Any]]:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 
-async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
+async def get_copilot_overview(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
     """Data for the Overview pane: acceptance rates, language breakdown, user counts.
 
     Queries copilot_daily_metrics directly for reliable aggregates regardless
-    of cache format.
+    of cache format.  Returns a proper 7-day rolling acceptance rate over 28 days
+    and accurate seat counts from the CopilotSeatSnapshot table.
     """
-    from app.models.copilot_metrics import CopilotDailyMetric
+    from app.models.copilot_metrics import CopilotDailyMetric, CopilotSeatSnapshot
 
     err = await _check_feature_enabled(db)
     if err is not None:
         return err
 
-    # Query summary rows for acceptance rate (last 7 days)
-    summary_result = await db.execute(
-        select(
-            CopilotDailyMetric.date,
-            CopilotDailyMetric.active_users,
-            CopilotDailyMetric.engaged_users,
-            CopilotDailyMetric.total_suggestions,
-            CopilotDailyMetric.total_acceptances,
-        )
-        .where(CopilotDailyMetric.metric_type == "summary")
+    from sqlalchemy import desc, func
+
+    # Query 35 days of summary data (grouped by date across all orgs) to compute
+    # 7-day rolling averages over the latest 28 days.
+    summary_query = select(
+        CopilotDailyMetric.date,
+        func.sum(CopilotDailyMetric.active_users).label("active_users"),
+        func.sum(CopilotDailyMetric.engaged_users).label("engaged_users"),
+        func.sum(CopilotDailyMetric.total_suggestions).label("total_suggestions"),
+        func.sum(CopilotDailyMetric.total_acceptances).label("total_acceptances"),
+    ).where(CopilotDailyMetric.metric_type == "summary")
+    if org:
+        summary_query = summary_query.where(CopilotDailyMetric.org_slug == org)
+    summary_query = (
+        summary_query.group_by(CopilotDailyMetric.date)
         .order_by(CopilotDailyMetric.date.desc())
-        .limit(28)
+        .limit(35)
     )
+    summary_result = await db.execute(summary_query)
     summary_rows = list(summary_result.all())
 
     if not summary_rows:
@@ -903,39 +910,42 @@ async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
             "languages": [],
             "total_active_users": 0,
             "total_engaged_users": 0,
+            "total_provisioned_seats": 0,
         }
 
-    # Reverse to chronological order and take last 7
+    # Reverse to chronological order
     summary_rows.reverse()
-    recent = summary_rows[-7:] if len(summary_rows) >= 7 else summary_rows
 
+    # Compute 7-day rolling acceptance rate for each day that has a full window
     rate_labels: list[str] = []
     rate_values: list[float] = []
-    for row in recent:
-        rate_labels.append(_DAY_LABELS[row.date.weekday()])
-        pct = (
-            (row.total_acceptances / row.total_suggestions * 100) if row.total_suggestions else 0.0
-        )
+    for i in range(len(summary_rows)):
+        if i < 6:
+            # Need at least 7 days for a full rolling window
+            continue
+        window = summary_rows[i - 6 : i + 1]
+        total_sugg = sum(r.total_suggestions or 0 for r in window)
+        total_acc = sum(r.total_acceptances or 0 for r in window)
+        pct = (total_acc / total_sugg * 100) if total_sugg > 0 else 0.0
+        rate_labels.append(summary_rows[i].date.isoformat())
         rate_values.append(round(pct, 1))
 
     # Language breakdown from DB (all available days)
-    from sqlalchemy import desc, func
-
-    lang_result = await db.execute(
-        select(
-            CopilotDailyMetric.language,
-            func.sum(CopilotDailyMetric.total_suggestions).label("total_sugg"),
-            func.sum(CopilotDailyMetric.total_acceptances).label("total_acc"),
-        )
-        .where(
-            CopilotDailyMetric.metric_type == "completions",
-            CopilotDailyMetric.language.isnot(None),
-            CopilotDailyMetric.model.is_(None),
-        )
-        .group_by(CopilotDailyMetric.language)
-        .order_by(desc("total_sugg"))
-        .limit(10)
+    lang_query = select(
+        CopilotDailyMetric.language,
+        func.sum(CopilotDailyMetric.total_suggestions).label("total_sugg"),
+        func.sum(CopilotDailyMetric.total_acceptances).label("total_acc"),
+    ).where(
+        CopilotDailyMetric.metric_type == "completions",
+        CopilotDailyMetric.language.isnot(None),
+        CopilotDailyMetric.model.is_(None),
     )
+    if org:
+        lang_query = lang_query.where(CopilotDailyMetric.org_slug == org)
+    lang_query = (
+        lang_query.group_by(CopilotDailyMetric.language).order_by(desc("total_sugg")).limit(10)
+    )
+    lang_result = await db.execute(lang_query)
     lang_rows = list(lang_result.all())
     grand_total = sum(row.total_sugg for row in lang_rows) or 1
     lang_items: list[dict[str, Any]] = [
@@ -947,9 +957,37 @@ async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
         for row in lang_rows
     ]
 
-    # Latest user counts
+    # Active users: count distinct users with activity in last 28 days
+    # from CopilotSeatSnapshot (matches what GitHub insights tab shows)
+    cutoff_date = (datetime.now(UTC) - timedelta(days=28)).date()
+    active_query = select(func.count(func.distinct(CopilotSeatSnapshot.github_login))).where(
+        CopilotSeatSnapshot.last_activity_at
+        >= datetime.combine(cutoff_date, datetime.min.time()).replace(tzinfo=UTC)
+    )
+    if org:
+        active_query = active_query.where(CopilotSeatSnapshot.org_slug == org)
+    active_result = await db.execute(active_query)
+    total_active = active_result.scalar() or 0
+
+    # Provisioned seats: count distinct users in the latest snapshot
+    latest_snap_query = select(func.max(CopilotSeatSnapshot.snapshot_date))
+    if org:
+        latest_snap_query = latest_snap_query.where(CopilotSeatSnapshot.org_slug == org)
+    latest_snapshot_date_result = await db.execute(latest_snap_query)
+    latest_snapshot_date = latest_snapshot_date_result.scalar()
+
+    total_provisioned = 0
+    if latest_snapshot_date:
+        prov_query = select(func.count(func.distinct(CopilotSeatSnapshot.github_login))).where(
+            CopilotSeatSnapshot.snapshot_date == latest_snapshot_date
+        )
+        if org:
+            prov_query = prov_query.where(CopilotSeatSnapshot.org_slug == org)
+        prov_result = await db.execute(prov_query)
+        total_provisioned = prov_result.scalar() or 0
+
+    # Engaged users from summary rows
     latest = summary_rows[-1] if summary_rows else None
-    total_active = latest.active_users if latest else 0
     total_engaged = latest.engaged_users if latest else 0
 
     return {
@@ -959,6 +997,7 @@ async def get_copilot_overview(db: AsyncSession) -> dict[str, Any]:
         "languages": lang_items,
         "total_active_users": total_active,
         "total_engaged_users": total_engaged,
+        "total_provisioned_seats": total_provisioned,
     }
 
 
@@ -984,23 +1023,16 @@ def _build_overview_from_raw(days: list[dict[str, Any]]) -> dict[str, Any]:
             "languages": [],
             "total_active_users": 0,
             "total_engaged_users": 0,
+            "total_provisioned_seats": 0,
         }
 
     # Sort by date
     flat_days.sort(key=lambda d: d.get("day", "") or d.get("date", ""))
-    recent = flat_days[-7:] if len(flat_days) >= 7 else flat_days
 
-    rate_labels: list[str] = []
-    rate_values: list[float] = []
-    for day_obj in recent:
+    # Extract per-day suggestions/acceptances for rolling average calculation
+    daily_data: list[tuple[str, int, int]] = []
+    for day_obj in flat_days:
         date_str = day_obj.get("day", "") or day_obj.get("date", "")
-        try:
-            dt = datetime.fromisoformat(date_str)
-            rate_labels.append(_DAY_LABELS[dt.weekday()])
-        except (ValueError, TypeError):
-            rate_labels.append("?")
-
-        # New format: top-level counts
         total_suggestions = day_obj.get("code_generation_activity_count", 0)
         total_acceptances = day_obj.get("code_acceptance_activity_count", 0)
 
@@ -1013,7 +1045,19 @@ def _build_overview_from_raw(days: list[dict[str, Any]]) -> dict[str, Any]:
                         total_suggestions += lang.get("total_code_suggestions", 0)
                         total_acceptances += lang.get("total_code_acceptances", 0)
 
-        pct = (total_acceptances / total_suggestions * 100) if total_suggestions else 0.0
+        daily_data.append((date_str, total_suggestions, total_acceptances))
+
+    # Compute 7-day rolling acceptance rate
+    rate_labels: list[str] = []
+    rate_values: list[float] = []
+    for i in range(len(daily_data)):
+        if i < 6:
+            continue
+        window = daily_data[i - 6 : i + 1]
+        sugg_sum = sum(d[1] for d in window)
+        acc_sum = sum(d[2] for d in window)
+        pct = (acc_sum / sugg_sum * 100) if sugg_sum > 0 else 0.0
+        rate_labels.append(daily_data[i][0])
         rate_values.append(round(pct, 1))
 
     # Language breakdown
@@ -1060,10 +1104,11 @@ def _build_overview_from_raw(days: list[dict[str, Any]]) -> dict[str, Any]:
         "languages": lang_items[:10],
         "total_active_users": total_active,
         "total_engaged_users": total_engaged,
+        "total_provisioned_seats": 0,
     }
 
 
-async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
+async def get_copilot_adoption(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
     """Data for the Adoption pane: tiers, feature adoption, per-user data."""
     try:
         raw = await _read_metrics_from_store(db)
@@ -1105,17 +1150,17 @@ async def get_copilot_adoption(db: AsyncSession) -> dict[str, Any]:
         now = datetime.now(UTC)
         period_start = (now - __import__("datetime").timedelta(days=28)).date()
 
-        usage_result = await db.execute(
-            select(
-                CopilotUsageReport.github_login,
-                sa_func.avg(CopilotUsageReport.total_credits_consumed).label("avg_daily"),
-                sa_func.sum(CopilotUsageReport.total_credits_consumed).label("total"),
-                sa_func.count(CopilotUsageReport.report_date).label("active_days"),
-                sa_func.max(CopilotUsageReport.report_date).label("last_active_date"),
-            )
-            .where(CopilotUsageReport.report_date >= period_start)
-            .group_by(CopilotUsageReport.github_login)
-        )
+        usage_query = select(
+            CopilotUsageReport.github_login,
+            sa_func.avg(CopilotUsageReport.total_credits_consumed).label("avg_daily"),
+            sa_func.sum(CopilotUsageReport.total_credits_consumed).label("total"),
+            sa_func.count(CopilotUsageReport.report_date).label("active_days"),
+            sa_func.max(CopilotUsageReport.report_date).label("last_active_date"),
+        ).where(CopilotUsageReport.report_date >= period_start)
+        if org:
+            usage_query = usage_query.where(CopilotUsageReport.org_slug == org)
+        usage_query = usage_query.group_by(CopilotUsageReport.github_login)
+        usage_result = await db.execute(usage_query)
         usage_rows = usage_result.fetchall()
         if usage_rows:
             has_usage_data = True
@@ -1429,7 +1474,7 @@ def _count_features(seat: dict[str, Any]) -> int:
     return max(1, count)
 
 
-async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
+async def get_copilot_models(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
     """Data for the Models pane: model usage, feature counts, editors.
 
     Queries copilot_daily_metrics directly for reliable aggregates.
@@ -1443,19 +1488,19 @@ async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
     # ── Model usage from language_model rows ──────────────────────────────────
     from sqlalchemy import desc, func
 
-    model_result = await db.execute(
-        select(
-            CopilotDailyMetric.model,
-            func.sum(CopilotDailyMetric.total_suggestions).label("total_sugg"),
-            func.sum(CopilotDailyMetric.engaged_users).label("total_engaged"),
-        )
-        .where(
-            CopilotDailyMetric.model.isnot(None),
-        )
-        .group_by(CopilotDailyMetric.model)
-        .order_by(desc("total_engaged"))
-        .limit(10)
+    model_query = select(
+        CopilotDailyMetric.model,
+        func.sum(CopilotDailyMetric.total_suggestions).label("total_sugg"),
+        func.sum(CopilotDailyMetric.engaged_users).label("total_engaged"),
+    ).where(
+        CopilotDailyMetric.model.isnot(None),
     )
+    if org:
+        model_query = model_query.where(CopilotDailyMetric.org_slug == org)
+    model_query = (
+        model_query.group_by(CopilotDailyMetric.model).order_by(desc("total_engaged")).limit(10)
+    )
+    model_result = await db.execute(model_query)
     model_rows = list(model_result.all())
     total_model = sum(row.total_engaged for row in model_rows) or 1
     models_list: list[dict[str, Any]] = [
@@ -1468,20 +1513,20 @@ async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
     ]
 
     # ── Editor breakdown ──────────────────────────────────────────────────────
-    editor_result = await db.execute(
-        select(
-            CopilotDailyMetric.editor,
-            func.sum(CopilotDailyMetric.total_suggestions).label("total_sugg"),
-            func.sum(CopilotDailyMetric.total_acceptances).label("total_acc"),
-        )
-        .where(
-            CopilotDailyMetric.metric_type == "completions",
-            CopilotDailyMetric.editor.isnot(None),
-        )
-        .group_by(CopilotDailyMetric.editor)
-        .order_by(desc("total_sugg"))
-        .limit(10)
+    editor_query = select(
+        CopilotDailyMetric.editor,
+        func.sum(CopilotDailyMetric.total_suggestions).label("total_sugg"),
+        func.sum(CopilotDailyMetric.total_acceptances).label("total_acc"),
+    ).where(
+        CopilotDailyMetric.metric_type == "completions",
+        CopilotDailyMetric.editor.isnot(None),
     )
+    if org:
+        editor_query = editor_query.where(CopilotDailyMetric.org_slug == org)
+    editor_query = (
+        editor_query.group_by(CopilotDailyMetric.editor).order_by(desc("total_sugg")).limit(10)
+    )
+    editor_result = await db.execute(editor_query)
     editor_rows = list(editor_result.all())
     total_editor = sum(row.total_sugg for row in editor_rows) or 1
     editors_list: list[dict[str, Any]] = [
@@ -1500,19 +1545,19 @@ async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
         "dotcom_chat": "Dotcom chat",
         "pr": "PR summaries",
     }
-    feature_result = await db.execute(
-        select(
-            CopilotDailyMetric.metric_type,
-            func.sum(CopilotDailyMetric.engaged_users).label("total_engaged"),
-        )
-        .where(
-            CopilotDailyMetric.metric_type.in_(list(feature_type_map.keys())),
-            CopilotDailyMetric.language.is_(None),
-            CopilotDailyMetric.editor.is_(None),
-            CopilotDailyMetric.model.is_(None),
-        )
-        .group_by(CopilotDailyMetric.metric_type)
+    feature_query = select(
+        CopilotDailyMetric.metric_type,
+        func.sum(CopilotDailyMetric.engaged_users).label("total_engaged"),
+    ).where(
+        CopilotDailyMetric.metric_type.in_(list(feature_type_map.keys())),
+        CopilotDailyMetric.language.is_(None),
+        CopilotDailyMetric.editor.is_(None),
+        CopilotDailyMetric.model.is_(None),
     )
+    if org:
+        feature_query = feature_query.where(CopilotDailyMetric.org_slug == org)
+    feature_query = feature_query.group_by(CopilotDailyMetric.metric_type)
+    feature_result = await db.execute(feature_query)
     feature_rows = list(feature_result.all())
     features_list: list[dict[str, Any]] = []
     for i, row in enumerate(feature_rows):
@@ -1537,40 +1582,42 @@ async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
     start_date = end_date - timedelta(days=27)
 
     # Model time series (engaged users per day per model)
-    model_ts_result = await db.execute(
-        select(
-            CopilotDailyMetric.date,
-            CopilotDailyMetric.model,
-            func.sum(CopilotDailyMetric.engaged_users).label("daily_engaged"),
-        )
-        .where(
-            CopilotDailyMetric.model.isnot(None),
-            CopilotDailyMetric.date >= start_date,
-            CopilotDailyMetric.date <= end_date,
-        )
-        .group_by(CopilotDailyMetric.date, CopilotDailyMetric.model)
-        .order_by(CopilotDailyMetric.date)
+    model_ts_query = select(
+        CopilotDailyMetric.date,
+        CopilotDailyMetric.model,
+        func.sum(CopilotDailyMetric.engaged_users).label("daily_engaged"),
+    ).where(
+        CopilotDailyMetric.model.isnot(None),
+        CopilotDailyMetric.date >= start_date,
+        CopilotDailyMetric.date <= end_date,
     )
+    if org:
+        model_ts_query = model_ts_query.where(CopilotDailyMetric.org_slug == org)
+    model_ts_query = model_ts_query.group_by(
+        CopilotDailyMetric.date, CopilotDailyMetric.model
+    ).order_by(CopilotDailyMetric.date)
+    model_ts_result = await db.execute(model_ts_query)
     model_ts_rows = list(model_ts_result.all())
 
     # Feature time series (engaged users per day per metric_type)
-    feature_ts_result = await db.execute(
-        select(
-            CopilotDailyMetric.date,
-            CopilotDailyMetric.metric_type,
-            func.sum(CopilotDailyMetric.engaged_users).label("daily_engaged"),
-        )
-        .where(
-            CopilotDailyMetric.metric_type.in_(list(feature_type_map.keys())),
-            CopilotDailyMetric.language.is_(None),
-            CopilotDailyMetric.editor.is_(None),
-            CopilotDailyMetric.model.is_(None),
-            CopilotDailyMetric.date >= start_date,
-            CopilotDailyMetric.date <= end_date,
-        )
-        .group_by(CopilotDailyMetric.date, CopilotDailyMetric.metric_type)
-        .order_by(CopilotDailyMetric.date)
+    feature_ts_query = select(
+        CopilotDailyMetric.date,
+        CopilotDailyMetric.metric_type,
+        func.sum(CopilotDailyMetric.engaged_users).label("daily_engaged"),
+    ).where(
+        CopilotDailyMetric.metric_type.in_(list(feature_type_map.keys())),
+        CopilotDailyMetric.language.is_(None),
+        CopilotDailyMetric.editor.is_(None),
+        CopilotDailyMetric.model.is_(None),
+        CopilotDailyMetric.date >= start_date,
+        CopilotDailyMetric.date <= end_date,
     )
+    if org:
+        feature_ts_query = feature_ts_query.where(CopilotDailyMetric.org_slug == org)
+    feature_ts_query = feature_ts_query.group_by(
+        CopilotDailyMetric.date, CopilotDailyMetric.metric_type
+    ).order_by(CopilotDailyMetric.date)
+    feature_ts_result = await db.execute(feature_ts_query)
     feature_ts_rows = list(feature_ts_result.all())
 
     # Build date list
@@ -1612,6 +1659,60 @@ async def get_copilot_models(db: AsyncSession) -> dict[str, Any]:
         "editors": editors_list,
         "time_series": time_series,
     }
+
+
+async def get_copilot_model_users(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
+    """Per-user Copilot usage breakdown by feature category.
+
+    Returns sortable/filterable data showing credits consumed by each user
+    across completions, chat, PR review, and other categories.
+    """
+    from sqlalchemy import func
+
+    from app.models.copilot_usage import CopilotUsageReport
+
+    err = await _check_feature_enabled(db)
+    if err is not None:
+        return err
+
+    now = datetime.now(UTC)
+    period_start = (now - timedelta(days=28)).date()
+
+    model_users_query = select(
+        CopilotUsageReport.github_login,
+        func.sum(CopilotUsageReport.total_credits_consumed).label("total"),
+        func.sum(CopilotUsageReport.completions_credits).label("completions"),
+        func.sum(CopilotUsageReport.chat_credits).label("chat"),
+        func.sum(CopilotUsageReport.pr_credits).label("pr"),
+        func.sum(CopilotUsageReport.other_credits).label("other"),
+        func.count(CopilotUsageReport.report_date).label("days_active"),
+        func.max(CopilotUsageReport.report_date).label("last_active"),
+    ).where(CopilotUsageReport.report_date >= period_start)
+    if org:
+        model_users_query = model_users_query.where(CopilotUsageReport.org_slug == org)
+    model_users_query = model_users_query.group_by(CopilotUsageReport.github_login).order_by(
+        func.sum(CopilotUsageReport.total_credits_consumed).desc()
+    )
+    result = await db.execute(model_users_query)
+    rows = result.fetchall()
+
+    users: list[dict[str, Any]] = []
+    for row in rows:
+        total = float(row[1] or 0)
+        users.append(
+            {
+                "login": row[0],
+                "total_credits": round(total, 2),
+                "completions_credits": round(float(row[2] or 0), 2),
+                "chat_credits": round(float(row[3] or 0), 2),
+                "pr_credits": round(float(row[4] or 0), 2),
+                "other_credits": round(float(row[5] or 0), 2),
+                "days_active": int(row[6] or 0),
+                "last_active": row[7].isoformat() if row[7] else None,
+            }
+        )
+
+    return {"users": users, "total_users": len(users)}
 
 
 def _build_models_from_raw(days: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1725,7 +1826,7 @@ def _build_models_from_raw(days: list[dict[str, Any]]) -> dict[str, Any]:
     return {"models": models_list, "features": features_list, "editors": editors_list}
 
 
-async def get_copilot_anomalies(db: AsyncSession) -> dict[str, Any]:
+async def get_copilot_anomalies(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
     """Data for the Anomalies pane: detect metric deviations from baselines."""
     try:
         raw = await _read_metrics_from_store(db)
@@ -1962,14 +2063,14 @@ async def get_copilot_anomalies(db: AsyncSession) -> dict[str, Any]:
 
         now = datetime.now(UTC)
         one_day_ago = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        policy_result = await db.execute(
-            select(AuditEvent)
-            .where(
-                AuditEvent.action.like("copilot%"),
-                AuditEvent.created_at >= one_day_ago,
-            )
-            .limit(100)
+        policy_query = select(AuditEvent).where(
+            AuditEvent.action.like("copilot%"),
+            AuditEvent.created_at >= one_day_ago,
         )
+        if org:
+            policy_query = policy_query.where(AuditEvent.org == org)
+        policy_query = policy_query.limit(100)
+        policy_result = await db.execute(policy_query)
         recent_policy_events = list(policy_result.scalars().all())
         if len(recent_policy_events) > 5:
             anomaly_id += 1
@@ -2001,7 +2102,7 @@ async def get_copilot_anomalies(db: AsyncSession) -> dict[str, Any]:
 # ── Team-level breakdown (#76) ────────────────────────────────────────────────
 
 
-async def get_copilot_teams(db: AsyncSession) -> dict[str, Any]:
+async def get_copilot_teams(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
     """Aggregate per-user Copilot metrics by GitHub team membership.
 
     Cross-references seat data with org_teams and org_team_members tables
@@ -2022,10 +2123,16 @@ async def get_copilot_teams(db: AsyncSession) -> dict[str, Any]:
             login_to_seat[login.lower()] = seat
 
     # Fetch team memberships from DB
-    team_result = await db.execute(select(OrgTeam))
+    team_query = select(OrgTeam)
+    if org:
+        team_query = team_query.where(OrgTeam.org == org)
+    team_result = await db.execute(team_query)
     teams = list(team_result.scalars().all())
 
-    member_result = await db.execute(select(OrgTeamMember))
+    member_query = select(OrgTeamMember)
+    if org:
+        member_query = member_query.where(OrgTeamMember.org == org)
+    member_result = await db.execute(member_query)
     members = list(member_result.scalars().all())
 
     # Build team → members mapping
@@ -2094,7 +2201,7 @@ async def get_copilot_teams(db: AsyncSession) -> dict[str, Any]:
 # ── Adoption Blockers (#77) ──────────────────────────────────────────────────
 
 
-async def get_copilot_blockers(db: AsyncSession) -> dict[str, Any]:
+async def get_copilot_blockers(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
     """Identify and categorize Copilot adoption blockers.
 
     Cross-references seat data, policy events, and content exclusions to
@@ -2119,7 +2226,10 @@ async def get_copilot_blockers(db: AsyncSession) -> dict[str, Any]:
 
     # Get team members who don't have seats (no_seat blocker)
     try:
-        member_result = await db.execute(select(OrgTeamMember))
+        member_query = select(OrgTeamMember)
+        if org:
+            member_query = member_query.where(OrgTeamMember.org == org)
+        member_result = await db.execute(member_query)
         all_members = list(member_result.scalars().all())
     except Exception as exc:
         logger.error("copilot_blockers.query_team_members_failed", error=str(exc), exc_info=True)
@@ -2259,7 +2369,7 @@ async def get_copilot_blockers(db: AsyncSession) -> dict[str, Any]:
 # ── Policy Change Timeline (#78) ─────────────────────────────────────────────
 
 
-async def get_copilot_policy_changes(db: AsyncSession) -> dict[str, Any]:
+async def get_copilot_policy_changes(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
     """Query audit events for Copilot policy changes.
 
     Searches the events table for ``copilot.*`` and ``copilot_policy.*``
@@ -2267,14 +2377,13 @@ async def get_copilot_policy_changes(db: AsyncSession) -> dict[str, Any]:
     """
     from app.models.audit_event import AuditEvent
 
-    result = await db.execute(
-        select(AuditEvent)
-        .where(
-            AuditEvent.action.like("copilot%"),
-        )
-        .order_by(AuditEvent.created_at.desc())
-        .limit(200)
+    policy_query = select(AuditEvent).where(
+        AuditEvent.action.like("copilot%"),
     )
+    if org:
+        policy_query = policy_query.where(AuditEvent.org == org)
+    policy_query = policy_query.order_by(AuditEvent.created_at.desc()).limit(200)
+    result = await db.execute(policy_query)
     events = list(result.scalars().all())
 
     timeline: list[dict[str, Any]] = []
@@ -2316,7 +2425,7 @@ def _describe_policy_action(action: str, data: dict[str, Any]) -> str:
 # ── ROI & Cost Optimization (#85) ────────────────────────────────────────────
 
 
-async def get_copilot_roi(db: AsyncSession) -> dict[str, Any]:
+async def get_copilot_roi(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
     """Comprehensive Copilot ROI report.
 
     Calculates seat cost, utilization, waste, savings opportunities,
@@ -2337,7 +2446,11 @@ async def get_copilot_roi(db: AsyncSession) -> dict[str, Any]:
     # Get cost config
     from app.models.org_config import OrgConfig
 
-    config_result = await db.execute(select(OrgConfig).limit(1))
+    config_query = select(OrgConfig)
+    if org:
+        config_query = config_query.where(OrgConfig.org_slug == org)
+    config_query = config_query.limit(1)
+    config_result = await db.execute(config_query)
     org_config_row = config_result.scalars().first()
     cost_override: float | None = (
         float(org_config_row.copilot_cost_per_seat)
@@ -2411,7 +2524,7 @@ async def get_copilot_roi(db: AsyncSession) -> dict[str, Any]:
             }
         )
 
-    teams_data = await get_copilot_teams(db)
+    teams_data = await get_copilot_teams(db, org=org)
     if isinstance(teams_data, dict) and teams_data.get("at_risk_count", 0) > 0:
         at_risk = teams_data["at_risk_count"]
         recommendations.append(
@@ -2594,7 +2707,9 @@ async def get_copilot_roi(db: AsyncSession) -> dict[str, Any]:
 # ── Billing / UBB service functions ──────────────────────────────────────────
 
 
-async def get_copilot_billing_overview(db: AsyncSession) -> dict[str, Any]:
+async def get_copilot_billing_overview(
+    db: AsyncSession, *, org: str | None = None
+) -> dict[str, Any]:
     """Pool overview: total AI credits, consumed this period, forecast, remaining."""
     from sqlalchemy import func
 
@@ -2608,14 +2723,15 @@ async def get_copilot_billing_overview(db: AsyncSession) -> dict[str, Any]:
     period_start = now.replace(day=1).date()
 
     # Aggregate total credits consumed this billing period
-    result = await db.execute(
-        select(
-            func.coalesce(func.sum(CopilotUsageReport.total_credits_consumed), 0),
-            func.coalesce(func.sum(CopilotUsageReport.budget_amount), 0),
-            func.count(func.distinct(CopilotUsageReport.github_login)),
-            func.count(func.distinct(CopilotUsageReport.report_date)),
-        ).where(CopilotUsageReport.report_date >= period_start)
-    )
+    billing_query = select(
+        func.coalesce(func.sum(CopilotUsageReport.total_credits_consumed), 0),
+        func.coalesce(func.sum(CopilotUsageReport.budget_amount), 0),
+        func.count(func.distinct(CopilotUsageReport.github_login)),
+        func.count(func.distinct(CopilotUsageReport.report_date)),
+    ).where(CopilotUsageReport.report_date >= period_start)
+    if org:
+        billing_query = billing_query.where(CopilotUsageReport.org_slug == org)
+    result = await db.execute(billing_query)
     row = result.one()
     total_consumed = float(row[0])
     total_budgets = float(row[1])
@@ -2653,7 +2769,7 @@ async def get_copilot_billing_overview(db: AsyncSession) -> dict[str, Any]:
     }
 
 
-async def get_copilot_user_budgets(db: AsyncSession) -> dict[str, Any]:
+async def get_copilot_user_budgets(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
     """Per-user budget list with consumed/budget/status/utilization %."""
     from sqlalchemy import func
 
@@ -2667,18 +2783,19 @@ async def get_copilot_user_budgets(db: AsyncSession) -> dict[str, Any]:
     period_start = now.replace(day=1).date()
 
     # Aggregate per-user for current billing period (across all orgs)
-    result = await db.execute(
-        select(
-            CopilotUsageReport.github_login,
-            func.sum(CopilotUsageReport.total_credits_consumed).label("consumed"),
-            func.max(CopilotUsageReport.budget_amount).label("budget"),
-            func.max(CopilotUsageReport.budget_consumed).label("budget_consumed"),
-            func.bool_or(CopilotUsageReport.is_blocked).label("is_blocked"),
-        )
-        .where(CopilotUsageReport.report_date >= period_start)
-        .group_by(CopilotUsageReport.github_login)
-        .order_by(func.sum(CopilotUsageReport.total_credits_consumed).desc())
+    budgets_query = select(
+        CopilotUsageReport.github_login,
+        func.sum(CopilotUsageReport.total_credits_consumed).label("consumed"),
+        func.max(CopilotUsageReport.budget_amount).label("budget"),
+        func.max(CopilotUsageReport.budget_consumed).label("budget_consumed"),
+        func.bool_or(CopilotUsageReport.is_blocked).label("is_blocked"),
+    ).where(CopilotUsageReport.report_date >= period_start)
+    if org:
+        budgets_query = budgets_query.where(CopilotUsageReport.org_slug == org)
+    budgets_query = budgets_query.group_by(CopilotUsageReport.github_login).order_by(
+        func.sum(CopilotUsageReport.total_credits_consumed).desc()
     )
+    result = await db.execute(budgets_query)
     rows = result.fetchall()
 
     users: list[dict[str, Any]] = []
@@ -2737,7 +2854,7 @@ async def get_copilot_user_budgets(db: AsyncSession) -> dict[str, Any]:
     }
 
 
-async def get_copilot_billing_trends(db: AsyncSession) -> dict[str, Any]:
+async def get_copilot_billing_trends(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
     """Daily credit consumption trends over last 30 days."""
     from sqlalchemy import func
 
@@ -2750,20 +2867,21 @@ async def get_copilot_billing_trends(db: AsyncSession) -> dict[str, Any]:
     now = datetime.now(UTC)
     thirty_days_ago = (now - __import__("datetime").timedelta(days=30)).date()
 
-    result = await db.execute(
-        select(
-            CopilotUsageReport.report_date,
-            func.sum(CopilotUsageReport.total_credits_consumed).label("total"),
-            func.sum(CopilotUsageReport.completions_credits).label("completions"),
-            func.sum(CopilotUsageReport.chat_credits).label("chat"),
-            func.sum(CopilotUsageReport.pr_credits).label("pr"),
-            func.sum(CopilotUsageReport.other_credits).label("other"),
-            func.count(func.distinct(CopilotUsageReport.github_login)).label("users"),
-        )
-        .where(CopilotUsageReport.report_date >= thirty_days_ago)
-        .group_by(CopilotUsageReport.report_date)
-        .order_by(CopilotUsageReport.report_date)
+    trends_query = select(
+        CopilotUsageReport.report_date,
+        func.sum(CopilotUsageReport.total_credits_consumed).label("total"),
+        func.sum(CopilotUsageReport.completions_credits).label("completions"),
+        func.sum(CopilotUsageReport.chat_credits).label("chat"),
+        func.sum(CopilotUsageReport.pr_credits).label("pr"),
+        func.sum(CopilotUsageReport.other_credits).label("other"),
+        func.count(func.distinct(CopilotUsageReport.github_login)).label("users"),
+    ).where(CopilotUsageReport.report_date >= thirty_days_ago)
+    if org:
+        trends_query = trends_query.where(CopilotUsageReport.org_slug == org)
+    trends_query = trends_query.group_by(CopilotUsageReport.report_date).order_by(
+        CopilotUsageReport.report_date
     )
+    result = await db.execute(trends_query)
     rows = result.fetchall()
 
     trends: list[dict[str, Any]] = []
@@ -2783,4 +2901,610 @@ async def get_copilot_billing_trends(db: AsyncSession) -> dict[str, Any]:
     return {
         "trends": trends,
         "period_days": 30,
+    }
+
+
+# ── Copilot Metrics Viewer Chart Functions ────────────────────────────────────
+
+
+async def get_copilot_activity(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
+    """DAU/WAU lines, completions count, acceptance rate bars, chat per user, requests per mode.
+
+    Returns 28 days of daily activity data for the Copilot activity dashboard.
+    """
+    from sqlalchemy import func
+
+    from app.models.copilot_metrics import CopilotDailyMetric
+
+    err = await _check_feature_enabled(db)
+    if err is not None:
+        return err
+
+    cutoff = (datetime.now(UTC) - timedelta(days=28)).date()
+
+    # DAU from summary rows (null dimensions)
+    summary_query = select(
+        CopilotDailyMetric.date,
+        func.sum(CopilotDailyMetric.active_users).label("active_users"),
+    ).where(
+        CopilotDailyMetric.metric_type == "summary",
+        CopilotDailyMetric.language.is_(None),
+        CopilotDailyMetric.editor.is_(None),
+        CopilotDailyMetric.model.is_(None),
+        CopilotDailyMetric.date >= cutoff,
+    )
+    if org:
+        summary_query = summary_query.where(CopilotDailyMetric.org_slug == org)
+    summary_query = summary_query.group_by(CopilotDailyMetric.date).order_by(
+        CopilotDailyMetric.date
+    )
+    summary_result = await db.execute(summary_query)
+    summary_rows = list(summary_result.all())
+
+    # Completions per day
+    comp_query = select(
+        CopilotDailyMetric.date,
+        func.sum(CopilotDailyMetric.total_suggestions).label("suggestions"),
+        func.sum(CopilotDailyMetric.total_acceptances).label("acceptances"),
+    ).where(
+        CopilotDailyMetric.metric_type == "completions",
+        CopilotDailyMetric.language.is_(None),
+        CopilotDailyMetric.editor.is_(None),
+        CopilotDailyMetric.model.is_(None),
+        CopilotDailyMetric.date >= cutoff,
+    )
+    if org:
+        comp_query = comp_query.where(CopilotDailyMetric.org_slug == org)
+    comp_query = comp_query.group_by(CopilotDailyMetric.date).order_by(CopilotDailyMetric.date)
+    comp_result = await db.execute(comp_query)
+    comp_rows = list(comp_result.all())
+
+    # Chat requests per day
+    chat_query = select(
+        CopilotDailyMetric.date,
+        func.sum(CopilotDailyMetric.total_suggestions).label("chat_requests"),
+    ).where(
+        CopilotDailyMetric.metric_type == "chat",
+        CopilotDailyMetric.language.is_(None),
+        CopilotDailyMetric.editor.is_(None),
+        CopilotDailyMetric.model.is_(None),
+        CopilotDailyMetric.date >= cutoff,
+    )
+    if org:
+        chat_query = chat_query.where(CopilotDailyMetric.org_slug == org)
+    chat_query = chat_query.group_by(CopilotDailyMetric.date).order_by(CopilotDailyMetric.date)
+    chat_result = await db.execute(chat_query)
+    chat_rows = list(chat_result.all())
+
+    # Requests per mode (all metric_types grouped by date + type)
+    mode_query = select(
+        CopilotDailyMetric.date,
+        CopilotDailyMetric.metric_type,
+        func.sum(CopilotDailyMetric.total_suggestions).label("requests"),
+    ).where(
+        CopilotDailyMetric.language.is_(None),
+        CopilotDailyMetric.editor.is_(None),
+        CopilotDailyMetric.model.is_(None),
+        CopilotDailyMetric.date >= cutoff,
+        CopilotDailyMetric.metric_type.in_(["completions", "chat", "dotcom_chat", "pr"]),
+    )
+    if org:
+        mode_query = mode_query.where(CopilotDailyMetric.org_slug == org)
+    mode_query = mode_query.group_by(
+        CopilotDailyMetric.date, CopilotDailyMetric.metric_type
+    ).order_by(CopilotDailyMetric.date)
+    mode_result = await db.execute(mode_query)
+    mode_rows = list(mode_result.all())
+
+    # Build lookup maps
+    summary_map: dict[date_type, int] = {r.date: int(r.active_users or 0) for r in summary_rows}
+    comp_map: dict[date_type, tuple[int, int]] = {
+        r.date: (int(r.suggestions or 0), int(r.acceptances or 0)) for r in comp_rows
+    }
+    chat_map: dict[date_type, int] = {r.date: int(r.chat_requests or 0) for r in chat_rows}
+
+    # Mode map: date -> {metric_type: count}
+    mode_map: dict[date_type, dict[str, int]] = {}
+    for r in mode_rows:
+        mode_map.setdefault(r.date, {})[r.metric_type] = int(r.requests or 0)
+
+    # Collect all dates in order
+    all_dates_set: set[date_type] = set()
+    all_dates_set.update(summary_map.keys())
+    all_dates_set.update(comp_map.keys())
+    all_dates_set.update(chat_map.keys())
+    all_dates = sorted(all_dates_set)
+
+    dates: list[str] = []
+    ide_dau: list[int] = []
+    ide_wau: list[int] = []
+    completions_count: list[int] = []
+    completions_accepted: list[int] = []
+    acceptance_rate_pct: list[float] = []
+    chat_requests_per_user: list[float] = []
+    rpm_dates: list[str] = []
+    rpm_completions: list[int] = []
+    rpm_chat: list[int] = []
+    rpm_dotcom_chat: list[int] = []
+    rpm_pr: list[int] = []
+
+    for i, d in enumerate(all_dates):
+        dates.append(d.isoformat())
+        dau = summary_map.get(d, 0)
+        ide_dau.append(dau)
+
+        # 7-day rolling sum of DAU as WAU approximation
+        start_idx = max(0, i - 6)
+        wau_sum = sum(summary_map.get(all_dates[j], 0) for j in range(start_idx, i + 1))
+        ide_wau.append(wau_sum)
+
+        sugg, acc = comp_map.get(d, (0, 0))
+        completions_count.append(sugg)
+        completions_accepted.append(acc)
+        acceptance_rate_pct.append(round(acc / sugg * 100, 1) if sugg > 0 else 0.0)
+
+        chat_req = chat_map.get(d, 0)
+        chat_requests_per_user.append(round(chat_req / dau, 1) if dau > 0 else 0.0)
+
+        rpm_dates.append(d.isoformat())
+        mode_day = mode_map.get(d, {})
+        rpm_completions.append(mode_day.get("completions", 0))
+        rpm_chat.append(mode_day.get("chat", 0))
+        rpm_dotcom_chat.append(mode_day.get("dotcom_chat", 0))
+        rpm_pr.append(mode_day.get("pr", 0))
+
+    return {
+        "dates": dates,
+        "ide_dau": ide_dau,
+        "ide_wau": ide_wau,
+        "completions_count": completions_count,
+        "completions_accepted": completions_accepted,
+        "acceptance_rate_pct": acceptance_rate_pct,
+        "chat_requests_per_user": chat_requests_per_user,
+        "requests_per_mode": {
+            "dates": rpm_dates,
+            "completions": rpm_completions,
+            "chat": rpm_chat,
+            "dotcom_chat": rpm_dotcom_chat,
+            "pr": rpm_pr,
+        },
+    }
+
+
+async def get_copilot_chat_metrics(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
+    """Chat-specific time series: interactions, code actions, active users, action rate.
+
+    Returns 28 days of chat and dotcom_chat data.
+    """
+    from sqlalchemy import func
+
+    from app.models.copilot_metrics import CopilotDailyMetric
+
+    err = await _check_feature_enabled(db)
+    if err is not None:
+        return err
+
+    cutoff = (datetime.now(UTC) - timedelta(days=28)).date()
+
+    # Chat + dotcom_chat aggregated per day
+    chat_metrics_query = select(
+        CopilotDailyMetric.date,
+        func.sum(CopilotDailyMetric.total_suggestions).label("interactions"),
+        func.sum(CopilotDailyMetric.total_acceptances).label("code_actions"),
+        func.sum(CopilotDailyMetric.active_users).label("active_users"),
+    ).where(
+        CopilotDailyMetric.metric_type.in_(["chat", "dotcom_chat"]),
+        CopilotDailyMetric.language.is_(None),
+        CopilotDailyMetric.editor.is_(None),
+        CopilotDailyMetric.model.is_(None),
+        CopilotDailyMetric.date >= cutoff,
+    )
+    if org:
+        chat_metrics_query = chat_metrics_query.where(CopilotDailyMetric.org_slug == org)
+    chat_metrics_query = chat_metrics_query.group_by(CopilotDailyMetric.date).order_by(
+        CopilotDailyMetric.date
+    )
+    result = await db.execute(chat_metrics_query)
+    rows = list(result.all())
+
+    dates: list[str] = []
+    total_interactions: list[int] = []
+    code_actions: list[int] = []
+    active_chat_users: list[int] = []
+    action_rate_pct: list[float] = []
+
+    for r in rows:
+        dates.append(r.date.isoformat())
+        interactions = int(r.interactions or 0)
+        actions = int(r.code_actions or 0)
+        total_interactions.append(interactions)
+        code_actions.append(actions)
+        active_chat_users.append(int(r.active_users or 0))
+        action_rate_pct.append(round(actions / interactions * 100, 1) if interactions > 0 else 0.0)
+
+    return {
+        "dates": dates,
+        "total_interactions": total_interactions,
+        "code_actions": code_actions,
+        "active_chat_users": active_chat_users,
+        "action_rate_pct": action_rate_pct,
+    }
+
+
+async def get_copilot_language_breakdown(
+    db: AsyncSession, *, org: str | None = None
+) -> dict[str, Any]:
+    """Language-level analytics: per-day breakdown, distribution, models, editors.
+
+    Returns language data for the language breakdown dashboard.
+    """
+    from sqlalchemy import desc, func
+
+    from app.models.copilot_metrics import CopilotDailyMetric
+
+    err = await _check_feature_enabled(db)
+    if err is not None:
+        return err
+
+    cutoff = (datetime.now(UTC) - timedelta(days=28)).date()
+
+    # Determine top 8 languages by total suggestions
+    top_langs_query = select(
+        CopilotDailyMetric.language,
+        func.sum(CopilotDailyMetric.total_suggestions).label("total"),
+    ).where(
+        CopilotDailyMetric.metric_type == "completions",
+        CopilotDailyMetric.language.isnot(None),
+        CopilotDailyMetric.model.is_(None),
+        CopilotDailyMetric.editor.is_(None),
+        CopilotDailyMetric.date >= cutoff,
+    )
+    if org:
+        top_langs_query = top_langs_query.where(CopilotDailyMetric.org_slug == org)
+    top_langs_query = (
+        top_langs_query.group_by(CopilotDailyMetric.language).order_by(desc("total")).limit(8)
+    )
+    top_langs_result = await db.execute(top_langs_query)
+    top_langs_rows = list(top_langs_result.all())
+    top_langs = [r.language for r in top_langs_rows]
+
+    if not top_langs:
+        return {
+            "dates": [],
+            "language_per_day": {},
+            "language_distribution": [],
+            "model_per_language": {"labels": [], "series": []},
+            "acceptance_by_editor": [],
+            "top_by_generations": [],
+            "top_by_lines": [],
+        }
+
+    # language_per_day: daily suggestions per language
+    lang_day_query = select(
+        CopilotDailyMetric.date,
+        CopilotDailyMetric.language,
+        func.sum(CopilotDailyMetric.total_suggestions).label("suggestions"),
+    ).where(
+        CopilotDailyMetric.metric_type == "completions",
+        CopilotDailyMetric.language.in_(top_langs),
+        CopilotDailyMetric.model.is_(None),
+        CopilotDailyMetric.editor.is_(None),
+        CopilotDailyMetric.date >= cutoff,
+    )
+    if org:
+        lang_day_query = lang_day_query.where(CopilotDailyMetric.org_slug == org)
+    lang_day_query = lang_day_query.group_by(
+        CopilotDailyMetric.date, CopilotDailyMetric.language
+    ).order_by(CopilotDailyMetric.date)
+    lang_day_result = await db.execute(lang_day_query)
+    lang_day_rows = list(lang_day_result.all())
+
+    # Collect all dates
+    all_dates_set: set[date_type] = {r.date for r in lang_day_rows}
+    all_dates = sorted(all_dates_set)
+    dates = [d.isoformat() for d in all_dates]
+
+    # Build per-language daily map
+    lang_day_map: dict[str, dict[date_type, int]] = {lang: {} for lang in top_langs}
+    for r in lang_day_rows:
+        if r.language in lang_day_map:
+            lang_day_map[r.language][r.date] = int(r.suggestions or 0)
+
+    language_per_day: dict[str, list[int]] = {
+        lang: [lang_day_map[lang].get(d, 0) for d in all_dates] for lang in top_langs
+    }
+
+    # language_distribution: aggregated totals with colors
+    language_distribution: list[dict[str, Any]] = [
+        {
+            "name": r.language,
+            "value": int(r.total or 0),
+            "color": _lang_color(r.language),
+        }
+        for r in top_langs_rows
+    ]
+
+    # model_per_language: suggestions by language + model
+    model_lang_query = select(
+        CopilotDailyMetric.language,
+        CopilotDailyMetric.model,
+        func.sum(CopilotDailyMetric.total_suggestions).label("suggestions"),
+    ).where(
+        CopilotDailyMetric.metric_type == "completions",
+        CopilotDailyMetric.language.in_(top_langs),
+        CopilotDailyMetric.model.isnot(None),
+        CopilotDailyMetric.date >= cutoff,
+    )
+    if org:
+        model_lang_query = model_lang_query.where(CopilotDailyMetric.org_slug == org)
+    model_lang_query = model_lang_query.group_by(
+        CopilotDailyMetric.language, CopilotDailyMetric.model
+    ).order_by(desc("suggestions"))
+    model_lang_result = await db.execute(model_lang_query)
+    model_lang_rows = list(model_lang_result.all())
+
+    # Pivot: collect unique models and build series
+    model_lang_map: dict[str, dict[str, int]] = {}
+    for ml_row in model_lang_rows:
+        if ml_row.model is not None and ml_row.language is not None:
+            model_lang_map.setdefault(ml_row.model, {})[ml_row.language] = int(
+                ml_row.suggestions or 0
+            )
+
+    model_series: list[dict[str, Any]] = [
+        {"name": model, "data": [lang_data.get(lang, 0) for lang in top_langs]}
+        for model, lang_data in model_lang_map.items()
+    ]
+
+    # acceptance_by_editor
+    editor_query = select(
+        CopilotDailyMetric.editor,
+        func.sum(CopilotDailyMetric.total_suggestions).label("suggestions"),
+        func.sum(CopilotDailyMetric.total_acceptances).label("acceptances"),
+    ).where(
+        CopilotDailyMetric.metric_type == "completions",
+        CopilotDailyMetric.editor.isnot(None),
+        CopilotDailyMetric.language.is_(None),
+        CopilotDailyMetric.date >= cutoff,
+    )
+    if org:
+        editor_query = editor_query.where(CopilotDailyMetric.org_slug == org)
+    editor_query = editor_query.group_by(CopilotDailyMetric.editor).order_by(desc("acceptances"))
+    editor_result = await db.execute(editor_query)
+    editor_rows = list(editor_result.all())
+    acceptance_by_editor: list[dict[str, Any]] = [
+        {
+            "editor": r.editor,
+            "rate": round(int(r.acceptances or 0) / int(r.suggestions or 1) * 100, 1),
+        }
+        for r in editor_rows
+        if int(r.suggestions or 0) > 0
+    ]
+
+    # top_by_generations: top 5 languages by total_suggestions
+    top_by_generations: list[dict[str, Any]] = [
+        {"language": r.language, "count": int(r.total or 0)} for r in top_langs_rows[:5]
+    ]
+
+    # top_by_lines: top 5 languages by total_lines_accepted
+    lines_query = select(
+        CopilotDailyMetric.language,
+        func.sum(CopilotDailyMetric.total_lines_accepted).label("lines"),
+    ).where(
+        CopilotDailyMetric.metric_type == "completions",
+        CopilotDailyMetric.language.isnot(None),
+        CopilotDailyMetric.model.is_(None),
+        CopilotDailyMetric.editor.is_(None),
+        CopilotDailyMetric.date >= cutoff,
+    )
+    if org:
+        lines_query = lines_query.where(CopilotDailyMetric.org_slug == org)
+    lines_query = lines_query.group_by(CopilotDailyMetric.language).order_by(desc("lines")).limit(5)
+    lines_result = await db.execute(lines_query)
+    lines_rows = list(lines_result.all())
+    top_by_lines: list[dict[str, Any]] = [
+        {"language": r.language, "lines": int(r.lines or 0)} for r in lines_rows
+    ]
+
+    return {
+        "dates": dates,
+        "language_per_day": language_per_day,
+        "language_distribution": language_distribution,
+        "model_per_language": {
+            "labels": top_langs,
+            "series": model_series,
+        },
+        "acceptance_by_editor": acceptance_by_editor,
+        "top_by_generations": top_by_generations,
+        "top_by_lines": top_by_lines,
+    }
+
+
+async def get_copilot_pr_metrics(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
+    """PR-related time series: active users, contributions, review suggestions.
+
+    Returns 28 days of PR metric_type data.
+    """
+    from sqlalchemy import func
+
+    from app.models.copilot_metrics import CopilotDailyMetric
+
+    err = await _check_feature_enabled(db)
+    if err is not None:
+        return err
+
+    cutoff = (datetime.now(UTC) - timedelta(days=28)).date()
+
+    pr_query = select(
+        CopilotDailyMetric.date,
+        func.sum(CopilotDailyMetric.active_users).label("active_users"),
+        func.sum(CopilotDailyMetric.total_suggestions).label("contributions"),
+        func.sum(CopilotDailyMetric.total_acceptances).label("review_suggestions"),
+    ).where(
+        CopilotDailyMetric.metric_type == "pr",
+        CopilotDailyMetric.language.is_(None),
+        CopilotDailyMetric.editor.is_(None),
+        CopilotDailyMetric.model.is_(None),
+        CopilotDailyMetric.date >= cutoff,
+    )
+    if org:
+        pr_query = pr_query.where(CopilotDailyMetric.org_slug == org)
+    pr_query = pr_query.group_by(CopilotDailyMetric.date).order_by(CopilotDailyMetric.date)
+    result = await db.execute(pr_query)
+    rows = list(result.all())
+
+    dates: list[str] = []
+    pr_activity: list[int] = []
+    pr_contributions: list[int] = []
+    review_suggestions: list[int] = []
+
+    for r in rows:
+        dates.append(r.date.isoformat())
+        pr_activity.append(int(r.active_users or 0))
+        pr_contributions.append(int(r.contributions or 0))
+        review_suggestions.append(int(r.review_suggestions or 0))
+
+    return {
+        "dates": dates,
+        "pr_activity": pr_activity,
+        "pr_contributions": pr_contributions,
+        "review_suggestions": review_suggestions,
+    }
+
+
+async def get_copilot_agent_activity(db: AsyncSession, *, org: str | None = None) -> dict[str, Any]:
+    """Agent/LOC activity metrics: daily lines, lines by mode/model/language.
+
+    Returns 28 days of lines-of-code activity data.
+    """
+    from sqlalchemy import desc, func
+
+    from app.models.copilot_metrics import CopilotDailyMetric
+
+    err = await _check_feature_enabled(db)
+    if err is not None:
+        return err
+
+    cutoff = (datetime.now(UTC) - timedelta(days=28)).date()
+
+    # Daily totals (all metric_types, null dimensions)
+    daily_query = select(
+        CopilotDailyMetric.date,
+        func.sum(CopilotDailyMetric.total_lines_suggested).label("lines_added"),
+        func.sum(CopilotDailyMetric.total_lines_accepted).label("lines_accepted"),
+    ).where(
+        CopilotDailyMetric.language.is_(None),
+        CopilotDailyMetric.editor.is_(None),
+        CopilotDailyMetric.model.is_(None),
+        CopilotDailyMetric.date >= cutoff,
+    )
+    if org:
+        daily_query = daily_query.where(CopilotDailyMetric.org_slug == org)
+    daily_query = daily_query.group_by(CopilotDailyMetric.date).order_by(CopilotDailyMetric.date)
+    daily_result = await db.execute(daily_query)
+    daily_rows = list(daily_result.all())
+
+    # Lines by mode per day
+    mode_query = select(
+        CopilotDailyMetric.date,
+        CopilotDailyMetric.metric_type,
+        func.sum(CopilotDailyMetric.total_lines_suggested).label("lines"),
+    ).where(
+        CopilotDailyMetric.language.is_(None),
+        CopilotDailyMetric.editor.is_(None),
+        CopilotDailyMetric.model.is_(None),
+        CopilotDailyMetric.date >= cutoff,
+        CopilotDailyMetric.metric_type.in_(["completions", "chat", "pr"]),
+    )
+    if org:
+        mode_query = mode_query.where(CopilotDailyMetric.org_slug == org)
+    mode_query = mode_query.group_by(
+        CopilotDailyMetric.date, CopilotDailyMetric.metric_type
+    ).order_by(CopilotDailyMetric.date)
+    mode_result = await db.execute(mode_query)
+    mode_rows = list(mode_result.all())
+
+    # Lines by model (aggregated)
+    model_query = select(
+        CopilotDailyMetric.model,
+        func.sum(CopilotDailyMetric.total_lines_suggested).label("lines_added"),
+        func.sum(CopilotDailyMetric.total_lines_accepted).label("lines_accepted"),
+    ).where(
+        CopilotDailyMetric.model.isnot(None),
+        CopilotDailyMetric.date >= cutoff,
+    )
+    if org:
+        model_query = model_query.where(CopilotDailyMetric.org_slug == org)
+    model_query = (
+        model_query.group_by(CopilotDailyMetric.model).order_by(desc("lines_added")).limit(8)
+    )
+    model_result = await db.execute(model_query)
+    model_rows = list(model_result.all())
+
+    # Lines by language (aggregated)
+    lang_query = select(
+        CopilotDailyMetric.language,
+        func.sum(CopilotDailyMetric.total_lines_suggested).label("lines_added"),
+        func.sum(CopilotDailyMetric.total_lines_accepted).label("lines_accepted"),
+    ).where(
+        CopilotDailyMetric.metric_type == "completions",
+        CopilotDailyMetric.language.isnot(None),
+        CopilotDailyMetric.model.is_(None),
+        CopilotDailyMetric.editor.is_(None),
+        CopilotDailyMetric.date >= cutoff,
+    )
+    if org:
+        lang_query = lang_query.where(CopilotDailyMetric.org_slug == org)
+    lang_query = (
+        lang_query.group_by(CopilotDailyMetric.language).order_by(desc("lines_added")).limit(8)
+    )
+    lang_result = await db.execute(lang_query)
+    lang_rows = list(lang_result.all())
+
+    # Build daily arrays
+    all_dates = sorted({r.date for r in daily_rows})
+    dates = [d.isoformat() for d in all_dates]
+    daily_map: dict[date_type, tuple[int, int]] = {
+        r.date: (int(r.lines_added or 0), int(r.lines_accepted or 0)) for r in daily_rows
+    }
+    daily_lines_added = [daily_map.get(d, (0, 0))[0] for d in all_dates]
+    daily_lines_accepted = [daily_map.get(d, (0, 0))[1] for d in all_dates]
+
+    # Build lines_by_mode
+    mode_map: dict[str, dict[date_type, int]] = {"completions": {}, "chat": {}, "pr": {}}
+    for r in mode_rows:
+        if r.metric_type in mode_map:
+            mode_map[r.metric_type][r.date] = int(r.lines or 0)
+
+    lines_by_mode: dict[str, list[int]] = {
+        mode: [day_map.get(d, 0) for d in all_dates] for mode, day_map in mode_map.items()
+    }
+
+    # Build lines_by_model
+    lines_by_model: list[dict[str, Any]] = [
+        {
+            "model": r.model,
+            "lines_added": int(r.lines_added or 0),
+            "lines_accepted": int(r.lines_accepted or 0),
+        }
+        for r in model_rows
+    ]
+
+    # Build lines_by_language
+    lines_by_language: list[dict[str, Any]] = [
+        {
+            "language": r.language,
+            "lines_added": int(r.lines_added or 0),
+            "lines_accepted": int(r.lines_accepted or 0),
+        }
+        for r in lang_rows
+    ]
+
+    return {
+        "dates": dates,
+        "daily_lines_added": daily_lines_added,
+        "daily_lines_accepted": daily_lines_accepted,
+        "lines_by_mode": lines_by_mode,
+        "lines_by_model": lines_by_model,
+        "lines_by_language": lines_by_language,
     }

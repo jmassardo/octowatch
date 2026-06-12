@@ -6,6 +6,7 @@ import { DataTable, type ColumnDef } from '../../components/primitives/DataTable
 import { getCopilotTeams } from '../../api/copilotMetrics';
 import type { CopilotTeam } from '../../api/copilotMetrics';
 import { ApiError } from '../../api/client';
+import { useOrg } from '../../hooks/useOrg';
 import styles from './Copilot.module.css';
 
 const teamColumns: ColumnDef<CopilotTeam>[] = [
@@ -154,9 +155,11 @@ const teamColumns: ColumnDef<CopilotTeam>[] = [
 ];
 
 export function TeamsPane() {
+  const { selectedOrg } = useOrg();
+  const orgParam = selectedOrg || undefined;
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['copilot', 'teams'],
-    queryFn: getCopilotTeams,
+    queryKey: ['copilot', 'teams', orgParam],
+    queryFn: () => getCopilotTeams(orgParam),
     staleTime: 30 * 60 * 1000,
   });
 

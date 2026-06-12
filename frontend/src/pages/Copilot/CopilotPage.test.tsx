@@ -21,7 +21,6 @@ vi.mock('../../api/reports', () => ({
       },
     ],
   }),
-  getCopilotSeatsReport: vi.fn().mockResolvedValue({ data: [] }),
 }));
 
 vi.mock('../../api/features', () => ({
@@ -50,7 +49,15 @@ vi.mock('../../hooks/useFeatures', () => ({
 
 vi.mock('../../api/copilotMetrics', () => ({
   getCopilotOverview: vi.fn().mockResolvedValue({
-    acceptance_rate_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    acceptance_rate_days: [
+      '2026-06-01',
+      '2026-06-02',
+      '2026-06-03',
+      '2026-06-04',
+      '2026-06-05',
+      '2026-06-06',
+      '2026-06-07',
+    ],
     acceptance_rate_values: [24, 26, 27, 25, 28, 31, 29],
     acceptance_threshold: 25,
     languages: [
@@ -59,6 +66,7 @@ vi.mock('../../api/copilotMetrics', () => ({
     ],
     total_active_users: 120,
     total_engaged_users: 98,
+    total_provisioned_seats: 186,
   }),
   getCopilotAnomalies: vi.fn().mockResolvedValue({
     anomalies: [
@@ -106,6 +114,10 @@ vi.mock('../../api/copilotMetrics', () => ({
     features: [{ feature: 'IDE completions', count: 142, color: '#58a6ff' }],
     editors: [{ name: 'VS Code', count: 112, pct: 79 }],
   }),
+  getCopilotModelUsers: vi.fn().mockResolvedValue({
+    users: [],
+    total_users: 0,
+  }),
   getCopilotBlockers: vi.fn().mockResolvedValue({
     blockers: [],
     quick_wins: [],
@@ -114,6 +126,52 @@ vi.mock('../../api/copilotMetrics', () => ({
   getCopilotTeams: vi.fn().mockResolvedValue({ teams: [], total_teams: 0, at_risk_count: 0 }),
   getCopilotPolicyChanges: vi.fn().mockResolvedValue({ timeline: [], total_changes: 0 }),
   getCopilotROI: vi.fn().mockResolvedValue({ summary: null, recommendations: [] }),
+  getCopilotActivity: vi.fn().mockResolvedValue({
+    dates: [],
+    ide_dau: [],
+    ide_wau: [],
+    completions_count: [],
+    completions_accepted: [],
+    acceptance_rate_pct: [],
+    chat_requests_per_user: [],
+    requests_per_mode: { dates: [], completions: [], chat: [], dotcom_chat: [], pr: [] },
+  }),
+  getCopilotChatMetrics: vi.fn().mockResolvedValue({
+    dates: [],
+    total_interactions: [],
+    code_actions: [],
+    active_chat_users: [],
+    action_rate_pct: [],
+  }),
+  getCopilotLanguageBreakdown: vi.fn().mockResolvedValue({
+    dates: [],
+    language_per_day: {},
+    language_distribution: [],
+    model_per_language: { labels: [], series: [] },
+    acceptance_by_editor: [],
+    top_by_generations: [],
+    top_by_lines: [],
+  }),
+  getCopilotPRMetrics: vi.fn().mockResolvedValue({
+    dates: [],
+    pr_activity: [],
+    pr_contributions: [],
+    review_suggestions: [],
+  }),
+  getCopilotAgentActivity: vi.fn().mockResolvedValue({
+    dates: [],
+    daily_lines_added: [],
+    daily_lines_accepted: [],
+    lines_by_mode: {},
+    lines_by_model: [],
+    lines_by_language: [],
+  }),
+}));
+
+vi.mock('../../api/copilotGovernance', () => ({
+  listCopilotPolicies: vi.fn().mockResolvedValue([]),
+  listCopilotViolations: vi.fn().mockResolvedValue({ violations: [], total: 0 }),
+  updateCopilotPolicy: vi.fn().mockResolvedValue({}),
 }));
 
 function renderPage(initialTab = 'overview') {
@@ -143,11 +201,11 @@ describe('CopilotPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the tab bar with 6 tabs', () => {
+  it('renders the tab bar with 16 tabs', () => {
     renderPage();
     const tablist = screen.getByRole('tablist');
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs).toHaveLength(6);
+    expect(tabs).toHaveLength(16);
   });
 
   it('shows the anomaly badge with count 3', async () => {

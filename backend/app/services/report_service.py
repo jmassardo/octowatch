@@ -105,20 +105,19 @@ async def get_seat_utilization_report(
     provisioned_seat_count: int = max_row.max_active if max_row and max_row.max_active else 0
 
     # ------------------------------------------------------------------
-    # 2. Per-bucket active seat counts
+    # 2. Per-bucket active seat counts (enterprise-wide, one row per bucket)
     # ------------------------------------------------------------------
     # SECURITY: static clause fragments only, not user input
     stmt = text(f"""
         SELECT
             time_bucket(:interval, created_at)  AS bucket,
-            org,
             COUNT(DISTINCT actor)               AS active_seats
         FROM events
         WHERE created_at >= :start
           {org_filter}
           AND actor IS NOT NULL
-        GROUP BY 1, 2
-        ORDER BY 1 ASC, 2
+        GROUP BY 1
+        ORDER BY 1 ASC
     """)
 
     result = await session.execute(stmt, params)

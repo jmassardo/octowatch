@@ -6,6 +6,7 @@ import { BarChart } from '../../components/charts/BarChart';
 import { getCopilotROI } from '../../api/copilotMetrics';
 import type { CopilotROISummary } from '../../api/copilotMetrics';
 import { useChartColors } from '../../hooks/useChartColors';
+import { useOrg } from '../../hooks/useOrg';
 import styles from './Copilot.module.css';
 
 function formatCurrency(value: number): string {
@@ -17,9 +18,11 @@ function formatPercent(value: number): string {
 }
 
 export function ROIPane() {
+  const { selectedOrg } = useOrg();
+  const orgParam = selectedOrg || undefined;
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['copilot', 'roi'],
-    queryFn: getCopilotROI,
+    queryKey: ['copilot', 'roi', orgParam],
+    queryFn: () => getCopilotROI(orgParam),
     staleTime: 30 * 60 * 1000,
   });
   const chartColors = useChartColors();

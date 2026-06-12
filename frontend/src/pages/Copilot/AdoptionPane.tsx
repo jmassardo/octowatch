@@ -10,6 +10,7 @@ import { Spinner } from '../../components/primitives/Spinner';
 import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { getCopilotAdoption } from '../../api/copilotMetrics';
+import { useOrg } from '../../hooks/useOrg';
 import styles from './Copilot.module.css';
 
 type AdoptionModal = 'settings' | null;
@@ -27,13 +28,15 @@ interface UnifiedUser {
 }
 
 export function AdoptionPane() {
+  const { selectedOrg } = useOrg();
+  const orgParam = selectedOrg || undefined;
   const {
     data: adoption,
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ['copilot', 'adoption'],
-    queryFn: getCopilotAdoption,
+    queryKey: ['copilot', 'adoption', orgParam],
+    queryFn: () => getCopilotAdoption(orgParam),
     staleTime: 30 * 60 * 1000,
   });
 

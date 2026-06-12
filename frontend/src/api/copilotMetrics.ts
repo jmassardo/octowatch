@@ -7,6 +7,7 @@ export interface CopilotOverview {
   languages: Array<{ lang: string; pct: number; color: string }>;
   total_active_users: number;
   total_engaged_users: number;
+  total_provisioned_seats: number;
   error?: string;
   message?: string;
 }
@@ -223,36 +224,58 @@ export interface CopilotROI {
   message?: string;
 }
 
-export function getCopilotOverview(): Promise<CopilotOverview> {
-  return api.get<CopilotOverview>('/copilot/overview');
+export function getCopilotOverview(org?: string): Promise<CopilotOverview> {
+  return api.get<CopilotOverview>('/copilot/overview', { org });
 }
 
-export function getCopilotAdoption(): Promise<CopilotAdoption> {
-  return api.get<CopilotAdoption>('/copilot/adoption');
+export function getCopilotAdoption(org?: string): Promise<CopilotAdoption> {
+  return api.get<CopilotAdoption>('/copilot/adoption', { org });
 }
 
-export function getCopilotModels(): Promise<CopilotModels> {
-  return api.get<CopilotModels>('/copilot/models');
+export function getCopilotModels(org?: string): Promise<CopilotModels> {
+  return api.get<CopilotModels>('/copilot/models', { org });
 }
 
-export function getCopilotAnomalies(): Promise<CopilotAnomalies> {
-  return api.get<CopilotAnomalies>('/copilot/anomalies');
+export interface CopilotModelUser {
+  login: string;
+  total_credits: number;
+  completions_credits: number;
+  chat_credits: number;
+  pr_credits: number;
+  other_credits: number;
+  days_active: number;
+  last_active: string | null;
 }
 
-export function getCopilotTeams(): Promise<CopilotTeams> {
-  return api.get<CopilotTeams>('/copilot/teams');
+export interface CopilotModelUsers {
+  users: CopilotModelUser[];
+  total_users: number;
+  error?: string;
+  message?: string;
 }
 
-export function getCopilotBlockers(): Promise<CopilotBlockers> {
-  return api.get<CopilotBlockers>('/copilot/blockers');
+export function getCopilotModelUsers(org?: string): Promise<CopilotModelUsers> {
+  return api.get<CopilotModelUsers>('/copilot/model-users', { org });
 }
 
-export function getCopilotPolicyChanges(): Promise<CopilotPolicyChanges> {
-  return api.get<CopilotPolicyChanges>('/copilot/policy-changes');
+export function getCopilotAnomalies(org?: string): Promise<CopilotAnomalies> {
+  return api.get<CopilotAnomalies>('/copilot/anomalies', { org });
 }
 
-export function getCopilotROI(): Promise<CopilotROI> {
-  return api.get<CopilotROI>('/copilot/roi');
+export function getCopilotTeams(org?: string): Promise<CopilotTeams> {
+  return api.get<CopilotTeams>('/copilot/teams', { org });
+}
+
+export function getCopilotBlockers(org?: string): Promise<CopilotBlockers> {
+  return api.get<CopilotBlockers>('/copilot/blockers', { org });
+}
+
+export function getCopilotPolicyChanges(org?: string): Promise<CopilotPolicyChanges> {
+  return api.get<CopilotPolicyChanges>('/copilot/policy-changes', { org });
+}
+
+export function getCopilotROI(org?: string): Promise<CopilotROI> {
+  return api.get<CopilotROI>('/copilot/roi', { org });
 }
 
 // ── Billing / UBB types ──────────────────────────────────────────────────────
@@ -305,14 +328,108 @@ export interface CopilotBillingTrends {
   message?: string;
 }
 
-export function getCopilotBillingOverview(): Promise<CopilotBillingOverview> {
-  return api.get<CopilotBillingOverview>('/copilot/billing-overview');
+export function getCopilotBillingOverview(org?: string): Promise<CopilotBillingOverview> {
+  return api.get<CopilotBillingOverview>('/copilot/billing-overview', { org });
 }
 
-export function getCopilotUserBudgets(): Promise<CopilotUserBudgets> {
-  return api.get<CopilotUserBudgets>('/copilot/user-budgets');
+export function getCopilotUserBudgets(org?: string): Promise<CopilotUserBudgets> {
+  return api.get<CopilotUserBudgets>('/copilot/user-budgets', { org });
 }
 
-export function getCopilotBillingTrends(): Promise<CopilotBillingTrends> {
-  return api.get<CopilotBillingTrends>('/copilot/billing-trends');
+export function getCopilotBillingTrends(org?: string): Promise<CopilotBillingTrends> {
+  return api.get<CopilotBillingTrends>('/copilot/billing-trends', { org });
+}
+
+// ── Activity metrics types ───────────────────────────────────────────────────
+
+export interface CopilotActivity {
+  dates: string[];
+  ide_dau: number[];
+  ide_wau: number[];
+  completions_count: number[];
+  completions_accepted: number[];
+  acceptance_rate_pct: number[];
+  chat_requests_per_user: number[];
+  requests_per_mode: {
+    dates: string[];
+    completions: number[];
+    chat: number[];
+    dotcom_chat: number[];
+    pr: number[];
+  };
+  error?: string;
+  message?: string;
+}
+
+export function getCopilotActivity(org?: string): Promise<CopilotActivity> {
+  return api.get<CopilotActivity>('/copilot/activity', { org });
+}
+
+// ── Chat metrics types ───────────────────────────────────────────────────────
+
+export interface CopilotChatMetrics {
+  dates: string[];
+  total_interactions: number[];
+  code_actions: number[];
+  active_chat_users: number[];
+  action_rate_pct: number[];
+  error?: string;
+  message?: string;
+}
+
+export function getCopilotChatMetrics(org?: string): Promise<CopilotChatMetrics> {
+  return api.get<CopilotChatMetrics>('/copilot/chat-metrics', { org });
+}
+
+// ── Language breakdown types ─────────────────────────────────────────────────
+
+export interface CopilotLanguageBreakdown {
+  dates: string[];
+  language_per_day: Record<string, number[]>;
+  language_distribution: Array<{ name: string; value: number; color?: string }>;
+  model_per_language: {
+    labels: string[];
+    series: Array<{ name: string; data: number[] }>;
+  };
+  acceptance_by_editor: Array<{ editor: string; rate: number }>;
+  top_by_generations: Array<{ language: string; count: number }>;
+  top_by_lines: Array<{ language: string; lines: number }>;
+  error?: string;
+  message?: string;
+}
+
+export function getCopilotLanguageBreakdown(org?: string): Promise<CopilotLanguageBreakdown> {
+  return api.get<CopilotLanguageBreakdown>('/copilot/language-breakdown', { org });
+}
+
+// ── PR metrics types ─────────────────────────────────────────────────────────
+
+export interface CopilotPRMetrics {
+  dates: string[];
+  pr_activity: number[];
+  pr_contributions: number[];
+  review_suggestions: number[];
+  error?: string;
+  message?: string;
+}
+
+export function getCopilotPRMetrics(org?: string): Promise<CopilotPRMetrics> {
+  return api.get<CopilotPRMetrics>('/copilot/pr-metrics', { org });
+}
+
+// ── Agent activity types ─────────────────────────────────────────────────────
+
+export interface CopilotAgentActivity {
+  dates: string[];
+  daily_lines_added: number[];
+  daily_lines_accepted: number[];
+  lines_by_mode: Record<string, number[]>;
+  lines_by_model: Array<{ model: string; lines_added: number; lines_accepted: number }>;
+  lines_by_language: Array<{ language: string; lines_added: number; lines_accepted: number }>;
+  error?: string;
+  message?: string;
+}
+
+export function getCopilotAgentActivity(org?: string): Promise<CopilotAgentActivity> {
+  return api.get<CopilotAgentActivity>('/copilot/agent-activity', { org });
 }

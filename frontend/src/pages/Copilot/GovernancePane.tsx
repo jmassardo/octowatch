@@ -11,6 +11,7 @@ import { ErrorBanner } from '../../components/primitives/ErrorBanner';
 import { Button } from '../../components/primitives/Button';
 import { Label } from '../../components/primitives/Label';
 import { formatRelativeShort } from '../../utils/dates';
+import { useOrg } from '../../hooks/useOrg';
 import styles from './Copilot.module.css';
 
 function PolicyCard({
@@ -72,6 +73,8 @@ function ViolationRow({ violation }: { violation: CopilotPolicyViolation }) {
 export function GovernancePane() {
   const queryClient = useQueryClient();
   const [sevFilter, setSevFilter] = useState('');
+  const { selectedOrg } = useOrg();
+  const orgParam = selectedOrg || undefined;
 
   const {
     data: policies,
@@ -79,8 +82,8 @@ export function GovernancePane() {
     isError: policyError,
     refetch: refetchPolicies,
   } = useQuery({
-    queryKey: ['copilot-governance', 'policies'],
-    queryFn: listCopilotPolicies,
+    queryKey: ['copilot-governance', 'policies', orgParam],
+    queryFn: () => listCopilotPolicies(orgParam),
   });
 
   const {
@@ -89,10 +92,11 @@ export function GovernancePane() {
     isError: violationError,
     refetch: refetchViolations,
   } = useQuery({
-    queryKey: ['copilot-governance', 'violations', sevFilter],
+    queryKey: ['copilot-governance', 'violations', sevFilter, orgParam],
     queryFn: () =>
       listCopilotViolations({
         severity: sevFilter || undefined,
+        org: orgParam,
         page_size: 50,
       }),
   });

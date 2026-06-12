@@ -10,6 +10,7 @@ import { SampleDataBanner } from '../../components/primitives/SampleDataBanner';
 import { getCopilotROI } from '../../api/copilotMetrics';
 import type { CopilotGhostMember } from '../../api/copilotMetrics';
 import type { SeatUtilizationBucket } from '../../types/reports';
+import { useOrg } from '../../hooks/useOrg';
 import { useOrgConfig } from '../../hooks/useOrgConfig';
 import { formatBucketDate } from '../../utils/dates';
 import styles from './Copilot.module.css';
@@ -28,10 +29,12 @@ export function LicensePane({ seatBuckets }: LicensePaneProps) {
   const costSectionRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { costPerSeat } = useOrgConfig();
+  const { selectedOrg } = useOrg();
+  const orgParam = selectedOrg || undefined;
 
   const { data: roiData } = useQuery({
-    queryKey: ['copilot', 'roi'],
-    queryFn: getCopilotROI,
+    queryKey: ['copilot', 'roi', orgParam],
+    queryFn: () => getCopilotROI(orgParam),
     staleTime: 30 * 60 * 1000,
   });
 
