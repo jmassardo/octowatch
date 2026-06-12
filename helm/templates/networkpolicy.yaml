@@ -1,8 +1,52 @@
 {{- if .Values.networkPolicy.enabled -}}
+# ═══════════════════════════════════════════════════════════════════════════════
+# NetworkPolicy — Multi-Tenant Isolation
+#
+# Strategy: default-deny all traffic, then allow only required paths.
+# This ensures a compromised pod in one customer namespace cannot reach
+# pods in another namespace.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Default Deny All ──────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "octowatch.fullname" . }}-api
+  name: {{ include "octowatch.fullname" . }}-default-deny
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# ── Allow DNS Egress (all pods) ───────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "octowatch.fullname" . }}-allow-dns
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# ── API Ingress (from ingress controller namespace) ───────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "octowatch.fullname" . }}-api-ingress
   labels:
     {{- include "octowatch.labels" . | nindent 4 }}
 spec:
@@ -11,44 +55,125 @@ spec:
       app.kubernetes.io/component: api
   policyTypes:
     - Ingress
-    - Egress
   ingress:
     - from:
-        - podSelector:
+        - namespaceSelector:
             matchLabels:
-              app.kubernetes.io/component: ingress
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace | default "ingress-nginx" }}
       ports:
         - protocol: TCP
           port: 8000
+---
+# ── Frontend Ingress (from ingress controller namespace) ──────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "octowatch.fullname" . }}-frontend-ingress
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace | default "ingress-nginx" }}
+      ports:
+        - protocol: TCP
+          port: 3001
+---
+# ── API Egress (DB, Valkey, external HTTPS) ───────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "octowatch.fullname" . }}-api-egress
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: api
+  policyTypes:
+    - Egress
   egress:
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/component: database
+              app.kubernetes.io/component: postgresql
       ports:
         - protocol: TCP
           port: 5432
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/component: cache
+              app.kubernetes.io/name: valkey
       ports:
         - protocol: TCP
           port: 6379
-    - to:  # DNS
-        - namespaceSelector: {}
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    - to:  # GitHub API outbound
+    - to:  # GitHub API, Key Vault, external integrations (no RFC1918)
         - ipBlock:
             cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
       ports:
         - protocol: TCP
           port: 443
 ---
+# ── Worker Egress (DB, Valkey, external HTTPS + SMTP) ─────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "octowatch.fullname" . }}-worker-egress
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - worker-ingestion
+          - worker-detection
+          - worker-baseline
+          - worker-notification
+          - worker-sync
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: valkey
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:  # GitHub API, notification endpoints (no RFC1918)
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 587
+---
+# ── Database Ingress (from API + workers + beat only) ─────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -58,7 +183,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/component: database
+      app.kubernetes.io/component: postgresql
   policyTypes:
     - Ingress
   ingress:
@@ -74,6 +199,67 @@ spec:
                   - worker-baseline
                   - worker-notification
                   - worker-sync
+                  - beat
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# ── Valkey Ingress (from API + workers + beat only) ───────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "octowatch.fullname" . }}-cache
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - api
+                  - worker-ingestion
+                  - worker-detection
+                  - worker-baseline
+                  - worker-notification
+                  - worker-sync
+                  - beat
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# ── Beat Egress (to Valkey + DB only) ─────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "octowatch.fullname" . }}-beat-egress
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: beat
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: valkey
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: postgresql
       ports:
         - protocol: TCP
           port: 5432

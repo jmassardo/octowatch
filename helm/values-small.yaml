@@ -1,0 +1,102 @@
+# helm/values-small.yaml
+# T-shirt size: Small — default for new customers
+# Suitable for enterprises with up to ~500 users / moderate audit volume.
+# Applied automatically by CI based on namespace label: octowatch.dev/size=small
+
+api:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+worker:
+  ingestion:
+    replicaCount: 2
+    concurrency: 4
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "512Mi"
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
+  detection:
+    replicaCount: 2
+    concurrency: 8
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+  baseline:
+    replicaCount: 1
+    concurrency: 2
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+  notification:
+    replicaCount: 1
+    concurrency: 2
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+  sync:
+    replicaCount: 1
+    concurrency: 4
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        cpu: "2000m"
+        memory: "4Gi"
+
+frontend:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+
+postgresql:
+  enabled: false  # Use in-namespace TimescaleDB StatefulSet
+
+timescaledb:
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
+  persistence:
+    size: 50Gi
+
+valkey:
+  primary:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "384Mi"
+      limits:
+        cpu: "500m"
+        memory: "768Mi"
+    persistence:
+      size: 2Gi
