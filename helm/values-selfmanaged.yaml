@@ -43,7 +43,7 @@ frontend:
 ingress:
   enabled: true
   className: nginx
-  host: octowatch.jmassardo.azure.csa-github.com
+  host: csa.octowatch.dev
   tls:
     enabled: true
     secretName: octowatch-tls
