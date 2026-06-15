@@ -96,9 +96,22 @@ if ! helm upgrade --install "${NS}" "${CHART}" \
   echo "--- Logs from non-ready pods ---"
   kubectl get pods -n "${NS}" -o jsonpath='{range .items[?(@.status.containerStatuses[0].ready==false)]}{.metadata.name}{"\n"}{end}' 2>&1 | while read -r pod; do
     [ -z "${pod}" ] && continue
-    echo "=== logs: ${pod} (last 30 lines) ==="
-    kubectl logs "${pod}" -n "${NS}" --tail=30 2>&1 || true
+    echo "=== logs: ${pod} (last 50 lines) ==="
+    kubectl logs "${pod}" -n "${NS}" --tail=50 2>&1 || true
   done || true
+  echo "--- Readiness probe direct test ---"
+  API_POD=$(kubectl get pods -n "${NS}" -l app.kubernetes.io/component=api -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+  if [ -n "${API_POD}" ]; then
+    echo "Exec curl /ready on ${API_POD}:"
+    kubectl exec "${API_POD}" -n "${NS}" -- curl -s http://localhost:8000/ready 2>&1 || true
+    echo ""
+    echo "Checking env vars (redacted):"
+    kubectl exec "${API_POD}" -n "${NS}" -- env 2>&1 | grep -E "^(DATABASE_URL|VALKEY_URL)" | sed 's/\(.*:\/\/[^:]*:\)[^@]*/\1***/' || true
+  fi
+  echo "--- Services ---"
+  kubectl get svc -n "${NS}" 2>&1 || true
+  echo "--- NetworkPolicies ---"
+  kubectl get networkpolicies -n "${NS}" 2>&1 || true
   exit 1
 fi
 
