@@ -36,6 +36,11 @@ on:
           - test
           - preview
           - prod
+      force_reinstall:
+        description: "Uninstall existing releases before deploying (use for broken StatefulSet upgrades)"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-multitenant
@@ -44,6 +49,7 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+  FORCE_REINSTALL: ${{ github.event.inputs.force_reinstall || 'false' }}
 
 jobs:
   # ═══════════════════════════════════════════════════════════════════════════

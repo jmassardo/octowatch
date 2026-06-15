@@ -12,6 +12,7 @@ set -euo pipefail
 NS="${1:?Usage: deploy-namespace.sh <namespace> <image-tag> <helm-chart-path>}"
 TAG="${2:?Usage: deploy-namespace.sh <namespace> <image-tag> <helm-chart-path>}"
 CHART="${3:?Usage: deploy-namespace.sh <namespace> <image-tag> <helm-chart-path>}"
+FORCE_REINSTALL="${FORCE_REINSTALL:-false}"
 
 echo "━━━ Deploying to ${NS} (tag=${TAG}) ━━━"
 
@@ -55,6 +56,16 @@ if [ -n "${KV_NAME}" ] && [ -n "${WI_CLIENT_ID}" ]; then
     --set "keyVault.name=${KV_NAME}"
     --set "keyVault.uri=${KV_URI}"
   )
+fi
+
+# Force reinstall if requested (purges broken releases with immutable field conflicts)
+if [ "${FORCE_REINSTALL}" = "true" ]; then
+  if helm status "${NS}" -n "${NS}" >/dev/null 2>&1; then
+    echo "⚠️  Force reinstall: uninstalling existing release ${NS}"
+    helm uninstall "${NS}" -n "${NS}" --wait
+    # Give K8s time to clean up resources
+    sleep 5
+  fi
 fi
 
 # Include selfmanaged overlay (imagePullSecrets, registry, static replicas)
