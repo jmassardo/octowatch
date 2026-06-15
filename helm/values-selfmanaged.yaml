@@ -28,7 +28,7 @@ worker:
   baseline:
     replicaCount: 2
   sync:
-    replicaCount: 1
+    replicaCount: 0  # Requires GitHub App credentials; enable per-customer when configured
 
 beat:
   image:

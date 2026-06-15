@@ -116,7 +116,7 @@ jobs:
 
           # Application secret (used by API/worker deployments)
           # Note: TimescaleDB service is hardcoded as 'octowatch-postgresql' in the template
-          DATABASE_URL="postgresql+asyncpg://app_rw:${DB_PASSWORD}@octowatch-postgresql:5432/auditlogs?sslmode=disable"
+          DATABASE_URL="postgresql+asyncpg://app_rw:${DB_PASSWORD}@octowatch-postgresql:5432/auditlogs"
           VALKEY_URL="redis://:${VALKEY_PASSWORD}@${RELEASE_NAME}-valkey-primary:6379"
 
           kubectl create secret generic "${RELEASE_NAME}-secrets" \
