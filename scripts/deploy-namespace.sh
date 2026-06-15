@@ -64,9 +64,15 @@ if [ "${FORCE_REINSTALL}" = "true" ]; then
   if helm status "${NS}" -n "${NS}" >/dev/null 2>&1; then
     echo "⚠️  Force reinstall: uninstalling existing release ${NS}"
     helm uninstall "${NS}" -n "${NS}" --wait
-    # Give K8s time to clean up resources
-    sleep 5
   fi
+  # Clean up orphaned PVCs (they survive helm uninstall due to resource-policy: keep)
+  PVCS=$(kubectl get pvc -n "${NS}" -o name 2>/dev/null || true)
+  if [ -n "${PVCS}" ]; then
+    echo "⚠️  Cleaning up orphaned PVCs:"
+    echo "${PVCS}"
+    kubectl delete pvc --all -n "${NS}" --wait=false 2>/dev/null || true
+  fi
+  sleep 5
 fi
 
 # Include selfmanaged overlay (imagePullSecrets, registry, static replicas)
