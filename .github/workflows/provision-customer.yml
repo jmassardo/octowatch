@@ -31,6 +31,14 @@ on:
           - small
           - medium
           - large
+      github_client_id:
+        description: "GitHub OAuth App Client ID (optional — leave blank to configure later)"
+        required: false
+        type: string
+      github_client_secret:
+        description: "GitHub OAuth App Client Secret (optional — leave blank to configure later)"
+        required: false
+        type: string
 
 jobs:
   provision:
@@ -125,8 +133,8 @@ jobs:
             --from-literal=encryption-key="$ENCRYPTION_KEY" \
             --from-literal=database-url="$DATABASE_URL" \
             --from-literal=valkey-url="$VALKEY_URL" \
-            --from-literal=github-client-id="" \
-            --from-literal=github-client-secret="" \
+            --from-literal=github-client-id="${{ inputs.github_client_id }}" \
+            --from-literal=github-client-secret="${{ inputs.github_client_secret }}" \
             --from-literal=github-rules-token="" \
             --dry-run=client -o yaml | kubectl apply -f -
 
