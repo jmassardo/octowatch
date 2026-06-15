@@ -107,9 +107,16 @@ jobs:
             --from-literal=app-password="$DB_PASSWORD" \
             --dry-run=client -o yaml | kubectl apply -f -
 
+          # Valkey auth secret (used by Valkey subchart)
+          VALKEY_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+          kubectl create secret generic octowatch-valkey-secret \
+            -n "$NAMESPACE" \
+            --from-literal=valkey-password="$VALKEY_PASSWORD" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
           # Application secret (used by API/worker deployments)
           DATABASE_URL="postgresql+asyncpg://app_rw:${DB_PASSWORD}@${RELEASE_NAME}-postgresql:5432/auditlogs?sslmode=disable"
-          VALKEY_URL="redis://${RELEASE_NAME}-valkey-primary:6379"
+          VALKEY_URL="redis://:${VALKEY_PASSWORD}@${RELEASE_NAME}-valkey-primary:6379"
 
           kubectl create secret generic "${RELEASE_NAME}-secrets" \
             -n "$NAMESPACE" \

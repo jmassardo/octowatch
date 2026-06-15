@@ -38,7 +38,7 @@ REGISTRY="${IMAGE_PREFIX:-ghcr.io/jmassardo}"
 
 # Build Helm set flags
 HELM_ARGS=(
-  --set "global.image.tag=${TAG}"
+  --set-string "global.image.tag=${TAG}"
   --set "global.image.registry=${REGISTRY}"
   --set "ingress.host=${CUSTOMER}.octowatch.dev"
   --set "ingress.tls.secretName=octowatch-wildcard-tls"
