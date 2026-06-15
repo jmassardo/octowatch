@@ -77,11 +77,22 @@ VALUES_FILES=(
 )
 
 # Deploy
-helm upgrade --install "${NS}" "${CHART}" \
+if ! helm upgrade --install "${NS}" "${CHART}" \
   -n "${NS}" \
   "${VALUES_FILES[@]}" \
   "${HELM_ARGS[@]}" \
-  --timeout 8m \
-  --wait
+  --timeout 15m \
+  --wait; then
+  echo "::error::Helm deploy failed for ${NS}. Dumping pod status:"
+  kubectl get pods -n "${NS}" -o wide 2>&1 || true
+  echo "--- Events (last 5 min) ---"
+  kubectl get events -n "${NS}" --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
+  echo "--- Describe non-running pods ---"
+  kubectl get pods -n "${NS}" --field-selector='status.phase!=Running' -o name 2>&1 | while read -r pod; do
+    echo "=== ${pod} ==="
+    kubectl describe "${pod}" -n "${NS}" 2>&1 | tail -20
+  done || true
+  exit 1
+fi
 
 echo "✓ ${NS} deployed (customer=${CUSTOMER}, size=${SIZE}, tag=${TAG})"
