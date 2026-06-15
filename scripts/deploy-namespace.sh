@@ -93,10 +93,11 @@ if ! helm upgrade --install "${NS}" "${CHART}" \
   kubectl get pods -n "${NS}" -o wide 2>&1 || true
   echo "--- Events (last 5 min) ---"
   kubectl get events -n "${NS}" --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
-  echo "--- Describe non-running pods ---"
-  kubectl get pods -n "${NS}" --field-selector='status.phase!=Running' -o name 2>&1 | while read -r pod; do
-    echo "=== ${pod} ==="
-    kubectl describe "${pod}" -n "${NS}" 2>&1 | tail -20
+  echo "--- Logs from non-ready pods ---"
+  kubectl get pods -n "${NS}" -o jsonpath='{range .items[?(@.status.containerStatuses[0].ready==false)]}{.metadata.name}{"\n"}{end}' 2>&1 | while read -r pod; do
+    [ -z "${pod}" ] && continue
+    echo "=== logs: ${pod} (last 30 lines) ==="
+    kubectl logs "${pod}" -n "${NS}" --tail=30 2>&1 || true
   done || true
   exit 1
 fi
