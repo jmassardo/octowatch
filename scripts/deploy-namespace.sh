@@ -45,6 +45,7 @@ HELM_ARGS=(
   --set "ingress.tls.enabled=true"
   --set "ingress.annotations.cert-manager\\.io/cluster-issuer="
   --set "networkPolicy.enabled=true"
+  --set "useExternalSecrets=true"
 )
 
 # Add workload identity / Key Vault if annotations are populated

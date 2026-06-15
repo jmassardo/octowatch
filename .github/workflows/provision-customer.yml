@@ -93,6 +93,37 @@ jobs:
             echo "::warning::ghcr-pull-secret not found in octowatch namespace. Pods won't be able to pull images until this is created."
           fi
 
+      - name: Generate application secrets
+        run: |
+          RELEASE_NAME="$NAMESPACE"
+          DB_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+          SECRET_KEY=$(openssl rand -base64 48 | tr -d '/+=' | head -c 48)
+          ENCRYPTION_KEY=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+
+          # Database secret (used by TimescaleDB StatefulSet)
+          kubectl create secret generic octowatch-db-secret \
+            -n "$NAMESPACE" \
+            --from-literal=postgres-password="$DB_PASSWORD" \
+            --from-literal=app-password="$DB_PASSWORD" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # Application secret (used by API/worker deployments)
+          DATABASE_URL="postgresql+asyncpg://app_rw:${DB_PASSWORD}@${RELEASE_NAME}-postgresql:5432/auditlogs?sslmode=disable"
+          VALKEY_URL="redis://${RELEASE_NAME}-valkey-primary:6379"
+
+          kubectl create secret generic "${RELEASE_NAME}-secrets" \
+            -n "$NAMESPACE" \
+            --from-literal=secret-key="$SECRET_KEY" \
+            --from-literal=encryption-key="$ENCRYPTION_KEY" \
+            --from-literal=database-url="$DATABASE_URL" \
+            --from-literal=valkey-url="$VALKEY_URL" \
+            --from-literal=github-client-id="" \
+            --from-literal=github-client-secret="" \
+            --from-literal=github-rules-token="" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          echo "✅ Application secrets generated (GitHub credentials left blank for setup wizard)"
+
       - name: Apply bootstrap NetworkPolicy (default deny until Helm deploys)
         run: |
           cat <<'EOF' | kubectl apply -n "$NAMESPACE" -f -
