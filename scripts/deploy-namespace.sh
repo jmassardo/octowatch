@@ -105,13 +105,50 @@ if ! helm upgrade --install "${NS}" "${CHART}" \
     echo "Exec curl /ready on ${API_POD}:"
     kubectl exec "${API_POD}" -n "${NS}" -- curl -s http://localhost:8000/ready 2>&1 || true
     echo ""
-    echo "Checking env vars (redacted):"
-    kubectl exec "${API_POD}" -n "${NS}" -- env 2>&1 | grep -E "^(DATABASE_URL|VALKEY_URL)" | sed 's/\(.*:\/\/[^:]*:\)[^@]*/\1***/' || true
+    echo "Checking DATABASE_URL host portion:"
+    kubectl exec "${API_POD}" -n "${NS}" -- sh -c 'echo "$DATABASE_URL" | sed "s|://[^:]*:[^@]*@|://***:***@|"' 2>&1 || true
+    echo "Testing DB connectivity from API pod:"
+    kubectl exec "${API_POD}" -n "${NS}" -- sh -c 'python -c "
+import socket, os, sys
+url = os.environ.get(\"DATABASE_URL\", \"\")
+# Extract host:port from URL
+at_idx = url.find(\"@\")
+slash_idx = url.find(\"/\", at_idx)
+host_port = url[at_idx+1:slash_idx] if at_idx > 0 and slash_idx > 0 else \"\"
+host, port = host_port.rsplit(\":\", 1) if \":\" in host_port else (host_port, \"5432\")
+print(f\"Connecting to {host}:{port}...\")
+try:
+    s = socket.create_connection((host, int(port)), timeout=5)
+    s.close()
+    print(\"TCP connection: OK\")
+except Exception as e:
+    print(f\"TCP connection: FAILED - {e}\")
+    sys.exit(1)
+"' 2>&1 || true
+    echo "Testing DB auth from API pod:"
+    kubectl exec "${API_POD}" -n "${NS}" -- sh -c 'python -c "
+import asyncio, os, sys
+async def test():
+    url = os.environ.get(\"DATABASE_URL\", \"\")
+    try:
+        from sqlalchemy.ext.asyncio import create_async_engine
+        engine = create_async_engine(url, pool_pre_ping=True)
+        async with engine.connect() as conn:
+            from sqlalchemy import text
+            result = await conn.execute(text(\"SELECT 1\"))
+            print(f\"DB query: OK (result={result.scalar()})\")
+        await engine.dispose()
+    except Exception as e:
+        print(f\"DB query: FAILED - {type(e).__name__}: {e}\")
+        sys.exit(1)
+asyncio.run(test())
+"' 2>&1 || true
   fi
-  echo "--- Services ---"
-  kubectl get svc -n "${NS}" 2>&1 || true
-  echo "--- NetworkPolicies ---"
-  kubectl get networkpolicies -n "${NS}" 2>&1 || true
+  echo "--- TimescaleDB pod logs (last 20 lines) ---"
+  DB_POD=$(kubectl get pods -n "${NS}" -l app.kubernetes.io/component=postgresql -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+  if [ -n "${DB_POD}" ]; then
+    kubectl logs "${DB_POD}" -n "${NS}" --tail=20 2>&1 || true
+  fi
   exit 1
 fi
 
