@@ -96,6 +96,7 @@ function EditSettingForm({
 }) {
   const [value, setValue] = useState('');
   const [description, setDescription] = useState(setting.description ?? '');
+  const isMultiline = setting.key.includes('pem') || setting.key.includes('private_key');
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -117,15 +118,29 @@ function EditSettingForm({
         <label className={styles.formLabel} htmlFor="setting-value">
           New value
         </label>
-        <input
-          id="setting-value"
-          className={styles.formInput}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="Enter new value"
-          required
-          autoFocus
-        />
+        {isMultiline ? (
+          <textarea
+            id="setting-value"
+            className={styles.formInput}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Paste PEM content here"
+            required
+            autoFocus
+            rows={10}
+            style={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}
+          />
+        ) : (
+          <input
+            id="setting-value"
+            className={styles.formInput}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Enter new value"
+            required
+            autoFocus
+          />
+        )}
         <span className={styles.formHint}>
           The previous value will be replaced. Sensitive values are stored encrypted.
         </span>
@@ -183,6 +198,7 @@ function CreateSettingForm({
   const [sensitivity, setSensitivity] = useState('critical');
   const [description, setDescription] = useState('');
   const [keyError, setKeyError] = useState('');
+  const [multiline, setMultiline] = useState(false);
 
   function validateKey(k: string) {
     if (!k) {
@@ -193,6 +209,10 @@ function CreateSettingForm({
       setKeyError('Lowercase letters, digits, and underscores only. Must start with a letter.');
     } else {
       setKeyError('');
+    }
+    // Auto-enable multiline for PEM-like keys
+    if (k.includes('pem') || k.includes('private_key')) {
+      setMultiline(true);
     }
   }
 
@@ -234,15 +254,41 @@ function CreateSettingForm({
         <label className={styles.formLabel} htmlFor="create-value">
           Value
         </label>
-        <input
-          id="create-value"
-          className={styles.formInput}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="Secret value"
-          required
-          type="password"
-        />
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}
+        >
+          <label style={{ fontSize: '0.75rem', color: 'var(--fg-subtle)', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={multiline}
+              onChange={(e) => setMultiline(e.target.checked)}
+              style={{ marginRight: '0.25rem' }}
+            />
+            Multi-line (PEM / certificate)
+          </label>
+        </div>
+        {multiline ? (
+          <textarea
+            id="create-value"
+            className={styles.formInput}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={'-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----'}
+            required
+            rows={12}
+            style={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}
+          />
+        ) : (
+          <input
+            id="create-value"
+            className={styles.formInput}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Secret value"
+            required
+            type="password"
+          />
+        )}
         <span className={styles.formHint}>Stored encrypted at rest (AES-256-GCM).</span>
       </div>
       <div className={styles.formRow}>
