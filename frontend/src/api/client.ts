@@ -78,10 +78,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   return body as T;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type QueryParams = Record<string, string | number | boolean | undefined | null>;
-
-function buildQuery(params: QueryParams): string {
+function buildQuery(params: object): string {
   const p = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null) {
@@ -92,7 +89,7 @@ function buildQuery(params: QueryParams): string {
 }
 
 export const api = {
-  get: <T>(path: string, params?: QueryParams) => {
+  get: <T>(path: string, params?: object) => {
     const url = params ? `${path}?${buildQuery(params)}` : path;
     return apiFetch<T>(url);
   },
