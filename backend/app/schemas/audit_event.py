@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class PaginationMeta(BaseModel):
@@ -72,6 +72,11 @@ class EventResponse(BaseModel):
     data: dict[str, Any]
     ingestion_source: str
     source_file_path: str
+
+    @field_validator("source_ip", mode="before")
+    @classmethod
+    def _coerce_ip_to_str(cls, v: Any) -> str | None:
+        return str(v) if v is not None else None
 
 
 class EventListResponse(BaseModel):
