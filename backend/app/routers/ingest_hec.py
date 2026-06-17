@@ -43,13 +43,44 @@ def set_hec_token_cache(token: str) -> None:
 #   secret_provider.get_secret("hec-token")
 # For now, the in-memory cache + env var fallback remains for backward compatibility.
 def _get_hec_token() -> str:
-    """Return the expected HEC token.
+    """Return the expected HEC token (sync version for backwards compat).
 
     Priority: in-memory cache (set by admin UI / startup) → env var.
     """
     if _cached_hec_token:
         return _cached_hec_token
     return os.environ.get("HEC_TOKEN", "")
+
+
+async def _get_hec_token_async(request: Request) -> str:
+    """Return the expected HEC token with DB read-through fallback.
+
+    In dedicated HEC pods the in-memory cache may not be populated by the
+    admin UI (which runs on API pods). This function falls back to the
+    database when the cache is empty, populating it for subsequent calls.
+    """
+    if _cached_hec_token:
+        return _cached_hec_token
+
+    env_token = os.environ.get("HEC_TOKEN", "")
+    if env_token:
+        return env_token
+
+    # DB read-through — only needed when OCTOWATCH_ROLE=hec
+    try:
+        from app.database import AsyncSessionLocal
+        from app.services.settings_service import get_setting
+
+        async with AsyncSessionLocal() as db_session:
+            token = await get_setting(db_session, "hec_token")
+        if token:
+            set_hec_token_cache(token)
+            logger.info("hec.token_loaded_from_db")
+            return token
+    except Exception as exc:
+        logger.debug("hec.db_token_lookup_failed", error=str(exc))
+
+    return ""
 
 
 def _verify_splunk_auth(auth_header: str, expected_token: str) -> bool:
@@ -89,8 +120,10 @@ async def receive_hec_event(request: Request) -> JSONResponse:
 
     Each HEC event wraps the actual payload in ``{"event": {...}}``.
     """
+    import asyncio
+
     # 1. Verify token — mandatory. Reject all traffic if no token is configured.
-    token = _get_hec_token()
+    token = await _get_hec_token_async(request)
     if not token:
         logger.error(
             "hec.no_token_configured",
@@ -128,35 +161,43 @@ async def receive_hec_event(request: Request) -> JSONResponse:
             detail=f"Request body exceeds {max_body_bytes // (1024 * 1024)} MB limit",
         )
 
-    # 3. Parse HEC payload(s)
-    # GitHub may send a single JSON object or concatenated/NDJSON objects
-    events = _parse_hec_body(body)
-    if not events:
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={"text": "Success", "code": 0},
-        )
+    # 3. Parse HEC payload(s) and enqueue — offload to threadpool to avoid
+    # blocking the uvicorn event loop on large batches (250+ events).
+    def _parse_and_enqueue(raw_body: bytes) -> int:
+        """CPU-bound: parse JSON body and enqueue events via Celery.
 
-    # 4. Cap events per request to prevent downstream amplification
-    max_events = 1000
-    if len(events) > max_events:
-        logger.warning("hec.too_many_events", count=len(events), max=max_events)
-        events = events[:max_events]
+        Runs in a thread so the event loop stays responsive for health probes.
+        """
+        events = _parse_hec_body(raw_body)
+        if not events:
+            return 0
 
-    # 5. Batch-enqueue events for ingestion
-    enqueued = 0
-    try:
+        # Cap events per request to prevent downstream amplification
+        max_events = 1000
+        if len(events) > max_events:
+            logger.warning("hec.too_many_events", count=len(events), max=max_events)
+            events = events[:max_events]
+
         from app.workers.ingest_webhook_worker import ingest_webhook_event_task
 
         for event in events:
             ingest_webhook_event_task.delay(event)
-            enqueued += 1
+        return len(events)
+
+    try:
+        enqueued = await asyncio.to_thread(_parse_and_enqueue, body)
     except Exception as exc:
-        logger.error("hec.enqueue_failed", error=str(exc), enqueued=enqueued)
+        logger.error("hec.enqueue_failed", error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Failed to enqueue events",
         ) from exc
+
+    if enqueued == 0:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"text": "Success", "code": 0},
+        )
 
     logger.info("hec.accepted", events=enqueued)
 

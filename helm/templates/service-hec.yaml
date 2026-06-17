@@ -1,0 +1,20 @@
+{{- if .Values.hec.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "octowatch.fullname" . }}-hec
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: hec
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "octowatch.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: hec
+{{- end }}

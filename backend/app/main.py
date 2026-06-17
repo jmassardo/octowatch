@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import AsyncGenerator, Awaitable
 from contextlib import asynccontextmanager
@@ -24,63 +25,73 @@ from app.config import settings
 from app.database import dispose_pool, warm_up_pool
 from app.middleware.maintenance import MaintenanceModeMiddleware
 from app.rate_limit import limiter
-from app.routers import (
-    actors,
-    admin,
-    admin_audit_log,
-    admin_auth,
-    admin_retention,
-    admin_roles,
-    admin_settings,
-    admin_teams,
-    auth,
-    compliance,
-    copilot,
-    copilot_governance,
-    correlations,
-    cross_org,
-    dashboard_config,
-    delivery_timeline,
-    detections,
-    dev_activity,
-    enterprise_pat,
-    events,
-    features,
-    health,
-    health_signals,
-    ingest_hec,
-    ingest_webhook,
-    integrations,
-    maintenance,
-    notifications,
-    org_config,
-    packages,
-    pagerduty,
-    playbooks,
-    posture,
-    query,
-    reports,
-    rule_library,
-    rules,
-    secret_scanning,
-    setup,
-    slack,
-    suggestions,
-    supply_chain,
-    sync,
-    teams,
-    telemetry,
-    threat_intel,
-    user_behavior,
-    user_classification,
-    user_preferences,
-    velocity,
-    workflow_metrics,
-    workflow_scanner,
-)
 from app.services.geoip_service import close_geoip_db, load_geoip_db
 from app.services.secret_provider import create_secret_provider
 from app.utils.client_ip import get_client_ip
+
+# Role determines which routers are registered (set via OCTOWATCH_ROLE env var).
+# "all" = everything (default, backwards compatible)
+# "api" = user-facing API only (no HEC)
+# "hec" = HEC ingestion + health only (no user-facing API)
+OCTOWATCH_ROLE = os.environ.get("OCTOWATCH_ROLE", "all").lower()
+# Only import routers needed for the active role to keep HEC pods minimal.
+if OCTOWATCH_ROLE == "hec":
+    from app.routers import health, ingest_hec
+else:
+    from app.routers import (  # noqa: E402
+        actors,
+        admin,
+        admin_audit_log,
+        admin_auth,
+        admin_retention,
+        admin_roles,
+        admin_settings,
+        admin_teams,
+        auth,
+        compliance,
+        copilot,
+        copilot_governance,
+        correlations,
+        cross_org,
+        dashboard_config,
+        delivery_timeline,
+        detections,
+        dev_activity,
+        enterprise_pat,
+        events,
+        features,
+        health,
+        health_signals,
+        ingest_hec,
+        ingest_webhook,
+        integrations,
+        maintenance,
+        notifications,
+        org_config,
+        packages,
+        pagerduty,
+        playbooks,
+        posture,
+        query,
+        reports,
+        rule_library,
+        rules,
+        secret_scanning,
+        setup,
+        slack,
+        suggestions,
+        supply_chain,
+        sync,
+        teams,
+        telemetry,
+        threat_intel,
+        user_behavior,
+        user_classification,
+        user_preferences,
+        velocity,
+        workflow_metrics,
+        workflow_scanner,
+    )
 
 logger = structlog.get_logger(__name__)
 
@@ -305,7 +316,7 @@ async def _retry_hec_token_load() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Startup and shutdown events."""
-    logger.info("app.startup", environment=settings.environment)
+    logger.info("app.startup", environment=settings.environment, role=OCTOWATCH_ROLE)
 
     # Mark pool as not ready initially
     app.state.db_pool_ready = False
@@ -331,10 +342,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning("app.secret_provider_fallback_to_env")
 
     # 2. Log auth config
-    logger.info(
-        "auth.config",
-        jwt_ttl_seconds=settings.JWT_TTL_SECONDS,
-    )
+    if OCTOWATCH_ROLE != "hec":
+        logger.info(
+            "auth.config",
+            jwt_ttl_seconds=settings.JWT_TTL_SECONDS,
+        )
 
     # 3. Warm up Valkey pool
     try:
@@ -347,8 +359,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await cast(Awaitable[bool], r.ping())
         logger.info("app.valkey_connected")
 
-        # Load GitHub IP allowlist from Valkey cache on startup
-        if settings.github_app.GITHUB_IP_ALLOWLIST_ENABLED:
+        # Load GitHub IP allowlist from Valkey cache on startup (API only)
+        if OCTOWATCH_ROLE != "hec" and settings.github_app.GITHUB_IP_ALLOWLIST_ENABLED:
             try:
                 from app.services.github_ip_allowlist import GitHubIPAllowlist
 
@@ -366,33 +378,35 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         logger.error("app.valkey_failed", error=str(exc))
 
-    # 4. Load GeoIP database (non-fatal)
-    try:
-        await load_geoip_db()
-        logger.info("app.geoip_loaded")
-    except Exception as exc:
-        logger.warning("app.geoip_unavailable", error=str(exc))
+    # 4. Load GeoIP database (API only — HEC doesn't geo-locate)
+    if OCTOWATCH_ROLE != "hec":
+        try:
+            await load_geoip_db()
+            logger.info("app.geoip_loaded")
+        except Exception as exc:
+            logger.warning("app.geoip_unavailable", error=str(exc))
 
     # 5. Load settings overlay from DB + generate setup token on first boot
     if app.state.db_pool_ready:
         try:
             from app.database import AsyncSessionLocal
-            from app.services.config_overlay import load_settings_overlay
-            from app.services.settings_service import (
-                generate_setup_token,
-                is_setup_complete,
-            )
+            from app.services.settings_service import get_setting
 
             async with AsyncSessionLocal() as db_session:
-                # Load DB-backed settings overlay (with KV-first for secrets)
-                count = await load_settings_overlay(
-                    db_session, secret_provider=app.state.secret_provider
-                )
-                logger.info("settings_overlay.loaded", count=count)
+                if OCTOWATCH_ROLE != "hec":
+                    from app.services.config_overlay import load_settings_overlay
+                    from app.services.settings_service import (
+                        generate_setup_token,
+                        is_setup_complete,
+                    )
 
-                # Load HEC token — try Key Vault first, then fall back to DB
-                from app.services.settings_service import get_setting
+                    # Load DB-backed settings overlay (with KV-first for secrets)
+                    count = await load_settings_overlay(
+                        db_session, secret_provider=app.state.secret_provider
+                    )
+                    logger.info("settings_overlay.loaded", count=count)
 
+                # Load HEC token — needed by both API (role=all) and HEC pods
                 hec_token: str | None = None
                 if hasattr(app.state, "secret_provider"):
                     try:
@@ -413,37 +427,40 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 else:
                     logger.warning("hec.token_not_found_at_startup")
 
-                # Generate setup token on first boot if setup is not complete
-                if not await is_setup_complete(db_session):
-                    token = await generate_setup_token(db_session)
-                    await db_session.commit()
-                    masked = token[:4] + "****" + token[-4:] if len(token) > 8 else "****"
-                    logger.info(
-                        "setup.token_generated",
-                        message=(
-                            f"\U0001f511 Setup token generated ({masked}) — "
-                            "retrieve it from the setup endpoint or container logs at startup only"
-                        ),
-                    )
-                    import sys
+                # API-only startup tasks
+                if OCTOWATCH_ROLE != "hec":
+                    # Generate setup token on first boot if setup is not complete
+                    if not await is_setup_complete(db_session):
+                        token = await generate_setup_token(db_session)
+                        await db_session.commit()
+                        masked = token[:4] + "****" + token[-4:] if len(token) > 8 else "****"
+                        logger.info(
+                            "setup.token_generated",
+                            message=(
+                                f"\U0001f511 Setup token generated ({masked}) — "
+                                "retrieve it from the setup endpoint "
+                                "or container logs at startup only"
+                            ),
+                        )
+                        import sys
 
-                    sys.stderr.write(  # noqa: T201
-                        f"\n{'=' * 60}\n"
-                        f"  SETUP TOKEN: {token}\n"
-                        f"  Use this to complete initial setup at /setup\n"
-                        f"{'=' * 60}\n\n"
-                    )
-                    sys.stderr.flush()
-                else:
-                    logger.info("setup.already_complete")
+                        sys.stderr.write(  # noqa: T201
+                            f"\n{'=' * 60}\n"
+                            f"  SETUP TOKEN: {token}\n"
+                            f"  Use this to complete initial setup at /setup\n"
+                            f"{'=' * 60}\n\n"
+                        )
+                        sys.stderr.flush()
+                    else:
+                        logger.info("setup.already_complete")
 
-                # Seed supply chain detection rules (idempotent — skips existing)
-                from app.services.supply_chain_service import seed_supply_chain_rules
+                    # Seed supply chain detection rules (idempotent — skips existing)
+                    from app.services.supply_chain_service import seed_supply_chain_rules
 
-                seeded = await seed_supply_chain_rules(db_session)
-                if seeded:
-                    await db_session.commit()
-                logger.info("supply_chain.rules_seeded", new_rules=seeded)
+                    seeded = await seed_supply_chain_rules(db_session)
+                    if seeded:
+                        await db_session.commit()
+                    logger.info("supply_chain.rules_seeded", new_rules=seeded)
         except Exception as exc:
             logger.warning("settings_overlay.load_failed", error=str(exc))
             # Schedule background retry for HEC token loading
@@ -709,57 +726,64 @@ def create_app() -> FastAPI:
     API_PREFIX = "/api/v1"
 
     app.include_router(health.router)  # /health, /ready (no prefix for k8s probes)
-    app.include_router(auth.router, prefix=API_PREFIX)
-    app.include_router(events.router, prefix=API_PREFIX)
-    app.include_router(detections.router, prefix=API_PREFIX)
-    app.include_router(correlations.router, prefix=API_PREFIX)
-    app.include_router(posture.router, prefix=API_PREFIX)
-    app.include_router(reports.router, prefix=API_PREFIX)
-    app.include_router(compliance.router, prefix=API_PREFIX)
-    app.include_router(query.router, prefix=API_PREFIX)
-    app.include_router(rules.router, prefix=API_PREFIX)
-    app.include_router(rule_library.router, prefix=API_PREFIX)
-    app.include_router(admin.router, prefix=API_PREFIX)
-    app.include_router(admin_retention.router, prefix=API_PREFIX)
-    app.include_router(admin_roles.router, prefix=API_PREFIX)
-    app.include_router(admin_teams.router, prefix=API_PREFIX)
-    app.include_router(admin_audit_log.router, prefix=API_PREFIX)
-    app.include_router(admin_settings.router, prefix=API_PREFIX)
-    app.include_router(maintenance.router, prefix=API_PREFIX)
-    app.include_router(admin_auth.router, prefix=API_PREFIX)
-    app.include_router(enterprise_pat.router, prefix=API_PREFIX)
-    app.include_router(integrations.router, prefix=API_PREFIX)
-    app.include_router(slack.router, prefix=API_PREFIX)
-    app.include_router(notifications.router, prefix=API_PREFIX)
-    app.include_router(pagerduty.router, prefix=API_PREFIX)
-    app.include_router(health_signals.router, prefix=API_PREFIX)
-    app.include_router(copilot.router, prefix=API_PREFIX)
-    app.include_router(features.router, prefix=API_PREFIX)
-    app.include_router(org_config.router, prefix=API_PREFIX)
-    app.include_router(sync.router, prefix=API_PREFIX + "/admin")
-    app.include_router(secret_scanning.router, prefix=API_PREFIX)
-    app.include_router(setup.router, prefix=API_PREFIX)
-    app.include_router(suggestions.router, prefix=API_PREFIX)
-    app.include_router(supply_chain.router, prefix=API_PREFIX)
-    app.include_router(packages.router, prefix=API_PREFIX)
-    app.include_router(teams.router, prefix=API_PREFIX)
-    app.include_router(dev_activity.router, prefix=API_PREFIX)
-    app.include_router(threat_intel.router, prefix=API_PREFIX)
-    app.include_router(actors.router, prefix=API_PREFIX)
-    app.include_router(ingest_webhook.router, prefix=API_PREFIX)
-    app.include_router(ingest_hec.router)  # No prefix — GitHub expects /services/collector
-    app.include_router(cross_org.router, prefix=API_PREFIX)
-    app.include_router(playbooks.router, prefix=API_PREFIX)
-    app.include_router(workflow_scanner.router, prefix=API_PREFIX)
-    app.include_router(workflow_metrics.router, prefix=API_PREFIX)
-    app.include_router(copilot_governance.router, prefix=API_PREFIX)
-    app.include_router(user_preferences.router, prefix=API_PREFIX)
-    app.include_router(dashboard_config.router, prefix=API_PREFIX)
-    app.include_router(delivery_timeline.router, prefix=API_PREFIX)
-    app.include_router(telemetry.router, prefix=API_PREFIX)
-    app.include_router(user_classification.router, prefix=API_PREFIX)
-    app.include_router(user_behavior.router, prefix=API_PREFIX)
-    app.include_router(velocity.router, prefix=API_PREFIX)
+
+    if OCTOWATCH_ROLE == "hec":
+        # HEC-only mode: just the HEC ingestion endpoint + health
+        app.include_router(ingest_hec.router)  # /services/collector
+    else:
+        # Full API or API-only mode: all user-facing routers
+        app.include_router(auth.router, prefix=API_PREFIX)
+        app.include_router(events.router, prefix=API_PREFIX)
+        app.include_router(detections.router, prefix=API_PREFIX)
+        app.include_router(correlations.router, prefix=API_PREFIX)
+        app.include_router(posture.router, prefix=API_PREFIX)
+        app.include_router(reports.router, prefix=API_PREFIX)
+        app.include_router(compliance.router, prefix=API_PREFIX)
+        app.include_router(query.router, prefix=API_PREFIX)
+        app.include_router(rules.router, prefix=API_PREFIX)
+        app.include_router(rule_library.router, prefix=API_PREFIX)
+        app.include_router(admin.router, prefix=API_PREFIX)
+        app.include_router(admin_retention.router, prefix=API_PREFIX)
+        app.include_router(admin_roles.router, prefix=API_PREFIX)
+        app.include_router(admin_teams.router, prefix=API_PREFIX)
+        app.include_router(admin_audit_log.router, prefix=API_PREFIX)
+        app.include_router(admin_settings.router, prefix=API_PREFIX)
+        app.include_router(maintenance.router, prefix=API_PREFIX)
+        app.include_router(admin_auth.router, prefix=API_PREFIX)
+        app.include_router(enterprise_pat.router, prefix=API_PREFIX)
+        app.include_router(integrations.router, prefix=API_PREFIX)
+        app.include_router(slack.router, prefix=API_PREFIX)
+        app.include_router(notifications.router, prefix=API_PREFIX)
+        app.include_router(pagerduty.router, prefix=API_PREFIX)
+        app.include_router(health_signals.router, prefix=API_PREFIX)
+        app.include_router(copilot.router, prefix=API_PREFIX)
+        app.include_router(features.router, prefix=API_PREFIX)
+        app.include_router(org_config.router, prefix=API_PREFIX)
+        app.include_router(sync.router, prefix=API_PREFIX + "/admin")
+        app.include_router(secret_scanning.router, prefix=API_PREFIX)
+        app.include_router(setup.router, prefix=API_PREFIX)
+        app.include_router(suggestions.router, prefix=API_PREFIX)
+        app.include_router(supply_chain.router, prefix=API_PREFIX)
+        app.include_router(packages.router, prefix=API_PREFIX)
+        app.include_router(teams.router, prefix=API_PREFIX)
+        app.include_router(dev_activity.router, prefix=API_PREFIX)
+        app.include_router(threat_intel.router, prefix=API_PREFIX)
+        app.include_router(actors.router, prefix=API_PREFIX)
+        app.include_router(ingest_webhook.router, prefix=API_PREFIX)
+        if OCTOWATCH_ROLE == "all":
+            app.include_router(ingest_hec.router)  # No prefix — GitHub expects /services/collector
+        app.include_router(cross_org.router, prefix=API_PREFIX)
+        app.include_router(playbooks.router, prefix=API_PREFIX)
+        app.include_router(workflow_scanner.router, prefix=API_PREFIX)
+        app.include_router(workflow_metrics.router, prefix=API_PREFIX)
+        app.include_router(copilot_governance.router, prefix=API_PREFIX)
+        app.include_router(user_preferences.router, prefix=API_PREFIX)
+        app.include_router(dashboard_config.router, prefix=API_PREFIX)
+        app.include_router(delivery_timeline.router, prefix=API_PREFIX)
+        app.include_router(telemetry.router, prefix=API_PREFIX)
+        app.include_router(user_classification.router, prefix=API_PREFIX)
+        app.include_router(user_behavior.router, prefix=API_PREFIX)
+        app.include_router(velocity.router, prefix=API_PREFIX)
 
     return app
 
