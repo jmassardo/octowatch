@@ -75,16 +75,16 @@ keda:
 backup:
   enabled: false
 
-# ── TimescaleDB — local-path storage (self-managed cluster) ─────────────────
+# ── TimescaleDB — Longhorn replicated storage (survives node failures) ───────
 # postgresql.enabled=false uses the custom TimescaleDB StatefulSet template.
 postgresql:
   enabled: false
 
 timescaledb:
-  storageClass: "local-path"
+  storageClass: "longhorn"
   storageSize: "50Gi"
 
-# ── Valkey — local-path storage ──────────────────────────────────────────────
+# ── Valkey — Longhorn replicated storage ─────────────────────────────────────
 valkey:
   replica:
     replicaCount: 0
@@ -98,11 +98,11 @@ valkey:
         cpu: "500m"
         memory: "768Mi"
     persistence:
-      storageClass: "local-path"
+      storageClass: "longhorn"
       size: 2Gi
   master:
     persistence:
-      storageClass: "local-path"
+      storageClass: "longhorn"
       size: 2Gi
 
 # ── Observability ────────────────────────────────────────────────────────────
