@@ -80,6 +80,20 @@ export function listSettings(): Promise<AppSetting[]> {
   return api.get<AppSetting[]>('/admin/settings');
 }
 
+export function createSetting(
+  key: string,
+  value: string,
+  options?: { category?: string; sensitivity?: string; description?: string },
+): Promise<{ status: string; message: string }> {
+  return api.post<{ status: string; message: string }>('/admin/settings', {
+    key,
+    value,
+    category: options?.category ?? 'config',
+    sensitivity: options?.sensitivity ?? 'sensitive',
+    description: options?.description,
+  });
+}
+
 export function updateSetting(
   key: string,
   value: string,

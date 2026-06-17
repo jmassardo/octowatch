@@ -5,6 +5,7 @@ import {
   listSettings,
   updateSetting,
   deleteSetting,
+  createSetting,
   getEnterprisePATStatus,
   saveEnterprisePAT,
   deleteEnterprisePAT,
@@ -147,6 +148,159 @@ function EditSettingForm({
         </Button>
         <Button variant="primary" type="submit" disabled={!value.trim()}>
           Save
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Create Secret Form                                                 */
+/* ------------------------------------------------------------------ */
+
+const SENSITIVITY_OPTIONS = [
+  { value: 'critical', label: 'Critical — never shown in UI' },
+  { value: 'sensitive', label: 'Sensitive — partially masked' },
+  { value: 'config', label: 'Config — shown as plaintext' },
+];
+
+const CATEGORY_OPTIONS = ['github', 'audit_stream', 'auth', 'integrations', 'sync', 'config'];
+
+function CreateSettingForm({
+  onSave,
+  onCancel,
+}: {
+  onSave: (
+    key: string,
+    value: string,
+    opts: { category: string; sensitivity: string; description?: string },
+  ) => void;
+  onCancel: () => void;
+}) {
+  const [key, setKey] = useState('');
+  const [value, setValue] = useState('');
+  const [category, setCategory] = useState('github');
+  const [sensitivity, setSensitivity] = useState('critical');
+  const [description, setDescription] = useState('');
+  const [keyError, setKeyError] = useState('');
+
+  function validateKey(k: string) {
+    if (!k) {
+      setKeyError('');
+      return;
+    }
+    if (!/^[a-z][a-z0-9_]*$/.test(k)) {
+      setKeyError('Lowercase letters, digits, and underscores only. Must start with a letter.');
+    } else {
+      setKeyError('');
+    }
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!key.trim() || !value.trim() || keyError) return;
+    onSave(key.trim(), value.trim(), {
+      category,
+      sensitivity,
+      description: description.trim() || undefined,
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className={styles.editForm}>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel} htmlFor="create-key">
+          Key
+        </label>
+        <input
+          id="create-key"
+          className={styles.formInput}
+          value={key}
+          onChange={(e) => {
+            setKey(e.target.value);
+            validateKey(e.target.value);
+          }}
+          placeholder="e.g. github_client_id"
+          required
+          autoFocus
+        />
+        {keyError && (
+          <span className={styles.formHint} style={{ color: 'var(--fg-danger)' }}>
+            {keyError}
+          </span>
+        )}
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel} htmlFor="create-value">
+          Value
+        </label>
+        <input
+          id="create-value"
+          className={styles.formInput}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Secret value"
+          required
+          type="password"
+        />
+        <span className={styles.formHint}>Stored encrypted at rest (AES-256-GCM).</span>
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel} htmlFor="create-category">
+          Category
+        </label>
+        <select
+          id="create-category"
+          className={styles.formInput}
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          {CATEGORY_OPTIONS.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel} htmlFor="create-sensitivity">
+          Sensitivity
+        </label>
+        <select
+          id="create-sensitivity"
+          className={styles.formInput}
+          value={sensitivity}
+          onChange={(e) => setSensitivity(e.target.value)}
+        >
+          {SENSITIVITY_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel} htmlFor="create-description">
+          Description (optional)
+        </label>
+        <input
+          id="create-description"
+          className={styles.formInput}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Short description of this setting"
+        />
+      </div>
+      <div className={styles.formActions}>
+        <Button type="button" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          type="submit"
+          disabled={!key.trim() || !value.trim() || !!keyError}
+        >
+          Create Secret
         </Button>
       </div>
     </form>
@@ -2355,6 +2509,8 @@ export function SettingsPage() {
     SLUG_TO_TAB[tabSlug ?? 'secrets'] ?? 'Secrets';
   const [editTarget, setEditTarget] = useState<AppSetting | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppSetting | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const { showToast } = useToast();
 
   const {
     data: settings,
@@ -2387,6 +2543,26 @@ export function SettingsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings'] });
       setDeleteTarget(null);
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: ({
+      key,
+      value,
+      opts,
+    }: {
+      key: string;
+      value: string;
+      opts: { category: string; sensitivity: string; description?: string };
+    }) => createSetting(key, value, opts),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings'] });
+      setCreateOpen(false);
+      showToast('Secret created successfully', 'success');
+    },
+    onError: (err: Error) => {
+      showToast(err.message || 'Failed to create secret', 'error');
     },
   });
 
@@ -2484,14 +2660,20 @@ export function SettingsPage() {
         <>
           {isError && <ErrorBanner message="Failed to load settings" onRetry={() => refetch()} />}
 
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+              + Add Secret
+            </Button>
+          </div>
+
           {isLoading ? (
             <Spinner />
           ) : filteredSettings.length === 0 ? (
             <div className={styles.empty}>
               <p>No settings configured yet.</p>
               <p style={{ color: 'var(--fg-subtle)', fontSize: '0.8125rem', marginTop: '0.5rem' }}>
-                Settings are automatically populated during setup and sync. You can also add custom
-                settings using the admin API.
+                Click &quot;Add Secret&quot; above to create your first setting, or settings will be
+                automatically populated during setup and sync.
               </p>
             </div>
           ) : (
@@ -2549,6 +2731,14 @@ export function SettingsPage() {
             onCancel={() => setEditTarget(null)}
           />
         )}
+      </Drawer>
+
+      {/* Create drawer */}
+      <Drawer open={createOpen} onClose={() => setCreateOpen(false)} title="Add Secret">
+        <CreateSettingForm
+          onSave={(key, value, opts) => createMutation.mutate({ key, value, opts })}
+          onCancel={() => setCreateOpen(false)}
+        />
       </Drawer>
 
       {/* Delete confirmation */}
