@@ -120,6 +120,16 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: valkey-url
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-client-id
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "octowatch.secretName" . }}
+                  key: github-client-secret
             {{- if .Values.workloadIdentity.enabled }}
             - name: SECRET_PROVIDER
               value: "azure_keyvault"
