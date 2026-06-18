@@ -1116,7 +1116,7 @@ async def get_copilot_adoption(db: AsyncSession, *, org: str | None = None) -> d
         logger.error("copilot_adoption.read_metrics_failed", error=str(exc), exc_info=True)
         return {
             "error": "internal_error",
-            "message": f"Failed to read metrics: {type(exc).__name__}: {exc}",
+            "message": "Failed to read metrics. Check server logs for details.",
         }
     if isinstance(raw, dict) and "error" in raw:
         return raw
@@ -1834,7 +1834,7 @@ async def get_copilot_anomalies(db: AsyncSession, *, org: str | None = None) -> 
         logger.error("copilot_anomalies.read_metrics_failed", error=str(exc), exc_info=True)
         return {
             "error": "internal_error",
-            "message": f"Failed to read metrics: {type(exc).__name__}: {exc}",
+            "message": "Failed to read metrics. Check server logs for details.",
         }
     if isinstance(raw, dict) and "error" in raw:
         return raw
@@ -2213,7 +2213,7 @@ async def get_copilot_blockers(db: AsyncSession, *, org: str | None = None) -> d
         logger.error("copilot_blockers.read_seats_failed", error=str(exc), exc_info=True)
         return {
             "error": "internal_error",
-            "message": f"Failed to read seat data: {type(exc).__name__}: {exc}",
+            "message": "Failed to read seat data. Check server logs for details.",
         }
     if isinstance(seats_data, dict) and "error" in seats_data:
         return seats_data
@@ -2235,7 +2235,7 @@ async def get_copilot_blockers(db: AsyncSession, *, org: str | None = None) -> d
         logger.error("copilot_blockers.query_team_members_failed", error=str(exc), exc_info=True)
         return {
             "error": "internal_error",
-            "message": f"Failed to query team members: {type(exc).__name__}: {exc}",
+            "message": "Failed to query team members. Check server logs for details.",
         }
     seat_logins = {
         (s.get("assignee") or {}).get("login", "").lower()
