@@ -9,7 +9,8 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import AuthenticatedUser, get_db, require_permission
@@ -31,10 +32,10 @@ async def copilot_overview(
         return await copilot_metrics_service.get_copilot_overview(db, org=org)
     except Exception:
         logger.exception("copilot.overview_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/adoption", response_model=dict[str, Any])
@@ -48,10 +49,10 @@ async def copilot_adoption(
         return await copilot_metrics_service.get_copilot_adoption(db, org=org)
     except Exception:
         logger.exception("copilot.adoption_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/models", response_model=dict[str, Any])
@@ -65,10 +66,10 @@ async def copilot_models(
         return await copilot_metrics_service.get_copilot_models(db, org=org)
     except Exception:
         logger.exception("copilot.models_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/model-users", response_model=dict[str, Any])
@@ -82,10 +83,10 @@ async def copilot_model_users(
         return await copilot_metrics_service.get_copilot_model_users(db, org=org)
     except Exception:
         logger.exception("copilot.model_users_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/anomalies", response_model=dict[str, Any])
@@ -99,10 +100,10 @@ async def copilot_anomalies(
         return await copilot_metrics_service.get_copilot_anomalies(db, org=org)
     except Exception:
         logger.exception("copilot.anomalies_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/teams", response_model=dict[str, Any])
@@ -116,10 +117,10 @@ async def copilot_teams(
         return await copilot_metrics_service.get_copilot_teams(db, org=org)
     except Exception:
         logger.exception("copilot.teams_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/blockers", response_model=dict[str, Any])
@@ -133,10 +134,10 @@ async def copilot_blockers(
         return await copilot_metrics_service.get_copilot_blockers(db, org=org)
     except Exception:
         logger.exception("copilot.blockers_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/policy-changes", response_model=dict[str, Any])
@@ -150,10 +151,10 @@ async def copilot_policy_changes(
         return await copilot_metrics_service.get_copilot_policy_changes(db, org=org)
     except Exception:
         logger.exception("copilot.policy_changes_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/roi", response_model=dict[str, Any])
@@ -167,10 +168,10 @@ async def copilot_roi(
         return await copilot_metrics_service.get_copilot_roi(db, org=org)
     except Exception:
         logger.exception("copilot.roi_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/adoption-thresholds", response_model=dict[str, Any])
@@ -196,10 +197,10 @@ async def copilot_billing_overview(
         return await copilot_metrics_service.get_copilot_billing_overview(db, org=org)
     except Exception:
         logger.exception("copilot.billing_overview_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/user-budgets", response_model=dict[str, Any])
@@ -213,10 +214,10 @@ async def copilot_user_budgets(
         return await copilot_metrics_service.get_copilot_user_budgets(db, org=org)
     except Exception:
         logger.exception("copilot.user_budgets_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/billing-trends", response_model=dict[str, Any])
@@ -230,10 +231,10 @@ async def copilot_billing_trends(
         return await copilot_metrics_service.get_copilot_billing_trends(db, org=org)
     except Exception:
         logger.exception("copilot.billing_trends_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/activity", response_model=dict[str, Any])
@@ -247,10 +248,10 @@ async def copilot_activity(
         return await copilot_metrics_service.get_copilot_activity(db, org=org)
     except Exception:
         logger.exception("copilot.activity_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/chat-metrics", response_model=dict[str, Any])
@@ -264,10 +265,10 @@ async def copilot_chat_metrics(
         return await copilot_metrics_service.get_copilot_chat_metrics(db, org=org)
     except Exception:
         logger.exception("copilot.chat_metrics_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/language-breakdown", response_model=dict[str, Any])
@@ -281,10 +282,10 @@ async def copilot_language_breakdown(
         return await copilot_metrics_service.get_copilot_language_breakdown(db, org=org)
     except Exception:
         logger.exception("copilot.language_breakdown_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/pr-metrics", response_model=dict[str, Any])
@@ -298,10 +299,10 @@ async def copilot_pr_metrics(
         return await copilot_metrics_service.get_copilot_pr_metrics(db, org=org)
     except Exception:
         logger.exception("copilot.pr_metrics_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
 
 
 @router.get("/agent-activity", response_model=dict[str, Any])
@@ -315,7 +316,7 @@ async def copilot_agent_activity(
         return await copilot_metrics_service.get_copilot_agent_activity(db, org=org)
     except Exception:
         logger.exception("copilot.agent_activity_failed")
-        raise HTTPException(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from None
+            content={"detail": "Internal server error"},
+        )
