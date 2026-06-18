@@ -183,6 +183,13 @@ if settings.github_app.GITHUB_SYNC_ENABLED:
         "options": {"queue": "github_sync"},
     }
 
+# Audit log enrichment — checks DB setting, runs only when enabled
+app.conf.beat_schedule["audit-log-enrichment"] = {
+    "task": "app.workers.enrichment_worker.enrich_audit_log_events",
+    "schedule": 900.0,  # Every 15 min; task self-gates on configured interval
+    "options": {"queue": "github_sync"},
+}
+
 # GitHub IP allowlist refresh — every 6 hours
 if settings.github_app.GITHUB_IP_ALLOWLIST_ENABLED:
     app.conf.beat_schedule["refresh-github-ip-allowlist"] = {
