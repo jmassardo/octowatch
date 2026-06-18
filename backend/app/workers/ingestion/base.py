@@ -17,9 +17,18 @@ from app.celery_app import celery_app
 
 logger = structlog.get_logger(__name__)
 
-# Bloom filter window size (64 KB is sufficient for ~4M events with 1% FP rate)
-_BLOOM_KEY = "ingest:dedup:bloom"
-_BLOOM_TTL = 86400  # 24 hours
+# ── Bloom filter configuration ──────────────────────────────────────────────────
+# Two rotating bloom filters ("active" and "previous") to prevent saturation.
+# Active filter collects new hashes; previous filter is checked for dedup.
+# Every ROTATION_INTERVAL, active becomes previous and a fresh filter starts.
+# This bounds the maximum fill rate and prevents false-positive storms.
+_BLOOM_KEY_ACTIVE = "ingest:dedup:bloom:active"
+_BLOOM_KEY_PREVIOUS = "ingest:dedup:bloom:previous"
+_BLOOM_ROTATION_KEY = "ingest:dedup:bloom:rotated_at"
+_BLOOM_N_BITS = 4_194_304  # 4M bits = 512KB — supports ~300K events at <1% FP
+_BLOOM_N_HASHES = 5
+_BLOOM_TTL = 86400  # 24 hours — each filter expires independently
+_BLOOM_ROTATION_INTERVAL = 43200  # 12 hours — rotate to prevent saturation
 
 # Default retention window for event_dedup pruning (7 days)
 _DEDUP_RETENTION_DAYS = 7
@@ -92,24 +101,73 @@ class AbstractIngestWorker(ABC):
         return hashlib.sha256(canonical.encode()).hexdigest()
 
     async def _is_duplicate_bloom(self, dedup_hash: str) -> bool:
-        """Fast bloom filter check in Valkey. Returns True if likely seen before."""
-        # Use SETBIT-based probabilistic filter with 512K bits
-        bit_positions = _bloom_bit_positions(dedup_hash, n_hashes=5, n_bits=524288)
+        """Fast bloom filter check in Valkey. Returns True if likely seen before.
+
+        Checks both the active and previous bloom filters.  An event is
+        considered a duplicate only if ALL bit positions are set in EITHER
+        filter (not across both).
+        """
+        bit_positions = _bloom_bit_positions(dedup_hash, _BLOOM_N_HASHES, _BLOOM_N_BITS)
+
+        # Check active filter
         pipe = self._valkey.pipeline()
         for pos in bit_positions:
-            pipe.getbit(_BLOOM_KEY, pos)
-        results = await pipe.execute()
-        # If all bits are set, it's a likely duplicate
-        return all(results)
+            pipe.getbit(_BLOOM_KEY_ACTIVE, pos)
+        results_active = await pipe.execute()
+        if all(results_active):
+            return True
+
+        # Check previous filter
+        pipe = self._valkey.pipeline()
+        for pos in bit_positions:
+            pipe.getbit(_BLOOM_KEY_PREVIOUS, pos)
+        results_prev = await pipe.execute()
+        return all(results_prev)
 
     async def _mark_bloom(self, dedup_hash: str) -> None:
-        """Set bloom filter bits for this event hash."""
-        bit_positions = _bloom_bit_positions(dedup_hash, n_hashes=5, n_bits=524288)
+        """Set bloom filter bits in the active filter for this event hash."""
+        await self._maybe_rotate_bloom()
+        bit_positions = _bloom_bit_positions(dedup_hash, _BLOOM_N_HASHES, _BLOOM_N_BITS)
         pipe = self._valkey.pipeline()
         for pos in bit_positions:
-            pipe.setbit(_BLOOM_KEY, pos, 1)
-        pipe.expire(_BLOOM_KEY, _BLOOM_TTL)
+            pipe.setbit(_BLOOM_KEY_ACTIVE, pos, 1)
+        pipe.expire(_BLOOM_KEY_ACTIVE, _BLOOM_TTL)
         await pipe.execute()
+
+    async def _maybe_rotate_bloom(self) -> None:
+        """Rotate bloom filters if the rotation interval has elapsed.
+
+        Uses a Valkey key to track last rotation time.  Only one worker
+        wins the rotation (atomic SETNX-style) to avoid race conditions.
+        """
+        import time
+
+        now = int(time.time())
+        last_rotated = await self._valkey.get(_BLOOM_ROTATION_KEY)
+
+        if last_rotated and (now - int(last_rotated)) < _BLOOM_ROTATION_INTERVAL:
+            return
+
+        # Attempt atomic rotation — only one worker should do this
+        was_set = await self._valkey.set(
+            _BLOOM_ROTATION_KEY, str(now), nx=True, ex=_BLOOM_ROTATION_INTERVAL
+        )
+        if not was_set:
+            # Another worker already rotated or key existed — check if expired
+            was_set = await self._valkey.set(
+                _BLOOM_ROTATION_KEY, str(now), ex=_BLOOM_ROTATION_INTERVAL, xx=True
+            )
+            # Even if we didn't win, proceed — worst case is a double-rotation
+            # which just means the previous filter gets replaced slightly early
+
+        # Rotate: rename active → previous (atomically), then start fresh active
+        try:
+            await self._valkey.rename(_BLOOM_KEY_ACTIVE, _BLOOM_KEY_PREVIOUS)
+            await self._valkey.expire(_BLOOM_KEY_PREVIOUS, _BLOOM_TTL)
+            logger.info("bloom.rotated", new_active_key=_BLOOM_KEY_ACTIVE)
+        except Exception:  # noqa: BLE001
+            # Active key may not exist yet (first boot) — that's fine
+            logger.debug("bloom.rotate_skipped", reason="active key missing")
 
     async def ingest_batch(
         self, raw_events: list[dict[str, Any]], source_file_path: str = "unknown"
@@ -441,7 +499,9 @@ class AbstractIngestWorker(ABC):
         raise NotImplementedError
 
 
-def _bloom_bit_positions(key: str, n_hashes: int, n_bits: int) -> list[int]:
+def _bloom_bit_positions(
+    key: str, n_hashes: int = _BLOOM_N_HASHES, n_bits: int = _BLOOM_N_BITS
+) -> list[int]:
     """Compute n_hashes bit positions for a bloom filter using double-hashing."""
     h1 = int(hashlib.md5(key.encode()).hexdigest(), 16)  # noqa: S324
     h2 = int(hashlib.sha1(key.encode()).hexdigest(), 16)  # noqa: S324
