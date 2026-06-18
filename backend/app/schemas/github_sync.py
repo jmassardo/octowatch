@@ -139,33 +139,6 @@ class SyncScheduleUpdateRequest(BaseModel):
             raise ValueError(msg)
         return v
 
-
-# ── Audit log enrichment schemas ──────────────────────────────────────────────
-
-
-class AuditLogEnrichmentResponse(BaseModel):
-    """Current audit log enrichment configuration."""
-
-    enabled: bool = False
-    interval_minutes: int = 60
-    last_run_at: datetime | None = None
-    next_run_at: datetime | None = None
-
-
-class AuditLogEnrichmentUpdateRequest(BaseModel):
-    """Update request for audit log enrichment settings."""
-
-    enabled: bool | None = None
-    interval_minutes: int | None = None
-
-    @field_validator("interval_minutes")
-    @classmethod
-    def validate_interval(cls, v: int | None) -> int | None:
-        if v is not None and v not in VALID_ENRICHMENT_INTERVAL_MINUTES:
-            msg = f"interval_minutes must be one of {sorted(VALID_ENRICHMENT_INTERVAL_MINUTES)}"
-            raise ValueError(msg)
-        return v
-
     @field_validator("scope")
     @classmethod
     def validate_scope(cls, v: str | None) -> str | None:
@@ -194,6 +167,33 @@ class AuditLogEnrichmentUpdateRequest(BaseModel):
         }
         if v is not None and v not in valid_scopes:
             msg = f"scope must be one of {sorted(valid_scopes)}"
+            raise ValueError(msg)
+        return v
+
+
+# ── Audit log enrichment schemas ──────────────────────────────────────────────
+
+
+class AuditLogEnrichmentResponse(BaseModel):
+    """Current audit log enrichment configuration."""
+
+    enabled: bool = False
+    interval_minutes: int = 60
+    last_run_at: datetime | None = None
+    next_run_at: datetime | None = None
+
+
+class AuditLogEnrichmentUpdateRequest(BaseModel):
+    """Update request for audit log enrichment settings."""
+
+    enabled: bool | None = None
+    interval_minutes: int | None = None
+
+    @field_validator("interval_minutes")
+    @classmethod
+    def validate_interval(cls, v: int | None) -> int | None:
+        if v is not None and v not in VALID_ENRICHMENT_INTERVAL_MINUTES:
+            msg = f"interval_minutes must be one of {sorted(VALID_ENRICHMENT_INTERVAL_MINUTES)}"
             raise ValueError(msg)
         return v
 
