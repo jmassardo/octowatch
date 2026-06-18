@@ -255,6 +255,16 @@ vi.mock('../../api/sync', () => ({
   }),
   updateSyncSchedule: vi.fn().mockResolvedValue({}),
   getSyncLogs: vi.fn().mockResolvedValue([]),
+  getAuditLogEnrichment: vi.fn().mockResolvedValue({
+    enabled: false,
+    interval_minutes: 60,
+    last_run_at: null,
+  }),
+  updateAuditLogEnrichment: vi.fn().mockResolvedValue({
+    enabled: false,
+    interval_minutes: 60,
+    last_run_at: null,
+  }),
 }));
 
 vi.mock('../../api/ingest', () => ({

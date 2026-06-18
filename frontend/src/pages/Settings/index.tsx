@@ -28,6 +28,8 @@ import {
   updateSyncConfig,
   updateSyncSchedule,
   triggerSync,
+  getAuditLogEnrichment,
+  updateAuditLogEnrichment,
 } from '../../api/sync';
 import { PagerDutyIntegration } from '../Integrations/PagerDutyIntegration';
 import { TeamsIntegration } from '../Integrations/TeamsIntegration';
@@ -599,6 +601,100 @@ function EnterprisePATSection() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Audit Log Enrichment Section                                       */
+/* ------------------------------------------------------------------ */
+
+const ENRICHMENT_INTERVAL_OPTIONS = [
+  { value: 15, label: 'Every 15 minutes' },
+  { value: 30, label: 'Every 30 minutes' },
+  { value: 60, label: 'Every hour' },
+  { value: 120, label: 'Every 2 hours' },
+  { value: 240, label: 'Every 4 hours' },
+  { value: 360, label: 'Every 6 hours' },
+  { value: 720, label: 'Every 12 hours' },
+  { value: 1440, label: 'Every 24 hours' },
+];
+
+function AuditLogEnrichmentSection() {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+
+  const { data: enrichment, isLoading } = useQuery({
+    queryKey: ['audit-log-enrichment'],
+    queryFn: getAuditLogEnrichment,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (updates: { enabled?: boolean; interval_minutes?: number }) =>
+      updateAuditLogEnrichment(updates),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['audit-log-enrichment'] });
+      showToast('Enrichment settings updated', 'success');
+    },
+    onError: () => {
+      showToast('Failed to update enrichment settings', 'error');
+    },
+  });
+
+  if (isLoading) return <Spinner />;
+
+  const enabled = enrichment?.enabled ?? false;
+  const intervalMinutes = enrichment?.interval_minutes ?? 60;
+
+  return (
+    <div
+      className={styles.configForm}
+      style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border-default)' }}
+    >
+      <div className={styles.configField}>
+        <span className={styles.configLabel}>Audit Log Enrichment</span>
+        <span className={styles.configHelp}>
+          Periodically fetches audit log events via the REST API to enrich streaming events with
+          full detail (e.g. previous/current values for settings changes).
+        </span>
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.toggleSwitch}>
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => mutation.mutate({ enabled: e.target.checked })}
+          />
+          <span className={styles.toggleSlider} />
+        </label>
+        <span style={{ marginLeft: 8 }}>{enabled ? 'Enabled' : 'Disabled'}</span>
+      </div>
+      {enabled && (
+        <div className={styles.configField}>
+          <label className={styles.configLabel} htmlFor="enrichment-interval">
+            Enrichment Interval
+          </label>
+          <select
+            id="enrichment-interval"
+            className={styles.configInput}
+            value={intervalMinutes}
+            onChange={(e) => mutation.mutate({ interval_minutes: Number(e.target.value) })}
+            style={{ maxWidth: 220 }}
+          >
+            {ENRICHMENT_INTERVAL_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {enabled && enrichment?.last_run_at && (
+        <div className={styles.configField}>
+          <span className={styles.configLabel}>Last Run</span>
+          <span>{formatAbsolute(enrichment.last_run_at)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  GitHub Pane                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -613,6 +709,7 @@ function EnterprisePATWidget() {
           endpoint.
         </p>
         <EnterprisePATSection />
+        <AuditLogEnrichmentSection />
       </div>
     </Card>
   );

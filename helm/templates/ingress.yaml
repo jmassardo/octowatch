@@ -105,7 +105,11 @@ spec:
             pathType: Prefix
             backend:
               service:
+                {{- if .Values.hec.enabled }}
+                name: {{ include "octowatch.fullname" . }}-hec
+                {{- else }}
                 name: {{ include "octowatch.fullname" . }}-api
+                {{- end }}
                 port:
                   name: http
 ---

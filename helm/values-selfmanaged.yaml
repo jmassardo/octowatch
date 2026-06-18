@@ -15,6 +15,18 @@ api:
     repository: api
   replicaCount: 2
 
+# ── HEC — dedicated Splunk HEC ingestion pods (separated from user-facing API)
+hec:
+  enabled: true
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+
 # ── Workers — static replica counts (no KEDA on self-managed) ────────────────
 worker:
   image:

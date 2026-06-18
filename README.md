@@ -29,33 +29,26 @@ OctoWatch is designed for self-hosted deployment. It ships as Docker containers 
 
 ## Architecture
 
-```
-                         ┌─────────────────────────────┐
-                         │        nginx (TLS)          │
-                         │    reverse proxy :443       │
-                         └──────────┬──────────────────┘
-                                    │
-                    ┌───────────────┴───────────────┐
-                    │                               │
-             ┌──────┴──────┐                 ┌──────┴──────┐
-             │  Frontend   │                 │ Backend API │
-             │  React/Vite │                 │   FastAPI   │
-             │  :5173      │                 │   :8000     │
-             └─────────────┘                 └──────┬──────┘
-                                                    │
-                          ┌─────────────────────────┼─────────────────────────┐
-                          │                         │                         │
-                   ┌──────┴──────┐          ┌───────┴───────┐         ┌───────┴───────┐
-                   │ TimescaleDB │          │    Valkey     │         │    GitHub     │
-                   │ (PostgreSQL)│          │(Redis-compat) │         │  HEC push /   │
-                   │   :5432     │          │    :6379      │         │  S3 / Azure   │
-                   └─────────────┘          └───────────────┘         └───────────────┘
+```mermaid
+flowchart TB
+    Users[Users / analysts]
+    TLS[TLS ingress endpoint]
+    FE[Frontend<br/>React / Vite]
+    API[Backend API<br/>FastAPI]
+    DB[(TimescaleDB<br/>PostgreSQL)]
+    Cache[(Valkey<br/>Redis-compatible)]
+    GitHub[GitHub audit log sources<br/>HEC push / S3 / Azure Blob]
+    Workers[Celery workers<br/>ingestion · detection · enrichment · notifications]
 
-             ┌──────────────────────────────────────────────────────────┐
-             │                    Celery Workers                       │
-             │  ingestion · detection · enrichment · notifications     │
-             │                   (via Valkey broker)                   │
-             └──────────────────────────────────────────────────────────┘
+    Users --> TLS
+    TLS --> FE
+    TLS --> API
+    API --> DB
+    API --> Cache
+    GitHub --> API
+    GitHub --> Workers
+    Workers --> DB
+    Workers --> Cache
 ```
 
 ## Quickstart

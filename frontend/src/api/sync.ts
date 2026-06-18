@@ -54,3 +54,23 @@ export function updateSyncSchedule(updates: {
 export function getSyncLogs(runId: string, after: number = 0): Promise<SyncLogsResponse> {
   return api.get<SyncLogsResponse>(`/admin/sync/runs/${runId}/logs`, { after });
 }
+
+// ── Audit Log Enrichment ────────────────────────────────────────────────────
+
+export interface AuditLogEnrichment {
+  enabled: boolean;
+  interval_minutes: number;
+  last_run_at: string | null;
+  next_run_at: string | null;
+}
+
+export function getAuditLogEnrichment(): Promise<AuditLogEnrichment> {
+  return api.get<AuditLogEnrichment>('/admin/sync/enrichment');
+}
+
+export function updateAuditLogEnrichment(updates: {
+  enabled?: boolean;
+  interval_minutes?: number;
+}): Promise<AuditLogEnrichment> {
+  return api.put<AuditLogEnrichment>('/admin/sync/enrichment', updates);
+}

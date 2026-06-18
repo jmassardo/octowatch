@@ -1,13 +1,14 @@
+{{- if .Values.hec.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "octowatch.fullname" . }}-api
+  name: {{ include "octowatch.fullname" . }}-hec
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "octowatch.labels" . | nindent 4 }}
-    app.kubernetes.io/component: api
+    app.kubernetes.io/component: hec
 spec:
-  replicas: {{ .Values.api.replicaCount }}
+  replicas: {{ .Values.hec.replicaCount }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -16,22 +17,21 @@ spec:
   selector:
     matchLabels:
       {{- include "octowatch.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: api
+      app.kubernetes.io/component: hec
   template:
     metadata:
       labels:
         {{- include "octowatch.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: api
+        app.kubernetes.io/component: hec
         {{- if .Values.workloadIdentity.enabled }}
         azure.workload.identity/use: "true"
         {{- end }}
       annotations:
-        # Roll pods when config or secrets change
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "octowatch.serviceAccountName" . }}
-      terminationGracePeriodSeconds: 60
+      terminationGracePeriodSeconds: 30
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -40,7 +40,7 @@ spec:
                 labelSelector:
                   matchLabels:
                     {{- include "octowatch.selectorLabels" . | nindent 20 }}
-                    app.kubernetes.io/component: api
+                    app.kubernetes.io/component: hec
                 topologyKey: kubernetes.io/hostname
       securityContext:
         runAsNonRoot: {{ .Values.api.securityContext.runAsNonRoot }}
@@ -49,51 +49,42 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: api
+        - name: hec
           image: {{ include "octowatch.apiImage" . }}
           imagePullPolicy: {{ .Values.api.image.pullPolicy }}
           ports:
             - name: http
               containerPort: 8000
               protocol: TCP
-            {{- if .Values.observability.metrics.enabled }}
-            - name: metrics
-              containerPort: {{ .Values.observability.metrics.port | default 9090 }}
-              protocol: TCP
-            {{- end }}
-          # ── Lifecycle hooks ────────────────────────────────────────────────
           lifecycle:
             preStop:
               exec:
                 command: ["sh", "-c", "sleep 5"]
-          # ── Probes ──────────────────────────────────────────────────────
           livenessProbe:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: {{ .Values.api.livenessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.api.livenessProbe.periodSeconds }}
-            timeoutSeconds: {{ .Values.api.livenessProbe.timeoutSeconds }}
-            failureThreshold: {{ .Values.api.livenessProbe.failureThreshold }}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 15
+            failureThreshold: 5
           readinessProbe:
             httpGet:
-              path: /ready
+              path: /health
               port: http
-            initialDelaySeconds: {{ .Values.api.readinessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.api.readinessProbe.periodSeconds }}
-            timeoutSeconds: {{ .Values.api.readinessProbe.timeoutSeconds }}
-            failureThreshold: {{ .Values.api.readinessProbe.failureThreshold }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           startupProbe:
             httpGet:
               path: /health
               port: http
-            failureThreshold: {{ .Values.api.startupProbe.failureThreshold }}
-            periodSeconds: {{ .Values.api.startupProbe.periodSeconds }}
-            timeoutSeconds: {{ .Values.api.startupProbe.timeoutSeconds }}
-          # ── Resources ───────────────────────────────────────────────────
+            failureThreshold: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
           resources:
-            {{- toYaml .Values.api.resources | nindent 12 }}
-          # ── Security Context ────────────────────────────────────────────
+            {{- toYaml .Values.hec.resources | nindent 12 }}
           securityContext:
             readOnlyRootFilesystem: {{ .Values.api.securityContext.readOnlyRootFilesystem }}
             allowPrivilegeEscalation: {{ .Values.api.securityContext.allowPrivilegeEscalation }}
@@ -102,16 +93,12 @@ spec:
             capabilities:
               drop:
                 - ALL
-          # ── Environment — non-secret values from ConfigMap ──────────────
           envFrom:
             - configMapRef:
                 name: {{ include "octowatch.configMapName" . }}
-          # ── Environment — secret values ──────────────────────────────────
           env:
-            {{- if .Values.hec.enabled }}
             - name: OCTOWATCH_ROLE
-              value: "api"
-            {{- end }}
+              value: "hec"
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
@@ -143,26 +130,6 @@ spec:
                 secretKeyRef:
                   name: {{ include "octowatch.secretName" . }}
                   key: github-client-secret
-            - name: GITHUB_APP_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "octowatch.secretName" . }}
-                  key: github-app-id
-                  optional: true
-            - name: GITHUB_ENTERPRISE_SLUG
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "octowatch.secretName" . }}
-                  key: github-enterprise-slug
-                  optional: true
-            - name: GITHUB_SYNC_ENABLED
-              value: "true"
-            - name: GITHUB_RULES_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "octowatch.secretName" . }}
-                  key: github-rules-token
-                  optional: true
             {{- if .Values.workloadIdentity.enabled }}
             - name: SECRET_PROVIDER
               value: "azure_keyvault"
@@ -172,7 +139,6 @@ spec:
             - name: SECRET_PROVIDER
               value: "env"
             {{- end }}
-          # ── Volume mounts — tmp needed for ReadOnlyRootFilesystem ────────
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -187,3 +153,4 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}
