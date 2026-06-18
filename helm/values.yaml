@@ -95,6 +95,21 @@ api:
     timeoutSeconds: 5
 
 # ---------------------------------------------------------------------------
+# HEC — dedicated Splunk HEC ingestion pods (optional, off by default)
+# When enabled, HEC traffic goes to separate pods; API pods no longer serve HEC.
+# ---------------------------------------------------------------------------
+hec:
+  enabled: false
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+
+# ---------------------------------------------------------------------------
 # Celery workers
 # ---------------------------------------------------------------------------
 worker:

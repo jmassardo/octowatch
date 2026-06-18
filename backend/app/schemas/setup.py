@@ -59,6 +59,16 @@ class SettingUpdate(BaseModel):
     description: str | None = None
 
 
+class SettingCreate(BaseModel):
+    """Payload for ``POST /admin/settings``."""
+
+    key: str = Field(..., min_length=1, max_length=128, pattern=r"^[a-z][a-z0-9_]*$")
+    value: str = Field(..., min_length=1)
+    category: str = Field(default="config")
+    sensitivity: str = Field(default="sensitive")
+    description: str | None = None
+
+
 class SetupStatusResponse(BaseModel):
     """Response for ``GET /setup/status``."""
 

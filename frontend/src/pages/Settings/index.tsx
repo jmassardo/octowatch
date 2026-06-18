@@ -5,6 +5,7 @@ import {
   listSettings,
   updateSetting,
   deleteSetting,
+  createSetting,
   getEnterprisePATStatus,
   saveEnterprisePAT,
   deleteEnterprisePAT,
@@ -27,6 +28,8 @@ import {
   updateSyncConfig,
   updateSyncSchedule,
   triggerSync,
+  getAuditLogEnrichment,
+  updateAuditLogEnrichment,
 } from '../../api/sync';
 import { PagerDutyIntegration } from '../Integrations/PagerDutyIntegration';
 import { TeamsIntegration } from '../Integrations/TeamsIntegration';
@@ -95,6 +98,7 @@ function EditSettingForm({
 }) {
   const [value, setValue] = useState('');
   const [description, setDescription] = useState(setting.description ?? '');
+  const isMultiline = setting.key.includes('pem') || setting.key.includes('private_key');
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -116,15 +120,29 @@ function EditSettingForm({
         <label className={styles.formLabel} htmlFor="setting-value">
           New value
         </label>
-        <input
-          id="setting-value"
-          className={styles.formInput}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="Enter new value"
-          required
-          autoFocus
-        />
+        {isMultiline ? (
+          <textarea
+            id="setting-value"
+            className={styles.formInput}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Paste PEM content here"
+            required
+            autoFocus
+            rows={10}
+            style={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}
+          />
+        ) : (
+          <input
+            id="setting-value"
+            className={styles.formInput}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Enter new value"
+            required
+            autoFocus
+          />
+        )}
         <span className={styles.formHint}>
           The previous value will be replaced. Sensitive values are stored encrypted.
         </span>
@@ -147,6 +165,190 @@ function EditSettingForm({
         </Button>
         <Button variant="primary" type="submit" disabled={!value.trim()}>
           Save
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Create Secret Form                                                 */
+/* ------------------------------------------------------------------ */
+
+const SENSITIVITY_OPTIONS = [
+  { value: 'critical', label: 'Critical — never shown in UI' },
+  { value: 'sensitive', label: 'Sensitive — partially masked' },
+  { value: 'config', label: 'Config — shown as plaintext' },
+];
+
+const CATEGORY_OPTIONS = ['github', 'audit_stream', 'auth', 'integrations', 'sync', 'config'];
+
+function CreateSettingForm({
+  onSave,
+  onCancel,
+}: {
+  onSave: (
+    key: string,
+    value: string,
+    opts: { category: string; sensitivity: string; description?: string },
+  ) => void;
+  onCancel: () => void;
+}) {
+  const [key, setKey] = useState('');
+  const [value, setValue] = useState('');
+  const [category, setCategory] = useState('github');
+  const [sensitivity, setSensitivity] = useState('critical');
+  const [description, setDescription] = useState('');
+  const [keyError, setKeyError] = useState('');
+  const [multiline, setMultiline] = useState(false);
+
+  function validateKey(k: string) {
+    if (!k) {
+      setKeyError('');
+      return;
+    }
+    if (!/^[a-z][a-z0-9_]*$/.test(k)) {
+      setKeyError('Lowercase letters, digits, and underscores only. Must start with a letter.');
+    } else {
+      setKeyError('');
+    }
+    // Auto-enable multiline for PEM-like keys
+    if (k.includes('pem') || k.includes('private_key')) {
+      setMultiline(true);
+    }
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!key.trim() || !value.trim() || keyError) return;
+    onSave(key.trim(), value.trim(), {
+      category,
+      sensitivity,
+      description: description.trim() || undefined,
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className={styles.editForm}>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel} htmlFor="create-key">
+          Key
+        </label>
+        <input
+          id="create-key"
+          className={styles.formInput}
+          value={key}
+          onChange={(e) => {
+            setKey(e.target.value);
+            validateKey(e.target.value);
+          }}
+          placeholder="e.g. github_client_id"
+          required
+          autoFocus
+        />
+        {keyError && (
+          <span className={styles.formHint} style={{ color: 'var(--fg-danger)' }}>
+            {keyError}
+          </span>
+        )}
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel} htmlFor="create-value">
+          Value
+        </label>
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}
+        >
+          <label style={{ fontSize: '0.75rem', color: 'var(--fg-subtle)', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={multiline}
+              onChange={(e) => setMultiline(e.target.checked)}
+              style={{ marginRight: '0.25rem' }}
+            />
+            Multi-line (PEM / certificate)
+          </label>
+        </div>
+        {multiline ? (
+          <textarea
+            id="create-value"
+            className={styles.formInput}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={'-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----'}
+            required
+            rows={12}
+            style={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}
+          />
+        ) : (
+          <input
+            id="create-value"
+            className={styles.formInput}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Secret value"
+            required
+            type="password"
+          />
+        )}
+        <span className={styles.formHint}>Stored encrypted at rest (AES-256-GCM).</span>
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel} htmlFor="create-category">
+          Category
+        </label>
+        <select
+          id="create-category"
+          className={styles.formInput}
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          {CATEGORY_OPTIONS.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel} htmlFor="create-sensitivity">
+          Sensitivity
+        </label>
+        <select
+          id="create-sensitivity"
+          className={styles.formInput}
+          value={sensitivity}
+          onChange={(e) => setSensitivity(e.target.value)}
+        >
+          {SENSITIVITY_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.formLabel} htmlFor="create-description">
+          Description (optional)
+        </label>
+        <input
+          id="create-description"
+          className={styles.formInput}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Short description of this setting"
+        />
+      </div>
+      <div className={styles.formActions}>
+        <Button type="button" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          type="submit"
+          disabled={!key.trim() || !value.trim() || !!keyError}
+        >
+          Create Secret
         </Button>
       </div>
     </form>
@@ -399,6 +601,100 @@ function EnterprisePATSection() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Audit Log Enrichment Section                                       */
+/* ------------------------------------------------------------------ */
+
+const ENRICHMENT_INTERVAL_OPTIONS = [
+  { value: 15, label: 'Every 15 minutes' },
+  { value: 30, label: 'Every 30 minutes' },
+  { value: 60, label: 'Every hour' },
+  { value: 120, label: 'Every 2 hours' },
+  { value: 240, label: 'Every 4 hours' },
+  { value: 360, label: 'Every 6 hours' },
+  { value: 720, label: 'Every 12 hours' },
+  { value: 1440, label: 'Every 24 hours' },
+];
+
+function AuditLogEnrichmentSection() {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+
+  const { data: enrichment, isLoading } = useQuery({
+    queryKey: ['audit-log-enrichment'],
+    queryFn: getAuditLogEnrichment,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (updates: { enabled?: boolean; interval_minutes?: number }) =>
+      updateAuditLogEnrichment(updates),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['audit-log-enrichment'] });
+      showToast('Enrichment settings updated', 'success');
+    },
+    onError: () => {
+      showToast('Failed to update enrichment settings', 'error');
+    },
+  });
+
+  if (isLoading) return <Spinner />;
+
+  const enabled = enrichment?.enabled ?? false;
+  const intervalMinutes = enrichment?.interval_minutes ?? 60;
+
+  return (
+    <div
+      className={styles.configForm}
+      style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border-default)' }}
+    >
+      <div className={styles.configField}>
+        <span className={styles.configLabel}>Audit Log Enrichment</span>
+        <span className={styles.configHelp}>
+          Periodically fetches audit log events via the REST API to enrich streaming events with
+          full detail (e.g. previous/current values for settings changes).
+        </span>
+      </div>
+      <div className={styles.configField}>
+        <label className={styles.toggleSwitch}>
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => mutation.mutate({ enabled: e.target.checked })}
+          />
+          <span className={styles.toggleSlider} />
+        </label>
+        <span style={{ marginLeft: 8 }}>{enabled ? 'Enabled' : 'Disabled'}</span>
+      </div>
+      {enabled && (
+        <div className={styles.configField}>
+          <label className={styles.configLabel} htmlFor="enrichment-interval">
+            Enrichment Interval
+          </label>
+          <select
+            id="enrichment-interval"
+            className={styles.configInput}
+            value={intervalMinutes}
+            onChange={(e) => mutation.mutate({ interval_minutes: Number(e.target.value) })}
+            style={{ maxWidth: 220 }}
+          >
+            {ENRICHMENT_INTERVAL_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {enabled && enrichment?.last_run_at && (
+        <div className={styles.configField}>
+          <span className={styles.configLabel}>Last Run</span>
+          <span>{formatAbsolute(enrichment.last_run_at)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  GitHub Pane                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -413,6 +709,7 @@ function EnterprisePATWidget() {
           endpoint.
         </p>
         <EnterprisePATSection />
+        <AuditLogEnrichmentSection />
       </div>
     </Card>
   );
@@ -2355,6 +2652,8 @@ export function SettingsPage() {
     SLUG_TO_TAB[tabSlug ?? 'secrets'] ?? 'Secrets';
   const [editTarget, setEditTarget] = useState<AppSetting | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppSetting | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const { showToast } = useToast();
 
   const {
     data: settings,
@@ -2387,6 +2686,26 @@ export function SettingsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings'] });
       setDeleteTarget(null);
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: ({
+      key,
+      value,
+      opts,
+    }: {
+      key: string;
+      value: string;
+      opts: { category: string; sensitivity: string; description?: string };
+    }) => createSetting(key, value, opts),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings'] });
+      setCreateOpen(false);
+      showToast('Secret created successfully', 'success');
+    },
+    onError: (err: Error) => {
+      showToast(err.message || 'Failed to create secret', 'error');
     },
   });
 
@@ -2484,14 +2803,20 @@ export function SettingsPage() {
         <>
           {isError && <ErrorBanner message="Failed to load settings" onRetry={() => refetch()} />}
 
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+              + Add Secret
+            </Button>
+          </div>
+
           {isLoading ? (
             <Spinner />
           ) : filteredSettings.length === 0 ? (
             <div className={styles.empty}>
               <p>No settings configured yet.</p>
               <p style={{ color: 'var(--fg-subtle)', fontSize: '0.8125rem', marginTop: '0.5rem' }}>
-                Settings are automatically populated during setup and sync. You can also add custom
-                settings using the admin API.
+                Click &quot;Add Secret&quot; above to create your first setting, or settings will be
+                automatically populated during setup and sync.
               </p>
             </div>
           ) : (
@@ -2549,6 +2874,14 @@ export function SettingsPage() {
             onCancel={() => setEditTarget(null)}
           />
         )}
+      </Drawer>
+
+      {/* Create drawer */}
+      <Drawer open={createOpen} onClose={() => setCreateOpen(false)} title="Add Secret">
+        <CreateSettingForm
+          onSave={(key, value, opts) => createMutation.mutate({ key, value, opts })}
+          onCancel={() => setCreateOpen(false)}
+        />
       </Drawer>
 
       {/* Delete confirmation */}

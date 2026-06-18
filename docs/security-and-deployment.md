@@ -27,7 +27,7 @@
 
 ## 1. Security Architecture
 
-This section maps every OWASP Top 10 (2021) item to concrete, code-level mitigations implemented in OctoWatch. References are to the actual libraries, middleware classes, schema constructs, and configuration directives used in this stack.
+This section maps every OWASP Top 10 (2021) item to concrete, code-level mitigations implemented in OctoWatch. References are to the actual libraries, middleware classes, schema constructs, and configuration directives used in this stack. For deployment context, the primary production target is the self-managed kubeadm cluster on Azure VMs, administered from the management VM, with Docker Compose retained for development and small installs.
 
 ---
 
@@ -791,7 +791,7 @@ Variables are grouped by subsystem, then sorted alphabetically within each group
 
 ## 3. Health Checks and Readiness Probes
 
-This section defines health check commands for Docker Compose and the equivalent Kubernetes liveness, readiness, and startup probe specifications for Helm deployments.
+This section defines health check commands for Docker Compose and the equivalent Kubernetes liveness, readiness, and startup probe specifications for Helm deployments. In the primary self-managed Kubernetes topology, operators normally run these `kubectl` checks from the management VM.
 
 ### 3.1 Probe Summary Table
 

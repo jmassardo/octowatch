@@ -78,10 +78,10 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   return body as T;
 }
 
-function buildQuery(params: Record<string, string | number | boolean | undefined>): string {
+function buildQuery(params: object): string {
   const p = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) {
+    if (value !== undefined && value !== null) {
       p.set(key, String(value));
     }
   }
@@ -89,7 +89,7 @@ function buildQuery(params: Record<string, string | number | boolean | undefined
 }
 
 export const api = {
-  get: <T>(path: string, params?: Record<string, string | number | boolean | undefined>) => {
+  get: <T>(path: string, params?: object) => {
     const url = params ? `${path}?${buildQuery(params)}` : path;
     return apiFetch<T>(url);
   },

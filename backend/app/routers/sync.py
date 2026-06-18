@@ -22,6 +22,8 @@ from app.models.github_sync import (
     SyncLogEntry,
 )
 from app.schemas.github_sync import (
+    AuditLogEnrichmentResponse,
+    AuditLogEnrichmentUpdateRequest,
     CursorRow,
     SyncConfigResponse,
     SyncConfigUpdateRequest,
@@ -516,3 +518,109 @@ async def get_sync_coverage(
         "needs_installation": needs_install,
         "coverage_pct": round(len(covered) / max(len(all_orgs), 1) * 100, 1),
     }
+
+
+# ── Audit Log Enrichment ─────────────────────────────────────────────────────
+
+_ENRICHMENT_KEYS = (
+    "audit_log_enrichment_enabled",
+    "audit_log_enrichment_interval_minutes",
+    "audit_log_enrichment_last_run_at",
+)
+_ENRICHMENT_DEFAULTS: dict[str, str] = {
+    "audit_log_enrichment_enabled": "false",
+    "audit_log_enrichment_interval_minutes": "60",
+    "audit_log_enrichment_last_run_at": "",
+}
+
+
+@router.get("/enrichment", response_model=AuditLogEnrichmentResponse)
+async def get_audit_log_enrichment(
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> AuditLogEnrichmentResponse:
+    """Get current audit log enrichment configuration."""
+    raw: dict[str, str] = {}
+    for key in _ENRICHMENT_KEYS:
+        value = await get_setting(db, key)
+        raw[key] = value if value is not None else _ENRICHMENT_DEFAULTS[key]
+
+    enabled = raw["audit_log_enrichment_enabled"].lower() == "true"
+    interval_minutes = int(raw["audit_log_enrichment_interval_minutes"] or "60")
+
+    last_run_at = None
+    if raw["audit_log_enrichment_last_run_at"]:
+        try:
+            last_run_at = datetime.fromisoformat(raw["audit_log_enrichment_last_run_at"])
+        except ValueError:
+            pass
+
+    next_run_at = None
+    if enabled and last_run_at:
+        next_run_at = last_run_at + timedelta(minutes=interval_minutes)
+
+    return AuditLogEnrichmentResponse(
+        enabled=enabled,
+        interval_minutes=interval_minutes,
+        last_run_at=last_run_at,
+        next_run_at=next_run_at,
+    )
+
+
+@router.put(
+    "/enrichment",
+    response_model=AuditLogEnrichmentResponse,
+    dependencies=[Depends(verify_csrf)],
+)
+async def update_audit_log_enrichment(
+    body: AuditLogEnrichmentUpdateRequest,
+    current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
+    db: AsyncSession = Depends(get_db),
+) -> AuditLogEnrichmentResponse:
+    """Update audit log enrichment settings."""
+    changes: dict[str, str] = {}
+
+    if body.enabled is not None:
+        value = "true" if body.enabled else "false"
+        await set_setting(
+            db,
+            "audit_log_enrichment_enabled",
+            value,
+            category="sync",
+            sensitivity="config",
+            description="Whether audit log REST enrichment is enabled",
+            changed_by=current_user.github_login,
+        )
+        changes["enabled"] = value
+
+    if body.interval_minutes is not None:
+        value = str(body.interval_minutes)
+        await set_setting(
+            db,
+            "audit_log_enrichment_interval_minutes",
+            value,
+            category="sync",
+            sensitivity="config",
+            description="Audit log enrichment interval in minutes",
+            changed_by=current_user.github_login,
+        )
+        changes["interval_minutes"] = value
+
+    db.add(
+        AuditTrail(
+            user_login=current_user.github_login,
+            action_type="audit_log_enrichment.settings_update",
+            resource_type="enrichment_schedule",
+            parameters=changes,
+            outcome="success",
+        )
+    )
+    await db.commit()
+
+    logger.info(
+        "enrichment.settings_updated",
+        changes=changes,
+        user=current_user.github_login,
+    )
+
+    return await get_audit_log_enrichment(current_user=current_user, db=db)
