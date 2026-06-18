@@ -958,7 +958,7 @@ class TestThreatIntelRouterRegistration:
         from app.main import create_app
 
         app = create_app()
-        routes = [route.path for route in app.routes]
+        routes = [route.path for route in app.routes if hasattr(route, "path")]
         # Check that at least the indicator endpoints are registered
         assert any("/threat-intel" in r for r in routes)
 

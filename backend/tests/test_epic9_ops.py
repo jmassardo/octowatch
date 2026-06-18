@@ -227,7 +227,7 @@ class TestInstrumentatorConfig:
         from app.main import create_app
 
         test_app = create_app()
-        route_paths = [r.path for r in test_app.routes]
+        route_paths = [r.path for r in test_app.routes if hasattr(r, "path")]
         assert "/metrics" in route_paths
 
     def test_metrics_excluded_from_self_instrumentation(self, client: TestClient) -> None:
