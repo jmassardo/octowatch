@@ -53,15 +53,24 @@ EXPECTED_ROUTE_PREFIXES = [
 ]
 
 
+def _collect_paths(routes: list) -> set[str]:
+    """Recursively collect route paths, handling nested routers."""
+    paths: set[str] = set()
+    for route in routes:
+        if hasattr(route, "path"):
+            paths.add(route.path)
+        if hasattr(route, "routes"):
+            for sub_path in _collect_paths(route.routes):
+                prefix = getattr(route, "path", "")
+                paths.add(prefix + sub_path)
+    return paths
+
+
 @pytest.fixture(scope="module")
 def registered_paths() -> set[str]:
     """Collect all route paths from the real application."""
     app = create_app()
-    paths: set[str] = set()
-    for route in app.routes:
-        if hasattr(route, "path"):
-            paths.add(route.path)
-    return paths
+    return _collect_paths(list(app.routes))
 
 
 @pytest.mark.parametrize("prefix", EXPECTED_ROUTE_PREFIXES)

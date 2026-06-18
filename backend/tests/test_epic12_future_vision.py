@@ -673,31 +673,31 @@ class TestRouterRegistration:
     def test_app_has_cross_org_routes(self):
         from app.main import app
 
-        paths = [r.path for r in app.routes]
+        paths = [r.path for r in app.routes if hasattr(r, "path")]
         assert any("/cross-org" in p for p in paths)
 
     def test_app_has_playbook_routes(self):
         from app.main import app
 
-        paths = [r.path for r in app.routes]
+        paths = [r.path for r in app.routes if hasattr(r, "path")]
         assert any("/playbooks" in p for p in paths)
 
     def test_app_has_workflow_routes(self):
         from app.main import app
 
-        paths = [r.path for r in app.routes]
+        paths = [r.path for r in app.routes if hasattr(r, "path")]
         assert any("/workflows" in p for p in paths)
 
     def test_app_has_copilot_governance_routes(self):
         from app.main import app
 
-        paths = [r.path for r in app.routes]
+        paths = [r.path for r in app.routes if hasattr(r, "path")]
         assert any("/copilot/governance" in p for p in paths)
 
     def test_app_has_nl_query_endpoint(self):
         from app.main import app
 
-        paths = [r.path for r in app.routes]
+        paths = [r.path for r in app.routes if hasattr(r, "path")]
         assert any("/query/nl" in p for p in paths)
 
 
