@@ -875,9 +875,15 @@ async def _sync_entity_async(
         current_cursor = resume_cursor
         page_num = 0
         while True:
-            # Use enterprise PAT for audit_log, installation token otherwise
+            # Use enterprise PAT for audit_log, App JWT for installations
+            # (handled inside _fetch_page), installation token otherwise.
             if entity_type == "audit_log" and enterprise_pat:
                 token = enterprise_pat
+            elif entity_type == "installations":
+                # installations entity generates its own App JWT in _fetch_page;
+                # skip installation token acquisition which may fail if the
+                # passed installation_id is stale or from a different org.
+                token = ""
             else:
                 token = await token_manager.get_installation_token(installation_id)
             items, next_cursor = await _fetch_page(
