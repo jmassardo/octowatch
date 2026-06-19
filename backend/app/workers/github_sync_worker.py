@@ -468,10 +468,31 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
     dispatched: list[tuple[str, str | None]] = []
     child_results: list[AsyncResult[dict[str, object]]] = []
 
+    # ── Installations entity (uses App JWT, not installation token) ─────
+    # Dispatch independently of enterprise configs so org-level
+    # installations are discovered even when no enterprise config exists.
+    if "installations" in entity_types and settings.github_app.GITHUB_APP_ID:
+        _inst_org = next((c.enterprise_slug for c in enterprise_configs), None)
+        _inst_id = next((c.installation_id for c in enterprise_configs), 0)
+        if not _inst_id and configs:
+            _inst_id = configs[0].installation_id
+        result = sync_entity.apply_async(
+            kwargs={
+                "run_id": run_id,
+                "entity_type": "installations",
+                "org": _inst_org,
+                "installation_id": _inst_id,
+                "cursor": None,
+            },
+            queue="github_sync",
+        )
+        child_results.append(result)
+        dispatched.append(("installations", _inst_org))
+
     # Enterprise-level entities: use enterprise installation
     for config in enterprise_configs:
         for entity_type in entity_types:
-            if entity_type not in _ENTERPRISE_ENTITIES:
+            if entity_type not in _ENTERPRISE_ENTITIES or entity_type == "installations":
                 continue
             result = sync_entity.apply_async(
                 kwargs={
@@ -605,6 +626,27 @@ async def _run_post_sync_pipeline_async(run_id: str) -> dict[str, object]:
             await session.commit()
 
         await _write_sync_log(sf, run_id, "Starting post-sync pipeline")
+
+        # Promote newly-discovered org-level installations into
+        # github_app_configs so they are available for subsequent syncs
+        # without requiring a separate sync run.
+        from app.config import settings as _post_settings
+        from app.models.github_sync import GitHubAppConfig
+
+        if _post_settings.github_app.GITHUB_APP_ID:
+            async with sf() as session:
+                existing_result = await session.execute(
+                    select(GitHubAppConfig).where(GitHubAppConfig.enabled == True)  # noqa: E712
+                )
+                existing = list(existing_result.scalars().all())
+            promoted = await _sync_installation_configs(existing, _post_settings)
+            new_count = len(promoted) - len(existing)
+            if new_count > 0:
+                await _write_sync_log(
+                    sf,
+                    run_id,
+                    f"Promoted {new_count} new org installation(s) into app configs",
+                )
 
         # Query event IDs from the last 30 days
         cutoff = datetime.now(UTC) - timedelta(days=30)
@@ -5753,17 +5795,27 @@ async def _bootstrap_app_configs(settings: object) -> list:
         return []
 
     try:
+        installations: list[dict] = []
         async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                "https://api.github.com/app/installations",
-                headers={
-                    "Authorization": f"Bearer {app_jwt}",
-                    "Accept": "application/vnd.github+json",
-                },
-                timeout=15,
-            )
-            resp.raise_for_status()
-            installations = resp.json()
+            page = 1
+            while True:
+                resp = await client.get(
+                    "https://api.github.com/app/installations",
+                    headers={
+                        "Authorization": f"Bearer {app_jwt}",
+                        "Accept": "application/vnd.github+json",
+                    },
+                    params={"per_page": 100, "page": page},
+                    timeout=30,
+                )
+                resp.raise_for_status()
+                batch = resp.json()
+                if not batch:
+                    break
+                installations.extend(batch)
+                if len(batch) < 100:
+                    break
+                page += 1
     except Exception as exc:
         logger.error("github_sync.bootstrap_api_failed", error=str(exc))
         return []
