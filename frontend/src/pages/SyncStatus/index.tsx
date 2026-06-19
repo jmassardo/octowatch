@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   getSyncStatus,
@@ -6,6 +6,7 @@ import {
   getSyncSchedule,
   getSyncConfig,
   getSyncRun,
+  getSyncLogs,
 } from '../../api/sync';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Card, CardHeader } from '../../components/primitives/Card';
@@ -22,6 +23,7 @@ import type {
   SyncRunStatus,
   SyncSchedule as SyncScheduleType,
   EntityStatus,
+  SyncLogEntry,
 } from '../../types/sync';
 import styles from './SyncStatus.module.css';
 
@@ -177,6 +179,192 @@ function statusVariant(status: SyncRunStatus): 'success' | 'danger' | 'attention
     default:
       return 'muted';
   }
+}
+
+/** Returns true if the run is in an active (non-terminal) state. */
+function isActiveStatus(status: SyncRunStatus | undefined): boolean {
+  return status === 'running' || status === 'pending';
+}
+
+/** Derive progress summary from entity cursors. */
+function deriveProgress(cursors: EntityStatus[]): {
+  completedOrgs: number;
+  totalOrgs: number;
+  failedOrgs: number;
+  totalItems: number;
+  completedEntities: number;
+  totalEntities: number;
+} {
+  const orgMap = new Map<string, { completed: number; failed: number; total: number }>();
+  let totalItems = 0;
+  let completedEntities = 0;
+
+  for (const c of cursors) {
+    const key = c.org ?? '__enterprise__';
+    const entry = orgMap.get(key) ?? { completed: 0, failed: 0, total: 0 };
+    entry.total++;
+    if (c.status === 'completed') {
+      entry.completed++;
+      completedEntities++;
+    }
+    if (c.status === 'failed') entry.failed++;
+    totalItems += c.items_synced;
+    orgMap.set(key, entry);
+  }
+
+  let completedOrgs = 0;
+  let failedOrgs = 0;
+  for (const entry of orgMap.values()) {
+    if (entry.completed === entry.total) completedOrgs++;
+    if (entry.failed > 0) failedOrgs++;
+  }
+
+  return {
+    completedOrgs,
+    totalOrgs: orgMap.size,
+    failedOrgs,
+    totalItems,
+    completedEntities,
+    totalEntities: cursors.length,
+  };
+}
+
+/** Format log entry timestamp to HH:MM:SS. */
+function formatLogTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
+
+/** Progress bar and summary for an active sync run. */
+function SyncProgressSummary({ cursors }: { cursors: EntityStatus[] }) {
+  if (cursors.length === 0) {
+    return (
+      <div className={styles.drawerSection}>
+        <h4 className={styles.drawerSectionTitle}>Progress</h4>
+        <p className={styles.progressPending}>Waiting for sync tasks to start…</p>
+      </div>
+    );
+  }
+
+  const progress = deriveProgress(cursors);
+  const pct =
+    progress.totalEntities > 0
+      ? Math.round((progress.completedEntities / progress.totalEntities) * 100)
+      : 0;
+
+  return (
+    <div className={styles.drawerSection}>
+      <h4 className={styles.drawerSectionTitle}>Progress</h4>
+      <div
+        className={styles.progressBar}
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`${progress.completedOrgs} of ${progress.totalOrgs} orgs completed`}
+      >
+        <div className={styles.progressFill} style={{ width: `${pct}%` }} />
+      </div>
+      <div className={styles.progressStats}>
+        <span>
+          {progress.completedOrgs} / {progress.totalOrgs} orgs completed
+        </span>
+        <span>{progress.totalItems.toLocaleString()} items synced</span>
+        {progress.failedOrgs > 0 && (
+          <span className={styles.progressFailed}>{progress.failedOrgs} org(s) failed</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Live log viewer that accumulates entries via incremental polling. */
+function LiveLogViewer({ runId, isActive }: { runId: string; isActive: boolean }) {
+  // Key the inner component on runId to reset state cleanly
+  return <LiveLogViewerInner key={runId} runId={runId} isActive={isActive} />;
+}
+
+function LiveLogViewerInner({ runId, isActive }: { runId: string; isActive: boolean }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [accumulatedLogs, setAccumulatedLogs] = useState<SyncLogEntry[]>([]);
+  const [afterSeq, setAfterSeq] = useState(0);
+
+  // Use a callback-based approach: query fires, onSuccess-like handling via enabled + staleTime
+  useQuery({
+    queryKey: ['sync-run-live-logs', runId, afterSeq],
+    queryFn: async () => {
+      const data = await getSyncLogs(runId, afterSeq);
+      return data;
+    },
+    enabled: isActive || accumulatedLogs.length === 0,
+    refetchInterval: isActive ? 3000 : false,
+    staleTime: 2000,
+    select: (data) => {
+      if (data && data.entries.length > 0) {
+        // Trigger side-effect-free accumulation via queueMicrotask
+        queueMicrotask(() => {
+          setAccumulatedLogs((prev) => {
+            const existingSeqs = new Set(prev.map((e) => e.seq));
+            const newEntries = data.entries.filter((e) => !existingSeqs.has(e.seq));
+            return newEntries.length > 0 ? [...prev, ...newEntries] : prev;
+          });
+          setAfterSeq(data.last_seq);
+        });
+      }
+      return data;
+    },
+  });
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [accumulatedLogs]);
+
+  return (
+    <div className={styles.drawerSection}>
+      <h4 className={styles.drawerSectionTitle}>
+        Logs {isActive && <span className={styles.liveIndicator}>● Live</span>}
+      </h4>
+      {accumulatedLogs.length === 0 ? (
+        <p className={styles.progressPending}>
+          {isActive ? 'Waiting for log entries…' : 'No log entries recorded for this run.'}
+        </p>
+      ) : (
+        <div className={styles.logViewerContainer} ref={containerRef}>
+          {accumulatedLogs.map((entry) => (
+            <div
+              key={entry.seq}
+              className={`${styles.logLine} ${
+                entry.level === 'error'
+                  ? styles.logError
+                  : entry.level === 'warn'
+                    ? styles.logWarn
+                    : styles.logInfo
+              }`}
+            >
+              <span className={styles.logTimestamp}>{formatLogTime(entry.timestamp)}</span>
+              <span className={styles.logLevel}>[{entry.level}]</span>
+              {(entry.entity_type || entry.org) && (
+                <span className={styles.logContext}>
+                  {[entry.entity_type, entry.org].filter(Boolean).join(' / ')}
+                </span>
+              )}
+              <span className={styles.logMessage}>{entry.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function formatDuration(startIso: string | null, endIso: string | null): string {
@@ -452,7 +640,13 @@ function RunDetailDrawer({
     queryKey: ['sync-run-detail', runId],
     queryFn: () => getSyncRun(runId!),
     enabled: open && runId !== null,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return isActiveStatus(status as SyncRunStatus | undefined) ? 5000 : false;
+    },
   });
+
+  const active = isActiveStatus(runDetail?.status as SyncRunStatus | undefined);
 
   return (
     <Drawer open={open} onClose={onClose} title="Sync Run Details">
@@ -469,7 +663,10 @@ function RunDetailDrawer({
             <dl className={styles.drawerDl}>
               <dt>Status</dt>
               <dd>
-                <Label variant={statusVariant(runDetail.status)}>{runDetail.status}</Label>
+                <Label variant={statusVariant(runDetail.status)}>
+                  {runDetail.status}
+                  {active && <span className={styles.liveIndicator}> ●</span>}
+                </Label>
               </dd>
               <dt>Trigger</dt>
               <dd>{runDetail.triggered_by ?? runDetail.trigger_type}</dd>
@@ -489,6 +686,11 @@ function RunDetailDrawer({
               <h4 className={styles.drawerSectionTitle}>Error</h4>
               <p className={styles.drawerError}>{runDetail.error_message}</p>
             </div>
+          )}
+
+          {/* Progress summary for active or recently finished runs */}
+          {(active || runDetail.cursors.length > 0) && (
+            <SyncProgressSummary cursors={runDetail.cursors} />
           )}
 
           {runDetail.entity_counts && Object.keys(runDetail.entity_counts).length > 0 && (
@@ -561,6 +763,9 @@ function RunDetailDrawer({
               </Label>
             </div>
           )}
+
+          {/* Live logs section */}
+          <LiveLogViewer runId={runDetail.id} isActive={active} />
         </div>
       )}
       {!isLoading && !runDetail && runId && (
@@ -672,7 +877,10 @@ export function SyncStatusPage() {
     queryKey: ['sync-status'],
     queryFn: getSyncStatus,
     enabled: canView,
-    refetchInterval: 15_000,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return isActiveStatus(status as SyncRunStatus | undefined) ? 5000 : 15_000;
+    },
   });
 
   const {
@@ -684,7 +892,9 @@ export function SyncStatusPage() {
     queryKey: ['sync-runs', 'monitoring', runsPage],
     queryFn: () => listSyncRuns(runsPage, RUNS_PAGE_SIZE),
     enabled: canView,
-    refetchInterval: 30_000,
+    refetchInterval: isActiveStatus(currentRun?.status as SyncRunStatus | undefined)
+      ? 10_000
+      : 30_000,
   });
 
   const { data: schedule } = useQuery({
