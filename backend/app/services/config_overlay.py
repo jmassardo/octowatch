@@ -28,6 +28,10 @@ logger = structlog.get_logger(__name__)
 # Prevents concurrent overlay refreshes from exposing partially-updated config
 _overlay_lock = threading.Lock()
 
+# Tracks the number of settings applied by the most recent overlay load.
+# Used by the readiness probe to detect unconfigured pods.
+_last_overlay_count: int = -1  # -1 = never loaded
+
 # Keys that represent secrets and should be fetched from Key Vault when available
 SECRET_KEYS: set[str] = {
     "github_client_secret",
@@ -205,6 +209,8 @@ async def load_settings_overlay(
     for db_key, value in all_settings.items():
         if _apply_setting(db_key, value):
             applied += 1
+    global _last_overlay_count
+    _last_overlay_count = applied
     logger.info("config_overlay.loaded", total=len(all_settings), applied=applied)
     return applied
 
@@ -216,3 +222,17 @@ async def refresh_settings(db: AsyncSession, secret_provider: SecretProvider | N
     by Celery workers at task start.
     """
     return await load_settings_overlay(db, secret_provider=secret_provider)
+
+
+def get_overlay_status() -> tuple[bool, int]:
+    """Return overlay readiness status for the health probe.
+
+    Returns (is_ready, count) where:
+    - is_ready is True if the overlay has been loaded at least once with ≥1 setting
+      OR if it was never loaded (pre-setup state, which is acceptable).
+    - count is the number of settings applied (-1 if never loaded).
+    """
+    if _last_overlay_count == -1:
+        # Never loaded — pod may be in pre-setup state, which is OK
+        return True, -1
+    return _last_overlay_count > 0, _last_overlay_count

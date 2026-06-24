@@ -6,6 +6,10 @@ metadata:
   labels:
     {{- include "octowatch.labels" . | nindent 4 }}
     app.kubernetes.io/component: frontend
+  {{- if .Values.reloader.enabled }}
+  annotations:
+    reloader.stakater.com/auto: "true"
+  {{- end }}
 spec:
   replicas: {{ .Values.frontend.replicaCount }}
   strategy:

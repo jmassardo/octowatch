@@ -478,3 +478,19 @@ certManager:
     apiTokenSecretKey: api-token
     dnsZones:
       - octowatch.dev
+
+# ---------------------------------------------------------------------------
+# Setup wizard — post-completion behavior
+# ---------------------------------------------------------------------------
+setup:
+  # When true, creates RBAC resources that allow the API pod to trigger
+  # a rolling restart of all OctoWatch deployments after setup completes.
+  restartAfterComplete: true
+
+# ---------------------------------------------------------------------------
+# Stakater Reloader — auto-restart pods on Secret/ConfigMap changes
+# ---------------------------------------------------------------------------
+reloader:
+  # Requires Stakater Reloader to be installed on the cluster.
+  # When enabled, deployments get `reloader.stakater.com/auto: "true"` annotation.
+  enabled: true

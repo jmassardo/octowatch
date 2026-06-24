@@ -127,6 +127,7 @@ class TestSyncRunDetail:
             trigger_type = "manual"
             triggered_by = "testuser"
             scope = "full"
+            created_at = datetime(2024, 1, 1, tzinfo=UTC)
             started_at = datetime(2024, 1, 1, tzinfo=UTC)
             completed_at = datetime(2024, 1, 1, 1, 0, tzinfo=UTC)
             error_message = None
@@ -145,6 +146,7 @@ class TestSyncRunSummary:
             status = "pending"
             trigger_type = "scheduled"
             triggered_by = None
+            created_at = datetime(2024, 1, 1, tzinfo=UTC)
             started_at = None
             completed_at = None
 

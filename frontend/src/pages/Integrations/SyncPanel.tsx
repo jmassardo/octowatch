@@ -69,6 +69,14 @@ function totalEntityCount(run: SyncRun): number {
   return run.cursors.reduce((sum, c) => sum + c.items_synced, 0);
 }
 
+const PENDING_STUCK_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+
+function isPendingTooLong(run: SyncRun): boolean {
+  if (run.status !== 'pending') return false;
+  const elapsed = Date.now() - new Date(run.created_at).getTime();
+  return elapsed > PENDING_STUCK_THRESHOLD_MS;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Entity status table                                                */
 /* ------------------------------------------------------------------ */
@@ -619,6 +627,14 @@ export function SyncPanel() {
               Running for {formatDuration(syncRun.started_at, null)}
             </span>
           </div>
+          {syncRun.status === 'pending' && isPendingTooLong(syncRun) && (
+            <div className={styles.syncWarning} data-testid="sync-stuck-warning">
+              <span>
+                ⚠ This sync has been queued for over 5 minutes. The task may not have been picked up
+                by a worker. Try cancelling and re-triggering.
+              </span>
+            </div>
+          )}
           <ProgressBar cursors={syncRun.cursors} isActive={isActive} />
           <EntityTable cursors={syncRun.cursors} />
           <PostProcessingStatusDisplay status={syncRun.post_processing_status} />

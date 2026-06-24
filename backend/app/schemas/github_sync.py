@@ -68,6 +68,7 @@ class SyncRunDetail(BaseModel):
     trigger_type: str
     triggered_by: str | None
     scope: str
+    created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
     error_message: str | None
@@ -83,6 +84,7 @@ class SyncRunSummary(BaseModel):
     status: str
     trigger_type: str
     triggered_by: str | None
+    created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
     post_processing_status: str | None = None

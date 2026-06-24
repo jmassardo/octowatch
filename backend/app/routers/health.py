@@ -29,7 +29,7 @@ async def readiness(
     db: AsyncSession = Depends(get_db),
     valkey: Redis = Depends(get_valkey),
 ) -> dict:
-    """Kubernetes readiness probe — checks DB and Valkey connectivity."""
+    """Kubernetes readiness probe — checks DB, Valkey, and config overlay."""
     checks: dict[str, str] = {}
 
     # Database check
@@ -47,6 +47,21 @@ async def readiness(
         checks["valkey"] = "ok"
     except Exception:
         checks["valkey"] = "error"
+
+    # Config overlay check — if setup is complete, overlay must have loaded settings.
+    # This prevents routing traffic to pods that started before setup completed.
+    try:
+        from app.services.config_overlay import get_overlay_status
+        from app.services.settings_service import is_setup_complete
+
+        setup_done = await is_setup_complete(db)
+        if setup_done:
+            overlay_ready, _count = get_overlay_status()
+            checks["config"] = "ok" if overlay_ready else "error"
+        else:
+            checks["config"] = "ok"  # Pre-setup: no config expected yet
+    except Exception:
+        checks["config"] = "ok"  # Don't block readiness on check failures
 
     all_ok = all(v == "ok" for v in checks.values())
     if not all_ok:

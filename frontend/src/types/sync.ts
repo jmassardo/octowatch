@@ -16,6 +16,7 @@ export interface SyncRun {
   readonly trigger_type: 'manual' | 'scheduled';
   readonly triggered_by: string | null;
   readonly scope: string;
+  readonly created_at: string;
   readonly started_at: string | null;
   readonly completed_at: string | null;
   readonly error_message: string | null;
@@ -29,6 +30,7 @@ export interface SyncRunSummary {
   readonly status: SyncRunStatus;
   readonly trigger_type: 'manual' | 'scheduled';
   readonly triggered_by: string | null;
+  readonly created_at: string;
   readonly started_at: string | null;
   readonly completed_at: string | null;
 }
