@@ -1,4 +1,0 @@
-- generic [ref=e1]:
-  - img "custom logo" [ref=e2]
-  - heading "This website is blocked" [level=1] [ref=e3]
-  - paragraph [ref=e5]: If you believe this is a mistake, please contact your network administrator.
