@@ -1,0 +1,7 @@
+- generic [ref=e1]:
+  - img "custom logo" [ref=e2]
+  - heading "This website is blocked" [level=1] [ref=e3]
+  - paragraph [ref=e5]: If you believe this is a mistake, please use the button below to open an issue. ("NRD Small" applies to domains registered in the last 7 days) - GitHub Security -
+  - paragraph [ref=e7]: Blocked by Filter (New Domains (Last Week))
+  - link "Open issue to request unblock" [ref=e9] [cursor=pointer]:
+    - /url: https://github.com/github/controld-dns/issues/new?template=controld-dns-request.yaml&title=octodemo.octowatch.dev%20Unblocked%20Request

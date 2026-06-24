@@ -1,0 +1,178 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "Skip to content" [ref=e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - region "Staff Bar" [ref=e7]:
+      - generic [ref=e8]:
+        - link "Site admin" [ref=e9] [cursor=pointer]:
+          - /url: https://admin.github.com/stafftools
+          - img [ref=e10]
+        - button "Show more stats" [ref=e12] [cursor=pointer]:
+          - img [ref=e13]
+        - list [ref=e15]:
+          - listitem [ref=e16]:
+            - generic [ref=e17]:
+              - button "708ms 🐌" [ref=e18] [cursor=pointer]:
+                - generic [ref=e20]: 708ms 🐌
+              - generic [ref=e21]:
+                - text: •
+                - button "View soft navigation status" [ref=e23] [cursor=pointer]:
+                  - img [ref=e26]
+              - generic [ref=e28]:
+                - button "Open React developer tool details. React payload size 1.08KB" [ref=e29] [cursor=pointer]:
+                  - generic [ref=e31]:
+                    - button "⚛️" [ref=e32]
+                    - text: 1.08KB
+                - link "SSR Successful SSR" [ref=e34] [cursor=pointer]:
+                  - /url: https://github.com/github/alloy
+                  - img "SSR Successful" [ref=e35]
+                  - text: SSR
+        - button "Disable canary unicorns" [ref=e38] [cursor=pointer]
+        - generic [ref=e39]:
+          - img [ref=e40]
+          - generic [ref=e43]: refs/gh/queue/master/pr-436894-5e18436919ef5653528bc94a2a8840f3fdceb5c0
+          - generic [ref=e44]:
+            - 'button "UI: 84a77a05952d4119b92239f9c2fd0b50586d6c05" [ref=e45] [cursor=pointer]':
+              - generic [ref=e49]: "UI: 84a77a05952d4119b92239f9c2fd0b50586d6c05"
+            - generic: "*"
+        - link "🐈 github/apps" [ref=e51] [cursor=pointer]:
+          - /url: https://app.us.getport.io/artifactEntity?identifier=github/apps
+          - generic "Service Catalog" [ref=e52]: 🐈
+          - generic [ref=e53]: github/apps
+        - button "✨ Feedback" [ref=e55] [cursor=pointer]:
+          - generic [ref=e57]: ✨ Feedback
+        - button "Rails 8.2.0.alpha.343fe92bd2" [ref=e59] [cursor=pointer]:
+          - generic [ref=e61]: Rails 8.2.0.alpha.343fe92bd2
+        - paragraph [ref=e62]: "| Ruby 4.0.5"
+        - paragraph [ref=e63]: "| React 19.2.7"
+    - banner "Global Navigation Menu" [ref=e66]:
+      - generic [ref=e67]:
+        - generic [ref=e68]:
+          - button "Open menu" [ref=e70] [cursor=pointer]:
+            - img [ref=e71]
+          - link "Homepage (g then d)" [ref=e73] [cursor=pointer]:
+            - /url: /
+            - img [ref=e74]
+        - generic [ref=e77]:
+          - button "Search or jump to…" [ref=e79] [cursor=pointer]:
+            - generic [ref=e80]:
+              - generic:
+                - img
+              - generic [ref=e81]:
+                - generic:
+                  - text: Type
+                  - generic: /
+                  - text: to search
+          - button "Command palette" [ref=e83] [cursor=pointer]:
+            - img [ref=e84]
+        - generic [ref=e86]:
+          - generic [ref=e87]:
+            - generic [ref=e89]:
+              - generic [ref=e90]:
+                - link "Chat with Copilot" [ref=e92] [cursor=pointer]:
+                  - /url: /copilot
+                  - img [ref=e93]
+                - button "Open Copilot…" [ref=e97] [cursor=pointer]:
+                  - generic:
+                    - img
+              - button "Open agents panel" [ref=e98] [cursor=pointer]:
+                - generic [ref=e99]:
+                  - generic:
+                    - img
+                  - generic:
+                    - img
+            - button "Create new..." [ref=e101] [cursor=pointer]:
+              - generic [ref=e102]:
+                - generic:
+                  - img
+              - generic:
+                - img
+            - generic [ref=e103]:
+              - link "All issues (g then i)" [ref=e104] [cursor=pointer]:
+                - /url: /issues
+                - img [ref=e105]
+              - link "All pull requests (g then p)" [ref=e108] [cursor=pointer]:
+                - /url: /pulls
+                - img [ref=e109]
+              - link "All repositories" [ref=e111] [cursor=pointer]:
+                - /url: /repos
+                - img [ref=e112]
+          - link "You have no unread notifications (g then n)" [ref=e114] [cursor=pointer]:
+            - /url: /notifications
+            - img [ref=e115]
+          - button "Open user navigation menu" [ref=e118] [cursor=pointer]:
+            - img "Jenna Massardo" [ref=e119]
+  - main [ref=e122]:
+    - generic [ref=e123]:
+      - heading "Install & Authorize Octodemo Octowatch" [level=2] [ref=e125]:
+        - text: Install & Authorize
+        - link "Octodemo Octowatch" [ref=e126] [cursor=pointer]:
+          - /url: https://github.com/apps/octodemo-octowatch
+      - generic [ref=e127]:
+        - paragraph [ref=e128]:
+          - text: Install & Authorize on your organization a-fun-new-organization
+          - img "@a-fun-new-organization" [ref=e129]
+        - generic [ref=e130]:
+          - generic [ref=e131]:
+            - generic [ref=e132]:
+              - paragraph [ref=e133]: "for these repositories:"
+              - radiogroup [ref=e135]:
+                - generic [ref=e137]:
+                  - radio "All repositories" [checked] [ref=e138] [cursor=pointer]
+                  - generic [ref=e139]:
+                    - generic [ref=e140] [cursor=pointer]: All repositories
+                    - generic [ref=e141]: This applies to all future repositories owned by the resource owner. Also includes public repositories (read-only).
+            - paragraph [ref=e142]: "with these permissions:"
+            - list [ref=e144]:
+              - listitem [ref=e145]:
+                - img [ref=e146]
+                - strong [ref=e148]: Read
+                - text: access to Dependabot alerts, License compliance alerts, actions, administration, agent tasks, artifact metadata, attestations api, checks, code, code quality, commit statuses, copilot agent settings, custom organization roles, custom properties for organizations, custom properties for repositories, custom repository roles, deployments, discussions, environments, issue fields, issue types, issues, members, merge queues, metadata, models, organization API insights, organization Copilot content exclusion, organization Dependabot dismissal requests, organization administration, organization announcement banners, organization campaigns, organization code scanning dismissal requests, organization copilot agent settings, organization copilot metrics, organization copilot seat management, organization custom properties for repositories, organization events, organization network configurations, organization personal access token requests, organization personal access tokens, organization private registries, organization projects, organization runner custom images, organization secret scanning push protection bypass requests, organization self hosted runners, packages, pages, pull requests, repository advisories, repository projects, secret scanning alert dismissal requests, secret scanning alert dismissal requests, secret scanning alerts, secret scanning push protection bypass requests, and security events
+            - separator [ref=e149]
+            - button "Install & Authorize" [ref=e150] [cursor=pointer]
+          - link "Cancel" [ref=e151] [cursor=pointer]:
+            - /url: /apps/octodemo-octowatch/installations/new
+        - paragraph [ref=e152]:
+          - text: "Next: you'll be redirected to"
+          - strong [ref=e153]: https://octodemo.octowatch.dev/api/v1/auth/github/callback
+  - contentinfo [ref=e154]:
+    - heading "Footer" [level=2] [ref=e155]
+    - generic [ref=e156]:
+      - generic [ref=e157]:
+        - link "GitHub Homepage" [ref=e158] [cursor=pointer]:
+          - /url: https://github.com
+          - img [ref=e159]
+        - generic [ref=e161]: © 2026 GitHub, Inc.
+      - navigation "Footer" [ref=e162]:
+        - heading "Footer navigation" [level=3] [ref=e163]
+        - list "Footer navigation" [ref=e164]:
+          - listitem [ref=e165]:
+            - button "Site admin mode on" [ref=e167] [cursor=pointer]
+          - listitem [ref=e168]:
+            - button "UI service on" [ref=e170] [cursor=pointer]:
+              - generic [ref=e172]: UI service on
+          - listitem [ref=e173]:
+            - link "Terms" [ref=e174] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+          - listitem [ref=e175]:
+            - link "Privacy" [ref=e176] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+          - listitem [ref=e177]:
+            - link "Security" [ref=e178] [cursor=pointer]:
+              - /url: https://github.com/security
+          - listitem [ref=e179]:
+            - link "Status" [ref=e180] [cursor=pointer]:
+              - /url: https://www.githubstatus.com/
+          - listitem [ref=e181]:
+            - link "Community" [ref=e182] [cursor=pointer]:
+              - /url: https://github.community/
+          - listitem [ref=e183]:
+            - link "Docs" [ref=e184] [cursor=pointer]:
+              - /url: https://docs.github.com/
+          - listitem [ref=e185]:
+            - link "Contact" [ref=e186] [cursor=pointer]:
+              - /url: https://support.github.com?tags=dotcom-footer
+          - listitem [ref=e187]:
+            - button "Manage cookies" [ref=e189] [cursor=pointer]
+          - listitem [ref=e190]:
+            - button "Do not share my personal information" [ref=e192] [cursor=pointer]

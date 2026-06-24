@@ -22,6 +22,7 @@ class TestSyncRunDetailPostProcessing:
             trigger_type = "manual"
             triggered_by = "testuser"
             scope = "full"
+            created_at = datetime(2024, 1, 1, tzinfo=UTC)
             started_at = datetime(2024, 1, 1, tzinfo=UTC)
             completed_at = datetime(2024, 1, 1, 1, 0, tzinfo=UTC)
             error_message = None
@@ -37,6 +38,7 @@ class TestSyncRunDetailPostProcessing:
             trigger_type = "manual"
             triggered_by = "testuser"
             scope = "full"
+            created_at = datetime(2024, 1, 1, tzinfo=UTC)
             started_at = datetime(2024, 1, 1, tzinfo=UTC)
             completed_at = datetime(2024, 1, 1, 1, 0, tzinfo=UTC)
             error_message = None
@@ -53,6 +55,7 @@ class TestSyncRunDetailPostProcessing:
             trigger_type = "manual"
             triggered_by = None
             scope = "full"
+            created_at = datetime(2024, 1, 1, tzinfo=UTC)
             started_at = datetime(2024, 1, 1, tzinfo=UTC)
             completed_at = datetime(2024, 1, 1, 1, 0, tzinfo=UTC)
             error_message = None
@@ -69,6 +72,7 @@ class TestSyncRunDetailPostProcessing:
             trigger_type = "scheduled"
             triggered_by = None
             scope = "full"
+            created_at = datetime(2024, 1, 1, tzinfo=UTC)
             started_at = datetime(2024, 1, 1, tzinfo=UTC)
             completed_at = datetime(2024, 1, 1, 1, 0, tzinfo=UTC)
             error_message = None
@@ -85,6 +89,7 @@ class TestSyncRunDetailPostProcessing:
             trigger_type = "manual"
             triggered_by = "admin"
             scope = "full"
+            created_at = datetime(2024, 1, 1, tzinfo=UTC)
             started_at = datetime(2024, 1, 1, tzinfo=UTC)
             completed_at = datetime(2024, 1, 1, 1, 0, tzinfo=UTC)
             error_message = None
@@ -101,6 +106,7 @@ class TestSyncRunDetailPostProcessing:
             trigger_type = "manual"
             triggered_by = "admin"
             scope = "full"
+            created_at = datetime(2024, 1, 1, tzinfo=UTC)
             started_at = datetime(2024, 1, 1, tzinfo=UTC)
             completed_at = datetime(2024, 1, 1, 1, 0, tzinfo=UTC)
             error_message = None
@@ -122,6 +128,7 @@ class TestSyncRunSummaryPostProcessing:
             status = "pending"
             trigger_type = "scheduled"
             triggered_by = None
+            created_at = datetime(2024, 1, 1, tzinfo=UTC)
             started_at = None
             completed_at = None
 
@@ -134,6 +141,7 @@ class TestSyncRunSummaryPostProcessing:
             status = "completed"
             trigger_type = "manual"
             triggered_by = "admin"
+            created_at = datetime(2024, 1, 1, tzinfo=UTC)
             started_at = datetime(2024, 1, 1, tzinfo=UTC)
             completed_at = datetime(2024, 1, 1, 1, 0, tzinfo=UTC)
             post_processing_status = "completed"
@@ -147,6 +155,7 @@ class TestSyncRunSummaryPostProcessing:
             status = "completed"
             trigger_type = "manual"
             triggered_by = "admin"
+            created_at = datetime(2024, 1, 1, tzinfo=UTC)
             started_at = datetime(2024, 1, 1, tzinfo=UTC)
             completed_at = datetime(2024, 1, 1, 1, 0, tzinfo=UTC)
             post_processing_status = "running"
