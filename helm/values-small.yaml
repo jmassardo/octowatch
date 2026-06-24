@@ -87,16 +87,16 @@ timescaledb:
       cpu: "2000m"
       memory: "4Gi"
   persistence:
-    size: 50Gi
+    size: 10Gi
 
 valkey:
   primary:
     resources:
       requests:
         cpu: "100m"
-        memory: "384Mi"
+        memory: "512Mi"
       limits:
         cpu: "500m"
-        memory: "768Mi"
+        memory: "2Gi"
     persistence:
-      size: 2Gi
+      size: 8Gi

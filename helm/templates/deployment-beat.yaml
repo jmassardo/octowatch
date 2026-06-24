@@ -9,6 +9,10 @@ metadata:
   labels:
     {{- include "octowatch.labels" . | nindent 4 }}
     app.kubernetes.io/component: beat
+  {{- if .Values.reloader.enabled }}
+  annotations:
+    reloader.stakater.com/auto: "true"
+  {{- end }}
 spec:
   replicas: 1  # DO NOT CHANGE — see note above
   strategy:

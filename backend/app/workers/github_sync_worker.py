@@ -342,6 +342,40 @@ async def _cleanup_stale_runs(sf: async_sessionmaker[AsyncSession]) -> None:
         await _maybe_finalize_run(sf, run_id_str)
 
 
+def _diagnose_no_configs(settings: object) -> str:
+    """Produce an actionable error message explaining why no sync configs exist.
+
+    Inspects app credentials and bootstrap results to distinguish:
+    - Missing GitHub App configuration
+    - App configured but no installations found
+    - All installations disabled
+    """
+    from app.config import settings as _settings
+
+    app_id = _settings.github_app.GITHUB_APP_ID
+    private_key = _settings.github_app.resolve_private_key()
+
+    if not app_id:
+        return (
+            "GitHub App ID is not configured. "
+            "Complete the GitHub App setup in Settings → Integrations → GitHub App."
+        )
+
+    if not private_key:
+        return (
+            "GitHub App private key is missing. "
+            "Upload the private key in Settings → Integrations → GitHub App."
+        )
+
+    # App is configured but no installations were found
+    return (
+        "GitHub App is configured but has no installations. "
+        "Install the app on your enterprise or organizations: "
+        "go to your GitHub App settings → Install App, "
+        "then re-trigger the sync."
+    )
+
+
 async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
     """Async implementation of the orchestrator.  Called inside asyncio.run()."""
     from sqlalchemy import select, update
@@ -391,15 +425,16 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         configs = await _sync_installation_configs(configs, settings)
 
     if not configs:
-        logger.error("github_sync.no_configs", run_id=run_id)
-        await _write_sync_log(sf, run_id, "No enabled GitHub App configs found", level="error")
+        error_msg = _diagnose_no_configs(settings)
+        logger.error("github_sync.no_configs", run_id=run_id, diagnosis=error_msg)
+        await _write_sync_log(sf, run_id, error_msg, level="error")
         async with _make_session_factory()() as session:
             await session.execute(
                 update(EnterpriseSyncRun)
                 .where(EnterpriseSyncRun.id == run_uuid)
                 .values(
                     status="failed",
-                    error_message="No enabled GitHub App configs found",
+                    error_message=error_msg,
                 )
             )
             await session.commit()
@@ -1228,6 +1263,81 @@ async def _maybe_finalize_run(sf: async_sessionmaker[AsyncSession], run_id: str)
         await _write_sync_log(sf, run_id, "Post-sync pipeline dispatched")
 
 
+# Thresholds for recovery
+_PENDING_STUCK_MINUTES = 10
+_RUNNING_STUCK_HOURS = 3
+
+
+async def _recover_stuck_run(session: AsyncSession, run: object) -> bool:
+    """Attempt to recover a stuck sync run.
+
+    Returns True if the run was recovered (marked failed or re-dispatched),
+    meaning the caller should proceed as if no active run exists.
+    Returns False if the run appears legitimately active.
+    """
+    from sqlalchemy import update
+
+    from app.models.github_sync import EnterpriseSyncRun
+
+    now = datetime.now(UTC)
+    run_id = str(run.id)  # type: ignore[attr-defined]
+    status = run.status  # type: ignore[attr-defined]
+    created_at = run.created_at  # type: ignore[attr-defined]
+    started_at = run.started_at  # type: ignore[attr-defined]
+
+    if status == "pending":
+        # Pending for too long — task was likely lost (worker restart, broker flush)
+        if created_at and (now - created_at) > timedelta(minutes=_PENDING_STUCK_MINUTES):
+            # Check if the Celery task still exists
+            logger.warning(
+                "github_sync.recovering_stuck_pending",
+                run_id=run_id,
+                pending_since=created_at.isoformat(),
+            )
+            await session.execute(
+                update(EnterpriseSyncRun)
+                .where(EnterpriseSyncRun.id == run.id)  # type: ignore[attr-defined]
+                .values(
+                    status="failed",
+                    error_message=(
+                        "Sync task was not picked up by a worker within "
+                        f"{_PENDING_STUCK_MINUTES} minutes. This typically means the "
+                        "sync worker was restarted while the task was queued. "
+                        "The sync has been automatically cancelled — please re-trigger."
+                    ),
+                    completed_at=now,
+                )
+            )
+            await session.commit()
+            return True
+
+    elif status == "running":
+        # Running for too long — exceeds hard time limit, likely orphaned
+        if started_at and (now - started_at) > timedelta(hours=_RUNNING_STUCK_HOURS):
+            logger.warning(
+                "github_sync.recovering_stuck_running",
+                run_id=run_id,
+                started_at=started_at.isoformat(),
+            )
+            await session.execute(
+                update(EnterpriseSyncRun)
+                .where(EnterpriseSyncRun.id == run.id)  # type: ignore[attr-defined]
+                .values(
+                    status="failed",
+                    error_message=(
+                        f"Sync exceeded the maximum runtime of {_RUNNING_STUCK_HOURS} hours "
+                        "and was marked as failed. This may indicate the worker was "
+                        "terminated mid-sync. Please re-trigger."
+                    ),
+                    completed_at=now,
+                )
+            )
+            await session.commit()
+            return True
+
+    return False
+
+
 async def _check_sync_schedule_async() -> dict:
     """Async implementation of the daily heartbeat schedule check.
 
@@ -1272,9 +1382,13 @@ async def _check_sync_schedule_async() -> dict:
             .where(EnterpriseSyncRun.status.in_(["pending", "running"]))
             .limit(1)
         )
-        if active_result.scalar_one_or_none():
-            logger.info("github_sync.schedule_check_skipped", reason="run_already_active")
-            return {"status": "skipped", "reason": "run_already_active"}
+        active_run = active_result.scalar_one_or_none()
+        if active_run:
+            # Check if the run is stuck and needs recovery
+            recovered = await _recover_stuck_run(session, active_run)
+            if not recovered:
+                logger.info("github_sync.schedule_check_skipped", reason="run_already_active")
+                return {"status": "skipped", "reason": "run_already_active"}
 
         # Find the last completed run
         last_result = await session.execute(

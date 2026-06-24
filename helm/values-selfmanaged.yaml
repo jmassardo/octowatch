@@ -94,7 +94,7 @@ postgresql:
 
 timescaledb:
   storageClass: "longhorn"
-  storageSize: "50Gi"
+  storageSize: "10Gi"
 
 # ── Valkey — Longhorn replicated storage ─────────────────────────────────────
 valkey:
@@ -105,17 +105,17 @@ valkey:
     resources:
       requests:
         cpu: "100m"
-        memory: "384Mi"
+        memory: "512Mi"
       limits:
         cpu: "500m"
-        memory: "768Mi"
+        memory: "2Gi"
     persistence:
       storageClass: "longhorn"
-      size: 2Gi
+      size: 8Gi
   master:
     persistence:
       storageClass: "longhorn"
-      size: 2Gi
+      size: 8Gi
 
 # ── Observability ────────────────────────────────────────────────────────────
 observability:

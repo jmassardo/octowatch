@@ -509,6 +509,18 @@
   color: var(--danger);
 }
 
+.syncWarning {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 8px 0;
+  font-size: 13px;
+  color: var(--attention);
+  background: var(--attention-subtle);
+  border-radius: 6px;
+  border: 1px solid var(--attention-muted);
+}
+
 /* ===== Sync Run History ===== */
 
 .tableWrap {

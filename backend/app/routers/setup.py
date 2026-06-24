@@ -386,15 +386,29 @@ async def setup_complete_endpoint(
     current_user: AuthenticatedUser = Depends(require_permission("admin_settings", "admin")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | int]:
-    """Mark setup as complete. Applies settings overlay and invalidates setup token."""
+    """Mark setup as complete. Applies settings overlay and invalidates setup token.
+
+    After returning success, triggers a background rolling restart of all
+    deployments so that workers, HEC, and beat pods reload with the new config.
+    """
     await _require_setup_incomplete(db)
 
     # Apply the settings overlay now
     count = await load_settings_overlay(db)
     await complete_setup(db, completed_by=current_user.github_login)
 
+    # Schedule post-setup restart in the background (after response is sent)
+    import asyncio
+
+    from app.services.post_setup_restart import trigger_post_setup_restart
+
+    asyncio.get_event_loop().call_later(
+        5.0, lambda: asyncio.ensure_future(trigger_post_setup_restart())
+    )
+    logger.info("setup.complete", settings_applied=count, restart_scheduled=True)
+
     return {
         "status": "ok",
-        "message": "Setup completed successfully",
+        "message": "Setup completed. Pods will restart automatically within 60s.",
         "settings_applied": count,
     }

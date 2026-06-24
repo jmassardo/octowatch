@@ -1,0 +1,31 @@
+{{- if .Values.setup.restartAfterComplete }}
+# RBAC for post-setup restart — allows the API pod to trigger a rolling
+# restart of all OctoWatch deployments after the setup wizard completes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "octowatch.fullname" . }}-setup-restart
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "octowatch.fullname" . }}-setup-restart
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "octowatch.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "octowatch.fullname" . }}-setup-restart
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "octowatch.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

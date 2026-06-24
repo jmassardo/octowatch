@@ -14,6 +14,10 @@ metadata:
   labels:
     {{- include "octowatch.labels" . | nindent 4 }}
     app.kubernetes.io/component: worker-ingestion
+  {{- if .Values.reloader.enabled }}
+  annotations:
+    reloader.stakater.com/auto: "true"
+  {{- end }}
 spec:
   replicas: {{ .Values.worker.ingestion.replicaCount }}
   selector:
@@ -136,6 +140,10 @@ metadata:
   labels:
     {{- include "octowatch.labels" . | nindent 4 }}
     app.kubernetes.io/component: worker-detection
+  {{- if .Values.reloader.enabled }}
+  annotations:
+    reloader.stakater.com/auto: "true"
+  {{- end }}
 spec:
   replicas: {{ .Values.worker.detection.replicaCount }}
   selector:
@@ -256,6 +264,10 @@ metadata:
   labels:
     {{- include "octowatch.labels" . | nindent 4 }}
     app.kubernetes.io/component: worker-baseline
+  {{- if .Values.reloader.enabled }}
+  annotations:
+    reloader.stakater.com/auto: "true"
+  {{- end }}
 spec:
   replicas: {{ .Values.worker.baseline.replicaCount }}
   selector:
@@ -376,6 +388,10 @@ metadata:
   labels:
     {{- include "octowatch.labels" . | nindent 4 }}
     app.kubernetes.io/component: worker-notification
+  {{- if .Values.reloader.enabled }}
+  annotations:
+    reloader.stakater.com/auto: "true"
+  {{- end }}
 spec:
   replicas: {{ .Values.worker.notification.replicaCount }}
   selector:
@@ -538,6 +554,10 @@ metadata:
   labels:
     {{- include "octowatch.labels" . | nindent 4 }}
     app.kubernetes.io/component: worker-sync
+  {{- if .Values.reloader.enabled }}
+  annotations:
+    reloader.stakater.com/auto: "true"
+  {{- end }}
 spec:
   replicas: {{ .Values.worker.sync.replicaCount }}
   selector:
