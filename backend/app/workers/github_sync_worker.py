@@ -3604,6 +3604,10 @@ async def _fetch_page(
                 "or enterprise audit log permission",
             )
             return [], None
+        # Track whether we fell back from a cursor expiration so we avoid
+        # building another doomed `after` cursor for the next page.
+        _cursor_fell_back = False
+
         if resp.status_code == 400 and "after" in audit_params:
             # The 'after' cursor may have expired. Fall back to timestamp-based
             # filter using the cursor's stored timestamp if available.
@@ -3612,6 +3616,7 @@ async def _fetch_page(
                 enterprise=enterprise_slug,
                 cursor=audit_params.get("after"),
             )
+            _cursor_fell_back = True
             fallback_params: dict[str, object] = {
                 "include": "all",
                 "per_page": page_size,
@@ -3661,11 +3666,31 @@ async def _fetch_page(
 
         # Check for Link header with rel="next"
         has_more = _has_next_page(resp.headers)
-        if has_more:
-            next_cursor = _json.dumps({"after": after_value, "timestamp": last_ts})
-        elif len(events) == page_size:
-            # No Link header but we got a full page — there might be more
-            next_cursor = _json.dumps({"after": after_value, "timestamp": last_ts})
+        if has_more or len(events) == page_size:
+            if _cursor_fell_back:
+                # After a cursor expiration fallback, use timestamp-only cursors
+                # to avoid an infinite loop of expired `after` cursors.
+                # Safety: if last_ts hasn't advanced past the input cursor's
+                # timestamp, we'd loop forever. Detect and stop.
+                input_ts = None
+                try:
+                    input_data = _json.loads(cursor) if cursor else {}  # type: ignore[arg-type]
+                    input_ts = input_data.get("timestamp")
+                except (ValueError, TypeError):
+                    pass
+                if input_ts and last_ts <= input_ts:
+                    # No time advancement — stop to avoid infinite loop
+                    logger.warning(
+                        "github_sync.audit_log_cursor_no_advancement",
+                        enterprise=enterprise_slug,
+                        input_ts=input_ts,
+                        last_ts=last_ts,
+                    )
+                    next_cursor = None
+                else:
+                    next_cursor = _json.dumps({"timestamp": last_ts})
+            else:
+                next_cursor = _json.dumps({"after": after_value, "timestamp": last_ts})
         else:
             next_cursor = None
 
