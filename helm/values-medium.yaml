@@ -97,6 +97,6 @@ valkey:
         memory: "1Gi"
       limits:
         cpu: "1000m"
-        memory: "4Gi"
+        memory: "10Gi"
     persistence:
       size: 16Gi
