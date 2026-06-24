@@ -813,6 +813,13 @@ async def _sync_entity_async(
     run_uuid = uuid.UUID(run_id)
     sf = _make_session_factory()
 
+    # Hydrate settings from app_settings DB — child tasks run in separate
+    # forked processes where env vars may be blank (credentials stored via UI).
+    async with sf() as session:
+        from app.services.config_overlay import refresh_settings
+
+        await refresh_settings(session)
+
     await _write_sync_log(
         sf,
         run_id,
