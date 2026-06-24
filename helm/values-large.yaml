@@ -87,7 +87,7 @@ timescaledb:
       cpu: "8000m"
       memory: "16Gi"
   persistence:
-    size: 500Gi
+    size: 200Gi
 
 valkey:
   primary:

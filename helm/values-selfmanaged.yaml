@@ -94,7 +94,7 @@ postgresql:
 
 timescaledb:
   storageClass: "longhorn"
-  storageSize: "50Gi"
+  storageSize: "10Gi"
 
 # ── Valkey — Longhorn replicated storage ─────────────────────────────────────
 valkey:
