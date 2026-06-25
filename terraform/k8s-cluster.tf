@@ -1,21 +1,22 @@
 ################################################################################
 # OctoWatch — Self-Managed Kubernetes Cluster
 #
-# Provisions a 3-node kubeadm Kubernetes cluster plus a dedicated management VM.
+# Provisions a multi-node kubeadm Kubernetes cluster plus a dedicated management VM.
 # The management VM is the sole admin entry point (bastion, CI runner, kubectl).
 # K8s nodes have NO public IPs — all admin traffic flows through the mgmt subnet.
 #
 # Architecture:
 #   Management subnet (10.0.10.0/28) — 1 bastion/admin VM with public IP
-#   K8s cluster subnet (10.0.8.0/24)  — 3 nodes (1 CP + 2 workers), no public IPs
+#   K8s cluster subnet (10.0.8.0/24)  — N nodes (1 CP + workers), no public IPs
 #   Azure Standard LB               — public IP for HTTP/S app traffic only
 #
 # This file is additive — it does NOT modify any existing AKS, ACA, or VM resources.
 ################################################################################
 
 locals {
-  k8s_node_ips = ["10.0.8.10", "10.0.8.11", "10.0.8.12"]
-  k8s_mgmt_ip  = "10.0.10.4"
+  k8s_node_ips   = ["10.0.8.10", "10.0.8.11", "10.0.8.12", "10.0.8.13"]
+  k8s_mgmt_ip    = "10.0.10.4"
+  k8s_node_count = length(local.k8s_node_ips)
 }
 
 ################################################################################
@@ -334,13 +335,13 @@ resource "azurerm_linux_virtual_machine" "k8s_mgmt" {
 }
 
 ################################################################################
-# C. K8s Cluster Nodes — 1 Control-Plane + 2 Workers
+# C. K8s Cluster Nodes — 1 Control-Plane + Workers
 ################################################################################
 
 # ── NICs (no public IP) ──────────────────────────────────────────────────────
 
 resource "azurerm_network_interface" "k8s_node" {
-  count               = 3
+  count               = local.k8s_node_count
   name                = "nic-k8s-${count.index}-${local.name_prefix}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
@@ -357,7 +358,7 @@ resource "azurerm_network_interface" "k8s_node" {
 # ── Data Disks (local-path-provisioner storage) ──────────────────────────────
 
 resource "azurerm_managed_disk" "k8s_data" {
-  count                = 3
+  count                = local.k8s_node_count
   name                 = "disk-k8s-${count.index}-${local.name_prefix}-data"
   resource_group_name  = azurerm_resource_group.main.name
   location             = azurerm_resource_group.main.location
@@ -370,7 +371,7 @@ resource "azurerm_managed_disk" "k8s_data" {
 # ── Cloud-Init ───────────────────────────────────────────────────────────────
 
 data "cloudinit_config" "k8s_node" {
-  count         = 3
+  count         = local.k8s_node_count
   gzip          = true
   base64_encode = true
 
@@ -394,7 +395,7 @@ data "cloudinit_config" "k8s_node" {
 # ── VMs ──────────────────────────────────────────────────────────────────────
 
 resource "azurerm_linux_virtual_machine" "k8s_node" {
-  count               = 3
+  count               = local.k8s_node_count
   name                = "vm-k8s-${count.index}-${local.name_prefix}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
@@ -455,7 +456,7 @@ resource "azurerm_linux_virtual_machine" "k8s_node" {
 # ── Data Disk Attachments ────────────────────────────────────────────────────
 
 resource "azurerm_virtual_machine_data_disk_attachment" "k8s_data" {
-  count              = 3
+  count              = local.k8s_node_count
   managed_disk_id    = azurerm_managed_disk.k8s_data[count.index].id
   virtual_machine_id = azurerm_linux_virtual_machine.k8s_node[count.index].id
   lun                = 0
@@ -494,7 +495,7 @@ resource "azurerm_lb_backend_address_pool" "k8s" {
 }
 
 resource "azurerm_network_interface_backend_address_pool_association" "k8s" {
-  count                   = 3
+  count                   = local.k8s_node_count
   network_interface_id    = azurerm_network_interface.k8s_node[count.index].id
   ip_configuration_name   = "ipconfig-k8s"
   backend_address_pool_id = azurerm_lb_backend_address_pool.k8s.id
