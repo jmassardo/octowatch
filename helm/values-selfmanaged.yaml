@@ -108,13 +108,13 @@ valkey:
         memory: "512Mi"
       limits:
         cpu: "500m"
-        memory: "2Gi"
+        memory: "6Gi"
     persistence:
       storageClass: "longhorn"
       size: 8Gi
     extraFlags:
       - "--appendonly yes"
-      - "--maxmemory 1gb"
+      - "--maxmemory 4gb"
       - "--maxmemory-policy volatile-lru"
   master:
     persistence:

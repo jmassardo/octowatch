@@ -97,10 +97,10 @@ valkey:
         memory: "2Gi"
       limits:
         cpu: "2000m"
-        memory: "8Gi"
+        memory: "16Gi"
     persistence:
       size: 32Gi
     extraFlags:
       - "--appendonly yes"
-      - "--maxmemory 4gb"
+      - "--maxmemory 12gb"
       - "--maxmemory-policy volatile-lru"
