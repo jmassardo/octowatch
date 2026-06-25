@@ -106,6 +106,10 @@ valkey:
     persistence:
       storageClass: "managed-csi"
       size: 2Gi
+    extraFlags:
+      - "--appendonly yes"
+      - "--maxmemory 512mb"
+      - "--maxmemory-policy volatile-lru"
   master:
     persistence:
       storageClass: "managed-csi"

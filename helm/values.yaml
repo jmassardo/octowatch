@@ -297,6 +297,8 @@ valkey:
     # but dedup state loss would cause re-ingestion of duplicate events)
     extraFlags:
       - "--appendonly yes"
+      - "--maxmemory 512mb"
+      - "--maxmemory-policy volatile-lru"
 
 # ---------------------------------------------------------------------------
 # Ingress — routes external traffic to nginx / api / frontend

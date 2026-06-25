@@ -100,3 +100,7 @@ valkey:
         memory: "2Gi"
     persistence:
       size: 8Gi
+    extraFlags:
+      - "--appendonly yes"
+      - "--maxmemory 1gb"
+      - "--maxmemory-policy volatile-lru"

@@ -112,6 +112,10 @@ valkey:
     persistence:
       storageClass: "longhorn"
       size: 8Gi
+    extraFlags:
+      - "--appendonly yes"
+      - "--maxmemory 1gb"
+      - "--maxmemory-policy volatile-lru"
   master:
     persistence:
       storageClass: "longhorn"
