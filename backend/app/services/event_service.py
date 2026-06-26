@@ -118,7 +118,11 @@ async def list_events(
             base_stmt = base_stmt.where(AuditEvent.action == params.action)
         has_narrowing_filters = True
     if params.namespace:
-        base_stmt = base_stmt.where(AuditEvent.namespace == params.namespace)
+        namespaces = params.namespace.split(",")
+        if len(namespaces) == 1:
+            base_stmt = base_stmt.where(AuditEvent.namespace == namespaces[0])
+        else:
+            base_stmt = base_stmt.where(AuditEvent.namespace.in_(namespaces))
         has_narrowing_filters = True
     if params.source_ip:
         base_stmt = base_stmt.where(

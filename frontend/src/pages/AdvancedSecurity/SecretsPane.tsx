@@ -324,7 +324,7 @@ export function SecretsPane() {
             />
             <MetricCard
               value={formatMttr(summary.mttr_hours)}
-              label="MTTR"
+              label="Secrets MTTR"
               helpText="Mean time to resolve secret scanning alerts"
             />
           </>

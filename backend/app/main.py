@@ -601,6 +601,19 @@ def create_app() -> FastAPI:
     )
 
     # ── Prometheus metrics instrumentation ──────────────────────────────────
+    # Patch prometheus_fastapi_instrumentator routing to handle FastAPI 0.137+
+    # _IncludedRouter objects that lack a .path attribute.
+    import prometheus_fastapi_instrumentator.routing as _pfi_routing
+
+    _orig_get_route_name = _pfi_routing._get_route_name
+
+    def _patched_get_route_name(scope: dict, routes: list) -> str:  # type: ignore[type-arg]
+        # Filter out _IncludedRouter objects that don't have .path
+        safe_routes = [r for r in routes if hasattr(r, "path")]
+        return _orig_get_route_name(scope, safe_routes)
+
+    _pfi_routing._get_route_name = _patched_get_route_name
+
     instrumentator = Instrumentator(
         should_group_status_codes=False,
         should_ignore_untemplated=True,

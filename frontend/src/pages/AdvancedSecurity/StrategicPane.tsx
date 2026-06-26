@@ -175,7 +175,7 @@ function ExecutiveSummary({ score, mttr, coverage, aging }: ExecutiveSummaryProp
       />
       <MetricCard
         value={mttr ? formatHours(mttr.current_mttr_hours) : '—'}
-        label="MTTR"
+        label="Overall MTTR"
         delta={
           mttrTrend
             ? `${mttrTrend.symbol} ${Math.abs(Math.round(mttr?.trend_pct ?? 0))}%`
@@ -184,7 +184,7 @@ function ExecutiveSummary({ score, mttr, coverage, aging }: ExecutiveSummaryProp
         deltaDir={
           mttr ? (mttr.trend_pct < -5 ? 'down' : mttr.trend_pct > 5 ? 'up' : 'neutral') : 'neutral'
         }
-        helpText="Mean Time to Remediate across all alert types"
+        helpText="Mean Time to Remediate across all alert types (code scanning, secret scanning, dependabot)"
       />
       <MetricCard
         value={String(totalCritHigh)}

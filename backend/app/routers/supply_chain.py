@@ -127,7 +127,19 @@ async def get_posture(
 ) -> PostureResponse:
     """Return the aggregate supply chain security posture."""
     scoped_orgs = await _resolve_orgs(db, current_user)
-    posture = await svc.get_supply_chain_posture(db, scoped_orgs)
+    try:
+        posture = await svc.get_supply_chain_posture(db, scoped_orgs)
+    except Exception:
+        logger.warning("supply_chain.posture_query_failed", exc_info=True)
+        posture = svc.SupplyChainPosture(
+            score=100,
+            unpinned_actions=0,
+            dependency_alerts=0,
+            risky_workflows=0,
+            rules_active=0,
+            total_detections=0,
+            critical_detections=0,
+        )
     return PostureResponse(
         score=posture.score,
         unpinned_actions=posture.unpinned_actions,
@@ -152,7 +164,11 @@ async def get_risks(
 ) -> RiskSummaryResponse:
     """Return the dependency risk summary."""
     scoped_orgs = await _resolve_orgs(db, current_user)
-    summary = await svc.get_dependency_risk_summary(db, scoped_orgs)
+    try:
+        summary = await svc.get_dependency_risk_summary(db, scoped_orgs)
+    except Exception:
+        logger.warning("supply_chain.risks_query_failed", exc_info=True)
+        summary = svc.DependencyRiskSummary(total_risks=0)
     return RiskSummaryResponse(
         total_risks=summary.total_risks,
         by_severity=summary.by_severity,

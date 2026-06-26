@@ -28,7 +28,7 @@ class EventListParams(BaseModel):
     repo: str | None = Field(None, max_length=512)
     actor: str | None = Field(None, max_length=255)
     action: str | None = Field(None, max_length=100, pattern=r"^[\w.*]+$")
-    namespace: str | None = Field(None, max_length=100, pattern=r"^[\w]+$")
+    namespace: str | None = Field(None, max_length=500, pattern=r"^[\w]+(,[\w]+)*$")
     source_ip: str | None = Field(None, max_length=50)
     since: datetime | None = None
     until: datetime | None = None

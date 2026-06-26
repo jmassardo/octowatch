@@ -173,10 +173,16 @@ async def get_compliance_summary(
     now = datetime.now(UTC)
     start = now - timedelta(days=_DEFAULT_WINDOW_DAYS)
 
-    # Generate reports for each framework
-    soc2 = await generate_soc2_report(session, start, now, org=org)
-    iso = await generate_iso27001_report(session, start, now, org=org)
-    nist = await generate_nist_csf_report(session, start, now, org=org)
+    # Generate reports for each framework — isolate failures so one broken
+    # framework doesn't 500 the entire summary endpoint.
+    generators = [generate_soc2_report, generate_iso27001_report, generate_nist_csf_report]
+    reports: list[dict[str, Any]] = []
+    for gen in generators:
+        try:
+            reports.append(await gen(session, start, now, org=org))
+        except Exception:
+            logger.warning("compliance.framework_generation_failed", generator=gen.__name__)
+            reports.append({})
 
     framework_scores: list[dict[str, Any]] = []
     total_passing = 0
@@ -186,7 +192,7 @@ async def get_compliance_summary(
 
     for meta, report in zip(
         _FRAMEWORKS[:3],
-        [soc2, iso, nist],
+        reports,
         strict=False,
     ):
         score, passing, total = _score_from_report(report)
@@ -263,7 +269,12 @@ async def get_framework_controls(
     if generator is None:
         raise ValueError(f"Unknown framework: {framework}")
 
-    report = await generator(session, start, now, org=org)
+    try:
+        report = await generator(session, start, now, org=org)
+    except Exception:
+        logger.warning("compliance.framework_detail_failed", framework=framework)
+        report = {}
+
     score, passing, total = _score_from_report(report)
     controls = _controls_from_report(report, framework)
 

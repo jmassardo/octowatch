@@ -145,7 +145,7 @@ describe('SecretsPane', () => {
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText('Active Secrets')).toBeInTheDocument();
     expect(screen.getByText('5')).toBeInTheDocument();
-    expect(screen.getByText('MTTR')).toBeInTheDocument();
+    expect(screen.getByText('Secrets MTTR')).toBeInTheDocument();
     expect(screen.getByText('3d')).toBeInTheDocument(); // 72h = 3d
   });
 
