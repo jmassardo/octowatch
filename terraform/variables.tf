@@ -193,12 +193,14 @@ variable "secret_postgres_db" {
 variable "secret_github_client_id" {
   type        = string
   sensitive   = true
+  default     = ""
   description = "GitHub OAuth App Client ID for user authentication."
 }
 
 variable "secret_github_client_secret" {
   type        = string
   sensitive   = true
+  default     = ""
   description = "GitHub OAuth App Client Secret."
 }
 
@@ -219,6 +221,7 @@ variable "secret_github_rules_token" {
 variable "secret_app_base_url" {
   type        = string
   sensitive   = true
+  default     = ""
   description = "Public base URL of the application (e.g. https://octowatch.example.com)."
 }
 
@@ -350,211 +353,6 @@ variable "enable_defender" {
   description = "Enable Microsoft Defender for Cloud on the VM."
 }
 
-variable "enable_auto_shutdown" {
-  type        = bool
-  default     = false
-  description = "Enable daily auto-shutdown schedule (useful for dev/staging to reduce costs)."
-}
-
-variable "auto_shutdown_time" {
-  type        = string
-  default     = "2300"
-  description = "Daily auto-shutdown time in HHMM UTC format (e.g. '2300' = 11 PM UTC)."
-}
-
-variable "secret_initial_admin_logins" {
-  type        = string
-  default     = ""
-  description = "Comma-separated GitHub usernames to seed as initial admins (e.g. 'jmassardo')."
-  sensitive   = true
-}
-
-# ── Azure Container Apps Migration ────────────────────────────────────────────
-
-variable "aca_cutover_complete" {
-  type        = bool
-  default     = false
-  description = "Set to true at DNS cutover. Creates CNAME to Container Apps frontend. WARNING: The VM A record in dns.tf must be count-gated (count = var.aca_cutover_complete ? 0 : 1) before enabling this."
-}
-
-variable "aca_subnet_cidr" {
-  type        = string
-  default     = "10.0.2.0/23"
-  description = "CIDR for the Container Apps Environment subnet. Must be /23 or larger, delegated exclusively to Microsoft.App/environments."
-}
-
-variable "pg_data_share_quota_gb" {
-  type        = number
-  default     = 100
-  description = "Provisioned size in GiB for the pg-data Azure Files Premium SMB share."
-
-  validation {
-    condition     = var.pg_data_share_quota_gb >= 100
-    error_message = "Azure Files Premium minimum provisioned capacity is 100 GiB."
-  }
-}
-
-variable "valkey_data_share_quota_gb" {
-  type        = number
-  default     = 100
-  description = "Provisioned size in GiB for the valkey-data Azure Files Premium SMB share."
-
-  validation {
-    condition     = var.valkey_data_share_quota_gb >= 100
-    error_message = "Azure Files Premium minimum provisioned capacity is 100 GiB."
-  }
-}
-
-variable "worker_max_replicas" {
-  type = object({
-    ingestion    = number
-    detection    = number
-    notification = number
-    baseline     = number
-    sync         = number
-  })
-  default = {
-    ingestion    = 5
-    detection    = 10
-    notification = 3
-    baseline     = 3
-    sync         = 2
-  }
-  description = "Maximum replica counts for each Celery worker app. Workers scale to zero when queues are empty."
-}
-
-variable "celery_queue_scale_threshold" {
-  type        = number
-  default     = 5
-  description = "Number of queued Celery tasks per replica before KEDA scales up."
-
-  validation {
-    condition     = var.celery_queue_scale_threshold >= 1 && var.celery_queue_scale_threshold <= 50
-    error_message = "Scale threshold must be between 1 and 50."
-  }
-}
-
-# ── AKS Migration ─────────────────────────────────────────────────────────────
-
-variable "aks_node_size" {
-  default     = "Standard_D4s_v4"
-  description = "AKS system node pool VM SKU."
-}
-
-variable "aks_worker_node_size" {
-  type        = string
-  default     = "Standard_D4s_v4"
-  description = "AKS worker node pool VM SKU. All pools now use D4s_v4 for consistency."
-}
-
-variable "aks_system_node_count" {
-  type        = number
-  default     = 2
-  description = <<-EOT
-    Minimum (and initial) node count for the system node pool.
-    Must be >= 2 for high availability — a single system node causes a full outage
-    whenever it is recycled, reimaged, or hits a capacity issue.
-  EOT
-}
-
-variable "aks_worker_node_count" {
-  type        = number
-  default     = 2
-  description = <<-EOT
-    Minimum (and initial) node count for the worker/user node pool.
-    Must be >= 2 for high availability — pods reschedule to the surviving node
-    automatically within ~30 seconds if one node fails.
-  EOT
-}
-
-# ── AKS Security Controls ──────────────────────────────────────────────────────
-
-variable "aks_api_server_authorized_ip_ranges" {
-  type        = list(string)
-  description = <<-EOT
-    Public CIDR ranges allowed to reach the AKS API server. Defaults cover:
-      - GitHub Actions runner IPs (first 10 prefixes from https://api.github.com/meta)
-      - 66.116.122.0/24 (platform-team admin range)
-    NOTE: AKS rejects private RFC-1918 CIDRs here (e.g. 10.x.x.x, 172.16.x.x,
-    192.168.x.x). Node-to-control-plane traffic is internal and bypasses this list.
-    Update this list when adding new CI/CD providers or rotating admin IPs.
-    Applied live on 2026-04-23.
-  EOT
-  default = [
-    "66.116.122.0/24", # Platform-team admin range
-    "4.148.0.0/16",    # GitHub Actions
-    "4.149.0.0/18",    # GitHub Actions
-    "4.149.64.0/19",   # GitHub Actions
-    "4.149.96.0/19",   # GitHub Actions
-    "4.149.128.0/17",  # GitHub Actions
-    "4.150.0.0/18",    # GitHub Actions
-    "4.150.64.0/18",   # GitHub Actions
-    "4.150.128.0/18",  # GitHub Actions
-    "4.150.192.0/19",  # GitHub Actions
-    "4.150.224.0/19",  # GitHub Actions
-  ]
-}
-
-variable "aks_private_cluster" {
-  type        = bool
-  default     = false
-  description = <<-EOT
-    Enable private AKS cluster (API server only reachable from within the VNet).
-    IMPORTANT: Can only be set at cluster creation time — cannot be retrofitted.
-    To enable: set to true in terraform.tfvars and RECREATE the cluster.
-    When enabled, CI/CD runners must use a self-hosted runner or VPN to reach
-    the API server. private_cluster_public_fqdn_enabled is set to the inverse.
-  EOT
-}
-
-variable "aks_kms_key_id" {
-  type        = string
-  default     = ""
-  description = <<-EOT
-    Azure Key Vault key ID for AKS KMS etcd encryption (customer-managed key).
-    Format: https://<vault>.vault.azure.net/keys/<key-name>/<key-version>
-    Leave empty (default) to disable KMS encryption.
-    Requirements when enabling:
-      - RSA 2048, 3072, or 4096 key in Azure Key Vault
-      - Cluster managed identity must have key unwrap/wrap permissions on the key
-      - Must be configured before cluster creation or during a controlled update
-      - Cannot be easily disabled once enabled on a running cluster
-    Applied via the key_management_service block in azurerm_kubernetes_cluster.
-  EOT
-}
-
-variable "aks_cutover_complete" {
-  default     = false
-  description = "Set to true when ready to cut DNS from VM to AKS LB. Switches the DNS A record."
-}
-
-variable "aks_ingress_lb_ip" {
-  default     = ""
-  description = "Public IP of the AKS nginx ingress LoadBalancer. Populate after first terraform apply."
-}
-
-variable "argocd_admin_password" {
-  description = "ArgoCD admin password. Set in terraform.tfvars."
-  sensitive   = true
-}
-
-variable "argocd_github_pat" {
-  default     = ""
-  description = "GitHub PAT for ArgoCD Image Updater git write-back. Requires repo write access."
-  sensitive   = true
-}
-
-variable "letsencrypt_email" {
-  description = "Email for Let's Encrypt certificate notifications."
-}
-
-variable "secret_azure_storage_connection_string" {
-  type        = string
-  sensitive   = true
-  default     = ""
-  description = "Azure Storage connection string for blob access. Avoids the listKeys permission requirement."
-}
-
 # ── Observability ──────────────────────────────────────────────────────────────
 
 variable "log_retention_days" {
@@ -578,8 +376,8 @@ variable "alert_email_address" {
 
 variable "k8s_node_vm_size" {
   type        = string
-  default     = "Standard_D4s_v6"
-  description = "VM SKU for K8s cluster nodes (1 CP + workers). D4s_v6 = 4 vCPU / 16 GiB."
+  default     = "Standard_D8s_v6"
+  description = "VM SKU for K8s cluster nodes (1 CP + workers). D8s_v6 = 8 vCPU / 32 GiB."
 }
 
 variable "k8s_mgmt_vm_size" {
@@ -604,10 +402,4 @@ variable "k8s_cutover_complete" {
   type        = bool
   default     = false
   description = "Set to true at DNS cutover to self-managed K8s. Creates A record pointing to the K8s LB IP."
-}
-
-variable "enable_aks" {
-  type        = bool
-  default     = false
-  description = "Set to true to provision AKS cluster and associated K8s/Helm resources. Disabled after migration to self-managed K8s."
 }

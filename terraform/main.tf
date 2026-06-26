@@ -19,14 +19,6 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.6"
     }
-    helm = {
-      source  = "hashicorp/helm"
-      version = "~> 3.2"
-    }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 3.2"
-    }
   }
 
   # Remote state backend — configured via environment variables in CI/CD.
