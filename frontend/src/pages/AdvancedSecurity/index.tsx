@@ -1009,7 +1009,8 @@ function ActivityLogTab() {
     return d.toISOString();
   }, []);
 
-  const activeNamespace = nsFilter || undefined;
+  // When no specific filter, request all GHAS namespaces from backend
+  const activeNamespace = nsFilter || GHAS_NAMESPACES.join(',');
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['ghas-activity-events', page, nsFilter],
@@ -1026,9 +1027,8 @@ function ActivityLogTab() {
 
   const filteredItems = useMemo(() => {
     if (!data) return [];
-    if (nsFilter) return [...data.items];
-    return data.items.filter((e) => GHAS_NAMESPACES.includes(e.namespace as GhasNamespace));
-  }, [data, nsFilter]);
+    return [...data.items];
+  }, [data]);
 
   const columns: ColumnDef<EventResponse>[] = useMemo(
     () => [
