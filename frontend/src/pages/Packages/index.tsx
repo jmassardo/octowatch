@@ -335,8 +335,9 @@ export function PackagesPage() {
   return (
     <div className={styles.page}>
       <PageHeader
-        title="Packages"
+        title="Packages Monitoring"
         description="Monitor package security posture, visibility, and container image health"
+        breadcrumbs={[{ label: 'Security' }]}
         showHelp
       />
 

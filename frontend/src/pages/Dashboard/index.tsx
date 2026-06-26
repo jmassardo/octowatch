@@ -112,15 +112,25 @@ export function DashboardPage() {
   // Seed widget layout from backend config on initial load
   const backendSeeded = useRef(false);
   useEffect(() => {
-    if (!backendSeeded.current && configQuery.data && configQuery.data.layout.length > 0) {
-      backendSeeded.current = true;
+    if (backendSeeded.current) return;
+    if (!configQuery.isFetched) return;
+
+    backendSeeded.current = true;
+
+    if (configQuery.data && configQuery.data.layout.length > 0) {
       const seeded = configQuery.data.layout.map((item) => ({
         id: item.widget_id,
         size: (getWidgetDefinition(item.widget_id)?.defaultSize ?? 'md') as 'sm' | 'md' | 'lg',
       }));
-      setWidgetLayout(seeded);
+      setWidgetLayout(seeded); // eslint-disable-line react-hooks/set-state-in-effect -- one-time seed from async config
+    } else if (widgetLayout.length === 0 && !showOnboarding) {
+      // No saved layout and onboarding already complete — seed with default preset
+      const defaultPreset = PERSONA_WIDGET_PRESETS['platform-engineer'];
+      const fallback = createDashboardLayout([...defaultPreset]);
+      setWidgetLayout(fallback); // eslint-disable-line react-hooks/set-state-in-effect -- one-time seed
+      saveDashboardLayout(fallback);
     }
-  }, [configQuery.data]);
+  }, [configQuery.isFetched, configQuery.data, widgetLayout.length, showOnboarding]);
 
   // After mutation success, sync backend response back into local state
   // (keeps local state authoritative while staying in sync with persisted data)
