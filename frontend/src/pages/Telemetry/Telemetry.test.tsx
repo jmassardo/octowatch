@@ -1,11 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { TelemetryPage } from './index';
-
-vi.mock('react-router-dom', () => ({
-  useNavigate: () => vi.fn(),
-}));
 
 vi.mock('echarts-for-react', () => ({
   default: () => <div data-testid="echarts-mock" />,
@@ -24,9 +21,11 @@ import * as telemetryApi from '../../api/telemetry';
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={qc}>
-      <TelemetryPage />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={qc}>
+        <TelemetryPage />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { PackagesPage } from './index';
 import type {
   PackageSummary,
@@ -8,10 +9,6 @@ import type {
   PackageInventory,
   StaleImageList,
 } from '../../api/packages';
-
-vi.mock('react-router-dom', () => ({
-  useNavigate: () => vi.fn(),
-}));
 
 vi.mock('../../hooks/useHelp', () => ({
   useHelp: () => ({ helpContent: null, openHelp: vi.fn(), closeHelp: vi.fn(), isHelpOpen: false }),
@@ -139,9 +136,11 @@ function renderPage() {
     defaultOptions: { queries: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={client}>
-      <PackagesPage />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <PackagesPage />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 

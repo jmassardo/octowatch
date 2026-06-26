@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useEnumQueryParam } from '../../hooks/useQueryParam';
 import { PageHeader } from '../../components/common/PageHeader';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Spinner } from '../../components/primitives/Spinner';
@@ -24,6 +25,7 @@ import type {
 import styles from './SupplyChain.module.css';
 
 type TabKey = 'risks' | 'rules' | 'workflow';
+const TAB_KEYS: readonly TabKey[] = ['risks', 'rules', 'workflow'];
 
 /* ── Severity badge ─────────────────────────────────────────────────────── */
 
@@ -372,7 +374,7 @@ function RuleEditor({
 /* ── Main page ──────────────────────────────────────────────────────────── */
 
 export function SupplyChainPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>('risks');
+  const [activeTab, setActiveTab] = useEnumQueryParam('tab', TAB_KEYS, 'risks');
   const [selectedRisk, setSelectedRisk] = useState<SupplyChainRisk | null>(null);
   const [selectedRule, setSelectedRule] = useState<SupplyChainRule | null>(null);
   const [creatingRule, setCreatingRule] = useState(false);

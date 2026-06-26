@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useEnumQueryParam } from '../../hooks/useQueryParam';
 import {
   getRiskSummary,
   getRiskyUsers,
@@ -38,6 +39,7 @@ const RISK_FILTERS = [
 ];
 
 type TabId = 'risky-users' | 'anomalies' | 'permissions';
+const TAB_KEYS: readonly TabId[] = ['risky-users', 'anomalies', 'permissions'];
 
 type SelectedRow =
   | { type: 'risky'; data: RiskyUser }
@@ -49,7 +51,7 @@ const PAGE_SIZE = 50;
 export function UserBehaviorPage() {
   const [lookbackDays, setLookbackDays] = useState(30);
   const [riskFilter, setRiskFilter] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<TabId>('risky-users');
+  const [activeTab, setActiveTab] = useEnumQueryParam('tab', TAB_KEYS, 'risky-users');
   const [page, setPage] = useState(1);
   const [selectedRow, setSelectedRow] = useState<SelectedRow | null>(null);
   const [activeChip, setActiveChip] = useState<string | null>(null);
