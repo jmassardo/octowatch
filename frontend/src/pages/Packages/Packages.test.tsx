@@ -367,7 +367,7 @@ describe('PackagesPage', () => {
   it('renders PageHeader with correct title', () => {
     queryResults = loadedResults();
     renderPage();
-    expect(screen.getByText('Packages')).toBeDefined();
+    expect(screen.getByText('Packages Monitoring')).toBeDefined();
     expect(
       screen.getByText('Monitor package security posture, visibility, and container image health'),
     ).toBeDefined();

@@ -422,6 +422,7 @@ export function SupplyChainPage() {
       <PageHeader
         title="Supply Chain Security"
         description="Monitor and analyse supply chain risks across your GitHub Actions workflows and dependencies"
+        breadcrumbs={[{ label: 'Security' }]}
         showHelp
       />
 
