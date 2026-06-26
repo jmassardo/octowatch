@@ -11,7 +11,7 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Serve the static build on port 3001
-FROM nginxinc/nginx-unprivileged:1.28-alpine AS runtime
+FROM nginxinc/nginx-unprivileged:1.31-alpine AS runtime
 
 # Remove default nginx config and replace with a minimal one for port 3001
 RUN rm /etc/nginx/conf.d/default.conf
