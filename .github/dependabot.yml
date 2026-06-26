@@ -29,6 +29,24 @@ updates:
       - "dependencies"
       - "python"
 
+  # npm frontend dependencies
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 10
+    groups:
+      production-deps:
+        dependency-type: production
+      dev-deps:
+        dependency-type: development
+    labels:
+      - "dependencies"
+      - "javascript"
+
   # Docker base image updates (docker-compose.yml)
   - package-ecosystem: docker
     directory: /
@@ -53,6 +71,18 @@ updates:
       - "dependencies"
       - "docker"
 
+  # Docker base image updates for frontend Dockerfile
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    labels:
+      - "dependencies"
+      - "docker"
+
   # GitHub Actions dependency updates
   - package-ecosystem: github-actions
     directory: /
@@ -64,3 +94,15 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+
+  # Terraform provider and module updates
+  - package-ecosystem: terraform
+    directory: /terraform
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    labels:
+      - "dependencies"
+      - "terraform"
