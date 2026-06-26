@@ -54,9 +54,23 @@ EXPECTED_ROUTE_PREFIXES = [
 
 
 def _collect_paths(routes: list) -> set[str]:
-    """Recursively collect route paths, handling nested routers."""
+    """Recursively collect route paths, handling nested routers.
+
+    FastAPI 0.137+ wraps include_router() calls in _IncludedRouter objects
+    that expose the router via include_context.included_router rather than
+    the traditional path/routes attributes.
+    """
     paths: set[str] = set()
     for route in routes:
+        # FastAPI 0.137+ _IncludedRouter: traverse via include_context
+        if hasattr(route, "include_context"):
+            ctx = route.include_context
+            prefix = getattr(ctx, "prefix", "")
+            sub_router = getattr(ctx, "included_router", None)
+            if sub_router and hasattr(sub_router, "routes"):
+                for sub_path in _collect_paths(list(sub_router.routes)):
+                    paths.add(prefix + sub_path)
+            continue
         if hasattr(route, "path"):
             paths.add(route.path)
         if hasattr(route, "routes"):
