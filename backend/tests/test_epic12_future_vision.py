@@ -670,34 +670,32 @@ class TestModelImports:
 class TestRouterRegistration:
     """Verify new routers are registered in the FastAPI app."""
 
-    def test_app_has_cross_org_routes(self):
+    @staticmethod
+    def _get_all_paths() -> list[str]:
+        """Collect all route paths, handling FastAPI 0.137+ _IncludedRouter."""
         from app.main import app
+        from tests.test_route_registration import _collect_paths
 
-        paths = [r.path for r in app.routes if hasattr(r, "path")]
+        return list(_collect_paths(list(app.routes)))
+
+    def test_app_has_cross_org_routes(self):
+        paths = self._get_all_paths()
         assert any("/cross-org" in p for p in paths)
 
     def test_app_has_playbook_routes(self):
-        from app.main import app
-
-        paths = [r.path for r in app.routes if hasattr(r, "path")]
+        paths = self._get_all_paths()
         assert any("/playbooks" in p for p in paths)
 
     def test_app_has_workflow_routes(self):
-        from app.main import app
-
-        paths = [r.path for r in app.routes if hasattr(r, "path")]
+        paths = self._get_all_paths()
         assert any("/workflows" in p for p in paths)
 
     def test_app_has_copilot_governance_routes(self):
-        from app.main import app
-
-        paths = [r.path for r in app.routes if hasattr(r, "path")]
+        paths = self._get_all_paths()
         assert any("/copilot/governance" in p for p in paths)
 
     def test_app_has_nl_query_endpoint(self):
-        from app.main import app
-
-        paths = [r.path for r in app.routes if hasattr(r, "path")]
+        paths = self._get_all_paths()
         assert any("/query/nl" in p for p in paths)
 
 
