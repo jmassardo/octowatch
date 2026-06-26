@@ -19,7 +19,7 @@ dependencies = [
 
     # Data validation
     "pydantic==2.13.4",
-    "pydantic-settings==2.14.1",
+    "pydantic-settings==2.14.2",
 
     # Database
     "sqlalchemy==2.0.50",
