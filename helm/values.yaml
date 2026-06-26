@@ -256,6 +256,18 @@ postgresql:
         cpu: "2000m"
         memory: "4Gi"
 
+    # PostgreSQL tuning for OLAP / TimescaleDB aggregate workloads.
+    # Assumes 4 Gi memory limit; adjust proportionally when scaling.
+    extendedConfiguration: |
+      shared_buffers = '1GB'
+      work_mem = '32MB'
+      maintenance_work_mem = '256MB'
+      effective_cache_size = '3GB'
+      random_page_cost = 1.1
+      jit = off
+      max_parallel_workers_per_gather = 4
+      max_parallel_workers = 8
+
     # Enable TimescaleDB extension (requires timescale/timescaledb image override)
     initdb:
       scripts:
