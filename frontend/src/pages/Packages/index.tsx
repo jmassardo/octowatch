@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useEnumQueryParam } from '../../hooks/useQueryParam';
 import { PageHeader } from '../../components/common/PageHeader';
 import { EmptyState } from '../../components/common/EmptyState';
 import { MetricCard } from '../../components/primitives/MetricCard';
@@ -20,6 +20,7 @@ import type {
 import styles from './Packages.module.css';
 
 type TabKey = 'overview' | 'inventory' | 'alerts' | 'container-health';
+const TAB_KEYS: readonly TabKey[] = ['overview', 'inventory', 'alerts', 'container-health'];
 
 /* ── Severity badge ─────────────────────────────────────────────────────── */
 
@@ -277,7 +278,7 @@ function ContainerHealthTab({ data }: { data: StaleImageList | undefined }) {
 /* ── Main page ──────────────────────────────────────────────────────────── */
 
 export function PackagesPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [activeTab, setActiveTab] = useEnumQueryParam('tab', TAB_KEYS, 'overview');
 
   const summaryQuery = useQuery({
     queryKey: ['packages', 'summary'],

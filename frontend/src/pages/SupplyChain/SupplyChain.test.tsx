@@ -1,12 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { SupplyChainPage } from './index';
 import type { SupplyChainPosture, RiskSummary, RulesListResponse } from '../../api/supplyChain';
-
-vi.mock('react-router-dom', () => ({
-  useNavigate: () => vi.fn(),
-}));
 
 vi.mock('../../hooks/useHelp', () => ({
   useHelp: () => ({ helpContent: null, openHelp: vi.fn(), closeHelp: vi.fn(), isHelpOpen: false }),
@@ -103,9 +100,11 @@ function renderPage() {
     defaultOptions: { queries: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={client}>
-      <SupplyChainPage />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <SupplyChainPage />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 

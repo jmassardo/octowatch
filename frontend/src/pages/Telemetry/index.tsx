@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useEnumQueryParam } from '../../hooks/useQueryParam';
 import { getTelemetrySummary } from '../../api/telemetry';
 import { PageHeader } from '../../components/common/PageHeader';
 import { MetricCard } from '../../components/primitives/MetricCard';
@@ -12,6 +12,7 @@ import { ErrorsTab } from './ErrorsTab';
 import styles from './Telemetry.module.css';
 
 type TelemetryTab = 'streams' | 'workers' | 'volume' | 'errors';
+const TAB_KEYS: readonly TelemetryTab[] = ['streams', 'workers', 'volume', 'errors'];
 
 function formatLastEvent(iso: string | null): string {
   if (!iso) return 'Never';
@@ -29,7 +30,7 @@ function isStale(iso: string | null): boolean {
 }
 
 export function TelemetryPage() {
-  const [activeTab, setActiveTab] = useState<TelemetryTab>('streams');
+  const [activeTab, setActiveTab] = useEnumQueryParam('tab', TAB_KEYS, 'streams');
 
   const {
     data: summary,
