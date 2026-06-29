@@ -80,7 +80,7 @@ dependencies = [
     # Git / Rule versioning
 
     # Data processing (baselines)
-    "pandas==3.0.3",
+    "pandas==3.0.4",
     "numpy==2.5.0",
 
     # Security
