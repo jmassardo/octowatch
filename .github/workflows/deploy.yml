@@ -1,196 +1,325 @@
 # =============================================================================
-# Publish & Deploy — Build Docker images, push to GHCR, deploy to K8s cluster
+# Deploy — Ring-based deployment to Kubernetes
 #
-# Triggers:
-#   1. Automatically after a successful CI run on main.
-#   2. On version tags (v*).
-#   3. Manually via workflow_dispatch.
+# Deploys OctoWatch to customer namespaces in 3 rings:
+#   1. test    — internal instance, automatic after release
+#   2. preview — early-access customers, manual gate after test passes
+#   3. prod    — all production customers, manual gate after preview bakes
 #
-# Images are published to ghcr.io/<owner>/octowatch-{api,worker,frontend,beat}
-# tagged with both the commit SHA and "latest". Version tags also get the
-# semver tag (e.g. v1.2.3).
+# Customer namespaces are discovered via Kubernetes labels:
+#   octowatch.dev/ring=test|preview|prod
+#   octowatch.dev/size=small|medium|large
 #
-# After publish, the deploy job runs on the self-hosted runner (mgmt VM) and
-# performs a direct helm upgrade — no ArgoCD, no Azure credentials needed.
+# No customer-specific data is stored in this repository. All customer
+# configuration lives in Kubernetes namespace labels and Azure Key Vault.
 # =============================================================================
-name: Publish
+name: Deploy
 
 on:
   workflow_run:
-    workflows: ["CI"]
+    workflows: ["Release"]
     types: [completed]
     branches: [main]
-
-  push:
-    tags: ["v*"]
 
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Image tag to deploy (defaults to commit SHA)"
+        description: "Image tag to deploy (e.g., v1.2.3). Defaults to latest release tag."
         required: false
         default: ""
+      ring:
+        description: "Deploy to a specific ring only (empty = full rollout)"
+        required: false
+        type: choice
+        options:
+          - ""
+          - test
+          - preview
+          - prod
+      force_reinstall:
+        description: "Uninstall existing releases before deploying (use for broken StatefulSet upgrades)"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
-  group: publish-images
-  cancel-in-progress: true
+  group: deploy
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+  FORCE_REINSTALL: ${{ github.event.inputs.force_reinstall || 'false' }}
 
 jobs:
-  publish:
-    name: Build & Push (${{ matrix.image.name }})
-    runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        image:
-          - name: api
-            context: backend
-            target: production
-          - name: worker
-            context: backend
-            target: worker
-          - name: beat
-            context: backend
-            target: beat
-          - name: frontend
-            context: frontend
-            target: ""
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-
-      - name: Login to GHCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee  # v4.2.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9  # v6.1.0
-        with:
-          images: ${{ env.IMAGE_PREFIX }}/octowatch-${{ matrix.image.name }}
-          tags: |
-            type=sha,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=${{ github.event.inputs.image_tag }},enable=${{ github.event.inputs.image_tag != '' }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4.1.0
-
-      - name: Build & push
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf  # v7.2.0
-        with:
-          context: ${{ matrix.image.context }}
-          target: ${{ matrix.image.target || '' }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=publish-${{ matrix.image.name }}
-          cache-to: type=gha,mode=max,scope=publish-${{ matrix.image.name }}
-
-  deploy:
-    name: Deploy to K8s
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Ring 1: TEST (automatic)
+  # ═══════════════════════════════════════════════════════════════════════════
+  deploy-test:
+    name: "Ring: test"
     runs-on: [self-hosted, k8s-mgmt]
-    needs: [publish]
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.ring == '' || github.event.inputs.ring == 'test')) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     permissions:
       contents: read
-    concurrency:
-      group: deploy-k8s
-      cancel-in-progress: false
+      actions: read
+
+    outputs:
+      image_tag: ${{ steps.tag.outputs.tag }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Resolve image tag
         id: tag
         env:
           MANUAL_TAG: ${{ github.event.inputs.image_tag }}
-          RUN_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
-          if [ -n "${MANUAL_TAG}" ]; then
+          if [ -n "${MANUAL_TAG:-}" ]; then
             echo "tag=${MANUAL_TAG}" >> "$GITHUB_OUTPUT"
+            echo "Using manual tag: ${MANUAL_TAG}"
           else
-            echo "tag=${RUN_SHA:0:7}" >> "$GITHUB_OUTPUT"
+            # Get the latest semver tag (created by the Release workflow)
+            TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || echo "")
+            if [ -z "${TAG}" ]; then
+              echo "::error::No release tag found. Run the Release workflow first."
+              exit 1
+            fi
+            echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "Deploying latest release: ${TAG}"
           fi
 
       - name: Build Helm dependencies
         run: helm dependency build ./helm
 
-      - name: Run Alembic migrations
+      - name: Discover test namespaces
+        id: discover
         run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          echo "Running migrations with image tag: ${TAG}"
-          kubectl run alembic-migrate \
-            --image="${{ env.IMAGE_PREFIX }}/octowatch-api:${TAG}" \
-            --restart=Never \
-            --rm -i \
-            --namespace=octowatch \
-            --overrides='{
-              "spec": {
-                "imagePullSecrets": [{"name": "ghcr-pull-secret"}],
-                "containers": [{
-                  "name": "alembic-migrate",
-                  "image": "'"${{ env.IMAGE_PREFIX }}/octowatch-api:${TAG}"'",
-                  "command": ["python", "-m", "alembic", "upgrade", "head"],
-                  "env": [
-                    {"name": "DATABASE_URL", "valueFrom": {"secretKeyRef": {"name": "octowatch-secrets", "key": "database-url"}}},
-                    {"name": "SECRET_KEY", "valueFrom": {"secretKeyRef": {"name": "octowatch-secrets", "key": "secret-key"}}}
-                  ]
-                }]
+          NAMESPACES=$(kubectl get ns -l octowatch.dev/ring=test -o jsonpath='{.items[*].metadata.name}')
+          if [ -z "$NAMESPACES" ]; then
+            echo "::warning::No test ring namespaces found. Skipping."
+            echo "namespaces=" >> "$GITHUB_OUTPUT"
+          else
+            echo "namespaces=${NAMESPACES}" >> "$GITHUB_OUTPUT"
+            echo "Found test namespaces: ${NAMESPACES}"
+          fi
+
+      - name: Deploy to test ring
+        if: steps.discover.outputs.namespaces != ''
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          IMAGE_PREFIX: ${{ env.IMAGE_PREFIX }}
+        run: |
+          for NS in ${{ steps.discover.outputs.namespaces }}; do
+            ./scripts/deploy-namespace.sh "${NS}" "${TAG}" "./helm"
+          done
+
+      - name: Verify test deployments
+        if: steps.discover.outputs.namespaces != ''
+        run: |
+          for NS in ${{ steps.discover.outputs.namespaces }}; do
+            echo "Verifying ${NS}..."
+            kubectl rollout status deployment/${NS}-api -n "${NS}" --timeout=120s
+            kubectl rollout status deployment/${NS}-frontend -n "${NS}" --timeout=60s
+
+            # Health check via cluster DNS
+            kubectl run smoke-test-${NS} \
+              --image=curlimages/curl:8.7.1 \
+              --restart=Never --rm -i \
+              --namespace="${NS}" \
+              --command -- curl -sf "http://${NS}-api:8000/health" || {
+                echo "✗ Health check failed for ${NS}"
+                exit 1
               }
-            }'
+            echo "✓ ${NS} healthy"
+          done
 
-      - name: Helm upgrade
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Ring 2: PREVIEW (manual gate)
+  # ═══════════════════════════════════════════════════════════════════════════
+  gate-preview:
+    name: "Gate: approve preview"
+    runs-on: ubuntu-latest
+    needs: [deploy-test]
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.ring == '') ||
+      (github.event_name == 'workflow_run')
+    permissions: {}
+    environment: preview
+
+    steps:
+      - run: echo "Preview deployment approved"
+
+  deploy-preview:
+    name: "Ring: preview"
+    runs-on: [self-hosted, k8s-mgmt]
+    needs: [gate-preview, deploy-test]
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Build Helm dependencies
+        run: helm dependency build ./helm
+
+      - name: Discover preview namespaces
+        id: discover
         run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          echo "Deploying image tag: ${TAG}"
-          helm upgrade --install octowatch ./helm \
-            -f helm/values.yaml \
-            -f helm/values-selfmanaged.yaml \
-            --set global.image.tag="${TAG}" \
-            --namespace octowatch \
-            --timeout 5m \
-            --wait
+          NAMESPACES=$(kubectl get ns -l octowatch.dev/ring=preview -o jsonpath='{.items[*].metadata.name}')
+          if [ -z "$NAMESPACES" ]; then
+            echo "::warning::No preview ring namespaces found. Skipping."
+            echo "namespaces=" >> "$GITHUB_OUTPUT"
+          else
+            echo "namespaces=${NAMESPACES}" >> "$GITHUB_OUTPUT"
+            echo "Found preview namespaces: ${NAMESPACES}"
+          fi
 
-      - name: Verify rollout
+      - name: Deploy to preview ring
+        if: steps.discover.outputs.namespaces != ''
+        env:
+          TAG: ${{ needs.deploy-test.outputs.image_tag }}
+          IMAGE_PREFIX: ${{ env.IMAGE_PREFIX }}
         run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          echo "Verifying deployments..."
+          for NS in ${{ steps.discover.outputs.namespaces }}; do
+            ./scripts/deploy-namespace.sh "${NS}" "${TAG}" "./helm"
+          done
 
-          kubectl rollout status deployment/octowatch-api -n octowatch --timeout=120s
-          kubectl rollout status deployment/octowatch-frontend -n octowatch --timeout=60s
+      - name: Verify preview deployments
+        if: steps.discover.outputs.namespaces != ''
+        run: |
+          for NS in ${{ steps.discover.outputs.namespaces }}; do
+            kubectl rollout status deployment/${NS}-api -n "${NS}" --timeout=120s
+            echo "✓ ${NS} healthy"
+          done
 
-          # Verify correct image tag
-          CURRENT=$(kubectl get deployment octowatch-api -n octowatch \
-            -o jsonpath='{.spec.template.spec.containers[0].image}')
-          echo "Current API image: ${CURRENT}"
-          if ! echo "$CURRENT" | grep -q "${TAG}"; then
-            echo "❌ Image tag mismatch! Expected ${TAG} in ${CURRENT}"
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Ring 3: PROD (manual gate)
+  # ═══════════════════════════════════════════════════════════════════════════
+  gate-prod:
+    name: "Gate: approve prod"
+    runs-on: ubuntu-latest
+    needs: [deploy-preview]
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.ring == '') ||
+      (github.event_name == 'workflow_run')
+    permissions: {}
+    environment: production
+
+    steps:
+      - run: echo "Production deployment approved"
+
+  deploy-prod:
+    name: "Ring: prod"
+    runs-on: [self-hosted, k8s-mgmt]
+    needs: [gate-prod, deploy-test]
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Build Helm dependencies
+        run: helm dependency build ./helm
+
+      - name: Discover prod namespaces
+        id: discover
+        run: |
+          NAMESPACES=$(kubectl get ns -l octowatch.dev/ring=prod -o jsonpath='{.items[*].metadata.name}')
+          if [ -z "$NAMESPACES" ]; then
+            echo "::warning::No prod ring namespaces found. Skipping."
+            echo "namespaces=" >> "$GITHUB_OUTPUT"
+          else
+            echo "namespaces=${NAMESPACES}" >> "$GITHUB_OUTPUT"
+            echo "Found prod namespaces: ${NAMESPACES}"
+          fi
+
+      - name: Deploy to prod ring
+        if: steps.discover.outputs.namespaces != ''
+        env:
+          TAG: ${{ needs.deploy-test.outputs.image_tag }}
+          IMAGE_PREFIX: ${{ env.IMAGE_PREFIX }}
+        run: |
+          for NS in ${{ steps.discover.outputs.namespaces }}; do
+            ./scripts/deploy-namespace.sh "${NS}" "${TAG}" "./helm"
+          done
+
+      - name: Verify prod deployments
+        if: steps.discover.outputs.namespaces != ''
+        run: |
+          FAILED=""
+          for NS in ${{ steps.discover.outputs.namespaces }}; do
+            if kubectl rollout status deployment/${NS}-api -n "${NS}" --timeout=120s; then
+              echo "✓ ${NS} healthy"
+            else
+              echo "✗ ${NS} FAILED"
+              FAILED="${FAILED} ${NS}"
+            fi
+          done
+          if [ -n "$FAILED" ]; then
+            echo "::error::Deployments failed:${FAILED}"
             exit 1
           fi
 
-          # Health check
-          kubectl exec -n octowatch deploy/octowatch-api -- \
-            curl -sf http://localhost:8000/ready
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Direct ring deploy (workflow_dispatch with specific ring)
+  # ═══════════════════════════════════════════════════════════════════════════
+  deploy-single-ring:
+    name: "Deploy: ${{ github.event.inputs.ring }} only"
+    runs-on: [self-hosted, k8s-mgmt]
+    if: >-
+      github.event_name == 'workflow_dispatch' && github.event.inputs.ring != '' && github.event.inputs.ring != 'test'
+    permissions:
+      contents: read
 
-          echo ""
-          kubectl get pods -n octowatch
-          echo "✅ Deploy complete — running ${TAG}"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve image tag
+        id: tag
+        env:
+          MANUAL_TAG: ${{ github.event.inputs.image_tag }}
+        run: |
+          if [ -n "${MANUAL_TAG:-}" ]; then
+            echo "tag=${MANUAL_TAG}" >> "$GITHUB_OUTPUT"
+          else
+            TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || echo "")
+            if [ -z "${TAG}" ]; then
+              echo "::error::No release tag found."
+              exit 1
+            fi
+            echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build Helm dependencies
+        run: helm dependency build ./helm
+
+      - name: Discover namespaces
+        id: discover
+        run: |
+          RING="${{ github.event.inputs.ring }}"
+          NAMESPACES=$(kubectl get ns -l "octowatch.dev/ring=${RING}" -o jsonpath='{.items[*].metadata.name}')
+          if [ -z "$NAMESPACES" ]; then
+            echo "::warning::No namespaces found for ring=${RING}"
+            echo "namespaces=" >> "$GITHUB_OUTPUT"
+          else
+            echo "namespaces=${NAMESPACES}" >> "$GITHUB_OUTPUT"
+            echo "Found ${RING} namespaces: ${NAMESPACES}"
+          fi
+
+      - name: Deploy to ring
+        if: steps.discover.outputs.namespaces != ''
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          IMAGE_PREFIX: ${{ env.IMAGE_PREFIX }}
+        run: |
+          for NS in ${{ steps.discover.outputs.namespaces }}; do
+            ./scripts/deploy-namespace.sh "${NS}" "${TAG}" "./helm"
+          done
