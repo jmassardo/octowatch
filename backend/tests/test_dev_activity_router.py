@@ -68,6 +68,22 @@ def _make_mock_db() -> AsyncMock:
     return db
 
 
+def _make_smart_valkey(session: str | None) -> AsyncMock:
+    """Create a Valkey mock that returns session data for session keys
+    and None for cache keys, avoiding false cache hits in tests."""
+    mock_valkey = AsyncMock()
+
+    async def _smart_get(key: str) -> str | bytes | None:
+        if key.startswith("cache:"):
+            return None
+        return session
+
+    mock_valkey.get = AsyncMock(side_effect=_smart_get)
+    mock_valkey.setex = AsyncMock()
+    mock_valkey.ttl = AsyncMock(return_value=3600)
+    return mock_valkey
+
+
 def _build_app(
     valkey_session: str | None = None,
 ) -> tuple[FastAPI, AsyncMock, AsyncMock]:
@@ -75,8 +91,7 @@ def _build_app(
     app.include_router(dev_activity_module.router, prefix="/api/v1")
 
     mock_db = _make_mock_db()
-    mock_valkey = AsyncMock()
-    mock_valkey.get = AsyncMock(return_value=valkey_session)
+    mock_valkey = _make_smart_valkey(valkey_session)
 
     async def override_db() -> AsyncGenerator[AsyncMock, None]:
         yield mock_db
@@ -150,9 +165,9 @@ class TestUsageStatsAuthenticated:
                     ("jmassardo", 5, False),
                 ]
             elif call_count == 3:
-                # _top_pushers
+                # _top_pushers (CAGG: actor, cnt, repo_count)
                 result.fetchall.return_value = [
-                    ("jmassardo", 50, ["org/repo-a", "org/repo-b"]),
+                    ("jmassardo", 50, 2),
                 ]
             elif call_count == 4:
                 # _daily_git_trend
@@ -164,10 +179,10 @@ class TestUsageStatsAuthenticated:
                 # _api_stats: COUNT(*) → 0 (no api events)
                 result.scalar.return_value = 0
             elif call_count == 6:
-                # _bot_vs_human
+                # _bot_vs_human (CAGG: actor_is_bot, cnt)
                 result.fetchall.return_value = [
-                    (True, 95, ["github-actions[bot]"]),
-                    (False, 60, ["jmassardo"]),
+                    (True, 95),
+                    (False, 60),
                 ]
             else:
                 result.fetchall.return_value = []
@@ -186,8 +201,7 @@ class TestUsageStatsAuthenticated:
         app.include_router(dev_activity_module.router, prefix="/api/v1")
 
         mock_db = self._mock_db_with_responses()
-        mock_valkey = AsyncMock()
-        mock_valkey.get = AsyncMock(return_value=session)
+        mock_valkey = _make_smart_valkey(session)
 
         async def override_db() -> AsyncGenerator[AsyncMock, None]:
             yield mock_db
@@ -227,7 +241,7 @@ class TestUsageStatsAuthenticated:
         assert git["top_cloners"][1]["actor"] == "jmassardo"
         assert git["top_cloners"][1]["is_bot"] is False
         assert len(git["top_pushers"]) == 1
-        assert git["top_pushers"][0]["repos"] == ["org/repo-a", "org/repo-b"]
+        assert git["top_pushers"][0]["repo_count"] == 2
         assert len(git["daily_trend"]) == 2
         assert git["daily_trend"][0]["date"] == "2026-03-20"
         assert git["daily_trend"][0]["clones"] == 10
@@ -238,12 +252,12 @@ class TestUsageStatsAuthenticated:
         assert api["total_requests"] == 0
         assert api["top_users"] == []
 
-        # Verify bot_vs_human
+        # Verify bot_vs_human (CAGG-backed — actor lists omitted)
         bvh = data["bot_vs_human"]
         assert bvh["bot_events"] == 95
         assert bvh["human_events"] == 60
-        assert "github-actions[bot]" in bvh["bot_actors"]
-        assert "jmassardo" in bvh["human_actors"]
+        assert bvh["bot_actors"] == []
+        assert bvh["human_actors"] == []
 
     def test_usage_stats_accepts_lookback_days_param(self) -> None:
         token = _make_jwt(jti="lb-jti")
@@ -362,8 +376,7 @@ class TestUsageStatsWithApiEvents:
         app.include_router(dev_activity_module.router, prefix="/api/v1")
 
         mock_db = self._mock_db_with_api_data()
-        mock_valkey = AsyncMock()
-        mock_valkey.get = AsyncMock(return_value=session)
+        mock_valkey = _make_smart_valkey(session)
 
         async def override_db() -> AsyncGenerator[AsyncMock, None]:
             yield mock_db
@@ -479,46 +492,58 @@ class TestDevelopersNoOrgs:
 
 class TestDevelopersAuthenticated:
     def _mock_db_with_developer_data(self) -> AsyncMock:
-        """Mock DB returning developer aggregation data."""
+        """Mock DB returning developer aggregation data (CAGG shape)."""
         db = AsyncMock()
+        call_count = 0
 
         async def mock_execute(*args: object, **kwargs: object) -> MagicMock:
+            nonlocal call_count
+            call_count += 1
             result = MagicMock()
             last_active = datetime(2026, 3, 25, 10, 30, 0, tzinfo=UTC)
-            result.fetchall.return_value = [
-                # actor, event_count, pr_count, review_count, repos, last_active,
-                # w6, w5, w4, w3, w2, w1, w0
-                (
-                    "alice",
-                    25,
-                    10,
-                    3,
-                    ["org/repo-a", "org/repo-b", "org/repo-c"],
-                    last_active,
-                    5,
-                    4,
-                    4,
-                    4,
-                    3,
-                    3,
-                    2,
-                ),
-                (
-                    "bob",
-                    12,
-                    5,
-                    1,
-                    ["org/repo-a"],
-                    last_active - timedelta(days=2),
-                    3,
-                    2,
-                    2,
-                    2,
-                    1,
-                    1,
-                    1,
-                ),
-            ]
+
+            if call_count == 1:
+                # _developer_stats CAGG query returns:
+                # actor, event_count, pr_count, review_count, last_active,
+                # w6, w5, w4, w3, w2, w1, w0, repo_count, top_repos
+                result.fetchall.return_value = [
+                    (
+                        "alice",
+                        25,
+                        10,
+                        3,
+                        last_active,
+                        5,
+                        4,
+                        4,
+                        4,
+                        3,
+                        3,
+                        2,
+                        3,
+                        ["org/repo-a", "org/repo-b", "org/repo-c"],
+                    ),
+                    (
+                        "bob",
+                        12,
+                        5,
+                        1,
+                        last_active - timedelta(days=2),
+                        3,
+                        2,
+                        2,
+                        2,
+                        1,
+                        1,
+                        1,
+                        1,
+                        ["org/repo-a"],
+                    ),
+                ]
+            else:
+                result.fetchall.return_value = []
+                result.scalar.return_value = 0
+
             return result
 
         db.execute = mock_execute
@@ -532,8 +557,7 @@ class TestDevelopersAuthenticated:
         app.include_router(dev_activity_module.router, prefix="/api/v1")
 
         mock_db = self._mock_db_with_developer_data()
-        mock_valkey = AsyncMock()
-        mock_valkey.get = AsyncMock(return_value=session)
+        mock_valkey = _make_smart_valkey(session)
 
         async def override_db() -> AsyncGenerator[AsyncMock, None]:
             yield mock_db
@@ -658,20 +682,21 @@ class TestDevelopersEmptyData:
 
 class TestDevelopersTopReposLimit:
     def _mock_db_with_many_repos(self) -> AsyncMock:
-        """Mock DB returning a developer with more than 5 repos."""
+        """Mock DB returning a developer with more than 5 repos (CAGG shape)."""
         db = AsyncMock()
 
         async def mock_execute(*args: object, **kwargs: object) -> MagicMock:
             result = MagicMock()
             last_active = datetime(2026, 3, 25, 10, 30, 0, tzinfo=UTC)
-            many_repos = [f"org/repo-{i}" for i in range(10)]
+            top_5_repos = [f"org/repo-{i}" for i in range(5)]
+            # CAGG shape: actor, event_count, pr_count, review_count,
+            # last_active, w6-w0, repo_count, top_repos
             result.fetchall.return_value = [
                 (
                     "prolific-dev",
                     100,
                     40,
                     10,
-                    many_repos,
                     last_active,
                     15,
                     15,
@@ -680,6 +705,8 @@ class TestDevelopersTopReposLimit:
                     15,
                     15,
                     10,
+                    10,
+                    top_5_repos,
                 ),
             ]
             return result
@@ -695,8 +722,7 @@ class TestDevelopersTopReposLimit:
         app.include_router(dev_activity_module.router, prefix="/api/v1")
 
         mock_db = self._mock_db_with_many_repos()
-        mock_valkey = AsyncMock()
-        mock_valkey.get = AsyncMock(return_value=session)
+        mock_valkey = _make_smart_valkey(session)
 
         async def override_db() -> AsyncGenerator[AsyncMock, None]:
             yield mock_db

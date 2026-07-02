@@ -1,25 +1,39 @@
 """Dev activity router: API & Git usage statistics.
 
 Provides aggregated usage stats for git operations (clone, push, fetch) and
-API request events, plus bot-vs-human breakdown. All queries enforce RBAC
+API request events, plus bot-vs-human breakdown.  All queries enforce RBAC
 via ``rbac_service.get_scoped_orgs``.
+
+**Performance:** Queries read from ``cagg_events_daily`` /
+``cagg_events_daily_repo`` (TimescaleDB continuous aggregates) instead of
+scanning the raw ``events`` hypertable.  Responses are cached in Valkey
+with a scope-aware key so repeated loads are sub-second.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+import redis.asyncio as aioredis
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db
+from app.deps import AuthenticatedUser, get_current_user, get_db, get_valkey
 from app.services import rbac_service
+from app.services.cache_service import (
+    _build_cache_key,
+    cache_get,
+    cache_set,
+)
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/dev-activity", tags=["dev-activity"])
+
+# Cache TTL for dev-activity endpoints (seconds)
+_CACHE_TTL = 300
 
 
 async def _resolve_orgs(
@@ -40,19 +54,22 @@ async def _resolve_orgs(
     return scoped_orgs
 
 
+# ── Continuous-aggregate backed helpers ──────────────────────────────────
+
+
 async def _git_action_counts(
     db: AsyncSession,
     scoped_orgs: list[str],
     lookback_days: int,
 ) -> dict[str, int]:
-    """Count git.clone, git.push, git.fetch events in the lookback window."""
+    """Count git.clone, git.push, git.fetch from the daily CAGG."""
     result = await db.execute(
         text("""
-            SELECT action, COUNT(*) AS cnt
-            FROM events
+            SELECT action, SUM(event_count)::bigint AS cnt
+            FROM cagg_events_daily
             WHERE action IN ('git.clone', 'git.push', 'git.fetch')
               AND org = ANY(:scoped_orgs)
-              AND created_at >= NOW() - MAKE_INTERVAL(days => :lookback_days)
+              AND bucket >= NOW() - MAKE_INTERVAL(days => :lookback_days)
             GROUP BY action
         """),
         {"scoped_orgs": scoped_orgs, "lookback_days": lookback_days},
@@ -69,15 +86,16 @@ async def _top_cloners(
     lookback_days: int,
     limit: int,
 ) -> list[dict[str, Any]]:
-    """Return top actors for git.clone events."""
+    """Top actors for git.clone from the daily CAGG."""
     result = await db.execute(
         text("""
-            SELECT actor, COUNT(*) AS cnt,
+            SELECT actor,
+                   SUM(event_count)::bigint AS cnt,
                    actor LIKE :bot_suffix AS is_bot
-            FROM events
+            FROM cagg_events_daily
             WHERE action = 'git.clone'
               AND org = ANY(:scoped_orgs)
-              AND created_at >= NOW() - MAKE_INTERVAL(days => :lookback_days)
+              AND bucket >= NOW() - MAKE_INTERVAL(days => :lookback_days)
               AND actor IS NOT NULL AND actor != ''
             GROUP BY actor ORDER BY cnt DESC LIMIT :limit
         """),
@@ -97,15 +115,16 @@ async def _top_pushers(
     lookback_days: int,
     limit: int,
 ) -> list[dict[str, Any]]:
-    """Return top actors for git.push events with distinct repos."""
+    """Top actors for git.push with distinct repo count from repo CAGG."""
     result = await db.execute(
         text("""
-            SELECT actor, COUNT(*) AS cnt,
-                   ARRAY_AGG(DISTINCT repo) FILTER (WHERE repo IS NOT NULL) AS repos
-            FROM events
+            SELECT actor,
+                   SUM(event_count)::bigint AS cnt,
+                   COUNT(DISTINCT repo) FILTER (WHERE repo IS NOT NULL) AS repo_count
+            FROM cagg_events_daily_repo
             WHERE action = 'git.push'
               AND org = ANY(:scoped_orgs)
-              AND created_at >= NOW() - MAKE_INTERVAL(days => :lookback_days)
+              AND bucket >= NOW() - MAKE_INTERVAL(days => :lookback_days)
               AND actor IS NOT NULL AND actor != ''
             GROUP BY actor ORDER BY cnt DESC LIMIT :limit
         """),
@@ -119,7 +138,8 @@ async def _top_pushers(
         {
             "actor": row[0],
             "count": row[1],
-            "repos": list(row[2]) if row[2] else [],
+            "repos": [],  # Not fetching full list from CAGG for performance
+            "repo_count": row[2],
         }
         for row in result.fetchall()
     ]
@@ -130,17 +150,17 @@ async def _daily_git_trend(
     scoped_orgs: list[str],
     lookback_days: int,
 ) -> list[dict[str, Any]]:
-    """Return daily git event counts over the lookback window."""
+    """Daily git event counts from the daily CAGG."""
     result = await db.execute(
         text("""
-            SELECT DATE(created_at) AS day,
-                   COUNT(*) FILTER (WHERE action = 'git.clone') AS clones,
-                   COUNT(*) FILTER (WHERE action = 'git.push') AS pushes,
-                   COUNT(*) FILTER (WHERE action = 'git.fetch') AS fetches
-            FROM events
+            SELECT bucket::date AS day,
+                   SUM(event_count) FILTER (WHERE action = 'git.clone')::bigint AS clones,
+                   SUM(event_count) FILTER (WHERE action = 'git.push')::bigint AS pushes,
+                   SUM(event_count) FILTER (WHERE action = 'git.fetch')::bigint AS fetches
+            FROM cagg_events_daily
             WHERE action IN ('git.clone', 'git.push', 'git.fetch')
               AND org = ANY(:scoped_orgs)
-              AND created_at >= NOW() - MAKE_INTERVAL(days => :lookback_days)
+              AND bucket >= NOW() - MAKE_INTERVAL(days => :lookback_days)
             GROUP BY day ORDER BY day
         """),
         {"scoped_orgs": scoped_orgs, "lookback_days": lookback_days},
@@ -148,9 +168,9 @@ async def _daily_git_trend(
     return [
         {
             "date": str(row[0]),
-            "clones": row[1],
-            "pushes": row[2],
-            "fetches": row[3],
+            "clones": row[1] or 0,
+            "pushes": row[2] or 0,
+            "fetches": row[3] or 0,
         }
         for row in result.fetchall()
     ]
@@ -162,14 +182,15 @@ async def _api_stats(
     lookback_days: int,
     limit: int,
 ) -> dict[str, Any]:
-    """Return API usage stats. Returns available=False when no api.* events exist."""
-    # Check if any api events exist
+    """API usage stats from the daily CAGG."""
+    # Total API request count
     count_result = await db.execute(
         text("""
-            SELECT COUNT(*) FROM events
+            SELECT COALESCE(SUM(event_count), 0)::bigint
+            FROM cagg_events_daily
             WHERE action LIKE 'api.%'
               AND org = ANY(:scoped_orgs)
-              AND created_at >= NOW() - MAKE_INTERVAL(days => :lookback_days)
+              AND bucket >= NOW() - MAKE_INTERVAL(days => :lookback_days)
         """),
         {"scoped_orgs": scoped_orgs, "lookback_days": lookback_days},
     )
@@ -187,11 +208,11 @@ async def _api_stats(
     # Top API users
     users_result = await db.execute(
         text("""
-            SELECT actor, COUNT(*) AS cnt
-            FROM events
+            SELECT actor, SUM(event_count)::bigint AS cnt
+            FROM cagg_events_daily
             WHERE action LIKE 'api.%'
               AND org = ANY(:scoped_orgs)
-              AND created_at >= NOW() - MAKE_INTERVAL(days => :lookback_days)
+              AND bucket >= NOW() - MAKE_INTERVAL(days => :lookback_days)
               AND actor IS NOT NULL AND actor != ''
             GROUP BY actor ORDER BY cnt DESC LIMIT :limit
         """),
@@ -199,7 +220,8 @@ async def _api_stats(
     )
     top_users = [{"actor": row[0], "count": row[1]} for row in users_result.fetchall()]
 
-    # Top endpoints
+    # Top endpoints — requires raw events for JSONB extraction; keep but
+    # narrow the scan to api.* actions only (a small fraction of events).
     endpoints_result = await db.execute(
         text("""
             SELECT COALESCE(
@@ -221,11 +243,12 @@ async def _api_stats(
     # Daily API trend
     trend_result = await db.execute(
         text("""
-            SELECT DATE(created_at) AS day, COUNT(*) AS requests
-            FROM events
+            SELECT bucket::date AS day,
+                   SUM(event_count)::bigint AS requests
+            FROM cagg_events_daily
             WHERE action LIKE 'api.%'
               AND org = ANY(:scoped_orgs)
-              AND created_at >= NOW() - MAKE_INTERVAL(days => :lookback_days)
+              AND bucket >= NOW() - MAKE_INTERVAL(days => :lookback_days)
             GROUP BY day ORDER BY day
         """),
         {"scoped_orgs": scoped_orgs, "lookback_days": lookback_days},
@@ -246,48 +269,35 @@ async def _bot_vs_human(
     scoped_orgs: list[str],
     lookback_days: int,
 ) -> dict[str, Any]:
-    """Return bot vs human breakdown for git events."""
+    """Bot vs human breakdown from the daily CAGG."""
     result = await db.execute(
         text("""
-            SELECT
-              actor LIKE :bot_suffix AS is_bot,
-              COUNT(*) AS cnt,
-              ARRAY_AGG(DISTINCT actor) AS actors
-            FROM events
+            SELECT actor_is_bot,
+                   SUM(event_count)::bigint AS cnt
+            FROM cagg_events_daily
             WHERE action IN ('git.clone', 'git.push', 'git.fetch')
               AND org = ANY(:scoped_orgs)
-              AND created_at >= NOW() - MAKE_INTERVAL(days => :lookback_days)
+              AND bucket >= NOW() - MAKE_INTERVAL(days => :lookback_days)
               AND actor IS NOT NULL AND actor != ''
-            GROUP BY is_bot
+            GROUP BY actor_is_bot
         """),
-        {
-            "scoped_orgs": scoped_orgs,
-            "lookback_days": lookback_days,
-            "bot_suffix": "%[bot]",
-        },
+        {"scoped_orgs": scoped_orgs, "lookback_days": lookback_days},
     )
 
     bot_events = 0
     human_events = 0
-    bot_actors: list[str] = []
-    human_actors: list[str] = []
 
     for row in result.fetchall():
-        is_bot = bool(row[0])
-        count = row[1]
-        actors = list(row[2]) if row[2] else []
-        if is_bot:
-            bot_events = count
-            bot_actors = actors
+        if row[0]:
+            bot_events = row[1]
         else:
-            human_events = count
-            human_actors = actors
+            human_events = row[1]
 
     return {
         "bot_events": bot_events,
         "human_events": human_events,
-        "bot_actors": bot_actors,
-        "human_actors": human_actors,
+        "bot_actors": [],  # Omitted for performance; use actors endpoint
+        "human_actors": [],
     }
 
 
@@ -297,93 +307,125 @@ async def _developer_stats(
     lookback_days: int,
     limit: int,
 ) -> list[dict[str, Any]]:
-    """Aggregate per-developer activity from repo-related audit events.
+    """Aggregate per-developer activity from the daily CAGG.
 
     Repo-related actions include ``git.push``, ``pull_request.*``,
-    ``pull_request_review*``, and ``repo.*``.  Weekly counts are divided
-    into seven 7-day buckets (oldest → most recent) for the mini bar chart.
+    ``pull_request_review*``, and ``repo.*``.  Weekly counts are built
+    from daily buckets grouped into 7-day windows.
     """
     result = await db.execute(
         text("""
-            SELECT
-                actor,
-                COUNT(*) AS event_count,
-                COUNT(*) FILTER (WHERE action LIKE :pr_only) AS pr_count,
-                COUNT(*) FILTER (WHERE action LIKE :review) AS review_count,
-                ARRAY_AGG(DISTINCT repo) FILTER (WHERE repo IS NOT NULL) AS repos,
-                MAX(created_at) AS last_active,
-                COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') AS w6,
-                COUNT(*) FILTER (
-                    WHERE created_at >= NOW() - INTERVAL '14 days'
-                      AND created_at < NOW() - INTERVAL '7 days'
-                ) AS w5,
-                COUNT(*) FILTER (
-                    WHERE created_at >= NOW() - INTERVAL '21 days'
-                      AND created_at < NOW() - INTERVAL '14 days'
-                ) AS w4,
-                COUNT(*) FILTER (
-                    WHERE created_at >= NOW() - INTERVAL '28 days'
-                      AND created_at < NOW() - INTERVAL '21 days'
-                ) AS w3,
-                COUNT(*) FILTER (
-                    WHERE created_at >= NOW() - INTERVAL '35 days'
-                      AND created_at < NOW() - INTERVAL '28 days'
-                ) AS w2,
-                COUNT(*) FILTER (
-                    WHERE created_at >= NOW() - INTERVAL '42 days'
-                      AND created_at < NOW() - INTERVAL '35 days'
-                ) AS w1,
-                COUNT(*) FILTER (
-                    WHERE created_at < NOW() - INTERVAL '42 days'
-                ) AS w0
-            FROM events
-            WHERE actor IS NOT NULL AND actor != ''
-              AND (
-                  action = 'git.push'
-                  OR action LIKE :any_pr
-                  OR action LIKE :repo_action
-              )
-              AND org = ANY(:scoped_orgs)
-              AND created_at >= NOW() - MAKE_INTERVAL(days => :lookback_days)
-            GROUP BY actor
-            ORDER BY event_count DESC
-            LIMIT :limit
+            WITH dev_totals AS (
+                SELECT
+                    actor,
+                    SUM(event_count)::bigint AS event_count,
+                    SUM(event_count) FILTER (
+                        WHERE action LIKE 'pull_request.%'
+                    )::bigint AS pr_count,
+                    SUM(event_count) FILTER (
+                        WHERE action LIKE 'pull_request_review%'
+                    )::bigint AS review_count,
+                    MAX(last_seen) AS last_active,
+                    SUM(event_count) FILTER (
+                        WHERE bucket >= NOW() - INTERVAL '7 days'
+                    )::bigint AS w6,
+                    SUM(event_count) FILTER (
+                        WHERE bucket >= NOW() - INTERVAL '14 days'
+                          AND bucket < NOW() - INTERVAL '7 days'
+                    )::bigint AS w5,
+                    SUM(event_count) FILTER (
+                        WHERE bucket >= NOW() - INTERVAL '21 days'
+                          AND bucket < NOW() - INTERVAL '14 days'
+                    )::bigint AS w4,
+                    SUM(event_count) FILTER (
+                        WHERE bucket >= NOW() - INTERVAL '28 days'
+                          AND bucket < NOW() - INTERVAL '21 days'
+                    )::bigint AS w3,
+                    SUM(event_count) FILTER (
+                        WHERE bucket >= NOW() - INTERVAL '35 days'
+                          AND bucket < NOW() - INTERVAL '28 days'
+                    )::bigint AS w2,
+                    SUM(event_count) FILTER (
+                        WHERE bucket >= NOW() - INTERVAL '42 days'
+                          AND bucket < NOW() - INTERVAL '35 days'
+                    )::bigint AS w1,
+                    SUM(event_count) FILTER (
+                        WHERE bucket < NOW() - INTERVAL '42 days'
+                    )::bigint AS w0
+                FROM cagg_events_daily
+                WHERE actor IS NOT NULL AND actor != ''
+                  AND (
+                      action = 'git.push'
+                      OR action LIKE 'pull_request%'
+                      OR action LIKE 'repo.%'
+                  )
+                  AND org = ANY(:scoped_orgs)
+                  AND bucket >= NOW() - MAKE_INTERVAL(days => :lookback_days)
+                GROUP BY actor
+                ORDER BY event_count DESC
+                LIMIT :limit
+            )
+            SELECT d.*,
+                   COALESCE(r.repo_count, 0) AS repo_count,
+                   r.top_repos
+            FROM dev_totals d
+            LEFT JOIN LATERAL (
+                SELECT COUNT(DISTINCT repo)::int AS repo_count,
+                       ARRAY(
+                           SELECT repo FROM cagg_events_daily_repo rr
+                           WHERE rr.actor = d.actor
+                             AND rr.org = ANY(:scoped_orgs)
+                             AND rr.bucket >= NOW() - MAKE_INTERVAL(days => :lookback_days)
+                             AND rr.repo IS NOT NULL
+                             AND (rr.action = 'git.push' OR rr.action LIKE 'pull_request%'
+                                  OR rr.action LIKE 'repo.%')
+                           GROUP BY repo
+                           ORDER BY SUM(event_count) DESC
+                           LIMIT 5
+                       ) AS top_repos
+                FROM cagg_events_daily_repo r2
+                WHERE r2.actor = d.actor
+                  AND r2.org = ANY(:scoped_orgs)
+                  AND r2.bucket >= NOW() - MAKE_INTERVAL(days => :lookback_days)
+                  AND r2.repo IS NOT NULL
+                  AND (r2.action = 'git.push' OR r2.action LIKE 'pull_request%'
+                       OR r2.action LIKE 'repo.%')
+            ) r ON true
+            ORDER BY d.event_count DESC
         """),
         {
             "scoped_orgs": scoped_orgs,
             "lookback_days": lookback_days,
             "limit": limit,
-            "any_pr": "pull_request%",
-            "pr_only": "pull_request.%",
-            "review": "pull_request_review%",
-            "repo_action": "repo.%",
         },
     )
 
     developers: list[dict[str, Any]] = []
     for row in result.fetchall():
-        all_repos = list(row[4]) if row[4] else []
         developers.append(
             {
                 "login": row[0],
                 "event_count": row[1],
-                "pr_count": row[2],
-                "review_count": row[3],
-                "top_repos": all_repos[:5],
-                "repo_count": len(all_repos),
-                "last_active": row[5].isoformat() if row[5] else None,
+                "pr_count": row[2] or 0,
+                "review_count": row[3] or 0,
+                "top_repos": list(row[13]) if row[13] else [],
+                "repo_count": row[12] or 0,
+                "last_active": row[4].isoformat() if row[4] else None,
                 "weekly_counts": [
-                    row[12],
-                    row[11],
-                    row[10],
-                    row[9],
-                    row[8],
-                    row[7],
-                    row[6],
+                    row[11] or 0,
+                    row[10] or 0,
+                    row[9] or 0,
+                    row[8] or 0,
+                    row[7] or 0,
+                    row[6] or 0,
+                    row[5] or 0,
                 ],
             }
         )
     return developers
+
+
+# ── Route handlers ───────────────────────────────────────────────────────
 
 
 @router.get("/developers", response_model=dict[str, Any])
@@ -391,6 +433,7 @@ async def list_developers(
     lookback_days: int = Query(default=90, ge=1, le=365),
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    valkey: aioredis.Redis = Depends(get_valkey),
 ) -> dict[str, Any]:
     """Return per-developer activity stats based on repo-related audit events.
 
@@ -398,8 +441,18 @@ async def list_developers(
     ``git.push``, ``pull_request.*``, ``pull_request_review*``, ``repo.*``.
     """
     scoped_orgs = await _resolve_orgs(db, current_user)
+
+    cache_key = _build_cache_key(
+        "dev-activity.developers", scoped_orgs, {"lookback_days": lookback_days}
+    )
+    cached = await cache_get(valkey, cache_key)
+    if cached is not None:
+        return cached
+
     developers = await _developer_stats(db, scoped_orgs, lookback_days, limit=50)
-    return {"developers": developers, "lookback_days": lookback_days}
+    result = {"developers": developers, "lookback_days": lookback_days}
+    await cache_set(valkey, cache_key, result, _CACHE_TTL)
+    return result
 
 
 @router.get("/usage-stats", response_model=dict[str, Any])
@@ -407,9 +460,18 @@ async def usage_stats(
     lookback_days: int = Query(default=30, ge=1, le=365),
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    valkey: aioredis.Redis = Depends(get_valkey),
 ) -> dict[str, Any]:
     """Return aggregated API and Git usage statistics for the Dev Activity page."""
     scoped_orgs = await _resolve_orgs(db, current_user)
+
+    cache_key = _build_cache_key(
+        "dev-activity.usage-stats", scoped_orgs, {"lookback_days": lookback_days}
+    )
+    cached = await cache_get(valkey, cache_key)
+    if cached is not None:
+        return cached
+
     limit = 15
 
     git_counts = await _git_action_counts(db, scoped_orgs, lookback_days)
@@ -419,7 +481,7 @@ async def usage_stats(
     api = await _api_stats(db, scoped_orgs, lookback_days, limit)
     bot_human = await _bot_vs_human(db, scoped_orgs, lookback_days)
 
-    return {
+    result = {
         "git_stats": {
             "total_clones": git_counts.get("git.clone", 0),
             "total_pushes": git_counts.get("git.push", 0),
@@ -431,3 +493,5 @@ async def usage_stats(
         "api_stats": api,
         "bot_vs_human": bot_human,
     }
+    await cache_set(valkey, cache_key, result, _CACHE_TTL)
+    return result
