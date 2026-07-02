@@ -69,6 +69,14 @@ jobs:
       image_tag: ${{ steps.tag.outputs.tag }}
 
     steps:
+      - name: Clean stale worktrees
+        run: |
+          if [ -d "$GITHUB_WORKSPACE/.git" ]; then
+            cd "$GITHUB_WORKSPACE"
+            git worktree prune 2>/dev/null || true
+            rm -rf .worktrees 2>/dev/null || true
+          fi
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           fetch-depth: 0
@@ -95,6 +103,11 @@ jobs:
 
       - name: Build Helm dependencies
         run: helm dependency build ./helm
+
+      - name: Ensure namespace labels
+        run: |
+          # The internal 'octowatch' namespace is our test ring instance
+          kubectl label ns octowatch octowatch.dev/ring=test --overwrite 2>/dev/null || true
 
       - name: Discover test namespaces
         id: discover
@@ -162,6 +175,14 @@ jobs:
       contents: read
 
     steps:
+      - name: Clean stale worktrees
+        run: |
+          if [ -d "$GITHUB_WORKSPACE/.git" ]; then
+            cd "$GITHUB_WORKSPACE"
+            git worktree prune 2>/dev/null || true
+            rm -rf .worktrees 2>/dev/null || true
+          fi
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
       - name: Build Helm dependencies
@@ -221,6 +242,14 @@ jobs:
       contents: read
 
     steps:
+      - name: Clean stale worktrees
+        run: |
+          if [ -d "$GITHUB_WORKSPACE/.git" ]; then
+            cd "$GITHUB_WORKSPACE"
+            git worktree prune 2>/dev/null || true
+            rm -rf .worktrees 2>/dev/null || true
+          fi
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
       - name: Build Helm dependencies
@@ -277,6 +306,14 @@ jobs:
       contents: read
 
     steps:
+      - name: Clean stale worktrees
+        run: |
+          if [ -d "$GITHUB_WORKSPACE/.git" ]; then
+            cd "$GITHUB_WORKSPACE"
+            git worktree prune 2>/dev/null || true
+            rm -rf .worktrees 2>/dev/null || true
+          fi
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           fetch-depth: 0
