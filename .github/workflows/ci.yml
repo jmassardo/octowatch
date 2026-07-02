@@ -1,26 +1,22 @@
+# =============================================================================
+# CI — Pull Request Validation
+#
+# Runs lint, type checking, unit tests, and E2E tests on pull requests.
+# This is the only gate before merge — no redundant re-runs on main.
+# =============================================================================
 name: CI
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'website/**'
-      - 'docs/**'
-      - '*.md'
   pull_request:
     branches: [main]
     paths-ignore:
-      - 'website/**'
-      - 'docs/**'
-      - '*.md'
+      - "website/**"
+      - "docs/**"
+      - "*.md"
 
-# Cancel in-progress runs for the same branch
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
 
 permissions:
   contents: read
@@ -127,7 +123,6 @@ jobs:
         working-directory: backend
       - name: Run tests with coverage
         run: pytest tests/ -v --cov=app --cov-report=xml --cov-fail-under=10
-        # NOTE: local pyproject.toml also sets --cov-fail-under; keep them in sync
         working-directory: backend
         env:
           DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/audit_log_test
@@ -162,132 +157,16 @@ jobs:
         working-directory: frontend
 
   # ─────────────────────────────────────────────────────────────────────────
-  # Stage 3: Migration check (main branch and tags only)
-  # ─────────────────────────────────────────────────────────────────────────
-  migration-check:
-    name: Migration Check (alembic)
-    runs-on: ubuntu-latest
-    needs: [backend-test]
-    continue-on-error: true  # TimescaleDB compression prevents some ALTER TABLE ops
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-    services:
-      postgres:
-        image: timescale/timescaledb:2.14.2-pg16
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: audit_log_test
-        ports:
-          - "5432:5432"
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
-        with:
-          python-version: "3.12"
-          cache: pip
-      - name: Install deps
-        run: pip install -e ".[dev]"
-        working-directory: backend
-      - name: Run migrations
-        run: alembic upgrade head
-        working-directory: backend
-        env:
-          DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/audit_log_test
-      - name: Verify migrations are up-to-date
-        run: |
-          # Verify no unmigrated revisions exist
-          alembic check && echo "All migrations are current" || echo "WARNING: Unmigrated revisions detected"
-        working-directory: backend
-        env:
-          DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/audit_log_test
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # Stage 4: Docker builds (main branch only; after tests pass)
-  # ─────────────────────────────────────────────────────────────────────────
-  build-backend:
-    name: Build Backend (${{ matrix.target }})
-    runs-on: ubuntu-latest
-    needs: [backend-test]
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-    strategy:
-      matrix:
-        target: [production, worker, beat]
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4.1.0
-      - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee  # v4.2.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Resolve image name for target
-        id: meta
-        run: |
-          case "${{ matrix.target }}" in
-            production) echo "image_suffix=api" >> "$GITHUB_OUTPUT" ;;
-            worker)     echo "image_suffix=worker" >> "$GITHUB_OUTPUT" ;;
-            beat)       echo "image_suffix=beat" >> "$GITHUB_OUTPUT" ;;
-          esac
-      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf  # v7.2.0
-        with:
-          context: backend
-          target: ${{ matrix.target }}
-          push: true
-          tags: |
-            ${{ env.IMAGE_PREFIX }}/octowatch-${{ steps.meta.outputs.image_suffix }}:${{ github.sha }}
-            ${{ env.IMAGE_PREFIX }}/octowatch-${{ steps.meta.outputs.image_suffix }}:main
-          cache-from: type=gha,scope=${{ matrix.target }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
-          sbom: true
-          provenance: true
-
-  build-frontend:
-    name: Build Frontend
-    runs-on: ubuntu-latest
-    needs: [frontend-test]
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4.1.0
-      - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee  # v4.2.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf  # v7.2.0
-        with:
-          context: frontend
-          push: true
-          tags: |
-            ${{ env.IMAGE_PREFIX }}/octowatch-frontend:${{ github.sha }}
-            ${{ env.IMAGE_PREFIX }}/octowatch-frontend:main
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # Stage 5: E2E tests (main branch and tags only — full stack needed)
+  # Stage 3: E2E tests (full-stack integration)
   # ─────────────────────────────────────────────────────────────────────────
   e2e-test:
     name: E2E Tests
     runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend]
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    needs: [backend-test, frontend-test]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Start stack
         run: |
-          # Write .env for docker compose
           cat > .env <<'EOF'
           DATABASE_URL=postgresql+asyncpg://test:test@db:5432/auditlogs
           POSTGRES_USER=test
@@ -305,13 +184,10 @@ jobs:
           GITHUB_RULES_TOKEN=
           LOG_LEVEL=WARNING
           EOF
-          # Remove leading spaces from heredoc
           sed -i 's/^          //' .env
-          # Build images locally for E2E testing
           docker build --target production -t octowatch-api:latest backend/
           docker build --target worker -t octowatch-worker:latest backend/
           docker build -t octowatch-frontend:latest frontend/
-          # Generate self-signed TLS cert for nginx in CI
           mkdir -p nginx/ssl
           openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
             -keyout nginx/ssl/key.pem -out nginx/ssl/cert.pem \
@@ -319,7 +195,6 @@ jobs:
           docker compose up -d db valkey
           sleep 15
           docker compose run --rm migrate || true
-          # Enable local_password auth method for E2E dev-login
           docker compose exec -T db psql -U test -d auditlogs -c \
             "UPDATE auth_method_configs SET enabled = true WHERE method_name = 'local_password';" || true
           docker compose up -d api frontend nginx
@@ -369,24 +244,3 @@ jobs:
       - name: Dump logs on failure
         if: failure()
         run: docker compose logs --tail=100
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # Stage 6: Release (tags only — creates GitHub release)
-  # ─────────────────────────────────────────────────────────────────────────
-  release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    needs: [e2e-test]
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-      packages: write
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-        with:
-          fetch-depth: 0
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b  # v3.0.1
-        with:
-          generate_release_notes: true
-          draft: false
