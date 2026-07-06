@@ -74,17 +74,10 @@ export function removeTeamRole(teamId: number, roleId: number): Promise<void> {
 }
 
 export type TeamsNotificationSource =
-  | 'detections'
-  | 'sync_errors'
-  | 'system_health'
-  | 'threat_intel';
+  'detections' | 'sync_errors' | 'system_health' | 'threat_intel';
 
 export type TeamsChannelKey =
-  | 'default'
-  | 'detections'
-  | 'sync_errors'
-  | 'system_health'
-  | 'threat_intel';
+  'default' | 'detections' | 'sync_errors' | 'system_health' | 'threat_intel';
 
 export interface TeamsConfigResponse {
   channel_webhook_configured: Record<TeamsChannelKey, boolean>;

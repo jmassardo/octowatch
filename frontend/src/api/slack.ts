@@ -1,10 +1,7 @@
 import { api } from './client';
 
 export type SlackNotificationSource =
-  | 'detections'
-  | 'sync_errors'
-  | 'system_health'
-  | 'threat_intel';
+  'detections' | 'sync_errors' | 'system_health' | 'threat_intel';
 
 export interface SlackConfigResponse {
   bot_token_configured: boolean;

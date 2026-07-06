@@ -107,12 +107,7 @@ export interface CustomReportGrouping {
 }
 
 export type DataSourceType =
-  | 'events'
-  | 'detections'
-  | 'posture'
-  | 'copilot'
-  | 'workflows'
-  | 'users';
+  'events' | 'detections' | 'posture' | 'copilot' | 'workflows' | 'users';
 
 export type VisualizationType = 'table' | 'table_chart' | 'chart';
 
