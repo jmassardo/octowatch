@@ -272,22 +272,25 @@ class TestRunPostSyncPipeline:
         # Mock session
         mock_session = AsyncMock()
 
-        # First call: update status to running (execute + commit)
-        # Second call: query events (execute returns rows)
-        # Third call: update status to completed (execute + commit)
+        # Events returned by streaming query
         event_rows = [(i,) for i in range(1, 1201)]  # 1200 events
-        call_count = 0
 
-        async def mock_execute(*args: object, **kwargs: object) -> MagicMock:
-            nonlocal call_count
-            call_count += 1
-            result = MagicMock()
-            if call_count == 3:
-                # Event query (after status update + _write_sync_log)
-                result.fetchall.return_value = event_rows
-            return result
+        # Mock session.stream() to return an async iterator over event rows
+        class _AsyncRowIter:
+            def __init__(self, rows: list[tuple[int]]) -> None:
+                self._iter = iter(rows)
 
-        mock_session.execute = AsyncMock(side_effect=mock_execute)
+            def __aiter__(self) -> _AsyncRowIter:
+                return self
+
+            async def __anext__(self) -> tuple[int]:
+                try:
+                    return next(self._iter)
+                except StopIteration:
+                    raise StopAsyncIteration from None
+
+        mock_session.stream = AsyncMock(return_value=_AsyncRowIter(event_rows))
+        mock_session.execute = AsyncMock(return_value=MagicMock())
         mock_session.commit = AsyncMock()
 
         # Make session factory return our mock
@@ -434,17 +437,22 @@ class TestRunPostSyncPipeline:
 
         mock_session = AsyncMock()
         event_rows = [(i,) for i in range(1, 501)]  # Exactly 500 events
-        call_count = 0
 
-        async def mock_execute(*args: object, **kwargs: object) -> MagicMock:
-            nonlocal call_count
-            call_count += 1
-            result = MagicMock()
-            if call_count == 3:
-                result.fetchall.return_value = event_rows
-            return result
+        class _AsyncRowIter:
+            def __init__(self, rows: list[tuple[int]]) -> None:
+                self._iter = iter(rows)
 
-        mock_session.execute = AsyncMock(side_effect=mock_execute)
+            def __aiter__(self) -> _AsyncRowIter:
+                return self
+
+            async def __anext__(self) -> tuple[int]:
+                try:
+                    return next(self._iter)
+                except StopIteration:
+                    raise StopAsyncIteration from None
+
+        mock_session.stream = AsyncMock(return_value=_AsyncRowIter(event_rows))
+        mock_session.execute = AsyncMock(return_value=MagicMock())
         mock_session.commit = AsyncMock()
 
         mock_ctx = AsyncMock()

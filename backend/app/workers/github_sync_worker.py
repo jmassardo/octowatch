@@ -683,31 +683,40 @@ async def _run_post_sync_pipeline_async(run_id: str) -> dict[str, object]:
                     f"Promoted {new_count} new org installation(s) into app configs",
                 )
 
-        # Query event IDs from the last 30 days
+        # Stream event IDs in chunks to avoid loading all into memory
         cutoff = datetime.now(UTC) - timedelta(days=30)
-        async with sf() as session:
-            result = await session.execute(
-                select(AuditEvent.id).where(AuditEvent.created_at >= cutoff).order_by(AuditEvent.id)
-            )
-            event_ids: list[int] = [row[0] for row in result.fetchall()]
-
-        # Batch event IDs and dispatch detection pipeline tasks
         from app.workers.detection_worker import run_detection_pipeline_task
 
         batch_size = 500
         detection_batches = 0
-        for i in range(0, len(event_ids), batch_size):
-            batch = event_ids[i : i + batch_size]
-            run_detection_pipeline_task.apply_async(
-                args=[batch],
-                queue="detection",
+        total_events = 0
+        async with sf() as session:
+            result = await session.stream(
+                select(AuditEvent.id).where(AuditEvent.created_at >= cutoff).order_by(AuditEvent.id)
             )
-            detection_batches += 1
+            batch: list[int] = []
+            async for row in result:
+                batch.append(row[0])
+                if len(batch) >= batch_size:
+                    run_detection_pipeline_task.apply_async(
+                        args=[batch],
+                        queue="detection",
+                    )
+                    detection_batches += 1
+                    total_events += len(batch)
+                    batch = []
+            if batch:
+                run_detection_pipeline_task.apply_async(
+                    args=[batch],
+                    queue="detection",
+                )
+                detection_batches += 1
+                total_events += len(batch)
 
         await _write_sync_log(
             sf,
             run_id,
-            f"Dispatched {detection_batches} detection batches for {len(event_ids)} events",
+            f"Dispatched {detection_batches} detection batches for {total_events} events",
         )
 
         # Dispatch rolling baseline computation
@@ -743,7 +752,7 @@ async def _run_post_sync_pipeline_async(run_id: str) -> dict[str, object]:
         logger.info(
             "github_sync.post_sync_pipeline_completed",
             run_id=run_id,
-            event_count=len(event_ids),
+            event_count=total_events,
             detection_batches=detection_batches,
         )
         await _write_sync_log(
@@ -754,7 +763,7 @@ async def _run_post_sync_pipeline_async(run_id: str) -> dict[str, object]:
 
         return {
             "status": "completed",
-            "event_count": len(event_ids),
+            "event_count": total_events,
             "detection_batches": detection_batches,
             "posture_findings": posture_count,
         }
@@ -2099,33 +2108,29 @@ async def _fetch_page(
             return [], None
 
         items = []
-        for repo in repos:
-            if repo.get("archived"):
-                continue
-            # Delta optimisation: skip repos not pushed since the cutoff
-            if delta_since is not None:
-                pushed_at = repo.get("pushed_at") or ""
-                if pushed_at < delta_since.isoformat():
-                    # All remaining repos are older — stop early
-                    return items, None
-            branch = repo.get("default_branch") or "main"
-            prot_url = f"{_GITHUB_API_BASE}/repos/{org}/{repo['name']}/branches/{branch}/protection"
-            prot_resp = await _github_get(
-                prot_url,
-                headers,
-                {},
-                rate_limiter,
-                etag_cache=etag_cache,
-                api_counter=api_counter,
-                entity_type=entity_type,
-            )
-            if prot_resp.status_code == 200:
-                prot = prot_resp.json()
-                pr_reviews = prot.get("required_pull_request_reviews") or {}
-                status_checks = prot.get("required_status_checks")
-                enforce = prot.get("enforce_admins") or {}
-                items.append(
-                    {
+        sem = asyncio.Semaphore(10)
+
+        async def _fetch_protection(repo: dict) -> dict | None:
+            async with sem:
+                branch = repo.get("default_branch") or "main"
+                prot_url = (
+                    f"{_GITHUB_API_BASE}/repos/{org}/{repo['name']}/branches/{branch}/protection"
+                )
+                prot_resp = await _github_get(
+                    prot_url,
+                    headers,
+                    {},
+                    rate_limiter,
+                    etag_cache=etag_cache,
+                    api_counter=api_counter,
+                    entity_type=entity_type,
+                )
+                if prot_resp.status_code == 200:
+                    prot = prot_resp.json()
+                    pr_reviews = prot.get("required_pull_request_reviews") or {}
+                    status_checks = prot.get("required_status_checks")
+                    enforce = prot.get("enforce_admins") or {}
+                    return {
                         "_repo_name": repo["name"],
                         "_branch": branch,
                         "required_reviews": pr_reviews.get("required_approving_review_count", 0),
@@ -2139,15 +2144,31 @@ async def _fetch_page(
                         ),
                         "enforce_admins": enforce.get("enabled", False),
                     }
-                )
-            elif prot_resp.status_code == 404:
-                # No branch protection — don't create a record.
-                # The posture rule "missing_protection" detects repos
-                # that have no corresponding row in repo_branch_protections.
-                pass
-            # 403 (no permission) — skip silently
+                # 404 (no protection) or 403 (no permission) — skip
+                return None
 
-        next_cursor = str(page + 1) if _has_next_page(resp.headers) else None
+        # Filter repos eligible for protection check
+        eligible_repos = []
+        hit_delta_cutoff = False
+        for repo in repos:
+            if repo.get("archived"):
+                continue
+            if delta_since is not None:
+                pushed_at = repo.get("pushed_at") or ""
+                if pushed_at < delta_since.isoformat():
+                    hit_delta_cutoff = True
+                    break
+            eligible_repos.append(repo)
+
+        # Fetch protections concurrently (bounded by semaphore)
+        results = await asyncio.gather(*[_fetch_protection(r) for r in eligible_repos])
+        items = [r for r in results if r is not None]
+
+        # Don't paginate if we hit the delta cutoff — remaining pages are older
+        if hit_delta_cutoff:
+            next_cursor = None
+        else:
+            next_cursor = str(page + 1) if _has_next_page(resp.headers) else None
         return items, next_cursor
 
     # ── Repo commits (iterate repos, fetch recent commits per repo) ───────
