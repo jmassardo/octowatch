@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { renderWithProviders } from '../../test/utils';
 import { NotificationsPage } from './index';
 
 const mockListNotifications = vi.fn();
@@ -73,19 +72,11 @@ const mockPreferences = {
   updated_at: new Date().toISOString(),
 };
 
-function renderPage() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+function renderPage(route = '/notifications/alerts') {
+  return renderWithProviders(<NotificationsPage />, {
+    route,
+    routePath: '/notifications/:tab',
   });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/notifications']}>
-        <Routes>
-          <Route path="/notifications" element={<NotificationsPage />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
 }
 
 describe('NotificationsPage', () => {

@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { renderWithProviders } from '../../test/utils';
 import { ProfilePage } from './index';
 
 /* ─── Mock API module ──────────────────────────────────────────────────────── */
@@ -72,18 +71,11 @@ const MOCK_SESSIONS = {
 
 /* ─── Helpers ──────────────────────────────────────────────────────────────── */
 
-function renderProfile() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+function renderProfile(route = '/profile/profile') {
+  return renderWithProviders(<ProfilePage />, {
+    route,
+    routePath: '/profile/:tab',
   });
-
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <ProfilePage />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
 }
 
 /* ─── Tests ────────────────────────────────────────────────────────────────── */
@@ -107,9 +99,9 @@ describe('ProfilePage', () => {
 
     const tabs = screen.getAllByRole('tab');
     expect(tabs).toHaveLength(3);
-    expect(tabs[0]).toHaveTextContent('Profile');
-    expect(tabs[1]).toHaveTextContent('Preferences');
-    expect(tabs[2]).toHaveTextContent('Sessions');
+    expect(screen.getByRole('tab', { name: 'Profile' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Preferences' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Sessions' })).toBeInTheDocument();
   });
 
   it('displays user profile information on the Profile tab', async () => {

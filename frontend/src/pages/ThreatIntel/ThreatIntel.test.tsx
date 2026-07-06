@@ -1,8 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { Route, Routes } from 'react-router-dom';
 import { renderWithProviders } from '../../test/utils';
 import { ThreatIntelPage } from './index';
+import { ThreatIntelFeedDetailPage } from './FeedDetailPage';
 
 vi.mock('echarts-for-react', () => ({
   default: () => null,
@@ -125,16 +127,27 @@ vi.mock('../../api/threatIntel', () => ({
   bulkCreateIndicators: vi.fn().mockResolvedValue({ created: 5, duplicates: 1, errors: 0 }),
 }));
 
+function renderThreatIntel(route = '/threat-intel/feeds') {
+  return renderWithProviders(
+    <Routes>
+      <Route path="/threat-intel/:tab" element={<ThreatIntelPage />} />
+      <Route path="/threat-intel/feeds/:feedId" element={<ThreatIntelFeedDetailPage />} />
+    </Routes>,
+    { route },
+  );
+}
+
+function renderFeedDetail(route = '/threat-intel/feeds/1') {
+  return renderThreatIntel(route);
+}
+
 describe('ThreatIntelPage', () => {
   /* ---------------------------------------------------------------- */
   /*  Tab rendering                                                     */
   /* ---------------------------------------------------------------- */
 
   it('renders page header and all tabs', () => {
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     expect(screen.getByText('Threat Intelligence')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Feeds' })).toBeInTheDocument();
@@ -144,30 +157,21 @@ describe('ThreatIntelPage', () => {
   });
 
   it('shows Feeds tab as active by default', () => {
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     const feedsTab = screen.getByRole('tab', { name: 'Feeds' });
     expect(feedsTab).toHaveAttribute('aria-selected', 'true');
   });
 
   it('renders feed data in the Feeds tab', async () => {
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     expect(await screen.findByText('AlienVault OTX')).toBeInTheDocument();
     expect(screen.getByText('Blocklist.de')).toBeInTheDocument();
   });
 
   it('shows Add Feed button on Feeds tab', async () => {
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     await screen.findByText('AlienVault OTX');
     expect(screen.getByText('+ Add Feed')).toBeInTheDocument();
@@ -179,10 +183,7 @@ describe('ThreatIntelPage', () => {
 
   it('switches to Indicators tab on click', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     await user.click(screen.getByRole('tab', { name: 'Indicators' }));
 
@@ -192,10 +193,7 @@ describe('ThreatIntelPage', () => {
 
   it('switches to Matches tab and shows metric cards', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     await user.click(screen.getByRole('tab', { name: 'Matches' }));
 
@@ -206,10 +204,7 @@ describe('ThreatIntelPage', () => {
 
   it('switches to Analytics tab and shows metric cards', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     await user.click(screen.getByRole('tab', { name: 'Analytics' }));
 
@@ -225,10 +220,7 @@ describe('ThreatIntelPage', () => {
 
   it('opens Add Feed modal when clicking the button', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     await screen.findByText('AlienVault OTX');
     await user.click(screen.getByText('+ Add Feed'));
@@ -238,10 +230,7 @@ describe('ThreatIntelPage', () => {
   });
 
   it('shows feed status badges', async () => {
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     expect(await screen.findByText('Active')).toBeInTheDocument();
     expect(screen.getByText('Paused')).toBeInTheDocument();
@@ -253,10 +242,7 @@ describe('ThreatIntelPage', () => {
 
   it('opens detail drawer when clicking a feed row', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     await screen.findByText('AlienVault OTX');
     const row = screen.getByRole('button', { name: 'View details for AlienVault OTX' });
@@ -276,10 +262,7 @@ describe('ThreatIntelPage', () => {
 
   it('closes detail drawer when clicking close button', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel/1',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderFeedDetail('/threat-intel/feeds/1');
 
     // Wait for feed data and drawer to render
     await waitFor(() => {
@@ -294,10 +277,7 @@ describe('ThreatIntelPage', () => {
   });
 
   it('opens feed detail via deep link URL', async () => {
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel/1',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderFeedDetail('/threat-intel/feeds/1');
 
     await waitFor(() => {
       expect(screen.getByTestId('drawer-panel')).toBeInTheDocument();
@@ -311,10 +291,7 @@ describe('ThreatIntelPage', () => {
 
   it('shows search input on Indicators tab', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     await user.click(screen.getByRole('tab', { name: 'Indicators' }));
 
@@ -323,10 +300,7 @@ describe('ThreatIntelPage', () => {
 
   it('shows Add Indicator button on Indicators tab', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     await user.click(screen.getByRole('tab', { name: 'Indicators' }));
 
@@ -336,10 +310,7 @@ describe('ThreatIntelPage', () => {
 
   it('shows Import CSV and Export buttons on Indicators tab', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     await user.click(screen.getByRole('tab', { name: 'Indicators' }));
 
@@ -350,10 +321,7 @@ describe('ThreatIntelPage', () => {
 
   it('opens indicator detail drawer when clicking a row', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel?tab=indicators',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel('/threat-intel/indicators');
 
     await screen.findByText('malicious.example.com');
     const row = screen.getByRole('button', { name: 'View details for malicious.example.com' });
@@ -374,10 +342,7 @@ describe('ThreatIntelPage', () => {
 
   it('shows match details with detection link', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     await user.click(screen.getByRole('tab', { name: 'Matches' }));
 
@@ -391,10 +356,7 @@ describe('ThreatIntelPage', () => {
 
   it('shows analytics metric values', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ThreatIntelPage />, {
-      route: '/threat-intel',
-      routePath: '/threat-intel/:feedId?',
-    });
+    renderThreatIntel();
 
     await user.click(screen.getByRole('tab', { name: 'Analytics' }));
 

@@ -10,7 +10,7 @@ import { OverviewPane } from './OverviewPane';
 import { FrameworkPane } from './FrameworkPane';
 import { GDPRPane } from './GDPRPane';
 import { PolicyChecksPane } from './PolicyChecksPane';
-import { useEnumQueryParam } from '../../hooks/useQueryParam';
+import { useTabParam } from '../../hooks/useTabParam';
 import type { ComplianceTab } from '../../types/compliance';
 import styles from './Compliance.module.css';
 
@@ -26,7 +26,7 @@ const TABS: { key: ComplianceTab; label: string }[] = [
 ];
 
 export function CompliancePage() {
-  const [activeTab, setActiveTab] = useEnumQueryParam('tab', TAB_KEYS, 'overview');
+  const [activeTab, setActiveTab] = useTabParam('/compliance', TAB_KEYS, 'overview');
   const [isGenerating, setIsGenerating] = useState(false);
   const queryClient = useQueryClient();
 

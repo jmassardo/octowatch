@@ -39,7 +39,8 @@ import type {
   ReportTemplate,
 } from '../../types/reports';
 import { formatDateOnly } from '../../utils/dates';
-import { useEnumQueryParam, useQueryParam } from '../../hooks/useQueryParam';
+import { useTabParam } from '../../hooks/useTabParam';
+import { useQueryParam } from '../../hooks/useQueryParam';
 import styles from './Reports.module.css';
 
 /**
@@ -157,8 +158,8 @@ export function ReportsPage() {
   const { selectedOrg } = useOrg();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useEnumQueryParam(
-    'tab',
+  const [activeTab, setActiveTab] = useTabParam(
+    '/reports',
     ['templates', 'my-reports', 'shared', 'recent'] as const,
     'templates',
   );

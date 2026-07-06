@@ -3,7 +3,7 @@ import { FeedsTab } from './FeedsTab';
 import { IndicatorsTab } from './IndicatorsTab';
 import { MatchesTab } from './MatchesTab';
 import { AnalyticsTab } from './AnalyticsTab';
-import { useEnumQueryParam } from '../../hooks/useQueryParam';
+import { useTabParam } from '../../hooks/useTabParam';
 import styles from './ThreatIntel.module.css';
 
 type TabId = 'feeds' | 'indicators' | 'matches' | 'analytics';
@@ -18,7 +18,7 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 export function ThreatIntelPage() {
-  const [activeTab, setActiveTab] = useEnumQueryParam('tab', TAB_KEYS, 'feeds');
+  const [activeTab, setActiveTab] = useTabParam('/threat-intel', TAB_KEYS, 'feeds');
 
   return (
     <div className={styles.page}>

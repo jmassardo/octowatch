@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEnumQueryParam } from '../../hooks/useQueryParam';
+import { useTabParam } from '../../hooks/useTabParam';
 import {
   listRoleAssignments,
   createRoleAssignment,
@@ -832,7 +832,7 @@ export function UsersPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useEnumQueryParam('tab', TAB_KEYS, 'users');
+  const [activeTab, setActiveTab] = useTabParam('/users', TAB_KEYS, 'users');
   const [showAdd, setShowAdd] = useState(false);
   const [editTarget, setEditTarget] = useState<RoleAssignment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RoleAssignment | null>(null);

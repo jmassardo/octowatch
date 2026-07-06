@@ -131,20 +131,27 @@ vi.mock('../../api/reports', () => ({
   exportReport: vi.fn(),
 }));
 
+function renderPage(route = '/compliance/overview') {
+  return renderWithProviders(<CompliancePage />, {
+    route,
+    routePath: '/compliance/:tab',
+  });
+}
+
 describe('CompliancePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('renders the page header', async () => {
-    renderWithProviders(<CompliancePage />, { route: '/compliance' });
+    renderPage();
     await waitFor(() => {
       expect(screen.getByText('Compliance Center')).toBeInTheDocument();
     });
   });
 
   it('renders summary metric cards', async () => {
-    renderWithProviders(<CompliancePage />, { route: '/compliance' });
+    renderPage();
     await waitFor(() => {
       expect(screen.getByText('Overall Score')).toBeInTheDocument();
     });
@@ -159,7 +166,7 @@ describe('CompliancePage', () => {
   });
 
   it('renders all tabs', async () => {
-    renderWithProviders(<CompliancePage />, { route: '/compliance' });
+    renderPage();
     await waitFor(() => {
       expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
     });
@@ -171,7 +178,7 @@ describe('CompliancePage', () => {
   });
 
   it('shows framework cards on overview tab', async () => {
-    renderWithProviders(<CompliancePage />, { route: '/compliance' });
+    renderPage();
     await waitFor(() => {
       expect(screen.getByText('SOC 2 Type II')).toBeInTheDocument();
     });
@@ -182,7 +189,7 @@ describe('CompliancePage', () => {
   });
 
   it('shows Generate All Reports button in header', async () => {
-    renderWithProviders(<CompliancePage />, { route: '/compliance' });
+    renderPage();
     await waitFor(() => {
       expect(screen.getByText('Generate All Reports')).toBeInTheDocument();
     });
@@ -190,7 +197,7 @@ describe('CompliancePage', () => {
 
   it('navigates to SOC 2 tab on click', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<CompliancePage />, { route: '/compliance' });
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByRole('tab', { name: 'SOC 2' })).toBeInTheDocument();
@@ -205,7 +212,7 @@ describe('CompliancePage', () => {
 
   it('navigates to framework tab from framework card click', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<CompliancePage />, { route: '/compliance' });
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByText('SOC 2 Type II')).toBeInTheDocument();
@@ -221,7 +228,7 @@ describe('CompliancePage', () => {
 
   it('navigates to GDPR tab', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<CompliancePage />, { route: '/compliance' });
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByRole('tab', { name: 'GDPR' })).toBeInTheDocument();
@@ -236,7 +243,7 @@ describe('CompliancePage', () => {
 
   it('renders GDPR processing activities', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<CompliancePage />, { route: '/compliance' });
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByRole('tab', { name: 'GDPR' })).toBeInTheDocument();
@@ -251,7 +258,7 @@ describe('CompliancePage', () => {
 
   it('renders GDPR breach checklist', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<CompliancePage />, { route: '/compliance' });
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByRole('tab', { name: 'GDPR' })).toBeInTheDocument();
@@ -267,7 +274,7 @@ describe('CompliancePage', () => {
 
   it('navigates to Policy Checks tab', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<CompliancePage />, { route: '/compliance' });
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByRole('tab', { name: 'Policy Checks' })).toBeInTheDocument();
@@ -282,7 +289,7 @@ describe('CompliancePage', () => {
 
   it('renders policy check data table', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<CompliancePage />, { route: '/compliance' });
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByRole('tab', { name: 'Policy Checks' })).toBeInTheDocument();
@@ -298,7 +305,7 @@ describe('CompliancePage', () => {
 
   it('marks the active tab correctly', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<CompliancePage />, { route: '/compliance' });
+    renderPage();
 
     await waitFor(() => {
       expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();

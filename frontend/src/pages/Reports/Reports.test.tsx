@@ -141,6 +141,13 @@ vi.mock('../../api/reports', () => ({
   exportCustomReport: vi.fn(),
 }));
 
+function renderPage(route = '/reports/templates') {
+  return renderWithProviders(<ReportsPage />, {
+    route,
+    routePath: '/reports/:tab',
+  });
+}
+
 describe('ReportsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -148,13 +155,13 @@ describe('ReportsPage', () => {
   });
 
   it('renders page title and subtitle', () => {
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     expect(screen.getByText('Reports')).toBeInTheDocument();
     expect(screen.getByText('Organization activity and usage analytics')).toBeInTheDocument();
   });
 
   it('renders window selector with 30d, 60d, 90d buttons', () => {
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     expect(screen.getByText('Window:')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '30d' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '60d' })).toBeInTheDocument();
@@ -163,7 +170,7 @@ describe('ReportsPage', () => {
 
   it('updates window days when selector buttons are clicked', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     expect(screen.getByText(/last 30 days/)).toBeInTheDocument();
 
@@ -175,7 +182,7 @@ describe('ReportsPage', () => {
   });
 
   it('renders summary card with data bucket counts', async () => {
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     expect(screen.getByText(/Data summary/)).toBeInTheDocument();
     expect(screen.getByText('Total MAU buckets')).toBeInTheDocument();
     expect(screen.getByText('Actions buckets')).toBeInTheDocument();
@@ -184,7 +191,7 @@ describe('ReportsPage', () => {
   });
 
   it('renders summary cards for all 8 report types', async () => {
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     await waitFor(() => {
       expect(screen.getByText('Repo creation buckets')).toBeInTheDocument();
     });
@@ -199,12 +206,12 @@ describe('ReportsPage', () => {
   });
 
   it('shows Platform seat util instead of Seat util for seat-utilization summary', () => {
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     expect(screen.getByText('Platform seat util buckets')).toBeInTheDocument();
   });
 
   it('summary values are clickable when numeric', async () => {
-    const { container } = renderWithProviders(<ReportsPage />);
+    const { container } = renderPage();
     await waitFor(() => {
       const grid = container.querySelector('.summaryGrid')!;
       const clickableValues = grid.querySelectorAll('.clickableValue');
@@ -219,7 +226,7 @@ describe('ReportsPage', () => {
 
   it('clicking bucket value opens the detail drawer', async () => {
     const user = userEvent.setup();
-    const { container } = renderWithProviders(<ReportsPage />);
+    const { container } = renderPage();
     await waitFor(() => {
       expect(container.querySelector('.clickableValue')).not.toBeNull();
     });
@@ -230,7 +237,7 @@ describe('ReportsPage', () => {
   });
 
   it('renders data source labels on summary cards', async () => {
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     await waitFor(() => {
       const sources = screen.getAllByText(/Source: Audit Events/);
       expect(sources.length).toBeGreaterThanOrEqual(3);
@@ -239,7 +246,7 @@ describe('ReportsPage', () => {
 
   it('renders data source in drawer when report is opened', async () => {
     const user = userEvent.setup();
-    const { container } = renderWithProviders(<ReportsPage />);
+    const { container } = renderPage();
     await waitFor(() => {
       expect(container.querySelector('.clickableValue')).not.toBeNull();
     });
@@ -252,7 +259,7 @@ describe('ReportsPage', () => {
   // ── Tab navigation tests ──────────────────────────────────────────────
 
   it('renders tab navigation with Templates, My Reports, Shared with Me, and Recent tabs', () => {
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     expect(screen.getByRole('tab', { name: /Templates/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /My Reports/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Shared with Me/i })).toBeInTheDocument();
@@ -260,13 +267,13 @@ describe('ReportsPage', () => {
   });
 
   it('Templates tab is active by default', () => {
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     const templatesTab = screen.getByRole('tab', { name: /Templates/i });
     expect(templatesTab.getAttribute('aria-selected')).toBe('true');
   });
 
   it('renders 8 pre-built report template rows in Templates tab table', async () => {
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     await waitFor(() => {
       expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
     });
@@ -280,7 +287,7 @@ describe('ReportsPage', () => {
   });
 
   it('templates are displayed in a DataTable', async () => {
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     await waitFor(() => {
       expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
     });
@@ -294,7 +301,7 @@ describe('ReportsPage', () => {
 
   it('clicking a template row opens the detail drawer with config panel', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     await waitFor(() => {
       expect(screen.getByText('User Activity Report')).toBeInTheDocument();
     });
@@ -308,7 +315,7 @@ describe('ReportsPage', () => {
 
   it('clicking a template row opens drawer with export buttons', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     await waitFor(() => {
       expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
     });
@@ -322,7 +329,7 @@ describe('ReportsPage', () => {
   it('calls exportReport when Export CSV is clicked in drawer', async () => {
     const { exportReport } = await import('../../api/reports');
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     await waitFor(() => {
       expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
     });
@@ -336,7 +343,7 @@ describe('ReportsPage', () => {
   it('calls exportReport when Export PDF is clicked in drawer', async () => {
     const { exportReport } = await import('../../api/reports');
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     await waitFor(() => {
       expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
     });
@@ -368,7 +375,7 @@ describe('ReportsPage', () => {
       },
     ]);
 
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     expect(await screen.findByText('Custom Security Report')).toBeInTheDocument();
     expect(screen.getByText('DORA Metrics Report')).toBeInTheDocument();
@@ -385,7 +392,7 @@ describe('ReportsPage', () => {
         status: 'available',
       } as import('../../types/reports').ReportCatalogEntry,
     ]);
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     expect(await screen.findByText('Report Without Tags')).toBeInTheDocument();
   });
 
@@ -401,7 +408,7 @@ describe('ReportsPage', () => {
         tags: ['custom-tag-unique'],
       },
     ]);
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     expect(await screen.findByText('Report With Null Date')).toBeInTheDocument();
   });
 
@@ -418,7 +425,7 @@ describe('ReportsPage', () => {
         tags: [],
       },
     ]);
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     await screen.findByText('MAU With Description');
     expect(screen.getByText('Unique actors per time bucket.')).toBeInTheDocument();
   });
@@ -436,7 +443,7 @@ describe('ReportsPage', () => {
       },
     ]);
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     const title = await screen.findByText('MAU Report');
     await user.click(title);
@@ -461,7 +468,7 @@ describe('ReportsPage', () => {
       },
     ]);
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     const title = await screen.findByText('MAU Report');
     await user.click(title);
@@ -481,7 +488,7 @@ describe('ReportsPage', () => {
       },
     ]);
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     const title = await screen.findByText('Unknown Report');
     await user.click(title);
@@ -502,7 +509,7 @@ describe('ReportsPage', () => {
       },
     ]);
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     const title = await screen.findByText('Repo Creation Rate Report');
     await user.click(title);
@@ -523,7 +530,7 @@ describe('ReportsPage', () => {
       },
     ]);
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     const title = await screen.findByText('PAT Counts Report');
     await user.click(title);
@@ -544,7 +551,7 @@ describe('ReportsPage', () => {
       },
     ]);
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     const title = await screen.findByText('Webhook Counts Report');
     await user.click(title);
@@ -565,7 +572,7 @@ describe('ReportsPage', () => {
       },
     ]);
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     const title = await screen.findByText('Codespace Hours Report');
     await user.click(title);
@@ -577,7 +584,7 @@ describe('ReportsPage', () => {
 
   it('switching to My Reports tab shows empty state when no custom reports', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     await user.click(screen.getByRole('tab', { name: /My Reports/i }));
 
@@ -586,7 +593,7 @@ describe('ReportsPage', () => {
 
   it('switching to Shared tab shows empty state when no shared reports', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     await user.click(screen.getByRole('tab', { name: /Shared with Me/i }));
 
@@ -595,7 +602,7 @@ describe('ReportsPage', () => {
 
   it('switching to Recent tab shows empty state when no recent reports', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     await user.click(screen.getByRole('tab', { name: /Recent/i }));
 
@@ -603,13 +610,13 @@ describe('ReportsPage', () => {
   });
 
   it('renders "New Custom Report" button', () => {
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     expect(screen.getByRole('button', { name: /New Custom Report/i })).toBeInTheDocument();
   });
 
   it('clicking "New Custom Report" opens the report builder modal', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     await user.click(screen.getByRole('button', { name: /New Custom Report/i }));
 
@@ -639,7 +646,7 @@ describe('ReportsPage', () => {
     ]);
 
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     await user.click(screen.getByRole('tab', { name: /My Reports/i }));
 
@@ -669,7 +676,7 @@ describe('ReportsPage', () => {
     ]);
 
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     await user.click(screen.getByRole('tab', { name: /My Reports/i }));
     await screen.findByText('My Report');
@@ -703,7 +710,7 @@ describe('ReportsPage', () => {
     ]);
 
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     await user.click(screen.getByRole('tab', { name: /Shared with Me/i }));
     await screen.findByText('Shared Detection Report');
@@ -748,7 +755,7 @@ describe('ReportsPage', () => {
       },
     ]);
 
-    renderWithProviders(<ReportsPage />);
+    renderPage();
 
     await waitFor(() => {
       const myReportsTab = screen.getByRole('tab', { name: /My Reports/i });
@@ -759,7 +766,7 @@ describe('ReportsPage', () => {
   // ── Deep-linking tests ──────────────────────────────────────────────
 
   it('opening page with report query param auto-opens the drawer', async () => {
-    renderWithProviders(<ReportsPage />, { route: '/?report=tmpl-user-activity' });
+    renderPage('/reports/templates?report=tmpl-user-activity');
 
     await waitFor(() => {
       expect(screen.getByTestId('report-detail-tray')).toBeInTheDocument();
@@ -771,7 +778,7 @@ describe('ReportsPage', () => {
   it('drawer shows organization when selectedOrg is set', async () => {
     mockUseOrg.mockReturnValue({ selectedOrg: 'my-org', setSelectedOrg: vi.fn() });
     const user = userEvent.setup();
-    renderWithProviders(<ReportsPage />);
+    renderPage();
     await waitFor(() => {
       expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
     });
@@ -782,7 +789,7 @@ describe('ReportsPage', () => {
   });
 
   it('table has clickable row styling on report names', async () => {
-    const { container } = renderWithProviders(<ReportsPage />);
+    const { container } = renderPage();
     await waitFor(() => {
       expect(screen.getByText('Security Posture Report')).toBeInTheDocument();
     });

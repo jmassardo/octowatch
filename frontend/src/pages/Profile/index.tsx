@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTabParam } from '../../hooks/useTabParam';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Card, CardHeader } from '../../components/primitives/Card';
 import { Avatar } from '../../components/primitives/Avatar';
@@ -14,11 +15,13 @@ import {
 import type { UserPreferences, SessionInfo } from '../../api/userProfile';
 import styles from './Profile.module.css';
 
-type TabKey = 'profile' | 'preferences' | 'sessions';
+type TabKey = 'preferences' | 'profile' | 'sessions';
+
+const TAB_KEYS: readonly TabKey[] = ['preferences', 'profile', 'sessions'];
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'profile', label: 'Profile' },
   { key: 'preferences', label: 'Preferences' },
+  { key: 'profile', label: 'Profile' },
   { key: 'sessions', label: 'Sessions' },
 ];
 
@@ -44,7 +47,7 @@ const ITEMS_PER_PAGE_OPTIONS = [25, 50, 100];
  * ProfilePage — User profile, preferences, and session management.
  */
 export function ProfilePage() {
-  const [activeTab, setActiveTab] = useState<TabKey>('profile');
+  const [activeTab, setActiveTab] = useTabParam('/profile', TAB_KEYS, 'preferences');
 
   return (
     <div className={styles.page}>
