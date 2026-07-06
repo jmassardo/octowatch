@@ -28,9 +28,9 @@ export function RadialGauge({ value, label, color, size = 140 }: RadialGaugeProp
     color ??
     (clampedValue < 50
       ? 'var(--danger)'
-      : clampedValue < 75
+      : clampedValue < 80
         ? 'var(--attention)'
-        : 'var(--accent)');
+        : 'var(--success)');
 
   const cx = size / 2;
   const cy = size / 2;

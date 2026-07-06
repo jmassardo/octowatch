@@ -101,27 +101,27 @@
 }
 
 .critical {
-  background: var(--danger-subtle, #2d0d10);
-  color: var(--danger-fg, #f85149);
+  background: var(--danger-subtle);
+  color: var(--danger-fg);
 }
 
 .high {
-  background: var(--attention-subtle, #2d1d00);
-  color: var(--attention-fg, #d29922);
+  background: var(--attention-subtle);
+  color: var(--attention-fg);
 }
 
 .medium {
-  background: var(--accent-subtle, #0d1d2d);
+  background: var(--accent-subtle);
   color: var(--accent);
 }
 
 .low {
-  background: var(--success-subtle, #0d2d1d);
-  color: var(--success-fg, #3fb950);
+  background: var(--success-subtle);
+  color: var(--success-fg);
 }
 
 .none {
-  background: var(--neutral-subtle, #1d1d1d);
+  background: var(--neutral-subtle);
   color: var(--fg-muted);
 }
 
@@ -244,7 +244,7 @@
 }
 
 .clickableRow:hover {
-  background-color: var(--bg-hover, rgba(0, 0, 0, 0.04));
+  background-color: var(--bg-hover);
 }
 
 .clickableRow:focus-visible {
