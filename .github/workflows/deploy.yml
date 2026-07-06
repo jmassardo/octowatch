@@ -108,7 +108,7 @@ jobs:
         run: |
           # The internal 'octowatch' namespace is our test ring instance
           kubectl label ns octowatch octowatch.dev/ring=test --overwrite 2>/dev/null || true
-          kubectl label ns octowatch octowatch.dev/customer=octowatch-internal --overwrite 2>/dev/null || true
+          kubectl label ns octowatch octowatch.dev/customer=csa --overwrite 2>/dev/null || true
           kubectl label ns octowatch octowatch.dev/size=small --overwrite 2>/dev/null || true
 
       - name: Discover test namespaces
