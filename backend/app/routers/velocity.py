@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db, get_valkey
+from app.deps import AuthenticatedUser, get_db, get_valkey, require_permission
 from app.services.velocity_service import (
     get_leadership_summary,
     get_shipping_cadence,
@@ -96,7 +96,7 @@ class ShippingCadenceResponse(BaseModel):
 @router.get("/leadership-summary", response_model=LeadershipSummaryResponse)
 async def leadership_summary(
     period: int = Query(default=30, ge=7, le=180),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("velocity", "view")),
     db: AsyncSession = Depends(get_db),
     valkey: aioredis.Redis = Depends(get_valkey),
 ) -> LeadershipSummaryResponse:
@@ -181,7 +181,7 @@ async def leadership_summary(
 async def team_comparison(
     period: int = Query(default=30, ge=7, le=180),
     metric: Literal["deploy_freq", "lead_time", "cfr", "mttr"] = Query(default="deploy_freq"),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("velocity", "view")),
     db: AsyncSession = Depends(get_db),
     valkey: aioredis.Redis = Depends(get_valkey),
 ) -> TeamComparisonResponse:
@@ -238,7 +238,7 @@ async def team_comparison(
 @router.get("/shipping-cadence", response_model=ShippingCadenceResponse)
 async def shipping_cadence(
     period: int = Query(default=90, ge=7, le=365),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("velocity", "view")),
     db: AsyncSession = Depends(get_db),
     valkey: aioredis.Redis = Depends(get_valkey),
 ) -> ShippingCadenceResponse:

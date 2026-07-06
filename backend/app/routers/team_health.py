@@ -12,7 +12,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db
+from app.deps import AuthenticatedUser, get_db, require_permission
 from app.services import rbac_service
 from app.services.team_health_service import (
     get_bus_factor,
@@ -49,7 +49,7 @@ async def _resolve_orgs(
 @router.get("/bus-factor", response_model=dict[str, Any])
 async def bus_factor(
     lookback_days: int = Query(default=90, ge=1, le=365),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("team_health", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Return per-repo bus factor analysis."""
@@ -61,7 +61,7 @@ async def bus_factor(
 @router.get("/engagement", response_model=dict[str, Any])
 async def engagement(
     lookback_days: int = Query(default=30, ge=1, le=365),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("team_health", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Return developer engagement tier breakdown."""
@@ -74,7 +74,7 @@ async def engagement(
 @router.get("/policy-violations", response_model=dict[str, Any])
 async def policy_violations(
     lookback_days: int = Query(default=30, ge=1, le=365),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("team_health", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Return detected policy violations from audit log patterns."""
@@ -86,7 +86,7 @@ async def policy_violations(
 @router.get("/knowledge-concentration", response_model=dict[str, Any])
 async def knowledge_concentration(
     lookback_days: int = Query(default=90, ge=1, le=365),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("team_health", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Return repos where knowledge is concentrated in few people."""
@@ -97,7 +97,7 @@ async def knowledge_concentration(
 
 @router.get("/summary", response_model=dict[str, Any])
 async def summary(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("team_health", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Return combined team health summary for MetricCards strip."""

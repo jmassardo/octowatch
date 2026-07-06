@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db
+from app.deps import AuthenticatedUser, get_db, require_permission
 from app.services import rbac_service, telemetry_service
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
@@ -29,7 +29,7 @@ async def _resolve_orgs(
 
 @router.get("/summary", response_model=dict[str, Any])
 async def telemetry_summary(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("telemetry", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Aggregate telemetry metrics for the status strip."""
@@ -40,7 +40,7 @@ async def telemetry_summary(
 @router.get("/stream-status", response_model=dict[str, Any])
 async def stream_status(
     limit: int = Query(default=50, ge=1, le=200),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("telemetry", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Per-stream ingestion status across scoped orgs."""
@@ -55,7 +55,7 @@ async def stream_status(
 
 @router.get("/worker-health", response_model=dict[str, Any])
 async def worker_health(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("telemetry", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Worker health events and active worker rollup."""
@@ -67,7 +67,7 @@ async def worker_health(
 async def event_volume(
     bucket: str = Query(default="hour"),
     hours: int = Query(default=24, ge=1, le=168),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("telemetry", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Bucketed ingestion volume and top actions."""
@@ -83,7 +83,7 @@ async def event_volume(
 @router.get("/errors", response_model=dict[str, Any])
 async def ingestion_errors(
     limit: int = Query(default=100, ge=1, le=500),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("telemetry", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Recent ingestion failures and stale-ingestion gaps."""

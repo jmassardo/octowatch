@@ -13,7 +13,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db
+from app.deps import AuthenticatedUser, get_db, require_permission
 from app.schemas.delivery_timeline import DeliveryTimelineStats
 from app.services import rbac_service
 from app.services.enrichment_service import get_delivery_timeline_stats
@@ -48,7 +48,7 @@ async def _resolve_orgs(
 )
 async def get_delivery_timeline(
     db: AsyncSession = Depends(get_db),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("delivery_timeline", "view")),
     repo: str | None = Query(default=None, description="Filter by repository name"),
     days: int = Query(default=30, ge=1, le=365, description="Lookback window in days"),
 ) -> dict[str, Any]:

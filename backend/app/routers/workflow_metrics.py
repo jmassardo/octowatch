@@ -29,7 +29,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db, get_valkey
+from app.deps import AuthenticatedUser, get_db, get_valkey, require_permission
 
 logger = structlog.get_logger(__name__)
 
@@ -283,7 +283,7 @@ async def always_failing(
     threshold: int = Query(default=5, ge=2, le=20),
     lookback_days: int = Query(default=30, ge=1, le=90),
     org: str | None = None,
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("workflow_metrics", "view")),
     db: AsyncSession = Depends(get_db),
     valkey: aioredis.Redis = Depends(get_valkey),
 ) -> AlwaysFailingResponse:
@@ -334,7 +334,7 @@ async def always_timing_out(
     threshold: int = Query(default=3, ge=2, le=10),
     lookback_days: int = Query(default=30, ge=1, le=90),
     org: str | None = None,
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("workflow_metrics", "view")),
     db: AsyncSession = Depends(get_db),
     valkey: aioredis.Redis = Depends(get_valkey),
 ) -> AlwaysFailingResponse:
@@ -387,7 +387,7 @@ async def run_history(
     workflow_name: str = Query(...),
     limit: int = Query(default=20, ge=1, le=100),
     lookback_days: int = Query(default=90, ge=1, le=365),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("workflow_metrics", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> RunHistoryResponse:
     """Return recent run history for a specific workflow.

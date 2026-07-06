@@ -14,7 +14,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db
+from app.deps import AuthenticatedUser, get_db, require_permission
 from app.services import rbac_service
 
 logger = structlog.get_logger(__name__)
@@ -39,7 +39,7 @@ async def _resolve_orgs(
 @router.get("/risk-summary", response_model=dict[str, Any])
 async def risk_summary(
     lookback_days: int = Query(default=30, ge=1, le=365),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("user_behavior", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Return aggregate risk metrics across all users in scope."""
@@ -55,7 +55,7 @@ async def risky_users(
     risk_level: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("user_behavior", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Return paginated list of users with risk scores and signal breakdowns."""
@@ -71,7 +71,7 @@ async def risky_users(
 async def anomalies(
     lookback_days: int = Query(default=30, ge=1, le=365),
     threshold: float = Query(default=2.0, ge=1.5, le=10.0),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("user_behavior", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Return users whose recent activity deviates significantly from baseline."""
@@ -84,7 +84,7 @@ async def anomalies(
 @router.get("/permission-drift", response_model=dict[str, Any])
 async def permission_drift(
     lookback_days: int = Query(default=90, ge=1, le=365),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("user_behavior", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Return users with excessive permissions relative to their actual activity."""

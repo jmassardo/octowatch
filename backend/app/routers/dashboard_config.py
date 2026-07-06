@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db, verify_csrf
+from app.deps import AuthenticatedUser, get_db, require_permission, verify_csrf
 from app.models.dashboard_config import UserDashboardConfig
 from app.schemas.dashboard_config import (
     DashboardConfigResponse,
@@ -284,7 +284,7 @@ PERSONAS_BY_ID = {p.id: p for p in PERSONAS}
 
 @router.get("/config", response_model=DashboardConfigResponse)
 async def get_dashboard_config(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("dashboard", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> DashboardConfigResponse:
     """Return the current user's saved dashboard configuration.
@@ -332,7 +332,7 @@ async def get_dashboard_config(
 )
 async def update_dashboard_config(
     body: DashboardConfigUpdate,
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("dashboard", "manage")),
     db: AsyncSession = Depends(get_db),
 ) -> DashboardConfigResponse:
     """Save or update the current user's dashboard layout and persona."""
@@ -380,7 +380,7 @@ async def update_dashboard_config(
 
 @router.get("/widgets", response_model=WidgetCatalogResponse)
 async def list_widgets(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("dashboard", "view")),
 ) -> WidgetCatalogResponse:
     """Return the full widget catalog available for dashboard configuration."""
     return WidgetCatalogResponse(widgets=WIDGET_CATALOG)
@@ -388,7 +388,7 @@ async def list_widgets(
 
 @router.get("/personas", response_model=PersonaListResponse)
 async def list_personas(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("dashboard", "view")),
 ) -> PersonaListResponse:
     """Return available personas with their recommended default layouts."""
     return PersonaListResponse(personas=PERSONAS)

@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db, get_valkey
+from app.deps import AuthenticatedUser, get_db, get_valkey, require_permission
 from app.services import rbac_service
 from app.services.cache_service import (
     _build_cache_key,
@@ -431,7 +431,7 @@ async def _developer_stats(
 @router.get("/developers", response_model=dict[str, Any])
 async def list_developers(
     lookback_days: int = Query(default=90, ge=1, le=365),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("dev_activity", "view")),
     db: AsyncSession = Depends(get_db),
     valkey: aioredis.Redis = Depends(get_valkey),
 ) -> dict[str, Any]:
@@ -458,7 +458,7 @@ async def list_developers(
 @router.get("/usage-stats", response_model=dict[str, Any])
 async def usage_stats(
     lookback_days: int = Query(default=30, ge=1, le=365),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("dev_activity", "view")),
     db: AsyncSession = Depends(get_db),
     valkey: aioredis.Redis = Depends(get_valkey),
 ) -> dict[str, Any]:

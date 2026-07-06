@@ -12,7 +12,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db
+from app.deps import AuthenticatedUser, get_db, require_permission
 from app.services import rbac_service
 
 logger = structlog.get_logger(__name__)
@@ -36,7 +36,7 @@ async def _resolve_orgs(
 
 @router.get("/summary", response_model=dict[str, Any])
 async def classification_summary(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("user_classification", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Return persona distribution summary for scoped orgs."""
@@ -51,7 +51,7 @@ async def list_classified_users(
     persona: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("user_classification", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Return paginated user classifications with optional persona filter."""
@@ -66,7 +66,7 @@ async def list_classified_users(
 @router.post("/run", response_model=dict[str, Any])
 async def trigger_classification_run(
     window_days: int = Query(default=90, ge=1, le=365),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("user_classification", "manage")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Trigger a manual classification run for all scoped orgs."""
