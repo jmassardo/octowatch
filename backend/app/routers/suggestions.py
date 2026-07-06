@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import AuthenticatedUser, get_current_user, get_db
+from app.deps import AuthenticatedUser, get_db, require_permission
 from app.services.rbac_service import get_scoped_orgs
 
 router = APIRouter(prefix="/suggestions", tags=["suggestions"])
@@ -26,7 +26,7 @@ _STATIC_FIELDS: list[str] = [
 
 @router.get("/actions", response_model=dict[str, Any])
 async def suggest_actions(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("suggestions", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, list[str]]:
     """Return distinct action values from events visible to the current user."""
@@ -48,7 +48,7 @@ async def suggest_actions(
 
 @router.get("/fields", response_model=dict[str, Any])
 async def suggest_fields(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("suggestions", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, list[str]]:
     """Return known field paths for use in rule conditions.
@@ -74,7 +74,7 @@ async def suggest_fields(
 
 @router.get("/actors", response_model=dict[str, Any])
 async def suggest_actors(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("suggestions", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, list[str]]:
     """Return distinct actor values from events visible to the current user."""
@@ -97,7 +97,7 @@ async def suggest_actors(
 
 @router.get("/repos", response_model=dict[str, Any])
 async def suggest_repos(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("suggestions", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, list[str]]:
     """Return distinct repo values from events visible to the current user."""
@@ -120,7 +120,7 @@ async def suggest_repos(
 
 @router.get("/orgs", response_model=dict[str, Any])
 async def suggest_orgs(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("suggestions", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, list[str]]:
     """Return distinct org values from events visible to the current user."""
@@ -143,7 +143,7 @@ async def suggest_orgs(
 
 @router.get("/namespaces", response_model=dict[str, Any])
 async def suggest_namespaces(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(require_permission("suggestions", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, list[str]]:
     """Return distinct namespace values from events visible to the current user."""
