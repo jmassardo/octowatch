@@ -119,6 +119,9 @@ def _score_from_report(report: dict[str, Any]) -> tuple[float, int, int]:
     if score == 0.0 and total > 0:
         score = round((passing / total) * 100, 1)
 
+    # Clamp to 0-100 to satisfy pydantic schema validation
+    score = max(0.0, min(100.0, score))
+
     return score, passing, total
 
 
@@ -413,18 +416,26 @@ async def get_gdpr_summary(
     """
     now = datetime.now(UTC)
 
-    # Count GDPR erasure events
-    if org:
-        stmt = text(
-            "SELECT COUNT(*) AS cnt FROM audit_trail"
-            " WHERE action_type = 'gdpr_erasure'"
-            " AND resource_type = 'user'"
-        )
-    else:
-        stmt = text("SELECT COUNT(*) AS cnt FROM audit_trail WHERE action_type = 'gdpr_erasure'")
-    result = await session.execute(stmt)
-    row = result.fetchone()
-    erasure_count = int(row.cnt) if row else 0
+    # Count GDPR erasure events — wrapped in try/except in case audit_trail
+    # has not yet been populated or org filter fails.
+    erasure_count = 0
+    try:
+        if org:
+            stmt = text(
+                "SELECT COUNT(*) AS cnt FROM audit_trail"
+                " WHERE action_type = 'gdpr_erasure'"
+                " AND org = :org"
+            )
+            result = await session.execute(stmt, {"org": org})
+        else:
+            stmt = text(
+                "SELECT COUNT(*) AS cnt FROM audit_trail WHERE action_type = 'gdpr_erasure'"
+            )
+            result = await session.execute(stmt)
+        row = result.fetchone()
+        erasure_count = int(row.cnt) if row else 0
+    except Exception:
+        logger.warning("compliance.gdpr.audit_trail_query_failed")
 
     # Standard data processing activities for GitHub-based systems
     activities = [

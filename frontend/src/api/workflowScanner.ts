@@ -80,7 +80,10 @@ export function getRepoSecurityScores(params?: {
 }
 
 export function scanWorkflow(body: { content: string; path?: string }) {
-  return api.post<{ findings: WorkflowFinding[] }>('/workflows/scan', body);
+  return api.post<{ findings: WorkflowFinding[] }>('/workflows/scan', {
+    yaml_content: body.content,
+    workflow_path: body.path,
+  });
 }
 
 export function getScanStatus() {

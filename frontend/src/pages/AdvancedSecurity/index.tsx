@@ -1134,12 +1134,7 @@ function ActivityLogTab() {
             rowKey={(r) => r.id}
             emptyMessage="No GHAS-related events found in the last 30 days"
           />
-          <Pagination
-            page={page}
-            pageSize={PAGE_SIZE}
-            total={nsFilter ? data.total : filteredItems.length}
-            onPageChange={setPage}
-          />
+          <Pagination page={page} pageSize={PAGE_SIZE} total={data.total} onPageChange={setPage} />
         </div>
       )}
     </>
