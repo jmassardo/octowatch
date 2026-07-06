@@ -886,7 +886,7 @@
 
 .syncWizardStepActive {
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-emphasis);
 }
 
 .syncWizardStepDone {
@@ -918,7 +918,7 @@
 
 .syncWizardStepDone .syncWizardStepNumber {
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-emphasis);
 }
 
 .syncWizardStepLabel {

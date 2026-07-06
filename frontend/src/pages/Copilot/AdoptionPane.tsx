@@ -158,7 +158,7 @@ export function AdoptionPane() {
             fontSize: 11,
             fontWeight: 600,
             background: u.tier_color,
-            color: '#fff',
+            color: 'var(--fg-on-emphasis)',
           }}
         >
           {u.tier}
@@ -394,7 +394,7 @@ export function AdoptionPane() {
                         fontSize: 11,
                         fontWeight: 600,
                         background: drawerUser.tier_color,
-                        color: '#fff',
+                        color: 'var(--fg-on-emphasis)',
                         marginTop: 4,
                       }}
                     >
