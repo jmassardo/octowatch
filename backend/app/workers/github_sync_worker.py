@@ -2149,12 +2149,14 @@ async def _fetch_page(
 
         # Filter repos eligible for protection check
         eligible_repos = []
+        hit_delta_cutoff = False
         for repo in repos:
             if repo.get("archived"):
                 continue
             if delta_since is not None:
                 pushed_at = repo.get("pushed_at") or ""
                 if pushed_at < delta_since.isoformat():
+                    hit_delta_cutoff = True
                     break
             eligible_repos.append(repo)
 
@@ -2162,7 +2164,11 @@ async def _fetch_page(
         results = await asyncio.gather(*[_fetch_protection(r) for r in eligible_repos])
         items = [r for r in results if r is not None]
 
-        next_cursor = str(page + 1) if _has_next_page(resp.headers) else None
+        # Don't paginate if we hit the delta cutoff — remaining pages are older
+        if hit_delta_cutoff:
+            next_cursor = None
+        else:
+            next_cursor = str(page + 1) if _has_next_page(resp.headers) else None
         return items, next_cursor
 
     # ── Repo commits (iterate repos, fetch recent commits per repo) ───────
