@@ -1,10 +1,7 @@
 import { api } from './client';
 
 export type PagerDutyNotificationSource =
-  | 'detections'
-  | 'sync_errors'
-  | 'system_health'
-  | 'threat_intel';
+  'detections' | 'sync_errors' | 'system_health' | 'threat_intel';
 
 export type PagerDutySeverity = 'critical' | 'error' | 'warning' | 'info';
 export type OctoWatchSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
