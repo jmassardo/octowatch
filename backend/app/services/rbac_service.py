@@ -241,7 +241,7 @@ SYSTEM_ROLE_PERMISSIONS: dict[str, list[str]] = {
         "team_health:view",
         "telemetry:view",
         "suggestions:view",
-        "user_classification:view",
+        "user_classification:*",
     ],
     "rule_author": [
         "detections:*",
