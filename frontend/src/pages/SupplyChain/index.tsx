@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useEnumQueryParam } from '../../hooks/useQueryParam';
+import { useTabParam } from '../../hooks/useTabParam';
 import { PageHeader } from '../../components/common/PageHeader';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Spinner } from '../../components/primitives/Spinner';
@@ -374,7 +374,7 @@ function RuleEditor({
 /* ── Main page ──────────────────────────────────────────────────────────── */
 
 export function SupplyChainPage() {
-  const [activeTab, setActiveTab] = useEnumQueryParam('tab', TAB_KEYS, 'risks');
+  const [activeTab, setActiveTab] = useTabParam('/supply-chain', TAB_KEYS, 'risks');
   const [selectedRisk, setSelectedRisk] = useState<SupplyChainRisk | null>(null);
   const [selectedRule, setSelectedRule] = useState<SupplyChainRule | null>(null);
   const [creatingRule, setCreatingRule] = useState(false);

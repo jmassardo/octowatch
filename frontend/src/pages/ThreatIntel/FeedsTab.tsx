@@ -136,13 +136,13 @@ export function FeedsTab() {
 
   const openFeedDetail = useCallback(
     (feed: ThreatIntelFeed) => {
-      navigate(`/threat-intel/${feed.id}`, { replace: true });
+      navigate(`/threat-intel/feeds/${feed.id}`, { replace: true });
     },
     [navigate],
   );
 
   const closeFeedDetail = useCallback(() => {
-    navigate('/threat-intel', { replace: true });
+    navigate('/threat-intel/feeds', { replace: true });
   }, [navigate]);
 
   if (isLoading) {

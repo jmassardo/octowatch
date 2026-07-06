@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TelemetryPage } from './index';
 
 vi.mock('echarts-for-react', () => ({
@@ -18,13 +18,20 @@ vi.mock('../../api/telemetry', () => ({
 
 import * as telemetryApi from '../../api/telemetry';
 
-function renderPage() {
+function renderPage(route = '/monitoring/telemetry/streams') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter>
-      <QueryClientProvider client={qc}>
-        <TelemetryPage />
-      </QueryClientProvider>
+    <MemoryRouter initialEntries={[route]}>
+      <Routes>
+        <Route
+          path="/monitoring/telemetry/:tab"
+          element={
+            <QueryClientProvider client={qc}>
+              <TelemetryPage />
+            </QueryClientProvider>
+          }
+        />
+      </Routes>
     </MemoryRouter>,
   );
 }

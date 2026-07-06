@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTabParam } from '../../hooks/useTabParam';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/primitives/Button';
 import {
@@ -42,12 +43,14 @@ function severityClass(severity: NotificationSeverity): string {
   }
 }
 
-type TabId = 'notifications' | 'preferences';
+type TabId = 'alerts' | 'preferences';
+
+const TAB_KEYS: readonly TabId[] = ['alerts', 'preferences'];
 
 export function NotificationsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<TabId>('notifications');
+  const [activeTab, setActiveTab] = useTabParam('/notifications', TAB_KEYS, 'alerts');
   const [page, setPage] = useState(1);
   const [severityFilter, setSeverityFilter] = useState<NotificationSeverity | ''>('');
   const [readFilter, setReadFilter] = useState<string>('');
@@ -98,7 +101,7 @@ export function NotificationsPage() {
           description="Manage your notification settings and preferences"
         />
         <div className={styles.tabs}>
-          <button className={`${styles.tab}`} onClick={() => setActiveTab('notifications')}>
+          <button className={`${styles.tab}`} onClick={() => setActiveTab('alerts')}>
             Notifications
           </button>
           <button
@@ -120,7 +123,7 @@ export function NotificationsPage() {
       <div className={styles.tabs}>
         <button
           className={`${styles.tab} ${styles.tabActive}`}
-          onClick={() => setActiveTab('notifications')}
+          onClick={() => setActiveTab('alerts')}
         >
           Notifications
           {data && data.unread_count > 0 && ` (${data.unread_count})`}

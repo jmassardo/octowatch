@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { screen, fireEvent } from '@testing-library/react';
 import { PackagesPage } from './index';
+import { renderWithProviders } from '../../test/utils';
 import type {
   PackageSummary,
   PackageAlertList,
@@ -131,17 +130,11 @@ vi.mock('@tanstack/react-query', async () => {
   };
 });
 
-function renderPage() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+function renderPage(route = '/packages/overview') {
+  return renderWithProviders(<PackagesPage />, {
+    route,
+    routePath: '/packages/:tab',
   });
-  return render(
-    <MemoryRouter>
-      <QueryClientProvider client={client}>
-        <PackagesPage />
-      </QueryClientProvider>
-    </MemoryRouter>,
-  );
 }
 
 function loadedResults(): Record<string, MockQueryReturn<unknown>> {

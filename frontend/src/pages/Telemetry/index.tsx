@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEnumQueryParam } from '../../hooks/useQueryParam';
+import { useTabParam } from '../../hooks/useTabParam';
 import { getTelemetrySummary } from '../../api/telemetry';
 import { PageHeader } from '../../components/common/PageHeader';
 import { MetricCard } from '../../components/primitives/MetricCard';
@@ -30,7 +30,7 @@ function isStale(iso: string | null): boolean {
 }
 
 export function TelemetryPage() {
-  const [activeTab, setActiveTab] = useEnumQueryParam('tab', TAB_KEYS, 'streams');
+  const [activeTab, setActiveTab] = useTabParam('/monitoring/telemetry', TAB_KEYS, 'streams');
 
   const {
     data: summary,

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   listWorkflowFindings,
   getRepoSecurityScores,
@@ -111,13 +111,13 @@ function FindingDetailContent({ finding }: { finding: WorkflowFinding }) {
 }
 
 export function WorkflowsPage() {
+  const { tab: tabParam } = useParams<{ tab: string }>();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Sync tab, severity, status, page, and selected finding with URL
-  const tabParam = searchParams.get('tab') ?? 'findings';
-  const tab: Tab = (['findings', 'scores', 'activity', 'rules'] as Tab[]).includes(tabParam as Tab)
-    ? (tabParam as Tab)
-    : 'findings';
+  // Tab from path param, remaining filters from query params
+  const TAB_VALUES: Tab[] = ['findings', 'scores', 'activity', 'rules'];
+  const tab: Tab = TAB_VALUES.includes(tabParam as Tab) ? (tabParam as Tab) : 'findings';
   const sevFilter = searchParams.get('severity') ?? '';
   const statusFilter = searchParams.get('status') ?? '';
   const findingIdParam = searchParams.get('finding');
@@ -127,22 +127,8 @@ export function WorkflowsPage() {
   const [selectedFinding, setSelectedFinding] = useState<WorkflowFinding | null>(null);
 
   function setTab(newTab: Tab) {
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        if (newTab === 'findings') {
-          next.delete('tab');
-        } else {
-          next.set('tab', newTab);
-        }
-        // Clear finding selection and pagination when switching tabs
-        next.delete('finding');
-        next.delete('page');
-        next.delete('spage');
-        return next;
-      },
-      { replace: true },
-    );
+    // Navigate to new tab path, clear pagination and finding selection
+    navigate(`/workflows/${newTab}`, { replace: true });
     setSelectedFinding(null);
   }
 

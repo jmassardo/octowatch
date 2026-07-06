@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEnumQueryParam } from '../../hooks/useQueryParam';
+import { useTabParam } from '../../hooks/useTabParam';
 import { PageHeader } from '../../components/common/PageHeader';
 import { EmptyState } from '../../components/common/EmptyState';
 import { MetricCard } from '../../components/primitives/MetricCard';
@@ -278,7 +278,7 @@ function ContainerHealthTab({ data }: { data: StaleImageList | undefined }) {
 /* ── Main page ──────────────────────────────────────────────────────────── */
 
 export function PackagesPage() {
-  const [activeTab, setActiveTab] = useEnumQueryParam('tab', TAB_KEYS, 'overview');
+  const [activeTab, setActiveTab] = useTabParam('/packages', TAB_KEYS, 'overview');
 
   const summaryQuery = useQuery({
     queryKey: ['packages', 'summary'],

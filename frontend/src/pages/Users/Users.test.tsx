@@ -113,9 +113,16 @@ vi.mock('../../api/roles', () => ({
   }),
 }));
 
+function renderPage(route = '/users/users') {
+  return renderWithProviders(<UsersPage />, {
+    route,
+    routePath: '/users/:tab',
+  });
+}
+
 describe('UsersPage', () => {
   it('renders page title and guidance banner', () => {
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     expect(screen.getByRole('heading', { level: 1, name: /users & roles/i })).toBeInTheDocument();
     expect(
@@ -127,7 +134,7 @@ describe('UsersPage', () => {
   });
 
   it('renders Members and Roles tabs but not Teams', () => {
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     expect(screen.getByRole('button', { name: 'Members' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Roles' })).toBeInTheDocument();
@@ -135,7 +142,7 @@ describe('UsersPage', () => {
   });
 
   it('renders team mappings section', async () => {
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     expect(screen.getByRole('heading', { level: 2, name: /team mappings/i })).toBeInTheDocument();
 
@@ -144,7 +151,7 @@ describe('UsersPage', () => {
   });
 
   it('renders active users section from API data', async () => {
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     expect(screen.getByRole('heading', { level: 2, name: /active users/i })).toBeInTheDocument();
 
@@ -158,7 +165,7 @@ describe('UsersPage', () => {
   });
 
   it('displays correct role labels for active sessions', async () => {
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     // Wait for sessions to load
     await screen.findByText('@mwestphal');
@@ -175,7 +182,7 @@ describe('UsersPage', () => {
   });
 
   it('team mapping shows correct role name from backend', async () => {
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     // Wait for team mapping data to load - the role_name "sys_admin" maps to "Sys Admin"
     await screen.findByText('@security-team');
@@ -188,7 +195,7 @@ describe('UsersPage', () => {
   });
 
   it('active user logins are clickable with clickableMention class', async () => {
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     // Wait for sessions to load (use unique login to avoid multi-match)
     await screen.findByText('@mwestphal');
@@ -202,7 +209,7 @@ describe('UsersPage', () => {
   });
 
   it('session counts are clickable with clickableSession class', async () => {
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     // Wait for sessions to load
     await screen.findByText('@mwestphal');
@@ -213,7 +220,7 @@ describe('UsersPage', () => {
 
   it('clicking session count opens session detail modal', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     // Wait for sessions to load
     await screen.findByText('@mwestphal');
@@ -226,7 +233,7 @@ describe('UsersPage', () => {
 
   it('session modal shows user info and note about API integration', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     // Wait for sessions to load
     await screen.findByText('@mwestphal');
@@ -245,7 +252,7 @@ describe('UsersPage', () => {
 
   it('session modal shows correct role display name', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     // Wait for sessions to load
     await screen.findByText('@mwestphal');
@@ -261,7 +268,7 @@ describe('UsersPage', () => {
   });
 
   it('granted-by mentions are clickable with clickableMention class', async () => {
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     // Wait for the team mapping data to load
     await screen.findByText('@security-team');
@@ -279,7 +286,7 @@ describe('UsersPage', () => {
     const { getActiveSessions } = await import('../../api/admin');
     vi.mocked(getActiveSessions).mockResolvedValueOnce([]);
 
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     expect(await screen.findByText('No active sessions in the last 24 hours')).toBeInTheDocument();
   });
@@ -302,7 +309,7 @@ describe('UsersPage', () => {
       },
     ]);
 
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     // Should show @individual-user, not @org/individual-user
     expect(await screen.findByText('@individual-user')).toBeInTheDocument();
@@ -310,7 +317,7 @@ describe('UsersPage', () => {
 
   it('roles tab shows permission picker when creating a role', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     // Switch to Roles tab
     await user.click(screen.getByRole('button', { name: 'Roles' }));
@@ -328,7 +335,7 @@ describe('UsersPage', () => {
 
   it('permission picker allows selecting individual permissions', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     await user.click(screen.getByRole('button', { name: 'Roles' }));
     await user.click(await screen.findByRole('button', { name: 'Create role' }));
@@ -347,7 +354,7 @@ describe('UsersPage', () => {
 
   it('permission picker filter narrows displayed permissions', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UsersPage />);
+    renderPage();
 
     await user.click(screen.getByRole('button', { name: 'Roles' }));
     await user.click(await screen.findByRole('button', { name: 'Create role' }));

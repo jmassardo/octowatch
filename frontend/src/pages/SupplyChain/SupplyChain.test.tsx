@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { screen, fireEvent } from '@testing-library/react';
 import { SupplyChainPage } from './index';
+import { renderWithProviders } from '../../test/utils';
 import type { SupplyChainPosture, RiskSummary, RulesListResponse } from '../../api/supplyChain';
 
 vi.mock('../../hooks/useHelp', () => ({
@@ -95,17 +94,11 @@ vi.mock('@tanstack/react-query', async () => {
   };
 });
 
-function renderPage() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+function renderPage(route = '/supply-chain/risks') {
+  return renderWithProviders(<SupplyChainPage />, {
+    route,
+    routePath: '/supply-chain/:tab',
   });
-  return render(
-    <MemoryRouter>
-      <QueryClientProvider client={client}>
-        <SupplyChainPage />
-      </QueryClientProvider>
-    </MemoryRouter>,
-  );
 }
 
 describe('SupplyChainPage', () => {

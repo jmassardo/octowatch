@@ -137,21 +137,28 @@ vi.mock('../../hooks/useHelp', () => ({
 // Tests
 // ---------------------------------------------------------------------------
 
+function renderPage(route = '/user-behavior/risky-users') {
+  return renderWithProviders(<UserBehaviorPage />, {
+    route,
+    routePath: '/user-behavior/:tab',
+  });
+}
+
 describe('UserBehaviorPage', () => {
   it('renders page title and security-focused description', async () => {
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
     expect(await screen.findByText('User Behavior')).toBeInTheDocument();
     expect(screen.getByText(/Security-focused behavioral analysis/)).toBeInTheDocument();
   });
 
   it('shows context banner explaining the page purpose', async () => {
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
     expect(await screen.findByText(/What this page shows:/)).toBeInTheDocument();
     expect(screen.getByText(/different from Developer Activity/)).toBeInTheDocument();
   });
 
   it('displays risk summary metrics after loading', async () => {
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
     expect(await screen.findByTestId('users-with-signals')).toHaveTextContent('12');
     expect(screen.getByTestId('high-risk-count')).toHaveTextContent('2');
     expect(screen.getByTestId('medium-risk-count')).toHaveTextContent('4');
@@ -160,7 +167,7 @@ describe('UserBehaviorPage', () => {
   });
 
   it('shows risk categories breakdown', async () => {
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
     expect(await screen.findByText('Top Risk Categories')).toBeInTheDocument();
     expect(screen.getByText('Security Bypasses')).toBeInTheDocument();
     expect(screen.getByText('Permission Changes')).toBeInTheDocument();
@@ -168,38 +175,38 @@ describe('UserBehaviorPage', () => {
   });
 
   it('shows helpful context for metric thresholds', async () => {
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
     expect(await screen.findByText(/Score ≥ 15 — investigate promptly/)).toBeInTheDocument();
     expect(screen.getByText(/Score 7–14 — worth monitoring/)).toBeInTheDocument();
   });
 
   it('renders risky users table with data', async () => {
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
     expect(await screen.findByText('risky-admin')).toBeInTheDocument();
     expect(screen.getByText('moderate-user')).toBeInTheDocument();
   });
 
   it('shows risk level labels in user table', async () => {
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
     expect(await screen.findByText('high')).toBeInTheDocument();
     expect(screen.getByText('medium')).toBeInTheDocument();
   });
 
   it('shows signal tags in risky users table', async () => {
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
     expect(await screen.findByText(/Branch protection removed/)).toBeInTheDocument();
     expect(screen.getByText(/PAT created/)).toBeInTheDocument();
   });
 
   it('has time range filter', async () => {
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
     const select = await screen.findByLabelText(/Time range/i);
     expect(select).toBeInTheDocument();
     expect(select).toHaveValue('30');
   });
 
   it('has risk level filter on risky users tab', async () => {
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
     const select = await screen.findByLabelText(/Risk level/i);
     expect(select).toBeInTheDocument();
     expect(select).toHaveValue('');
@@ -207,7 +214,7 @@ describe('UserBehaviorPage', () => {
 
   it('switches to anomaly detection tab', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     const anomalyTab = await screen.findByRole('tab', { name: /Anomaly Detection/i });
     await user.click(anomalyTab);
@@ -221,7 +228,7 @@ describe('UserBehaviorPage', () => {
 
   it('switches to permission drift tab', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     const permTab = await screen.findByRole('tab', { name: /Permission Drift/i });
     await user.click(permTab);
@@ -234,7 +241,7 @@ describe('UserBehaviorPage', () => {
   });
 
   it('renders tab descriptions explaining what each tab shows', async () => {
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
     expect(
       await screen.findByText(/Users ranked by risk score based on security-sensitive actions/),
     ).toBeInTheDocument();
@@ -242,7 +249,7 @@ describe('UserBehaviorPage', () => {
 
   it('time range filter updates the lookback period', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     const select = await screen.findByLabelText(/Time range/i);
     await user.selectOptions(select, '7');
@@ -250,7 +257,7 @@ describe('UserBehaviorPage', () => {
   });
 
   it('shows three navigation tabs', async () => {
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
     expect(await screen.findByRole('tab', { name: /Risky Users/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Anomaly Detection/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Permission Drift/i })).toBeInTheDocument();
@@ -260,7 +267,7 @@ describe('UserBehaviorPage', () => {
 
   it('clicking high risk chip filters to high risk and shows filter banner', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     // Wait for metrics to load
     await screen.findByTestId('high-risk-count');
@@ -280,7 +287,7 @@ describe('UserBehaviorPage', () => {
 
   it('clicking a risk chip again deselects it and clears filter', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     await screen.findByTestId('high-risk-count');
 
@@ -295,7 +302,7 @@ describe('UserBehaviorPage', () => {
 
   it('clear filter button removes chip filter', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     await screen.findByTestId('high-risk-count');
 
@@ -310,7 +317,7 @@ describe('UserBehaviorPage', () => {
 
   it('clicking a category card shows filter banner with category name', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     await screen.findByText('Security Bypasses');
 
@@ -324,7 +331,7 @@ describe('UserBehaviorPage', () => {
   // ─── Column Filters ─────────────────────────────────────────────────────────
 
   it('risky users table has filterable Level and Orgs columns', async () => {
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     await screen.findByText('risky-admin');
 
@@ -339,7 +346,7 @@ describe('UserBehaviorPage', () => {
 
   it('anomaly table has filterable Activity Multiplier column', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     const anomalyTab = await screen.findByRole('tab', { name: /Anomaly Detection/i });
     await user.click(anomalyTab);
@@ -354,7 +361,7 @@ describe('UserBehaviorPage', () => {
 
   it('permission drift table has filterable Status and Admin % columns', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     const permTab = await screen.findByRole('tab', { name: /Permission Drift/i });
     await user.click(permTab);
@@ -371,7 +378,7 @@ describe('UserBehaviorPage', () => {
 
   it('clicking a risky user row opens the detail drawer', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     const row = await screen.findByText('risky-admin');
     await user.click(row);
@@ -389,7 +396,7 @@ describe('UserBehaviorPage', () => {
 
   it('clicking an anomaly row opens the detail drawer with activity comparison', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     const anomalyTab = await screen.findByRole('tab', { name: /Anomaly Detection/i });
     await user.click(anomalyTab);
@@ -406,7 +413,7 @@ describe('UserBehaviorPage', () => {
 
   it('clicking a permission drift row opens the detail drawer with status', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     const permTab = await screen.findByRole('tab', { name: /Permission Drift/i });
     await user.click(permTab);
@@ -422,7 +429,7 @@ describe('UserBehaviorPage', () => {
 
   it('drawer can be closed by clicking the close button', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     const row = await screen.findByText('risky-admin');
     await user.click(row);
@@ -440,7 +447,7 @@ describe('UserBehaviorPage', () => {
 
   it('drawer shows GitHub link with correct URL', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<UserBehaviorPage />);
+    renderPage();
 
     const row = await screen.findByText('risky-admin');
     await user.click(row);

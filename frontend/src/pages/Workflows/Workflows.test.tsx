@@ -91,6 +91,13 @@ const SCAN_STATUS_RESPONSE = {
 
 /* ── Tests ─────────────────────────────────────────────────────────── */
 
+function renderPage(route = '/workflows/findings') {
+  return renderWithProviders(<WorkflowsPage />, {
+    route,
+    routePath: '/workflows/:tab',
+  });
+}
+
 describe('WorkflowsPage — Findings Tab', () => {
   beforeEach(() => {
     mockListFindings.mockClear();
@@ -102,41 +109,41 @@ describe('WorkflowsPage — Findings Tab', () => {
   });
 
   it('renders page title', async () => {
-    renderWithProviders(<WorkflowsPage />);
+    renderPage();
     expect(await screen.findByText('Workflow Security Scanner')).toBeInTheDocument();
   });
 
   it('renders finding titles', async () => {
-    renderWithProviders(<WorkflowsPage />);
+    renderPage();
     expect(await screen.findByText('Unpinned third-party action')).toBeInTheDocument();
     expect(await screen.findByText('Script injection risk')).toBeInTheDocument();
   });
 
   it('shows severity labels', async () => {
-    renderWithProviders(<WorkflowsPage />);
+    renderPage();
     expect(await screen.findByText('high')).toBeInTheDocument();
     expect(await screen.findByText('critical')).toBeInTheDocument();
   });
 
   it('shows repo paths', async () => {
-    renderWithProviders(<WorkflowsPage />);
+    renderPage();
     expect(await screen.findByText('myorg/myrepo')).toBeInTheDocument();
     expect(await screen.findByText('myorg/other-repo')).toBeInTheDocument();
   });
 
   it('renders empty state when no findings', async () => {
     mockListFindings.mockResolvedValue({ findings: [], total: 0 });
-    renderWithProviders(<WorkflowsPage />);
+    renderPage();
     expect(await screen.findByText('No workflow findings yet')).toBeInTheDocument();
   });
 
   it('renders severity filter dropdown', async () => {
-    renderWithProviders(<WorkflowsPage />);
+    renderPage();
     expect(await screen.findByDisplayValue('All severities')).toBeInTheDocument();
   });
 
   it('renders status filter dropdown', async () => {
-    renderWithProviders(<WorkflowsPage />);
+    renderPage();
     expect(await screen.findByDisplayValue('All statuses')).toBeInTheDocument();
   });
 });
@@ -153,7 +160,7 @@ describe('WorkflowsPage — Scores Tab', () => {
 
   it('switches to scores tab and shows repo scores', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<WorkflowsPage />);
+    renderPage();
     const scoresTab = await screen.findByRole('button', { name: 'Repo Scores' });
     await user.click(scoresTab);
     expect(await screen.findByText('myorg/myrepo')).toBeInTheDocument();
@@ -162,7 +169,7 @@ describe('WorkflowsPage — Scores Tab', () => {
 
   it('shows score values', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<WorkflowsPage />);
+    renderPage();
     await user.click(await screen.findByRole('button', { name: 'Repo Scores' }));
     expect(await screen.findByText('65')).toBeInTheDocument();
     expect(await screen.findByText('95')).toBeInTheDocument();
@@ -170,7 +177,7 @@ describe('WorkflowsPage — Scores Tab', () => {
 
   it('shows finding counts on score cards', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<WorkflowsPage />);
+    renderPage();
     await user.click(await screen.findByRole('button', { name: 'Repo Scores' }));
     expect(await screen.findByText('3 findings')).toBeInTheDocument();
     expect(await screen.findByText('0 findings')).toBeInTheDocument();
@@ -187,7 +194,7 @@ describe('WorkflowsPage — Error Handling', () => {
 
   it('shows error banner on findings failure', async () => {
     mockListFindings.mockRejectedValue(new Error('Network error'));
-    renderWithProviders(<WorkflowsPage />);
+    renderPage();
     expect(await screen.findByText('Failed to load findings')).toBeInTheDocument();
   });
 });
@@ -203,7 +210,7 @@ describe('WorkflowsPage — Scan Status', () => {
 
   it('displays scan status with last scan time', async () => {
     mockGetScanStatus.mockResolvedValue(SCAN_STATUS_RESPONSE);
-    renderWithProviders(<WorkflowsPage />);
+    renderPage();
     expect(await screen.findByText(/3 repos/)).toBeInTheDocument();
     expect(await screen.findByText(/5 findings/)).toBeInTheDocument();
   });
@@ -214,7 +221,7 @@ describe('WorkflowsPage — Scan Status', () => {
       last_scan_at: null,
       last_scan_status: null,
     });
-    renderWithProviders(<WorkflowsPage />);
+    renderPage();
     expect(
       await screen.findByText('Awaiting first scan — data will appear automatically'),
     ).toBeInTheDocument();
@@ -222,7 +229,7 @@ describe('WorkflowsPage — Scan Status', () => {
 
   it('renders guidance box with automated scanning description', async () => {
     mockGetScanStatus.mockResolvedValue(SCAN_STATUS_RESPONSE);
-    renderWithProviders(<WorkflowsPage />);
+    renderPage();
     expect(await screen.findByText(/Fully automated/)).toBeInTheDocument();
     expect(await screen.findByText(/every 6 hours/)).toBeInTheDocument();
   });
@@ -230,7 +237,7 @@ describe('WorkflowsPage — Scan Status', () => {
   it('deep links to scores tab via ?tab=scores query param', async () => {
     mockGetScanStatus.mockResolvedValue(SCAN_STATUS_RESPONSE);
     mockGetScores.mockResolvedValue(SCORES_RESPONSE);
-    renderWithProviders(<WorkflowsPage />, { route: '/workflows?tab=scores' });
+    renderPage('/workflows/scores');
 
     expect(await screen.findByText('myorg/myrepo')).toBeInTheDocument();
   });
@@ -238,7 +245,7 @@ describe('WorkflowsPage — Scan Status', () => {
   it('deep links to a specific finding via ?finding= query param', async () => {
     mockGetScanStatus.mockResolvedValue(SCAN_STATUS_RESPONSE);
     mockListFindings.mockResolvedValue(FINDINGS_RESPONSE);
-    renderWithProviders(<WorkflowsPage />, { route: '/workflows?finding=1' });
+    renderPage('/workflows/findings?finding=1');
 
     // The detail panel should show the finding details (title appears in both table and panel)
     const titles = await screen.findAllByText('Unpinned third-party action');
@@ -249,7 +256,7 @@ describe('WorkflowsPage — Scan Status', () => {
   it('applies severity filter from URL query param', async () => {
     mockGetScanStatus.mockResolvedValue(SCAN_STATUS_RESPONSE);
     mockListFindings.mockResolvedValue(FINDINGS_RESPONSE);
-    renderWithProviders(<WorkflowsPage />, { route: '/workflows?severity=high' });
+    renderPage('/workflows/findings?severity=high');
 
     await screen.findByText('Unpinned third-party action');
     // The severity filter select should have the value from URL
