@@ -38,10 +38,7 @@ function ShortcutHarness({ initialRoute = '/' }: { initialRoute?: string }) {
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
       <ToastProvider>
-        <MemoryRouter
-          initialEntries={[initialRoute]}
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-        >
+        <MemoryRouter initialEntries={[initialRoute]}>
           <HotkeyProvider>
             <ShortcutHarnessInner
               shortcutsOpen={shortcutsOpen}
@@ -90,10 +87,7 @@ function NavigationHarness() {
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
       <ToastProvider>
-        <MemoryRouter
-          initialEntries={['/']}
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-        >
+        <MemoryRouter initialEntries={['/']}>
           <HotkeyProvider>
             <NavigationHarnessInner />
           </HotkeyProvider>
@@ -203,7 +197,7 @@ describe('Input suppression', () => {
         client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
       >
         <ToastProvider>
-          <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <MemoryRouter>
             <HotkeyProvider>
               <input data-testid="text-input" type="text" />
               <div data-testid="fired">{fired ? 'yes' : 'no'}</div>

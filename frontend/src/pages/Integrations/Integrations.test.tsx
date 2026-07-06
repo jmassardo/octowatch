@@ -9,13 +9,8 @@ import { IntegrationsPage } from './index';
  */
 describe('IntegrationsPage', () => {
   it('redirects to /settings/integrations', () => {
-    let navigatedTo = '';
-
     render(
-      <MemoryRouter
-        initialEntries={['/integrations']}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
+      <MemoryRouter initialEntries={['/integrations']}>
         <Routes>
           <Route path="/integrations" element={<IntegrationsPage />} />
           <Route
@@ -26,10 +21,7 @@ describe('IntegrationsPage', () => {
       </MemoryRouter>,
     );
 
-    // The redirect should land on /settings/integrations
-    navigatedTo = '/settings/integrations';
     expect(screen.getByTestId('settings-integrations')).toBeInTheDocument();
-    expect(navigatedTo).toBe('/settings/integrations');
   });
 
   it('exports IntegrationsPage component', () => {

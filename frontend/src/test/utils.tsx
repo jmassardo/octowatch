@@ -26,10 +26,7 @@ export function renderWithProviders(
       <QueryClientProvider client={queryClient}>
         <OrgProvider>
           <ToastProvider>
-            <MemoryRouter
-              initialEntries={[route]}
-              future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-            >
+            <MemoryRouter initialEntries={[route]}>
               {routePath ? (
                 <Routes>
                   <Route path={routePath} element={children} />

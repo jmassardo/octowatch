@@ -85,8 +85,8 @@ export function InfoTooltip({ content, label = 'More information', className }: 
       nextPlacement = 'right';
     }
 
-    let top = 0;
-    let left = 0;
+    let top: number;
+    let left: number;
 
     if (nextPlacement === 'top') {
       top = triggerRect.top - tooltipRect.height - gap;

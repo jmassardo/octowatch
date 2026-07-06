@@ -146,10 +146,7 @@ function renderPage() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter
-        initialEntries={['/monitoring/sync-status']}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
+      <MemoryRouter initialEntries={['/monitoring/sync-status']}>
         <Routes>
           <Route path="/monitoring/sync-status" element={<SyncStatusPage />} />
         </Routes>

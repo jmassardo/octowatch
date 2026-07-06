@@ -21,10 +21,7 @@ function renderAuthGuard(children: ReactNode, route = '/dashboard') {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter
-        initialEntries={[route]}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
+      <MemoryRouter initialEntries={[route]}>
         <Routes>
           <Route path="/dashboard" element={<AuthGuard>{children}</AuthGuard>} />
           <Route path="/login" element={<p>Login page</p>} />

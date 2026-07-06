@@ -148,10 +148,7 @@ function renderPage(initialTab = 'repos') {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter
-        initialEntries={[`/health/${initialTab}`]}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
+      <MemoryRouter initialEntries={[`/health/${initialTab}`]}>
         <Routes>
           <Route path="/health/:tab" element={<HealthPage />} />
         </Routes>

@@ -5,10 +5,7 @@ import { RedirectAfterLogin } from './RedirectAfterLogin';
 
 function renderWithRouter(initialPath: string = '/') {
   return render(
-    <MemoryRouter
-      initialEntries={[initialPath]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route path="/" element={<RedirectAfterLogin />} />
         <Route path="/dashboard" element={<p>Dashboard</p>} />

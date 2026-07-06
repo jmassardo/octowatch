@@ -56,7 +56,7 @@ function renderPane(buckets: SeatUtilizationBucket[] = sampleBuckets) {
     defaultOptions: { queries: { retry: false } },
   });
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter>
       <QueryClientProvider client={queryClient}>
         <LicensePane seatBuckets={buckets} />
       </QueryClientProvider>

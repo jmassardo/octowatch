@@ -11,7 +11,7 @@ describe('LoginPage', () => {
 
   it('renders the login page', () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <LoginPage />
       </MemoryRouter>,
     );
@@ -22,7 +22,7 @@ describe('LoginPage', () => {
   it('applies dark theme from localStorage on render', () => {
     localStorage.setItem('octowatch-theme', 'dark');
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <LoginPage />
       </MemoryRouter>,
     );
@@ -32,7 +32,7 @@ describe('LoginPage', () => {
   it('applies light theme from localStorage on render', () => {
     localStorage.setItem('octowatch-theme', 'light');
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <LoginPage />
       </MemoryRouter>,
     );
@@ -42,7 +42,7 @@ describe('LoginPage', () => {
   it('does not set data-theme when system theme is preferred', () => {
     // No localStorage entry means system theme
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <LoginPage />
       </MemoryRouter>,
     );
