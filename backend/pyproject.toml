@@ -11,8 +11,8 @@ dependencies = [
     # Web framework
     # Note: FastAPI 0.137+ wraps include_router() calls in _IncludedRouter
     # objects — route traversal tests must use include_context to resolve paths.
-    "fastapi==0.138.1",
-    "uvicorn[standard]==0.49.0",
+    "fastapi==0.139.0",
+    "uvicorn[standard]==0.50.2",
     "python-multipart==0.0.32",
 
     # Data validation
@@ -37,14 +37,14 @@ dependencies = [
     "slowapi==0.1.10",
 
     # SQL validation
-    "pglast==7.14",
+    "pglast==7.15",
 
     # GeoIP
     "geoip2==5.2.0",
     "maxminddb==3.1.1",
 
     # S3 / MinIO ingestion
-    "boto3==1.43.36",
+    "boto3==1.43.40",
 
     # Azure Blob ingestion
     "azure-storage-blob==12.30.0",
@@ -60,7 +60,7 @@ dependencies = [
     "structlog==26.1.0",
 
     # Notifications
-    "slack-sdk==3.42.0",
+    "slack-sdk==3.43.0",
     "aiosmtplib==5.1.2",
     "Jinja2==3.1.6",
 
@@ -72,7 +72,7 @@ dependencies = [
     "PyGithub==2.9.1",
 
     # IdP enrichment
-    "okta==3.4.3",
+    "okta==3.4.4",
     "msal==1.37.0",
     "google-auth==2.55.1",
     "google-api-python-client==2.198.0",
@@ -81,7 +81,7 @@ dependencies = [
 
     # Data processing (baselines)
     "pandas==3.0.3",
-    "numpy==2.5.0",
+    "numpy==2.5.1",
 
     # Security
     "cryptography>=42.0.0",
