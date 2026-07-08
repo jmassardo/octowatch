@@ -57,6 +57,11 @@ class RuleDefinition(Base):
         server_default=text("NOW()"),
         onupdate=text("NOW()"),
     )
+    source: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'manual'"))
+    campaign_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("threat_intel_campaigns.id", ondelete="SET NULL"), nullable=True
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     versions: Mapped[list[RuleVersion]] = relationship(
         "RuleVersion", back_populates="rule", cascade="all, delete-orphan"
@@ -66,6 +71,13 @@ class RuleDefinition(Base):
     __table_args__ = (
         Index("idx_rules_enabled", "enabled", "status"),
         Index("idx_rules_category", "category"),
+        Index(
+            "idx_rules_campaign_enabled",
+            "campaign_id",
+            "enabled",
+            "status",
+            postgresql_where=text("campaign_id IS NOT NULL"),
+        ),
     )
 
 
@@ -169,6 +181,9 @@ class Detection(Base):
         nullable=False,
         server_default=text("NOW()"),
         onupdate=text("NOW()"),
+    )
+    campaign_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("threat_intel_campaigns.id", ondelete="SET NULL"), nullable=True
     )
 
     rule: Mapped[RuleDefinition] = relationship("RuleDefinition", back_populates="detections")

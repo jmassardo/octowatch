@@ -61,7 +61,12 @@ from app.models.retention_policy import RetentionPolicy
 from app.models.saved_query import SavedQuery
 from app.models.system_health import SystemHealthEvent
 from app.models.team import Team, TeamMembership, TeamRoleAssignment
-from app.models.threat_intel import ThreatIntelDomain, ThreatIntelFeed, ThreatIntelIndicator
+from app.models.threat_intel import (
+    ThreatIntelCampaign,
+    ThreatIntelDomain,
+    ThreatIntelFeed,
+    ThreatIntelIndicator,
+)
 from app.models.user import RbacRole, UserRoleAssignment
 from app.models.user_classification import UserClassification
 from app.models.workflow_finding import WorkflowFinding
@@ -132,6 +137,7 @@ __all__ = [
     "SystemHealthEvent",
     "Ticket",
     "TicketingConfig",
+    "ThreatIntelCampaign",
     "ThreatIntelDomain",
     "ThreatIntelFeed",
     "ThreatIntelIndicator",
