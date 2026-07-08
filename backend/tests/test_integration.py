@@ -40,6 +40,7 @@ from app.models.audit_event import Base
 from app.models.audit_trail import AuditTrail
 from app.models.detection import Detection, DetectionSuppression, RuleDefinition, RuleVersion
 from app.models.query_template import QueryTemplate
+from app.models.threat_intel import ThreatIntelCampaign
 from app.models.user import RbacRole, UserRoleAssignment
 
 # ---------------------------------------------------------------------------
@@ -79,6 +80,7 @@ _SQLITE_TABLES = [
     AuditTrail.__table__,
     RbacRole.__table__,
     UserRoleAssignment.__table__,
+    ThreatIntelCampaign.__table__,
     RuleDefinition.__table__,
     RuleVersion.__table__,
     # Detection/Suppression tables must exist so that cascade-delete on

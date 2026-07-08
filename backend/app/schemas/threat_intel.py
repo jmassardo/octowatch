@@ -14,13 +14,16 @@ class IndicatorCreate(BaseModel):
     """Request body for creating a threat intel indicator."""
 
     indicator_type: str = Field(
-        ..., pattern=r"^(domain|ip|pattern)$", description="Type: domain, ip, or pattern"
+        ...,
+        pattern=r"^(domain|ip|pattern|github_username|commit_author_email|package_name|npm_scope|action_ref|repo_description)$",
+        description="Indicator type",
     )
     value: str = Field(..., min_length=1, max_length=500, description="The indicator value")
     source: str = Field(..., min_length=1, max_length=255, description="Intelligence source")
     confidence: float = Field(default=0.80, ge=0.0, le=1.0, description="Confidence score 0-1")
     expires_at: datetime | None = Field(default=None, description="Optional expiry timestamp")
     notes: str | None = Field(default=None, max_length=2000, description="Optional notes")
+    campaign_id: int | None = Field(default=None, description="Associated campaign ID")
 
 
 class IndicatorUpdate(BaseModel):
@@ -50,6 +53,7 @@ class IndicatorResponse(BaseModel):
     expires_at: datetime | None
     notes: str | None
     feed_id: int | None = None
+    campaign_id: int | None = None
     metadata_json: dict[str, Any] | None = None
 
 
@@ -76,6 +80,20 @@ class FeedCreate(BaseModel):
     refresh_interval_minutes: int = Field(
         default=1440, ge=15, le=43200, description="Refresh interval in minutes"
     )
+    parser_type: str = Field(
+        default="plaintext",
+        pattern=r"^(plaintext|custom_json|stix21|openssf_package_analysis|github_advisory|osv)$",
+        description="Feed parser format",
+    )
+    parser_config: dict[str, Any] | None = Field(
+        default=None, description="Parser-specific configuration"
+    )
+    auto_rule_generation: bool = Field(
+        default=True, description="Automatically generate detection rules from feed indicators"
+    )
+    default_campaign_id: int | None = Field(
+        default=None, description="Default campaign for indicators from this feed"
+    )
 
 
 class FeedResponse(BaseModel):
@@ -96,6 +114,10 @@ class FeedResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     is_default: bool = False
+    parser_type: str = "plaintext"
+    parser_config: dict[str, Any] | None = None
+    auto_rule_generation: bool = True
+    default_campaign_id: int | None = None
 
 
 class FeedListResponse(BaseModel):
@@ -188,3 +210,65 @@ class FeedRefreshResponse(BaseModel):
     status: str
     indicator_count: int | None = None
     message: str
+
+
+# ─── Campaign schemas ─────────────────────────────────────────────────────────
+
+
+class CampaignCreate(BaseModel):
+    """Request body for creating a threat intel campaign."""
+
+    name: str = Field(..., min_length=1, max_length=255, description="Campaign name")
+    slug: str = Field(
+        ..., min_length=1, max_length=100, pattern=r"^[a-z0-9\-]+$", description="URL-safe slug"
+    )
+    description: str | None = Field(default=None, max_length=5000, description="Campaign details")
+    severity: str = Field(
+        default="critical",
+        pattern=r"^(critical|high|medium|low)$",
+        description="Campaign severity",
+    )
+    status: str = Field(
+        default="active",
+        pattern=r"^(active|monitoring|archived)$",
+        description="Campaign status",
+    )
+    source_feed_id: int | None = Field(default=None, description="Feed that sourced this campaign")
+    metadata_json: dict[str, Any] | None = Field(
+        default=None, description="MITRE ATT&CK mappings, references, tags"
+    )
+
+
+class CampaignUpdate(BaseModel):
+    """Request body for updating a campaign."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=5000)
+    severity: str | None = Field(default=None, pattern=r"^(critical|high|medium|low)$")
+    status: str | None = Field(default=None, pattern=r"^(active|monitoring|archived)$")
+    metadata_json: dict[str, Any] | None = None
+
+
+class CampaignResponse(BaseModel):
+    """Single campaign in API responses."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    slug: str
+    description: str | None
+    first_seen_at: datetime
+    last_updated: datetime
+    severity: str
+    status: str
+    source_feed_id: int | None = None
+    metadata_json: dict[str, Any] | None = None
+    indicator_count: int = 0
+
+
+class CampaignListResponse(BaseModel):
+    """Paginated list of campaigns."""
+
+    items: list[CampaignResponse]
+    total: int

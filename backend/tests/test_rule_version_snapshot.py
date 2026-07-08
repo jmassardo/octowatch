@@ -25,6 +25,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.models.audit_event import Base
 from app.models.detection import Detection, DetectionSuppression, RuleDefinition, RuleVersion
+from app.models.threat_intel import ThreatIntelCampaign
 from app.services.rule_service import _create_version_snapshot
 
 # ---------------------------------------------------------------------------
@@ -41,6 +42,7 @@ if not hasattr(SQLiteTypeCompiler, "visit_ARRAY"):
 SQLiteTypeCompiler.visit_BIGINT = lambda self, type_, **kw: "INTEGER"  # type: ignore[method-assign]
 
 _SQLITE_TABLES = [
+    ThreatIntelCampaign.__table__,
     RuleDefinition.__table__,
     RuleVersion.__table__,
     DetectionSuppression.__table__,
