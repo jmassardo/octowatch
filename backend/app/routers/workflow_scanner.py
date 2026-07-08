@@ -106,12 +106,19 @@ async def list_findings(
     repo: str | None = None,
     severity: str | None = None,
     status: str | None = None,
+    page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=500),
     current_user: AuthenticatedUser = Depends(require_permission("workflow_security", "view")),
     db: AsyncSession = Depends(get_db),
 ) -> FindingsListResponse:
     """List workflow security findings, optionally filtered by org/repo/severity."""
-    stmt = select(WorkflowFinding).order_by(WorkflowFinding.scanned_at.desc()).limit(page_size)
+    offset = (page - 1) * page_size
+    stmt = (
+        select(WorkflowFinding)
+        .order_by(WorkflowFinding.scanned_at.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
     if org:
         stmt = stmt.where(WorkflowFinding.org == org)
     if repo:
