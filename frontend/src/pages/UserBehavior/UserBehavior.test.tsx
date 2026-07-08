@@ -256,11 +256,12 @@ describe('UserBehaviorPage', () => {
     expect(select).toHaveValue('7');
   });
 
-  it('shows three navigation tabs', async () => {
+  it('shows four navigation tabs', async () => {
     renderPage();
     expect(await screen.findByRole('tab', { name: /Risky Users/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Anomaly Detection/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Permission Drift/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Personas/i })).toBeInTheDocument();
   });
 
   // ─── Clickable Chips ────────────────────────────────────────────────────────

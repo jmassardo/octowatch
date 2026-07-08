@@ -530,6 +530,12 @@
   color: var(--fg-muted);
 }
 
+.drawerMuted {
+  color: var(--fg-muted);
+  font-style: italic;
+  font-size: 13px;
+}
+
 .drawerActionList {
   margin: 0;
   padding: 0 0 0 18px;
