@@ -144,6 +144,10 @@ async def create_feed(
         feed_type=body.feed_type,
         refresh_interval_minutes=body.refresh_interval_minutes,
         created_by=user.github_login,
+        parser_type=body.parser_type,
+        parser_config=body.parser_config,
+        auto_rule_generation=body.auto_rule_generation,
+        default_campaign_id=body.default_campaign_id,
     )
     return result
 

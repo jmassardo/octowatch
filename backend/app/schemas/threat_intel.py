@@ -82,7 +82,7 @@ class FeedCreate(BaseModel):
     )
     parser_type: str = Field(
         default="plaintext",
-        pattern=r"^(plaintext|custom_json|stix21|openssf_package_analysis|github_advisory|osv)$",
+        pattern=r"^(plaintext|custom_json|stix21|openssf_package_analysis)$",
         description="Feed parser format",
     )
     parser_config: dict[str, Any] | None = Field(
@@ -134,6 +134,13 @@ class FeedUpdate(BaseModel):
     feed_type: str | None = Field(default=None, pattern=r"^(domain|ip)$")
     refresh_interval_minutes: int | None = Field(default=None, ge=15, le=43200)
     enabled: bool | None = None
+    parser_type: str | None = Field(
+        default=None,
+        pattern=r"^(plaintext|custom_json|stix21|openssf_package_analysis)$",
+    )
+    parser_config: dict[str, Any] | None = None
+    auto_rule_generation: bool | None = None
+    default_campaign_id: int | None = None
 
 
 class BulkIndicatorItem(BaseModel):
