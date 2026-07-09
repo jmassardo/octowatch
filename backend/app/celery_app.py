@@ -51,6 +51,7 @@ app.config_from_object(
             "app.workers.package_sync_worker.*": {"queue": "github_sync"},
             "app.workers.user_classification_worker.*": {"queue": "baseline"},
             "app.workers.enrichment_worker.*": {"queue": "enrichment"},
+            "app.workers.retro_scan_worker.*": {"queue": "retro_scan"},
         },
         # ─── Soft / hard time limits ─────────────────────────────────────────
         "task_soft_time_limit": 1800,  # 30 minutes
@@ -173,6 +174,7 @@ app.conf.include = [
     "app.workers.package_sync_worker",
     "app.workers.user_classification_worker",
     "app.workers.enrichment_worker",
+    "app.workers.retro_scan_worker",
 ]
 
 # Conditionally add GitHub sync heartbeat to beat schedule
