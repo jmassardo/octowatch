@@ -8,6 +8,8 @@ import {
   getPermissionDrift,
 } from '../../api/userBehavior';
 import type { RiskyUser, AnomalousUser, PermissionDriftUser } from '../../api/userBehavior';
+import { getClassificationSummary, getClassifiedUsers } from '../../api/userClassification';
+import type { ClassifiedUser } from '../../api/userClassification';
 import { PageHeader } from '../../components/common/PageHeader';
 import { SkeletonCard } from '../../components/common/SkeletonCard';
 import { DataTable } from '../../components/primitives/DataTable';
@@ -21,6 +23,18 @@ const RISK_LEVEL_VARIANTS: Record<string, 'danger' | 'attention' | 'success' | '
   medium: 'attention',
   low: 'success',
   none: 'muted',
+};
+
+const PERSONA_VARIANTS: Record<string, 'danger' | 'attention' | 'success' | 'muted'> = {
+  power_user: 'success',
+  web_ui_only: 'muted',
+  ide_only: 'muted',
+  api_cli_only: 'muted',
+  copilot_active: 'success',
+  truly_dormant: 'danger',
+  lightly_active: 'attention',
+  admin_only: 'attention',
+  ci_cd_bot: 'muted',
 };
 
 const TIME_RANGES = [
@@ -38,13 +52,14 @@ const RISK_FILTERS = [
   { value: 'low', label: 'Low Risk' },
 ];
 
-type TabId = 'risky-users' | 'anomalies' | 'permissions';
-const TAB_KEYS: readonly TabId[] = ['risky-users', 'anomalies', 'permissions'];
+type TabId = 'risky-users' | 'anomalies' | 'permissions' | 'personas';
+const TAB_KEYS: readonly TabId[] = ['risky-users', 'anomalies', 'permissions', 'personas'];
 
 type SelectedRow =
   | { type: 'risky'; data: RiskyUser }
   | { type: 'anomaly'; data: AnomalousUser }
-  | { type: 'permission'; data: PermissionDriftUser };
+  | { type: 'permission'; data: PermissionDriftUser }
+  | { type: 'persona'; data: ClassifiedUser };
 
 const PAGE_SIZE = 50;
 
@@ -55,6 +70,8 @@ export function UserBehaviorPage() {
   const [page, setPage] = useState(1);
   const [selectedRow, setSelectedRow] = useState<SelectedRow | null>(null);
   const [activeChip, setActiveChip] = useState<string | null>(null);
+  const [personaFilter, setPersonaFilter] = useState<string>('');
+  const [personaPage, setPersonaPage] = useState(1);
 
   // ─── Queries ──────────────────────────────────────────────────────────────
 
@@ -105,6 +122,33 @@ export function UserBehaviorPage() {
     queryFn: () => getPermissionDrift(lookbackDays),
     staleTime: 60_000,
     enabled: activeTab === 'permissions',
+  });
+
+  const {
+    data: personaSummary,
+    isLoading: personaSummaryLoading,
+    error: personaSummaryError,
+  } = useQuery({
+    queryKey: ['user-behavior', 'persona-summary'],
+    queryFn: () => getClassificationSummary(),
+    staleTime: 120_000,
+    enabled: activeTab === 'personas',
+  });
+
+  const {
+    data: personaUsersData,
+    isLoading: personaUsersLoading,
+    error: personaUsersError,
+  } = useQuery({
+    queryKey: ['user-behavior', 'persona-users', personaFilter, personaPage],
+    queryFn: () =>
+      getClassifiedUsers({
+        persona: personaFilter || undefined,
+        page: personaPage,
+        page_size: PAGE_SIZE,
+      }),
+    staleTime: 60_000,
+    enabled: activeTab === 'personas',
   });
 
   // ─── Table columns ────────────────────────────────────────────────────────
@@ -319,7 +363,85 @@ export function UserBehaviorPage() {
     [],
   );
 
+  const personaColumns: ColumnDef<ClassifiedUser>[] = useMemo(
+    () => [
+      {
+        key: 'user_login',
+        header: 'User',
+        sortable: true,
+        filterable: true,
+        render: (row) => <strong>{row.user_login}</strong>,
+        sortValue: (row) => row.user_login,
+        filterValue: (row) => row.user_login,
+      },
+      {
+        key: 'persona',
+        header: 'Persona',
+        sortable: true,
+        filterable: true,
+        render: (row) => (
+          <Label variant={PERSONA_VARIANTS[row.persona] ?? 'muted'}>
+            {row.persona.replace(/_/g, ' ')}
+          </Label>
+        ),
+        sortValue: (row) => row.persona,
+        filterValue: (row) => row.persona.replace(/_/g, ' '),
+        width: '150px',
+      },
+      {
+        key: 'confidence_score',
+        header: 'Confidence',
+        sortable: true,
+        render: (row) => `${Math.round(row.confidence_score * 100)}%`,
+        sortValue: (row) => row.confidence_score,
+        width: '100px',
+      },
+      {
+        key: 'event_count',
+        header: 'Events',
+        sortable: true,
+        render: (row) => row.event_count.toLocaleString(),
+        sortValue: (row) => row.event_count,
+        width: '100px',
+      },
+      {
+        key: 'surfaces',
+        header: 'Surfaces',
+        render: (row) => (
+          <div className={styles.signalList}>
+            {row.surfaces.map((s) => (
+              <span key={s} className={styles.signalTag}>
+                {s}
+              </span>
+            ))}
+          </div>
+        ),
+      },
+      {
+        key: 'org',
+        header: 'Org',
+        sortable: true,
+        filterable: true,
+        render: (row) => row.org,
+        sortValue: (row) => row.org,
+        filterValue: (row) => row.org,
+        width: '120px',
+      },
+      {
+        key: 'classified_at',
+        header: 'Classified',
+        sortable: true,
+        render: (row) =>
+          row.classified_at ? new Date(row.classified_at).toLocaleDateString() : '—',
+        sortValue: (row) => row.classified_at ?? '',
+        width: '110px',
+      },
+    ],
+    [],
+  );
+
   const totalPages = riskyUsersData ? Math.ceil(riskyUsersData.total / PAGE_SIZE) : 0;
+  const totalPersonaPages = personaUsersData ? Math.ceil(personaUsersData.total / PAGE_SIZE) : 0;
 
   const handleTimeRangeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setLookbackDays(Number(e.target.value));
@@ -563,6 +685,15 @@ export function UserBehaviorPage() {
         >
           Permission Drift
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'personas'}
+          className={`${styles.tab} ${activeTab === 'personas' ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab('personas')}
+        >
+          Personas
+        </button>
       </div>
 
       {/* Tab content */}
@@ -686,6 +817,132 @@ export function UserBehaviorPage() {
             )}
           </>
         )}
+
+        {activeTab === 'personas' && (
+          <>
+            <div className={styles.tabDescription}>
+              Users classified by their GitHub usage patterns. Persona assignment is based on audit
+              log activity over the configured analysis window (default: 90 days).
+            </div>
+
+            {/* Persona summary cards */}
+            {personaSummaryLoading ? (
+              <SkeletonCard lines={3} />
+            ) : personaSummaryError ? (
+              <div role="alert" className={styles.errorBanner}>
+                Failed to load persona summary. Ensure the classification engine has run at least
+                once.
+              </div>
+            ) : (
+              personaSummary && (
+                <div className={styles.metricsRow}>
+                  <div className={styles.metricCard}>
+                    <div className={styles.metricValue}>{personaSummary.total_users}</div>
+                    <div className={styles.metricLabel}>Total Classified</div>
+                  </div>
+                  <div className={styles.metricCard} data-severity="high">
+                    <div className={styles.metricValue}>
+                      {personaSummary.dormant_count} ({personaSummary.dormant_pct}%)
+                    </div>
+                    <div className={styles.metricLabel}>Truly Dormant</div>
+                    <div className={styles.metricHelp}>Zero activity in analysis window</div>
+                  </div>
+                  <div className={styles.metricCard} data-severity="low">
+                    <div className={styles.metricValue}>
+                      {personaSummary.power_user_count} ({personaSummary.power_user_pct}%)
+                    </div>
+                    <div className={styles.metricLabel}>Power Users</div>
+                    <div className={styles.metricHelp}>Active across 3+ surfaces</div>
+                  </div>
+                  {personaSummary.personas.slice(0, 4).map((p) => (
+                    <button
+                      key={p.persona}
+                      type="button"
+                      className={`${styles.metricCard} ${styles.metricCardClickable} ${personaFilter === p.persona ? styles.metricCardSelected : ''}`}
+                      onClick={() => {
+                        setPersonaFilter(personaFilter === p.persona ? '' : p.persona);
+                        setPersonaPage(1);
+                      }}
+                      aria-pressed={personaFilter === p.persona}
+                    >
+                      <div className={styles.metricValue}>{p.user_count}</div>
+                      <div className={styles.metricLabel}>{p.persona.replace(/_/g, ' ')}</div>
+                      <div className={styles.metricHelp}>
+                        Avg confidence: {Math.round(p.avg_confidence * 100)}%
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )
+            )}
+
+            {/* Persona filter */}
+            {personaSummary && (
+              <div className={styles.filterRow}>
+                <label htmlFor="persona-filter">Persona:</label>
+                <select
+                  id="persona-filter"
+                  className={styles.filterSelect}
+                  value={personaFilter}
+                  onChange={(e) => {
+                    setPersonaFilter(e.target.value);
+                    setPersonaPage(1);
+                  }}
+                >
+                  <option value="">All Personas</option>
+                  {personaSummary.personas.map((p) => (
+                    <option key={p.persona} value={p.persona}>
+                      {p.persona.replace(/_/g, ' ')} ({p.user_count})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* User table */}
+            {personaUsersLoading ? (
+              <SkeletonCard lines={8} />
+            ) : personaUsersError ? (
+              <div role="alert" className={styles.errorBanner}>
+                Failed to load classified users.
+              </div>
+            ) : (
+              <>
+                <DataTable
+                  columns={personaColumns}
+                  data={personaUsersData?.users ?? []}
+                  rowKey={(row) => `${row.user_login}-${row.org}`}
+                  onRowClick={(row) => setSelectedRow({ type: 'persona', data: row })}
+                  emptyMessage="No users classified yet. The classification engine runs nightly — or trigger a manual run from the admin settings."
+                />
+
+                {totalPersonaPages > 1 && (
+                  <div className={styles.pagination}>
+                    <button
+                      type="button"
+                      className={styles.paginationBtn}
+                      disabled={personaPage <= 1}
+                      onClick={() => setPersonaPage((p) => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </button>
+                    <span>
+                      Page {personaPage} of {totalPersonaPages}
+                    </span>
+                    <button
+                      type="button"
+                      className={styles.paginationBtn}
+                      disabled={personaPage >= totalPersonaPages}
+                      onClick={() => setPersonaPage((p) => p + 1)}
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
       </div>
 
       {/* Detail Drawer */}
@@ -733,6 +990,7 @@ function DrawerContent({ selected }: { selected: SelectedRow }) {
       {selected.type === 'risky' && <RiskyUserDetails user={selected.data} />}
       {selected.type === 'anomaly' && <AnomalyDetails user={selected.data} />}
       {selected.type === 'permission' && <PermissionDriftDetails user={selected.data} />}
+      {selected.type === 'persona' && <PersonaDetails user={selected.data} />}
     </div>
   );
 }
@@ -980,6 +1238,72 @@ function PermissionDriftDetails({ user }: { user: PermissionDriftUser }) {
             <span className={styles.drawerMetricLabel}>Last Active</span>
             <span>{user.last_active ? new Date(user.last_active).toLocaleDateString() : '—'}</span>
           </div>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function PersonaDetails({ user }: { user: ClassifiedUser }) {
+  return (
+    <>
+      {/* Classification info */}
+      <section className={styles.drawerSection}>
+        <h3 className={styles.drawerSectionTitle}>Classification</h3>
+        <div className={styles.drawerMetricRow}>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Persona</span>
+            <Label variant={PERSONA_VARIANTS[user.persona] ?? 'muted'}>
+              {user.persona.replace(/_/g, ' ')}
+            </Label>
+          </div>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Confidence</span>
+            <span className={styles.drawerMetricValue}>
+              {Math.round(user.confidence_score * 100)}%
+            </span>
+          </div>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Analysis Window</span>
+            <span>{user.analysis_window_days} days</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Activity summary */}
+      <section className={styles.drawerSection}>
+        <h3 className={styles.drawerSectionTitle}>Activity</h3>
+        <div className={styles.drawerMetricRow}>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Total Events</span>
+            <span className={styles.drawerMetricValue}>{user.event_count.toLocaleString()}</span>
+          </div>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Org</span>
+            <span>{user.org}</span>
+          </div>
+          <div className={styles.drawerMetric}>
+            <span className={styles.drawerMetricLabel}>Classified</span>
+            <span>
+              {user.classified_at ? new Date(user.classified_at).toLocaleDateString() : '—'}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Surfaces */}
+      <section className={styles.drawerSection}>
+        <h3 className={styles.drawerSectionTitle}>Active Surfaces</h3>
+        <div className={styles.drawerTagList}>
+          {user.surfaces.length > 0 ? (
+            user.surfaces.map((surface) => (
+              <span key={surface} className={styles.drawerTag}>
+                {surface}
+              </span>
+            ))
+          ) : (
+            <span className={styles.drawerMuted}>No active surfaces detected</span>
+          )}
         </div>
       </section>
     </>
