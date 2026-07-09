@@ -361,6 +361,7 @@ async def fetch_feed_indicators(
     parser_type: str = "plaintext",
     parser_config: dict[str, Any] | None = None,
     default_campaign_id: int | None = None,
+    auto_rule_generation: bool = True,
 ) -> int:
     """Parse feed content using the appropriate parser and upsert indicators."""
     from app.services.feed_parsers import get_parser
@@ -390,6 +391,7 @@ async def fetch_feed_indicators(
         )
 
     count = 0
+    new_indicator_count = 0
     for ind in parse_result.indicators:
         ind_campaign_id = campaign_id
         # If the indicator specifies a different campaign, resolve it
@@ -404,7 +406,8 @@ async def fetch_feed_indicators(
         if ind.suggested_action_filters:
             metadata["suggested_action_filters"] = ind.suggested_action_filters
 
-        await session.execute(
+        # Use INSERT ... ON CONFLICT to detect new vs existing indicators
+        result = await session.execute(
             text("""
                 INSERT INTO threat_intel_indicators
                     (indicator_type, value, source, confidence, added_by,
@@ -428,6 +431,7 @@ async def fetch_feed_indicators(
                         EXCLUDED.metadata_json,
                         threat_intel_indicators.metadata_json
                     )
+                RETURNING (xmax = 0) AS is_new
             """),
             {
                 "indicator_type": ind.indicator_type,
@@ -442,6 +446,9 @@ async def fetch_feed_indicators(
                 "metadata_json": json.dumps(metadata) if metadata else None,
             },
         )
+        row = result.fetchone()
+        if row and row[0]:
+            new_indicator_count += 1
         count += 1
 
     # Determine feed status
@@ -464,8 +471,8 @@ async def fetch_feed_indicators(
     )
     await session.commit()
 
-    # Synthesize detection rules for campaigns with indicators
-    if count > 0 and campaign_id is not None:
+    # Synthesize rules and trigger retro scan only for new indicators
+    if count > 0 and campaign_id is not None and auto_rule_generation and new_indicator_count > 0:
         from app.services.rule_synthesis_service import synthesize_rules_for_campaign
 
         # Collect the distinct indicator types from this parse result
@@ -473,16 +480,19 @@ async def fetch_feed_indicators(
 
         # Get campaign slug from the campaign table
         camp_row = await session.execute(
-            text("SELECT slug FROM threat_intel_campaigns WHERE id = :cid"),
+            text("SELECT slug, name FROM threat_intel_campaigns WHERE id = :cid"),
             {"cid": campaign_id},
         )
         camp = camp_row.fetchone()
         if camp:
-            await synthesize_rules_for_campaign(
+            campaign_slug, campaign_db_name = camp[0], camp[1]
+            campaign_display = parse_result.campaign_name or campaign_db_name
+
+            rule_ids = await synthesize_rules_for_campaign(
                 session,
                 campaign_id=campaign_id,
-                campaign_name=parse_result.campaign_name or f"campaign-{campaign_id}",
-                campaign_slug=camp[0],
+                campaign_name=campaign_display,
+                campaign_slug=campaign_slug,
                 indicator_types=indicator_types,
                 campaign_severity=parse_result.campaign_severity or "critical",
                 suggested_rules=parse_result.suggested_rules,
@@ -494,6 +504,15 @@ async def fetch_feed_indicators(
             from app.workers.retro_scan_worker import retro_scan_campaign_task
 
             retro_scan_campaign_task.delay(campaign_id)
+
+            logger.info(
+                "threat_intel.pipeline_complete",
+                feed_id=feed_id,
+                campaign=campaign_display,
+                new_indicators=new_indicator_count,
+                total_indicators=count,
+                rules_synthesized=len(rule_ids),
+            )
 
     return count
 
