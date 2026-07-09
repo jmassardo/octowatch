@@ -595,6 +595,10 @@ class TestThreatIntelFeeds:
     @pytest.mark.asyncio
     async def test_fetch_feed_indicators(self):
         session = AsyncMock()
+        # execute() returns a result proxy whose fetchone() returns a row
+        mock_result = MagicMock()
+        mock_result.fetchone.return_value = (True,)  # is_new = True
+        session.execute.return_value = mock_result
         content = "evil.com\nbad-domain.xyz\n# comment line\n\nmalware.net"
 
         count = await fetch_feed_indicators(
@@ -603,6 +607,7 @@ class TestThreatIntelFeeds:
             content=content,
             feed_type="domain",
             added_by="system:feed",
+            auto_rule_generation=False,
         )
         assert count == 3
         session.commit.assert_called_once()
@@ -618,6 +623,9 @@ class TestThreatIntelFeeds:
     @pytest.mark.asyncio
     async def test_fetch_feed_indicators_csv_format(self):
         session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.fetchone.return_value = (True,)
+        session.execute.return_value = mock_result
         content = "evil.com,high,2024-01-01\nbad.net,medium,2024-06-15"
 
         count = await fetch_feed_indicators(
@@ -626,6 +634,7 @@ class TestThreatIntelFeeds:
             content=content,
             feed_type="domain",
             added_by="system:feed",
+            auto_rule_generation=False,
         )
         assert count == 2
 

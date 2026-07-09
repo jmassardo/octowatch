@@ -344,8 +344,12 @@ async def _send_retro_scan_notification(
     detections_created: int,
     events_scanned: int,
 ) -> None:
-    """Send a summary notification about retro scan results."""
-    # Get campaign name for notification
+    """Log a summary notification about retro scan results.
+
+    Individual retro detections trigger their own notifications through
+    the standard detection notification pipeline. This logs the aggregate
+    summary for operational visibility.
+    """
     result = await session.execute(
         text("SELECT name FROM threat_intel_campaigns WHERE id = :cid"),
         {"cid": campaign_id},
@@ -353,30 +357,15 @@ async def _send_retro_scan_notification(
     row = result.fetchone()
     campaign_name = row[0] if row else f"Campaign #{campaign_id}"
 
-    try:
-        from app.services.notification_service import send_notification
-
-        await send_notification(
-            session,
-            notification_type="retro_scan_complete",
-            title=f"Retroactive scan complete: {campaign_name}",
-            message=(
-                f"Retro scan for **{campaign_name}** found "
-                f"**{detections_created}** historical matches "
-                f"across {events_scanned:,} events."
-            ),
-            severity="high" if detections_created > 10 else "medium",
-            metadata={
-                "campaign_id": campaign_id,
-                "campaign_name": campaign_name,
-                "detections_created": detections_created,
-                "events_scanned": events_scanned,
-            },
-        )
-    except Exception as exc:
-        # Don't fail the scan if notification fails
-        logger.warning(
-            "retro_scan.notification_failed",
-            campaign_id=campaign_id,
-            error=str(exc),
-        )
+    logger.info(
+        "retro_scan.summary",
+        campaign_id=campaign_id,
+        campaign_name=campaign_name,
+        detections_created=detections_created,
+        events_scanned=events_scanned,
+        message=(
+            f"Retro scan for '{campaign_name}' found "
+            f"{detections_created} historical matches "
+            f"across {events_scanned:,} events."
+        ),
+    )
