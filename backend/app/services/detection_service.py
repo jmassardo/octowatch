@@ -1027,6 +1027,18 @@ async def _check_x_config_engine(
     elif engine == "threat_intel_ip":
         return await _check_threat_intel_ip(event, x_config, session)
 
+    elif engine == "threat_intel_actor":
+        return await _check_threat_intel_actor(event, x_config, session)
+
+    elif engine == "threat_intel_commit_author":
+        return await _check_threat_intel_commit_author(event, x_config, session)
+
+    elif engine == "threat_intel_scope":
+        return await _check_threat_intel_scope(event, x_config, session)
+
+    elif engine == "threat_intel_action_ref":
+        return await _check_threat_intel_action_ref(event, x_config, session)
+
     elif engine == "dormant_account":
         return await _check_dormant_account(event, x_config, session)
 
@@ -1137,6 +1149,218 @@ async def _check_threat_intel_ip(
         return indicator is not None
     except Exception:
         logger.warning("detection.threat_intel_ip_check_failed", exc_info=True)
+        return False
+
+
+async def _check_threat_intel_actor(
+    event: AuditEvent,
+    x_config: dict[str, Any],
+    session: AsyncSession,
+) -> bool:
+    """Check if the event actor matches a known threat intel github_username indicator.
+
+    Returns True when the actor is found in threat intel (detection should fire).
+    """
+    actor = getattr(event, "actor", None)
+    if not actor:
+        return False
+
+    try:
+        from app.models.threat_intel import ThreatIntelIndicator
+
+        indicator_type = x_config.get("indicator_type", "github_username")
+        campaign_id = x_config.get("campaign_id")
+
+        stmt = (
+            select(ThreatIntelIndicator)
+            .where(ThreatIntelIndicator.value == str(actor))
+            .where(ThreatIntelIndicator.indicator_type == indicator_type)
+            .where(ThreatIntelIndicator.active.is_(True))
+            .where(
+                (ThreatIntelIndicator.expires_at.is_(None))
+                | (ThreatIntelIndicator.expires_at > datetime.now(UTC))
+            )
+        )
+        if campaign_id:
+            stmt = stmt.where(ThreatIntelIndicator.campaign_id == int(campaign_id))
+        stmt = stmt.limit(1)
+
+        result = await session.execute(stmt)
+        indicator = result.scalar_one_or_none()
+        return indicator is not None
+    except Exception:
+        logger.warning("detection.threat_intel_actor_check_failed", exc_info=True)
+        return False
+
+
+async def _check_threat_intel_commit_author(
+    event: AuditEvent,
+    x_config: dict[str, Any],
+    session: AsyncSession,
+) -> bool:
+    """Check if commit author/committer email matches a threat intel indicator.
+
+    Examines event.data for author_email and committer_email fields.
+    Returns True when an email matches an active commit_author_email indicator.
+    """
+    data = event.data if event.data else {}
+    emails = set()
+    for field_name in ("author_email", "committer_email"):
+        val = data.get(field_name)
+        if val:
+            emails.add(str(val))
+
+    if not emails:
+        return False
+
+    try:
+        from app.models.threat_intel import ThreatIntelIndicator
+
+        indicator_type = x_config.get("indicator_type", "commit_author_email")
+        campaign_id = x_config.get("campaign_id")
+
+        stmt = (
+            select(ThreatIntelIndicator)
+            .where(ThreatIntelIndicator.value.in_(list(emails)))
+            .where(ThreatIntelIndicator.indicator_type == indicator_type)
+            .where(ThreatIntelIndicator.active.is_(True))
+            .where(
+                (ThreatIntelIndicator.expires_at.is_(None))
+                | (ThreatIntelIndicator.expires_at > datetime.now(UTC))
+            )
+        )
+        if campaign_id:
+            stmt = stmt.where(ThreatIntelIndicator.campaign_id == int(campaign_id))
+        stmt = stmt.limit(1)
+
+        result = await session.execute(stmt)
+        indicator = result.scalar_one_or_none()
+        return indicator is not None
+    except Exception:
+        logger.warning("detection.threat_intel_commit_author_check_failed", exc_info=True)
+        return False
+
+
+async def _check_threat_intel_scope(
+    event: AuditEvent,
+    x_config: dict[str, Any],
+    session: AsyncSession,
+) -> bool:
+    """Check if a package name matches a known malicious npm_scope indicator.
+
+    Uses prefix matching: indicator '@evil-scope' matches package
+    '@evil-scope/any-package'. Works for npm scopes and similar namespaced
+    package ecosystems.
+
+    Returns True when the package scope matches a threat intel indicator.
+    """
+    data = event.data if event.data else {}
+    package_name = data.get("package_name") or data.get("name")
+    if not package_name:
+        return False
+
+    package_name = str(package_name)
+
+    try:
+        from app.models.threat_intel import ThreatIntelIndicator
+
+        indicator_type = x_config.get("indicator_type", "npm_scope")
+        campaign_id = x_config.get("campaign_id")
+
+        # Query active scope indicators
+        stmt = (
+            select(ThreatIntelIndicator)
+            .where(ThreatIntelIndicator.indicator_type == indicator_type)
+            .where(ThreatIntelIndicator.active.is_(True))
+            .where(
+                (ThreatIntelIndicator.expires_at.is_(None))
+                | (ThreatIntelIndicator.expires_at > datetime.now(UTC))
+            )
+        )
+        if campaign_id:
+            stmt = stmt.where(ThreatIntelIndicator.campaign_id == int(campaign_id))
+
+        result = await session.execute(stmt)
+        indicators = result.scalars().all()
+
+        # Prefix match: indicator value should be a prefix of the package name
+        for indicator in indicators:
+            scope = indicator.value
+            if package_name.startswith(scope) and (
+                len(package_name) == len(scope) or package_name[len(scope)] == "/"
+            ):
+                return True
+
+        return False
+    except Exception:
+        logger.warning("detection.threat_intel_scope_check_failed", exc_info=True)
+        return False
+
+
+async def _check_threat_intel_action_ref(
+    event: AuditEvent,
+    x_config: dict[str, Any],
+    session: AsyncSession,
+) -> bool:
+    """Check if a workflow action reference matches a known malicious action_ref indicator.
+
+    Examines event.data for action references (e.g. 'owner/action@ref') in
+    workflow job metadata.
+
+    Returns True when an action ref matches an active threat intel indicator.
+    """
+    data = event.data if event.data else {}
+    # Action refs can appear in different fields depending on the event type
+    action_refs: set[str] = set()
+    for field_name in ("action", "action_ref", "workflow_ref", "uses"):
+        val = data.get(field_name)
+        if val and isinstance(val, str) and "/" in val:
+            action_refs.add(val)
+
+    # Also check nested actions list if present
+    actions_list = data.get("actions", [])
+    if isinstance(actions_list, list):
+        for action_entry in actions_list:
+            if isinstance(action_entry, dict):
+                ref = action_entry.get("ref") or action_entry.get("uses")
+                if ref and isinstance(ref, str) and "/" in ref:
+                    action_refs.add(ref)
+
+    if not action_refs:
+        return False
+
+    try:
+        from app.models.threat_intel import ThreatIntelIndicator
+
+        indicator_type = x_config.get("indicator_type", "action_ref")
+        campaign_id = x_config.get("campaign_id")
+
+        # Normalize refs: strip version pinning for comparison
+        # e.g., "owner/action@v1" -> check both "owner/action@v1" and "owner/action"
+        normalized_refs = set(action_refs)
+        for ref in action_refs:
+            if "@" in ref:
+                normalized_refs.add(ref.split("@")[0])
+
+        stmt = (
+            select(ThreatIntelIndicator)
+            .where(ThreatIntelIndicator.value.in_(list(normalized_refs)))
+            .where(ThreatIntelIndicator.indicator_type == indicator_type)
+            .where(ThreatIntelIndicator.active.is_(True))
+            .where(
+                (ThreatIntelIndicator.expires_at.is_(None))
+                | (ThreatIntelIndicator.expires_at > datetime.now(UTC))
+            )
+        )
+        if campaign_id:
+            stmt = stmt.where(ThreatIntelIndicator.campaign_id == int(campaign_id))
+        stmt = stmt.limit(1)
+
+        result = await session.execute(stmt)
+        indicator = result.scalar_one_or_none()
+        return indicator is not None
+    except Exception:
+        logger.warning("detection.threat_intel_action_ref_check_failed", exc_info=True)
         return False
 
 
@@ -1661,6 +1885,10 @@ async def _write_detection_for_event(
         repo_short = _repo_short(event.repo)
         ctx["dedup_key"] = f"posture:{rule.slug}:{event.org or ''}:{repo_short}"
 
+    # Extract campaign_id from x_config for threat-intel-derived rules
+    x_config = rule.logic_config.get("x_config", {})
+    campaign_id = x_config.get("campaign_id")
+
     detection = Detection(
         rule_id=rule.id,
         rule_version=rule.version,
@@ -1677,6 +1905,7 @@ async def _write_detection_for_event(
         context_data=ctx,
         window_start=event.created_at,
         window_end=event.created_at,
+        campaign_id=int(campaign_id) if campaign_id else None,
     )
     session.add(detection)
     await session.flush()
