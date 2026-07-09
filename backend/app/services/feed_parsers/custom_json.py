@@ -124,6 +124,10 @@ class CustomJSONParser:
                     )
                 )
 
+        # Pass suggested_rules to ParseResult for rule synthesis
+        if feed.suggested_rules:
+            result.suggested_rules = [sr.model_dump() for sr in feed.suggested_rules]
+
         return result
 
 

@@ -463,6 +463,33 @@ async def fetch_feed_indicators(
         {"feed_id": feed_id, "count": count, "status": status},
     )
     await session.commit()
+
+    # Synthesize detection rules for campaigns with indicators
+    if count > 0 and campaign_id is not None:
+        from app.services.rule_synthesis_service import synthesize_rules_for_campaign
+
+        # Collect the distinct indicator types from this parse result
+        indicator_types = {ind.indicator_type for ind in parse_result.indicators}
+
+        # Get campaign slug from the campaign table
+        camp_row = await session.execute(
+            text("SELECT slug FROM threat_intel_campaigns WHERE id = :cid"),
+            {"cid": campaign_id},
+        )
+        camp = camp_row.fetchone()
+        if camp:
+            await synthesize_rules_for_campaign(
+                session,
+                campaign_id=campaign_id,
+                campaign_name=parse_result.campaign_name or f"campaign-{campaign_id}",
+                campaign_slug=camp[0],
+                indicator_types=indicator_types,
+                campaign_severity=parse_result.campaign_severity or "critical",
+                suggested_rules=parse_result.suggested_rules,
+                feed_id=feed_id,
+            )
+            await session.commit()
+
     return count
 
 

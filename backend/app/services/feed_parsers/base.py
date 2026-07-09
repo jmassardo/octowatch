@@ -36,6 +36,7 @@ class ParseResult:
     campaign_severity: str | None = None
     campaign_references: list[str] = field(default_factory=list)
     campaign_mitre_attack: list[str] = field(default_factory=list)
+    suggested_rules: list[dict[str, Any]] | None = None
 
 
 class FeedParser(Protocol):
