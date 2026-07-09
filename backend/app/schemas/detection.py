@@ -36,6 +36,16 @@ class DetectionListParams(BaseModel):
     page_size: int = Field(default=50, ge=1, le=500)
 
 
+class CampaignSummary(BaseModel):
+    """Minimal campaign info embedded in detection responses."""
+
+    id: int
+    name: str
+    slug: str
+    severity: str
+    status: str
+
+
 class DetectionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -66,6 +76,7 @@ class DetectionResponse(BaseModel):
     resolution_note: str | None
     tickets: list[TicketSummary] = []
     chain_id: str | None = None
+    campaign: CampaignSummary | None = None
 
     @field_validator("source_ip", mode="before")
     @classmethod

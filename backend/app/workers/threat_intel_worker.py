@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import secrets
+from typing import Any
 
 import httpx
 import structlog
@@ -32,8 +33,38 @@ def refresh_threat_intel_feeds_task(self: Task) -> dict[str, object]:
         raise self.retry(exc=exc, countdown=backoff + jitter) from exc
 
 
+def _build_auth_headers(parser_config: dict[str, Any] | None) -> dict[str, str]:
+    """Build authentication headers from feed parser_config.
+
+    Supports:
+      - {"auth_token": "..."} → Authorization: Bearer ...
+      - {"auth_header": "X-Api-Key", "auth_value": "..."} → X-Api-Key: ...
+    """
+    if not parser_config:
+        return {}
+
+    headers: dict[str, str] = {}
+
+    if token := parser_config.get("auth_token"):
+        headers["Authorization"] = f"Bearer {token}"
+    elif header_name := parser_config.get("auth_header"):
+        if header_value := parser_config.get("auth_value"):
+            headers[header_name] = header_value
+
+    return headers
+
+
 async def _refresh_feeds() -> dict[str, object]:
-    """Fetch all enabled feeds and upsert their indicators."""
+    """Fetch all enabled feeds and upsert their indicators.
+
+    Orchestrates the full adaptive feed pipeline:
+    1. Fetch content (with auth headers if configured)
+    2. Parse with the correct parser via fetch_feed_indicators
+    3. Upsert indicators with campaign linking
+    4. Synthesize rules (if auto_rule_generation enabled and new indicators)
+    5. Trigger retro scan for newly-created rules
+    6. Send notification about new threat intel
+    """
     from sqlalchemy import text
 
     from app.services.threat_intel_service import fetch_feed_indicators
@@ -46,7 +77,8 @@ async def _refresh_feeds() -> dict[str, object]:
             result = await session.execute(
                 text("""
                     SELECT id, url, feed_type, name,
-                           parser_type, parser_config, default_campaign_id
+                           parser_type, parser_config, default_campaign_id,
+                           auto_rule_generation
                     FROM threat_intel_feeds
                     WHERE enabled = TRUE
                       AND (
@@ -61,7 +93,10 @@ async def _refresh_feeds() -> dict[str, object]:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 for feed in feeds:
                     try:
-                        response = await client.get(feed.url)
+                        # Build auth headers from parser_config
+                        auth_headers = _build_auth_headers(feed.parser_config)
+
+                        response = await client.get(feed.url, headers=auth_headers)
                         response.raise_for_status()
                         content = response.text
 
@@ -74,6 +109,7 @@ async def _refresh_feeds() -> dict[str, object]:
                             parser_type=feed.parser_type,
                             parser_config=feed.parser_config,
                             default_campaign_id=feed.default_campaign_id,
+                            auto_rule_generation=feed.auto_rule_generation,
                         )
                         feeds_processed += 1
                         indicators_total += count
@@ -83,6 +119,7 @@ async def _refresh_feeds() -> dict[str, object]:
                             feed_id=feed.id,
                             feed_name=feed.name,
                             indicators=count,
+                            auto_rules=feed.auto_rule_generation,
                         )
                     except Exception as exc:
                         logger.error(

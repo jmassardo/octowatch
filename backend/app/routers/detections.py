@@ -17,6 +17,7 @@ from app.models.detection import Detection
 from app.schemas.actor import DetectionTimeline, TimelineEvent
 from app.schemas.detection import (
     AssignDetectionRequest,
+    CampaignSummary,
     DetectionListParams,
     DetectionListResponse,
     DetectionResponse,
@@ -24,11 +25,22 @@ from app.schemas.detection import (
 )
 from app.services.audit_service import log_action
 from app.services.rbac_service import get_user_scope
+from app.services.threat_intel_service import get_campaign_summary
 from app.utils.client_ip import get_client_ip
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/detections", tags=["detections"])
+
+
+async def _enrich_with_campaign(db: AsyncSession, detection: Detection) -> DetectionResponse:
+    """Validate detection and enrich with campaign summary if campaign_id is set."""
+    resp = DetectionResponse.model_validate(detection)
+    if detection.campaign_id:
+        campaign = await get_campaign_summary(db, detection.campaign_id)
+        if campaign:
+            resp.campaign = CampaignSummary(**campaign)
+    return resp
 
 
 async def _get_detection_or_404(
@@ -93,8 +105,24 @@ async def list_detections(
     result = await db.execute(stmt)
     detections = result.scalars().all()
 
+    # Enrich with campaign data
+    items: list[DetectionResponse] = []
+    # Batch-load unique campaign IDs
+    campaign_ids = {d.campaign_id for d in detections if d.campaign_id}
+    campaign_map: dict[int, CampaignSummary] = {}
+    for cid in campaign_ids:
+        summary = await get_campaign_summary(db, cid)
+        if summary:
+            campaign_map[cid] = CampaignSummary(**summary)
+
+    for d in detections:
+        resp = DetectionResponse.model_validate(d)
+        if d.campaign_id and d.campaign_id in campaign_map:
+            resp.campaign = campaign_map[d.campaign_id]
+        items.append(resp)
+
     return DetectionListResponse(
-        items=[DetectionResponse.model_validate(d) for d in detections],
+        items=items,
         total=total,
         page=params.page,
         page_size=params.page_size,
@@ -111,7 +139,7 @@ async def get_detection(
     """Get a single detection by ID."""
     scope = await get_user_scope(db, current_user.github_login, current_user.roles)
     detection = await _get_detection_or_404(db, detection_id, scope.scoped_orgs)
-    return DetectionResponse.model_validate(detection)
+    return await _enrich_with_campaign(db, detection)
 
 
 @router.patch(

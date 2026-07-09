@@ -211,3 +211,95 @@ export function listMatches(params: MatchListParams = {}): Promise<MatchListResp
 export function getAnalytics(): Promise<ThreatIntelAnalytics> {
   return api.get<ThreatIntelAnalytics>('/threat-intel/analytics');
 }
+
+// ─── Campaign Types ──────────────────────────────────────────────────────────
+
+export interface Campaign {
+  readonly id: number;
+  readonly name: string;
+  readonly slug: string;
+  readonly description: string | null;
+  readonly first_seen_at: string;
+  readonly last_updated: string;
+  readonly severity: string;
+  readonly status: string;
+  readonly source_feed_id: number | null;
+  readonly metadata_json: Record<string, unknown> | null;
+  readonly indicator_count: number;
+  readonly detection_count?: number;
+  readonly rule_count?: number;
+}
+
+export interface CampaignListResponse {
+  readonly items: readonly Campaign[];
+  readonly total: number;
+}
+
+export interface CampaignDetail extends Campaign {
+  readonly indicators_by_type: readonly { type: string; count: number }[];
+  readonly rules: readonly {
+    id: number;
+    name: string;
+    enabled: boolean;
+    source: string;
+    expires_at: string | null;
+  }[];
+  readonly mitre_attack: readonly string[];
+  readonly source_feed_name: string | null;
+}
+
+export interface CampaignDetectionResponse {
+  readonly items: readonly {
+    id: number;
+    title: string;
+    severity: string;
+    status: string;
+    actor: string | null;
+    org: string | null;
+    triggered_at: string;
+    retroactive: boolean;
+  }[];
+  readonly total: number;
+  readonly page: number;
+  readonly page_size: number;
+}
+
+export interface CampaignListParams {
+  status?: string;
+  page?: number;
+  page_size?: number;
+}
+
+// ─── Campaign API ────────────────────────────────────────────────────────────
+
+export function listCampaigns(params: CampaignListParams = {}): Promise<CampaignListResponse> {
+  return api.get<CampaignListResponse>(
+    '/threat-intel/campaigns',
+    params as Record<string, string | number | boolean | undefined>,
+  );
+}
+
+export function getCampaignDetail(id: number): Promise<CampaignDetail> {
+  return api.get<CampaignDetail>(`/threat-intel/campaigns/${id}`);
+}
+
+export function updateCampaign(
+  id: number,
+  body: { status?: string; description?: string; metadata_json?: Record<string, unknown> },
+): Promise<Campaign> {
+  return api.patch<Campaign>(`/threat-intel/campaigns/${id}`, body);
+}
+
+export function getCampaignDetections(
+  id: number,
+  params: { page?: number; page_size?: number } = {},
+): Promise<CampaignDetectionResponse> {
+  return api.get<CampaignDetectionResponse>(
+    `/threat-intel/campaigns/${id}/detections`,
+    params as Record<string, string | number | boolean | undefined>,
+  );
+}
+
+export function promoteCampaignRules(id: number): Promise<{ promoted_count: number }> {
+  return api.post<{ promoted_count: number }>(`/threat-intel/campaigns/${id}/promote-rules`);
+}

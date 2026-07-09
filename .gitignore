@@ -60,3 +60,4 @@ tfplan
 Thumbs.db
 venv/
 .playwright-mcp/
+.az_known_hosts
