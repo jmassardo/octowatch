@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 from fnmatch import fnmatch
 from typing import Any
 from urllib.parse import urlparse
@@ -297,7 +298,8 @@ async def get_feeds(
         text("""
             SELECT id, name, url, feed_type, enabled, refresh_interval_minutes,
                    last_fetched_at, last_fetch_status, last_indicator_count,
-                   created_by, created_at, updated_at, is_default
+                   created_by, created_at, updated_at, is_default,
+                   parser_type, parser_config, auto_rule_generation, default_campaign_id
             FROM threat_intel_feeds
             ORDER BY created_at DESC
         """)
@@ -313,17 +315,24 @@ async def create_feed(
     feed_type: str = "domain",
     refresh_interval_minutes: int = 1440,
     created_by: str,
+    parser_type: str = "plaintext",
+    parser_config: dict[str, Any] | None = None,
+    auto_rule_generation: bool = True,
+    default_campaign_id: int | None = None,
 ) -> dict[str, Any]:
     """Create a new threat intel feed configuration."""
     result = await session.execute(
         text("""
             INSERT INTO threat_intel_feeds
-                (name, url, feed_type, refresh_interval_minutes, created_by)
+                (name, url, feed_type, refresh_interval_minutes, created_by,
+                 parser_type, parser_config, auto_rule_generation, default_campaign_id)
             VALUES
-                (:name, :url, :feed_type, :refresh_interval_minutes, :created_by)
+                (:name, :url, :feed_type, :refresh_interval_minutes, :created_by,
+                 :parser_type, :parser_config, :auto_rule_generation, :default_campaign_id)
             RETURNING id, name, url, feed_type, enabled, refresh_interval_minutes,
                       last_fetched_at, last_fetch_status, last_indicator_count,
-                      created_by, created_at, updated_at, is_default
+                      created_by, created_at, updated_at, is_default,
+                      parser_type, parser_config, auto_rule_generation, default_campaign_id
         """),
         {
             "name": name,
@@ -331,6 +340,10 @@ async def create_feed(
             "feed_type": feed_type,
             "refresh_interval_minutes": refresh_interval_minutes,
             "created_by": created_by,
+            "parser_type": parser_type,
+            "parser_config": json.dumps(parser_config) if parser_config else None,
+            "auto_rule_generation": auto_rule_generation,
+            "default_campaign_id": default_campaign_id,
         },
     )
     row = result.mappings().fetchone()
@@ -344,56 +357,164 @@ async def fetch_feed_indicators(
     content: str,
     feed_type: str,
     added_by: str,
+    *,
+    parser_type: str = "plaintext",
+    parser_config: dict[str, Any] | None = None,
+    default_campaign_id: int | None = None,
 ) -> int:
-    """Parse feed content and upsert indicators. Returns count of indicators processed."""
-    lines = [ln.strip() for ln in content.splitlines() if ln.strip() and not ln.startswith("#")]
+    """Parse feed content using the appropriate parser and upsert indicators."""
+    from app.services.feed_parsers import get_parser
+
+    config = dict(parser_config or {})
+    # Plaintext parser needs indicator_type from feed_type
+    if parser_type == "plaintext" and "indicator_type" not in config:
+        config["indicator_type"] = feed_type if feed_type in ("domain", "ip") else "domain"
+
+    parser = get_parser(parser_type)
+    parse_result = parser.parse(content, config)
+
+    for warning in parse_result.warnings:
+        logger.warning("threat_intel.parse_warning", feed_id=feed_id, warning=warning)
+
+    # Upsert campaign if the parser extracted one
+    campaign_id = default_campaign_id
+    if parse_result.campaign_name:
+        campaign_id = await _upsert_campaign(
+            session,
+            feed_id=feed_id,
+            name=parse_result.campaign_name,
+            description=parse_result.campaign_description,
+            severity=parse_result.campaign_severity or "critical",
+            references=parse_result.campaign_references,
+            mitre_attack=parse_result.campaign_mitre_attack,
+        )
+
     count = 0
+    for ind in parse_result.indicators:
+        ind_campaign_id = campaign_id
+        # If the indicator specifies a different campaign, resolve it
+        if ind.campaign_name and ind.campaign_name != parse_result.campaign_name:
+            ind_campaign_id = await _upsert_campaign(
+                session,
+                feed_id=feed_id,
+                name=ind.campaign_name,
+            )
 
-    for line in lines:
-        # Skip comments and empty lines
-        if not line or line.startswith("//"):
-            continue
-
-        indicator_type = feed_type if feed_type in ("domain", "ip") else "domain"
-        value = line.split(",")[0].strip() if "," in line else line.strip()
-
-        if not value:
-            continue
+        metadata = ind.metadata or {}
+        if ind.suggested_action_filters:
+            metadata["suggested_action_filters"] = ind.suggested_action_filters
 
         await session.execute(
             text("""
                 INSERT INTO threat_intel_indicators
-                    (indicator_type, value, source, confidence, added_by, feed_id)
+                    (indicator_type, value, source, confidence, added_by,
+                     feed_id, campaign_id, expires_at, notes, metadata_json)
                 VALUES
-                    (:indicator_type, :value, :source, 0.70, :added_by, :feed_id)
+                    (:indicator_type, :value, :source, :confidence, :added_by,
+                     :feed_id, :campaign_id, :expires_at, :notes, :metadata_json)
                 ON CONFLICT (indicator_type, value) DO UPDATE SET
                     active = TRUE,
-                    feed_id = EXCLUDED.feed_id
+                    confidence = GREATEST(
+                        threat_intel_indicators.confidence,
+                        EXCLUDED.confidence
+                    ),
+                    feed_id = EXCLUDED.feed_id,
+                    campaign_id = COALESCE(
+                        EXCLUDED.campaign_id,
+                        threat_intel_indicators.campaign_id
+                    ),
+                    expires_at = EXCLUDED.expires_at,
+                    metadata_json = COALESCE(
+                        EXCLUDED.metadata_json,
+                        threat_intel_indicators.metadata_json
+                    )
             """),
             {
-                "indicator_type": indicator_type,
-                "value": value,
+                "indicator_type": ind.indicator_type,
+                "value": ind.value,
                 "source": f"feed:{feed_id}",
+                "confidence": ind.confidence,
                 "added_by": added_by,
                 "feed_id": feed_id,
+                "campaign_id": ind_campaign_id,
+                "expires_at": ind.expires_at,
+                "notes": ind.source_reference,
+                "metadata_json": json.dumps(metadata) if metadata else None,
             },
         )
         count += 1
 
-    # Update feed status
+    # Determine feed status
+    status = "success"
+    if parse_result.warnings and count == 0:
+        status = "failed"
+    elif parse_result.warnings:
+        status = f"partial ({parse_result.skipped_count} skipped)"
+
     await session.execute(
         text("""
             UPDATE threat_intel_feeds
             SET last_fetched_at = NOW(),
-                last_fetch_status = 'success',
+                last_fetch_status = :status,
                 last_indicator_count = :count,
                 updated_at = NOW()
             WHERE id = :feed_id
         """),
-        {"feed_id": feed_id, "count": count},
+        {"feed_id": feed_id, "count": count, "status": status},
     )
     await session.commit()
     return count
+
+
+async def _upsert_campaign(
+    session: AsyncSession,
+    *,
+    feed_id: int,
+    name: str,
+    description: str | None = None,
+    severity: str = "critical",
+    references: list[str] | None = None,
+    mitre_attack: list[str] | None = None,
+) -> int:
+    """Insert or update a campaign, returning its ID."""
+    import re as _re
+
+    slug = _re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    metadata: dict[str, Any] = {}
+    if references:
+        metadata["references"] = references
+    if mitre_attack:
+        metadata["mitre_attack"] = mitre_attack
+
+    result = await session.execute(
+        text("""
+            INSERT INTO threat_intel_campaigns
+                (name, slug, description, severity, source_feed_id, metadata_json)
+            VALUES
+                (:name, :slug, :description, :severity, :source_feed_id, :metadata_json)
+            ON CONFLICT (name) DO UPDATE SET
+                last_updated = NOW(),
+                description = COALESCE(
+                    EXCLUDED.description,
+                    threat_intel_campaigns.description
+                ),
+                metadata_json = COALESCE(
+                    EXCLUDED.metadata_json,
+                    threat_intel_campaigns.metadata_json
+                )
+            RETURNING id
+        """),
+        {
+            "name": name,
+            "slug": slug,
+            "description": description,
+            "severity": severity,
+            "source_feed_id": feed_id,
+            "metadata_json": json.dumps(metadata) if metadata else None,
+        },
+    )
+    row = result.fetchone()
+    return row[0]  # type: ignore[index]
 
 
 async def update_feed(
@@ -406,11 +527,23 @@ async def update_feed(
     set_clauses = []
     params: dict[str, Any] = {"id": feed_id}
 
-    allowed_fields = {"name", "url", "feed_type", "refresh_interval_minutes", "enabled"}
+    allowed_fields = {
+        "name",
+        "url",
+        "feed_type",
+        "refresh_interval_minutes",
+        "enabled",
+        "parser_type",
+        "auto_rule_generation",
+        "default_campaign_id",
+    }
     for field_name, field_value in updates.items():
         if field_name in allowed_fields:
             set_clauses.append(f"{field_name} = :{field_name}")
             params[field_name] = field_value
+        elif field_name == "parser_config":
+            set_clauses.append("parser_config = :parser_config")
+            params["parser_config"] = json.dumps(field_value) if field_value else None
 
     if not set_clauses:
         return None
@@ -424,7 +557,8 @@ async def update_feed(
             WHERE id = :id
             RETURNING id, name, url, feed_type, enabled, refresh_interval_minutes,
                       last_fetched_at, last_fetch_status, last_indicator_count,
-                      created_by, created_at, updated_at, is_default
+                      created_by, created_at, updated_at, is_default,
+                      parser_type, parser_config, auto_rule_generation, default_campaign_id
         """),
         params,
     )

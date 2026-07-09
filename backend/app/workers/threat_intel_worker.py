@@ -45,7 +45,8 @@ async def _refresh_feeds() -> dict[str, object]:
         try:
             result = await session.execute(
                 text("""
-                    SELECT id, url, feed_type, name
+                    SELECT id, url, feed_type, name,
+                           parser_type, parser_config, default_campaign_id
                     FROM threat_intel_feeds
                     WHERE enabled = TRUE
                       AND (
@@ -70,6 +71,9 @@ async def _refresh_feeds() -> dict[str, object]:
                             content=content,
                             feed_type=feed.feed_type,
                             added_by="system:feed_refresh",
+                            parser_type=feed.parser_type,
+                            parser_config=feed.parser_config,
+                            default_campaign_id=feed.default_campaign_id,
                         )
                         feeds_processed += 1
                         indicators_total += count
