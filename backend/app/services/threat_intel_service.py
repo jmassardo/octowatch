@@ -490,6 +490,11 @@ async def fetch_feed_indicators(
             )
             await session.commit()
 
+            # Trigger retroactive scan for this campaign
+            from app.workers.retro_scan_worker import retro_scan_campaign_task
+
+            retro_scan_campaign_task.delay(campaign_id)
+
     return count
 
 
