@@ -12,6 +12,9 @@ from app.schemas.threat_intel import (
     AnalyticsResponse,
     BulkIndicatorCreate,
     BulkIndicatorResponse,
+    CampaignListResponse,
+    CampaignResponse,
+    CampaignUpdate,
     FeedCreate,
     FeedListResponse,
     FeedRefreshResponse,
@@ -262,3 +265,86 @@ async def get_analytics(
 ) -> Any:
     """Get aggregate threat intelligence analytics."""
     return await threat_intel_service.get_analytics(db)
+
+
+# ─── Campaigns ────────────────────────────────────────────────────────────────
+
+
+@router.get("/campaigns", response_model=CampaignListResponse)
+async def list_campaigns(
+    status: str | None = None,
+    page: int = 1,
+    page_size: int = 25,
+    db: AsyncSession = Depends(get_db),
+    user: AuthenticatedUser = Depends(require_permission("rules", "view")),
+) -> Any:
+    """List threat intel campaigns with optional status filter."""
+    if page < 1:
+        page = 1
+    if page_size < 1 or page_size > 200:
+        page_size = 25
+
+    items, total = await threat_intel_service.get_campaigns(
+        db, status=status, page=page, page_size=page_size
+    )
+    return {"items": items, "total": total}
+
+
+@router.get("/campaigns/{campaign_id}", response_model=None)
+async def get_campaign_detail(
+    campaign_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: AuthenticatedUser = Depends(require_permission("rules", "view")),
+) -> Any:
+    """Get detailed campaign information including indicator/rule/detection counts."""
+    result = await threat_intel_service.get_campaign_detail(db, campaign_id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Campaign not found")
+    return result
+
+
+@router.patch("/campaigns/{campaign_id}", response_model=CampaignResponse)
+async def update_campaign(
+    campaign_id: int,
+    body: CampaignUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: AuthenticatedUser = Depends(require_permission("rules", "create")),
+    _csrf: None = Depends(verify_csrf),
+) -> Any:
+    """Update a campaign's status or metadata."""
+    updates = body.model_dump(exclude_unset=True)
+    result = await threat_intel_service.update_campaign(db, campaign_id, updates=updates)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Campaign not found")
+    return result
+
+
+@router.get("/campaigns/{campaign_id}/detections", response_model=None)
+async def get_campaign_detections(
+    campaign_id: int,
+    page: int = 1,
+    page_size: int = 25,
+    db: AsyncSession = Depends(get_db),
+    user: AuthenticatedUser = Depends(require_permission("rules", "view")),
+) -> Any:
+    """Get detections attributed to a specific campaign."""
+    if page < 1:
+        page = 1
+    if page_size < 1 or page_size > 200:
+        page_size = 25
+
+    items, total = await threat_intel_service.get_campaign_detections(
+        db, campaign_id, page=page, page_size=page_size
+    )
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@router.post("/campaigns/{campaign_id}/promote-rules", response_model=None)
+async def promote_campaign_rules(
+    campaign_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: AuthenticatedUser = Depends(require_permission("rules", "create")),
+    _csrf: None = Depends(verify_csrf),
+) -> Any:
+    """Promote feed-derived rules to permanent for this campaign."""
+    return await threat_intel_service.promote_campaign_rules(db, campaign_id)

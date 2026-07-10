@@ -525,6 +525,183 @@
   border-top: 1px solid var(--border);
 }
 
+/* ─── Campaign detail styles ────────────────────────────────────────────── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.tabContent {
+  padding: 16px 0;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 0;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.pagination button {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--canvas-subtle);
+  color: var(--fg-default);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.resultCount {
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.campaignName {
+  font-weight: 500;
+}
+
+.btnSecondary {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--canvas-subtle);
+  color: var(--fg-default);
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btnSecondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.detailPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.detailMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.detailDescription {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--fg-default);
+  margin: 0;
+}
+
+.detailSection {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.detailSection h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.mitreList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mitreBadge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent);
+}
+
+.statList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.statList li {
+  font-size: 13px;
+  color: var(--fg-default);
+}
+
+.ruleList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.ruleList li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.disabledRule {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.feedBadge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(var(--done-rgb), 0.15);
+  color: var(--done);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.expiryNote {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.detailActions {
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page,
   .tabStrip,

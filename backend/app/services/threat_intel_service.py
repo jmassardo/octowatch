@@ -849,3 +849,273 @@ async def refresh_feed(
     if row is None:
         return None
     return dict(row)
+
+
+# ─── Campaigns ────────────────────────────────────────────────────────────────
+
+
+async def _check_threat_intel_enabled(session: AsyncSession) -> None:
+    """Raise if threat_intel feature is disabled. No-op if flag missing (defaults enabled)."""
+    result = await session.execute(
+        text("SELECT enabled FROM feature_flags WHERE key = 'threat_intel'")
+    )
+    row = result.scalar_one_or_none()
+    if row is not None and not row:
+        msg = "Threat intelligence feature is disabled"
+        raise PermissionError(msg)
+
+
+async def get_campaigns(
+    session: AsyncSession,
+    *,
+    status: str | None = None,
+    page: int = 1,
+    page_size: int = 25,
+) -> tuple[list[dict[str, Any]], int]:
+    """List campaigns with pagination and optional status filter."""
+    await _check_threat_intel_enabled(session)
+
+    conditions: list[str] = []
+    params: dict[str, Any] = {}
+
+    if status:
+        conditions.append("c.status = :status")
+        params["status"] = status
+
+    where_clause = " AND ".join(conditions) if conditions else "TRUE"
+
+    count_result = await session.execute(
+        text(f"SELECT COUNT(*) AS cnt FROM threat_intel_campaigns c WHERE {where_clause}"),
+        params,
+    )
+    total = int(count_result.scalar_one())
+
+    offset = (page - 1) * page_size
+    params["limit"] = page_size
+    params["offset"] = offset
+
+    result = await session.execute(
+        text(f"""
+            SELECT c.id, c.name, c.slug, c.description, c.first_seen_at,
+                   c.last_updated, c.severity, c.status, c.source_feed_id,
+                   c.metadata_json, c.indicator_count
+            FROM threat_intel_campaigns c
+            WHERE {where_clause}
+            ORDER BY c.last_updated DESC
+            LIMIT :limit OFFSET :offset
+        """),
+        params,
+    )
+    items = [dict(row) for row in result.mappings().all()]
+    return items, total
+
+
+async def get_campaign_detail(
+    session: AsyncSession,
+    campaign_id: int,
+) -> dict[str, Any] | None:
+    """Get campaign with indicator count by type, rule count, and detection count."""
+    await _check_threat_intel_enabled(session)
+
+    result = await session.execute(
+        text("""
+            SELECT id, name, slug, description, first_seen_at,
+                   last_updated, severity, status, source_feed_id,
+                   metadata_json, indicator_count
+            FROM threat_intel_campaigns
+            WHERE id = :campaign_id
+        """),
+        {"campaign_id": campaign_id},
+    )
+    row = result.mappings().fetchone()
+    if row is None:
+        return None
+
+    campaign = dict(row)
+
+    # Indicator count by type
+    ind_result = await session.execute(
+        text("""
+            SELECT indicator_type, COUNT(*) AS count
+            FROM threat_intel_indicators
+            WHERE campaign_id = :campaign_id AND active = TRUE
+            GROUP BY indicator_type
+        """),
+        {"campaign_id": campaign_id},
+    )
+    campaign["indicators_by_type"] = [
+        {"type": r["indicator_type"], "count": int(r["count"])} for r in ind_result.mappings().all()
+    ]
+
+    # Rule count
+    rule_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt
+            FROM rule_definitions
+            WHERE campaign_id = :campaign_id
+        """),
+        {"campaign_id": campaign_id},
+    )
+    campaign["rule_count"] = int(rule_result.scalar_one())
+
+    # Detection count
+    det_result = await session.execute(
+        text("""
+            SELECT COUNT(*) AS cnt
+            FROM detections
+            WHERE campaign_id = :campaign_id
+        """),
+        {"campaign_id": campaign_id},
+    )
+    campaign["detection_count"] = int(det_result.scalar_one())
+
+    # Extract MITRE from metadata_json
+    metadata = campaign.get("metadata_json") or {}
+    campaign["mitre_tactics"] = metadata.get("mitre_tactics", [])
+
+    return campaign
+
+
+async def update_campaign(
+    session: AsyncSession,
+    campaign_id: int,
+    *,
+    updates: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Update campaign status/metadata. Archives deactivate feed-derived rules."""
+    await _check_threat_intel_enabled(session)
+
+    allowed_fields = {"name", "description", "severity", "status", "metadata_json"}
+    set_clauses: list[str] = []
+    params: dict[str, Any] = {"campaign_id": campaign_id}
+
+    for field_name, field_value in updates.items():
+        if field_name in allowed_fields:
+            if field_name == "metadata_json":
+                set_clauses.append(f"{field_name} = :p_{field_name}::jsonb")
+            else:
+                set_clauses.append(f"{field_name} = :p_{field_name}")
+            params[f"p_{field_name}"] = (
+                json.dumps(field_value) if field_name == "metadata_json" else field_value
+            )
+
+    if not set_clauses:
+        return None
+
+    set_clauses.append("last_updated = NOW()")
+    set_sql = ", ".join(set_clauses)
+
+    result = await session.execute(
+        text(f"""
+            UPDATE threat_intel_campaigns
+            SET {set_sql}
+            WHERE id = :campaign_id
+            RETURNING id, name, slug, description, first_seen_at,
+                      last_updated, severity, status, source_feed_id,
+                      metadata_json, indicator_count
+        """),
+        params,
+    )
+    row = result.mappings().fetchone()
+    if row is None:
+        await session.commit()
+        return None
+
+    campaign = dict(row)
+
+    # If archiving, deactivate feed-derived rules for this campaign
+    if updates.get("status") == "archived":
+        await session.execute(
+            text("""
+                UPDATE rule_definitions
+                SET enabled = FALSE
+                WHERE campaign_id = :campaign_id AND source = 'feed'
+            """),
+            {"campaign_id": campaign_id},
+        )
+        logger.info("campaign.archived_rules_deactivated", campaign_id=campaign_id)
+
+    await session.commit()
+    return campaign
+
+
+async def get_campaign_detections(
+    session: AsyncSession,
+    campaign_id: int,
+    *,
+    page: int = 1,
+    page_size: int = 25,
+) -> tuple[list[dict[str, Any]], int]:
+    """Get detections attributed to a campaign."""
+    await _check_threat_intel_enabled(session)
+
+    count_result = await session.execute(
+        text("SELECT COUNT(*) AS cnt FROM detections WHERE campaign_id = :campaign_id"),
+        {"campaign_id": campaign_id},
+    )
+    total = int(count_result.scalar_one())
+
+    offset = (page - 1) * page_size
+    result = await session.execute(
+        text("""
+            SELECT id, rule_id, title, severity, status, actor, org, repo,
+                   triggered_at, confidence_score
+            FROM detections
+            WHERE campaign_id = :campaign_id
+            ORDER BY triggered_at DESC
+            LIMIT :limit OFFSET :offset
+        """),
+        {"campaign_id": campaign_id, "limit": page_size, "offset": offset},
+    )
+    items = [dict(row) for row in result.mappings().all()]
+    return items, total
+
+
+async def promote_campaign_rules(
+    session: AsyncSession,
+    campaign_id: int,
+) -> dict[str, Any]:
+    """Promote feed-derived rules to permanent (remove expires_at, set source='promoted')."""
+    await _check_threat_intel_enabled(session)
+
+    result = await session.execute(
+        text("""
+            UPDATE rule_definitions
+            SET source = 'promoted', expires_at = NULL
+            WHERE campaign_id = :campaign_id AND source = 'feed'
+            RETURNING id
+        """),
+        {"campaign_id": campaign_id},
+    )
+    promoted_ids = [row[0] for row in result.fetchall()]
+    await session.commit()
+
+    logger.info(
+        "campaign.rules_promoted",
+        campaign_id=campaign_id,
+        promoted_count=len(promoted_ids),
+    )
+    return {
+        "campaign_id": campaign_id,
+        "promoted_count": len(promoted_ids),
+        "rule_ids": promoted_ids,
+    }
+
+
+async def get_campaign_summary(
+    session: AsyncSession,
+    campaign_id: int,
+) -> dict[str, Any] | None:
+    """Get minimal campaign info for detection enrichment."""
+    result = await session.execute(
+        text("""
+            SELECT id, name, slug, severity, status
+            FROM threat_intel_campaigns
+            WHERE id = :campaign_id
+        """),
+        {"campaign_id": campaign_id},
+    )
+    row = result.mappings().fetchone()
+    if row is None:
+        return None
+    return dict(row)

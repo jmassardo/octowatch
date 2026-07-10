@@ -118,6 +118,51 @@ vi.mock('../../api/threatIntel', () => ({
       { type: 'ip', count: 15 },
     ],
   }),
+  listCampaigns: vi.fn().mockResolvedValue({
+    items: [
+      {
+        id: 1,
+        name: 'Miasma',
+        slug: 'miasma',
+        description: 'Supply chain attack campaign',
+        first_seen_at: '2024-06-01T00:00:00Z',
+        last_updated: '2024-06-15T00:00:00Z',
+        severity: 'critical',
+        status: 'active',
+        source_feed_id: 1,
+        metadata_json: null,
+        indicator_count: 12,
+        detection_count: 3,
+      },
+    ],
+    total: 1,
+  }),
+  getCampaignDetail: vi.fn().mockResolvedValue({
+    id: 1,
+    name: 'Miasma',
+    slug: 'miasma',
+    description: 'Supply chain attack campaign',
+    first_seen_at: '2024-06-01T00:00:00Z',
+    last_updated: '2024-06-15T00:00:00Z',
+    severity: 'critical',
+    status: 'active',
+    source_feed_id: 1,
+    metadata_json: null,
+    indicator_count: 12,
+    detection_count: 3,
+    rule_count: 2,
+    indicators_by_type: [
+      { type: 'npm_scope', count: 8 },
+      { type: 'domain', count: 4 },
+    ],
+    rules: [
+      { id: 1, name: 'feed-miasma-npm_scope', enabled: true, source: 'feed', expires_at: null },
+    ],
+    mitre_attack: ['T1195.002'],
+    source_feed_name: 'AlienVault OTX',
+  }),
+  updateCampaign: vi.fn().mockResolvedValue({ id: 1, status: 'archived' }),
+  promoteCampaignRules: vi.fn().mockResolvedValue({ promoted_count: 1 }),
   createFeed: vi.fn().mockResolvedValue({ id: 3, name: 'New Feed' }),
   updateFeed: vi.fn().mockResolvedValue({ id: 1, name: 'Updated Feed' }),
   deleteFeed: vi.fn().mockResolvedValue(undefined),
@@ -150,17 +195,18 @@ describe('ThreatIntelPage', () => {
     renderThreatIntel();
 
     expect(screen.getByText('Threat Intelligence')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Campaigns' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Feeds' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Indicators' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Matches' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Analytics' })).toBeInTheDocument();
   });
 
-  it('shows Feeds tab as active by default', () => {
-    renderThreatIntel();
+  it('shows Campaigns tab as active by default', () => {
+    renderThreatIntel('/threat-intel/campaigns');
 
-    const feedsTab = screen.getByRole('tab', { name: 'Feeds' });
-    expect(feedsTab).toHaveAttribute('aria-selected', 'true');
+    const campaignsTab = screen.getByRole('tab', { name: 'Campaigns' });
+    expect(campaignsTab).toHaveAttribute('aria-selected', 'true');
   });
 
   it('renders feed data in the Feeds tab', async () => {

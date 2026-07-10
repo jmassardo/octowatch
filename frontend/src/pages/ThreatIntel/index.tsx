@@ -3,14 +3,16 @@ import { FeedsTab } from './FeedsTab';
 import { IndicatorsTab } from './IndicatorsTab';
 import { MatchesTab } from './MatchesTab';
 import { AnalyticsTab } from './AnalyticsTab';
+import { CampaignsTab } from './CampaignsTab';
 import { useTabParam } from '../../hooks/useTabParam';
 import styles from './ThreatIntel.module.css';
 
-type TabId = 'feeds' | 'indicators' | 'matches' | 'analytics';
+type TabId = 'campaigns' | 'feeds' | 'indicators' | 'matches' | 'analytics';
 
-const TAB_KEYS = ['feeds', 'indicators', 'matches', 'analytics'] as const;
+const TAB_KEYS = ['campaigns', 'feeds', 'indicators', 'matches', 'analytics'] as const;
 
 const TABS: { id: TabId; label: string }[] = [
+  { id: 'campaigns', label: 'Campaigns' },
   { id: 'feeds', label: 'Feeds' },
   { id: 'indicators', label: 'Indicators' },
   { id: 'matches', label: 'Matches' },
@@ -18,7 +20,7 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 export function ThreatIntelPage() {
-  const [activeTab, setActiveTab] = useTabParam('/threat-intel', TAB_KEYS, 'feeds');
+  const [activeTab, setActiveTab] = useTabParam('/threat-intel', TAB_KEYS, 'campaigns');
 
   return (
     <div className={styles.page}>
@@ -44,6 +46,7 @@ export function ThreatIntelPage() {
       </div>
 
       <div role="tabpanel" aria-label={`${activeTab} tab content`}>
+        {activeTab === 'campaigns' && <CampaignsTab />}
         {activeTab === 'feeds' && <FeedsTab />}
         {activeTab === 'indicators' && <IndicatorsTab />}
         {activeTab === 'matches' && <MatchesTab />}
