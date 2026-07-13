@@ -166,6 +166,13 @@ const mockEvents = {
 
 vi.mock('../../api/healthSignals', () => ({
   getUnifiedSecurity: vi.fn().mockImplementation(() => Promise.resolve(mockUnifiedSecurity)),
+  getGHASActiveCommitters: vi.fn().mockImplementation(() =>
+    Promise.resolve({
+      total_active_committers: 42,
+      maximum_active_committers: 60,
+      purchased_committers: 100,
+    }),
+  ),
   getSecretScanningAlerts: vi
     .fn()
     .mockImplementation(() => Promise.resolve(mockSecretScanningAlerts)),
@@ -205,6 +212,19 @@ describe('AdvancedSecurityPage', () => {
     expect(screen.getAllByText('Code Scanning').length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText('Dependabot').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('Threat Detections')).toBeInTheDocument();
+  });
+
+  it('renders active committers metric card on overview', async () => {
+    renderWithProviders(<AdvancedSecurityPage />, {
+      routePath: '/advanced-security/:tab',
+      route: '/advanced-security/overview',
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Active Committers')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('42')).toBeInTheDocument();
   });
 
   it('overview cards have onClick handlers that switch tabs', async () => {

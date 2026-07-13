@@ -1038,3 +1038,16 @@ async def security_score(
         db,
         scoped_orgs=scoped_orgs,
     )
+
+
+# ── GHAS Active Committers (from org billing sync) ───────────────────────────
+
+
+@router.get("/ghas-active-committers", response_model=dict[str, Any])
+async def ghas_active_committers(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Active committer counts for GHAS billing."""
+    scoped_orgs = await _resolve_orgs(db, current_user)
+    return await health_signal_service.get_ghas_active_committers(db, scoped_orgs=scoped_orgs)

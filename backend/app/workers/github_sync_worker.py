@@ -473,6 +473,7 @@ async def _run_enterprise_sync_async(run_id: str, scope: ScopeType) -> dict:
         "deploy_keys",
         "issues",
         "deployments",
+        "ghas_active_committers",
     }
 
     entity_types: list[str] = (
@@ -3349,6 +3350,37 @@ async def _fetch_page(
         }
         return [license_item], "_done"
 
+    # ── GHAS active committers (org-level billing) ────────────────────────
+    if entity_type == "ghas_active_committers":
+        if cursor == "_done":
+            return [], None
+        url = f"{_GITHUB_API_BASE}/orgs/{org}/settings/billing/advanced-security"
+        resp = await _github_get(
+            url,
+            headers,
+            {},
+            rate_limiter,
+            etag_cache=etag_cache,
+            api_counter=api_counter,
+            entity_type=entity_type,
+        )
+        if resp.status_code in (403, 404):
+            logger.warning(
+                "github_sync.ghas_committers_unavailable",
+                org=org,
+                status=resp.status_code,
+            )
+            return [], None
+        resp.raise_for_status()
+        data = resp.json()
+        item = {
+            "_org_slug": org,
+            "total_active_committers": data.get("total_advanced_security_committers", 0),
+            "maximum_active_committers": data.get("maximum_advanced_security_committers", 0),
+            "purchased_committers": data.get("purchased_advanced_security_committers", 0),
+        }
+        return [item], "_done"
+
     # ── Code scanning alerts (aggregated summary) ─────────────────────────
     if entity_type == "code_scanning_alerts":
         if cursor == "_done":
@@ -4836,6 +4868,38 @@ async def _upsert_license_consumption(
     await session.commit()
 
 
+async def _upsert_ghas_active_committers(
+    session: AsyncSession, _org: str | None, items: list[dict]
+) -> None:
+    """Upsert GHAS active committer counts for an org."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.models.github_sync import GHASActiveCommitters
+
+    for item in items:
+        stmt = (
+            insert(GHASActiveCommitters)
+            .values(
+                org_slug=item["_org_slug"],
+                total_active_committers=item["total_active_committers"],
+                maximum_active_committers=item["maximum_active_committers"],
+                purchased_committers=item["purchased_committers"],
+            )
+            .on_conflict_do_update(
+                constraint="uq_ghas_committers_org",
+                set_={
+                    "total_active_committers": item["total_active_committers"],
+                    "maximum_active_committers": item["maximum_active_committers"],
+                    "purchased_committers": item["purchased_committers"],
+                    "synced_at": text("NOW()"),
+                },
+            )
+        )
+        await session.execute(stmt)
+    await session.commit()
+
+
 async def _upsert_code_scanning_summary(
     session: AsyncSession, org: str, items: list[dict[str, object]]
 ) -> None:
@@ -5261,6 +5325,8 @@ async def _upsert_items(
                 await _upsert_dependabot_alerts(session, org_str, raw_alerts)
     elif entity_type == "license_consumption":
         await _upsert_license_consumption(session, org, items)
+    elif entity_type == "ghas_active_committers":
+        await _upsert_ghas_active_committers(session, org, items)
     elif entity_type == "code_scanning_alerts":
         await _upsert_code_scanning_summary(session, org_str, items)
         # Also upsert individual alert records from raw API data
