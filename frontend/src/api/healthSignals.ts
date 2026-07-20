@@ -941,3 +941,15 @@ export function getMaintenanceSignals(
     limit,
   });
 }
+
+// --- GHAS Active Committers (billing) ---
+
+export interface GHASActiveCommittersResponse {
+  readonly total_active_committers: number;
+  readonly maximum_active_committers: number;
+  readonly purchased_committers: number;
+}
+
+export function getGHASActiveCommitters(): Promise<GHASActiveCommittersResponse> {
+  return api.get<GHASActiveCommittersResponse>('/health-signals/ghas-active-committers');
+}

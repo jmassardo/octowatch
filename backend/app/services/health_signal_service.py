@@ -4958,3 +4958,28 @@ async def get_security_score(
         "components": components,
         "suggestions": suggestions,
     }
+
+
+async def get_ghas_active_committers(
+    session: AsyncSession,
+    *,
+    scoped_orgs: list[str],
+) -> dict[str, Any]:
+    """Get aggregated GHAS active committer counts across scoped orgs."""
+    result = await session.execute(
+        text("""
+            SELECT
+                COALESCE(SUM(total_active_committers), 0) AS total_active,
+                COALESCE(SUM(maximum_active_committers), 0) AS maximum,
+                COALESCE(SUM(purchased_committers), 0) AS purchased
+            FROM ghas_active_committers
+            WHERE org_slug = ANY(:scoped_orgs)
+        """),
+        {"scoped_orgs": scoped_orgs},
+    )
+    row = dict(result.mappings().first() or {})
+    return {
+        "total_active_committers": row.get("total_active", 0),
+        "maximum_active_committers": row.get("maximum", 0),
+        "purchased_committers": row.get("purchased", 0),
+    }

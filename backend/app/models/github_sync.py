@@ -625,6 +625,28 @@ class OrgActionsWorkflowSummary(Base):
     )
 
 
+class GHASActiveCommitters(Base):
+    """GHAS active committer counts from the GitHub billing API.
+
+    Endpoint: ``GET /orgs/{org}/settings/billing/advanced-security``
+
+    Stores the total active committer count for GHAS billing per org.
+    """
+
+    __tablename__ = "ghas_active_committers"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    org_slug: Mapped[str] = mapped_column(String(100), nullable=False)
+    total_active_committers: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    maximum_active_committers: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    purchased_committers: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (UniqueConstraint("org_slug", name="uq_ghas_committers_org"),)
+
+
 # ─── GHAS Individual Alert Models ────────────────────────────────────────────
 
 

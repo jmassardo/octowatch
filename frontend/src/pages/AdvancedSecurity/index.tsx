@@ -17,6 +17,7 @@ import {
   getCodeScanning,
   getDependabotAlerts,
   getVulnerabilities,
+  getGHASActiveCommitters,
   type CodeScanningAlertItem,
   type DependabotAlertItem,
 } from '../../api/healthSignals';
@@ -210,6 +211,12 @@ function OverviewTab({ onSwitchTab }: { onSwitchTab: (tab: TabKey) => void }) {
     staleTime: 60_000,
   });
 
+  const { data: committerData } = useQuery({
+    queryKey: ['ghas-active-committers'],
+    queryFn: () => getGHASActiveCommitters(),
+    staleTime: 300_000,
+  });
+
   if (isLoading)
     return (
       <div className={styles.center}>
@@ -285,6 +292,11 @@ function OverviewTab({ onSwitchTab }: { onSwitchTab: (tab: TabKey) => void }) {
           helpText="Active GHAS-related threat detections"
           accent
           onClick={() => navigate('/threats')}
+        />
+        <MetricCard
+          value={committerData ? String(committerData.total_active_committers) : '—'}
+          label="Active Committers"
+          helpText="GHAS-licensed active committers in current billing period"
         />
       </div>
 
