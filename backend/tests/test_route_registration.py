@@ -33,6 +33,7 @@ EXPECTED_ROUTE_PREFIXES = [
     "/api/v1/notifications",
     "/api/v1/orgs",
     "/api/v1/packages",
+    "/api/v1/platform-usage",
     "/api/v1/playbooks",
     "/api/v1/posture",
     "/api/v1/query",

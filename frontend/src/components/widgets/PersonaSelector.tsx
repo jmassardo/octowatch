@@ -12,27 +12,45 @@ export interface PersonaOption {
 
 const PERSONAS: readonly PersonaOption[] = [
   {
-    id: 'security-analyst',
-    label: 'Security Analyst',
-    description: 'Focus on threat detection, alert triage, and security posture.',
+    id: 'bot',
+    label: 'Bot',
+    description: 'Automated service accounts and CI/CD integrations.',
+    widgetCount: 5,
+  },
+  {
+    id: 'viewer',
+    label: 'Viewer',
+    description: 'Read-only users who browse repos, issues, and discussions.',
+    widgetCount: 4,
+  },
+  {
+    id: 'developer',
+    label: 'Developer',
+    description: 'Active contributors writing code, opening PRs, and using Copilot.',
     widgetCount: 8,
   },
   {
-    id: 'engineering-manager',
-    label: 'Engineering Manager',
-    description: 'Track team velocity, development health, and Copilot adoption.',
+    id: 'code-reviewer',
+    label: 'Code Reviewer',
+    description: 'Focus on pull request reviews, approvals, and code quality.',
     widgetCount: 6,
   },
   {
-    id: 'platform-engineer',
-    label: 'Platform Engineer',
-    description: 'Monitor workflows, sync health, and operational reliability.',
+    id: 'product-manager',
+    label: 'Product Manager',
+    description: 'Manage issues, projects, milestones, and roadmaps.',
+    widgetCount: 5,
+  },
+  {
+    id: 'admin',
+    label: 'Admin',
+    description: 'Organization administration, settings, and access management.',
     widgetCount: 7,
   },
   {
-    id: 'executive',
-    label: 'Executive',
-    description: 'High-level security posture, compliance status, and key metrics.',
+    id: 'collaborator',
+    label: 'Collaborator',
+    description: 'Cross-functional contributors active across multiple surfaces.',
     widgetCount: 6,
   },
 ];

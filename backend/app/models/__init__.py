@@ -71,6 +71,7 @@ from app.models.threat_intel import (
 )
 from app.models.user import RbacRole, UserRoleAssignment
 from app.models.user_classification import UserClassification
+from app.models.utilization import UtilizationFact
 from app.models.workflow_finding import WorkflowFinding
 from app.models.workflow_scan_activity import WorkflowScanActivity
 
@@ -154,6 +155,7 @@ __all__ = [
     "TeamRoleAssignment",
     "UserClassification",
     "UserRoleAssignment",
+    "UtilizationFact",
     "WorkflowFinding",
     "WorkflowScanActivity",
     "SessionPolicySetting",

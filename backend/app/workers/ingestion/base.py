@@ -14,6 +14,7 @@ import structlog
 from celery import Task
 
 from app.celery_app import celery_app
+from app.services.activity_category import derive_activity_category
 
 logger = structlog.get_logger(__name__)
 
@@ -220,13 +221,15 @@ class AbstractIngestWorker(ABC):
                             document_id, action, actor, actor_id, actor_is_bot,
                             org, repo, source_ip, created_at, data,
                             geo_country_code, geo_city, geo_latitude, geo_longitude, geo_is_proxy,
-                            user_agent, ingestion_source, source_file_path
+                            user_agent, ingestion_source, source_file_path,
+                            activity_category
                         ) VALUES (
                             :document_id, :action, :actor, :actor_id, :actor_is_bot,
                             :org, :repo, :source_ip, :created_at, CAST(:data AS jsonb),
                             :geo_country_code, :geo_city,
                             :geo_latitude, :geo_longitude, :geo_is_proxy,
-                            :user_agent, :ingestion_source, :source_file_path
+                            :user_agent, :ingestion_source, :source_file_path,
+                            :activity_category
                         )
                         RETURNING id
                     """),
@@ -491,6 +494,7 @@ class AbstractIngestWorker(ABC):
             "user_agent": raw.get("user_agent"),
             "ingestion_source": self.ingestion_source,
             "source_file_path": source_file_path,
+            "activity_category": derive_activity_category(action),
         }
 
     @abstractmethod
