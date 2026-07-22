@@ -18,6 +18,7 @@ EXPECTED_ROUTE_PREFIXES = [
     "/api/v1/actors",
     "/api/v1/admin",
     "/api/v1/auth",
+    "/api/v1/automation",
     "/api/v1/copilot",
     "/api/v1/correlations",
     "/api/v1/cross-org",

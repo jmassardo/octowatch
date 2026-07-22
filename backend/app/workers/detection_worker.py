@@ -111,6 +111,25 @@ async def _run_pipeline(event_ids: list[int]) -> dict[str, object]:
                             error=str(exc),
                         )
 
+                    # Chain automation dispatch tasks for each new detection
+                    try:
+                        from app.workers.automation_worker import (
+                            dispatch_automation_task,
+                        )
+
+                        for det_id in detection_ids:
+                            dispatch_automation_task.delay(det_id)
+                        logger.info(
+                            "detection_worker.automation_queued",
+                            detection_count=len(detection_ids),
+                        )
+                    except Exception as exc:
+                        # Automation failures must not break the detection pipeline
+                        logger.warning(
+                            "detection_worker.automation_chain_failed",
+                            error=str(exc),
+                        )
+
                 # Chain workflow scanner for workflow-related events
                 try:
                     from app.workers.workflow_scan_worker import scan_workflow_events_task
