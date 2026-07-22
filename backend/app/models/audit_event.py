@@ -72,11 +72,15 @@ class AuditEvent(Base):
     ingestion_source: Mapped[str] = mapped_column(Text, nullable=False)
     source_file_path: Mapped[str] = mapped_column(Text, nullable=False)
 
+    # Activity classification
+    activity_category: Mapped[str | None] = mapped_column(Text)
+
     __table_args__ = (
         Index("idx_events_actor", "actor", "created_at"),
         Index("idx_events_org", "org", "created_at"),
         Index("idx_events_namespace", "namespace", "created_at"),
         Index("idx_events_action", "action", "created_at"),
+        Index("idx_events_activity_category", "activity_category", "created_at"),
     )
 
 

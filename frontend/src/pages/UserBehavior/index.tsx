@@ -26,15 +26,13 @@ const RISK_LEVEL_VARIANTS: Record<string, 'danger' | 'attention' | 'success' | '
 };
 
 const PERSONA_VARIANTS: Record<string, 'danger' | 'attention' | 'success' | 'muted'> = {
-  power_user: 'success',
-  web_ui_only: 'muted',
-  ide_only: 'muted',
-  api_cli_only: 'muted',
-  copilot_active: 'success',
-  truly_dormant: 'danger',
-  lightly_active: 'attention',
-  admin_only: 'attention',
-  ci_cd_bot: 'muted',
+  bot: 'muted',
+  viewer: 'muted',
+  developer: 'success',
+  code_reviewer: 'success',
+  product_manager: 'attention',
+  admin: 'attention',
+  collaborator: 'success',
 };
 
 const TIME_RANGES = [

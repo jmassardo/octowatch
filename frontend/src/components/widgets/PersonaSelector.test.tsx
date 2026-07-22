@@ -13,29 +13,32 @@ describe('PersonaSelector', () => {
     onSkip.mockClear();
   });
 
-  it('renders all four personas when open', () => {
+  it('renders all personas when open', () => {
     renderWithProviders(<PersonaSelector open={true} onSelect={onSelect} onSkip={onSkip} />);
 
-    expect(screen.getByText('Security Analyst')).toBeInTheDocument();
-    expect(screen.getByText('Engineering Manager')).toBeInTheDocument();
-    expect(screen.getByText('Platform Engineer')).toBeInTheDocument();
-    expect(screen.getByText('Executive')).toBeInTheDocument();
+    expect(screen.getByText('Bot')).toBeInTheDocument();
+    expect(screen.getByText('Viewer')).toBeInTheDocument();
+    expect(screen.getByText('Developer')).toBeInTheDocument();
+    expect(screen.getByText('Code Reviewer')).toBeInTheDocument();
+    expect(screen.getByText('Product Manager')).toBeInTheDocument();
+    expect(screen.getByText('Admin')).toBeInTheDocument();
+    expect(screen.getByText('Collaborator')).toBeInTheDocument();
   });
 
   it('does not render when closed', () => {
     renderWithProviders(<PersonaSelector open={false} onSelect={onSelect} onSkip={onSkip} />);
 
-    expect(screen.queryByText('Security Analyst')).not.toBeInTheDocument();
+    expect(screen.queryByText('Developer')).not.toBeInTheDocument();
   });
 
   it('selects a persona and calls onSelect when Apply is clicked', async () => {
     const user = userEvent.setup();
     renderWithProviders(<PersonaSelector open={true} onSelect={onSelect} onSkip={onSkip} />);
 
-    await user.click(screen.getByText('Platform Engineer'));
+    await user.click(screen.getByText('Developer'));
     await user.click(screen.getByRole('button', { name: /apply layout/i }));
 
-    expect(onSelect).toHaveBeenCalledWith('platform-engineer');
+    expect(onSelect).toHaveBeenCalledWith('developer');
   });
 
   it('calls onSkip when skip button is clicked', async () => {

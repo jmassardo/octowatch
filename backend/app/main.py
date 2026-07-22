@@ -71,6 +71,7 @@ else:
         org_config,
         packages,
         pagerduty,
+        platform_usage,
         playbooks,
         posture,
         query,
@@ -779,6 +780,7 @@ def create_app() -> FastAPI:
         app.include_router(suggestions.router, prefix=API_PREFIX)
         app.include_router(supply_chain.router, prefix=API_PREFIX)
         app.include_router(packages.router, prefix=API_PREFIX)
+        app.include_router(platform_usage.router, prefix=API_PREFIX)
         app.include_router(teams.router, prefix=API_PREFIX)
         app.include_router(dev_activity.router, prefix=API_PREFIX)
         app.include_router(threat_intel.router, prefix=API_PREFIX)

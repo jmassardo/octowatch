@@ -155,7 +155,8 @@ ignore = [
 "tests/**" = ["S", "ANN", "T20"]
 # Alembic migrations: SQL DDL constraints and index definitions can exceed 100 chars
 # and cannot be meaningfully wrapped without harming SQL readability.
-"alembic/**" = ["ANN", "E501"]
+# Seed migrations use hardcoded constant data in SQL strings (no user input); S608 is safe.
+"alembic/**" = ["ANN", "E501", "S608"]
 # report_service uses SQLAlchemy text() with bound parameters (:param syntax),
 # not raw string interpolation of user data. S608 is a false positive here.
 "app/services/report_service.py" = ["S608"]
@@ -174,6 +175,15 @@ ignore = [
 # package_monitoring_service uses SQLAlchemy text() with bound parameters (:param syntax),
 # not raw string interpolation of user data. S608 is a false positive here.
 "app/services/package_monitoring_service.py" = ["S608"]
+# aggregate_evaluation uses validated column names via _safe_column_name() allowlist
+# and org_filter is internally generated, not from user input. S608 is a false positive.
+"app/services/aggregate_evaluation.py" = ["S608"]
+# platform_usage_service builds WHERE clauses from internal constants (org_filter, where_clause),
+# not from raw user input. All user values are bound via :param placeholders. S608 is a false positive.
+"app/services/platform_usage_service.py" = ["S608"]
+# baseline_worker uses f-string SQL with column names from a hardcoded internal list (metrics),
+# not from user input. All user-facing values are bound via :param placeholders. S608 is a false positive.
+"app/workers/baseline_worker.py" = ["S608"]
 # fix_ann001.py is a one-off development helper script
 "fix_ann001.py" = ["T20"]
 

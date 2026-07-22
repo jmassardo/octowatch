@@ -261,6 +261,8 @@ class BehavioralBaseline(Base):
     window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     mean: Mapped[float] = mapped_column(Double, nullable=False)
     stddev: Mapped[float] = mapped_column(Double, nullable=False, default=0.0)
+    p25: Mapped[float | None] = mapped_column(Double, nullable=True)
+    p75: Mapped[float | None] = mapped_column(Double, nullable=True)
     p95: Mapped[float] = mapped_column(Double, nullable=False)
     p99: Mapped[float] = mapped_column(Double, nullable=False)
     sample_count: Mapped[int] = mapped_column(Integer, nullable=False)

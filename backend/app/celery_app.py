@@ -51,6 +51,8 @@ app.config_from_object(
             "app.workers.workflow_scan_worker.*": {"queue": "baseline"},
             "app.workers.package_sync_worker.*": {"queue": "github_sync"},
             "app.workers.user_classification_worker.*": {"queue": "baseline"},
+            "app.workers.aggregate_evaluator_worker.*": {"queue": "baseline"},
+            "app.workers.billing_sync_worker.*": {"queue": "github_sync"},
             "app.workers.enrichment_worker.*": {"queue": "enrichment"},
             "app.workers.retro_scan_worker.*": {"queue": "retro_scan"},
         },
@@ -125,6 +127,24 @@ app.config_from_object(
                 "schedule": crontab(hour=4, minute=0),
                 "options": {"queue": "baseline"},
             },
+            # Aggregate classification — daily at 02:30 UTC
+            "aggregate-classification-daily": {
+                "task": "app.workers.aggregate_evaluator_worker.run_classification",
+                "schedule": crontab(hour=2, minute=30),
+                "options": {"queue": "baseline"},
+            },
+            # Aggregate utilization detection — every 15 minutes
+            "aggregate-utilization-15min": {
+                "task": "app.workers.aggregate_evaluator_worker.run_utilization_detection",
+                "schedule": 900.0,
+                "options": {"queue": "baseline"},
+            },
+            # Billing sync — daily at 03:30 UTC (after baselines)
+            "billing-sync-daily": {
+                "task": "app.workers.billing_sync_worker.sync_billing_data",
+                "schedule": crontab(hour=3, minute=30),
+                "options": {"queue": "github_sync"},
+            },
             # Threat intel feed refresh — every 30 minutes
             "refresh-threat-intel-feeds": {
                 "task": "app.workers.threat_intel_worker.refresh_threat_intel_feeds",
@@ -183,6 +203,8 @@ app.conf.include = [
     "app.workers.enrichment_worker",
     "app.workers.retro_scan_worker",
     "app.workers.automation_worker",
+    "app.workers.aggregate_evaluator_worker",
+    "app.workers.billing_sync_worker",
 ]
 
 # Conditionally add GitHub sync heartbeat to beat schedule

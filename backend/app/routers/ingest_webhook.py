@@ -16,6 +16,8 @@ import structlog
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
+from app.services.activity_category import derive_activity_category
+
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
@@ -207,10 +209,12 @@ def _normalize_webhook_event(
         "action": action,
         "actor": actor,
         "actor_id": sender.get("id") if isinstance(sender, dict) else None,
+        "actor_is_bot": (sender.get("type") == "Bot") if isinstance(sender, dict) else False,
         "org": org,
         "repo": repo_full_name,
         "created_at": payload.get("created_at") or payload.get("updated_at"),
         "_document_id": delivery_id or None,
         "webhook_event_type": event_type,
         "data": payload,
+        "activity_category": derive_activity_category(action),
     }
