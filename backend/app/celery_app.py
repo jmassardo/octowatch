@@ -43,6 +43,7 @@ app.config_from_object(
             "app.workers.github_sync.*": {"queue": "github_sync"},
             "app.workers.copilot_metrics_worker.*": {"queue": "github_sync"},
             "app.workers.siem_export_worker.*": {"queue": "notification"},
+            "app.workers.automation_worker.*": {"queue": "notification"},
             "app.workers.threat_intel_worker.*": {"queue": "baseline"},
             "app.workers.retention_worker.*": {"queue": "baseline"},
             "app.workers.ingestion_health.*": {"queue": "baseline"},
@@ -142,6 +143,12 @@ app.config_from_object(
                 "schedule": 300.0,
                 "options": {"queue": "ingestion"},
             },
+            # Automation retry failed deliveries — every 5 minutes
+            "automation-retry-failed": {
+                "task": "app.workers.automation_worker.retry_failed_deliveries",
+                "schedule": 300.0,
+                "options": {"queue": "notification"},
+            },
         },
     }
 )
@@ -175,6 +182,7 @@ app.conf.include = [
     "app.workers.user_classification_worker",
     "app.workers.enrichment_worker",
     "app.workers.retro_scan_worker",
+    "app.workers.automation_worker",
 ]
 
 # Conditionally add GitHub sync heartbeat to beat schedule

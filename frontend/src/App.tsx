@@ -39,6 +39,7 @@ import { SyncStatusPage } from './pages/SyncStatus';
 import { NotificationsPage } from './pages/Notifications';
 import AuthSettingsPage from './pages/admin/AuthSettings';
 import { ProfilePage } from './pages/Profile';
+import { AutomationPage } from './pages/Automation';
 
 export const router = createBrowserRouter(
   [
@@ -201,6 +202,7 @@ export const router = createBrowserRouter(
         { path: '/telemetry', element: <Navigate to="/monitoring/telemetry" replace /> },
         { path: '/monitoring/sync-status', element: <SyncStatusPage /> },
         { path: '/admin/auth', element: <AuthSettingsPage /> },
+        { path: '/automation', element: <AutomationPage /> },
         { path: '/profile', element: <Navigate to="/profile/preferences" replace /> },
         { path: '/profile/:tab', element: <ProfilePage /> },
       ],

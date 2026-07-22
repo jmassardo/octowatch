@@ -48,6 +48,7 @@ else:
         admin_settings,
         admin_teams,
         auth,
+        automation,
         compliance,
         copilot,
         copilot_governance,
@@ -797,6 +798,7 @@ def create_app() -> FastAPI:
         app.include_router(user_classification.router, prefix=API_PREFIX)
         app.include_router(user_behavior.router, prefix=API_PREFIX)
         app.include_router(velocity.router, prefix=API_PREFIX)
+        app.include_router(automation.router, prefix=API_PREFIX)
 
     return app
 

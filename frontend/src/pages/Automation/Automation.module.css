@@ -1,0 +1,213 @@
+.page {
+  max-width: 1200px;
+}
+
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.tab {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.tab:hover {
+  color: var(--fg);
+}
+
+.tabActive {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+
+/* ── Filters ────────────────────────────────────────────────────────────── */
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.filterSelect {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--fg);
+  background: var(--canvas-default);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.filterSelect:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* ── Target List ────────────────────────────────────────────────────────── */
+
+.targetList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.targetCard {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--canvas-default);
+}
+
+.targetInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.targetName {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0 0 4px;
+}
+
+.targetMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.targetActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ── Badges ─────────────────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 12px;
+  text-transform: uppercase;
+}
+
+.badgeWebhook {
+  background: var(--accent-subtle, #dbeafe);
+  color: var(--accent, #2563eb);
+}
+
+.badgeDispatch {
+  background: #f3e8ff;
+  color: #7c3aed;
+}
+
+.badgeEnabled {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.badgeDisabled {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.badgeDelivered {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.badgeFailed {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.badgePending {
+  background: #fef9c3;
+  color: #a16207;
+}
+
+.badgeRetrying {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+/* ── Form ───────────────────────────────────────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--canvas-default);
+  margin-bottom: 20px;
+}
+
+.formRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.formLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.formInput {
+  height: 36px;
+  padding: 0 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--fg);
+  background: var(--canvas-default);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.formInput:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.formActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ── Empty State ────────────────────────────────────────────────────────── */
+
+.empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--fg-muted);
+  font-size: 14px;
+}
