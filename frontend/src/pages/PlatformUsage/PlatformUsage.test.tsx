@@ -8,6 +8,26 @@ vi.mock('echarts-for-react', () => ({
   default: () => <div data-testid="echarts-mock" />,
 }));
 
+import {
+  fetchUsageSummary,
+  fetchUsageTrends,
+  fetchTopConsumers,
+  fetchAnomalies,
+} from '../../api/platformUsage';
+
+vi.mock('../../api/platformUsage', () => ({
+  fetchUsageSummary: vi.fn(),
+  fetchUsageTrends: vi.fn(),
+  fetchTopConsumers: vi.fn(),
+  fetchAnomalies: vi.fn(),
+  fetchUserUsage: vi.fn(),
+}));
+
+const mockedFetchSummary = vi.mocked(fetchUsageSummary);
+const mockedFetchTrends = vi.mocked(fetchUsageTrends);
+const mockedFetchConsumers = vi.mocked(fetchTopConsumers);
+const mockedFetchAnomalies = vi.mocked(fetchAnomalies);
+
 const mockSummaryResponse = {
   features: [
     {
@@ -100,67 +120,40 @@ const mockAnomaliesResponse = {
   period_days: 7,
 };
 
+function mockApiSuccess() {
+  mockedFetchSummary.mockResolvedValue(mockSummaryResponse);
+  mockedFetchTrends.mockResolvedValue(mockTrendsResponse);
+  mockedFetchConsumers.mockResolvedValue(mockConsumersResponse);
+  mockedFetchAnomalies.mockResolvedValue(mockAnomaliesResponse);
+}
+
+function mockApiPending() {
+  mockedFetchSummary.mockReturnValue(new Promise(() => {}));
+  mockedFetchTrends.mockReturnValue(new Promise(() => {}));
+  mockedFetchConsumers.mockReturnValue(new Promise(() => {}));
+  mockedFetchAnomalies.mockReturnValue(new Promise(() => {}));
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
-  global.fetch = vi.fn();
 });
-
-function mockFetchSuccess() {
-  (global.fetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
-    if (url.includes('/platform-usage/summary')) {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(mockSummaryResponse),
-        headers: new Headers({ 'Content-Type': 'application/json' }),
-      });
-    }
-    if (url.includes('/platform-usage/trends')) {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(mockTrendsResponse),
-        headers: new Headers({ 'Content-Type': 'application/json' }),
-      });
-    }
-    if (url.includes('/platform-usage/top-consumers')) {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(mockConsumersResponse),
-        headers: new Headers({ 'Content-Type': 'application/json' }),
-      });
-    }
-    if (url.includes('/platform-usage/anomalies')) {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(mockAnomaliesResponse),
-        headers: new Headers({ 'Content-Type': 'application/json' }),
-      });
-    }
-    return Promise.resolve({
-      ok: true,
-      json: () => Promise.resolve({}),
-      headers: new Headers({ 'Content-Type': 'application/json' }),
-    });
-  });
-}
 
 describe('PlatformUsagePage', () => {
   it('renders the page header', () => {
-    mockFetchSuccess();
+    mockApiSuccess();
     renderWithProviders(<PlatformUsagePage />);
     expect(screen.getByText('Platform Usage')).toBeInTheDocument();
   });
 
   it('shows loading state initially', () => {
-    // Never resolve fetch to keep loading state
-    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise(() => {}));
+    mockApiPending();
     renderWithProviders(<PlatformUsagePage />);
-    // Skeleton cards should be present (they have aria-hidden)
     const skeletons = document.querySelectorAll('[aria-hidden="true"]');
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
   it('displays feature summary cards when data loads', async () => {
-    mockFetchSuccess();
+    mockApiSuccess();
     renderWithProviders(<PlatformUsagePage />);
 
     await waitFor(() => {
@@ -171,11 +164,10 @@ describe('PlatformUsagePage', () => {
   });
 
   it('tab switching works', async () => {
-    mockFetchSuccess();
+    mockApiSuccess();
     const user = userEvent.setup();
     renderWithProviders(<PlatformUsagePage />);
 
-    // Switch to Anomalies tab
     const anomaliesTab = screen.getByRole('tab', { name: 'Anomalies' });
     await user.click(anomaliesTab);
 
@@ -185,7 +177,7 @@ describe('PlatformUsagePage', () => {
   });
 
   it('displays trends chart on overview tab', async () => {
-    mockFetchSuccess();
+    mockApiSuccess();
     renderWithProviders(<PlatformUsagePage />);
 
     await waitFor(() => {
@@ -194,7 +186,7 @@ describe('PlatformUsagePage', () => {
   });
 
   it('renders actions tab with top consumers', async () => {
-    mockFetchSuccess();
+    mockApiSuccess();
     const user = userEvent.setup();
     renderWithProviders(<PlatformUsagePage />);
 
