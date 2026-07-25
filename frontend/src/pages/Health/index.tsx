@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { getHealthSummary, getWafFindings, getHealthScore } from '../../api/healthSignals';
 import { useFeatures } from '../../hooks/useFeatures';

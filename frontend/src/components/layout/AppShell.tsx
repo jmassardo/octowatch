@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { GuidedTour } from '../GuidedTour/GuidedTour';

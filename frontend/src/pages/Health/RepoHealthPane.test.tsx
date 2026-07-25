@@ -8,7 +8,7 @@ vi.mock('echarts-for-react', () => ({
   default: () => <div data-testid="echarts-mock" />,
 }));
 
-vi.mock('react-router-dom', () => ({
+vi.mock('react-router', () => ({
   useNavigate: () => vi.fn(),
 }));
 

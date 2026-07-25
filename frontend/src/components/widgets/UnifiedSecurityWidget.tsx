@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { getUnifiedSecurity } from '../../api/healthSignals';
 import type { UnifiedSecurityResponse } from '../../api/healthSignals';
 import { Card, CardHeader } from '../primitives/Card';

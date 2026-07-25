@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { listDetections } from '../../api/detections';
 import { useOrg } from '../../hooks/useOrg';
 import type { DetectionSeverity } from '../../types/detections';

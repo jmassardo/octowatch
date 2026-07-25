@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import { listFeeds, createFeed, updateFeed, deleteFeed, refreshFeed } from '../../api/threatIntel';
 import type { ThreatIntelFeed, FeedCreateRequest, FeedUpdateRequest } from '../../api/threatIntel';
 import { Spinner } from '../../components/primitives/Spinner';

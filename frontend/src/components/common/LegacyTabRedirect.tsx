@@ -1,4 +1,4 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router';
 
 /**
  * Redirect from a legacy `?tab=X` URL to a path-based `/base/X` URL.

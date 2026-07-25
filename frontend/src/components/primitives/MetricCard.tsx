@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import styles from './MetricCard.module.css';
 
 interface MetricCardProps {

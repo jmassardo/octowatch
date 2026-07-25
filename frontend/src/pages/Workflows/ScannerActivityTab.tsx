@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { listScanActivity } from '../../api/workflowScanner';
 import type { ScanActivity } from '../../api/workflowScanner';
 import { Spinner } from '../../components/primitives/Spinner';

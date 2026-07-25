@@ -7,7 +7,7 @@ const mockNavigate = vi.fn();
 const mockMutate = vi.fn();
 let mockMutationPending = false;
 
-vi.mock('react-router-dom', () => ({
+vi.mock('react-router', () => ({
   useNavigate: () => mockNavigate,
 }));
 

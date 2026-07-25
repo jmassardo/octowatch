@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, useCallback, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router';
 import { getActionsVolumeReport } from '../../api/reports';
 import { listEvents } from '../../api/events';
 import { LineAreaChart } from '../../components/charts/LineAreaChart';

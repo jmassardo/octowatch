@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { DataTable, type ColumnDef } from '../../components/primitives/DataTable';
