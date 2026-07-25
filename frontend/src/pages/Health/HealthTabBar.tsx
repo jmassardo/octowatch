@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styles from './Health.module.css';
 
 export type HealthTab =

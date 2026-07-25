@@ -7,7 +7,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { listEvents } from '../../api/events';
 import { listDetections } from '../../api/detections';
 import { searchActors } from '../../api/actors';

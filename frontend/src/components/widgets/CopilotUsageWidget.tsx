@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { getCopilotAdoption } from '../../api/copilotMetrics';
 import { MiniBarChart } from '../charts/MiniBarChart';
 import { ErrorBanner } from '../primitives/ErrorBanner';

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { listDetections } from '../../api/detections';
 import { getHealthSummary } from '../../api/healthSignals';

@@ -8,7 +8,7 @@ import type {
   VulnerabilitiesResponse,
 } from '../../api/healthSignals';
 
-vi.mock('react-router-dom', () => ({
+vi.mock('react-router', () => ({
   useNavigate: () => vi.fn(),
 }));
 

@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { getSetupStatus } from '../../api/setup';

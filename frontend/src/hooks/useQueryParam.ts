@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 
 type SetParam = (value: string, options?: { replace?: boolean }) => void;
 type SetNumParam = (value: number, options?: { replace?: boolean }) => void;

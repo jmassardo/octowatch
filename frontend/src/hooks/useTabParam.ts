@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router';
 
 /**
  * Manage path-based tab routing with validation, fallback, and query-param preservation.

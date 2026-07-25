@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { listDetections } from '../../api/detections';
 import { listRules } from '../../api/rules';

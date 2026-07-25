@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router';
 
 /**
  * The standalone Integrations page has been moved into Settings > Integrations.

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { listEvents } from '../../api/events';
 import { MiniBarChart } from '../charts/MiniBarChart';
 import { useOrg } from '../../hooks/useOrg';

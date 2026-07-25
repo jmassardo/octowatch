@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { getSyncConfig, getSyncSchedule, getSyncStatus } from '../../api/sync';
 import { formatRelative } from '../../utils/dates';
 import { ErrorBanner } from '../primitives/ErrorBanner';

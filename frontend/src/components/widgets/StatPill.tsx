@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import type { StatPillFormat } from './statPillRegistry';
 import styles from './StatPill.module.css';
 

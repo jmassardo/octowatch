@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import ReactECharts from 'echarts-for-react';
 import type { EChartsOption } from 'echarts';

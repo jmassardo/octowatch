@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useOrg } from '../../hooks/useOrg';
 import { useCurrentUser } from '../../hooks/useCurrentUser';

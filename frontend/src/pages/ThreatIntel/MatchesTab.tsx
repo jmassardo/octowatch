@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { listMatches } from '../../api/threatIntel';
 import { MetricCard } from '../../components/primitives/MetricCard';
 import { Spinner } from '../../components/primitives/Spinner';

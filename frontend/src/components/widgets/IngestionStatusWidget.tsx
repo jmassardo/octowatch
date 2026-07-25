@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { getTelemetrySummary } from '../../api/telemetry';
 import { formatRelative } from '../../utils/dates';
 import { ErrorBanner } from '../primitives/ErrorBanner';
