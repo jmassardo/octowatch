@@ -464,6 +464,23 @@ utilization_rules = [
 
 def upgrade() -> None:
     """Seed classification and utilization detection rules."""
+    # logic_type values used below ('classification', 'utilization_composite')
+    # are not yet permitted by the constraint added in 0020 — widen it first,
+    # or every insert in this migration fails with a CheckViolationError.
+    op.execute("""
+        ALTER TABLE rule_definitions
+        DROP CONSTRAINT IF EXISTS rule_definitions_logic_type_check
+    """)
+    op.execute("""
+        ALTER TABLE rule_definitions
+        ADD CONSTRAINT rule_definitions_logic_type_check
+        CHECK (logic_type = ANY (ARRAY[
+            'threshold', 'pattern', 'sequence', 'statistical',
+            'cross_namespace_sequence', 'posture',
+            'classification', 'utilization_composite'
+        ]))
+    """)
+
     for rule in classification_rules + utilization_rules:
         name = str(rule["name"]).replace("'", "''")
         slug = rule["slug"]
@@ -500,3 +517,15 @@ def downgrade() -> None:
         "DELETE FROM rule_definitions "
         "WHERE source = 'system' AND category IN ('classification', 'utilization')"
     )
+    op.execute("""
+        ALTER TABLE rule_definitions
+        DROP CONSTRAINT IF EXISTS rule_definitions_logic_type_check
+    """)
+    op.execute("""
+        ALTER TABLE rule_definitions
+        ADD CONSTRAINT rule_definitions_logic_type_check
+        CHECK (logic_type = ANY (ARRAY[
+            'threshold', 'pattern', 'sequence', 'statistical',
+            'cross_namespace_sequence', 'posture'
+        ]))
+    """)
