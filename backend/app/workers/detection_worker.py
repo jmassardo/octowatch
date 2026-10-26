@@ -18,10 +18,20 @@ logger = structlog.get_logger(__name__)
     bind=True,
     max_retries=3,
 )
-def run_detection_pipeline_task(self: Task, event_ids: list[int]) -> dict[str, object]:
-    """Celery task that runs the detection pipeline for a list of event IDs."""
+def run_detection_pipeline_task(
+    self: Task,
+    event_ids: list[int],
+    since: str | None = None,
+    until: str | None = None,
+) -> dict[str, object]:
+    """Celery task that runs the detection pipeline for a list of event IDs.
+
+    ``since``/``until`` are optional ISO-8601 bounds (the exact min/max
+    ``created_at`` of the batch) that let the DB query prune TimescaleDB
+    chunks instead of scanning the entire hypertable by id alone.
+    """
     try:
-        result = asyncio.run(_run_pipeline(event_ids))
+        result = asyncio.run(_run_pipeline(event_ids, since, until))
         return {
             "status": "ok",
             "detections_written": result["detections_written"],
@@ -38,18 +48,27 @@ def run_detection_pipeline_task(self: Task, event_ids: list[int]) -> dict[str, o
         raise self.retry(exc=exc, countdown=backoff + jitter) from exc
 
 
-async def _run_pipeline(event_ids: list[int]) -> dict[str, object]:
+async def _run_pipeline(
+    event_ids: list[int],
+    since: str | None = None,
+    until: str | None = None,
+) -> dict[str, object]:
     """Async wrapper so we can reuse the async detection_service from a Celery task.
 
     Creates a disposable engine with NullPool to avoid asyncio event-loop
     mismatch: Celery's ``asyncio.run()`` creates a new loop each call,
     but pooled asyncpg connections are bound to the loop that opened them.
     """
+    from datetime import datetime
+
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
     from sqlalchemy.pool import NullPool
 
     from app.config import settings
     from app.services.detection_service import run_detection_pipeline
+
+    since_dt = datetime.fromisoformat(since) if since else None
+    until_dt = datetime.fromisoformat(until) if until else None
 
     tmp_engine = create_async_engine(
         settings.DATABASE_URL,
@@ -67,7 +86,9 @@ async def _run_pipeline(event_ids: list[int]) -> dict[str, object]:
     try:
         async with tmp_session_factory() as session:
             try:
-                result = await run_detection_pipeline(session, event_ids=event_ids)
+                result = await run_detection_pipeline(
+                    session, event_ids=event_ids, since=since_dt, until=until_dt
+                )
                 await session.commit()
 
                 detection_ids = result.detection_ids
@@ -134,7 +155,7 @@ async def _run_pipeline(event_ids: list[int]) -> dict[str, object]:
                 try:
                     from app.workers.workflow_scan_worker import scan_workflow_events_task
 
-                    scan_workflow_events_task.delay(event_ids)
+                    scan_workflow_events_task.delay(event_ids, since=since, until=until)
                     logger.info(
                         "detection_worker.workflow_scan_chained",
                         event_count=len(event_ids),

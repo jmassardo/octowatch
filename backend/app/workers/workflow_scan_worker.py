@@ -582,10 +582,20 @@ _DEBOUNCE_TTL_SECONDS = 30
     bind=True,
     max_retries=2,
 )
-def scan_workflow_events_task(self: Task, event_ids: list[int]) -> dict[str, int]:
-    """Event-driven scan: analyze specific events for workflow security issues."""
+def scan_workflow_events_task(
+    self: Task,
+    event_ids: list[int],
+    since: str | None = None,
+    until: str | None = None,
+) -> dict[str, int]:
+    """Event-driven scan: analyze specific events for workflow security issues.
+
+    ``since``/``until`` are optional ISO-8601 bounds (the exact min/max
+    ``created_at`` of the batch) that let the DB query prune TimescaleDB
+    chunks instead of scanning the entire hypertable by id alone.
+    """
     try:
-        return asyncio.run(_scan_specific_events(event_ids))
+        return asyncio.run(_scan_specific_events(event_ids, since, until))
     except Exception as exc:
         logger.error(
             "workflow_scan.event_driven_failed",
@@ -595,7 +605,11 @@ def scan_workflow_events_task(self: Task, event_ids: list[int]) -> dict[str, int
         raise self.retry(exc=exc, countdown=30) from exc
 
 
-async def _scan_specific_events(event_ids: list[int]) -> dict[str, int]:
+async def _scan_specific_events(
+    event_ids: list[int],
+    since: str | None = None,
+    until: str | None = None,
+) -> dict[str, int]:
     """Scan specific events for workflow security issues with debouncing.
 
     Steps:
@@ -638,7 +652,19 @@ async def _scan_specific_events(event_ids: list[int]) -> dict[str, int]:
     valkey = aioredis.from_url(settings.VALKEY_URL, decode_responses=True)
 
     try:
-        # 1. Load events by ID
+        # 1. Load events by ID. since/until are the exact min/max created_at
+        # of this batch (when known) — adding them lets TimescaleDB prune
+        # hypertable chunks instead of scanning every chunk for a bare id
+        # lookup, without excluding any of the requested events.
+        time_bounds = ""
+        bind_params: dict[str, Any] = {}
+        if since is not None:
+            time_bounds += " AND created_at >= :since"
+            bind_params["since"] = since
+        if until is not None:
+            time_bounds += " AND created_at <= :until"
+            bind_params["until"] = until
+
         async with tmp_session_factory() as session:
             result = await session.execute(
                 select(
@@ -649,7 +675,8 @@ async def _scan_specific_events(event_ids: list[int]) -> dict[str, int]:
                     text("action"),
                 )
                 .select_from(text("events"))
-                .where(text(f"id IN ({','.join(str(eid) for eid in event_ids)})"))
+                .where(text(f"id IN ({','.join(str(eid) for eid in event_ids)}){time_bounds}")),
+                bind_params,
             )
             rows = result.fetchall()
 

@@ -193,6 +193,7 @@ class AbstractIngestWorker(ABC):
             return 0
 
         inserted_ids: list[int] = []
+        inserted_created_ats: list[Any] = []
         async with self._make_session() as session:
             from sqlalchemy import text
 
@@ -239,6 +240,7 @@ class AbstractIngestWorker(ABC):
                 if not row:
                     continue  # duplicate document_id race condition
                 event_id = row[0]
+                inserted_created_ats.append(normalized["created_at"])
 
                 # Insert dedup record
                 await session.execute(
@@ -273,7 +275,9 @@ class AbstractIngestWorker(ABC):
             try:
                 from app.workers.detection_worker import run_detection_pipeline_task
 
-                run_detection_pipeline_task.delay(inserted_ids)
+                since = min(inserted_created_ats).isoformat() if inserted_created_ats else None
+                until = max(inserted_created_ats).isoformat() if inserted_created_ats else None
+                run_detection_pipeline_task.delay(inserted_ids, since=since, until=until)
                 logger.info(
                     "ingest.detection_chained",
                     event_count=len(inserted_ids),

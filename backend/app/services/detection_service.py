@@ -1716,8 +1716,18 @@ async def run_detection_pipeline(
     session: AsyncSession,
     event_ids: list[int],
     scoped_orgs: list[str] | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
 ) -> PipelineResult:
     """Run the full 8-step detection pipeline for a batch of event IDs.
+
+    ``since``/``until`` are optional, exact ``created_at`` bounds of the
+    batch (callers pass the min/max timestamp of the events being queried).
+    They are provably safe to add as an additional filter — every id in
+    ``event_ids`` is guaranteed to fall within these bounds by construction —
+    and let TimescaleDB prune hypertable chunks instead of scanning all of
+    them, which is otherwise extremely slow for an ``id IN (...)`` filter
+    with no time predicate.
 
     Returns a :class:`PipelineResult` containing the number of new detections
     written and a list of rule IDs that failed evaluation.
@@ -1726,9 +1736,12 @@ async def run_detection_pipeline(
         return PipelineResult()
 
     # Step 1: Fetch events
-    stmt = (
-        select(AuditEvent).where(AuditEvent.id.in_(event_ids)).order_by(AuditEvent.created_at.asc())
-    )
+    stmt = select(AuditEvent).where(AuditEvent.id.in_(event_ids))
+    if since is not None:
+        stmt = stmt.where(AuditEvent.created_at >= since)
+    if until is not None:
+        stmt = stmt.where(AuditEvent.created_at <= until)
+    stmt = stmt.order_by(AuditEvent.created_at.asc())
     result = await session.execute(stmt)
     events = list(result.scalars().all())
     if not events:
