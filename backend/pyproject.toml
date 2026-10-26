@@ -37,7 +37,7 @@ dependencies = [
     "slowapi==0.1.10",
 
     # SQL validation
-    "pglast==7.15",
+    "pglast==7.20",
 
     # GeoIP
     "geoip2==5.2.0",
