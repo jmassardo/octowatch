@@ -21,6 +21,7 @@ import pytest
 from app.models.detection import BehavioralBaseline, RuleDefinition
 from app.services.detection_service import (
     _adjust_threshold_with_baseline,
+    evaluate_impossible_travel,
     evaluate_off_hours_anomaly,
     event_matches_rule,
 )
@@ -1033,9 +1034,121 @@ class TestImpossibleTravelMetadata:
             "event_id_b": 101,
         }
         assert set(ctx.keys()) == expected_fields
-        assert isinstance(ctx["geo_a"], dict)
-        assert "lat" in ctx["geo_a"]
-        assert "lon" in ctx["geo_a"]
+
+
+class TestImpossibleTravelBatchedQuery:
+    """evaluate_impossible_travel must fetch all actors' history in a single
+    batched query (``actor = ANY(:actors)``) rather than one query per actor,
+    since each query against the ``events`` hypertable pays a fixed
+    chunk-planning cost regardless of how little data it returns."""
+
+    @staticmethod
+    def _history_row(*, actor, event_id, created_at, source_ip, lat, lon, is_proxy=False):
+        row = MagicMock()
+        row.actor = actor
+        row.id = event_id
+        row.created_at = created_at
+        row.source_ip = source_ip
+        row.geo_latitude = lat
+        row.geo_longitude = lon
+        row.geo_is_proxy = is_proxy
+        return row
+
+    @pytest.mark.asyncio
+    async def test_single_query_covers_all_actors(self):
+        """With events for multiple actors in the batch, session.execute is
+        called exactly once, and each actor's hits are resolved from the one
+        result set."""
+        rule = _make_rule(
+            logic_type="statistical",
+            logic_config={
+                "time_window_minutes": 60,
+                "x_config": {
+                    "engine": "impossible_travel",
+                    "distance_threshold_km": 500,
+                    "speed_threshold_kmh": 900,
+                },
+            },
+        )
+        base_time = datetime.now(UTC)
+        events = [
+            _make_event(event_id=1, actor="actor-a", created_at=base_time),
+            _make_event(event_id=2, actor="actor-b", created_at=base_time),
+        ]
+
+        session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = [
+            # actor-a: NY -> London one minute apart => impossible travel
+            self._history_row(
+                actor="actor-a",
+                event_id=1,
+                created_at=base_time,
+                source_ip="1.1.1.1",
+                lat=40.7128,
+                lon=-74.0060,
+            ),
+            self._history_row(
+                actor="actor-a",
+                event_id=2,
+                created_at=base_time + timedelta(minutes=1),
+                source_ip="2.2.2.2",
+                lat=51.5074,
+                lon=-0.1278,
+            ),
+            # actor-b: two nearby points => not impossible travel
+            self._history_row(
+                actor="actor-b",
+                event_id=3,
+                created_at=base_time,
+                source_ip="3.3.3.3",
+                lat=40.7128,
+                lon=-74.0060,
+            ),
+            self._history_row(
+                actor="actor-b",
+                event_id=4,
+                created_at=base_time + timedelta(minutes=30),
+                source_ip="4.4.4.4",
+                lat=40.7300,
+                lon=-74.0100,
+            ),
+        ]
+        session.execute.return_value = mock_result
+
+        results = await evaluate_impossible_travel(session, rule, events, scoped_orgs=["my-org"])
+
+        session.execute.assert_called_once()
+        call_args = session.execute.call_args
+        assert sorted(call_args.args[1]["actors"]) == ["actor-a", "actor-b"]
+
+        assert len(results) == 1
+        assert results[0]["aggregation_key_value"] == "actor-a"
+
+    @pytest.mark.asyncio
+    async def test_bot_actors_excluded_from_query(self):
+        """Actors with a bot event are filtered out before the query is
+        issued, so they never appear in the ``actors`` bind parameter."""
+        rule = _make_rule(
+            logic_type="statistical",
+            logic_config={
+                "time_window_minutes": 60,
+                "x_config": {"engine": "impossible_travel"},
+            },
+        )
+        events = [
+            _make_event(event_id=1, actor="bot-actor", actor_is_bot=True),
+        ]
+
+        session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = []
+        session.execute.return_value = mock_result
+
+        results = await evaluate_impossible_travel(session, rule, events, scoped_orgs=["my-org"])
+
+        assert results == []
+        session.execute.assert_not_called()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

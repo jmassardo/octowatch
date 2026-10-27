@@ -462,37 +462,52 @@ async def evaluate_impossible_travel(
         if ev.actor and ev.source_ip:
             actor_events.setdefault(ev.actor, []).append(ev)
 
+    # Drop actors with a known bot event up front so we don't fetch history
+    # for them at all.
+    actor_events = {
+        actor: evs for actor, evs in actor_events.items() if not any(e.actor_is_bot for e in evs)
+    }
+    if not actor_events:
+        return []
+
+    # Fetch all actors' recent event history in a single batched query instead
+    # of one query per actor. Each query against the ``events`` hypertable
+    # pays a fixed planning cost (TimescaleDB must evaluate constraint
+    # exclusion across every chunk) regardless of how little data it returns,
+    # so issuing one query per actor multiplies that fixed cost by the number
+    # of distinct actors in the batch. Batching keeps candidate chunk pruning
+    # (via the shared ``created_at >= :window_start`` bound) while paying the
+    # planning cost once per rule evaluation instead of once per actor.
+    window_start = datetime.now(UTC) - timedelta(minutes=window_minutes)
+    stmt = text("""
+        SELECT id, actor, created_at, source_ip,
+               geo_latitude, geo_longitude, geo_is_proxy
+        FROM events
+        WHERE actor = ANY(:actors)
+          AND created_at >= :window_start
+          AND source_ip IS NOT NULL
+          AND geo_latitude IS NOT NULL
+          AND geo_longitude IS NOT NULL
+          AND (:no_org_filter OR org = ANY(:scoped_orgs))
+        ORDER BY actor, created_at ASC
+    """)
+    result = await session.execute(
+        stmt,
+        {
+            "actors": list(actor_events.keys()),
+            "window_start": window_start,
+            "no_org_filter": not scoped_orgs,
+            "scoped_orgs": scoped_orgs if scoped_orgs else [""],
+        },
+    )
+    rows_by_actor: dict[str, list[Any]] = {}
+    for row in result.fetchall():
+        rows_by_actor.setdefault(row.actor, []).append(row)
+
     results = []
 
-    for actor, actor_evs in actor_events.items():
-        # Pre-check: actor_is_bot
-        if any(e.actor_is_bot for e in actor_evs):
-            continue
-
-        # Fetch all events for this actor in window (scoped to orgs)
-        window_start = datetime.now(UTC) - timedelta(minutes=window_minutes)
-        stmt = text("""
-            SELECT id, created_at, source_ip,
-                   geo_latitude, geo_longitude, geo_is_proxy
-            FROM events
-            WHERE actor = :actor
-              AND created_at >= :window_start
-              AND source_ip IS NOT NULL
-              AND geo_latitude IS NOT NULL
-              AND geo_longitude IS NOT NULL
-              AND (:no_org_filter OR org = ANY(:scoped_orgs))
-            ORDER BY created_at ASC
-        """)
-        result = await session.execute(
-            stmt,
-            {
-                "actor": actor,
-                "window_start": window_start,
-                "no_org_filter": not scoped_orgs,
-                "scoped_orgs": scoped_orgs if scoped_orgs else [""],
-            },
-        )
-        recent_rows = result.fetchall()
+    for actor in actor_events:
+        recent_rows = rows_by_actor.get(actor, [])
 
         if len(recent_rows) < 2:
             continue
