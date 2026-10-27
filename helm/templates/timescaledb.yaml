@@ -96,6 +96,30 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: postgresql
     spec:
+      # Steer the scheduler away from co-locating this Postgres primary with
+      # any worker/beat pod — from this or any other customer namespace
+      # sharing the cluster's nodes. Soft (preferred) so Postgres never
+      # becomes unschedulable when every node already runs some worker pod,
+      # but it discourages the node-contention pattern that caused repeated
+      # outages (worker pods competing with the co-located DB for CPU/IO).
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/component
+                      operator: In
+                      values:
+                        - worker-ingestion
+                        - worker-detection
+                        - worker-baseline
+                        - worker-notification
+                        - worker-sync
+                        - beat
+                namespaceSelector: {}
+                topologyKey: kubernetes.io/hostname
       securityContext:
         fsGroup: 70
         runAsUser: 70

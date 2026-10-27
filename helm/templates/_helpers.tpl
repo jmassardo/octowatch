@@ -111,3 +111,27 @@ Gracefully handles missing serviceAccount values (not required in values.yaml).
 {{- include "octowatch.fullname" . }}
 {{- end }}
 {{- end }}
+
+{{/*
+Soft (preferred) pod anti-affinity steering worker/beat pods away from nodes
+that already run a Postgres primary — from this or any other customer
+namespace sharing the cluster's nodes. Pairs with the matching preference on
+the Postgres primary itself (templates/timescaledb.yaml) so the scheduler
+avoids node-level CPU/IO contention between Celery workers and the DB they
+depend on. Soft so pods never become unschedulable when every node already
+runs a Postgres primary.
+*/}}
+{{- define "octowatch.avoidPostgresAffinity" -}}
+podAntiAffinity:
+  preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/component
+              operator: In
+              values:
+                - postgresql
+        namespaceSelector: {}
+        topologyKey: kubernetes.io/hostname
+{{- end }}
