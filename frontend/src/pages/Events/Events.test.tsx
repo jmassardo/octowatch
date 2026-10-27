@@ -141,17 +141,19 @@ describe('downloadCsv', () => {
   let createObjectURLSpy: ReturnType<typeof vi.fn>;
   let revokeObjectURLSpy: ReturnType<typeof vi.fn>;
   const originalCreateElement = document.createElement.bind(document);
+  // Spy on the real URL.createObjectURL/revokeObjectURL statics directly instead of
+  // replacing the global URL with a plain object — react-router internally calls
+  // `new URL(...)`, so the global must remain a real constructor.
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
 
   beforeEach(() => {
     clickSpy = vi.fn();
     createObjectURLSpy = vi.fn().mockReturnValue('blob:mock-url');
     revokeObjectURLSpy = vi.fn();
 
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL: createObjectURLSpy,
-      revokeObjectURL: revokeObjectURLSpy,
-    });
+    URL.createObjectURL = createObjectURLSpy;
+    URL.revokeObjectURL = revokeObjectURLSpy;
 
     vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
       if (tag === 'a') {
@@ -163,6 +165,8 @@ describe('downloadCsv', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
   });
 
   it('creates a CSV blob and triggers download', () => {
