@@ -186,6 +186,8 @@ spec:
               mountPath: /docker-entrypoint-initdb.d
             - name: run
               mountPath: /var/run/postgresql
+            - name: dshm
+              mountPath: /dev/shm
       volumes:
         - name: init-scripts
           configMap:
@@ -193,6 +195,15 @@ spec:
             defaultMode: 0755
         - name: run
           emptyDir: {}
+        - name: dshm
+          # Default container runtime /dev/shm (64Mi) is too small for
+          # TimescaleDB's parallel-query dynamic shared memory segments —
+          # under concurrent query load this causes DiskFullError. Size
+          # scales with the configured memory limit; override via
+          # timescaledb.shmSize for environments with different sizing.
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.timescaledb.shmSize | default "1Gi" }}
   volumeClaimTemplates:
     - metadata:
         name: data
