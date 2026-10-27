@@ -155,13 +155,16 @@ spec:
                   key: app-password
             - name: PGDATA
               value: "/var/lib/postgresql/data/pgdata"
+          {{- $tsdbResources := (.Values.timescaledb | default dict).resources | default dict }}
+          {{- $tsdbRequests := $tsdbResources.requests | default dict }}
+          {{- $tsdbLimits := $tsdbResources.limits | default dict }}
           resources:
             requests:
-              cpu: "500m"
-              memory: "1Gi"
+              cpu: {{ $tsdbRequests.cpu | default "500m" | quote }}
+              memory: {{ $tsdbRequests.memory | default "1Gi" | quote }}
             limits:
-              cpu: "2000m"
-              memory: "4Gi"
+              cpu: {{ $tsdbLimits.cpu | default "2000m" | quote }}
+              memory: {{ $tsdbLimits.memory | default "4Gi" | quote }}
           readinessProbe:
             exec:
               command:
