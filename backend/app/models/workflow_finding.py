@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, Index, Text, text
+from sqlalchemy import BigInteger, DateTime, Index, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -35,4 +35,7 @@ class WorkflowFinding(Base):
         Index("idx_workflow_findings_repo", "repo", "scanned_at"),
         Index("idx_workflow_findings_org", "org"),
         Index("idx_workflow_findings_severity", "severity"),
+        UniqueConstraint(
+            "repo", "workflow_path", "rule_id", name="uq_workflow_findings_repo_workflow_rule"
+        ),
     )
