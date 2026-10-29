@@ -313,19 +313,7 @@ class TestDetectionWorkerNotificationChain:
         mock_ctx.__aexit__ = AsyncMock(return_value=False)
         mock_session_factory = MagicMock(return_value=mock_ctx)
 
-        # Mock the disposable engine created inside _run_pipeline
-        mock_engine = AsyncMock()
-        mock_engine.dispose = AsyncMock()
-
         with (
-            patch(
-                "sqlalchemy.ext.asyncio.create_async_engine",
-                return_value=mock_engine,
-            ),
-            patch(
-                "sqlalchemy.ext.asyncio.async_sessionmaker",
-                return_value=mock_session_factory,
-            ),
             patch(
                 "app.services.detection_service.run_detection_pipeline",
                 new_callable=AsyncMock,
@@ -336,7 +324,7 @@ class TestDetectionWorkerNotificationChain:
         ):
             mock_pipeline.return_value = mock_pipeline_result
 
-            result = await _run_pipeline([1, 2, 3])
+            result = await _run_pipeline(mock_session_factory, [1, 2, 3])
 
         assert result["detections_written"] == 2
         assert result["detection_ids"] == [100, 200]
