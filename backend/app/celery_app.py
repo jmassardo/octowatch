@@ -110,8 +110,11 @@ app.config_from_object(
                 "options": {"queue": "github_sync"},
             },
             # Workflow security scan — every 6 hours
+            # Uses the paginated backfill task (bounded memory) instead of
+            # scan_all_workflows, which fetchall()s the entire events table
+            # and risks OOM-killing the worker at current table sizes.
             "scan-workflow-security": {
-                "task": "app.workers.workflow_scan_worker.scan_all_workflows",
+                "task": "app.workers.workflow_scan_worker.backfill_workflow_findings_task",
                 "schedule": crontab(minute=0, hour="*/6"),
                 "options": {"queue": "baseline"},
             },
