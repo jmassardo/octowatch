@@ -616,13 +616,21 @@ async def _analyze_events_paginated(
     ``_analyze_events`` ``fetchall()``s the *entire* events table in a single
     query, which OOM-kills the worker once the hypertable grows past a few
     million rows (observed during the 2026-10-29 backlog-drain incident).
-    This walks the table in ``chunk_size``-row windows via keyset
-    pagination on ``id`` (cheap — ``id`` is the hypertable's primary key),
-    discarding each chunk's raw rows once analyzed and keeping only the
-    small deduped-findings dict in memory across the whole run. Upsert
-    semantics are identical/idempotent with the per-event and full-table
-    paths, so it's safe to run alongside or instead of the debounced
-    per-event queue.
+    This walks the table in ``chunk_size``-row windows, discarding each
+    chunk's raw rows once analyzed and keeping only the small
+    deduped-findings dict in memory across the whole run.
+
+    Pagination uses a ``(created_at, id)`` keyset cursor ordered DESC, which
+    (unlike a naive ``id``-only cursor) is backed by the existing
+    ``idx_events_action (action, created_at DESC)`` index already used by
+    every other workflow/action-filtered query in this codebase — an
+    ``id``-only cursor forced a full unindexed scan per chunk and was
+    ~1000x slower in practice (confirmed in the 2026-10-29 incident: 15-25s
+    per 20k-row chunk with ~11.6M total events).
+
+    Upsert semantics are identical/idempotent with the per-event and
+    full-table paths, so it's safe to run alongside or instead of the
+    debounced per-event queue.
     """
     stats = {
         "events_analyzed": 0,
@@ -633,38 +641,42 @@ async def _analyze_events_paginated(
     repos_seen: set[str] = set()
     deduped: dict[tuple[str, str, str], dict] = {}
 
-    last_id = 0
+    _base_query = (
+        "SELECT id, repo, org, data, action, created_at FROM events "
+        "WHERE action IN ("
+        "'workflows.prepared_workflow_job', "
+        "'workflows.completed_workflow_run', "
+        "'workflows.created_workflow_run') "
+    )
+    _first_page_stmt = text(_base_query + "ORDER BY created_at DESC, id DESC LIMIT :limit")
+    _next_page_stmt = text(
+        _base_query
+        + "AND (created_at, id) < (:cursor_created_at, :cursor_id) "
+        + "ORDER BY created_at DESC, id DESC LIMIT :limit"
+    )
+
+    cursor_created_at: datetime | None = None
+    cursor_id: int | None = None
     while True:
+        params: dict[str, Any] = {"limit": chunk_size}
+        if cursor_created_at is None:
+            stmt = _first_page_stmt
+        else:
+            stmt = _next_page_stmt
+            params["cursor_created_at"] = cursor_created_at
+            params["cursor_id"] = cursor_id
+
         async with session_factory() as session:
-            stmt = (
-                select(
-                    text("id"),
-                    text("repo"),
-                    text("org"),
-                    text("data"),
-                    text("action"),
-                )
-                .select_from(text("events"))
-                .where(
-                    text(
-                        "id > :last_id AND action IN ("
-                        "'workflows.prepared_workflow_job', "
-                        "'workflows.completed_workflow_run', "
-                        "'workflows.created_workflow_run')"
-                    )
-                )
-                .order_by(text("id ASC"))
-                .limit(chunk_size)
-            )
-            result = await session.execute(stmt, {"last_id": last_id})
+            result = await session.execute(stmt, params)
             rows = result.fetchall()
 
         if not rows:
             break
 
         stats["chunks_processed"] += 1
-        for event_id, repo, org, data, action in rows:
-            last_id = max(last_id, event_id)
+        for event_id, repo, org, data, action, created_at in rows:
+            cursor_created_at = created_at
+            cursor_id = event_id
             if not repo or not org or not data:
                 continue
             stats["events_analyzed"] += 1
@@ -685,7 +697,7 @@ async def _analyze_events_paginated(
             "workflow_scan.backfill_chunk",
             chunk=stats["chunks_processed"],
             events_analyzed=stats["events_analyzed"],
-            last_id=last_id,
+            cursor_created_at=str(cursor_created_at),
             distinct_findings=len(deduped),
         )
 
