@@ -560,40 +560,162 @@ async def _analyze_events(session_factory: async_sessionmaker[AsyncSession]) -> 
 
     logger.info("workflow_scan.deduped_findings", count=len(deduped))
 
-    # Persist via upsert
-    if deduped:
-        async with session_factory() as session:
-            for finding in deduped.values():
-                values = {
-                    "repo": finding["repo"],
-                    "org": finding["org"],
-                    "workflow_path": finding["workflow_path"],
-                    "rule_id": finding["rule_id"],
-                    "severity": finding["severity"],
-                    "title": finding["title"],
-                    "description": finding["description"],
-                    "details": finding.get("details", {}),
-                    "suggested_fix": finding.get("suggested_fix"),
-                    "scanned_at": datetime.now(UTC),
-                }
-                insert_stmt = pg_insert(WorkflowFinding).values(**values)
-                upsert_stmt = insert_stmt.on_conflict_do_update(
-                    index_elements=["repo", "workflow_path", "rule_id"],
-                    set_={
-                        "severity": values["severity"],
-                        "title": values["title"],
-                        "description": values["description"],
-                        "details": values["details"],
-                        "suggested_fix": values["suggested_fix"],
-                        "scanned_at": values["scanned_at"],
-                    },
-                )
-                await session.execute(upsert_stmt)
-                stats["findings_created"] += 1
-            await session.commit()
-
+    stats["findings_created"] = await _upsert_findings(session_factory, deduped)
     logger.info("workflow_scan.complete", **stats)
     return stats
+
+
+async def _upsert_findings(
+    session_factory: async_sessionmaker[AsyncSession],
+    deduped: dict[tuple[str, str, str], dict],
+) -> int:
+    """Upsert a (repo, workflow_path, rule_id)-deduped findings dict. Returns the count written."""
+    if not deduped:
+        return 0
+
+    written = 0
+    async with session_factory() as session:
+        for finding in deduped.values():
+            values = {
+                "repo": finding["repo"],
+                "org": finding["org"],
+                "workflow_path": finding["workflow_path"],
+                "rule_id": finding["rule_id"],
+                "severity": finding["severity"],
+                "title": finding["title"],
+                "description": finding["description"],
+                "details": finding.get("details", {}),
+                "suggested_fix": finding.get("suggested_fix"),
+                "scanned_at": datetime.now(UTC),
+            }
+            insert_stmt = pg_insert(WorkflowFinding).values(**values)
+            upsert_stmt = insert_stmt.on_conflict_do_update(
+                index_elements=["repo", "workflow_path", "rule_id"],
+                set_={
+                    "severity": values["severity"],
+                    "title": values["title"],
+                    "description": values["description"],
+                    "details": values["details"],
+                    "suggested_fix": values["suggested_fix"],
+                    "scanned_at": values["scanned_at"],
+                },
+            )
+            await session.execute(upsert_stmt)
+            written += 1
+        await session.commit()
+
+    return written
+
+
+async def _analyze_events_paginated(
+    session_factory: async_sessionmaker[AsyncSession],
+    chunk_size: int = 20000,
+) -> dict:
+    """Bounded-memory equivalent of ``_analyze_events`` for one-off backlog backfills.
+
+    ``_analyze_events`` ``fetchall()``s the *entire* events table in a single
+    query, which OOM-kills the worker once the hypertable grows past a few
+    million rows (observed during the 2026-10-29 backlog-drain incident).
+    This walks the table in ``chunk_size``-row windows via keyset
+    pagination on ``id`` (cheap — ``id`` is the hypertable's primary key),
+    discarding each chunk's raw rows once analyzed and keeping only the
+    small deduped-findings dict in memory across the whole run. Upsert
+    semantics are identical/idempotent with the per-event and full-table
+    paths, so it's safe to run alongside or instead of the debounced
+    per-event queue.
+    """
+    stats = {
+        "events_analyzed": 0,
+        "findings_created": 0,
+        "repos_seen": 0,
+        "chunks_processed": 0,
+    }
+    repos_seen: set[str] = set()
+    deduped: dict[tuple[str, str, str], dict] = {}
+
+    last_id = 0
+    while True:
+        async with session_factory() as session:
+            stmt = (
+                select(
+                    text("id"),
+                    text("repo"),
+                    text("org"),
+                    text("data"),
+                    text("action"),
+                )
+                .select_from(text("events"))
+                .where(
+                    text(
+                        "id > :last_id AND action IN ("
+                        "'workflows.prepared_workflow_job', "
+                        "'workflows.completed_workflow_run', "
+                        "'workflows.created_workflow_run')"
+                    )
+                )
+                .order_by(text("id ASC"))
+                .limit(chunk_size)
+            )
+            result = await session.execute(stmt, {"last_id": last_id})
+            rows = result.fetchall()
+
+        if not rows:
+            break
+
+        stats["chunks_processed"] += 1
+        for event_id, repo, org, data, action in rows:
+            last_id = max(last_id, event_id)
+            if not repo or not org or not data:
+                continue
+            stats["events_analyzed"] += 1
+            repos_seen.add(repo)
+
+            if action == "workflows.prepared_workflow_job":
+                findings = _analyze_prepared_job(data, repo, org)
+            elif action == "workflows.completed_workflow_run":
+                findings = _analyze_completed_run(data, repo, org)
+            else:
+                findings = _analyze_created_run(data, repo, org)
+
+            for f in findings:
+                key = (f["repo"], f["workflow_path"], f["rule_id"])
+                deduped.setdefault(key, f)
+
+        logger.info(
+            "workflow_scan.backfill_chunk",
+            chunk=stats["chunks_processed"],
+            events_analyzed=stats["events_analyzed"],
+            last_id=last_id,
+            distinct_findings=len(deduped),
+        )
+
+        if len(rows) < chunk_size:
+            break
+
+    stats["repos_seen"] = len(repos_seen)
+    stats["findings_created"] = await _upsert_findings(session_factory, deduped)
+    logger.info("workflow_scan.backfill_complete", **stats)
+    return stats
+
+
+@celery_app.task(
+    name="app.workers.workflow_scan_worker.backfill_workflow_findings",
+    queue="baseline",
+    bind=True,
+    max_retries=0,
+)
+def backfill_workflow_findings_task(self: Task, chunk_size: int = 20000) -> dict:
+    """One-off bulk backfill: paginated, bounded-memory equivalent of ``scan_all_workflows``.
+
+    Run this to catch ``workflow_findings`` up to date in one bounded-memory
+    pass instead of waiting for the per-event debounced queue to drain
+    event-by-event. Idempotent (same upsert semantics as the per-event
+    path), so it's safe to run while the per-event queue is still draining
+    and/or to re-run.
+    """
+    logger.info("workflow_scan.backfill_started", chunk_size=chunk_size)
+    loop, session_factory = _get_worker_loop_and_session_factory()
+    return loop.run_until_complete(_analyze_events_paginated(session_factory, chunk_size))
 
 
 @celery_app.task(
