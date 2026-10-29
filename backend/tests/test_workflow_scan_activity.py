@@ -19,13 +19,19 @@ from app.workers.workflow_scan_worker import (
 class TestScanWorkflowEventsTaskFiltering:
     """Test that scan_workflow_events_task filters non-workflow events."""
 
-    @patch("app.workers.workflow_scan_worker.asyncio.run")
-    def test_task_calls_scan_specific_events(self, mock_run: MagicMock) -> None:
-        """Task should delegate to _scan_specific_events via asyncio.run."""
-        mock_run.return_value = {"events_received": 3, "workflow_events": 0}
+    @patch("app.workers.workflow_scan_worker._scan_specific_events")
+    @patch("app.workers.workflow_scan_worker._get_worker_loop_and_session_factory")
+    def test_task_calls_scan_specific_events(
+        self, mock_get_loop: MagicMock, mock_scan: MagicMock
+    ) -> None:
+        """Task should delegate to _scan_specific_events via the persistent worker loop."""
+        mock_loop = MagicMock()
+        mock_loop.run_until_complete.return_value = {"events_received": 3, "workflow_events": 0}
+        mock_get_loop.return_value = (mock_loop, MagicMock())
         result = scan_workflow_events_task(event_ids=[1, 2, 3])
         assert result["events_received"] == 3
-        mock_run.assert_called_once()
+        mock_loop.run_until_complete.assert_called_once()
+        mock_scan.assert_called_once()
 
     def test_workflow_actions_contains_expected(self) -> None:
         """WORKFLOW_ACTIONS should contain the expected audit log actions."""

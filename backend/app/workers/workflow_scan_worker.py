@@ -27,32 +27,83 @@ from __future__ import annotations
 import asyncio
 import re
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from celery import Task
+from celery.signals import worker_process_shutdown
 from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
 
 from app.celery_app import celery_app
 from app.models.workflow_finding import WorkflowFinding
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+
 logger = structlog.get_logger(__name__)
 
+# Per-worker-process event loop + pooled engine, mirroring the fix in
+# ``detection_worker.py``. Each task here reads from the same ``events``
+# TimescaleDB hypertable (59+ chunks); opening a disposable ``NullPool``
+# connection per task forces every task to pay a ~150ms-1.2s cold
+# catalog/relcache "planning" tax on its first hypertable query, which is why
+# these trivial single-event scans were taking 15-40s each. Celery's prefork
+# workers execute one task at a time per child process, so a single event
+# loop + pooled engine, created lazily on first use, can safely be reused for
+# every subsequent task in that process.
+_worker_loop: asyncio.AbstractEventLoop | None = None
+_worker_engine: AsyncEngine | None = None
+_worker_session_factory: async_sessionmaker[AsyncSession] | None = None
 
-def _make_session_factory() -> async_sessionmaker[AsyncSession]:
-    from app.config import settings
 
-    engine = create_async_engine(settings.DATABASE_URL, poolclass=NullPool)
-    return async_sessionmaker(
-        bind=engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-        autoflush=False,
-        autocommit=False,
-    )
+def _get_worker_loop_and_session_factory() -> tuple[
+    asyncio.AbstractEventLoop, async_sessionmaker[AsyncSession]
+]:
+    """Return (creating once, lazily) this worker process's persistent loop + sessions."""
+    global _worker_loop, _worker_engine, _worker_session_factory
+
+    if _worker_loop is None:
+        from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+        from app.config import settings
+
+        _worker_loop = asyncio.new_event_loop()
+        _worker_engine = create_async_engine(
+            settings.DATABASE_URL,
+            pool_size=2,
+            max_overflow=2,
+            pool_pre_ping=True,
+            pool_recycle=300,
+            echo=settings.LOG_LEVEL == "DEBUG",
+        )
+        _worker_session_factory = async_sessionmaker(
+            bind=_worker_engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autoflush=False,
+            autocommit=False,
+        )
+
+    assert _worker_session_factory is not None
+    return _worker_loop, _worker_session_factory
+
+
+@worker_process_shutdown.connect
+def _close_worker_loop(**_kwargs: object) -> None:
+    """Dispose the persistent engine/loop when the Celery worker process exits."""
+    global _worker_loop, _worker_engine, _worker_session_factory
+
+    if _worker_loop is None:
+        return
+    try:
+        if _worker_engine is not None:
+            _worker_loop.run_until_complete(_worker_engine.dispose())
+    finally:
+        _worker_loop.close()
+        _worker_loop = None
+        _worker_engine = None
+        _worker_session_factory = None
 
 
 # ── Detection rules applied to audit-log events ─────────────────────────────
@@ -443,12 +494,11 @@ def _analyze_created_run(data: dict[str, Any], repo: str, org: str) -> list[dict
 # ── Main analysis logic ──────────────────────────────────────────────────────
 
 
-async def _analyze_events() -> dict:
+async def _analyze_events(session_factory: async_sessionmaker[AsyncSession]) -> dict:
     """Analyze workflow events in the DB and create findings.
 
     Zero GitHub API calls — reads only from the events table.
     """
-    session_factory = _make_session_factory()
     stats = {
         "events_analyzed": 0,
         "findings_created": 0,
@@ -559,7 +609,8 @@ def scan_all_workflows(self: Task) -> dict:
     No GitHub API calls are made — reads events already in the DB.
     """
     logger.info("workflow_scan.task_started")
-    return asyncio.run(_analyze_events())
+    loop, session_factory = _get_worker_loop_and_session_factory()
+    return loop.run_until_complete(_analyze_events(session_factory))
 
 
 # ── Event-driven scan ────────────────────────────────────────────────────────
@@ -595,7 +646,10 @@ def scan_workflow_events_task(
     chunks instead of scanning the entire hypertable by id alone.
     """
     try:
-        return asyncio.run(_scan_specific_events(event_ids, since, until))
+        loop, session_factory = _get_worker_loop_and_session_factory()
+        return loop.run_until_complete(
+            _scan_specific_events(session_factory, event_ids, since, until)
+        )
     except Exception as exc:
         logger.error(
             "workflow_scan.event_driven_failed",
@@ -606,6 +660,7 @@ def scan_workflow_events_task(
 
 
 async def _scan_specific_events(
+    session_factory: async_sessionmaker[AsyncSession],
     event_ids: list[int],
     since: str | None = None,
     until: str | None = None,
@@ -622,8 +677,6 @@ async def _scan_specific_events(
     7. Update activity record with results
     """
     import redis.asyncio as aioredis
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-    from sqlalchemy.pool import NullPool
 
     from app.config import settings
     from app.models.workflow_scan_activity import WorkflowScanActivity
@@ -636,18 +689,7 @@ async def _scan_specific_events(
         "activities_created": 0,
     }
 
-    tmp_engine = create_async_engine(
-        settings.DATABASE_URL,
-        poolclass=NullPool,
-        echo=settings.LOG_LEVEL == "DEBUG",
-    )
-    tmp_session_factory = async_sessionmaker(
-        bind=tmp_engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-        autoflush=False,
-        autocommit=False,
-    )
+    tmp_session_factory = session_factory
 
     valkey = aioredis.from_url(settings.VALKEY_URL, decode_responses=True)
 
@@ -844,4 +886,3 @@ async def _scan_specific_events(
         return stats
     finally:
         await valkey.aclose()
-        await tmp_engine.dispose()
