@@ -50,6 +50,25 @@ write_files:
       AllowAgentForwarding yes
       AllowTcpForwarding no
 
+  # ── multipath: blacklist Longhorn iSCSI block devices ─────────────────────
+  # multipathd auto-claims Longhorn's "IET,VIRTUAL-DISK" iSCSI LUNs by default,
+  # holding them open and causing ext4 mount failures ("already mounted or
+  # mount point busy") for Longhorn-backed PVCs. These are single-path
+  # Longhorn volumes, never true multipath targets.
+  - path: /etc/multipath.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      defaults {
+          user_friendly_names yes
+      }
+      blacklist {
+          device {
+              vendor "IET"
+              product "VIRTUAL-DISK"
+          }
+      }
+
   # ── containerd config (SystemdCgroup = true) ──────────────────────────────
   - path: /etc/containerd/config.toml
     owner: root:root
@@ -181,6 +200,9 @@ runcmd:
 
   # ── Set hostname ──────────────────────────────────────────────────────────
   - hostnamectl set-hostname "${node_name}"
+
+  # ── Apply multipath blacklist (release any auto-claimed Longhorn LUNs) ────
+  - systemctl restart multipathd || true
 
 %{ if role == "control-plane" }
   # ══════════════════════════════════════════════════════════════════════════

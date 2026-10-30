@@ -21,14 +21,15 @@ terraform {
     }
   }
 
-  # Remote state backend — configured via environment variables in CI/CD.
-  # Uses the existing OctoWatch storage account (no separate tfstate RG needed).
-  # Required env vars or -backend-config flags:
-  #   resource_group_name  = "rg-octowatch-dev"
-  #   storage_account_name = "stoctowatchdevbn3idw"
-  #   container_name       = "tfstate"
-  #   key                  = "octowatch.tfstate"
-  #   access_key           = <storage_account_key>  (ARM_ACCESS_KEY env var)
+  # State backend is LOCAL — there is no CI/CD terraform pipeline and no
+  # confirmed remote state container today (checked rg-octowatch-dev-westus2 /
+  # stoctowatchdevys2c87, the real RG/storage account for this environment;
+  # no "tfstate" container exists there). Whoever runs `terraform apply`
+  # must keep their own terraform.tfstate safe (back it up) until a real
+  # remote backend is set up. The previous comment here named RG/storage
+  # account values (rg-octowatch-dev / stoctowatchdevbn3idw) that don't
+  # exist and never matched a working remote-backend config — don't chase
+  # them again.
   backend "local" {}
 }
 
