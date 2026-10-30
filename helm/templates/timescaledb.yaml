@@ -120,6 +120,18 @@ spec:
                         - beat
                 namespaceSelector: {}
                 topologyKey: kubernetes.io/hostname
+      # The soft anti-affinity above isn't a hard guarantee — a worker pod
+      # re-landed on the same node as a Postgres primary during the 2026-10
+      # backlog incident and starved it of CPU. k8s-node-0 carries a
+      # `dedicated=database:NoSchedule` taint for exactly this reason;
+      # tolerate it so Postgres can still be scheduled there deliberately
+      # while every worker/beat pod (which has no matching toleration)
+      # physically cannot land on it.
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: database
+          effect: NoSchedule
       securityContext:
         fsGroup: 70
         runAsUser: 70
