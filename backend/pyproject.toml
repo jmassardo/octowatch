@@ -29,9 +29,9 @@ dependencies = [
     "redis==8.0.1",
 
     # Auth
-    "authlib==1.7.2",
+    "authlib==1.9.1",
     "python3-saml==1.16.0",
-    "PyJWT==2.13.0",
+    "PyJWT==2.15.1",
 
     # Rate limiting
     "slowapi==0.1.10",
