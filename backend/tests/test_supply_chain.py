@@ -247,6 +247,31 @@ jobs:
         assert len(injection_findings) == 1
 
     @pytest.mark.asyncio
+    async def test_expression_injection_scan_bounded_against_redos(self) -> None:
+        # Regression test for CodeQL alert #45 (py/polynomial-redos): a
+        # crafted run line with many repeated "${{" sequences and no
+        # closing "}" must not cause catastrophic/polynomial backtracking.
+        import time
+
+        malicious_line = "${{" * 50_000
+        content = f"""
+name: Issue Handler
+on: issues
+jobs:
+  greet:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "{malicious_line}"
+"""
+        start = time.monotonic()
+        findings = await analyze_workflow_file(content)
+        elapsed = time.monotonic() - start
+
+        assert elapsed < 2.0
+        injection_findings = [f for f in findings if f.title == "Potential expression injection"]
+        assert len(injection_findings) == 0
+
+    @pytest.mark.asyncio
     async def test_local_action_not_flagged(self) -> None:
         content = """
 name: CI

@@ -42,6 +42,13 @@ _PR_HEAD_REF_RE = re.compile(r"ref[^\\n]*?github\.event\.pull_request\.head")
 _EXPRESSION_INJECTION_RE = re.compile(
     r"\$\{\{[^}]*?github\.event\.(issue|comment|pull_request|discussion)"
 )
+# A ``run:`` line longer than this is truncated before the regex above is
+# applied. CodeQL (py/polynomial-redos, alert #45) flagged the reluctant
+# ``[^}]*?`` quantifier: a crafted workflow line with many repeated ``${{``
+# sequences and no closing ``}`` drives O(n^2) backtracking. Legitimate
+# expression-injection patterns are always short, so bounding the scanned
+# prefix removes the quadratic blow-up without affecting real detections.
+_MAX_INJECTION_SCAN_LEN = 2000
 
 
 # ── Data classes ─────────────────────────────────────────────────────────────
@@ -123,7 +130,7 @@ async def analyze_workflow_file(content: str) -> list[SupplyChainFinding]:
             or stripped.startswith("run: |")
         )
         if is_run:
-            injection_match = _EXPRESSION_INJECTION_RE.search(stripped)
+            injection_match = _EXPRESSION_INJECTION_RE.search(stripped[:_MAX_INJECTION_SCAN_LEN])
             if injection_match:
                 findings.append(
                     SupplyChainFinding(
