@@ -120,6 +120,22 @@ spec:
                         - beat
                 namespaceSelector: {}
                 topologyKey: kubernetes.io/hostname
+          # Hard requirement: never co-locate two Postgres primaries (from
+          # different tenants/namespaces) on the same node. On 2026-10-30,
+          # adding the `dedicated=database` taint/toleration below (with only
+          # one tainted node) caused every tenant's Postgres StatefulSet to
+          # schedule onto that single node simultaneously, pegging it at
+          # load average 111 and starving containerd/Longhorn until pods
+          # became unschedulable. This requires at least as many
+          # `dedicated=database`-tainted nodes as there are Postgres-backed
+          # tenants, or new tenants' Postgres pods will stay Pending.
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: octowatch-postgresql
+                  app.kubernetes.io/component: postgresql
+              namespaceSelector: {}
+              topologyKey: kubernetes.io/hostname
       # The soft anti-affinity above isn't a hard guarantee — a worker pod
       # re-landed on the same node as a Postgres primary during the 2026-10
       # backlog incident and starved it of CPU. k8s-node-0 carries a
