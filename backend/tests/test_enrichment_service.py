@@ -338,6 +338,98 @@ class TestGetDeliveryTimelineStats:
         assert result["median_total_hours"] == 20.0
         assert result["p95_total_hours"] == 48.0
         assert len(result["timelines"]) == 1
+        assert result["bottleneck_phase"] == "dev"
+
+    @pytest.mark.asyncio
+    async def test_empty_orgs_bottleneck_phase_is_none(self) -> None:
+        """Test that an empty org list reports no bottleneck phase."""
+        from app.services.enrichment_service import get_delivery_timeline_stats
+
+        session = AsyncMock()
+        result = await get_delivery_timeline_stats(session, orgs=[], days=30)
+
+        assert result["bottleneck_phase"] is None
+
+    @pytest.mark.asyncio
+    async def test_bottleneck_phase_tie_breaks_to_earlier_phase(self) -> None:
+        """When averages tie, the earlier phase (backlog -> dev -> review ->
+        deploy order) is chosen as the bottleneck."""
+        from app.services.enrichment_service import get_delivery_timeline_stats
+
+        session = AsyncMock()
+
+        mock_stats_row = {
+            "total_prs": 3,
+            "avg_backlog_hours": 10.0,
+            "avg_dev_hours": 10.0,
+            "avg_review_hours": 5.0,
+            "avg_deploy_hours": 1.0,
+            "avg_total_hours": 26.0,
+            "median_total_hours": 26.0,
+            "p95_total_hours": 26.0,
+        }
+
+        call_count = 0
+
+        async def mock_execute(stmt, params=None):
+            nonlocal call_count
+            call_count += 1
+            result = MagicMock()
+            mappings_mock = MagicMock()
+
+            if call_count == 1:
+                mappings_mock.first.return_value = mock_stats_row
+            elif call_count == 2:
+                mappings_mock.all.return_value = []
+
+            result.mappings.return_value = mappings_mock
+            return result
+
+        session.execute = mock_execute
+
+        result = await get_delivery_timeline_stats(session, orgs=["my-org"], days=30)
+
+        assert result["bottleneck_phase"] == "backlog"
+
+    @pytest.mark.asyncio
+    async def test_bottleneck_phase_all_none_returns_none(self) -> None:
+        """When all phase averages are None, bottleneck_phase is None."""
+        from app.services.enrichment_service import get_delivery_timeline_stats
+
+        session = AsyncMock()
+
+        mock_stats_row = {
+            "total_prs": 2,
+            "avg_backlog_hours": None,
+            "avg_dev_hours": None,
+            "avg_review_hours": None,
+            "avg_deploy_hours": None,
+            "avg_total_hours": None,
+            "median_total_hours": None,
+            "p95_total_hours": None,
+        }
+
+        call_count = 0
+
+        async def mock_execute(stmt, params=None):
+            nonlocal call_count
+            call_count += 1
+            result = MagicMock()
+            mappings_mock = MagicMock()
+
+            if call_count == 1:
+                mappings_mock.first.return_value = mock_stats_row
+            elif call_count == 2:
+                mappings_mock.all.return_value = []
+
+            result.mappings.return_value = mappings_mock
+            return result
+
+        session.execute = mock_execute
+
+        result = await get_delivery_timeline_stats(session, orgs=["my-org"], days=30)
+
+        assert result["bottleneck_phase"] is None
 
 
 class TestEnrichmentWorkerTask:
