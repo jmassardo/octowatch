@@ -40,14 +40,19 @@ _PR_TARGET_RE = re.compile(r"pull_request_target", re.IGNORECASE)
 _CHECKOUT_HEAD_RE = re.compile(r"actions/checkout")
 _PR_HEAD_REF_RE = re.compile(r"ref[^\\n]*?github\.event\.pull_request\.head")
 _EXPRESSION_INJECTION_RE = re.compile(
-    r"\$\{\{[^}]*?github\.event\.(issue|comment|pull_request|discussion)"
+    r"\$\{\{[^}]{0,200}?github\.event\.(issue|comment|pull_request|discussion)"
 )
-# A ``run:`` line longer than this is truncated before the regex above is
-# applied. CodeQL (py/polynomial-redos, alert #45) flagged the reluctant
+# CodeQL (py/polynomial-redos, alerts #45 and #46) flagged the reluctant
 # ``[^}]*?`` quantifier: a crafted workflow line with many repeated ``${{``
-# sequences and no closing ``}`` drives O(n^2) backtracking. Legitimate
-# expression-injection patterns are always short, so bounding the scanned
-# prefix removes the quadratic blow-up without affecting real detections.
+# sequences and no closing ``}`` drives O(n^2) backtracking. Bounding only
+# the *scanned prefix* via slicing (below) reduces the runtime cost but
+# doesn't satisfy CodeQL's static analysis, since it still sees an unbounded
+# quantifier applied to a user-controlled value -- hence alert #46 recurring
+# on the same line after the first fix. Capping the quantifier itself at
+# ``{0,200}`` bounds the regex engine's own worst-case work independent of
+# input length, which resolves the alert at the source. Legitimate
+# expression-injection patterns (e.g. ``${{ github.event.issue.title }}``)
+# are a handful of characters, well within this bound.
 _MAX_INJECTION_SCAN_LEN = 2000
 
 
