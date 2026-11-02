@@ -217,6 +217,7 @@ async def get_delivery_timeline_stats(
             "avg_review_hours": None,
             "avg_deploy_hours": None,
             "avg_total_hours": None,
+            "bottleneck_phase": None,
             "timelines": [],
         }
 
@@ -260,6 +261,7 @@ async def get_delivery_timeline_stats(
             "avg_review_hours": None,
             "avg_deploy_hours": None,
             "avg_total_hours": None,
+            "bottleneck_phase": None,
             "timelines": [],
         }
 
@@ -277,18 +279,40 @@ async def get_delivery_timeline_stats(
     timelines_result = await session.execute(timelines_sql, params)
     timelines = [dict(r) for r in timelines_result.mappings().all()]
 
+    avg_backlog_hours = (
+        float(row["avg_backlog_hours"]) if row["avg_backlog_hours"] is not None else None
+    )
+    avg_dev_hours = float(row["avg_dev_hours"]) if row["avg_dev_hours"] is not None else None
+    avg_review_hours = (
+        float(row["avg_review_hours"]) if row["avg_review_hours"] is not None else None
+    )
+    avg_deploy_hours = (
+        float(row["avg_deploy_hours"]) if row["avg_deploy_hours"] is not None else None
+    )
+
+    # Determine the slowest phase, ignoring phases with no data. On a tie,
+    # the first phase in backlog -> dev -> review -> deploy order wins.
+    phase_averages = {
+        "backlog": avg_backlog_hours,
+        "dev": avg_dev_hours,
+        "review": avg_review_hours,
+        "deploy": avg_deploy_hours,
+    }
+    known_phase_averages = {
+        phase: value for phase, value in phase_averages.items() if value is not None
+    }
+    bottleneck_phase = (
+        max(known_phase_averages, key=lambda phase: known_phase_averages[phase])
+        if known_phase_averages
+        else None
+    )
+
     return {
         "total_prs": row["total_prs"],
-        "avg_backlog_hours": float(row["avg_backlog_hours"])
-        if row["avg_backlog_hours"] is not None
-        else None,
-        "avg_dev_hours": float(row["avg_dev_hours"]) if row["avg_dev_hours"] is not None else None,
-        "avg_review_hours": float(row["avg_review_hours"])
-        if row["avg_review_hours"] is not None
-        else None,
-        "avg_deploy_hours": float(row["avg_deploy_hours"])
-        if row["avg_deploy_hours"] is not None
-        else None,
+        "avg_backlog_hours": avg_backlog_hours,
+        "avg_dev_hours": avg_dev_hours,
+        "avg_review_hours": avg_review_hours,
+        "avg_deploy_hours": avg_deploy_hours,
         "avg_total_hours": float(row["avg_total_hours"])
         if row["avg_total_hours"] is not None
         else None,
@@ -298,6 +322,7 @@ async def get_delivery_timeline_stats(
         "p95_total_hours": float(row["p95_total_hours"])
         if row["p95_total_hours"] is not None
         else None,
+        "bottleneck_phase": bottleneck_phase,
         "timelines": timelines,
     }
 

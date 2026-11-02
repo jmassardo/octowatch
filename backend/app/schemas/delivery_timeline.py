@@ -37,4 +37,5 @@ class DeliveryTimelineStats(BaseModel):
     avg_total_hours: float | None = None
     median_total_hours: float | None = None
     p95_total_hours: float | None = None
+    bottleneck_phase: str | None = None
     timelines: list[DeliveryTimelineItem]
