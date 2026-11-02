@@ -291,7 +291,12 @@ class TestCeleryBeatSchedule:
         assert "scan-workflow-security" in schedule
 
         scan_config = schedule["scan-workflow-security"]
-        assert scan_config["task"] == "app.workers.workflow_scan_worker.scan_all_workflows"
+        # Routed to the paginated backfill task (see commit 742b873) to avoid
+        # fetchall()-ing the entire events table, which OOM-killed a worker pod.
+        assert (
+            scan_config["task"]
+            == "app.workers.workflow_scan_worker.backfill_workflow_findings_task"
+        )
         # Verify the schedule is every 6 hours (hour="*/6", minute=0)
         cron = scan_config["schedule"]
         assert {0, 6, 12, 18} == set(cron.hour)
