@@ -7,6 +7,11 @@ from app.models.auth_method import AuthMethodConfig, SessionPolicySetting
 from app.models.automation import AutomationDelivery, AutomationTarget
 from app.models.copilot_metrics import CopilotDailyMetric, CopilotSeatSnapshot
 from app.models.copilot_policy import CopilotPolicy, CopilotPolicyViolation
+from app.models.copilot_session import (
+    CopilotSession,
+    CopilotSessionToolCall,
+    CopilotSessionTurn,
+)
 from app.models.copilot_usage import CopilotUsageReport
 from app.models.correlation import ChainMembership, CorrelationChain
 from app.models.custom_report import CustomReport
@@ -94,6 +99,9 @@ __all__ = [
     "CopilotPolicy",
     "CopilotPolicyViolation",
     "CopilotSeatSnapshot",
+    "CopilotSession",
+    "CopilotSessionToolCall",
+    "CopilotSessionTurn",
     "CopilotUsageReport",
     "CorrelationChain",
     "CustomReport",
