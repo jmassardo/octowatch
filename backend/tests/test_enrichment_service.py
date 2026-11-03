@@ -275,6 +275,111 @@ class TestGetDeliveryTimelineStats:
         assert result["timelines"] == []
 
     @pytest.mark.asyncio
+    async def test_repo_names_empty_list_returns_empty_without_query(self) -> None:
+        """A team with no assigned repos yields an empty result, not an error."""
+        from app.services.enrichment_service import get_delivery_timeline_stats
+
+        session = AsyncMock()
+        result = await get_delivery_timeline_stats(session, orgs=["my-org"], repo_names=[], days=30)
+
+        assert result["total_prs"] == 0
+        assert result["avg_total_hours"] is None
+        assert result["timelines"] == []
+        session.execute.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_repo_names_filters_query_to_team_repos(self) -> None:
+        """Test that repo_names narrows the query to a team's assigned repos."""
+        from app.services.enrichment_service import get_delivery_timeline_stats
+
+        session = AsyncMock()
+        captured_params: list[dict[str, object]] = []
+
+        mock_stats_row = {
+            "total_prs": 1,
+            "avg_backlog_hours": 1.0,
+            "avg_dev_hours": 1.0,
+            "avg_review_hours": 1.0,
+            "avg_deploy_hours": 1.0,
+            "avg_total_hours": 4.0,
+            "median_total_hours": 4.0,
+            "p95_total_hours": 4.0,
+        }
+
+        call_count = 0
+
+        async def mock_execute(stmt, params=None):
+            nonlocal call_count
+            call_count += 1
+            captured_params.append(dict(params or {}))
+            result = MagicMock()
+            mappings_mock = MagicMock()
+
+            if call_count == 1:
+                mappings_mock.first.return_value = mock_stats_row
+            else:
+                mappings_mock.all.return_value = []
+
+            result.mappings.return_value = mappings_mock
+            return result
+
+        session.execute = mock_execute
+
+        result = await get_delivery_timeline_stats(
+            session,
+            orgs=["my-org"],
+            repo_names=["my-org/team-repo-a", "my-org/team-repo-b"],
+            days=30,
+        )
+
+        assert result["total_prs"] == 1
+        assert captured_params[0]["repo_name_0"] == "my-org/team-repo-a"
+        assert captured_params[0]["repo_name_1"] == "my-org/team-repo-b"
+
+    @pytest.mark.asyncio
+    async def test_repo_names_omitted_leaves_existing_behavior_unchanged(self) -> None:
+        """When repo_names is omitted, no repo-name filter params are added."""
+        from app.services.enrichment_service import get_delivery_timeline_stats
+
+        session = AsyncMock()
+        captured_params: list[dict[str, object]] = []
+
+        mock_stats_row = {
+            "total_prs": 1,
+            "avg_backlog_hours": 1.0,
+            "avg_dev_hours": 1.0,
+            "avg_review_hours": 1.0,
+            "avg_deploy_hours": 1.0,
+            "avg_total_hours": 4.0,
+            "median_total_hours": 4.0,
+            "p95_total_hours": 4.0,
+        }
+
+        call_count = 0
+
+        async def mock_execute(stmt, params=None):
+            nonlocal call_count
+            call_count += 1
+            captured_params.append(dict(params or {}))
+            result = MagicMock()
+            mappings_mock = MagicMock()
+
+            if call_count == 1:
+                mappings_mock.first.return_value = mock_stats_row
+            else:
+                mappings_mock.all.return_value = []
+
+            result.mappings.return_value = mappings_mock
+            return result
+
+        session.execute = mock_execute
+
+        result = await get_delivery_timeline_stats(session, orgs=["my-org"], days=30)
+
+        assert result["total_prs"] == 1
+        assert not any(key.startswith("repo_name_") for key in captured_params[0])
+
+    @pytest.mark.asyncio
     async def test_stats_with_data(self) -> None:
         """Test that stats are returned correctly when data exists."""
         from app.services.enrichment_service import get_delivery_timeline_stats

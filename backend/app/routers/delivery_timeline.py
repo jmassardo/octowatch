@@ -43,7 +43,7 @@ async def _resolve_orgs(
     summary="Get delivery timeline metrics",
     description=(
         "Returns aggregated delivery timeline statistics showing average phase "
-        "durations for merged PRs. Supports filtering by repo and time window."
+        "durations for merged PRs. Supports filtering by repo, team, and time window."
     ),
 )
 async def get_delivery_timeline(
@@ -51,14 +51,20 @@ async def get_delivery_timeline(
     current_user: AuthenticatedUser = Depends(require_permission("delivery_timeline", "view")),
     repo: str | None = Query(default=None, description="Filter by repository name"),
     days: int = Query(default=30, ge=1, le=365, description="Lookback window in days"),
+    team_id: int | None = Query(default=None, description="Filter to a team's assigned repos"),
 ) -> dict[str, Any]:
     """Return aggregated delivery timeline metrics for the authenticated user's orgs."""
     orgs = await _resolve_orgs(db, current_user)
+
+    repo_names: list[str] | None = None
+    if team_id is not None:
+        repo_names = await rbac_service.get_team_repo_scope(db, team_id)
 
     stats = await get_delivery_timeline_stats(
         db,
         orgs=orgs,
         repo=repo,
+        repo_names=repo_names,
         days=days,
     )
     return stats

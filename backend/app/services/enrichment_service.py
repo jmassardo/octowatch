@@ -195,6 +195,7 @@ async def get_delivery_timeline_stats(
     *,
     orgs: list[str],
     repo: str | None = None,
+    repo_names: list[str] | None = None,
     days: int = 30,
 ) -> dict[str, object]:
     """Get aggregated delivery timeline statistics for given orgs.
@@ -203,13 +204,17 @@ async def get_delivery_timeline_stats(
         session: Async database session.
         orgs: List of organizations to include (RBAC-scoped).
         repo: Optional repository filter.
+        repo_names: Optional list of repo names to filter to (e.g. a team's
+            assigned repos). An empty list means the caller resolved a scope
+            with no repos, so the result is an empty stats payload rather
+            than an unfiltered query.
         days: Number of days to look back (default 30).
 
     Returns:
         Dictionary with aggregated metrics including averages, percentiles,
         and per-repo breakdowns.
     """
-    if not orgs:
+    if not orgs or repo_names == []:
         return {
             "total_prs": 0,
             "avg_backlog_hours": None,
@@ -232,6 +237,10 @@ async def get_delivery_timeline_stats(
     if repo:
         where_clause += " AND repo = :repo"
         params["repo"] = repo
+    if repo_names:
+        repo_name_placeholders = ", ".join(f":repo_name_{i}" for i in range(len(repo_names)))
+        where_clause += f" AND repo IN ({repo_name_placeholders})"
+        params.update({f"repo_name_{i}": name for i, name in enumerate(repo_names)})
 
     # Aggregated stats
     stats_sql = text(f"""
