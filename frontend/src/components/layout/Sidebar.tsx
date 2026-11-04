@@ -398,6 +398,19 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             Engineering Velocity
           </NavItem>
         )}
+        {hasPermission('delivery_timeline', 'view') && (
+          <NavItem
+            to="/delivery-timeline"
+            onClick={onMobileClose}
+            icon={
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M1.5 8a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0zM8 0a8 8 0 100 16A8 8 0 008 0zm.5 4.75a.75.75 0 00-1.5 0v3.5c0 .199.079.39.22.53l2.25 2.25a.75.75 0 101.06-1.06L8.5 7.94z" />
+              </svg>
+            }
+          >
+            Delivery Timeline
+          </NavItem>
+        )}
         {features.dev_activity && hasPermission('dev_activity', 'view') && (
           <NavItem
             to="/devactivity"

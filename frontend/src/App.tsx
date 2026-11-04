@@ -10,6 +10,7 @@ import { ThreatsPage } from './pages/Threats';
 import { EventsPage } from './pages/Events';
 import { EventDetailPage } from './pages/Events/EventDetailPage';
 import { VelocityPage } from './pages/Velocity';
+import { DeliveryTimelinePage } from './pages/DeliveryTimeline';
 import { DevActivityPage } from './pages/DevActivity';
 import { CopilotPage } from './pages/Copilot';
 import { ReportsPage } from './pages/Reports';
@@ -124,6 +125,7 @@ export const router = createBrowserRouter([
       { path: '/packages/:tab', element: <PackagesPage /> },
       { path: '/playbooks', element: <PlaybooksPage /> },
       { path: '/velocity', element: <VelocityPage /> },
+      { path: '/delivery-timeline', element: <DeliveryTimelinePage /> },
       { path: '/devactivity', element: <DevActivityPage /> },
       {
         path: '/user-behavior',
