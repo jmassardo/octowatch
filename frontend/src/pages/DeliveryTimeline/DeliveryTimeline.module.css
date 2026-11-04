@@ -1,0 +1,99 @@
+.page {
+}
+
+.metricStrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.calloutBox {
+  background: rgba(var(--attention-rgb), 0.08);
+  border: 1px solid rgba(var(--attention-rgb), 0.3);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.calloutBody {
+  flex: 1;
+}
+
+.calloutTitle {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--attention);
+  margin-bottom: 4px;
+}
+
+.calloutDesc {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.chartsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.chartWrap {
+  background: var(--canvas-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.chartTitle {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.chartSub {
+  color: var(--fg-subtle);
+  font-weight: 400;
+}
+
+.chartSkeleton {
+  height: 160px;
+  background: linear-gradient(
+    90deg,
+    var(--canvas-inset) 25%,
+    var(--canvas-subtle) 50%,
+    var(--canvas-inset) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+.emptyState {
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .chartsGrid {
+    grid-template-columns: 1fr;
+  }
+}
