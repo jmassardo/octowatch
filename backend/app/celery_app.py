@@ -166,6 +166,12 @@ app.config_from_object(
                 "schedule": 300.0,
                 "options": {"queue": "ingestion"},
             },
+            # Copilot Chat session API polling — every 15 minutes
+            "poll-copilot-sessions": {
+                "task": "app.workers.ingestion.copilot_session_worker.poll_copilot_sessions",
+                "schedule": 900.0,
+                "options": {"queue": "ingestion"},
+            },
             # Automation retry failed deliveries — every 5 minutes
             "automation-retry-failed": {
                 "task": "app.workers.automation_worker.retry_failed_deliveries",
@@ -196,6 +202,7 @@ app.conf.include = [
     "app.workers.ingestion.base",
     "app.workers.ingestion.s3_worker",
     "app.workers.ingestion.azure_worker",
+    "app.workers.ingestion.copilot_session_worker",
     "app.workers.ingest_webhook_worker",
     "app.workers.siem_export_worker",
     "app.workers.ingestion_health",
