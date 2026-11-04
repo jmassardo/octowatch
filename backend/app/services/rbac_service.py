@@ -640,6 +640,30 @@ def inject_scope_predicate(
     return stmt
 
 
+async def get_team_repo_scope(
+    session: AsyncSession,
+    team_id: int,
+) -> list[str]:
+    """Return the distinct repo names assigned to a team's role assignments.
+
+    Mirrors the team-inherited scope resolution used in ``get_user_scope``:
+    reads ``TeamRoleAssignment.repo_slugs`` for the given team and flattens
+    the per-assignment repo lists into a single deduplicated list.
+
+    Returns an empty list when the team has no repo-scoped role assignments
+    (callers should treat this as "no repo scope", not an error).
+    """
+    stmt = select(TeamRoleAssignment.repo_slugs).where(TeamRoleAssignment.team_id == team_id)
+    result = await session.execute(stmt)
+
+    repos: list[str] = []
+    for (repo_slugs,) in result.fetchall():
+        if repo_slugs and isinstance(repo_slugs, list):
+            repos.extend(repo_slugs)
+
+    return list(set(repos))
+
+
 async def get_scoped_orgs(
     session: AsyncSession,
     user: _ScopedUser,
