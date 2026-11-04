@@ -1,0 +1,40 @@
+[
+  {
+    "name": "Copilot Session High Tool-Call Volume",
+    "slug": "copilot-session-high-tool-call-volume",
+    "description": "Detects Copilot Chat sessions with an unusually high tool_call_count for the actor, which can indicate automated/scripted use of an interactive assistant to enumerate or exfiltrate repository data.",
+    "category": "ai_abuse",
+    "default_severity": "medium",
+    "default_confidence": "medium",
+    "logic_type": "statistical",
+    "logic_config": {
+      "x_config": {
+        "engine": "copilot_tool_call_volume",
+        "z_multiplier": 3.0,
+        "fallback_threshold": 20
+      },
+      "time_window_minutes": 60,
+      "confidence": 0.55
+    },
+    "created_by": "system"
+  },
+  {
+    "name": "Copilot Session Duration Anomaly",
+    "slug": "copilot-session-duration-anomaly",
+    "description": "Detects Copilot Chat sessions whose duration_seconds is far outside the norm for the actor (both unusually long and unusually short), which can indicate automated/scripted use or credential sharing.",
+    "category": "ai_abuse",
+    "default_severity": "low",
+    "default_confidence": "medium",
+    "logic_type": "statistical",
+    "logic_config": {
+      "x_config": {
+        "engine": "copilot_session_duration_anomaly",
+        "z_multiplier": 3.0,
+        "fallback_threshold": 3600
+      },
+      "time_window_minutes": 60,
+      "confidence": 0.5
+    },
+    "created_by": "system"
+  }
+]

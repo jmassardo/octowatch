@@ -13,6 +13,7 @@ from sqlalchemy import or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_event import AuditEvent
+from app.models.copilot_session import CopilotSession
 from app.models.detection import (
     BehavioralBaseline,
     Detection,
@@ -28,6 +29,12 @@ from app.models.github_sync import (
 from app.services.geoip_service import haversine_km, is_impossible_travel
 
 logger = structlog.get_logger(__name__)
+
+# Statistical-rule engines evaluated against Copilot session rows (#387, #509)
+# rather than audit events. See run_copilot_session_detection.
+_COPILOT_SESSION_ENGINES = frozenset(
+    {"copilot_tool_call_volume", "copilot_session_duration_anomaly"}
+)
 
 
 @dataclass
@@ -3047,3 +3054,388 @@ def evaluate_rule_against_event(
         "reason": "Event matches all rule conditions",
         "matched_fields": matched_fields,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Copilot session anomaly detection (#387, #509)
+#
+# Two initial rules, scoped intentionally small per #509 — the remaining
+# rules suggested in the parent epic #387 (e.g. unusual model/editor usage,
+# token-volume spikes) are deferred to a follow-up issue.
+#
+# These evaluate ``copilot_sessions`` rows (added in #505) rather than
+# ``AuditEvent`` rows, so they are not dispatched from the per-event
+# ``run_detection_pipeline`` loop. Instead ``run_copilot_session_detection``
+# follows the same "evaluate current state, not an event batch" shape as
+# ``run_posture_assessment`` while reusing the same statistical z-score
+# approach (``BehavioralBaseline`` + ``compute_confidence_score``) as
+# ``evaluate_off_hours_anomaly``, and the same suppression/dedup/severity
+# plumbing (``check_suppression``, ``find_existing_detection``,
+# ``resolve_severity``) as every other rule type in this module.
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+async def evaluate_copilot_tool_call_volume(
+    session: AsyncSession,
+    rule: RuleDefinition,
+    sessions: list[CopilotSession],
+) -> list[dict[str, Any]]:
+    """Flag Copilot sessions with an unusually high ``tool_call_count``.
+
+    Compares each session's tool-call count against the actor's (falling
+    back to the org's) ``copilot_tool_call_count`` behavioral baseline using
+    the same mean/stddev z-score approach as ``evaluate_off_hours_anomaly``.
+    When no baseline exists yet (cold start), falls back to a fixed
+    ``fallback_threshold`` from the rule config so the rule still provides
+    coverage before baselines have accumulated enough history.
+    """
+    config = rule.logic_config
+    x_config = config.get("x_config", {})
+    z_multiplier = float(x_config.get("z_multiplier", 3.0))
+    fallback_threshold = int(x_config.get("fallback_threshold", 20))
+
+    results: list[dict[str, Any]] = []
+    for cs in sessions:
+        if cs.tool_call_count is None or not cs.actor:
+            continue
+
+        org = cs.org or ""
+        actor_scope = f"actor:{cs.actor}:org:{org}"
+        baseline = await _load_baseline(session, "actor", actor_scope, "copilot_tool_call_count")
+        if baseline is None and org:
+            baseline = await _load_baseline(session, "org", f"org:{org}", "copilot_tool_call_count")
+
+        if baseline is not None:
+            mean = baseline.mean
+            stddev = baseline.stddev if baseline.stddev > 0 else 1.0
+            upper_bound = mean + z_multiplier * stddev
+            if cs.tool_call_count <= upper_bound:
+                continue
+            z_score: float | None = (cs.tool_call_count - mean) / stddev
+            baseline_type = baseline.baseline_type
+            baseline_scope = baseline.scope_key
+        else:
+            if cs.tool_call_count <= fallback_threshold:
+                continue
+            mean = None
+            stddev = None
+            z_score = None
+            baseline_type = "fixed_threshold"
+            baseline_scope = "none"
+
+        results.append(
+            {
+                "aggregation_key_value": cs.actor,
+                "context_data": {
+                    "session_id": cs.session_id,
+                    "tool_call_count": cs.tool_call_count,
+                    "baseline_mean": round(mean, 2) if mean is not None else None,
+                    "baseline_stddev": round(stddev, 2) if stddev is not None else None,
+                    "z_score": round(z_score, 2) if z_score is not None else None,
+                    "z_multiplier": z_multiplier,
+                    "fallback_threshold": fallback_threshold,
+                    "baseline_type": baseline_type,
+                    "baseline_scope": baseline_scope,
+                    "repository": cs.repository,
+                },
+                "event_ids": [],
+                "window_start": cs.created_at,
+                "window_end": cs.created_at,
+                "org": org,
+            }
+        )
+
+    return results
+
+
+async def evaluate_copilot_session_duration_anomaly(
+    session: AsyncSession,
+    rule: RuleDefinition,
+    sessions: list[CopilotSession],
+) -> list[dict[str, Any]]:
+    """Flag Copilot sessions whose ``duration_seconds`` is far outside the norm.
+
+    Unlike the tool-call-volume rule, this flags sessions both far *above*
+    and far *below* the actor's normal duration: an abnormally short session
+    with a high tool-call count (or an abnormally long one) can both be
+    signals of scripted/automated use of an interactive assistant. Uses the
+    same actor-then-org baseline fallback and fixed-threshold cold-start
+    behavior as ``evaluate_copilot_tool_call_volume``.
+    """
+    config = rule.logic_config
+    x_config = config.get("x_config", {})
+    z_multiplier = float(x_config.get("z_multiplier", 3.0))
+    fallback_threshold = int(x_config.get("fallback_threshold", 3600))
+
+    results: list[dict[str, Any]] = []
+    for cs in sessions:
+        if cs.duration_seconds is None or not cs.actor:
+            continue
+
+        org = cs.org or ""
+        actor_scope = f"actor:{cs.actor}:org:{org}"
+        baseline = await _load_baseline(
+            session, "actor", actor_scope, "copilot_session_duration_seconds"
+        )
+        if baseline is None and org:
+            baseline = await _load_baseline(
+                session, "org", f"org:{org}", "copilot_session_duration_seconds"
+            )
+
+        if baseline is not None:
+            mean = baseline.mean
+            stddev = baseline.stddev if baseline.stddev > 0 else 1.0
+            lower_bound = mean - z_multiplier * stddev
+            upper_bound = mean + z_multiplier * stddev
+            if lower_bound <= cs.duration_seconds <= upper_bound:
+                continue
+            z_score: float | None = abs(cs.duration_seconds - mean) / stddev
+            baseline_type = baseline.baseline_type
+            baseline_scope = baseline.scope_key
+        else:
+            if cs.duration_seconds <= fallback_threshold:
+                continue
+            mean = None
+            stddev = None
+            z_score = None
+            baseline_type = "fixed_threshold"
+            baseline_scope = "none"
+
+        results.append(
+            {
+                "aggregation_key_value": cs.actor,
+                "context_data": {
+                    "session_id": cs.session_id,
+                    "duration_seconds": cs.duration_seconds,
+                    "baseline_mean": round(mean, 2) if mean is not None else None,
+                    "baseline_stddev": round(stddev, 2) if stddev is not None else None,
+                    "z_score": round(z_score, 2) if z_score is not None else None,
+                    "z_multiplier": z_multiplier,
+                    "fallback_threshold": fallback_threshold,
+                    "baseline_type": baseline_type,
+                    "baseline_scope": baseline_scope,
+                    "repository": cs.repository,
+                },
+                "event_ids": [],
+                "window_start": cs.created_at,
+                "window_end": cs.created_at,
+                "org": org,
+            }
+        )
+
+    return results
+
+
+async def _write_copilot_session_anomaly_detection(
+    session: AsyncSession,
+    rule: RuleDefinition,
+    hit: dict[str, Any],
+    orgs: list[str],
+    *,
+    action: str,
+    metric_label: str,
+    metric_key: str,
+) -> int | None:
+    """Write a Copilot session anomaly detection. Returns the new ID, or None if suppressed/dup."""
+    actor = hit["aggregation_key_value"]
+    ctx = hit.get("context_data", {})
+    config = rule.logic_config
+
+    suppression = await check_suppression(session, rule.id, actor, hit.get("org"), None)
+    if suppression:
+        return None
+
+    window_minutes = config.get("time_window_minutes", 60)
+    existing = await find_existing_detection(session, rule.id, actor, window_minutes)
+    if existing:
+        return None
+
+    severity = await resolve_severity(session, action, rule.default_severity)
+    base_conf = float(config.get("confidence", 0.55))
+    z_score = ctx.get("z_score")
+    score, tier = compute_confidence_score(
+        base_conf,
+        actor_has_baseline=ctx.get("baseline_type") != "fixed_threshold",
+        z_score=z_score,
+        z_threshold=float(ctx.get("z_multiplier", 3.0)),
+    )
+
+    metric_value = ctx.get(metric_key)
+    if ctx.get("baseline_type") == "fixed_threshold":
+        comparison = f"fixed threshold ({ctx.get('fallback_threshold')})"
+    else:
+        comparison = (
+            f"baseline mean={ctx.get('baseline_mean')}, stddev={ctx.get('baseline_stddev')}, "
+            f"z-score={z_score:.1f}"
+            if z_score is not None
+            else "baseline"
+        )
+
+    detection = Detection(
+        rule_id=rule.id,
+        rule_version=rule.version,
+        severity=severity,
+        confidence=tier,
+        confidence_score=score,
+        title=f"Anomalous Copilot {metric_label} — {actor}",
+        description=(
+            f"Copilot session {ctx.get('session_id', 'unknown')} for actor {actor} "
+            f"had {metric_label} of {metric_value}, outside the normal range "
+            f"({comparison})."
+        ),
+        actor=actor,
+        org=hit.get("org") or (orgs[0] if orgs else None),
+        repo=ctx.get("repository"),
+        event_ids=hit.get("event_ids", []),
+        context_data=ctx,
+        window_start=hit.get("window_start"),
+        window_end=hit.get("window_end"),
+    )
+    session.add(detection)
+    await session.flush()
+    return detection.id
+
+
+async def run_copilot_session_detection(
+    session: AsyncSession,
+    scoped_orgs: list[str] | None = None,
+    since: datetime | None = None,
+) -> int:
+    """Evaluate Copilot session statistical rules against recent sessions (#387, #509).
+
+    Unlike ``run_detection_pipeline`` (audit events) and
+    ``run_posture_assessment`` (synced metadata), this evaluates
+    ``copilot_sessions`` rows (#505) for anomalous tool-call volume and
+    session duration. Intended to be invoked periodically (e.g. from Celery
+    beat), mirroring how ``run_posture_assessment`` is scheduled; wiring that
+    schedule is left to the ingestion/worker lane (#507) since it is outside
+    this issue's file allowlist.
+
+    Returns the number of new detections created.
+    """
+    rules_result = await session.execute(
+        select(RuleDefinition).where(
+            RuleDefinition.enabled.is_(True),
+            RuleDefinition.status == "active",
+            RuleDefinition.logic_type == "statistical",
+        )
+    )
+    rules = [
+        r
+        for r in rules_result.scalars().all()
+        if r.logic_config.get("x_config", {}).get("engine") in _COPILOT_SESSION_ENGINES
+    ]
+    if not rules:
+        return 0
+
+    window_minutes = max(
+        (int(r.logic_config.get("time_window_minutes", 60)) for r in rules), default=60
+    )
+    window_start = since or (datetime.now(UTC) - timedelta(minutes=window_minutes))
+
+    sessions_result = await session.execute(
+        select(CopilotSession).where(CopilotSession.created_at >= window_start)
+    )
+    copilot_sessions = list(sessions_result.scalars().all())
+    if scoped_orgs:
+        copilot_sessions = [
+            cs for cs in copilot_sessions if cs.org in scoped_orgs or cs.org is None
+        ]
+    if not copilot_sessions:
+        return 0
+
+    orgs = scoped_orgs or sorted({cs.org for cs in copilot_sessions if cs.org})
+    detections_written = 0
+
+    for rule in rules:
+        engine = rule.logic_config.get("x_config", {}).get("engine")
+        try:
+            if engine == "copilot_tool_call_volume":
+                hits = await evaluate_copilot_tool_call_volume(session, rule, copilot_sessions)
+                for hit in hits:
+                    det_id = await _write_copilot_session_anomaly_detection(
+                        session,
+                        rule,
+                        hit,
+                        orgs,
+                        action="copilot.session_high_tool_call_volume",
+                        metric_label="tool-call volume",
+                        metric_key="tool_call_count",
+                    )
+                    if det_id is not None:
+                        detections_written += 1
+
+            elif engine == "copilot_session_duration_anomaly":
+                hits = await evaluate_copilot_session_duration_anomaly(
+                    session, rule, copilot_sessions
+                )
+                for hit in hits:
+                    det_id = await _write_copilot_session_anomaly_detection(
+                        session,
+                        rule,
+                        hit,
+                        orgs,
+                        action="copilot.session_duration_anomaly",
+                        metric_label="session duration",
+                        metric_key="duration_seconds",
+                    )
+                    if det_id is not None:
+                        detections_written += 1
+        except Exception as exc:
+            logger.error(
+                "detection.copilot_session_rule_failed",
+                rule_id=rule.id,
+                rule_slug=rule.slug,
+                engine=engine,
+                error=str(exc),
+                exc_info=True,
+            )
+
+    return detections_written
+
+
+async def seed_copilot_session_rules(session: AsyncSession) -> int:
+    """Seed Copilot session detection rules from the fixture file (#387, #509).
+
+    Follows the same seeding pattern as
+    ``supply_chain_service.seed_supply_chain_rules``: inserts rules whose
+    slug does not already exist, returning the number of newly created
+    rules.
+    """
+    import json
+    from pathlib import Path
+
+    fixture_path = (
+        Path(__file__).resolve().parent.parent / "fixtures" / "copilot_session_rules.json"
+    )
+    with open(fixture_path) as f:
+        rules_data: list[dict[str, Any]] = json.load(f)
+
+    created = 0
+    for rule in rules_data:
+        existing = await session.execute(
+            text("SELECT id FROM rule_definitions WHERE slug = :slug"),
+            {"slug": rule["slug"]},
+        )
+        if existing.scalar() is not None:
+            continue
+
+        new_rule = RuleDefinition(
+            name=rule["name"],
+            slug=rule["slug"],
+            description=rule["description"],
+            category=rule["category"],
+            default_severity=rule["default_severity"],
+            default_confidence=rule["default_confidence"],
+            logic_type=rule["logic_type"],
+            logic_config=rule["logic_config"],
+            created_by=rule.get("created_by", "system"),
+        )
+        session.add(new_rule)
+        created += 1
+
+    if created > 0:
+        await session.flush()
+        logger.info("seeded copilot session rules", created=created)
+
+    return created
